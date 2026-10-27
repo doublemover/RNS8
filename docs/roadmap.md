@@ -145,9 +145,9 @@ No new campaign or route promotion follows from completing this implementation.
 
 Broader compiler/ABI/package/runner checks and native Linux command/session
 rehearsals remain under #57/#58/#60/#61. The selected Git candidate remains
-uninstalled. Conditional FP4/FP6/dynamic-scale contracts and M3 distributed
-transports are separately gated extensions; they are not silently advertised as
-supported by the current FP8 or modulus-sharded owners. There are 40 open issues;
+uninstalled. Explicit gfx950 FP4/FP6/FP8 fixed/dynamic/mixed-format kernels are
+implemented under a conditional instruction model, with live qualification
+pending. M3 distributed transports remain a separately gated extension. There are 40 open issues;
 child acceptance gates remain the roadmap's retirement criterion.
 
 ## Stop conditions for hardware work

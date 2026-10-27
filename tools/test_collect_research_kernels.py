@@ -12,14 +12,14 @@ class ResearchCapture(unittest.TestCase):
         case = dict(schema='finite_fp8_public_case_v1' if fp8 else 'native_tdm_case_v1', m=17, n=19, k=33,
                     mode='fp8' if fp8 else 'multicast4', repeats=3, warmups=1, seed=52645)
         case.update(dict(modulus=251, residency='repeated-ab') if fp8 else dict(prefix=9, group=4, signed_input=True, compute='wmma', cluster_axis='moduli'))
-        c = dict(schema='rns8_public_fp8_microcase_v1' if fp8 else 'rns8_native_tdm_microcase_v1', case=case,
+        c = dict(schema='rns8_public_fp8_microcase_v2' if fp8 else 'rns8_native_tdm_microcase_v1', case=case,
                  run_id='synthetic-not-evidence', exact_reference_passed=True, oracle_inside_production_interval=False,
                  target_qualified=False, performance_qualified=False, promotion_eligible=False, target='gfx942' if fp8 else 'gfx1250',
                  device='synthetic', runtime_version=1, setup_us=10,
                  sustained=[dict(calls=16, total_us=250000, per_call_us=15625, minimum_duration_reached=True) for _ in range(3)])
         if fp8:
             sample = dict(prepare_us=1, execute_us=2, export_us=3, cleanup_us=0, total_us=6)
-            c.update(format='amd_e4m3_fnuz', conditional_instruction_model=True, retained_recipe_device_bytes=4, method_actual=0, dataset='affine_finite_bytes_v1',
+            c.update(scale_blocks=0,scale_barriers=0,product_count=4,scale_policy='unscaled',scale_schedule_sha256='',format='amd_e4m3_fnuz', conditional_instruction_model=True, retained_recipe_device_bytes=4, method_actual=0, dataset='affine_finite_bytes_v1',
                      host_instrumentation_state='hooks_disabled', native_useful_products=17*19*33, output_boundary='complete_public_finite_product_and_padded_export',
                      backend_actual='hip-direct', a_checksum='a'*64, b_checksum='b'*64, output_checksum='c'*64, certificate_sha256='a'*64, first_call=sample, samples=[copy.deepcopy(sample) for _ in range(3)])
         else:
@@ -71,11 +71,26 @@ class ResearchCapture(unittest.TestCase):
     def test_ocp_three_product_accounting_and_format_binding(self):
         c, entry=self.fixture(True)
         entry['case']['mode']='fp8-ocp-three-materialized'
-        c.update(target='gfx1201',format='ocp_e4m3',method_actual=3,
+        c.update(target='gfx1201',format='ocp_e4m3',method_actual=3,product_count=3,
                  retained_recipe_device_bytes=4+12*17*19)
         self.assertEqual(validate_capture(c,entry),c)
         for key,value in (('format','amd_e4m3_fnuz'),('target','gfx942'),
                           ('method_actual',1),('retained_recipe_device_bytes',4+16*17*19)):
+            bad=copy.deepcopy(c);bad[key]=value
+            with self.assertRaises(ValueError):validate_capture(bad,entry)
+
+    def test_mixed_dynamic_scale_accounting(self):
+        from mxfp_contract import mode_contract,scale_schedule
+        import hashlib
+        c,entry=self.fixture(True);entry['case']['mode']='mxfp8-fp4-dynamic-materialized'
+        mx=mode_contract(entry['case']['mode']);schedule=scale_schedule(mx['identity'],33,True)
+        c.update(target='gfx950',format=mx['format'],method_actual=1,product_count=8,
+                 scale_blocks=1,scale_barriers=1,scale_policy='dynamic_reset128',
+                 scale_schedule_sha256=hashlib.sha256(bytes(x%256 for x in schedule)).hexdigest(),
+                 retained_recipe_device_bytes=6+32*17*19)
+        self.assertEqual(validate_capture(c,entry),c)
+        for key,value in (('scale_blocks',0),('scale_barriers',0),('product_count',4),
+                          ('scale_schedule_sha256','a'*64),('target','gfx1201')):
             bad=copy.deepcopy(c);bad[key]=value
             with self.assertRaises(ValueError):validate_capture(bad,entry)
 

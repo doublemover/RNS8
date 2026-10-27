@@ -44,9 +44,9 @@ rules instead of creating independent public contracts.
 
 Packed INT4/IU4 has an explicit opt-in finite-ring owner with certified signed
 nibbles and generation-bound packed B; it does not enable new public integer
-semantics or change ordinary finite dispatch. The [gfx942 FNUZ FP8 owner](../fp8-modular-research.md)
-implements one explicit conditional research form. FP4/FP6, other FP8 formats and Ozaki retain
-separate arithmetic/instruction/ISA gates under #45/#46. The
+semantics or change ordinary finite dispatch. The [explicit floating owner](../fp8-modular-research.md) implements gfx942 FNUZ,
+gfx1201 OCP and gfx950 FP4/FP6/FP8 fixed/dynamic/mixed forms. Their actual target
+arithmetic/instruction/ISA qualification and Ozaki remain separate gates under #45/#46. The
 [specification](../RNS8_RESEARCH_SPEC.md#17-technique-decisions-and-retirement-rules)
 keeps their retirement and production criteria.
 

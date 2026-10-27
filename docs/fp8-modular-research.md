@@ -67,9 +67,8 @@ python tools/collect_research_kernels.py --binary build/rns8-fp8-calibrate --cas
 Explicit `--execute` starts a new collection when hardware/validation is
 authorized. Counterbalanced independent processes bind artifact/build/runtime
 and actual format; unsupported exits are not measurements. No captures or
-speedups are asserted here. FP4, FP6, dynamic scales and mixed-format
-expressions require separate qualified contracts, beyond the current
-[issue45](https://github.com/doublemover/RNS8/issues/45) form.
+speedups are asserted here. The separately implemented CDNA4 source contracts
+below cover FP4/FP6/dynamic and mixed formats; live qualification remains open.
 
 Instruction/format references: [LLVM builtins](https://clang.llvm.org/docs/AMDGPUBuiltinReference.html),
 [AMD CDNA3 MFMA guide](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/develop/compiler-builtins/cdna/cdna3-dense-mfma-builtins.html),
@@ -112,3 +111,70 @@ The reviewed [official FP8 source blob](https://api.github.com/repos/ROCm/rocm-b
 is identified by Git blob `add24ccf438a24f30094e4de98858f005aa503f8` (the blob
 identity, not a commit revision). Compile-only assembly emits the named MFMA and
 WMMA instructions; actual accumulator/lane behavior still requires those GPUs.
+
+
+## CDNA4 FP4, FP6, dynamic scales and mixed formats
+
+Formats3-10 of the same explicit research owner use the real
+`__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4` opcode on `gfx950`.
+The implementation follows the [CDNA4 ISA, sections6.7 and7.1.5](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-cdna4-instruction-set-architecture.pdf)
+and [LLVM builtin interface](https://clang.llvm.org/docs/AMDGPUBuiltinReference.html).
+The compile-time operand selectors are E4M3=0, E2M3=2, E3M2=3 and E2M1=4.
+Each operand uses its own physical map: FP4/FP6 lane groups own32 contiguous K
+values; FP8 groups own16 values followed by another16 at K+64. Mixed formats
+therefore load different logical K coordinates into the same register-item index.
+The source map follows ISA printed pages51-52; CPU bijections and explicit lane
+anchors cover both layouts.
+
+| Public format | A / B | Digit decomposition | Product count |
+|---|---|---|---:|
+| 3 | FP4 E2M1 / E2M1 | radix4 / radix4 | 16 |
+| 4 | FP6 E2M3 / E2M3 | radix8 / radix8 | 9 |
+| 5 | FP6 E3M2 / E3M2 | radix8 / radix8 | 9 |
+| 6 | FP8 E4M3 / E4M3 | radix16 / radix16 | 4 |
+| 7,8 | E4M3 / E2M1, or reversed | radix16 / radix4 | 8 |
+| 9,10 | E2M3 / E2M1, or reversed | radix8 / radix4 | 12 |
+
+Balanced digits cover all signed storage bytes, including -128. Four radix4
+digits use magnitudes at most2, three radix8 digits at most4, and two radix16
+digits at most8. Each operand is encoded directly as an exact dyadic value;
+no lossy native-to-floating conversion is used. Methods0/1 select fused integer
+recombination or retained INT32 product-residue planes. The conditional model
+and actual code-object probe remain separate; unsupported targets reject.
+
+Optional `a_scale_exponents`, `b_scale_exponents` and `scale_count` bind one
+signed exponent per ceil(K/128) instruction block. Both arrays are copied at
+preparation and included in the model identity. Each 128-term instruction uses
+one scale for all its 32-element scale granules. E8M0 bias127 encodes numeric
+one as127; the hardware scale register repeats that byte in all four quarters.
+The physical digit encoding divides by the chosen power of two exactly, so
+applying the instruction scale recovers the same logical digit. Admission
+rejects any exponent that cannot represent the complete promised alphabet.
+Allowed exponents are FP4 [-1,1], E2M3 [0,3], E3M2 [-2,4] and E4M3 [-5,9].
+
+Every product accumulator starts at zero for each 128-term block. Its finite,
+integral, magnitude-checked result is converted and reduced before applying
+integer radix weights and merging with earlier blocks. No floating carry crosses
+scale regimes. Tiny/large scale changes, opposite scale order, cancellation,
+zero terms and a partial final granule therefore share a precisely stated
+reset/conversion boundary. Under the explicit instruction model, every proper
+partial has magnitude at most8192; that arithmetic bound alone does not certify
+internal hardware rounding or scale application order.
+
+Retained device bytes are4+2*ceil(K/128), plus4*product_count*M*N for method1.
+An additional2*ceil(K/128) host bytes retain the scale source through safe cleanup.
+The operation query reports this cost and safe_k128. Info exposes scale blocks,
+mandatory reset boundaries, operand selectors and product count. Failed copies,
+launches or drains use the same resource retention/publication policy as FP8;
+no failed result becomes current. None of these formats joins AUTO.
+
+The compact catalogue includes fixed/dynamic fused/materialized `mxfp*` modes.
+Capture schema `rns8_public_fp8_microcase_v2` requires scale policy, scale schedule
+hash, product count, reset count and complete retained-byte accounting. The
+collector rejects mismatched target, mode, scales or omitted reset cost.
+`tools/mxfp_contract.py` reuses the exact floating decoder to prove the named
+alphabet/scale encodings and integer reconstruction model. Authored CPU and
+HIP fixtures cover every byte, all supported exponent extremes, prime/composite
+moduli, padded tails around32/128 and multi-block K65537, with Boost output
+references. At this source pass only syntax/compile checks have run; gfx950
+execution, internal arithmetic adversaries and measured comparisons remain open.

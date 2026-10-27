@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include "backend_common/sha256.hpp"
+#include "backend_common/mxfp_modular.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include <chrono>
 #include <array>
@@ -31,9 +32,23 @@ int main(int argc,char** argv){try {
   const uint32_t m=number(c,"m",1,512),n=number(c,"n",1,512),k=number(c,"k",1,131073),modulus=number(c,"modulus",2,256),repeats=number(c,"repeats",3,100),warmups=number(c,"warmups",1,100);
   if(std::string(argv[2]).empty() || std::string(argv[2]).size()>128 || std::string(argv[2]).find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")!=std::string::npos)throw std::invalid_argument("run id");
   const uint32_t seed=number(c,"seed",0,UINT32_MAX);const std::string mode=c.at("mode"),residency=c.at("residency");
-  if((mode!="int8" && mode!="fp8" && mode!="fp8-materialized" && mode!="fp8-three" && mode!="fp8-three-materialized" && mode!="fp8-ocp" && mode!="fp8-ocp-materialized" && mode!="fp8-ocp-three" && mode!="fp8-ocp-three-materialized") || (residency!="cold" && residency!="repeated-b" && residency!="repeated-ab"))throw std::invalid_argument("mode/residency");
-  const uint32_t format=mode.find("ocp")!=std::string::npos?2:1;
+  static constexpr const char* mx_names[]{"mxfp4","mxfp6e2","mxfp6e3","mxfp8","mxfp8-fp4","mxfp4-fp8","mxfp6-fp4","mxfp4-fp6"};
+  uint32_t format=mode.find("ocp")!=std::string::npos?2:1;
   const uint32_t method=(mode.find("three")!=std::string::npos?2:0)+(mode.find("materialized")!=std::string::npos?1:0);
+  std::string base=mode;const std::string suffix="-materialized",dynamic_suffix="-dynamic";
+  if(base.size()>=suffix.size() && base.compare(base.size()-suffix.size(),suffix.size(),suffix)==0)base.resize(base.size()-suffix.size());
+  const bool dynamic=base.size()>=dynamic_suffix.size() && base.compare(base.size()-dynamic_suffix.size(),dynamic_suffix.size(),dynamic_suffix)==0;
+  if(dynamic)base.resize(base.size()-dynamic_suffix.size());
+  for(unsigned i=0;i<8;++i)if(base==mx_names[i])format=i+3;
+  if((format<3 && mode!="int8" && mode!="fp8" && mode!="fp8-materialized" && mode!="fp8-three" && mode!="fp8-three-materialized" && mode!="fp8-ocp" && mode!="fp8-ocp-materialized" && mode!="fp8-ocp-three" && mode!="fp8-ocp-three-materialized") ||
+      (residency!="cold" && residency!="repeated-b" && residency!="repeated-ab"))throw std::invalid_argument("mode/residency");
+  const uint64_t blocks=format>=3?(uint64_t(k)+127)/128:0;
+  const uint32_t product_count=mode=="int8"?1:format>=3?rns8::detail::mxfp_modular::terms(format):method>=2?3:4;
+  std::vector<int8_t> scales(size_t(2*blocks),0);
+  if(format>=3 && dynamic) {
+    const auto pair=rns8::detail::mxfp_modular::pair(format);const auto af=rns8::detail::mxfp_modular::format(pair.a),bf=rns8::detail::mxfp_modular::format(pair.b);
+    for(size_t i=0;i<blocks;++i){scales[i]=int8_t(i%3==0?af.min_scale:i%3==1?af.max_scale:0);scales[size_t(blocks)+i]=int8_t(i%3==0?bf.max_scale:i%3==1?bf.min_scale:0);}
+  }
   if(uint64_t(m)*n*k>134217728)throw std::invalid_argument("complete oracle work budget");
   std::vector<uint8_t> a(size_t(m)*(k+1),0xa5),b(size_t(k)*(n+2),0xa5),out(size_t(m)*(n+3),0xa5),expected(size_t(m)*n);
   for(uint32_t r=0;r<m;++r)for(uint32_t q=0;q<k;++q)a[size_t(r)*(k+1)+q]=uint8_t((uint64_t(r)*71+uint64_t(q)*19+seed)%modulus);
@@ -45,7 +60,7 @@ int main(int argc,char** argv){try {
     check(rns8_create_plan(owner->ctx,&d,&owner->plan));check(rns8_create_workspace(owner->ctx,owner->plan,&owner->work));
     auto matrix=[&](uint32_t rows,uint32_t cols,rns8_matrix** result){rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=d.semantics;md.bound_kind=RNS8_BOUND_NONE;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.rows=rows;md.cols=cols;md.logical_ld=cols;check(rns8_create_matrix(owner->ctx,&md,result));};
     matrix(m,k,&owner->a);matrix(k,n,&owner->b);matrix(m,n,&owner->c);++generation;check(rns8_pack_finite_u8(owner->ctx,owner->a,modulus,a.data(),k+1,generation));check(rns8_pack_finite_u8(owner->ctx,owner->b,modulus,b.data(),n+2,generation));
-    if(mode!="int8"){rns8_fp8_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;desc.format=format;desc.flags=RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL;desc.method=method;desc.max_preparation_bytes=4+((method&1)?uint64_t(m)*n*(method>=2?12:16):0);check(rns8_prepare_fp8_recipe(owner->ctx,owner->plan,&desc,&owner->recipe));
+    if(mode!="int8"){rns8_fp8_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;desc.format=format;desc.flags=RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL;desc.method=method;desc.max_preparation_bytes=4+2*blocks+((method&1)?uint64_t(m)*n*4*product_count:0);if(dynamic){desc.a_scale_exponents=scales.data();desc.b_scale_exponents=scales.data()+blocks;desc.scale_count=blocks;}check(rns8_prepare_fp8_recipe(owner->ctx,owner->plan,&desc,&owner->recipe));
       rns8_fp8_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;check(rns8_get_fp8_info(owner->recipe,&info));retained=info.retained_device_bytes;certificate=info.certificate_sha256;}
     rns8_device_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(owner->ctx,&info));target=info.gcn_arch;device=info.name;runtime=info.hip_runtime_version;return owner;};
   const auto setup_start=Clock::now();auto owner=create();const double setup=us(setup_start,Clock::now());
@@ -62,9 +77,10 @@ int main(int argc,char** argv){try {
   auto first=phase_json(call());verify();for(uint32_t i=0;i<warmups;++i)call(false);json samples=json::array();for(uint32_t i=0;i<repeats;++i){samples.push_back(phase_json(call()));verify();}
   json sustained=json::array();for(unsigned observation=0;observation<3;++observation){uint64_t calls=0;const auto start=Clock::now();do{call(false);++calls;}while(calls<4096 && (calls<16 || us(start,Clock::now())<250000));const double total=us(start,Clock::now());verify();sustained.push_back({{"calls",calls},{"total_us",total},{"per_call_us",total/calls},{"minimum_duration_reached",total>=250000}});}
   if(owner)check(owner->close());
-  std::cout<<json({{"schema","rns8_public_fp8_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},
+  std::cout<<json({{"schema","rns8_public_fp8_microcase_v2"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},
     {"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"dataset","affine_finite_bytes_v1"},{"a_checksum",checksum(a)},{"b_checksum",checksum(b)},{"output_checksum",checksum(out)},{"backend_actual","hip-direct"},{"host_instrumentation_state","hooks_disabled"},
     {"output_boundary","complete_public_finite_product_and_padded_export"},{"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},
-    {"retained_recipe_device_bytes",retained},{"method_actual",method},{"format",mode!="int8"?(format==1?"amd_e4m3_fnuz":"ocp_e4m3"):"signed_int8"},{"conditional_instruction_model",mode!="int8"},{"target_qualified",false},{"performance_qualified",false},{"certificate_sha256",certificate},
+    {"scale_blocks",blocks},{"scale_barriers",blocks},{"product_count",product_count},{"scale_policy",format>=3?(dynamic?"dynamic_reset128":"fixed_reset128"):"unscaled"},{"scale_schedule_sha256",blocks?checksum(scales):""},
+    {"retained_recipe_device_bytes",retained},{"method_actual",method},{"format",mode!="int8"?(format>=3?"gfx950_"+base:format==1?"amd_e4m3_fnuz":"ocp_e4m3"):"signed_int8"},{"conditional_instruction_model",mode!="int8"},{"target_qualified",false},{"performance_qualified",false},{"certificate_sha256",certificate},
     {"native_useful_products",uint64_t(m)*n*k},{"exact_reference_passed",true},{"oracle_inside_production_interval",false},{"promotion_eligible",false}}).dump(2)<<'\n';return 0;
 }catch(const std::domain_error& error){std::cerr<<error.what()<<'\n';return 77;}catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}}

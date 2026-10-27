@@ -8,6 +8,8 @@ import statistics
 import uuid
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
+from mxfp_contract import mode_contract,modes,scale_schedule
+import hashlib
 from collect_native_calibration import strict_json
 from collect_int4_calibration import collection_plan, positive
 
@@ -28,7 +30,7 @@ def validate_case(c):
     if c['m']*c['n']*c['k'] > 134217728:
         raise ValueError('complete oracle work budget')
     if fp8:
-        if c['mode'] not in ('int8', 'fp8', 'fp8-materialized', 'fp8-three', 'fp8-three-materialized', 'fp8-ocp', 'fp8-ocp-materialized', 'fp8-ocp-three', 'fp8-ocp-three-materialized') or c['residency'] not in ('cold', 'repeated-ab', 'repeated-b'):
+        if c['mode'] not in ('int8', 'fp8', 'fp8-materialized', 'fp8-three', 'fp8-three-materialized', 'fp8-ocp', 'fp8-ocp-materialized', 'fp8-ocp-three', 'fp8-ocp-three-materialized') + modes() or c['residency'] not in ('cold', 'repeated-ab', 'repeated-b'):
             raise ValueError('FP8 mode/residency')
     elif c['mode'] not in ('ordinary', 'tdm', 'multicast2', 'multicast4') or c['group'] not in (1, 2, 4) or type(c['signed_input']) is not bool:
         raise ValueError('TDM mode/group/domain')
@@ -45,7 +47,7 @@ def _equal(c, fixed):
 
 def validate_capture(c, entry):
     case = validate_case(entry['case']); validate_case(c.get('case')); fp8 = case['schema'] == 'finite_fp8_public_case_v1'
-    _equal(c, dict(schema='rns8_public_fp8_microcase_v1' if fp8 else 'rns8_native_tdm_microcase_v1',
+    _equal(c, dict(schema='rns8_public_fp8_microcase_v2' if fp8 else 'rns8_native_tdm_microcase_v1',
                    case=case, run_id=entry['run_id'], exact_reference_passed=True,
                    oracle_inside_production_interval=False, target_qualified=False,
                    performance_qualified=False, promotion_eligible=False))
@@ -61,15 +63,22 @@ def validate_capture(c, entry):
     if fp8:
         candidate = case['mode'] != 'int8'
         ocp = 'ocp' in case['mode']; three = 'three' in case['mode']; materialized = 'materialized' in case['mode']
+        mx=mode_contract(case['mode']) if case['mode'].startswith('mxfp') else None
         method = 2*int(three)+int(materialized)
-        _equal(c, dict(format=('ocp_e4m3' if ocp else 'amd_e4m3_fnuz') if candidate else 'signed_int8', conditional_instruction_model=candidate,
-                       method_actual=method, retained_recipe_device_bytes=(4+((12 if three else 16)*case['m']*case['n'] if materialized else 0)) if candidate else 0, dataset='affine_finite_bytes_v1',
+        blocks=(case['k']+127)//128 if mx else 0
+        products=mx['product_count'] if mx else 3 if three else 4 if candidate else 1
+        schedule=scale_schedule(mx['identity'],case['k'],mx['dynamic']) if mx else []
+        _equal(c,dict(scale_blocks=blocks,scale_barriers=blocks,product_count=products,
+                      scale_policy=('dynamic_reset128' if mx['dynamic'] else 'fixed_reset128') if mx else 'unscaled',
+                      scale_schedule_sha256=hashlib.sha256(bytes(x%256 for x in schedule)).hexdigest() if mx else ''))
+        _equal(c, dict(format=(mx['format'] if mx else 'ocp_e4m3' if ocp else 'amd_e4m3_fnuz') if candidate else 'signed_int8', conditional_instruction_model=candidate,
+                       method_actual=method, retained_recipe_device_bytes=(4+2*blocks+(4*products*case['m']*case['n'] if materialized else 0)) if candidate else 0, dataset='affine_finite_bytes_v1',
                        host_instrumentation_state='hooks_disabled', native_useful_products=case['m']*case['n']*case['k'],
                        output_boundary='complete_public_finite_product_and_padded_export', backend_actual='hip-direct'))
         for key in ('a_checksum', 'b_checksum', 'output_checksum'):
             if re.fullmatch('[0-9a-f]{64}', c.get(key, '')) is None:
                 raise ValueError('complete data checksum')
-        if candidate and (c['target'].split(':')[0] != ('gfx1201' if ocp else 'gfx942') or re.fullmatch('[0-9a-f]{64}', c.get('certificate_sha256', '')) is None):
+        if candidate and (c['target'].split(':')[0] != ('gfx950' if mx else 'gfx1201' if ocp else 'gfx942') or re.fullmatch('[0-9a-f]{64}', c.get('certificate_sha256', '')) is None):
             raise ValueError('specific FP8 target/format/model identity')
         for sample in [c.get('first_call', {}), *c['samples']]:
             phases = [sample.get(k) for k in ('prepare_us', 'execute_us', 'export_us', 'cleanup_us')]

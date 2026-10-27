@@ -13,6 +13,7 @@
 
 #include "core/api_internal.hpp"
 #include "backend_common/complex_residue_plan.hpp"
+#include "backend_common/mxfp_modular.hpp"
 #include "backend_common/resident_transfer_plan.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"

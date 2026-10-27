@@ -540,6 +540,7 @@ extern "C" int rns8_hip_finite_indexed_window(const int8_t* a,const int8_t* b,in
 
 #include "hip_direct_instruction_roof.cuh"
 #include "hip_direct_fp8_modular.cuh"
+#include "hip_direct_mxfp_modular.cuh"
 #include "hip_direct_native_tdm.cuh"
 
 extern "C" int rns8_hip_export_quarter_crt(const int8_t* residues,uint64_t* output,int cells,int prefix,int digits,int limbs,int mode) {

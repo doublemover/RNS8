@@ -1000,25 +1000,45 @@ RNS8_API rns8_status rns8_get_int4_info(const rns8_int4_recipe*,rns8_int4_info*)
 RNS8_API rns8_status rns8_gemm_int4(rns8_int4_recipe*,const rns8_matrix* a,rns8_matrix* c,rns8_workspace*);
 RNS8_API rns8_status rns8_destroy_int4_recipe(rns8_int4_recipe*);
 
-/* Explicit research finite-ring FP8 owner. Named gfx942 FNUZ and gfx1201 OCP are
- * implemented. Four exact balanced-radix16 products cover every signed byte;
+/* Explicit research finite-ring floating owner. Named gfx942 FNUZ, gfx1201
+ * OCP and gfx950 scaled FP4/FP6/FP8/mixed forms are implemented. Exact digit
+ * decompositions cover every signed storage byte;
  * no default exact API selects it. The caller must explicitly acknowledge
  * the named instruction model; that acknowledgement is not qualification.
  * Preparation probes the actual code object, not its numerical behavior.
  * Failed undrainable preparation may return a cleanup-only owner. */
 #define RNS8_FP8_GFX942_E4M3_FNUZ 1u
 #define RNS8_FP8_GFX1201_E4M3_OCP 2u
+#define RNS8_MXFP_GFX950_E2M1 3u
+#define RNS8_MXFP_GFX950_E2M3 4u
+#define RNS8_MXFP_GFX950_E3M2 5u
+#define RNS8_MXFP_GFX950_E4M3 6u
+#define RNS8_MXFP_GFX950_E4M3_E2M1 7u
+#define RNS8_MXFP_GFX950_E2M1_E4M3 8u
+#define RNS8_MXFP_GFX950_E2M3_E2M1 9u
+#define RNS8_MXFP_GFX950_E2M1_E2M3 10u
 #define RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL 1u
 typedef struct rns8_fp8_recipe rns8_fp8_recipe;
 typedef struct rns8_fp8_desc {
   uint64_t struct_size;
-  uint32_t abi_version,format,flags,method; /* 0/1 four-product fused/materialized; 2/3 three-product fused/materialized */
+  uint32_t abi_version,format,flags,method; /* gfx942/1201: 0/1 four-product, 2/3 three-product; gfx950: 0/1 digit products; even=fused, odd=materialized */
   uint64_t max_preparation_bytes;
+  /* gfx950 only: optional signed power-of-two exponents for ceil(K/128)
+   * instruction blocks, copied during preparation. Both pointers and count must
+   * be present together, or all zero for fixed numeric-one scales. Encoded
+   * operands are divided by these scales exactly; no rounding is permitted.
+   * FP4 exponent range [-1,1], E2M3 [0,3], E3M2 [-2,4], E4M3 [-5,9].
+   * gfx942/gfx1201 require all three fields zero. gfx950 methods are 0/1. */
+  const int8_t* a_scale_exponents;
+  const int8_t* b_scale_exponents;
+  uint64_t scale_count;
 } rns8_fp8_desc;
 typedef struct rns8_fp8_info {
   uint64_t struct_size;
   uint32_t abi_version,format,modulus,model_proven,target_qualified,performance_qualified,pending_cleanup,method;
   uint64_t safe_k,retained_device_bytes;
+  uint64_t scale_blocks,scale_barriers;
+  uint32_t lhs_format_selector,rhs_format_selector,product_count;
   char certificate_sha256[65],target_id[128];
 } rns8_fp8_info;
 RNS8_API rns8_status rns8_prepare_fp8_recipe(rns8_context*,const rns8_plan*,const rns8_fp8_desc*,rns8_fp8_recipe**);

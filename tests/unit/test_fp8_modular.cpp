@@ -48,3 +48,36 @@ TEST_CASE("FP8 publication guard rejects nonfinite fractional and out-of-model p
     REQUIRE(rns8::detail::fp8_modular::integer_partial(value,result));CHECK(result==int(value));
   }
 }
+
+#include "backend_common/mxfp_modular.hpp"
+TEST_CASE("CDNA4 sub-byte digits and dynamic scales preserve every signed byte", "[fp8][mxfp][cpu]") {
+  namespace f=rns8::detail::mxfp_modular;
+  for(unsigned selector:{0u,2u,3u,4u})REQUIRE(f::Layout::bijective(selector));
+  REQUIRE(f::Layout::a(16,0,0).col==16);REQUIRE(f::Layout::a(0,16,0).col==64);
+  REQUIRE(f::Layout::a(16,0,4).col==32);REQUIRE(f::Layout::a(0,16,2).col==16);
+  for(unsigned selector:{0u,2u,3u,4u}) {
+    const auto format=f::format(selector);
+    for(int value=-128;value<=127;++value) {
+      int reconstructed=0;
+      for(unsigned d=0;d<format.digits;++d) {
+        const int digit=f::digit(value,d,selector);reconstructed+=digit*(1<<(d*format.radix_bits));
+        for(int scale=format.min_scale;scale<=format.max_scale;++scale) {
+          const auto decoded=f::decode(f::encode(digit,selector,scale),selector,scale);
+          const int numerator=decoded.exponent>=0?decoded.numerator*(1<<decoded.exponent):decoded.numerator;
+          const int denominator=decoded.exponent<0?1<<-decoded.exponent:1;
+          REQUIRE(numerator==digit*denominator);
+        }
+      }
+      REQUIRE(reconstructed==value);
+    }
+  }
+  for(unsigned id=3;id<=10;++id) {
+    const auto pair=f::pair(id);const auto a=f::format(pair.a),b=f::format(pair.b);
+    for(int x=-128;x<=127;++x)for(int y=-128;y<=127;++y) {
+      int reconstructed=0;
+      for(unsigned left=0;left<a.digits;++left)for(unsigned right=0;right<b.digits;++right)
+        reconstructed+=f::digit(x,left,pair.a)*f::digit(y,right,pair.b)*f::weight(left*b.digits+right,id);
+      REQUIRE(reconstructed==x*y);
+    }
+  }
+}

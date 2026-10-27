@@ -32,4 +32,22 @@ class Fp8Models(unittest.TestCase):
         for value in (17,-17,1.5):
             with self.assertRaises(ValueError):encode(value)
 
+class MxfpModels(unittest.TestCase):
+    def test_all_formats_scales_and_bindings(self):
+        from mxfp_contract import certificate,exact_code,FORMATS,PAIRS,digits
+        from floating_contract import decode_scale
+        for identity in PAIRS:
+            c=certificate(identity,'a'*64,'synthetic-compiler')
+            self.assertTrue(c['arithmetic_model_proven']);self.assertFalse(c['target_qualified'])
+            self.assertEqual(c['safe_k'],128)
+        for selector,(name,bits,count,low,high) in FORMATS.items():
+            for value in range(-128,128):
+                self.assertEqual(sum(d*(1<<(i*bits)) for i,d in enumerate(digits(value,selector))),value)
+            for scale in (low,high):
+                for digit in range(-(1<<(bits-1)),1+(1<<(bits-1))):
+                    code=exact_code(digit,selector,scale)
+                    self.assertEqual(decode_element(name,code)*decode_scale(scale+127),digit)
+        with self.assertRaises(ValueError):exact_code(1,4,2)
+        with self.assertRaises(ValueError):exact_code(4,2,-1)
+
 if __name__=='__main__':unittest.main()
