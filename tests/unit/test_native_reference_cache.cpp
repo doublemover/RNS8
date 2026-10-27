@@ -67,3 +67,16 @@ TEST_CASE("integer reference cache distinguishes wrap finite and signed wide sem
   REQUIRE_THROWS(verify_integer_reference(1,1,1,1,sa,sb,corrupted,{ReferenceSemantics::wide_signed,0,2},directory.path.string(),false));
   REQUIRE_THROWS(verify_integer_reference(1,1,1,1,sa,sb,wide,{ReferenceSemantics::wide_unsigned,0,2},directory.path.string(),false));
 }
+
+TEST_CASE("reference payload budgets fall back to full streaming comparison", "[native-reference-cache]") {
+  using namespace rns8::bench;ReferenceDirectory directory;
+  const std::vector<uint64_t> a{2,3},b{4},c{8,12};const ReferenceContract bounded{ReferenceSemantics::bounded_u64};
+  const auto budget=reference_cache_header_bytes+8; // One word fits; this result has two.
+  const auto result=verify_integer_reference(2,1,1,1,a,b,c,bounded,directory.path.string(),false,budget);
+  CHECK(result.method=="boost_cpp_int_full_integer_reference");CHECK(result.checked_cells==2);CHECK(result.payload_sha256.empty());
+  CHECK(std::filesystem::is_empty(directory.path));
+  auto bad=c;bad[1]^=1;
+  REQUIRE_THROWS(verify_integer_reference(2,1,1,1,a,b,bad,bounded,directory.path.string(),false,budget));
+  REQUIRE_THROWS(verify_integer_reference(2,1,1,1,a,b,c,bounded,directory.path.string(),true,budget));
+  CHECK(std::filesystem::is_empty(directory.path));
+}

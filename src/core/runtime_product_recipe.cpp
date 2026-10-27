@@ -55,7 +55,7 @@ struct RuntimeProductRecipe::Impl {
   uint64_t lift_scratch=0;
   std::shared_ptr<const ExperimentalBasis> basis;
   OrderedBasisIdentity basis_identity;
-  bool experimental=false,packet_uploaded=false;
+  bool experimental=false;
   uint64_t packet_offset=0;
   int lift_status=0;
   ProductPrefixSelection selection;
@@ -262,6 +262,18 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     auto result=std::unique_ptr<RuntimeProductRecipe>(new RuntimeProductRecipe(std::move(state)));
     result->impl_->holds.assign(holds.begin(),holds.end());
     for(auto* hold:result->impl_->holds) ++*hold;
+    if(ctx->backend==RNS8_BACKEND_HIP_DIRECT && result->impl_->experimental && result->impl_->lift_scratch) {
+      auto& retained=*result->impl_;
+      auto* packet=static_cast<int8_t*>(retained.device)+retained.allocation.arena_bytes+retained.packet_offset;
+      // Immutable packet upload belongs to preparation, including the first
+      // replay. Retain the complete owner if initialization cannot be drained.
+      retained.quarantined=true;
+      const auto uploaded=hip_direct_copy_host_to_device(ctx->device_id,packet,&retained.basis->packet,sizeof(BasisPacket));
+      const auto drained=hip_direct_synchronize(ctx->device_id);
+      if(drained!=RNS8_SUCCESS){ctx->hip_failure_poisoned=true;return drained;}
+      retained.quarantined=false;
+      if(uploaded!=RNS8_SUCCESS)return uploaded;
+    }
     out=std::move(result);
     return RNS8_SUCCESS;
   });
@@ -400,10 +412,6 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
           const auto storage=basis_lift_storage(cells,current[id],target);
           if(storage.status!=RNS8_SUCCESS || storage.packet_offset>state.packet_offset)return RNS8_RANGE_ERROR;
           auto* packet=lift_workspace+state.packet_offset;
-          if(!state.packet_uploaded) {
-            status=hip_direct_copy_host_to_device(state.ctx->device_id,packet,&state.basis->packet,sizeof(BasisPacket));
-            if(status!=RNS8_SUCCESS)return status;state.packet_uploaded=true;
-          }
           BasisMagnitude bound;std::copy_n(words,3,bound.words);
           status=hip_direct_basis_convert(state.ctx->device_id,residues,lift_workspace,cells,packet,packet,
               current[id],target,state.semantics==RNS8_EXACT_WIDE_SIGNED,bound,

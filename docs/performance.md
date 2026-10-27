@@ -114,7 +114,9 @@ passes that directory to ordinary single-product bounded, exact-wide, finite
 ring/field and strict wrap64 runs. Every
 logical output element is compared outside production timing. A cache miss
 computes the complete Boost.Multiprecision reference; a malformed existing
-fixture fails the run. `--no-reference-cache` requests fresh computation in the
+fixture fails the run. Results beyond the 128 MiB cache payload budget use full
+streaming Boost comparison without allocating or writing a cache payload; explicit
+population beyond that budget rejects. `--no-reference-cache` requests fresh computation in the
 collector. Composed and batched modes keep their existing oracles.
 
 Fixture identity hashes the arithmetic contract, M/N/K and every actual input

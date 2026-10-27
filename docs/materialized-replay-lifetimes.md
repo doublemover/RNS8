@@ -31,6 +31,8 @@ packing calls and external reads that reused existing packing.
 Input mutation rejects execution. Successful explicit rebinding invalidates only
 changed input caches; failed rebinding preserves the prior binding and cache.
 Execution failure invalidates cached packing before attempting its device drain.
+Experimental-basis lift packets are uploaded during preparation, including for
+the first replay; replay does not introduce a hidden packet transfer.
 An uncertain drain retains the existing owner and reservations.
 
 Product calibration cases optionally accept `input_values: [A, B]`, two constant

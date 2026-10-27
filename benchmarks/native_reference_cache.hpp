@@ -149,7 +149,7 @@ template<class T> std::string integer_reference_key(uint64_t m,uint64_t n,uint64
 template<class T,class Output>
 NativeReferenceVerification verify_integer_reference(uint64_t m,uint64_t n,uint64_t k,uint64_t ldc,
     const std::vector<T>& a,const std::vector<T>& b,const std::vector<Output>& c,ReferenceContract contract,
-    const std::string& cache_directory,bool populate) {
+    const std::string& cache_directory,bool populate,uint64_t cache_byte_budget=reference_cache_max_bytes) {
   static_assert(std::is_integral_v<T> && std::is_integral_v<Output>);
   using boost::multiprecision::cpp_int;
   const auto start=std::chrono::steady_clock::now();
@@ -157,17 +157,20 @@ NativeReferenceVerification verify_integer_reference(uint64_t m,uint64_t n,uint6
   const uint64_t limbs=contract.limbs;
   if(!m || !n || !k || ldc<n || m>UINT64_MAX/k || k>UINT64_MAX/n ||
       m>UINT64_MAX/ldc/limbs || a.size()!=m*k || b.size()!=k*n || c.size()<m*ldc*limbs ||
-      m>(reference_cache_max_bytes-reference_cache_header_bytes)/8/limbs/n)
+      cache_byte_budget<reference_cache_header_bytes+8 || cache_byte_budget>reference_cache_max_bytes)
     throw std::invalid_argument("reference cache shape or byte budget");
+  const bool cacheable=m<=(cache_byte_budget-reference_cache_header_bytes)/8/limbs/n;
+  if(populate && (cache_directory.empty() || !cacheable))throw std::invalid_argument("reference population needs a directory and a cacheable payload");
   const bool finite=contract.semantics==ReferenceSemantics::finite_ring || contract.semantics==ReferenceSemantics::finite_field;
   if(finite)for(const auto* input:{&a,&b})for(T value:*input)if(uint32_t(value)>=contract.modulus)
     throw std::invalid_argument("noncanonical finite reference input");
   NativeReferenceVerification result;result.key=integer_reference_key(m,n,k,a,b,contract);
   std::string payload;const auto path=std::filesystem::path(cache_directory)/(result.key+".bin");
   const bool hit=!cache_directory.empty() && std::filesystem::exists(path);
+  if(hit && !cacheable)throw std::invalid_argument("existing reference exceeds the cache read budget");
   if(hit)payload=read_native_reference(path,result.key,m*n*limbs);
   else {
-    payload.reserve(size_t(m*n*limbs*8));
+    if(cacheable)payload.reserve(size_t(m*n*limbs*8));
     const cpp_int storage=cpp_int(1)<<(64*limbs),mask=(cpp_int(1)<<64)-1;
     const bool sign=contract.semantics==ReferenceSemantics::bounded_i64 || contract.semantics==ReferenceSemantics::wide_signed;
     const cpp_int lower=sign?cpp_int(-(storage>>1)):cpp_int(0),upper=sign?cpp_int((storage>>1)-1):cpp_int(storage-1);
@@ -178,10 +181,16 @@ NativeReferenceVerification verify_integer_reference(uint64_t m,uint64_t n,uint6
       else if(contract.semantics==ReferenceSemantics::wrap64)expected&=mask;
       else if(expected<lower || expected>upper)throw std::overflow_error("exact reference exceeds declared output width");
       if(expected<0)expected+=storage;
-      for(uint32_t word=0;word<limbs;++word){reference_append_word(payload,static_cast<uint64_t>(expected&mask));expected>>=64;}
+      for(uint32_t word=0;word<limbs;++word) {
+        const auto value=static_cast<uint64_t>(expected&mask);
+        if(value!=static_cast<uint64_t>(c[(row*ldc+col)*limbs+word]))
+          throw std::runtime_error("public output disagrees with complete integer reference");
+        if(cacheable)reference_append_word(payload,value);
+        expected>>=64;
+      }
     }
   }
-  for(uint64_t row=0;row<m;++row)for(uint64_t col=0;col<n;++col)for(uint32_t word=0;word<limbs;++word)
+  if(hit)for(uint64_t row=0;row<m;++row)for(uint64_t col=0;col<n;++col)for(uint32_t word=0;word<limbs;++word)
     if(reference_word(payload.data()+((row*n+col)*limbs+word)*8)!=static_cast<uint64_t>(c[(row*ldc+col)*limbs+word]))
       throw std::runtime_error("public output disagrees with complete integer reference");
   if(!hit && populate) {
@@ -189,7 +198,8 @@ NativeReferenceVerification verify_integer_reference(uint64_t m,uint64_t n,uint6
     write_native_reference(cache_directory,result.key,payload);
   }
   result.method=hit?"cached_full_integer_reference":"boost_cpp_int_full_integer_reference";
-  result.payload_sha256=detail::sha256(payload);result.checked_cells=m*n;
+  if(!payload.empty())result.payload_sha256=detail::sha256(payload);
+  result.checked_cells=m*n;
   result.elapsed_us=std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-start).count();return result;
 }
 template<class T>
