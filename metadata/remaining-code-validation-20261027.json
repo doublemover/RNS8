@@ -1,0 +1,404 @@
+{
+  "schema": "rns8_remaining_code_validation_v1",
+  "date": "2026-10-27",
+  "requested_issues": [
+    32,
+    43,
+    45,
+    48,
+    50
+  ],
+  "validated_source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+  "implementation_scope": "All five previously deferred source extensions; qualification on unavailable targets and performance acceptance remain separate.",
+  "stack": {
+    "platform": "Windows",
+    "device": "Radeon RX 7900 XTX",
+    "target": "gfx1100",
+    "sdk": "TheRock Core10.1",
+    "hip": "7.16.26385",
+    "hip_compiler": "AMDClang24",
+    "host_compiler": "MSVC19.51.36260",
+    "python": "3.15.1",
+    "cpp_standard": 17,
+    "cpu_asan": "LLVM23.1.4 RelWithDebInfo /MD",
+    "openmp": false
+  },
+  "implementation": {
+    "32": {
+      "commit": "e0ff578",
+      "additions": "Real CK/rocWMMA/hipBLASLt/builtin ordered-basis GEMM, arbitrary-basis distributed shards and opt-in complete-cost automatic basis selection."
+    },
+    "43": {
+      "commit": "2d5aaa8",
+      "additions": "Atomic multi-body caller capture/submission, finite/wrap pending-token pipelines and bounded retained in-flight execution pools."
+    },
+    "45": {
+      "commit": "3359fd0",
+      "additions": "Explicit gfx950 FP4/FP6/FP8 mixed-format MFMA kernels with copied dynamic E8M0 schedules, per-instruction reset and conditional exactness certificates."
+    },
+    "48": {
+      "commit": "6c166fd",
+      "additions": "Pinned canonical rank48 204-operation straight-line programs, exact rational expansion proof, retained/recomputed direct and matrix execution."
+    },
+    "50": {
+      "commit": "a68de58",
+      "additions": "Feature-detected MPI process sessions, RCCL P2P and device-initiated rocSHMEM transport, bounded protocol/resource/deadline ownership and authored two-epoch full-output cluster smoke."
+    }
+  },
+  "configure_repair": {
+    "commit": "16c84ee",
+    "problem": "Sixteen new SLP catalogue rows reused existing paths; rejected before compilation.",
+    "repair": "Use distinct canonical-SLP case filenames without changing payload hashes; full corpus 2190 cases."
+  },
+  "first_batch": {
+    "cpu-asan": {
+      "selected": 670,
+      "passed": 618,
+      "failed": 8,
+      "skipped": 44,
+      "failed_tests": [
+        "benchmark_catalog_contracts",
+        "native_calibration_collector_self_test",
+        "block_sparse_collector_self_test",
+        "wrap64_calibration_collector_self_test",
+        "instruction_roof_collector_self_test",
+        "ragged_collector_self_test",
+        "crt_calibration_collector_self_test",
+        "benchmark_sweep_self_test"
+      ],
+      "skipped_tests": [
+        "Arm SMMLA covers every byte product in prime composite and even rings",
+        "Arm SMMLA exact products match scalar Boost and retain B generations",
+        "CDNA4 fixed mixed and dynamic-scale finite kernels match complete Boost products",
+        "HIP batches admit all members before reserving shared readers",
+        "HIP event-dependent joins submit before producer observation",
+        "HIP folded and heterogeneous tile bounds retain exact export contracts",
+        "HIP graphs retain one shared operand and preserve full-width semantics",
+        "HIP owned device and pinned allocations reconcile public live and peak observations",
+        "HIP prefix-nine decline seals signed and unsigned oneshots exactly once",
+        "HIP submissions reserve shared readers and publish only after observed completion",
+        "bound recipes chain checked pinned export without prior output publication",
+        "bounded event-dependent GEMM reserves pending operands without host publication",
+        "caller graph reserves every body and bounded slots retain unconsumed epochs",
+        "checked CRT HIP policies match independent full-width references and canaries",
+        "checked CRT HIP rebind and replay perform no additional device allocations",
+        "exact-wide moment admission exports exact resident HIP chains",
+        "finite token pipelines preserve modulus and cancellation publication",
+        "generated HIP values invalidate downstream result cache after upstream mutation",
+        "named FP8 finite research matches independent complete padded products",
+        "native sentinel gates ordinary, graph and native-group publication",
+        "one completion system composes GEMM, value-preserving lift and dependent GEMM",
+        "owned pinned imports and exports share prepared dependency and graph publication",
+        "pending prepared dependencies publish before consumer launch and propagate cancellation",
+        "prepared HIP epilogues bind addends and preserve capture expression identity",
+        "prepared bounded HIP preserves declared ranges and checked exports",
+        "prepared finite HIP streams and graphs publish explicit ring results",
+        "prepared wrap HIP streams and graphs preserve full width byte semantics",
+        "public HIP product recipe rebinds owners without reallocating its arena",
+        "public HIP split-K owner reuses scratch and publishes complete exact products",
+        "public finite INT4 preparation owns generation-bound B and preserves stale rejection",
+        "quarter CRT HIP signed canonical and tail exports use the public owner",
+        "quarter owner accepts CK residue producers",
+        "quarter owner accepts CPU AMX residue producers",
+        "quarter owner accepts builtin residue producers",
+        "quarter owner accepts direct HIP residue producers",
+        "quarter owner accepts hipBLASLt residue producers",
+        "quarter owner accepts rocWMMA residue producers",
+        "real HIP distributed ordered bases retain small composite and reordered channel identities",
+        "real HIP distributed packing and GEMM cross the safe K slab boundary",
+        "real HIP explicit output and contraction distributions retain complete exact results",
+        "real HIP modulus shards gather and publish one exact generation",
+        "three HIP producer publications feed an exact epilogue in reverse observation order",
+        "unsupported sparse target preserves an existing public output",
+        "wrap pending tokens compose byte limbs without CRT"
+      ],
+      "seconds": 130.0,
+      "junit_sha256": "189ce0ac23b097ab53da809decda67c7f5ac31bf0b687f6b6055dc611eb6c050"
+    },
+    "hip": {
+      "selected": 1148,
+      "passed": 1111,
+      "failed": 3,
+      "skipped": 34,
+      "failed_tests": [
+        "ordered runtime bases execute actual library and builtin planes including small composite moduli",
+        "real HIP distributed ordered bases retain small composite and reordered channel identities",
+        "rocwmma_kernel_matrix_isa_check"
+      ],
+      "skipped_tests": [
+        "AMDGPU builtin explicit sparse-A bounded backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A exact-wide backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A finite u8 backend matches dense backend",
+        "Arm SMMLA covers every byte product in prime composite and even rings",
+        "Arm SMMLA exact products match scalar Boost and retain B generations",
+        "CDNA FP64 MFMA fused and concatenated word-mod schedules match exact slab and tail references",
+        "CDNA MFMA single-hot operands distinguish wave-register coordinate ownership",
+        "CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles",
+        "CDNA4 fixed mixed and dynamic-scale finite kernels match complete Boost products",
+        "CDNA5 TDM and multicast transfer litmus preserves full words and zero tails",
+        "CDNA5 two-stage RNS consumers match Boost across cluster and slab tails",
+        "budgeted finite controls read real device addresses beyond signed 32-bit range",
+        "named FP8 finite research matches independent complete padded products",
+        "quarter owner accepts CPU AMX residue producers",
+        "fp8_fp8_capture_smoke",
+        "fp8_fp8-materialized_capture_smoke",
+        "tdm_tdm_capture_smoke",
+        "tdm_multicast2_capture_smoke",
+        "tdm_multicast4_capture_smoke",
+        "tdm_ordinary-wmma_capture_smoke",
+        "tdm_tdm-wmma_capture_smoke",
+        "tdm_multicast2-wmma_capture_smoke",
+        "tdm_multicast4-wmma_capture_smoke",
+        "tdm_multicast2-wmma-neighbor_capture_smoke",
+        "tdm_multicast4-wmma-neighbor_capture_smoke",
+        "word_mod_asymmetric_fp64_mfma_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_cold_smoke"
+      ],
+      "seconds": 751.0,
+      "junit_sha256": "5da1698cf3edf2359f247f3ed64bb82dfd908742a015a773be1ececd85d6e59e"
+    },
+    "installed": {
+      "selected": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "failed_tests": [],
+      "skipped_tests": [],
+      "seconds": 1.0,
+      "junit_sha256": "e337efc12c01d1027283b090305256758a979cec5667f5182d30f7e66267c49f"
+    },
+    "compiled_source_commit": "16c84ee44d4df62a9c4752022b2f864fc608ff44"
+  },
+  "consolidated_repair": {
+    "commit": "2c94b994190e6571136820cda07a43f0072d212f",
+    "failures": [
+      "Eight CPU tooling failures from concurrent immutable case publication, transient Windows read denial and repeated path resolution.",
+      "CK raw finite GEMM dispatch rejected non-ladder byte moduli despite its generic reduction.",
+      "Local/process distributed shard callers used the default-basis-only raw wrapper.",
+      "rocWMMA runtime reduction recomputed reciprocal on device; the no-divide ISA gate rejected the emitted v_rcp."
+    ],
+    "changes": [
+      "Bounded verified read retries and cached directory resolution; symlink containment and corruption repair retained.",
+      "Real runtime-q CK GEMM instance with fixed-q specializations retained.",
+      "Existing arbitrary-basis tiled primitive used for dense local and process shards.",
+      "Host-precomputed reciprocals used in CK and rocWMMA reductions."
+    ]
+  },
+  "combined_retest": {
+    "cpu-asan": {
+      "selected": 670,
+      "passed": 626,
+      "failed": 0,
+      "skipped": 44,
+      "failed_tests": [],
+      "skipped_tests": [
+        "Arm SMMLA covers every byte product in prime composite and even rings",
+        "Arm SMMLA exact products match scalar Boost and retain B generations",
+        "CDNA4 fixed mixed and dynamic-scale finite kernels match complete Boost products",
+        "HIP batches admit all members before reserving shared readers",
+        "HIP event-dependent joins submit before producer observation",
+        "HIP folded and heterogeneous tile bounds retain exact export contracts",
+        "HIP graphs retain one shared operand and preserve full-width semantics",
+        "HIP owned device and pinned allocations reconcile public live and peak observations",
+        "HIP prefix-nine decline seals signed and unsigned oneshots exactly once",
+        "HIP submissions reserve shared readers and publish only after observed completion",
+        "bound recipes chain checked pinned export without prior output publication",
+        "bounded event-dependent GEMM reserves pending operands without host publication",
+        "caller graph reserves every body and bounded slots retain unconsumed epochs",
+        "checked CRT HIP policies match independent full-width references and canaries",
+        "checked CRT HIP rebind and replay perform no additional device allocations",
+        "exact-wide moment admission exports exact resident HIP chains",
+        "finite token pipelines preserve modulus and cancellation publication",
+        "generated HIP values invalidate downstream result cache after upstream mutation",
+        "named FP8 finite research matches independent complete padded products",
+        "native sentinel gates ordinary, graph and native-group publication",
+        "one completion system composes GEMM, value-preserving lift and dependent GEMM",
+        "owned pinned imports and exports share prepared dependency and graph publication",
+        "pending prepared dependencies publish before consumer launch and propagate cancellation",
+        "prepared HIP epilogues bind addends and preserve capture expression identity",
+        "prepared bounded HIP preserves declared ranges and checked exports",
+        "prepared finite HIP streams and graphs publish explicit ring results",
+        "prepared wrap HIP streams and graphs preserve full width byte semantics",
+        "public HIP product recipe rebinds owners without reallocating its arena",
+        "public HIP split-K owner reuses scratch and publishes complete exact products",
+        "public finite INT4 preparation owns generation-bound B and preserves stale rejection",
+        "quarter CRT HIP signed canonical and tail exports use the public owner",
+        "quarter owner accepts CK residue producers",
+        "quarter owner accepts CPU AMX residue producers",
+        "quarter owner accepts builtin residue producers",
+        "quarter owner accepts direct HIP residue producers",
+        "quarter owner accepts hipBLASLt residue producers",
+        "quarter owner accepts rocWMMA residue producers",
+        "real HIP distributed ordered bases retain small composite and reordered channel identities",
+        "real HIP distributed packing and GEMM cross the safe K slab boundary",
+        "real HIP explicit output and contraction distributions retain complete exact results",
+        "real HIP modulus shards gather and publish one exact generation",
+        "three HIP producer publications feed an exact epilogue in reverse observation order",
+        "unsupported sparse target preserves an existing public output",
+        "wrap pending tokens compose byte limbs without CRT"
+      ],
+      "seconds": 129.0,
+      "junit_sha256": "f02ad0769a2d7e9296368f9c4b72e4d6c3e9c22751b51e821712ca52c0cb66e1"
+    },
+    "hip": {
+      "selected": 1148,
+      "passed": 1114,
+      "failed": 0,
+      "skipped": 34,
+      "failed_tests": [],
+      "skipped_tests": [
+        "AMDGPU builtin explicit sparse-A bounded backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A exact-wide backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A finite u8 backend matches dense backend",
+        "Arm SMMLA covers every byte product in prime composite and even rings",
+        "Arm SMMLA exact products match scalar Boost and retain B generations",
+        "CDNA FP64 MFMA fused and concatenated word-mod schedules match exact slab and tail references",
+        "CDNA MFMA single-hot operands distinguish wave-register coordinate ownership",
+        "CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles",
+        "CDNA4 fixed mixed and dynamic-scale finite kernels match complete Boost products",
+        "CDNA5 TDM and multicast transfer litmus preserves full words and zero tails",
+        "CDNA5 two-stage RNS consumers match Boost across cluster and slab tails",
+        "budgeted finite controls read real device addresses beyond signed 32-bit range",
+        "named FP8 finite research matches independent complete padded products",
+        "quarter owner accepts CPU AMX residue producers",
+        "fp8_fp8_capture_smoke",
+        "fp8_fp8-materialized_capture_smoke",
+        "tdm_tdm_capture_smoke",
+        "tdm_multicast2_capture_smoke",
+        "tdm_multicast4_capture_smoke",
+        "tdm_ordinary-wmma_capture_smoke",
+        "tdm_tdm-wmma_capture_smoke",
+        "tdm_multicast2-wmma_capture_smoke",
+        "tdm_multicast4-wmma_capture_smoke",
+        "tdm_multicast2-wmma-neighbor_capture_smoke",
+        "tdm_multicast4-wmma-neighbor_capture_smoke",
+        "word_mod_asymmetric_fp64_mfma_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_cold_smoke"
+      ],
+      "seconds": 754.0,
+      "junit_sha256": "1191df970f63e4555182a07b7d43f89f0d2e735393770e9f0ba9467655568a2b"
+    },
+    "installed": {
+      "selected": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "failed_tests": [],
+      "skipped_tests": [],
+      "seconds": 1.0,
+      "junit_sha256": "8592516a8b83cc86891cae6e5d5096a691eefb7f89b4c4316793230e7c62441b"
+    }
+  },
+  "compiled_artifacts": {
+    "cpu-asan": {
+      "manifest_sha256": "b28a71474eda5220fcd957fe209841107f8d5fc5ed3771138c27995ec7a57867",
+      "source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+      "source_digest": "8a85d48a3693a39c656493b246457b99e408faa02c80c3e2b4d141d0961345a2",
+      "source_dirty": false,
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "binary_sha256": {
+        "rns8_tests.exe": "3021bfbda4564c7b3fa031b32a1d2b86f2285ffc8a1483c0fab8853b0c1cc083",
+        "rns8.dll": "70a7cbbd55a8b3271fe312026a621e5abf1fa5321d2ee686a554e78b458d8c06"
+      }
+    },
+    "hip": {
+      "manifest_sha256": "67eb1fb4a105ae609693c6d96adaec32dcf1d6028cb33562e1c3ba85b099a336",
+      "source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+      "source_digest": "8a85d48a3693a39c656493b246457b99e408faa02c80c3e2b4d141d0961345a2",
+      "source_dirty": false,
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "binary_sha256": {
+        "rns8_tests.exe": "0ce6f72fdb5cd7330967bd568b5adad302ea9597c4f1a3da440c38866aa5f350",
+        "rns8.dll": "127992f97b567ffbd31e3a54969a7ae7c55e617b91124d98fda7dac4bf87e0be"
+      }
+    }
+  },
+  "installed_consumer_library_sha256": "127992f97b567ffbd31e3a54969a7ae7c55e617b91124d98fda7dac4bf87e0be",
+  "excluded_registered_tests": [
+    "native_wmma_logical_checker_self_test",
+    "residue_dot_independent-p20-sparse_smoke",
+    "residue_dot_grouped-p20-sparse_smoke",
+    "residue_dot_scheduled-p20-sparse_smoke",
+    "residue_dot_region-p20-sparse_smoke",
+    "residue_dot_grouped-fullwidth-k65_smoke",
+    "residue_dot_grouped-finite247_smoke",
+    "residue_dot_scheduled-p1-sparse_smoke",
+    "residue_dot_scheduled-sustained-4_smoke",
+    "residue_dot_independent-fullwidth-k65537_smoke"
+  ],
+  "exclusion_reason": "Stopped residue-dot harness/campaign lanes stay stopped. The unchanged symbolic checker is carried from its successful recorded run after canonical Git-byte verification.",
+  "carried_symbolic_check": {
+    "name": "native_wmma_logical_checker_self_test",
+    "status": "passed",
+    "source_commit": "9e8d8debd7b2901b1cd16a8a3fb161141f039675",
+    "full_cpu_asan_tests": 645,
+    "full_cpu_asan_failures": 0,
+    "full_cpu_asan_skipped": 36,
+    "unchanged_canonical_git_blob_sha256": {
+      "tools/test_native_wmma_logic.py": "a62f38b9c22ad18977270d26b4d9ad2ee18bf28ccea967acc8c41b73568642d4",
+      "tools/check_native_wmma_logic.py": "1ba28b760beaf0ae47dc5e13d7f9148d76e57ea35c23e6c95e0eba1f083a5d6f",
+      "tools/generate_native_wmma.py": "7c325e02a61e01c0558a2ac7e31984676ba02e70a63b25bc65e319d3e65ea0a9",
+      "tools/native_wmma_lowering.py": "be71a42630a6a091c7e380743a029d66cd9a250050253037cb7ccd25ea0e7ca3"
+    }
+  },
+  "compile_only_instruction_evidence": {
+    "target": "gfx950",
+    "opcode": "v_mfma_scale_f32_16x16x128_f8f6f4",
+    "occurrences": 156,
+    "assembly_sha256": "0ebaf804da105b4bc19fdb00a80954d8b52e8a3af1433935aa74bfdf4e0705b5",
+    "executed": false,
+    "canonical_source_sha256": {
+      "src/backend_common/mxfp_modular.hpp": "f6246d52a78afb0d34182df4c3e7c76876c7a5a499f2dcfac919f92caf9f3449",
+      "src/backend_hip_direct/hip_direct_mxfp_modular.cuh": "f923063142295073a40df608f5aff451cf4980c955630370260983f9536f816d"
+    }
+  },
+  "process_compile_evidence": {
+    "compiler": "Ubuntu24.04 GCC13.3/OpenMPI4.1.6 host syntax against real upstream RCCL/rocSHMEM and TheRock headers; gfx942 HIP helper syntax.",
+    "rccl_commit": "27cced9fdb8a661338947ad513acf81aa935e017",
+    "rocshmem_commit": "169ae78e0c4c2e121ded2504c344cdb6fd150287",
+    "rccl_header_sha256": "ed375b6f5c3a16b5b3e046aa68ea5d8b42f9cd7066c9a7d6ca93a8f917132818",
+    "rocshmem_header_sha256": "5bc810ea127d10e7eea09e7396a8758290e04f99b95edf41f620901d92b4891d",
+    "linked": false,
+    "executed": false
+  },
+  "remaining_qualification": [
+    "Actual gfx950 MXFP internal rounding/scale ordering, lane-map execution, adversarial exactness, performance and routing qualification.",
+    "Actual MPI/RCCL/rocSHMEM linked multi-GPU/multinode transport, device memory ordering, rank/device failure, topology and scaling qualification.",
+    "Native Linux, Instinct/CDNA, other unavailable instruction families, real device-fault/failed-drain recovery, physical counters/traffic/overlap and strongest complete-route controls.",
+    "Broader supported-provider execution, measured setup/reuse/export amortization and held-out whole-route profitability remain issue acceptance gates."
+  ],
+  "performance": {
+    "new_campaigns": false,
+    "frozen_measurement_source": "72c55c2",
+    "new_speedup_claims": false,
+    "auto_promotion": false,
+    "review": "Consolidated source review preserves fixed-q specialization, allocation/lifetime reuse and removes repeated case-directory resolution and kernel reciprocal computation; no new measured GPU gains asserted."
+  },
+  "evidence_manifest": "metadata/remaining-code-validation-archive-20261027.json",
+  "commands": {
+    "cpu-asan": "python tools/windows_dev.py ctest --test-dir build/sdk101-followup-20261026/cpu-asan --parallel 8 --output-on-failure --exclude-from-file temp/remaining-code-final-validation/excluded-tests.txt --output-junit temp/remaining-code-final-validation/ctest-cpu-asan-retest.xml",
+    "hip": "HIP_PATH=C:/TheRock/build HIP_PLATFORM=amd HIP_DEVICE_LIB_PATH=C:/TheRock/build/lib/llvm/amdgcn/bitcode; python tools/windows_dev.py ctest --test-dir build/sdk101-followup-20261026/release-serial --parallel 1 --output-on-failure --exclude-from-file temp/remaining-code-final-validation/excluded-tests.txt --output-junit temp/remaining-code-final-validation/ctest-hip-retest.xml",
+    "installed": "python tools/windows_dev.py ctest --test-dir temp/remaining-code-final-validation/installed-consumer --parallel 1 --output-on-failure --output-junit temp/remaining-code-final-validation/ctest-installed-retest.xml",
+    "build": "python tools/windows_dev.py cmake --build <configured lane directory> --parallel 8; installed consumer clean-rebuilt against the freshly installed shared library and explicitly configured Core10.1 SDK."
+  },
+  "documentation": {
+    "documents": 143,
+    "local_errors": 0,
+    "command": "python tools/check_documentation.py --refresh-inventory",
+    "scope": "Static local links, inventory and command names; no extra configure/build/GPU execution."
+  }
+}

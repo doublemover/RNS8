@@ -14,7 +14,7 @@ and actual device validation.
 | `hip-direct` | Available public path with `RNS8_ENABLE_HIP=ON` | Bounded, wide, finite and separate byte-limb wrap64; target/address restrictions | [Local device validation](local-all-features-20261023.md) |
 | `hip-vector-alu-int64` | Available public HIP path | Bounded i64/u64 only; native storage and exact wide accumulation | [Matched measurements](7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse) |
 | `hipblaslt` | Opt-in public path; `RNS8_ENABLE_HIPBLASLT=ON` | Fixed-prefix bounded, wide, finite; library availability; separate INT32 scratch/reduction; no adaptive tile bounds | [Implementation](../src/backend_hipblaslt/README.md) |
-| `ck` | Opt-in public path; `RNS8_ENABLE_CK=ON` | Bounded including adaptive schedules, wide, finite; headers, shapes and static moduli constrain admission | [Implementation](../src/backend_ck/README.md) |
+| `ck` | Opt-in public path; `RNS8_ENABLE_CK=ON` | Bounded including adaptive schedules, wide, finite; headers, shapes and byte-modulus contracts constrain admission | [Implementation](../src/backend_ck/README.md) |
 | `rocwmma` | Opt-in public path; `RNS8_ENABLE_ROCWMMA=ON` | Bounded including adaptive schedules, wide, finite; target matrix instructions and header compatibility | [Implementation](../src/backend_rocwmma/README.md) |
 | `amdgpu-builtins` | Opt-in public path; `RNS8_ENABLE_AMDGPU_BUILTINS=ON` | Target-specific dense RNS/finite and explicit Sparse-A; accumulation/modulus/device restrictions | [Source](../src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp), [validation](local-all-features-20261023.md) |
 | `wrap64-byte-limb` | Available public CPU context; direct HIP provides the GPU route | Strict modulo 2⁶⁴ only, distinct byte-limb storage | [Implementation](../src/backend_wrap64/README.md) |
@@ -38,8 +38,9 @@ address spans within their index domain. This is source admissibility, not a
 GPU/OS qualification statement. In particular, dense `gfx1100` availability
 does not enable sparse instructions. An unsupported sparse request now rejects
 before output invalidation, preserving its old bytes, generation and range
-proof. CPU predicate and actual-device negative preservation fixtures are
-authored for the consolidated run; no new sparse hardware pass is claimed.
+proof. CPU predicate and gfx1100 negative-preservation fixtures pass the
+[current local batch](../metadata/remaining-code-validation-20261027.json);
+supported sparse-target arithmetic remains unqualified.
 
 ## AUTO and reviewed caches
 
@@ -92,18 +93,18 @@ public API envelope.
 | Native-byte WMMA, grouped native conversion, queue and split-K | Private register/LDS controls plus explicit prepared native groups and windowed split-K owners; ordinary dispatch unchanged | [Native narrow](native-narrow.md), [native tiled](native-tiled-wmma.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
 | [Bound whole-route planner](bound-pipeline-recipes.md) | Explicit preparation/execution of representation, split-K, narrow, queue, stream/graph and final checked CRT alternatives; unpriced routes remain unknown | [Issue30](https://github.com/doublemover/RNS8/issues/30) |
 | [CDNA5 transfer research](cdna5-tdm-research.md) | Private ordinary/TDM/two-stage cluster-multicast raw-native controls; LLVM23 gfx1250 syntax only, no target run | [Issue52](https://github.com/doublemover/RNS8/issues/52) |
-| Matrix-owned narrow native | Opt-in synchronous public exact-wide scalar/byte products; fresh domain/partial-sum scans and complete RNS output; validation pending | [Narrow owner](narrow-native-owner.md) |
-| Encoded B | Explicit generation-bound public cache of actual K-contiguous B residues with grouped WMMA consumers; new validation pending | [Encoded-B owner](encoded-b-native.md) |
+| Matrix-owned narrow native | Opt-in synchronous public exact-wide scalar/byte products; fresh domain/partial-sum scans and complete RNS output; applicable local checks pass | [Narrow owner](narrow-native-owner.md) |
+| Encoded B | Explicit generation-bound public cache of actual K-contiguous B residues with grouped WMMA consumers; applicable local checks pass | [Encoded-B owner](encoded-b-native.md) |
 | Runtime product arena | CPU/direct-HIP exact-wide DAG, strict last-reader reuse and opt-in public packed-materialization planning; capacity-aware price schema and measured-stage ingestion | [Runtime arena](runtime-product-arena.md), [materializations](planning-recipes.md#cost-planned-product-materializations) |
-| Matrix-owned adaptive native | Opt-in public exact-wide direct-HIP call with retained native inputs; synchronous; validation pending | [Adaptive ownership](adaptive-native-product.md#explicit-matrix-owned-native-inputs) |
-| Paired complex 3M/4M | Opt-in public signed exact-wide CPU/direct-HIP and synchronous graph composition; new binding validation pending | [Complex owner](complex-residue-composition.md) |
+| Matrix-owned adaptive native | Opt-in public exact-wide direct-HIP call with retained native inputs; synchronous; applicable local checks pass | [Adaptive ownership](adaptive-native-product.md#explicit-matrix-owned-native-inputs) |
+| Paired complex 3M/4M | Opt-in public signed exact-wide CPU/direct-HIP and synchronous graph composition; local binding checks pass | [Complex owner](complex-residue-composition.md) |
 | Wide-index residue control | Private scalar64-bit offsets plus public panel streaming with a completed >32GiB native-input capacity study; each path keeps its own indexing/output contract | [Wide-index control](wide-index-gemm.md), [capacity study](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx) |
-| Strassen / rank-23 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23; new public qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
+| Strassen / rank-23 / rank48 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23 and canonical retained/recomputed rank48; applicable local checks pass; performance qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
 | Packed INT4/IU4 | Explicit public finite signed-nibble owner and versioned packed B; gfx1100/1101/1102 implementation; target/performance qualification deferred | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
-| Floating encodings / Ozaki | Explicit public finite gfx942 FNUZ FP8 research owner, four-product conditional model and real MFMA kernel; target/performance execution unqualified; Ozaki reserved | [FP8 owner](fp8-modular-research.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
+| Floating encodings / Ozaki | Explicit finite gfx942/gfx1201 FP8 and gfx950 fixed/dynamic/mixed FP4/FP6/FP8 kernels with conditional instruction models; actual target execution/performance unqualified; Ozaki reserved | [FP8 owner](fp8-modular-research.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
 | Redundant checks / Freivalds | Native-input independent residue sentinel, producer-attached public integrity and distributed commit check; public finite Freivalds verifier with explicit randomness metadata | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
 | Sparse/hybrid | Public structured Sparse-A and generation-bound block-sparse owners with explicit scalar/WMMA/hybrid methods; provider restrictions and measured cohorts remain scoped | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
-| Multi-GPU | Private real HIP modulus shards, staged/peer transport, bounded owner/cleanup and optional independent commit integrity; multi-device qualification pending | [Real HIP owner](distributed-hip.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
+| Multi-GPU | Private HIP all-axis shards, staged/peer and MPI/RCCL/rocSHMEM process transports, bounded ownership and independent commit integrity; actual linked cluster qualification pending | [Real HIP owner](distributed-hip.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
 
 The Ozaki entrypoint returns `RNS8_UNSUPPORTED_BACKEND`. The seeded Freivalds
 entrypoint delegates to the public finite verifier; other arithmetic domains
@@ -112,8 +113,7 @@ remain unsupported. Strassen accepts the explicitly documented subset. The [rese
 Sparse entry points also return `RNS8_BUSY` for a dense B with a pending writer,
 or an output with pending readers or a writer, before target admission and output
 mutation. Concurrent read-only reservations on B remain valid. State fixtures
-cover both sparse RNS and finite-ring calls; execution is pending the consolidated
-validation batch.
+cover both sparse RNS and finite-ring calls and pass the current local batch.
 
 
 The internal epilogue and exact-suffix-lift support providers now share static
@@ -122,7 +122,7 @@ Records distinguish unknown resources from zero scratch and never mark a device
 qualified. Lift reports suffix payload and the additional device status word
 separately: the public staged-residue budget still limits payload, preserving its
 documented meaning. Pointer aliases, generations, value proofs and stream ownership
-remain dynamic admission steps. Provider parity/budget fixtures await final validation;
+remain dynamic admission steps. Provider parity/budget fixtures pass applicable local validation;
 the [bound recipe layer](bound-pipeline-recipes.md) composes these providers with
 existing resource owners and explicit complete-route prices.
 
@@ -150,6 +150,6 @@ B and repeated A+B, padded complete export, setup/execute/export/cleanup phases,
 sustained uninstrumented intervals and counterbalanced independent processes.
 Fixtures cover tails, all slab boundaries and multiple slabs; authored regressions
 cover every finite nibble alphabet, packed tails, stale generations and full
-public output. No regressions or campaigns were executed. Neither emitted ISA,
-actual lane mapping nor a speedup (including the specification's 1.25x gate) is
-claimed from source. Public reachability is not target qualification.
+public output. Applicable gfx1100 regressions pass the current local batch;
+no new campaign or speedup (including the specification's 1.25x gate) follows.
+Public reachability does not qualify other targets.

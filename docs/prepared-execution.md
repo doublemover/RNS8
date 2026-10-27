@@ -673,5 +673,7 @@ cancellation prevents consumer publication even if the device kernel finished.
 Authored fixtures cover three-member caller capture, whole-batch reservation,
 reverse observation, stream/graph pools, full-capacity BUSY, consumed-slot
 release, repeated epochs, cancellation, prime/composite byte moduli, full-width
-wraparound and Boost reference comparisons. These new fixtures have received
-syntax checks only; the final consolidated execution batch remains pending.
+wraparound and Boost reference comparisons. These fixtures pass the applicable consolidated CPU-ASan/gfx1100 batch in the
+[current receipt](../metadata/remaining-code-validation-20261027.json). Native
+Linux/CDNA execution, real failed-drain recovery and physical overlap remain
+separate qualification gates.

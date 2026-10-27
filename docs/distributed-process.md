@@ -137,7 +137,9 @@ checks complete Boost outputs and retained-reader admission, and emits an
 explicit non-promoting hardware receipt. It is not registered as an automatic
 multi-GPU test. CPU fixtures cover node-local identity, envelope corruption,
 stale epochs, complete/duplicate membership, rank acknowledgments, byte budgets
-and opaque-headroom rejection. The source pass has CPU/MSVC, Linux
+and opaque-headroom rejection; those CPU checks pass the
+[current local batch](../metadata/remaining-code-validation-20261027.json).
+The source also has CPU/MSVC, Linux
 OpenMPI/RCCL-header and rocSHMEM-header syntax checks; real linked Linux ROCm
 execution and memory-ordering/fault litmus qualification remain outstanding.
 

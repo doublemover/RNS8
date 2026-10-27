@@ -150,6 +150,7 @@ every GEMM and final export; flags charge packing/export on every replay instead
 Stable candidate order resolves equal projected cost. `rns8_create_selected_basis_plan`
 creates the selected retained owner. Actual values still require ordinary range
 and generation admission; caller-supplied cost data does not qualify performance.
-New selection, full-width provider and dynamic-reducer fixtures are implemented
-for the final consolidated batch. Existing measurement receipts retain their
+Selection, full-width provider, distributed custom-basis and dynamic-reducer
+fixtures pass the applicable CPU-ASan/gfx1100 batch in the
+[current receipt](../metadata/remaining-code-validation-20261027.json). Existing measurement receipts retain their
 original source; no global AUTO or measured routing promotion follows.

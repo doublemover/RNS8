@@ -79,3 +79,16 @@ No new unit test, GPU fixture, benchmark, stopped campaign or residue-dot
 allowance is executed. Newly authored cases await a later validation batch.
 The preceding [full/targeted validation](local-validation-20261025.md#october-26-frontloaded-source-and-combined-retest)
 remains attributed to `f406c29`/`84b4d9c`; it does not validate this new source.
+
+
+## October 27 source-extension completion
+
+The dated audit above preserves its original scope. The subsequent
+[remaining-code receipt](../metadata/remaining-code-validation-20261027.json)
+completes the formerly deferred experimental-basis library/distributed providers
+and opt-in selector (#32), multi-body caller graphs and bounded concurrent pools
+with finite/wrap pipelines (#43), gfx950 fixed/dynamic/mixed FP4/FP6/FP8 kernels
+(#45), canonical rank48 straight-line execution (#48), and MPI/RCCL/rocSHMEM
+process transports (#50). Applicable CPU-ASan, gfx1100 and installed-consumer
+checks pass at the recorded source. Unsupported targets and transports retain
+explicit qualification gates; these checks establish no new measured gains.

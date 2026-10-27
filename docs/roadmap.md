@@ -8,11 +8,12 @@ preserves earlier work without duplicating current status.
 
 ## Current implementation pass
 
-The [October27 implementation closeout](../metadata/implementation-closeout-20261027.json)
-records the requested source milestones for #32, #43, #45, #48, #50, #54, #63 and
-#67 at compiled source `cf0ad32`. The receipt identifies the first batch's failures,
-their consolidated repairs, the final CPU-ASan/HIP results, installed DLPack
-consumers and compile-only instruction evidence. No new performance campaign ran.
+The [remaining-code closeout](../metadata/remaining-code-validation-20261027.json)
+records the complete requested source, including all five formerly deferred
+extensions, at compiled revision `2c94b99`. It identifies initial failures, the
+consolidated repair, combined CPU-ASan/HIP retest, installed DLPack consumers and
+compile-only instruction/transport evidence. The [earlier eight-milestone receipt](../metadata/implementation-closeout-20261027.json)
+retains its original source. No new performance campaign ran.
 
 | Issue | Implemented extension | Remaining qualification |
 |---|---|---|
@@ -25,10 +26,8 @@ consumers and compile-only instruction evidence. No new performance campaign ran
 | #63 | Prime-channel five-product Gram with composite-channel preservation | Broader targets and measured preparation/reuse/export benefit |
 | #67 | Optional installed DLPack1.2 adapter and standalone HIP consumer | Native Linux, real failed drains and matched interoperability timing |
 
-The subsequent source extension adds the remaining library-basis, async pool,
-canonical rank48 SLP, scaled sub-byte and process-transport code. Its fixtures
-have received syntax/compile checks only so far; the older receipt above does
-not validate this newer source. Consolidated validation is pending.
+These checks qualify applicable CPU/gfx1100 paths. Actual unavailable-target
+instructions and linked cluster execution remain open.
 
 The [replay extension receipt](../metadata/replay-extension-validation-20261027.json)
 separately records lifetime cost models, external packed-B reuse, bound recipes,
@@ -137,7 +136,7 @@ while sustained production-boundary measurements remain unqualified. Documentati
 
 ### Current validation and remaining work
 
-The current local source/test receipt is the [implementation closeout](../metadata/implementation-closeout-20261027.json).
+The current local source/test receipt is the [remaining-code closeout](../metadata/remaining-code-validation-20261027.json).
 It distinguishes real gfx1100 execution, target-inapplicable skips and compile-only
 AMX/I8MM/FP8 source evidence. Native Linux, multi-GPU, Instinct/CDNA and unavailable
 instruction families remain separate qualification lanes. The current Windows
@@ -154,7 +153,10 @@ uninstalled. Explicit gfx950 FP4/FP6/FP8 fixed/dynamic/mixed-format kernels are
 implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
 paths, with physical cluster/memory-ordering/failure qualification pending. There are 40 open issues;
-child acceptance gates remain the roadmap's retirement criterion.
+child acceptance gates remain the roadmap's retirement criterion. All five previously
+deferred source extensions are implemented; no known implementation item remains
+in the requested backlog. The current receipt records the consolidated repair and
+combined retest, including stopped lanes and unavailable-target limits.
 
 ## Stop conditions for hardware work
 

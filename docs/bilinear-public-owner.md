@@ -75,5 +75,6 @@ Retained mode holds48 transformed A/B pairs and products. Recompute mode holds
 one pair and48 products; its repeated transforms are counted in captures.
 Both reserve their full output stage, original integer range proof and explicit
 payload budget. The204-operation count describes the canonical logical program;
-recomputation and modular reduction add actual work. New CPU and HIP fixtures and
-collector controls are implemented; their consolidated execution is pending.
+recomputation and modular reduction add actual work. CPU and gfx1100 HIP fixtures and collector controls pass the
+[current consolidated batch](../metadata/remaining-code-validation-20261027.json).
+Measured large-shape benefit and broader targets remain unqualified.

@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-27T09:09:36.646249+00:00",
+  "scope_refreshed_utc": "2026-10-27T11:49:09.999216+00:00",
   "issues": [
     {
       "issue": 18,
@@ -721,7 +721,7 @@
       "issue": 32,
       "title": "[Research P2] Extend offline modulus search into a certified hardware-weighted scheme optimizer",
       "url": "https://github.com/doublemover/RNS8/issues/32",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Offline scheme machinery exists but explicit experimental runtime basis absent and legacy required-prefix full-u64 report still uses product bit_length rather than strict semantic bound, as current comment specifies.",
       "implementation": [
         {
@@ -770,6 +770,39 @@
             "src/core/api_prepared_native_transfer.inc",
             "tests/differential/test_hip_basis_transfer_cases.inc"
           ]
+        },
+        {
+          "summary": "Real CK/rocWMMA/hipBLASLt/builtin ordered-basis GEMM, arbitrary-basis distributed shards and opt-in complete-cost automatic basis selection.",
+          "files": [
+            "benchmarks/cases/distributed.json",
+            "benchmarks/rns8_distributed_calibrate.cpp",
+            "include/rns8/experimental_basis.h",
+            "src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+            "src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip",
+            "src/backend_ck/ck_backend.cpp",
+            "src/backend_ck/ck_backend_timing_workspace.inc",
+            "src/backend_common/distributed_inputs.hpp",
+            "src/backend_common/distributed_mock.hpp",
+            "src/backend_common/distributed_plan.hpp",
+            "src/backend_common/finite_u8_reducer.hpp",
+            "src/backend_hip_direct/hip_direct_distributed.cuh",
+            "src/backend_hip_direct/hip_direct_kernels.hip",
+            "src/backend_rocwmma/rocwmma_backend.cpp",
+            "src/backend_rocwmma/rocwmma_backend_timing_workspace.inc",
+            "src/core/api_basis_selection.inc",
+            "src/core/api_experimental_basis.cpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/distributed_hip.cpp",
+            "src/core/distributed_hip.hpp",
+            "tests/differential/test_hip_basis_transfer_cases.inc",
+            "tests/unit/test_distributed_hip.cpp",
+            "tests/unit/test_distributed_plan.cpp",
+            "tests/unit/test_experimental_basis_cases.inc",
+            "tests/unit/test_moduli.cpp",
+            "tools/collect_distributed_calibration.py",
+            "tools/test_benchmark_cases.py",
+            "tools/test_collect_distributed_calibration.py"
+          ]
         }
       ],
       "regressions": [
@@ -783,12 +816,14 @@
       ],
       "commits": [
         "07c79727f9a1b99eefb7420fa1dc623d09cc4579",
-        "a0bf2a2c035f0a6fa138b51d2097c0928572130f"
+        "a0bf2a2c035f0a6fa138b51d2097c0928572130f",
+        "e0ff57834bffa5467fcffdadc392b02cfba4f16f",
+        "2c94b994190e6571136820cda07a43f0072d212f"
       ],
       "remaining": [
-        "Independent complete-pipeline custom-basis/form calibration and broader-target qualification remain. Experimental-basis accelerator-library/distributed providers and automatic basis selection remain outside the current CPU/direct-HIP phase."
+        "Independent complete-pipeline custom-basis/form calibration, broader provider/target execution and profitable complete-cost selection remain unqualified. Library/distributed computation and opt-in automatic selection are implemented."
       ],
-      "validation": "Current local CPU-ASan/HIP and installed-consumer results are recorded in metadata/implementation-closeout-20261027.json. Target-inapplicable skips and compile-only instructions do not qualify unavailable hardware or measured performance.",
+      "validation": "Applicable local checks pass at the exact compiled source in the current receipt. Broader-target, fault, physical-resource and measured-benefit acceptance remains separate.",
       "dependencies": [
         29
       ],
@@ -796,9 +831,9 @@
         "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/remaining-code-validation-20261027.json",
+        "compiled_source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+        "scope": "Applicable complete configured CPU-ASan/gfx1100 retest and installed consumer; explicit stopped lanes excluded, unchanged symbolic check carried by hashes. Unavailable instruction/transport source is compile-only."
       },
       "selected_source_audit": {
         "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
@@ -807,7 +842,10 @@
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
+      "historical_pre_extension_remaining_20261027": [
+        "Independent complete-pipeline custom-basis/form calibration and broader-target qualification remain. Experimental-basis accelerator-library/distributed providers and automatic basis selection remain outside the current CPU/direct-HIP phase."
+      ]
     },
     {
       "issue": 34,
@@ -1842,7 +1880,7 @@
       "issue": 43,
       "title": "[Research P1] Complete public asynchronous execution and graph-safe lifetime contracts",
       "url": "https://github.com/doublemover/RNS8/issues/43",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Prepared async/graph/token/dependency/cancel/timeout machinery exists. Latest comment's legacy cleanup remains: release_workspace_device_buffer, result/prepack cache destroy null pointers/delete owners even when free fails; general transfer/semantic coverage also incomplete.",
       "implementation": [
         {
@@ -1996,6 +2034,22 @@
             "src/backend_hipblaslt/hipblaslt_async.inc",
             "src/core/api_prepared_caller_graph.inc"
           ]
+        },
+        {
+          "summary": "Atomic multi-body caller capture/submission, finite/wrap pending-token pipelines and bounded retained in-flight execution pools.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/api_gemm.cpp",
+            "src/core/api_internal.hpp",
+            "src/core/api_prepared.cpp",
+            "src/core/api_prepared_caller_graph.inc",
+            "src/core/api_prepared_hip.inc",
+            "src/core/api_prepared_pipeline.inc",
+            "src/core/api_prepared_pool.inc",
+            "tests/unit/test_api.cpp",
+            "tests/unit/test_api_prepared_concurrency_cases.inc",
+            "tests/unit/test_wrap64_prepared_hip_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -2029,12 +2083,14 @@
         "d403c9711b74e51d4d61ecfed365f9681f4103bc",
         "c7850412f000a2d1753c5577d14553789e0200de",
         "185543a89b8eec07078788b2da3343374b98a928",
-        "7cfa5e51ec652ad749586380b2255785623bda73"
+        "7cfa5e51ec652ad749586380b2255785623bda73",
+        "2d5aaa815fcdf0cef2adc256ee5bc34c43cbd421",
+        "2c94b994190e6571136820cda07a43f0072d212f"
       ],
       "remaining": [
-        "Native Linux/CDNA adapter/caller-graph execution, real device-fault/failed-drain recovery, physical overlap/traffic and complete-route performance remain unqualified. Existing single-epoch, externally serialized handle and one-body caller-capture contracts remain explicit."
+        "Native Linux/CDNA adapter and caller-graph execution, real device-fault/failed-drain recovery, physical overlap/traffic and complete-route payoff remain unqualified. Multi-body caller capture, finite/wrap pipelines and distinct-slot in-flight pools are implemented."
       ],
-      "validation": "Current local CPU-ASan/HIP and installed-consumer results are recorded in metadata/implementation-closeout-20261027.json. Target-inapplicable skips and compile-only instructions do not qualify unavailable hardware or measured performance.",
+      "validation": "Applicable local checks pass at the exact compiled source in the current receipt. Broader-target, fault, physical-resource and measured-benefit acceptance remains separate.",
       "dependencies": [
         18,
         24
@@ -2043,9 +2099,9 @@
         "Matched pinned-host sync/stream/graph calibration and the concrete direct-HIP async/graph adapters are authored. Consolidated build/test validation is now requested. Provider-specific async/capture support outside those concrete owners remains explicitly unsupported; no blanket graph-safety or measured overlap claim."
       ],
       "local_validation": {
-        "receipt": "metadata/allocation-global-control-validation-20261025.json",
-        "compiled_source_commit": "2fcb91c",
-        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+        "receipt": "metadata/remaining-code-validation-20261027.json",
+        "compiled_source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+        "scope": "Applicable complete configured CPU-ASan/gfx1100 retest and installed consumer; explicit stopped lanes excluded, unchanged symbolic check carried by hashes. Unavailable instruction/transport source is compile-only."
       },
       "prepared_export_cpu_reader_unwind_20261026": {
         "status": "implemented_execution_validation_deferred",
@@ -2060,13 +2116,16 @@
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
+      "historical_pre_extension_remaining_20261027": [
+        "Native Linux/CDNA adapter/caller-graph execution, real device-fault/failed-drain recovery, physical overlap/traffic and complete-route performance remain unqualified. Existing single-epoch, externally serialized handle and one-body caller-capture contracts remain explicit."
+      ]
     },
     {
       "issue": 45,
       "title": "[Research P3] Prototype certified FP4/FP6/FP8 modular GEMM with fixed-scale exactness gates",
       "url": "https://github.com/doublemover/RNS8/issues/45",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Offline encoding/certificate groundwork exists; no real FP4/FP6/FP8 HIP modular matrix backend or certified public FP8 representation bridge. Native floating kernel implementation, not merely hardware testing, remains absent.",
       "implementation": [
         {
@@ -2087,6 +2146,29 @@
             "src/backend_hip_direct/hip_direct_fp8_modular.cuh",
             "tests/unit/test_fp8_modular.cpp"
           ]
+        },
+        {
+          "summary": "Explicit gfx950 FP4/FP6/FP8 mixed-format MFMA kernels with copied dynamic E8M0 schedules, per-instruction reset and conditional exactness certificates.",
+          "files": [
+            "benchmarks/cases/fp8.json",
+            "benchmarks/rns8_fp8_calibrate.cpp",
+            "include/rns8/rns8.h",
+            "src/backend_common/mxfp_modular.hpp",
+            "src/backend_hip_direct/hip_backend.hpp",
+            "src/backend_hip_direct/hip_backend_fp8_modular.inc",
+            "src/backend_hip_direct/hip_direct_kernels.hip",
+            "src/backend_hip_direct/hip_direct_mxfp_modular.cuh",
+            "src/core/api_fp8.cpp",
+            "src/core/api_operation_provider.inc",
+            "tests/unit/test_api.cpp",
+            "tests/unit/test_api_fp8_cases.inc",
+            "tests/unit/test_fp8_modular.cpp",
+            "tools/collect_research_kernels.py",
+            "tools/mxfp_contract.py",
+            "tools/test_benchmark_cases.py",
+            "tools/test_collect_research_kernels.py",
+            "tools/test_fp8_modular_certificate.py"
+          ]
         }
       ],
       "regressions": [
@@ -2096,12 +2178,14 @@
         "tools/test_collect_research_kernels.py"
       ],
       "commits": [
-        "543fa115e6b7e9313928d09b206186de57dc6f25"
+        "543fa115e6b7e9313928d09b206186de57dc6f25",
+        "3359fd0c9688f7322335d65bf417174ec17b696a",
+        "2c94b994190e6571136820cda07a43f0072d212f"
       ],
       "remaining": [
-        "Compile-only gfx942 MFMA and gfx1201 WMMA code generation is recorded. Actual target lane/accumulator/adversarial exact arithmetic and complete INT8-versus-FP8 route costs require those GPUs. FP4/FP6/dynamic/mixed-scale contracts remain separately gated later forms."
+        "Actual gfx942/gfx1201 FP8 and gfx950 fixed/dynamic/mixed FP4/FP6/FP8 lane, scale-ordering, internal-accumulator and adversarial exactness qualification remains. Strongest complete INT8 controls, resource/counter evidence and profitable routing remain unmeasured."
       ],
-      "validation": "Current local CPU-ASan/HIP and installed-consumer results are recorded in metadata/implementation-closeout-20261027.json. Target-inapplicable skips and compile-only instructions do not qualify unavailable hardware or measured performance.",
+      "validation": "Applicable local checks pass at the exact compiled source in the current receipt. Broader-target, fault, physical-resource and measured-benefit acceptance remains separate.",
       "dependencies": [
         29,
         55
@@ -2111,9 +2195,9 @@
         "Execution, benchmarking and scientific/hardware qualification are deferred."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/remaining-code-validation-20261027.json",
+        "compiled_source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+        "scope": "Applicable complete configured CPU-ASan/gfx1100 retest and installed consumer; explicit stopped lanes excluded, unchanged symbolic check carried by hashes. Unavailable instruction/transport source is compile-only."
       },
       "five_issue_source_20261026": {
         "report": "docs/five-issue-implementation-20261026.md",
@@ -2121,7 +2205,10 @@
         "qualification": "deferred; no new tests or benchmarks"
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
+      "historical_pre_extension_remaining_20261027": [
+        "Compile-only gfx942 MFMA and gfx1201 WMMA code generation is recorded. Actual target lane/accumulator/adversarial exact arithmetic and complete INT8-versus-FP8 route costs require those GPUs. FP4/FP6/dynamic/mixed-scale contracts remain separately gated later forms."
+      ]
     },
     {
       "issue": 46,
@@ -2226,7 +2313,7 @@
       "issue": 48,
       "title": "[Research P3] Evaluate certified one-level Strassen and rank-23 modular block GEMM",
       "url": "https://github.com/doublemover/RNS8/issues/48",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Private/public one-level Strassen and rank23 SLP implemented. Current rank23 is September 56-node alternative-basis program, not required October55 artifact; latest one-correction binary transform lowering still uses general remainder.",
       "implementation": [
         {
@@ -2266,6 +2353,35 @@
             "tools/test_rank48_certificate.py",
             "third_party/rank48/provenance.json"
           ]
+        },
+        {
+          "summary": "Pinned canonical rank48 204-operation straight-line programs, exact rational expansion proof, retained/recomputed direct and matrix execution.",
+          "files": [
+            "NOTICE",
+            "benchmarks/cases/bilinear.json",
+            "benchmarks/rns8_bilinear_calibrate.cpp",
+            "include/rns8/rns8.h",
+            "src/backend_common/bilinear_selection.hpp",
+            "src/backend_common/rank23_slp_resources.hpp",
+            "src/backend_common/rank48_slp.hpp",
+            "src/backend_hip_direct/hip_backend.hpp",
+            "src/backend_hip_direct/hip_backend_rank23_slp.inc",
+            "src/backend_hip_direct/hip_direct_kernels.hip",
+            "src/backend_hip_direct/hip_direct_rank48_slp_kernels.cuh",
+            "src/core/api_gemm.cpp",
+            "tests/differential/test_hip_direct_strassen_cases.inc",
+            "tests/unit/test_rank48.cpp",
+            "third_party/README.md",
+            "third_party/rank48/4x4x4_48_204_L.slp",
+            "third_party/rank48/4x4x4_48_204_P.slp",
+            "third_party/rank48/4x4x4_48_204_R.slp",
+            "third_party/rank48/provenance.json",
+            "tools/collect_bilinear_calibration.py",
+            "tools/rank48_slp.py",
+            "tools/test_benchmark_cases.py",
+            "tools/test_collect_bilinear_calibration.py",
+            "tools/test_rank48_certificate.py"
+          ]
         }
       ],
       "regressions": [
@@ -2279,12 +2395,14 @@
       "commits": [
         "a09a6f4f2aa4a5e10333b0c30553c1b2e5d7b1c7",
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
-        "6706bb68b02e3293302349bb9b40d7a305ea7a03"
+        "6706bb68b02e3293302349bb9b40d7a305ea7a03",
+        "6c166fd3494f3b762d5c7ff9af3b8c29e3fabdcb",
+        "2c94b994190e6571136820cda07a43f0072d212f"
       ],
       "remaining": [
-        "Strongest-control large-shape one-level bilinear performance, physical ISA/resources and the unchanged speed/memory promotion gates remain. Rank48 coefficient execution is implemented; the paper-specific lower-addition SLP is not claimed by that coefficient route."
+        "Strongest-control large-shape bilinear performance, physical ISA/resources and the original speed/memory promotion gates remain. Canonical 204-operation rank48 SLP execution and independent expansion proof are implemented."
       ],
-      "validation": "Current local CPU-ASan/HIP and installed-consumer results are recorded in metadata/implementation-closeout-20261027.json. Target-inapplicable skips and compile-only instructions do not qualify unavailable hardware or measured performance.",
+      "validation": "Applicable local checks pass at the exact compiled source in the current receipt. Broader-target, fault, physical-resource and measured-benefit acceptance remains separate.",
       "dependencies": [
         29,
         47
@@ -2294,9 +2412,9 @@
         "The conditional inverse-of-two rank48 extension remains gated on measured usefulness and is not required before the division-free scheduler proves worthwhile; default modulus256 cannot use it."
       ],
       "local_validation": {
-        "receipt": "metadata/allocation-global-control-validation-20261025.json",
-        "compiled_source_commit": "2fcb91c",
-        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+        "receipt": "metadata/remaining-code-validation-20261027.json",
+        "compiled_source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+        "scope": "Applicable complete configured CPU-ASan/gfx1100 retest and installed consumer; explicit stopped lanes excluded, unchanged symbolic check carried by hashes. Unavailable instruction/transport source is compile-only."
       },
       "selected_source_audit": {
         "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
@@ -2305,7 +2423,10 @@
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
+      "historical_pre_extension_remaining_20261027": [
+        "Strongest-control large-shape one-level bilinear performance, physical ISA/resources and the unchanged speed/memory promotion gates remain. Rank48 coefficient execution is implemented; the paper-specific lower-addition SLP is not claimed by that coefficient route."
+      ]
     },
     {
       "issue": 49,
@@ -2390,7 +2511,7 @@
       "issue": 50,
       "title": "[Research P2] Implement true modulus-sharded multi-GPU GEMM with residue-consistency epochs",
       "url": "https://github.com/doublemover/RNS8/issues/50",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Typed distributed planner and mock transport/coverage exist. No real multi-GPU HIP executor, gather-to-owner and complete product publication implementation; M1 remains source-missing independent of absent hardware tests.",
       "implementation": [
         {
@@ -2418,6 +2539,32 @@
             "src/core/distributed_hip.cpp",
             "tests/unit/test_distributed_plan.cpp"
           ]
+        },
+        {
+          "summary": "Feature-detected MPI process sessions, RCCL P2P and device-initiated rocSHMEM transport, bounded protocol/resource/deadline ownership and authored two-epoch full-output cluster smoke.",
+          "files": [
+            "benchmarks/rns8_distributed_process_smoke.cpp",
+            "cmake/RNS8Config.cmake.in",
+            "cmake/rns8_distributed_transports.cmake",
+            "cmake/rns8_install.cmake",
+            "cmake/rns8_options.cmake",
+            "cmake/rns8_provenance.cmake",
+            "cmake/rns8_sources.cmake",
+            "cmake/rns8_targets.cmake",
+            "scripts/linux_process_transport_smoke.sh",
+            "src/backend_common/distributed_mock.hpp",
+            "src/backend_common/distributed_plan.hpp",
+            "src/backend_common/distributed_protocol.hpp",
+            "src/backend_hip_direct/rocshmem_transport.hip",
+            "src/core/distributed_hip.cpp",
+            "src/core/distributed_process.cpp",
+            "src/core/distributed_process.hpp",
+            "src/core/distributed_process_initialize.inc",
+            "src/core/distributed_process_owner.inc",
+            "src/core/distributed_process_transport.inc",
+            "tests/unit/test_distributed_plan.cpp",
+            "third_party/README.md"
+          ]
         }
       ],
       "regressions": [
@@ -2427,12 +2574,14 @@
         "tools/test_collect_distributed_calibration.py"
       ],
       "commits": [
-        "8e79a9d837d2b70c2b7903f7723adbdb17e31ce9"
+        "8e79a9d837d2b70c2b7903f7723adbdb17e31ce9",
+        "a68de58ba99108d64ed2c91b4c76980de21df745",
+        "2c94b994190e6571136820cda07a43f0072d212f"
       ],
       "remaining": [
-        "Applicable CPU/mock and single-device gfx1100 partition/reduction regressions pass. Actual multi-GPU Windows and native Linux gfx942/gfx950 transport, rank/device-fault cleanup, topology/NUMA/traffic and scaling remain unqualified. Optional RCCL/multiprocess/multinode/device-initiated M3 transports remain separately gated extensions."
+        "Actual linked MPI/RCCL/rocSHMEM multi-GPU/multinode execution, device memory ordering, rank/device-fault cleanup, topology/NUMA/traffic and scaling remain unqualified. Local CPU/mock and single-device gfx1100 coverage does not qualify network or peer transport."
       ],
-      "validation": "Current local CPU-ASan/HIP and installed-consumer results are recorded in metadata/implementation-closeout-20261027.json. Target-inapplicable skips and compile-only instructions do not qualify unavailable hardware or measured performance.",
+      "validation": "Applicable local checks pass at the exact compiled source in the current receipt. Broader-target, fault, physical-resource and measured-benefit acceptance remains separate.",
       "dependencies": [
         18,
         24,
@@ -2444,9 +2593,9 @@
         "Execution, benchmarking and scientific/hardware qualification are deferred."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/remaining-code-validation-20261027.json",
+        "compiled_source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+        "scope": "Applicable complete configured CPU-ASan/gfx1100 retest and installed consumer; explicit stopped lanes excluded, unchanged symbolic check carried by hashes. Unavailable instruction/transport source is compile-only."
       },
       "selected_implementation_20261026": {
         "receipt": "metadata/selected-implementation-20261026.json",
@@ -2461,7 +2610,10 @@
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
+      "historical_pre_extension_remaining_20261027": [
+        "Applicable CPU/mock and single-device gfx1100 partition/reduction regressions pass. Actual multi-GPU Windows and native Linux gfx942/gfx950 transport, rank/device-fault cleanup, topology/NUMA/traffic and scaling remain unqualified. Optional RCCL/multiprocess/multinode/device-initiated M3 transports remain separately gated extensions."
+      ]
     },
     {
       "issue": 51,
@@ -4247,5 +4399,18 @@
     "default_routing_changed": false,
     "issues_closed": []
   },
-  "current_closeout_receipt": "metadata/implementation-closeout-20261027.json"
+  "current_closeout_receipt": "metadata/remaining-code-validation-20261027.json",
+  "remaining_source_extensions_20261027": {
+    "status": "implemented",
+    "issues": [
+      32,
+      43,
+      45,
+      48,
+      50
+    ],
+    "receipt": "metadata/remaining-code-validation-20261027.json",
+    "remaining_implementation": [],
+    "qualification_remains": true
+  }
 }

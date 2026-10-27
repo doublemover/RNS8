@@ -176,5 +176,7 @@ collector rejects mismatched target, mode, scales or omitted reset cost.
 alphabet/scale encodings and integer reconstruction model. Authored CPU and
 HIP fixtures cover every byte, all supported exponent extremes, prime/composite
 moduli, padded tails around32/128 and multi-block K65537, with Boost output
-references. At this source pass only syntax/compile checks have run; gfx950
-execution, internal arithmetic adversaries and measured comparisons remain open.
+references. The CPU model/certificate checks pass the
+[current consolidated batch](../metadata/remaining-code-validation-20261027.json);
+gfx950 assembly emits the scaled f8f6f4 MFMA instruction. Actual gfx950 execution,
+internal arithmetic adversaries and measured comparisons remain open.
