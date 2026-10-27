@@ -100,8 +100,9 @@ rns8_status RuntimeProductRecipe::close() {
     if(!lock.owns_lock()) return RNS8_BUSY;
     if(state.closed) return RNS8_SUCCESS;
     if(state.quarantined || !state.active_outputs.empty()) {
-      if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && hip_direct_synchronize(state.ctx->device_id)!=RNS8_SUCCESS)
-        return RNS8_BACKEND_FAILURE;
+      if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && hip_direct_synchronize(state.ctx->device_id)!=RNS8_SUCCESS) {
+        state.ctx->hip_failure_poisoned=true;return RNS8_BACKEND_FAILURE;
+      }
       state.invalidate_touched();state.release_active();state.quarantined=false;
     }
     if(state.device) {
