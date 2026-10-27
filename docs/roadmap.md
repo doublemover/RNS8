@@ -14,8 +14,15 @@ records a fresh automatically resolved Windows/gfx1100 stack at `059fa45`:
 tests, plus four installed static/shared native-device checks. Selected HIP
 runtime hashes are verified after loading. This supersedes pending local
 SDK10.1 Release bring-up, while broader hardware/configuration and matched
-performance gates remain. Historical measurements below retain their original
-source and toolchain boundaries.
+performance gates remain. The [configuration follow-up](platform-windows.md#october-26-configuration-follow-up)
+at `72c55c2` passes HIP Debug, HIP OpenMP-OFF and supported CPU ASan, plus
+fresh primary Release artifact checks: 2,480 passes, 96 explicit skips and zero
+failures in supported final configurations. The
+[SDK10.1 bounded measurements](performance.md#october-26-sdk101-bounded-measurements)
+record separate original and post-restart cohorts, strongest tested controls
+and fixed acceptance gates. Historical measurements below retain their original
+source and toolchain boundaries; these within-SDK comparisons are not a matched
+prior/new-SDK regression study.
 
 The [October 26 selected implementation audit](selected-implementation-20261026.md)
 records source and fixtures for all 25 requested issue slices, including the new
@@ -122,11 +129,11 @@ Focused topic guides retain arithmetic proofs and remaining gates:
 
 | Work | Current boundary / next acceptance | Issue |
 |---|---|---|
-| Conversion-aware planning and roofs | Typed models/calibration and instruction/conversion/CRT/system probes are written; target measurements, counters and qualified held-out prediction remain | [#30](https://github.com/doublemover/RNS8/issues/30), [#31](https://github.com/doublemover/RNS8/issues/31) |
+| Conversion-aware planning and roofs | Bounded gfx1100 instruction/conversion/CRT/system and stage measurements are recorded with fixed held-out gates; unseen workloads, physical clocks/counters/resources and selection-regret qualification remain | [#30](https://github.com/doublemover/RNS8/issues/30), [#31](https://github.com/doublemover/RNS8/issues/31) |
 | Bound discovery and variable prefixes | Device discovery/adaptive/ragged candidates, compact device-bucket workers and explicit matrix-owned adaptive API are authored; four-wave register/one-buffer/two-buffer native WMMA candidates are authored; summary reuse and measured cost tradeoffs remain | [#34](https://github.com/doublemover/RNS8/issues/34), [#35](https://github.com/doublemover/RNS8/issues/35) |
 | Scheduling | Private queue/split-K and logical locality models; measured configuration selection and broader target work remain | [#36](https://github.com/doublemover/RNS8/issues/36), [#37](https://github.com/doublemover/RNS8/issues/37), [#38](https://github.com/doublemover/RNS8/issues/38) |
 | Reconstruction/materialization | Public explicit CPU/HIP lift; private balanced/mixed-radix alternatives include an authored tile-major CRT consumer; performance and broader representation integration remain | [#39](https://github.com/doublemover/RNS8/issues/39), [#40](https://github.com/doublemover/RNS8/issues/40), [#41](https://github.com/doublemover/RNS8/issues/41) |
-| Resident execution | Native/uniform/ragged/packed materialization planning and retained arena execution; direct-HIP tokens/dependencies, transfer/lift/export, supported semantics and owned graphs are written; provider-specific unsupported modes, measurements and hardware qualification stay explicit | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
+| Resident execution | Native/uniform/ragged/packed planning and retained arenas, direct-HIP tokens/dependencies, transfers/lifts/exports and owned graphs are implemented; bounded same-graph measurements retain independent-process gates. Observed setup amortization, physical peak memory, broader graphs/providers and hardware qualification remain | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
 | Algebraic composition | Exact epilogues, paired 3M/4M and one-level Strassen/rank-23 coefficient/straight-line matrix subproducts are written; measured routing and conditional extensions remain gated | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
 | Low-bit/floating encodings | Scalar certificates now separate proof verdicts; a host rational/binary32 rewrite oracle is authored. An explicit gfx942 FNUZ FP8 finite owner and MFMA implementation are authored; target proof/ISA/performance execution gates remain | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
 | Integrity/sparse/multi-GPU | Private integrity candidates, public Sparse-A/hybrid owners and real modulus-sharded M1/M2 source; actual multi-GPU and sparse target execution/traffic/failure qualification remain | [#49](https://github.com/doublemover/RNS8/issues/49), [#50](https://github.com/doublemover/RNS8/issues/50), [#51](https://github.com/doublemover/RNS8/issues/51) |
@@ -231,10 +238,13 @@ publication and reusable scratch. Its [opt-in materialization planner](planning-
 adds shared packed B alternatives, joint prefix/cost search and a physical
 liveness arena. The latest CPU/HIP and installed-consumer fixtures passed.
 Capacity-aware schema-2 prices and frozen measured-stage ingestion are implemented.
-The [new independent collection](focused-closeout-measurements-20261025.md#subsequent-stage-price-and-proof-policy-experiment)
-passes exact checks but fails all four held-out prediction cohorts. Broader
-representation-choice integration and qualified measured routing remain under
-#42/#30/#31. The fresh global-minimum and live/peak allocation controls now pass local CPU/GPU
+The [October 25 independent collection](focused-closeout-measurements-20261025.md#subsequent-stage-price-and-proof-policy-experiment)
+passes exact checks but fails all four historical held-out prediction cohorts.
+The [October 26 SDK10.1 study](performance.md#october-26-sdk101-bounded-measurements)
+adds source-bound same-graph/process-held-out results and preserves each
+original/post-restart cohort separately. Broader representation-choice,
+unseen-workload prediction, measured setup amortization and qualified routing
+remain under #42/#30/#31. The global-minimum and live/peak allocation controls pass local CPU/GPU
 and installed-ABI checks. Explicit generation-bound summary ownership passes
 the [full local batch and 40 matched captures](adaptive-native-product.md#matched-summary-reuse-observations).
 Its host-output elapsed effects fail the fixed qualification gates. A separate

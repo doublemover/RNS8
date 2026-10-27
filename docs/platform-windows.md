@@ -167,6 +167,41 @@ including K=65,536 and 65,537.
 The same SDK compiles the gfx942 FP8 path and emits
 `v_mfma_f32_16x16x32_fp8_fp8`; this is compile/ISA evidence only. Its compiler
 lacks `__builtin_amdgcn_s_wait_dscnt`, so the guarded gfx1250 TDM path remains
-unavailable. Linux, other GPU families, multi-GPU, Debug/ASan and matched
-new-stack performance retain their own qualification gates. No stopped
-performance campaign was resumed.
+unavailable. Linux, other GPU families, multi-GPU and matched prior/new-stack
+performance retain their own qualification gates. The local configuration
+follow-up below uses this selected SDK; no stopped performance campaign was resumed.
+
+## October 26 configuration follow-up
+
+The [compact results](../metadata/sdk101-followup-20261026.json) and
+[verified full archive](../metadata/sdk101-followup-archive-20261026.json)
+bind the following builds and checks to clean source `72c55c2`:
+
+| Configuration | Selected tests | Passed | Skipped | Failed |
+|---|---:|---:|---:|---:|
+| HIP Debug, all optional providers | 1,014 | 983 | 31 | 0 |
+| HIP Release, OpenMP OFF, all optional providers | 1,014 | 984 | 30 | 0 |
+| CPU clang-cl ASan, RelWithDebInfo, OpenMP OFF | 540 | 505 | 35 | 0 |
+| Fresh primary Release artifact integration | 8 | 8 | 0 | 0 |
+
+The three matrix lanes cover compiled tests, build-specific CLI/ISA checks and
+installed static/shared consumers. Each excludes 98 unchanged source-only
+tooling tests. Target/feature skips remain explicit; Debug additionally skips
+the allocation-fault harness because it excludes Debug CRT. The primary Release
+artifact's eight checks cover selected-runtime loading, reference/verification,
+ISA and installed consumers; they do not repeat its entire earlier arithmetic
+suite. Production benchmark outputs receive exact reference audits. The legacy
+public instrumented processes cross-match contracts and output checksums to the
+validated production observations; the new cache-equipped collector additionally
+compares every instrumented native output element against its full reference.
+
+CPU ASan uses LLVM23.1.4, `/MD`, optimization level O1 and debug symbols, with
+HIP and fuzzers OFF and GMP/FLINT ON. LLVM rejects the first attempted Debug-CRT
+`/MDd` configuration; that failed build receipt is preserved, and the supported
+RelWithDebInfo configuration passes. This does not qualify Debug-CRT ASan or
+the separate static-CRT libFuzzer configuration.
+
+The follow-up totals **2,480 passes, 96 skips and zero failures in the supported
+final configurations**. Loaded HIP/core-loader hashes and sampled hipBLASLt and
+compiler DLL paths match the selected SDK. The new performance observations are
+documented in [performance evidence](performance.md#october-26-sdk101-bounded-measurements).

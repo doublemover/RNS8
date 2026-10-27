@@ -823,10 +823,6 @@
           "reference": "archive/README.md"
         },
         {
-          "source": "docs/performance.md",
-          "reference": "archive/README.md"
-        },
-        {
           "source": "docs/roadmap.md",
           "reference": "archive/README.md"
         },
@@ -2755,10 +2751,6 @@
           "reference": "local-all-features-20261023.md"
         },
         {
-          "source": "docs/performance.md",
-          "reference": "local-all-features-20261023.md"
-        },
-        {
           "source": "docs/plan-validation.md",
           "reference": "local-all-features-20261023.md"
         },
@@ -3416,6 +3408,10 @@
           "reference": "performance.md#research-evidence-and-benchmark-inputs"
         },
         {
+          "source": "docs/dependency-versions.md",
+          "reference": "performance.md#october-26-sdk101-bounded-measurements"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "performance.md"
         },
@@ -3436,8 +3432,20 @@
           "reference": "performance.md"
         },
         {
+          "source": "docs/platform-windows.md",
+          "reference": "performance.md#october-26-sdk101-bounded-measurements"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "performance.md#october-26-sdk101-bounded-measurements"
+        },
+        {
           "source": "docs/roadmap.md",
           "reference": "performance.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "performance.md#october-26-sdk101-bounded-measurements"
         },
         {
           "source": "docs/documentation-inventory.json",
@@ -3451,11 +3459,13 @@
         "current-evidence-boundary",
         "independent-observations-and-profiler-partitions",
         "measurement-contract",
+        "october-26-sdk101-bounded-measurements",
         "paired-residue-dot-scheduler-controls",
         "performance-evidence-and-promotion",
         "promotion-boundaries",
         "research-evidence-and-benchmark-inputs",
         "residue-dot-calibration-ownership-and-timing-body",
+        "reusable-exact-reference-fixtures",
         "selected-static-isa-and-proof-work-identity",
         "synchronous-transfer-payload-accounting",
         "unavailable-diagnostic-timing"
@@ -3714,6 +3724,10 @@
           "reference": "platform-windows.md#october-26-core-sdk-101-local-release-validation"
         },
         {
+          "source": "docs/dependency-versions.md",
+          "reference": "platform-windows.md#october-26-configuration-follow-up"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "platform-windows.md"
         },
@@ -3722,12 +3736,20 @@
           "reference": "platform-windows.md"
         },
         {
+          "source": "docs/performance.md",
+          "reference": "platform-windows.md#october-26-configuration-follow-up"
+        },
+        {
           "source": "docs/platform-readiness.md",
           "reference": "platform-windows.md"
         },
         {
           "source": "docs/roadmap.md",
           "reference": "platform-windows.md#october-26-core-sdk-101-local-release-validation"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "platform-windows.md#october-26-configuration-follow-up"
         },
         {
           "source": "examples/workloads/README.md",
@@ -3744,6 +3766,7 @@
       ],
       "anchors": [
         "configure-and-build",
+        "october-26-configuration-follow-up",
         "october-26-core-sdk-101-local-release-validation",
         "optional-accelerators",
         "prerequisites",

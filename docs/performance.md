@@ -2,24 +2,92 @@
 
 ## Current evidence boundary
 
+The [SDK10.1 local follow-up](../metadata/sdk101-followup-20261026.json) records
+clean compiled source `72c55c2` on RX7900XTX/gfx1100, Core SDK10.1.0 /
+HIP7.16.26385 / AMDClang24, with unchanged Windows driver 32.0.31041.5005.
+The original 350-process cohort and the separate 350-process post-restart idle
+cohort retain their own timings, ranges and frozen prices. The local Debug,
+OpenMP-OFF and supported CPU-ASan checks are recorded in the
+[Windows guide](platform-windows.md#october-26-configuration-follow-up).
+
 The [October 23 larger-workload report](7900xtx-large-throughput-2026-10-23.md)
-is the current RX 7900 XTX scaling evidence, built at `c7f7e05` with the
-[recorded all-feature configuration](local-all-features-20261023.md). It compares
-native device output, resident residue epilogues and public host-output
-pipelines in separate tables. The [256³ diagnostic](7900xtx-throughput-2026-10-23.md)
-is retained as earlier small-workload evidence. Old June summaries remain in the
-[archive](archive/README.md).
+and [256³ diagnostic](7900xtx-throughput-2026-10-23.md) remain historical,
+source/toolchain-bound observations. Current [backend availability](backend-notes.md),
+correctness and measured routing admission remain separate records.
 
-The public 1024³ bounded-i64 repack/export comparison records AMDGPU builtins
-at 6.736 ms versus direct HIP at 8.127 ms (1.21×). Internal native-byte WMMA
-and private fused residue epilogues have different output/measurement boundaries;
-the report states their matched baselines and ranges. These observations do not
-install AUTO routing or fill missing clock/counter/held-out calibration gates.
-Linux/Instinct and other devices require their own captures.
+## October 26 SDK10.1 bounded measurements
 
-Current [backend availability](backend-notes.md), dated correctness results and
-performance promotion are separate records. A new source/configuration identity
-must be checked before reusing an earlier result for routing decisions.
+Each cohort contains 140 public-backend processes, 50 resident-output, 55 CRT,
+35 system-roof, 20 instruction-roof, 10 stage-training and 40 held-out graph
+processes. All collectors complete successfully. Production outputs pass exact
+checks; the 70 public instrumented captures per cohort additionally cross-match
+contracts and output checksums to their validated production observations.
+The new reference-cache path below adds full element comparisons to those
+instrumented native runs as well. Five independent
+processes per case use three warmups and nine latency samples. Production
+collectors retain three sustained windows, each at least 250 ms and 16 calls unless
+the hard 4096-call cap is reached. Oracles stay outside timed intervals; required
+proofs, status, completion and publication stay inside. Instrumented phase
+observations come from separate processes and are never subtracted from
+production calls.
+
+The fixed gain gate requires disjoint observed process ranges and a
+(max−min)/median spread of at most 10% in both baseline/candidate groups. These are the beneficial
+post-restart comparisons that pass that timing gate:
+
+| Addition / measured boundary | Baseline → candidate | Speedup | Candidate rate |
+|---|---:|---:|---:|
+| Fused native WMMA: signed 512³, complete P20 resident RNS output | 0.606801 → **0.530806 ms** | **1.143×** | **0.50571 useful integer TOPS** |
+| Direct CRT: 1,048,576 values, P20, resident three-limb output | 3.664167 → **0.204691 ms** | **17.901×** | **5.123 Gvalues/s** |
+| Scalar-first proofs vs eager proofs: signed 128³, three-product chain, P20 host output | 11.539241 → **1.162741 ms** | **9.924×** | **0.010822 useful integer TOPS** |
+| Costed recipe vs scalar-first control: signed 128³, three-product chain, P20 host output | 1.162741 → **1.144116 ms** | **1.016×** | **0.010998 useful integer TOPS** |
+| Scalar-first proofs vs eager proofs: signed 256³, three-product chain, P20 host output | 41.772023 → **1.646298 ms** | **25.373×** | **0.061145 useful integer TOPS** |
+| Costed recipe vs scalar-first control: signed 256³, three-product chain, P20 host output | 1.646298 → **1.625372 ms** | **1.013×** | **0.061932 useful integer TOPS** |
+
+The three-product graph fixtures use signed all-one inputs and one final checked
+P20 host export. The costed 128³ plan still fails the fixed 25% held-out interval
+gate; 256³ passes in both original and post-restart cohorts. Held-out means
+independent processes on the same graph/dataset/build, not unseen workloads.
+In the idle cohort the training charges are 2.693 s and 4.070 s; median-based
+setup/training break-even projections are 144,672 and 194,549 replays. These are
+projections, not observed amortization runs. The earlier 256³ cohort's 1.114×
+steady gain and 24,612-call projection remain separate; they are superseded for
+current idle-host expectations by the smaller repeated effect. The planner uses
+chain DP and bounded materialization search; it does not establish global
+optimality or authorize default routing/cache promotion.
+
+Public complete-call 1024³ bounded-i64/P20 medians are 16.589 ms for CK,
+16.781ms for rocWMMA, 16.865 ms for hipBLASLt, 17.604 ms for native vector,
+20.277 ms for builtins and 27.823 ms for direct HIP. CK's useful integer rate
+is 0.12945 TOPS, but no public backend passes the strongest-other-backend gain
+gate. Its spread is 10.054%, above the fixed 10% threshold. These calls include
+repacking and checked host export. The separate CK diagnostic medians are
+9.479 ms packing, 7.457 ms GEMM and 5.078 ms export; independently aggregated phase
+medians need not sum to the complete diagnostic median 21.811 ms. Packing/export
+and resident reuse deserve the next optimization pass; these observations do not
+prove a particular optimization's benefit.
+
+At 17×19×65,537, retained RNS product execution takes 4.158 ms versus 14.156 ms
+for scalar native conversion/product. Input preparation and retained storage
+have different costs and remain separate; this is a reuse-boundary observation.
+The balanced raw CRT tree takes 83.549 ms, a substantial loss. Checked quarter
+export and complete-GEMM comparisons retain their inconclusive/negative timing
+gates in the metadata, rather than inheriting the raw direct-CRT gain.
+
+The eight-independent-chain instruction probe records 43.513 source-operation
+normalized INT8 TOPS (one chain 23.723); adding reduce251 records 13.942 and
+6.891 TOPS. Global-copy source-byte normalization records 525.674 GB/s for a
+256 MiB source plus destination. Actual HBM transactions, issued-instruction
+counters, cycles, occupancy and sustainable clock policy remain unmeasured.
+The original matching-artifact ISA audit identifies the emitted
+`v_wmma_i32_16x16x16_iu8` kernels; binary hashes are unchanged for the repeat.
+
+Full commands, cases, raw observations, ranges, stage prices, failed gates and
+ISA text are in the [original archive](../metadata/sdk101-followup-archive-20261026.json)
+and [post-restart archive](../metadata/sdk101-idle-archive-20261026.json).
+Within-SDK comparisons do not establish a matched old/new-SDK regression.
+Linux, other targets, physical counters/resources, broader held-out workloads
+and observed profitable setup amortization remain release gates.
 
 ## Measurement contract
 

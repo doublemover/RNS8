@@ -1,0 +1,11 @@
+{
+  "schema": "rns8_research_evidence_archive_v1",
+  "source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+  "release": "https://github.com/doublemover/RNS8/releases/tag/sdk101-idle-20261026",
+  "url": "https://github.com/doublemover/RNS8/releases/download/sdk101-idle-20261026/sdk101-idle-20261026-results-72c55c2.zip",
+  "bytes": 3673742,
+  "sha256": "aff0d3e24fd635e69a4bac643b7913d05e3b1d80cf0d423115586e9058c7b531",
+  "index_member": "archive-index.json",
+  "scope": "532 data/source-snapshot members: independent post-restart 350-process study at unchanged clean72c55c2 plus separately identified benchmark-cache checks in a modified C++17 build. Per-capture manifests retain their actual identities. No compiled binaries, SDKs or raw reference binary buffers.",
+  "restore_command": "python tools/research_evidence.py --manifest metadata/sdk101-idle-archive-20261026.json --output temp/restored-sdk101-idle"
+}

@@ -495,7 +495,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Applicable Windows/gfx1100 registered correctness, dispatch, lifetime and export checks pass in the SDK10.1 Release suite. Qualify whole-route prediction/regret, opaque physical resource peaks and broader provider/target modes."
+        "Applicable SDK10.1 local Release, HIP Debug, HIP OpenMP-OFF and CPU ASan checks pass. Bounded independent stage/whole-route cohorts are recorded separately before and after restart. Broader held-out shapes/providers, selection regret, physical resource peaks and clocks/counters remain; no default routing or cache promotion."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -548,6 +548,12 @@
         "report": "docs/five-issue-implementation-20261026.md",
         "metadata": "metadata/five-issue-implementation-20261026.json",
         "qualification": "deferred; no new tests or benchmarks"
+      },
+      "sdk101_followup_20261026": {
+        "receipt": "metadata/sdk101-followup-20261026.json",
+        "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+        "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open.",
+        "held_out_gate": "256\u00b3 same-graph/dataset/build process-held-out interval passes in both cohorts; 128\u00b3 fails. Idle-host costed steady gains are1.3\u20131.6%; median-based setup/training break-even144672\u2013194549calls is projected, not observed."
       }
     },
     {
@@ -662,7 +668,7 @@
         "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
       ],
       "remaining": [
-        "Registered instruction/conversion/CRT/system-probe smokes pass in the SDK10.1 Release suite. Sustained named-target measurements, ISA/resources/counters/clocks and accepted held-out prediction remain; the four previous models failed their predeclared tolerance."
+        "Bounded gfx1100 instruction, system/LDS/memory, CRT, resident and product-stage measurements are recorded at source72c55c2 with separate original/post-restart cohorts and fixed held-out interval gates. Complete conversion/prefix/signedness/cache/ablation curves, physical clocks/resources/counters, unseen-workload prediction and broader targets remain. Historical failed models are preserved."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -703,6 +709,12 @@
         "implementation_complete": true,
         "scope": "Calibration/rates, instruction/conversion/CRT/system probes, interaction and held-out tools.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
+      },
+      "sdk101_followup_20261026": {
+        "receipt": "metadata/sdk101-followup-20261026.json",
+        "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+        "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open.",
+        "held_out_gate": "256\u00b3 same-graph/dataset/build process-held-out interval passes in both cohorts; 128\u00b3 fails. Idle-host costed steady gains are1.3\u20131.6%; median-based setup/training break-even144672\u2013194549calls is projected, not observed."
       }
     },
     {
@@ -1245,7 +1257,7 @@
         "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
       ],
       "remaining": [
-        "Applicable public prepared CRT/export correctness passes in the SDK10.1 Release suite. Matched five-policy public export and complete-GEMM/prefix measurements, fused/distributed consumer qualification, hardware traffic and broader targets remain."
+        "Applicable prepared CRT/export correctness passes in the SDK10.1 local configuration matrix. Bounded raw CRT, checked host-export, retained complete-GEMM and cold complete-GEMM comparisons retain separate contracts, variance and negative results. Five-policy/full-prefix crossover, fused/distributed consumers, hardware traffic and broader targets remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1330,6 +1342,11 @@
         ],
         "arithmetic_defaults_changed": false,
         "performance_qualified": false
+      },
+      "sdk101_followup_20261026": {
+        "receipt": "metadata/sdk101-followup-20261026.json",
+        "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+        "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
       }
     },
     {
@@ -1769,7 +1786,7 @@
         "6ce489b"
       ],
       "remaining": [
-        "Native/uniform/ragged/packed materialization selection, real shared-B/lift/arena execution, chain DP and bounded DAG search are implemented. Independent measured prices, accepted held-out choice, physical peak/capacity and supported-provider qualification remain. Unimplemented representation/provider families remain explicit unsupported extensions, not eligible plans."
+        "Native/uniform/ragged/packed materialization selection, real shared-B/lift/arena execution, chain DP and bounded DAG search are implemented. Independent stage prices and same-graph process-held-out observations are recorded with fixed tolerance. Observed long setup/training amortization, unseen graphs/datasets/providers, physical peak/capacity and qualified routing remain. Bounded search is not globally optimal; unsupported families remain ineligible."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1801,6 +1818,12 @@
         "implementation_complete": true,
         "scope": "Native/uniform/ragged/packed planning, shared B, chain DP, bounded DAG and retained arena.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
+      },
+      "sdk101_followup_20261026": {
+        "receipt": "metadata/sdk101-followup-20261026.json",
+        "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+        "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open.",
+        "held_out_gate": "256\u00b3 same-graph/dataset/build process-held-out interval passes in both cohorts; 128\u00b3 fails. Idle-host costed steady gains are1.3\u20131.6%; median-based setup/training break-even144672\u2013194549calls is projected, not observed."
       }
     },
     {
@@ -2534,7 +2557,7 @@
         "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca"
       ],
       "remaining": [
-        "Launched instruction/resources and independent complete-route narrow-input measurements and selection qualification remain."
+        "Bounded native-vector/public-backend and resident narrow-input comparisons are recorded with exact checks and fixed variance gates. Launched instruction/resource evidence, broader tiny/skinny shapes and profitable complete-route selection remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2561,6 +2584,11 @@
         "implementation_complete": true,
         "scope": "Proof-selected native scalar/vector/dot/matrix and fused RNS output/planning.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
+      },
+      "sdk101_followup_20261026": {
+        "receipt": "metadata/sdk101-followup-20261026.json",
+        "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+        "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
       }
     },
     {
@@ -2861,7 +2889,7 @@
       "regressions": [],
       "commits": [],
       "remaining": [
-        "SDK10.1 Windows/gfx1100 Release with the selected Python/C++ package stack passes the complete registered suite and installed native-device consumers. Debug/ASan, OpenMP-OFF, Linux and broader compiler/ABI/runner compatibility, plus matched new-stack performance remain. Installed Git2.52.0.windows.1 still differs from selected2.56.0.windows.3; no successful Git upgrade is claimed."
+        "SDK10.1 local Windows Release and the follow-up HIP Debug, HIP OpenMP-OFF, CPU LLVM23.1.4 ASan /MD RelWithDebInfo and static/shared installed-consumer checks pass. The initial /MDd Debug-CRT ASan build is unsupported and preserved. Within-new-stack approach comparisons do not establish matched prior/new-stack regression. Linux, broader compiler/ABI/runner compatibility and selected Git upgrade remain; installed Git2.52.0.windows.1 differs from selected2.56.0.windows.3."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2873,6 +2901,11 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "sdk101_followup_20261026": {
+        "receipt": "metadata/sdk101-followup-20261026.json",
+        "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+        "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
       }
     },
     {
@@ -3439,7 +3472,7 @@
         "833ae93c551bed50a5f65abcef2eac201ea7fcac"
       ],
       "remaining": [
-        "Applicable transform/conversion and prepared-policy correctness passes in the SDK10.1 Release suite. Matched complete-GEMM/prefix crossover, hardware traffic and measured production selection remain; no default promotion."
+        "Applicable transform/conversion and prepared-policy correctness passes in the SDK10.1 local configuration matrix. Bounded raw CRT, checked host-export and complete-GEMM comparisons preserve their contracts and variance. Full-prefix crossover, physical traffic and profitable production selection remain; no default promotion."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -3510,6 +3543,11 @@
         ],
         "arithmetic_defaults_changed": false,
         "performance_qualified": false
+      },
+      "sdk101_followup_20261026": {
+        "receipt": "metadata/sdk101-followup-20261026.json",
+        "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+        "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
       }
     },
     {
@@ -4104,5 +4142,13 @@
       "failed": 0
     }
   },
-  "current_source_branch": "codex/runtime-cache-transactions-20261011"
+  "current_source_branch": "codex/runtime-cache-transactions-20261011",
+  "sdk101_followup_20261026": {
+    "receipt": "metadata/sdk101-followup-20261026.json",
+    "original_archive": "metadata/sdk101-followup-archive-20261026.json",
+    "post_restart_archive": "metadata/sdk101-idle-archive-20261026.json",
+    "global_platform_qualified": false,
+    "default_routing_changed": false,
+    "issues_closed": []
+  }
 }

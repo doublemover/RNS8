@@ -1,0 +1,386 @@
+{
+  "schema": "rns8_sdk101_local_followup_v1",
+  "date": "2026-10-26",
+  "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+  "compiled_source_dirty": false,
+  "device": "RX7900XTX/gfx1100",
+  "display_driver": "32.0.31041.5005",
+  "stack": {
+    "core_sdk": "10.1.0",
+    "hip": "7.16.26385",
+    "amdgpu_compiler": "AMDClang24.0.0git d6f6cb691863e9258034ab48c1dfce21689d5606",
+    "ck": "1.3.0",
+    "rocwmma": "2.2.1",
+    "hipblaslt": "1.4.1",
+    "visual_studio": "2026 18.11.2",
+    "msvc": "19.51.36260.0",
+    "host_asan": "LLVM23.1.4",
+    "python": "3.15.1",
+    "cmake": "4.4.4",
+    "ninja": "1.13.2"
+  },
+  "configuration_checks": {
+    "columns": ["lane", "registered", "selected", "passed", "skipped", "failed", "source_only_excluded"],
+    "rows": [
+      ["hip-debug", 1112, 1014, 983, 31, 0, 98],
+      ["release-serial", 1112, 1014, 984, 30, 0, 98],
+      ["cpu-asan", 638, 540, 505, 35, 0, 98],
+      ["release", 1112, 8, 8, 0, 0, 98]
+    ]
+  },
+  "configuration_scope": ["Three matrix lanes select compiled/build-specific CLI, ISA and installed static/shared consumer checks; 98 unchanged source-only tooling tests excluded per lane.", "Primary Release selects eight runtime/reference/verify/ISA/install integration checks; unchanged arithmetic retains earlier full Release suite at059fa45 (1080 pass/30 skips).", "CPU ASan RelWithDebInfo/O1/debug symbols, /MD, HIP-OFF, OpenMP-OFF, fuzzers-OFF, GMP/FLINT-ON. First /MDd Debug-CRT build rejected by LLVM and preserved separately.", "Debug adds an explicit allocation-fault harness skip because Debug CRT is excluded."],
+  "timing_policy": {
+    "independent_processes_per_case": 5,
+    "warmups": 3,
+    "latency_samples": 9,
+    "sustained_windows": 3,
+    "minimum_window_ms": 250,
+    "minimum_calls": 16,
+    "maximum_calls": 4096,
+    "gate": "disjoint observed sustained process ranges and <=10% range/median spread in both cohorts",
+    "model_interval_relative_tolerance": 0.25,
+    "production": "hooks disabled; required proofs/status/completion/publication charged; independent exact oracles outside intervals",
+    "aggregation": "sum sustained durations / sum completed calls within process; median across five processes; no pooling between cohorts",
+    "diagnostics": "separate instrumented processes; public instrumented outputs cross-match contracts/checksums to full-reference production outputs; no overhead subtraction"
+  },
+  "cohorts": {
+    "original": {
+      "archive_manifest": "metadata/sdk101-followup-archive-20261026.json",
+      "processes": 350,
+      "process_counts": {
+        "public": 140,
+        "resident": 50,
+        "crt": 55,
+        "system_roof": 35,
+        "instruction_roof": 20,
+        "stage_training": 10,
+        "held_out": 40
+      },
+      "public": {
+        "columns": ["shape", "backend", "median_ms", "min_ms", "max_ms", "spread_percent", "useful_integer_TOPS", "gain_gate_vs_best_other", "pack_diagnostic_ms", "gemm_diagnostic_ms", "export_diagnostic_ms", "complete_diagnostic_ms"],
+        "rows": [
+          ["16x17x65537", "hip-direct", 16.1957229, 15.61021, 16.5733646, 5.9469688, 0.0022013, false, 10.3474333, 5.1577444, 0.9005556, 16.8575111],
+          ["16x17x65537", "hip-vector-alu-int64", 23.3737229, 20.6136854, 24.0430917, 14.6720583, 0.0015253, false, 1.8709889, 22.0815889, 0.2662222, 24.2702667],
+          ["512x512x512", "amdgpu-builtins", 6.1571569, 5.8383708, 6.4403288, 9.7765585, 0.0435973, false, 3.5859556, 1.4897, 1.9993, 7.1528556],
+          ["512x512x512", "ck", 5.7327538, 5.4593518, 6.0681528, 10.6196956, 0.0468249, false, 3.2749667, 5.6032778, 2.5603222, 11.4727222],
+          ["512x512x512", "hip-direct", 6.5714086, 6.0579216, 6.9608761, 13.7406544, 0.040849, false, 3.1405778, 2.2619111, 2.1686778, 7.8481111],
+          ["512x512x512", "hip-vector-alu-int64", 5.0110477, 4.2495551, 5.5059768, 25.0730353, 0.0535687, false, 0.9675667, 2.7523556, 2.1162889, 5.8171111],
+          ["512x512x512", "hipblaslt", 5.9582016, 5.6245133, 6.1998813, 9.6567389, 0.0450531, false, 3.3745333, 10.2213667, 2.544, 15.7313778],
+          ["512x512x512", "rocwmma", 5.570661, 5.469071, 5.8711581, 7.2179428, 0.0481874, false, 3.1481889, 5.1974, 2.5208222, 10.8605444],
+          ["1024x1024x1024", "amdgpu-builtins", 20.7988833, 20.1090646, 21.4946229, 6.6616958, 0.1032499, false, 9.3207667, 7.3944556, 4.8484, 21.2238111],
+          ["1024x1024x1024", "ck", 16.8547083, 16.2503083, 18.1605375, 11.3335047, 0.1274115, false, 9.7363778, 7.1937111, 5.2833556, 21.9931889],
+          ["1024x1024x1024", "hip-direct", 28.268525, 28.173225, 29.5449417, 4.8524522, 0.0759673, false, 9.6051444, 14.2706778, 5.4712222, 29.2140333],
+          ["1024x1024x1024", "hip-vector-alu-int64", 17.9178208, 17.0806375, 20.3475208, 18.2325929, 0.1198518, false, 1.8597111, 8.7436778, 7.5216556, 18.2224778],
+          ["1024x1024x1024", "hipblaslt", 18.4013083, 15.8466812, 19.0001063, 17.1369608, 0.1167028, false, 10.0330667, 10.7468, 4.9464667, 26.4542333],
+          ["1024x1024x1024", "rocwmma", 17.737275, 17.2242625, 20.0780667, 16.0893044, 0.1210718, false, 9.4074778, 7.6984667, 4.9224778, 22.4967222]
+        ]
+      },
+      "resident": {
+        "columns": ["shape", "mode", "median_ms", "min_ms", "max_ms", "spread_percent", "useful_integer_TOPS", "gain_gate_vs_best_other"],
+        "rows": [
+          ["17x19x65537", "adaptive-resident-cached", 22.4411542, 19.2062792, 24.6741292, 24.3652798, 0.0018866, false],
+          ["17x19x65537", "adaptive-resident-fresh", 24.4155729, 24.0507333, 25.7887854, 7.1186209, 0.001734, false],
+          ["17x19x65537", "rns-resident-public", 4.3519356, 4.2344933, 4.6948696, 10.5786553, 0.0097283, false],
+          ["17x19x65537", "scalar-resident-fused", 14.3726685, 14.2103722, 14.7133132, 3.4992874, 0.0029457, false],
+          ["17x19x65537", "wmma-resident-fused", 21.6289229, 20.6573292, 21.7302563, 4.9606126, 0.0019574, false],
+          ["512x512x512", "adaptive-resident-cached", 6.0099071, 5.8748608, 6.4721949, 9.9391569, 0.0446655, false],
+          ["512x512x512", "adaptive-resident-fresh", 6.1014234, 6.0323278, 7.1421009, 18.1887585, 0.0439955, false],
+          ["512x512x512", "rns-resident-public", 2.1929755, 2.1812806, 2.5326812, 16.0239194, 0.122407, false],
+          ["512x512x512", "scalar-resident-fused", 0.6647779, 0.6206841, 0.8453563, 33.7965833, 0.4037972, false],
+          ["512x512x512", "wmma-resident-fused", 0.6286378, 0.5292418, 0.7195132, 30.2672527, 0.4270113, false]
+        ]
+      },
+      "crt": {
+        "columns": ["cells", "prefix", "scope", "k", "candidate", "median_ms", "min_ms", "max_ms", "spread_percent", "rate", "rate_unit", "gain_gate_vs_best_other"],
+        "rows": [
+          [1048576, 20, "resident", null, "balanced", 90.6533687, 89.1806562, 91.7059812, 2.7856935, 0.0115669, "gvalues_per_second", false],
+          [1048576, 20, "resident", null, "direct", 0.2625237, 0.2361353, 0.3352119, 37.7400625, 3.9942144, "gvalues_per_second", false],
+          [1048576, 20, "resident", null, "garner", 3.848, 3.7794612, 3.9030462, 3.2116674, 0.272499, "gvalues_per_second", false],
+          [65536, 9, "gemm_cold", 256, "public_garner_signed", 7.2749943, 6.6648974, 7.6201727, 13.1309431, 0.0046123, "useful_integer_tops", false],
+          [65536, 9, "gemm_cold", 256, "public_owned_balanced_signed", 11.62645, 9.9627308, 14.596, 39.8511087, 0.002886, "useful_integer_tops", false],
+          [65536, 9, "gemm_cold", 256, "public_quarter_signed", 7.0362833, 6.6943947, 7.1206222, 6.0575657, 0.0047688, "useful_integer_tops", false],
+          [65536, 9, "gemm_resident", 256, "public_garner_signed", 0.6094117, 0.5594662, 0.800001, 39.4699917, 0.0550604, "useful_integer_tops", false],
+          [65536, 9, "gemm_resident", 256, "public_owned_balanced_signed", 3.344576, 3.1522025, 3.5875366, 13.0161228, 0.0100325, "useful_integer_tops", false],
+          [65536, 9, "gemm_resident", 256, "public_quarter_signed", 0.661413, 0.571374, 0.6991852, 19.323967, 0.0507314, "useful_integer_tops", false],
+          [65536, 9, "resident", null, "public_garner_signed", 0.8795954, 0.855515, 1.1804094, 36.936801, 0.074507, "gvalues_per_second", false],
+          [65536, 9, "resident", null, "public_quarter_signed", 0.3239291, 0.2882176, 0.3431861, 16.9693032, 0.2023158, "gvalues_per_second", false]
+        ]
+      },
+      "graphs": [
+        {
+          "side": 128,
+          "depth": 3,
+          "dataset": "signed all-one chain",
+          "final_output": "P20 checked host publication",
+          "held_out_passed": false,
+          "relative_tolerance": 0.25,
+          "prediction_interval_ns": [250640.90737703623, 383585.75928963046],
+          "measured_process_interval": {
+            "lower_ns": 482570.6927176994,
+            "mean_ns": 554082.2222222222,
+            "upper_ns": 625593.7517267452,
+            "independent_run_stddev_ns": 57592.4965105784,
+            "nominal_confidence": 0.95,
+            "method": "conservative_student_t_run_means_plus_resolution",
+            "assumption": "independent_approximately_normal_stationary_run_means"
+          },
+          "selected_plan": {
+            "chain_dynamic_programming": true,
+            "completed_packing_calls": 0,
+            "cost_optimal": false,
+            "estimated_ns": 316375,
+            "evaluated": 119,
+            "exhaustive": false,
+            "packed_b": [0, 0, 0],
+            "packed_values": []
+          },
+          "rows": {
+            "columns": ["mode", "median_ms", "min_ms", "max_ms", "spread_percent", "setup_ms", "training_ms", "projected_break_even_calls"],
+            "rows": [
+              ["manual-full", 11.7639076, 11.6886515, 12.0523141, 3.0913414, 304.6948, 0.0, null],
+              ["manual-scalar-first", 1.1590023, 1.1340252, 1.2038346, 6.0232345, 309.7152, 0.0, null],
+              ["recipe-measured", 1.2112593, 1.1409297, 1.3276762, 15.4175528, 326.1613, 3383.7991, null],
+              ["recipe-packed-full", 1.2981193, 1.2664735, 1.4062239, 10.765605, 322.5057, 0.0, null]
+            ]
+          }
+        },
+        {
+          "side": 256,
+          "depth": 3,
+          "dataset": "signed all-one chain",
+          "final_output": "P20 checked host publication",
+          "held_out_passed": true,
+          "relative_tolerance": 0.25,
+          "prediction_interval_ns": [751356.1066498875, 1178897.226683446],
+          "measured_process_interval": {
+            "lower_ns": 1193219.1120235042,
+            "mean_ns": 1270651.1111111112,
+            "upper_ns": 1348083.1101987183,
+            "independent_run_stddev_ns": 62360.67017908956,
+            "nominal_confidence": 0.95,
+            "method": "conservative_student_t_run_means_plus_resolution",
+            "assumption": "independent_approximately_normal_stationary_run_means"
+          },
+          "selected_plan": {
+            "chain_dynamic_programming": true,
+            "completed_packing_calls": 0,
+            "cost_optimal": false,
+            "estimated_ns": 964221,
+            "evaluated": 114,
+            "exhaustive": false,
+            "packed_b": [0, 0, 0],
+            "packed_values": []
+          },
+          "rows": {
+            "columns": ["mode", "median_ms", "min_ms", "max_ms", "spread_percent", "setup_ms", "training_ms", "projected_break_even_calls"],
+            "rows": [
+              ["manual-full", 42.3740417, 42.0139396, 43.586075, 3.710138, 308.0297, 0.0, null],
+              ["manual-scalar-first", 1.9043253, 1.8058224, 1.9411023, 7.1038266, 309.4238, 0.0, null],
+              ["recipe-measured", 1.7097161, 1.6964376, 1.790516, 5.5025707, 310.9045, 4788.046, 24612],
+              ["recipe-packed-full", 2.4241534, 2.2021939, 2.7166263, 21.221116, 308.8354, 0.0, null]
+            ]
+          }
+        }
+      ],
+      "qualified_beneficial_comparisons": [
+        {"family": "graph_proof_policy", "side": 128, "depth": 3, "baseline": "manual-full", "candidate": "manual-scalar-first", "baseline_ms": 11.763907575757576, "candidate_ms": 1.1590023148148147, "speedup": 10.150029404934546, "useful_integer_tops": 0.010856675469203438},
+        {"family": "graph_proof_policy", "side": 256, "depth": 3, "baseline": "manual-full", "candidate": "manual-scalar-first", "baseline_ms": 42.37404166666666, "candidate_ms": 1.9043252525252525, "speedup": 22.251472856580605, "useful_integer_tops": 0.05286034823437555},
+        {"family": "graph_recipe", "side": 256, "depth": 3, "baseline": "manual-scalar-first", "candidate": "recipe-measured", "baseline_ms": 1.9043252525252525, "candidate_ms": 1.7097161363636362, "speedup": 1.1138253959370863, "useful_integer_tops": 0.0588771983015256, "training_ms": 4788.046, "projected_setup_training_break_even_calls": 24612, "break_even_observed": false}
+      ],
+      "system_roofs": {
+        "columns": ["mode", "host_completed_us", "event_us", "source_byte_normalized_GB_s"],
+        "rows": [
+          ["descriptor", 81.810423, 56.7649994, null],
+          ["event", 57.1772868, 59.7399995, null],
+          ["global-copy", 986.7921363, 1026.4999866, 523.0111242],
+          ["graph", 57.1375244, 21.9000001, null],
+          ["launch", 63.3858278, 24.5000003, null],
+          ["lds-read", 64.4533167, 47.9299985, 702.8062813],
+          ["lds-read-write", 98.8490504, 68.3749989, 983.3994459]
+        ]
+      },
+      "instruction_roofs": {
+        "columns": ["mode", "independent_chains", "iterations", "waves", "event_us", "source_operation_normalized_integer_TOPS"],
+        "rows": [
+          ["raw", 1, 4096, 256, 351.5000045, 24.4379359],
+          ["raw", 8, 4096, 256, 1666.8000221, 41.2283872],
+          ["reduce251", 1, 4096, 256, 1250.3000498, 6.8702985],
+          ["reduce251", 8, 4096, 256, 4977.9000282, 13.804913]
+        ]
+      }
+    },
+    "post_restart_idle": {
+      "archive_manifest": "metadata/sdk101-idle-archive-20261026.json",
+      "processes": 350,
+      "process_counts": {
+        "public": 140,
+        "resident": 50,
+        "crt": 55,
+        "system_roof": 35,
+        "instruction_roof": 20,
+        "stage_training": 10,
+        "held_out": 40
+      },
+      "public": {
+        "columns": ["shape", "backend", "median_ms", "min_ms", "max_ms", "spread_percent", "useful_integer_TOPS", "gain_gate_vs_best_other", "pack_diagnostic_ms", "gemm_diagnostic_ms", "export_diagnostic_ms", "complete_diagnostic_ms"],
+        "rows": [
+          ["16x17x65537", "hip-direct", 15.630612, 15.0273961, 17.4614354, 15.5722587, 0.0022809, false, 10.3019222, 5.7303556, 0.9531778, 16.9661778],
+          ["16x17x65537", "hip-vector-alu-int64", 23.0086229, 22.9493417, 23.3003896, 1.5257233, 0.0015495, false, 1.7728444, 21.7473333, 0.2789, 23.7991222],
+          ["512x512x512", "amdgpu-builtins", 5.5223239, 5.3459549, 5.5843257, 4.3164945, 0.0486091, false, 3.2013444, 1.4954333, 1.9529778, 6.651],
+          ["512x512x512", "ck", 5.2970483, 5.1739644, 5.4578743, 5.3597756, 0.0506764, false, 3.0817889, 5.8390444, 1.9058444, 10.6682333],
+          ["512x512x512", "hip-direct", 5.9587984, 5.9327164, 6.0815184, 2.4971812, 0.0450486, false, 2.9516111, 1.8751889, 1.8314778, 6.6879],
+          ["512x512x512", "hip-vector-alu-int64", 4.8403058, 4.0944124, 5.0663173, 20.0794112, 0.0554584, false, 1.0331111, 2.6534, 2.1733889, 5.9016667],
+          ["512x512x512", "hipblaslt", 5.1231453, 4.8958645, 5.3517617, 8.8987753, 0.0523966, false, 3.1477889, 9.1952333, 2.1545444, 14.4976444],
+          ["512x512x512", "rocwmma", 4.8948273, 4.8360865, 4.9162652, 1.6380276, 0.0548406, false, 3.0725889, 5.2996778, 1.9794111, 10.3431444],
+          ["1024x1024x1024", "amdgpu-builtins", 20.2772958, 20.1372875, 20.6439188, 2.4985149, 0.1059058, false, 9.4509889, 7.6580222, 4.7882556, 21.5856333],
+          ["1024x1024x1024", "ck", 16.5889479, 15.1331157, 16.8010458, 10.0544661, 0.1294527, false, 9.4794111, 7.4567556, 5.0780444, 21.8111],
+          ["1024x1024x1024", "hip-direct", 27.8234875, 27.71775, 28.2341563, 1.8560083, 0.0771824, false, 9.2577444, 14.2445111, 5.2315222, 28.6272889],
+          ["1024x1024x1024", "hip-vector-alu-int64", 17.6037417, 16.8941167, 17.9611417, 6.0613534, 0.1219902, false, 1.9212444, 8.2714667, 7.7298889, 17.935],
+          ["1024x1024x1024", "hipblaslt", 16.86535, 14.6454, 17.4402708, 16.5716741, 0.1273311, false, 9.3936667, 10.1806778, 4.8891667, 25.0522556],
+          ["1024x1024x1024", "rocwmma", 16.7805938, 16.5882604, 17.2692542, 4.058222, 0.1279742, false, 9.6323889, 8.5204, 4.6987222, 22.7451667]
+        ]
+      },
+      "resident": {
+        "columns": ["shape", "mode", "median_ms", "min_ms", "max_ms", "spread_percent", "useful_integer_TOPS", "gain_gate_vs_best_other"],
+        "rows": [
+          ["17x19x65537", "adaptive-resident-cached", 22.0842667, 22.0609375, 22.1930417, 0.5981823, 0.0019171, false],
+          ["17x19x65537", "adaptive-resident-fresh", 24.1841313, 23.2303188, 24.2242125, 4.1096938, 0.0017506, false],
+          ["17x19x65537", "rns-resident-public", 4.1575066, 4.1279484, 4.1922867, 1.547523, 0.0101832, true],
+          ["17x19x65537", "scalar-resident-fused", 14.1561815, 14.140087, 14.1766185, 0.2580603, 0.0029907, false],
+          ["17x19x65537", "wmma-resident-fused", 25.1584833, 19.7567542, 25.816775, 24.0873854, 0.0016828, false],
+          ["512x512x512", "adaptive-resident-cached", 5.7850099, 5.7422833, 6.0339712, 5.0421325, 0.0464019, false],
+          ["512x512x512", "adaptive-resident-fresh", 6.0035262, 5.9009734, 6.2078301, 5.1112735, 0.044713, false],
+          ["512x512x512", "rns-resident-public", 1.8915131, 1.8824827, 1.9245872, 2.2259696, 0.1419157, false],
+          ["512x512x512", "scalar-resident-fused", 0.6068006, 0.5964698, 0.6194573, 3.7883122, 0.4423783, false],
+          ["512x512x512", "wmma-resident-fused", 0.5308059, 0.5224257, 0.5650863, 8.0369521, 0.505713, true]
+        ]
+      },
+      "crt": {
+        "columns": ["cells", "prefix", "scope", "k", "candidate", "median_ms", "min_ms", "max_ms", "spread_percent", "rate", "rate_unit", "gain_gate_vs_best_other"],
+        "rows": [
+          [1048576, 20, "resident", null, "balanced", 83.5492062, 81.9853188, 92.9120375, 13.0781838, 0.0125504, "gvalues_per_second", false],
+          [1048576, 20, "resident", null, "direct", 0.2046906, 0.1995818, 0.2066525, 3.4543238, 5.1227367, "gvalues_per_second", true],
+          [1048576, 20, "resident", null, "garner", 3.6641667, 3.6568725, 3.7073382, 1.3772783, 0.2861704, "gvalues_per_second", false],
+          [65536, 9, "gemm_cold", 256, "public_garner_signed", 6.7214368, 6.4912179, 6.8296892, 5.0356977, 0.0049922, "useful_integer_tops", false],
+          [65536, 9, "gemm_cold", 256, "public_owned_balanced_signed", 12.244019, 10.0024923, 12.4128238, 19.6857869, 0.0027405, "useful_integer_tops", false],
+          [65536, 9, "gemm_cold", 256, "public_quarter_signed", 6.4628564, 6.2113195, 6.5318026, 4.9588453, 0.0051919, "useful_integer_tops", false],
+          [65536, 9, "gemm_resident", 256, "public_garner_signed", 0.5722934, 0.5585897, 0.6069871, 8.4567473, 0.0586315, "useful_integer_tops", false],
+          [65536, 9, "gemm_resident", 256, "public_owned_balanced_signed", 3.0968173, 3.067711, 3.1683962, 3.2512485, 0.0108351, "useful_integer_tops", false],
+          [65536, 9, "gemm_resident", 256, "public_quarter_signed", 0.5557742, 0.5251488, 0.6926997, 30.1472917, 0.0603742, "useful_integer_tops", false],
+          [65536, 9, "resident", null, "public_garner_signed", 0.8412614, 0.7530581, 0.8662765, 13.4581638, 0.0779021, "gvalues_per_second", false],
+          [65536, 9, "resident", null, "public_quarter_signed", 0.3006779, 0.2968058, 0.3733128, 25.4448392, 0.2179608, "gvalues_per_second", false]
+        ]
+      },
+      "graphs": [
+        {
+          "side": 128,
+          "depth": 3,
+          "dataset": "signed all-one chain",
+          "final_output": "P20 checked host publication",
+          "held_out_passed": false,
+          "relative_tolerance": 0.25,
+          "prediction_interval_ns": [385492.7475089174, 411880.585824416],
+          "measured_process_interval": {
+            "lower_ns": 520613.6263435322,
+            "mean_ns": 542611.1111111111,
+            "upper_ns": 564608.5958786901,
+            "independent_run_stddev_ns": 17715.327812551826,
+            "nominal_confidence": 0.95,
+            "method": "conservative_student_t_run_means_plus_resolution",
+            "assumption": "independent_approximately_normal_stationary_run_means"
+          },
+          "selected_plan": {
+            "chain_dynamic_programming": true,
+            "completed_packing_calls": 0,
+            "cost_optimal": false,
+            "estimated_ns": 398264,
+            "evaluated": 119,
+            "exhaustive": false,
+            "packed_b": [0, 0, 0],
+            "packed_values": []
+          },
+          "rows": {
+            "columns": ["mode", "median_ms", "min_ms", "max_ms", "spread_percent", "setup_ms", "training_ms", "projected_break_even_calls"],
+            "rows": [
+              ["manual-full", 11.5392409, 11.4713364, 11.5489, 0.6721728, 252.3043, 0.0, null],
+              ["manual-scalar-first", 1.1627406, 1.1579617, 1.1753632, 1.4965961, 255.6919, 0.0, null],
+              ["recipe-measured", 1.1441164, 1.128644, 1.151693, 2.0145643, 256.7435, 2693.3498, 144672],
+              ["recipe-packed-full", 1.3553031, 1.3280592, 1.4164631, 6.5228142, 252.7461, 0.0, null]
+            ]
+          }
+        },
+        {
+          "side": 256,
+          "depth": 3,
+          "dataset": "signed all-one chain",
+          "final_output": "P20 checked host publication",
+          "held_out_passed": true,
+          "relative_tolerance": 0.25,
+          "prediction_interval_ns": [1016874.5092196396, 1062014.379669249],
+          "measured_process_interval": {
+            "lower_ns": 1266296.4400598907,
+            "mean_ns": 1288735.5555555555,
+            "upper_ns": 1311174.6710512203,
+            "independent_run_stddev_ns": 18071.00433099564,
+            "nominal_confidence": 0.95,
+            "method": "conservative_student_t_run_means_plus_resolution",
+            "assumption": "independent_approximately_normal_stationary_run_means"
+          },
+          "selected_plan": {
+            "chain_dynamic_programming": true,
+            "completed_packing_calls": 0,
+            "cost_optimal": false,
+            "estimated_ns": 1038728,
+            "evaluated": 114,
+            "exhaustive": false,
+            "packed_b": [0, 0, 0],
+            "packed_values": []
+          },
+          "rows": {
+            "columns": ["mode", "median_ms", "min_ms", "max_ms", "spread_percent", "setup_ms", "training_ms", "projected_break_even_calls"],
+            "rows": [
+              ["manual-full", 41.7720229, 41.7047125, 41.9947146, 0.6942496, 258.7817, 0.0, null],
+              ["manual-scalar-first", 1.646298, 1.6438383, 1.6698067, 1.577379, 258.6041, 0.0, null],
+              ["recipe-measured", 1.6253717, 1.5698385, 1.636481, 4.1001393, 259.7742, 4070.0185, 194549],
+              ["recipe-packed-full", 2.0055584, 1.9338383, 2.0491484, 5.7495242, 257.7696, 0.0, null]
+            ]
+          }
+        }
+      ],
+      "qualified_beneficial_comparisons": [
+        {"family": "resident", "case": "17x19x65537", "candidate": "rns-resident-public", "baseline": "scalar-resident-fused", "speedup": 3.404969069657465, "candidate_ms": 4.157506629834254, "rate": 0.0101832434123353},
+        {"family": "resident", "case": "512x512x512", "candidate": "wmma-resident-fused", "baseline": "scalar-resident-fused", "speedup": 1.143168529814945, "candidate_ms": 0.5308059405940594, "rate": 0.5057129837310721},
+        {"family": "crt", "case": "1048576 cells resident", "candidate": "direct", "baseline": "garner", "speedup": 17.901002097959783, "candidate_ms": 0.204690589198036, "rate": {"gvalues_per_second": 5.122736732100144}},
+        {"family": "graph_proof_policy", "side": 128, "depth": 3, "baseline": "manual-full", "candidate": "manual-scalar-first", "baseline_ms": 11.539240909090909, "candidate_ms": 1.1627406491499226, "speedup": 9.924174335460986, "useful_integer_tops": 0.010821770107718641},
+        {"family": "graph_recipe", "side": 128, "depth": 3, "baseline": "manual-scalar-first", "candidate": "recipe-measured", "baseline_ms": 1.1627406491499226, "candidate_ms": 1.1441164383561644, "speedup": 1.0162782477109733, "useful_integer_tops": 0.010997929562203291, "training_ms": 2693.3498, "projected_setup_training_break_even_calls": 144672, "break_even_observed": false},
+        {"family": "graph_proof_policy", "side": 256, "depth": 3, "baseline": "manual-full", "candidate": "manual-scalar-first", "baseline_ms": 41.77202291666667, "candidate_ms": 1.6462980306345734, "speedup": 25.37330552510316, "useful_integer_tops": 0.061145244741135266},
+        {"family": "graph_recipe", "side": 256, "depth": 3, "baseline": "manual-scalar-first", "candidate": "recipe-measured", "baseline_ms": 1.6462980306345734, "candidate_ms": 1.625371706263499, "speedup": 1.0128747930645237, "useful_integer_tops": 0.06193247711405704, "training_ms": 4070.0185, "projected_setup_training_break_even_calls": 194549, "break_even_observed": false}
+      ],
+      "system_roofs": {
+        "columns": ["mode", "host_completed_us", "event_us", "source_byte_normalized_GB_s"],
+        "rows": [
+          ["descriptor", 68.2425491, 59.8700009, null],
+          ["event", 57.1642008, 59.7800016, null],
+          ["global-copy", 878.6197661, 1021.2999582, 525.6740761],
+          ["graph", 62.2484091, 21.8000002, null],
+          ["launch", 58.4445231, 20.5000006, null],
+          ["lds-read", 72.3671298, 56.1099984, 600.3476203],
+          ["lds-read-write", 81.4245441, 82.8899965, 811.1948228]
+        ]
+      },
+      "instruction_roofs": {
+        "columns": ["mode", "independent_chains", "iterations", "waves", "event_us", "source_operation_normalized_integer_TOPS"],
+        "rows": [
+          ["raw", 1, 4096, 256, 362.1000051, 23.7225476],
+          ["raw", 8, 4096, 256, 1579.300046, 43.5126162],
+          ["reduce251", 1, 4096, 256, 1246.5000153, 6.8912431],
+          ["reduce251", 8, 4096, 256, 4928.9999008, 13.9418702]
+        ]
+      }
+    }
+  },
+  "limits": ["Graph held-out scope is independent processes on the same graph/dataset/build, not unseen-shape or general provider qualification.", "Chain DP and bounded materialization search do not imply global optimality; costs and selected plans are frozen before held-out processes.", "Setup/training break-even is a median-based projection, not an observed long amortization run.", "Useful integer GEMM rates count 2*M*N*K (times chain depth); instruction roofs count source-defined INT8 operations; these quantities differ.", "Roof byte counts are source-defined, not actual HBM/counter/cycle/occupancy observations.", "Within-SDK comparisons do not establish matched prior/new-SDK regression. Linux, additional hardware, physical clocks/counters and broader qualification remain."],
+  "default_routing_changed": false,
+  "cache_promotion": false,
+  "old_campaign_resumed": false
+}

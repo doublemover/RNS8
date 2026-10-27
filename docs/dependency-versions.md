@@ -66,6 +66,16 @@ compiler identities and compiled-source hashes are recorded. This local result
 does not promote the full platform/configuration matrix or replace matched
 performance qualification; retained source fallback pins remain unchanged.
 
+The [configuration follow-up](platform-windows.md#october-26-configuration-follow-up)
+also passes HIP Debug, HIP Release with OpenMP OFF and CPU LLVM23.1.4 ASan
+RelWithDebInfo with `/MD`, static/shared packages and installed consumers.
+The supported final lanes total 2,480 passes and 96 explicit skips; the eight
+primary Release checks are artifact integration checks, not a second complete
+Release arithmetic run. LLVM rejects Debug-CRT `/MDd` ASan; its attempted build
+is preserved separately. [Bounded SDK10.1 measurements](performance.md#october-26-sdk101-bounded-measurements)
+compare approaches within the new stack. They do not establish a matched
+prior-SDK versus new-SDK regression result or global platform qualification.
+
 NumPy, pandas, Matplotlib, pytest, SciPy, NTL, FFLAS-FFPACK and LinBox remain
 unused optional inventories. PyYAML only enables one optional documentation
 schema test. Their latest releases are recorded without selecting or installing
