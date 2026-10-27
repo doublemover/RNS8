@@ -1,6 +1,7 @@
 #include "core/api_internal.hpp"
 #include "core/prepared_transfer.hpp"
 #include "core/resident_native_import.hpp"
+#include "core/experimental_basis.hpp"
 #include "backend_common/native_device_contract.hpp"
 #include <mutex>
 #include <utility>
@@ -72,7 +73,7 @@ rns8_status resolve_native_readiness(rns8_native_device_lease& lease,bool wait) 
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-rns8_status native_matrix_contract(const rns8_context* ctx,const rns8_matrix* matrix,const rns8_native_device_lease* lease,bool writing) {
+rns8_status native_matrix_contract(const rns8_context* ctx,const rns8_matrix* matrix,const rns8_native_device_lease* lease,bool writing,bool ordered_basis=false) {
   if(!ctx || !matrix || !lease || lease->ctx!=ctx) return RNS8_INVALID_ARGUMENT;
   if(lease->active || lease->write_window)return RNS8_BUSY;
   const auto external=native_active_alias_contract(*lease);if(external!=RNS8_SUCCESS)return external;
@@ -80,7 +81,8 @@ rns8_status native_matrix_contract(const rns8_context* ctx,const rns8_matrix* ma
   if(ctx->backend!=RNS8_BACKEND_HIP_DIRECT || matrix->backend!=ctx->backend || matrix->hip_device_id!=ctx->device_id ||
      matrix->desc.rows!=lease->desc.rows || matrix->desc.cols!=lease->desc.cols || matrix->generation_exhausted ||
      !native_semantics(matrix->desc.semantics,native_device_signed_type(lease->desc.element_type)) ||
-     !rns_matrix_storage_matches(*matrix,ctx->backend,matrix->desc.rows,matrix->desc.cols,matrix->prefix)) return RNS8_INVALID_ARGUMENT;
+     !(ordered_basis && matrix->experimental_basis?basis_storage_matches(*matrix,ctx->backend):
+       rns_matrix_storage_matches(*matrix,ctx->backend,matrix->desc.rows,matrix->desc.cols,matrix->prefix))) return RNS8_INVALID_ARGUMENT;
   if(native_device_limb_type(lease->desc.element_type) &&
       (writing || !exact_wide_semantics(matrix->desc.semantics))) return RNS8_INVALID_ARGUMENT;
   if(matrix->in_flight_writer || (writing && matrix->in_flight_readers)) return RNS8_BUSY;

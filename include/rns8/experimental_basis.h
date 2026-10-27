@@ -69,8 +69,14 @@ RNS8_API rns8_status rns8_gemm_basis(rns8_basis_plan*,const rns8_matrix*,const r
  * completion, cancellation and refresh APIs. Retains the full immutable basis
  * and matrices independently of the basis-plan handle. No hidden synchronization
  * or default-ladder reinterpretation; input generation changes require refresh.
- * Explicit basis conversion/lift/export remain synchronous. */
+ * Native transfers and exact conversion use the explicit prepared adapters below. */
 RNS8_API rns8_status rns8_prepare_basis_gemm_hip(rns8_basis_plan*,const rns8_matrix*,const rns8_matrix*,rns8_matrix*,rns8_prepared_execution**);
+/* Fixed-address exact conversion/lift between two complete ordered bases.
+ * Uses the ordinary prepared stream/owned-graph lifecycle and retains both
+ * immutable bases independently of the plan. Budget includes device staging
+ * and pinned status. Native-device import/export also accept explicit-basis
+ * matrices through rns8_prepare_native_transfer_hip and its real lease owner. */
+RNS8_API rns8_status rns8_prepare_basis_conversion_hip(rns8_basis_plan*,const rns8_matrix*,rns8_matrix*,uint64_t max_total_scratch_bytes,rns8_prepared_execution**);
 RNS8_API rns8_status rns8_export_basis_limbs(rns8_basis_plan*,const rns8_matrix*,uint64_t*,int64_t ld,uint32_t limbs);
 /* Explicit uniquely represented integer conversion, including reordered bases.
  * Source and destination signedness must agree. The source proof must be valid

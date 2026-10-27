@@ -6,6 +6,17 @@
 #define RNS8_BASIS_HD
 #endif
 namespace rns8::detail {
+// Publish a checked little-endian integer only after its complete requested
+// width is known to fit. Wider exports sign/zero-extend the three-word value.
+RNS8_BASIS_HD inline bool basis_export_words(const uint64_t* value,bool sign,uint32_t limbs,uint64_t* output) {
+  if(!value || !output || !limbs || limbs>32)return false;
+  const bool negative=sign && (value[2]>>63);const uint64_t extension=negative?UINT64_MAX:0;
+  bool fits=limbs>=3 || !sign || bool(value[limbs-1]>>63)==negative;
+  for(uint32_t i=limbs;i<3;++i)fits=fits && value[i]==extension;
+  if(!fits)return false;
+  for(uint32_t i=0;i<limbs;++i)output[i]=i<3?value[i]:extension;
+  return true;
+}
 RNS8_BASIS_HD inline int basis_compare_words(const uint64_t* a,const uint64_t* b) {
   for(int i=2;i>=0;--i)if(a[i]!=b[i])return a[i]>b[i]?1:-1;
   return 0;

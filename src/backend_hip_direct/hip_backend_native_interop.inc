@@ -108,10 +108,12 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device_on_stream(c
 extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device_on_stream(const int8_t*,uint64_t*,int,int,int,int,int*,void*);
 extern "C" int rns8_hip_native_abs_max_on_stream(const void*,int,int,int,void*,bool,void*);
 extern "C" int rns8_hip_native_bound_status(const void*,uint64_t,int*,void*);
+extern "C" int rns8_hip_basis_pack_view_stream(const uint64_t*,int8_t*,uint64_t,uint64_t,uint64_t,BasisPacket,uint32_t,bool,void*);
+extern "C" int rns8_hip_basis_export_view_stream(const int8_t*,uint64_t*,uint64_t,BasisPacket,uint32_t,bool,uint32_t,BasisMagnitude,int*,void*);
 #endif
 rns8_status hip_direct_enqueue_native_import(int device_id,const void* source,void* residues,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,bool verify,uint64_t bound,
-    void* retained,void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream) {
+    void* retained,void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream,const BasisPacket* basis) {
   if(!source || !residues || !scratch || !pinned_status || !stream || !prefix || prefix>20 ||
       !qualified_i32_matrix_address(rows,cols,ld,1,8) || !qualified_i32_matrix_address(rows,cols,cols,prefix) ||
       scratch_bytes<uint64_t(rows)*cols*prefix+16)return RNS8_INVALID_ARGUMENT;
@@ -122,7 +124,8 @@ rns8_status hip_direct_enqueue_native_import(int device_id,const void* source,vo
   if(hipMemsetAsync(scratch,0,16,st)!=hipSuccess)return RNS8_BACKEND_FAILURE;
   if(verify && (rns8_hip_native_abs_max_on_stream(source,int(rows),int(cols),int(ld),maximum,signed_values,stream)!=int(hipSuccess) ||
       rns8_hip_native_bound_status(maximum,bound,flag,stream)!=int(hipSuccess)))return RNS8_BACKEND_FAILURE;
-  const auto packed=signed_values?rns8_hip_direct_pack_i64_device_on_stream(static_cast<const int64_t*>(source),stage,int(rows),int(cols),int(ld),int(prefix),stream):
+  const auto packed=basis?rns8_hip_basis_pack_view_stream(static_cast<const uint64_t*>(source),stage,uint64_t(rows)*cols,cols,ld,*basis,prefix,signed_values,stream):
+      signed_values?rns8_hip_direct_pack_i64_device_on_stream(static_cast<const int64_t*>(source),stage,int(rows),int(cols),int(ld),int(prefix),stream):
       rns8_hip_direct_pack_u64_device_on_stream(static_cast<const uint64_t*>(source),stage,int(rows),int(cols),int(ld),int(prefix),stream);
   if(packed!=int(hipSuccess))return RNS8_BACKEND_FAILURE;
   const uint64_t payload=uint64_t(rows)*cols*prefix;
@@ -130,12 +133,12 @@ rns8_status hip_direct_enqueue_native_import(int device_id,const void* source,vo
   if(retained && rns8_hip_guarded_copy_bytes(source,retained,rows,uint64_t(cols)*8,uint64_t(ld)*8,uint64_t(cols)*8,flag,stream)!=int(hipSuccess))return RNS8_BACKEND_FAILURE;
   return hipMemcpyAsync(pinned_status,flag,4,hipMemcpyDeviceToHost,st)==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #else
-  (void)device_id;(void)signed_values;(void)verify;(void)bound;(void)retained;return RNS8_UNSUPPORTED_BACKEND;
+  (void)device_id;(void)signed_values;(void)verify;(void)bound;(void)retained;(void)basis;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 rns8_status hip_direct_enqueue_native_export(int device_id,const void* residues,void* destination,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,uint32_t limbs,uint64_t bound,
-    void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream) {
+    void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream,const BasisPacket* basis,BasisMagnitude magnitude) {
   const uint64_t width=8*uint64_t(limbs?limbs:1);
   if(!residues || !destination || !scratch || !pinned_status || !stream || !prefix || prefix>20 || limbs>32 ||
       !qualified_i32_matrix_address(rows,cols,ld,1,width) || !qualified_i32_matrix_address(rows,cols,cols,prefix) ||
@@ -145,7 +148,8 @@ rns8_status hip_direct_enqueue_native_export(int device_id,const void* residues,
   const auto st=static_cast<hipStream_t>(stream);auto* flag=reinterpret_cast<int*>(static_cast<uint8_t*>(scratch)+uint64_t(rows)*cols*width);
   if(hipMemsetAsync(flag,0,4,st)!=hipSuccess)return RNS8_BACKEND_FAILURE;
   const auto* input=static_cast<const int8_t*>(residues);auto* output=static_cast<uint64_t*>(scratch);
-  const int code=limbs?(signed_values?rns8_hip_direct_export_exact_wide_signed_limbs_device_on_stream(input,output,int(rows),int(cols),int(prefix),int(limbs),flag,stream):
+  const int code=basis?rns8_hip_basis_export_view_stream(input,output,uint64_t(rows)*cols,*basis,prefix,signed_values,limbs?limbs:1,magnitude,flag,stream):
+      limbs?(signed_values?rns8_hip_direct_export_exact_wide_signed_limbs_device_on_stream(input,output,int(rows),int(cols),int(prefix),int(limbs),flag,stream):
       rns8_hip_direct_export_exact_wide_unsigned_limbs_device_on_stream(input,output,int(rows),int(cols),int(prefix),int(limbs),flag,stream)):
       signed_values?rns8_hip_direct_export_i64_device_on_stream(input,reinterpret_cast<int64_t*>(output),int(rows),int(cols),int(prefix),bound,flag,stream):
       rns8_hip_direct_export_u64_device_on_stream(input,output,int(rows),int(cols),int(prefix),bound,flag,stream);
@@ -153,7 +157,7 @@ rns8_status hip_direct_enqueue_native_export(int device_id,const void* residues,
   if(rns8_hip_guarded_copy_bytes(scratch,destination,rows,uint64_t(cols)*width,uint64_t(cols)*width,uint64_t(ld)*width,flag,stream)!=int(hipSuccess))return RNS8_BACKEND_FAILURE;
   return hipMemcpyAsync(pinned_status,flag,4,hipMemcpyDeviceToHost,st)==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #else
-  (void)device_id;(void)signed_values;(void)bound;return RNS8_UNSUPPORTED_BACKEND;
+  (void)device_id;(void)signed_values;(void)bound;(void)basis;(void)magnitude;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 

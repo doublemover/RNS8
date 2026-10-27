@@ -58,6 +58,16 @@ TEST_CASE("experimental ordered bases reject noncoprime descriptors and retain o
         cpp_int actual=cpp_int(words[0])+(cpp_int(words[1])<<64)+(cpp_int(words[2])<<128);
         if(sign && words[2]>>63)actual-=cpp_int(1)<<192;
         REQUIRE(actual==expected);
+        for(uint32_t limbs:{1u,2u,3u,4u,32u}) {
+          std::array<uint64_t,32> exported;exported.fill(99);
+          const cpp_int limit=cpp_int(1)<<(64*limbs-(sign?1:0));
+          const bool fits=sign?(expected>=-limit && expected<limit):(expected>=0 && expected<limit);
+          REQUIRE(rns8::detail::basis_export_words(words,sign,limbs,exported.data())==fits);
+          if(!fits){CHECK(std::all_of(exported.begin(),exported.end(),[](uint64_t v){return v==99;}));continue;}
+          cpp_int reference=expected;if(reference<0)reference+=cpp_int(1)<<(64*limbs);
+          for(uint32_t limb=0;limb<limbs;++limb){CHECK(exported[limb]==static_cast<uint64_t>(reference&UINT64_MAX));reference>>=64;}
+          for(uint32_t limb=limbs;limb<32;++limb)CHECK(exported[limb]==99);
+        }
       }
     }
   }

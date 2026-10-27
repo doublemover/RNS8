@@ -26,6 +26,7 @@
 
 namespace rns8::detail {
 rns8_status hip_direct_enqueue_basis_gemm(int,const void*,const void*,void*,int64_t,int64_t,int64_t,const uint16_t*,uint32_t,void*);
+rns8_status hip_direct_enqueue_basis_conversion(int,const void*,void*,uint64_t,const BasisPacket&,const BasisPacket&,uint32_t,uint32_t,bool,BasisMagnitude,void*,uint64_t,void*,void*);
 namespace checked_crt {struct Decode;}
 rns8_status hip_direct_decode_crt_roots_device(int,const void*,void*,int64_t,const checked_crt::Decode&,void*);
 rns8_status hip_direct_basis_pack(int,const void*,void*,uint64_t,const void*,uint32_t,bool);
@@ -1407,13 +1408,13 @@ rns8_status hip_direct_copy_native_view(int device_id,const void* source,void* d
 rns8_status hip_direct_validate_native_allocation(int device_id,const void* base,uint64_t bytes);
 rns8_status hip_direct_enqueue_native_import(int device_id,const void* source,void* residues,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,bool verify,uint64_t bound,
-    void* retained,void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream);
+    void* retained,void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream,const BasisPacket* basis=nullptr);
 rns8_status hip_direct_enqueue_panel_pack(int,const void*,void*,int64_t,int64_t,uint32_t,bool,void*);
 rns8_status hip_direct_enqueue_panel_gemm(int,const void*,const void*,const void*,void*,int64_t,int64_t,int64_t,uint32_t,void*);
 rns8_status hip_direct_enqueue_panel_export(int,const void*,void*,void*,int64_t,int64_t,uint32_t,uint64_t,bool,void*);
 rns8_status hip_direct_enqueue_native_export(int device_id,const void* residues,void* destination,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,uint32_t limbs,uint64_t bound,
-    void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream);
+    void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream,const BasisPacket* basis=nullptr,BasisMagnitude magnitude={});
 rns8_status hip_direct_enqueue_limb_export_to_host(int device_id,const void* residues,
     int64_t rows,int64_t cols,uint32_t prefix,bool signed_values,uint32_t limbs,
     void* scratch,uint64_t scratch_bytes,void* pinned_storage,uint64_t pinned_bytes,void* stream);

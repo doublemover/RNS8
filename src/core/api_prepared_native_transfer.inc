@@ -5,6 +5,8 @@ class PreparedNativeTransfer final:public PreparedTransfer {
   uint32_t prefix=0,limbs=0;uint64_t bound_native=0,external_generation=0,published_generation=0;
   void* matrix_allocation=nullptr;void* retained_native=nullptr;uint64_t retained_bytes=0;
   boost::multiprecision::cpp_int envelope;rns8::detail::hip_direct_device_buffer scratch;
+  std::shared_ptr<const ExperimentalBasis> basis;
+  BasisMagnitude basis_bound{};
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   hip_pinned_host_buffer host_status;hipStream_t owned_stream=nullptr;
 #endif
@@ -30,6 +32,7 @@ class PreparedNativeTransfer final:public PreparedTransfer {
     if(!refresh_generation && lease->desc.generation!=external_generation)return RNS8_INVALID_ARGUMENT;
     if(matrix->generation_exhausted || (importing && matrix->content_generation==UINT64_MAX))return RNS8_RANGE_ERROR;
     if(matrix->hip_residues!=matrix_allocation || matrix->backend!=RNS8_BACKEND_HIP_DIRECT || matrix->hip_device_id!=ctx->device_id ||
+        matrix->experimental_basis!=basis ||
         !exact_wide_semantics(matrix->desc.semantics) || !native_semantics(matrix->desc.semantics,signed_values))return RNS8_INVALID_ARGUMENT;
     if(importing) {
       if(pending)return RNS8_INVALID_ARGUMENT;
@@ -42,7 +45,7 @@ class PreparedNativeTransfer final:public PreparedTransfer {
     const auto current_prefix=pending?pending_prefix:matrix->exact_range_prefix;
     const auto& current_bound=pending?*pending:matrix->exact_max_magnitude;
     if((!pending && !matrix->device_residues_current) || current_prefix<prefix || current_bound<0 || current_bound>envelope ||
-        !exact_range_fits(matrix->desc.semantics,current_bound,modulus_product(prefix)))return RNS8_RANGE_ERROR;
+        !exact_range_fits(matrix->desc.semantics,current_bound,basis?basis->products[prefix]:modulus_product(prefix)))return RNS8_RANGE_ERROR;
     bound=current_bound;return RNS8_SUCCESS;
   }
   rns8_status validate(const boost::multiprecision::cpp_int* pending,uint32_t pending_prefix,
@@ -60,9 +63,9 @@ class PreparedNativeTransfer final:public PreparedTransfer {
   rns8_status enqueue(void* stream) override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     return importing?hip_direct_enqueue_native_import(ctx->device_id,lease->view,matrix_allocation,matrix->desc.rows,matrix->desc.cols,
-        lease->view_ld,prefix,signed_values,verify,bound_native,retained_native,scratch.get(),scratch.bytes(),host_status.get(),stream):
+        lease->view_ld,prefix,signed_values,verify,bound_native,retained_native,scratch.get(),scratch.bytes(),host_status.get(),stream,basis?&basis->packet:nullptr):
         hip_direct_enqueue_native_export(ctx->device_id,matrix_allocation,lease->view,matrix->desc.rows,matrix->desc.cols,lease->view_ld,
-        prefix,signed_values,limbs,bound_native,scratch.get(),scratch.bytes(),host_status.get(),stream);
+        prefix,signed_values,limbs,bound_native,scratch.get(),scratch.bytes(),host_status.get(),stream,basis?&basis->packet:nullptr,basis_bound);
 #else
     (void)stream;return RNS8_UNSUPPORTED_BACKEND;
 #endif
@@ -151,9 +154,10 @@ rns8_status rns8_prepare_native_transfer_hip(rns8_context* ctx,rns8_matrix* matr
         (!options->verify_input_bound && options->max_input_magnitude) || (!options->import_values && options->verify_input_bound))return RNS8_INVALID_ARGUMENT;
     *out=nullptr;std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
     if(!exact_wide_semantics(matrix->desc.semantics))return RNS8_UNSUPPORTED_BACKEND;
-    auto status=native_matrix_contract(ctx,matrix,lease,options->import_values!=0);if(status!=RNS8_SUCCESS)return status;
+    auto status=native_matrix_contract(ctx,matrix,lease,options->import_values!=0,true);if(status!=RNS8_SUCCESS)return status;
     if(lease->desc.access!=(options->import_values?RNS8_NATIVE_DEVICE_READ:RNS8_NATIVE_DEVICE_WRITE) || lease->prepared_references==UINT64_MAX)return RNS8_INVALID_ARGUMENT;
     auto owner=std::make_unique<PreparedNativeTransfer>();owner->ctx=ctx;owner->matrix=matrix;owner->lease=lease;
+    owner->basis=matrix->experimental_basis;
     owner->importing=options->import_values!=0;owner->verify=options->verify_input_bound!=0;owner->signed_values=native_device_signed_type(lease->desc.element_type);
     owner->limbs=lease->desc.limb_count;owner->external_generation=lease->desc.generation;owner->matrix_allocation=matrix->hip_residues;
     owner->prefix=owner->importing?matrix->prefix:matrix->exact_range_prefix;
@@ -165,7 +169,8 @@ rns8_status rns8_prepare_native_transfer_hip(rns8_context* ctx,rns8_matrix* matr
           owner->signed_values?boost::multiprecision::cpp_int(1)<<63:boost::multiprecision::cpp_int(UINT64_MAX);
       if(owner->envelope<0 || owner->envelope>limit)return RNS8_RANGE_ERROR;
       owner->bound_native=owner->limbs?0:owner->envelope.convert_to<uint64_t>();}
-    if(!exact_range_fits(matrix->desc.semantics,owner->envelope,modulus_product(owner->prefix)))return RNS8_RANGE_ERROR;
+    if(!exact_range_fits(matrix->desc.semantics,owner->envelope,owner->basis?owner->basis->products[owner->prefix]:modulus_product(owner->prefix)))return RNS8_RANGE_ERROR;
+    if(owner->basis){auto remaining=owner->envelope;for(auto& word:owner->basis_bound.words){word=static_cast<uint64_t>(remaining&UINT64_MAX);remaining>>=64;}}
     const uint64_t cells=uint64_t(matrix->desc.rows)*matrix->desc.cols;
     const bool retain=owner->importing && (matrix->desc.flags&RNS8_MATRIX_RETAIN_NATIVE_INPUT);
     const uint64_t scratch=owner->importing?cells*owner->prefix+16:lease->resources.export_scratch_bytes;
@@ -174,7 +179,9 @@ rns8_status rns8_prepare_native_transfer_hip(rns8_context* ctx,rns8_matrix* matr
     q.problem.struct_size=sizeof(q.problem);q.problem.abi_version=RNS8_ABI_VERSION;q.problem.semantics=matrix->desc.semantics;q.problem.bound_kind=RNS8_BOUND_NONE;q.problem.requested_backend=RNS8_BACKEND_HIP_DIRECT;
     q.problem.m=matrix->desc.rows;q.problem.n=matrix->desc.cols;q.problem.k=1;q.problem.max_prefix=owner->prefix;
     q.lda=owner->importing?lease->view_ld:matrix->desc.cols;q.ldc=owner->importing?matrix->desc.cols:lease->view_ld;q.output_limbs=owner->limbs;q.algorithm=owner->verify;
-    q.scratch_budget=options->max_total_scratch_bytes;const auto support=operation_support(*ctx,q,RNS8_BACKEND_HIP_DIRECT);if(support.status!=RNS8_SUCCESS)return support.status;
+    q.scratch_budget=options->max_total_scratch_bytes;
+    if(owner->basis){if(scratch>UINT64_MAX-4 || options->max_total_scratch_bytes<scratch+4)return RNS8_WORKSPACE_TOO_SMALL;}
+    else {const auto support=operation_support(*ctx,q,RNS8_BACKEND_HIP_DIRECT);if(support.status!=RNS8_SUCCESS)return support.status;}
     if(retain){auto& pointer=owner->signed_values?matrix->hip_native_i64:matrix->hip_native_u64;auto& bytes=owner->signed_values?matrix->hip_native_i64_bytes:matrix->hip_native_u64_bytes;
       if((pointer || bytes) && (!pointer || bytes!=cells*8))return RNS8_INVALID_ARGUMENT;
       if(!pointer){status=hip_direct_allocate(ctx->device_id,cells*8,&pointer);if(status!=RNS8_SUCCESS)return status;bytes=cells*8;}

@@ -563,3 +563,4 @@ rns8_status rns8_convert_basis_values(rns8_basis_plan* plan,const rns8_matrix* s
     return status;
   });
 }
+#include "api_prepared_basis_conversion.inc"

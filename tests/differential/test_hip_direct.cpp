@@ -57,6 +57,7 @@ namespace {
 #include "test_hip_direct_result_cache_cases.inc"
 
 #include "test_hip_direct_qualification_cases.inc"
+#include "test_hip_basis_transfer_cases.inc"
 
 #include "test_hip_direct_exact_lift_cases.inc"
 #include "test_hip_direct_split_k_cases.inc"

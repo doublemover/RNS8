@@ -87,7 +87,16 @@ Static success still requires actual current matrix/range/generation binding.
 Direct-HIP GEMM supports borrowed streams and owned graphs through
 `rns8_prepare_basis_gemm_hip` and the ordinary prepared completion, cancellation
 and refresh APIs. It retains the complete basis and matrix owners independently
-of the basis-plan handle. Packing, conversion and export remain synchronous.
+of the basis-plan handle. `rns8_prepare_basis_conversion_hip` prepares exact
+conversion/lift between complete ordered bases with checked device staging,
+pinned status and guarded whole-output publication. Its explicit total budget
+includes both payloads. `rns8_prepare_native_transfer_hip` accepts ordered-basis
+matrices for lease-owned signed/unsigned native import and checked scalar/limb
+export. It preserves the same readiness events, generation refresh, ownership,
+stream/graph completion and dependent-token rules as ordinary native transfers.
+Value packet kernel arguments freeze full basis content without borrowed packet
+uploads. The original host-pointer packing/conversion/export calls remain
+synchronous. New prepared transfer/conversion fixtures await the combined batch.
 Accelerator-library and other unsupported operations reject explicitly.
 Ordinary inventory identifies the implemented source and directs
 callers to this explicit query; it cannot infer an experimental basis from a
