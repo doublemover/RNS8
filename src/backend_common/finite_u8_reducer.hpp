@@ -320,6 +320,13 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_static_byte_modulus_i32(int32_t 
   }
 }
 
+// The runtime-basis path also admits small/composite channels outside the
+// specialized default-ladder switch. The reciprocal proof covers every byte q.
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_byte_modulus_i32(int32_t value,uint32_t modulus) {
+  if(static_byte_modulus_supported(modulus))return reduce_to_centered_static_byte_modulus_i32(value,modulus);
+  return reduce_to_centered_i32(value,modulus,modulus_reciprocal_u32(modulus));
+}
+
 RNS8_FINITE_U8_INLINE int8_t center_u8(uint8_t value, uint32_t modulus) {
   if (modulus == 256u) {
     return static_cast<int8_t>(value);

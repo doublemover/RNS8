@@ -42,7 +42,7 @@ class HipExecution {
   // shard is exposed as a short prefix. The result is on the explicit owner.
   Admission resident_limbs(uint64_t epoch, int& device, const void*& pointer) const;
   Admission materialize(uint64_t epoch, uint32_t prefix, uint64_t max_bytes);
-  Admission resident_residues(uint64_t epoch, int& device, const void*& pointer, uint32_t& prefix) const;
+  Admission resident_residues(uint64_t epoch, int& device, const void*& pointer, uint32_t& prefix,const BasisPacket*& basis) const;
   const std::vector<std::string>& arithmetic_certificates() const;
   Admission close(); // BUSY while work/readers survive; failed frees retain ownership
   static void reap_quarantined() noexcept;

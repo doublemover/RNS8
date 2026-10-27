@@ -215,11 +215,11 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 __host__ __device__ __forceinline__ bool ck_static_modulus_supported(uint32_t modulus) {
-  return rns8::detail::finite_u8::static_byte_modulus_supported(modulus);
+  return modulus>=2 && modulus<=256;
 }
 
 __host__ __device__ __forceinline__ int8_t ck_reduce_to_centered_static_i32(int32_t value, uint32_t modulus) {
-  return rns8::detail::finite_u8::reduce_to_centered_static_byte_modulus_i32(value, modulus);
+  return rns8::detail::finite_u8::reduce_to_centered_byte_modulus_i32(value, modulus);
 }
 
 struct CenteredModulo {

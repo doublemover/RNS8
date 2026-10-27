@@ -5,6 +5,8 @@
 #include "address_domain.hpp"
 #include "garner_constants.hpp"
 #include "distributed_device.hpp"
+#include "basis_packet.hpp"
+#include "ordered_basis_identity.hpp"
 #include "rns8/rns8.h"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
@@ -13,6 +15,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -95,6 +98,7 @@ struct Request {
   std::vector<Rank> ranks;
   std::vector<Edge> edges;
   std::vector<uint32_t> plane_costs; // optional named-cohort relative costs
+  std::vector<uint16_t> basis; // owned complete order; empty selects the default20
   std::string cost_profile_sha256;
   Transport transport = Transport::pinned_host; // explicit; no automatic fallback
   uint64_t host_budget = 0, pinned_budget = 0, host_overhead_reserve = 1u << 20;
@@ -142,6 +146,7 @@ class Plan {
   const std::vector<Work>& work() const { return work_; }
   const Resources& resources() const { return resources_; }
   const std::string& identity() const { return identity_; }
+  const BasisPacket& basis_packet() const {return basis_;}
   uint32_t k_fragments() const {return request_.axis==Axis::contraction?(request_.k_fragments?request_.k_fragments:uint32_t(request_.ranks.size())):1;}
   bool signed_value() const {
     return request_.semantics == RNS8_BOUNDED_I64 || request_.semantics == RNS8_EXACT_WIDE_SIGNED;
@@ -152,7 +157,7 @@ class Plan {
   // Construction stages everything and preserves a prior plan on rejection.
   static Admission create(const Request& request, std::shared_ptr<const Plan>& output) {
     if (request.ranks.size() > 64 || request.edges.size() > 64 * 63 ||
-        request.tile_proofs.size() > (1u << 20) || request.plane_costs.size() > 20)
+        request.tile_proofs.size() > (1u << 20) || request.plane_costs.size() > 20 || request.basis.size()>20)
       return reject(RNS8_INVALID_ARGUMENT, "request_descriptor_limit");
     try {
       auto plan = std::shared_ptr<Plan>(new Plan(request));
@@ -168,17 +173,19 @@ class Plan {
   std::vector<Work> work_;
   Resources resources_;
   std::string identity_;
+  BasisPacket basis_;
   void seal_identity() {
     // An exact structural key, not a truncated hash or an arithmetic proof.
     std::ostringstream key;
     const auto& r = request_;
     const auto text = [&](const std::string& value) { key << value.size() << ':' << value << ';'; };
-    key << "distributed_axes_v2;" << unsigned(r.axis) << ';' << k_fragments() << ';' << r.rank_grid_rows << ';' << r.rank_grid_cols << ';' << r.operation << ';' << unsigned(r.semantics) << ';'
+    key << "distributed_basis_v3;" << unsigned(r.axis) << ';' << k_fragments() << ';' << r.rank_grid_rows << ';' << r.rank_grid_cols << ';' << r.operation << ';' << unsigned(r.semantics) << ';'
         << r.m << ';' << r.n << ';' << r.k << ';' << r.lda << ';' << r.ldb << ';'
         << r.prefix << ';' << r.owner << ';' << r.a.instance << ';' << r.a.generation << ';'
         << r.b.instance << ';' << r.b.generation << ';' << unsigned(r.transport) << ';'
         << r.pipeline_slots << ';' << unsigned(r.host_storage) << ';' << r.native_integrity << ';';
     text(r.certificate_sha256); text(r.layout_sha256); text(r.cost_profile_sha256);
+    key<<r.basis.size()<<';';for(auto q:r.basis)key<<q<<';';
     for (const auto& rank : r.ranks) {
       key << rank.ordinal << ';' << rank.weight << ';';
       text(rank.physical_id); text(rank.target); text(rank.physical_package_id);
@@ -194,6 +201,21 @@ class Plan {
     identity_ = key.str();
   }
   Admission build() {
+    if(request_.basis.empty())request_.basis.assign(garner::kConstants.moduli,garner::kConstants.moduli+20);
+    for(size_t i=0;i<request_.basis.size();++i){
+      if(request_.basis[i]<2 || request_.basis[i]>256)return reject(RNS8_INVALID_ARGUMENT,"basis_modulus_domain");
+      for(size_t j=0;j<i;++j)if(std::gcd(request_.basis[i],request_.basis[j])!=1)return reject(RNS8_INVALID_ARGUMENT,"basis_not_coprime");
+    }
+    basis_.count=uint32_t(request_.basis.size());
+    std::copy(request_.basis.begin(),request_.basis.end(),basis_.moduli);
+    basis_.identity=ordered_basis_fingerprint(basis_.moduli,basis_.count);
+    Integer product=1;
+    for(uint32_t i=0;i<=basis_.count;++i){Integer words=product,threshold=(product+1)/2;
+      for(unsigned limb=0;limb<3;++limb){basis_.products[i][limb]=(words&UINT64_MAX).convert_to<uint64_t>();words>>=64;
+        basis_.negative_thresholds[i][limb]=(threshold&UINT64_MAX).convert_to<uint64_t>();threshold>>=64;}
+      if(i<basis_.count){const uint32_t q=basis_.moduli[i],remainder=(product%q).convert_to<uint32_t>();
+        uint32_t inverse=1;while((remainder*inverse)%q!=1)++inverse;basis_.inverse_prefix[i]=uint16_t(inverse);product*=q;}
+    }
     const auto& r = request_;
     if(unsigned(r.axis)>unsigned(Axis::hybrid))return reject(RNS8_INVALID_ARGUMENT,"distribution_axis");
     if((r.axis!=Axis::contraction && r.k_fragments) || (r.axis!=Axis::hybrid && (r.rank_grid_rows || r.rank_grid_cols)))
@@ -207,7 +229,7 @@ class Plan {
       return reject(RNS8_UNSUPPORTED_BACKEND, "integer_semantics_required");
     if (!r.operation || !r.a.valid() || !r.b.valid() || !digest(r.certificate_sha256) ||
         !digest(r.layout_sha256) || !r.m || !r.n || !r.k || r.lda < r.k || r.ldb < r.n ||
-        !r.prefix || r.prefix > 20 || !r.tile_rows || !r.tile_cols || r.tile_rows > 256 ||
+        !r.prefix || r.prefix > basis_.count || !r.tile_rows || !r.tile_cols || r.tile_rows > 256 ||
         r.tile_cols > 256 || r.ranks.empty() || r.ranks.size() > 64 || r.owner >= r.ranks.size() ||
         !r.maximum_work_items || r.maximum_work_items > (1u << 20) || r.magnitude_bound < 0 ||
         !r.pipeline_slots || r.pipeline_slots > 3 || unsigned(r.host_storage) > 1)
@@ -265,7 +287,7 @@ class Plan {
             proof.magnitude < 0 || proof.magnitude > r.magnitude_bound)
           return reject(RNS8_INVALID_ARGUMENT, "tile_proof_contract");
         Integer product = 1;
-        for (uint32_t plane = 0; plane < proof.prefix; ++plane) product *= garner::kConstants.moduli[plane];
+        for (uint32_t plane = 0; plane < proof.prefix; ++plane) product *= r.basis[plane];
         if (product <= (signed_value() ? Integer(2 * proof.magnitude) : proof.magnitude))
           return reject(RNS8_RANGE_ERROR, "insufficient_global_basis");
         if (bounded() && proof.magnitude > (signed_value() ? Integer(Integer(1) << 63) : Integer(UINT64_MAX)))
@@ -311,7 +333,7 @@ class Plan {
               !add_bytes(memory.local_outputs, cells))
             return reject(RNS8_RANGE_ERROR, "rank_buffer_overflow", selected);
           memory.packed_inputs = std::max(memory.packed_inputs, packed_a);
-          work_.push_back({work_.size(), id, selected, plane, garner::kConstants.moduli[plane],
+          work_.push_back({work_.size(), id, selected, plane, r.basis[plane],
               begin, end, offset, cells, transport});
           if(r.axis==Axis::contraction){auto& partial=resources_.ranks[r.owner].partial_gather;
             work_.back().gather_offset=partial;if(!add_bytes(partial,cells))return reject(RNS8_RANGE_ERROR,"partial_gather_overflow");}
@@ -374,6 +396,7 @@ class Plan {
     // bounded but not fixed-size Work objects. Reserve separately for them.
     if (!multiply(work_.size(), 2048, resources_.contract_metadata))
       return reject(RNS8_RANGE_ERROR, "contract_metadata_overflow");
+    if(!add_bytes(resources_.contract_metadata,sizeof(BasisPacket)+r.basis.size()*sizeof(uint16_t)))return reject(RNS8_RANGE_ERROR,"basis_metadata_overflow");
     for (auto bytes : {integer_bytes, r.host_storage == HostStorage::exact_reference ? c_span.byte_extent : uint64_t{0}, resources_.descriptor_bytes,
         resources_.contract_metadata, resources_.pinned_staging, r.host_overhead_reserve})
       if (!add_bytes(resources_.host_model, bytes)) return reject(RNS8_RANGE_ERROR, "host_model_overflow");

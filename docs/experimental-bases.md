@@ -3,7 +3,8 @@
 The opt-in C API in `rns8/experimental_basis.h` owns an explicit ordered basis
 and executes exact-wide signed or unsigned products on the CPU reference or
 direct HIP provider. It does not replace the default ladder or select a basis
-automatically. The [October27 validation](../metadata/replay-extension-validation-20261027.json)
+implicitly. The explicit cost-bound selector below adds opt-in runtime choice.
+The [October27 validation](../metadata/replay-extension-validation-20261027.json)
 passes applicable CPU/direct-HIP and sanitizer fixtures. Measurements and broader
 target qualification remain separate.
 
@@ -98,7 +99,8 @@ Value packet kernel arguments freeze full basis content without borrowed packet
 uploads. The original host-pointer packing/conversion/export calls remain
 synchronous. New prepared transfer/conversion fixtures pass the applicable CPU-ASan
 and gfx1100 HIP lanes in the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
-Accelerator-library and other unsupported operations reject explicitly.
+Prepared stream/graph execution currently uses the direct-HIP compute owner;
+library plans expose their explicit synchronous execution mode.
 Ordinary inventory identifies the implemented source and directs
 callers to this explicit query; it cannot infer an experimental basis from a
 default-ladder descriptor. Neither query marks arithmetic or performance as
@@ -117,11 +119,37 @@ This phase provides explicit CPU/direct-HIP exact-wide packing, GEMM, CRT export
 and integer basis conversion, product recipes, packed/ragged materialization,
 uniform layout conversion and prepared stream/graph GEMM. Ragged directories
 retain actual basis products and inverses; packed recipe bindings compare the
-complete ordered identity. Experimental-basis accelerator-library/distributed
-execution, automatic route selection and finite/wraparound semantics remain
-unsupported. Those providers must bind the complete ordered identity before
-they can accept this representation.
+complete ordered identity. Finite and wraparound arithmetic remain separate
+contracts rather than inferred experimental-basis semantics.
 CPU/HIP fixtures cover full native boundaries, independent Boost
 products, reordered/default conversion, output padding, basis/width rejection,
 ownership after handle destruction and K=65535/65536/65537. No speedup follows
 from this source implementation.
+
+## Explicit library computation and runtime basis selection
+
+The basis plan's `backend` now selects direct HIP, CK, rocWMMA, hipBLASLt or
+AMDGPU builtins over matrices owned by a direct-HIP context. Packing, exact
+conversion and CRT keep the owned packet and actual ordered moduli. Library
+GEMM processes each complete plane with its actual modulus, including small and
+composite channels outside the default ladder. Every partial result remains in
+the plan's full private output stage until successful complete publication.
+Reusable provider scratch and INT32 staging are charged to the explicit device
+budget. hipBLASLt retains its own handle; a failed handle release preserves a
+retryable plan. If handle creation fails after acquisition, a nonnull failed-plan
+output is cleanup-only and must be destroyed. Opaque vendor setup is additional
+to counted payload. Uncompiled providers reject; builtins keep their65536 K cap.
+
+`rns8_select_basis_plan` deterministically chooses among caller-owned candidates
+for one explicit shape, signedness, dataset/output cohort and magnitude bound.
+Each observed or modeled price must bind the complete ordered basis, prefix,
+provider, current build/target and exact queried payload. Unknown prices,
+overflowing lifetime costs, mismatched identities, insufficient CRT range and
+infeasible budgets cannot win. The charge includes setup, both-input packing,
+every GEMM and final export; flags charge packing/export on every replay instead.
+Stable candidate order resolves equal projected cost. `rns8_create_selected_basis_plan`
+creates the selected retained owner. Actual values still require ordinary range
+and generation admission; caller-supplied cost data does not qualify performance.
+New selection, full-width provider and dynamic-reducer fixtures are implemented
+for the final consolidated batch. Existing measurement receipts retain their
+original source; no global AUTO or measured routing promotion follows.

@@ -81,7 +81,7 @@ rns8_status amdgpu_builtins_sparse_a_contract(
     uint32_t prefix_or_modulus, bool finite) {
   if (m <= 0 || n <= 0 || k <= 0 || (k % 4) != 0 || ldb < n || ldc < n ||
       m > INT32_MAX || n > INT32_MAX || k > INT32_MAX || ldb > INT32_MAX || ldc > INT32_MAX ||
-      (finite ? !finite_u8::static_byte_modulus_supported(prefix_or_modulus)
+      (finite ? (prefix_or_modulus<2 || prefix_or_modulus>256)
               : prefix_or_modulus == 0 || prefix_or_modulus > RNS8_MAX_SUPPORTED_PREFIX))
     return RNS8_INVALID_ARGUMENT;
   if (k > RNS8_SAFE_INT32_K_BLOCK) return RNS8_RANGE_ERROR;
@@ -228,7 +228,7 @@ const char* amdgpu_builtins_sparse_event_label(int device_id, bool finite, int64
  rns8_status amdgpu_builtins_enqueue_dense(int device,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
      int64_t lda,int64_t ldb,int64_t ldc,uint32_t value,bool finite,void* stream) {
    if(!stream || !a || !b || !c || value<1 || (!finite && value>20) ||
-       (finite && !finite_u8::static_byte_modulus_supported(value)))return RNS8_INVALID_ARGUMENT;
+       (finite && (value<2 || value>256)))return RNS8_INVALID_ARGUMENT;
    if(k>65536 || !qualified_i32_gemm_address(m,n,k,lda,ldb,ldc,finite?1:value))return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
    return status_from_device_code(rns8_amdgpu_builtin_enqueue_dense(device,a,b,c,int(m),int(n),int(k),int(lda),int(ldb),int(ldc),value,finite,stream));
@@ -385,7 +385,7 @@ rns8_status amdgpu_builtins_gemm_finite_u8_device(
     RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && \
     RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
   if (!valid_dense_shape(device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc) ||
-      !finite_u8::static_byte_modulus_supported(modulus)) {
+      (modulus<2 || modulus>256)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (k > RNS8_SAFE_INT32_K_BLOCK) {
@@ -497,7 +497,7 @@ rns8_status amdgpu_builtins_gemm_finite_u8_sparse_a_device(
     RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && \
     RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
   if (!valid_sparse_shape(device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc) ||
-      !finite_u8::static_byte_modulus_supported(modulus)) {
+      (modulus<2 || modulus>256)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (k > RNS8_SAFE_INT32_K_BLOCK) {

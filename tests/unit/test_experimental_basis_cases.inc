@@ -81,3 +81,45 @@ TEST_CASE("experimental basis CPU routes preserve full-width products conversion
   experimental_basis_fixture::slab_edges(ctx);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+TEST_CASE("runtime basis selection binds prices to one exact workload and charges complete reuse") {
+  auto* ctx=create_cpu_context();auto order=experimental_basis_fixture::moduli();
+  auto* first=experimental_basis_fixture::create(order);std::reverse(order.begin(),order.end());auto* second=experimental_basis_fixture::create(order);
+  rns8_basis_candidate candidates[2]{};
+  for(unsigned i=0;i<2;++i){auto& c=candidates[i];c.basis=i?second:first;
+    auto& d=c.plan;d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.backend=RNS8_BACKEND_CPU_REFERENCE;
+    d.semantics=RNS8_EXACT_WIDE_SIGNED;d.m=2;d.n=3;d.k=5;d.prefix=20;d.max_device_bytes=d.max_host_bytes=UINT64_MAX;
+    rns8_basis_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_query_basis_plan(c.basis,&d,&resources)==RNS8_SUCCESS);
+    rns8_basis_info basis{};basis.struct_size=sizeof(basis);basis.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_basis_info(c.basis,20,&basis)==RNS8_SUCCESS);
+    auto& p=c.cost;p.struct_size=sizeof(p);p.abi_version=RNS8_ABI_VERSION;p.kind=2;
+    REQUIRE(rns8_get_pipeline_build_identity(p.build_identity,sizeof(p.build_identity))==RNS8_SUCCESS);
+    std::fill_n(p.cohort_identity,64,'a');std::strcpy(p.target_id,"cpu");std::copy_n(basis.moduli,20,p.ordered_moduli);
+    p.count=p.prefix=20;p.backend=d.backend;p.semantics=d.semantics;p.m=d.m;p.n=d.n;p.k=d.k;
+    p.device_bytes=resources.required_device_bytes;p.host_bytes=resources.required_host_bytes;
+    p.preparation_ns=i?10:1000;p.pack_ns=3;p.gemm_ns=i?30:20;p.export_ns=7;
+  }
+  rns8_basis_selection_desc request{};request.struct_size=sizeof(request);request.abi_version=RNS8_ABI_VERSION;
+  request.semantics=RNS8_EXACT_WIDE_SIGNED;request.m=2;request.n=3;request.k=5;request.reuse_count=10;request.magnitude_bound[0]=5000;
+  std::fill_n(request.cohort_identity,64,'a');
+  rns8_basis_selection selection{};selection.struct_size=sizeof(selection);selection.abi_version=RNS8_ABI_VERSION;
+  REQUIRE(rns8_select_basis_plan(ctx,&request,candidates,2,&selection)==RNS8_SUCCESS);
+  CHECK(selection.selected_index==1);CHECK(selection.projected_ns==320);CHECK(selection.eligible_candidates==2);
+  request.reuse_count=1000;
+  rns8_basis_plan* plan=nullptr;REQUIRE(rns8_create_selected_basis_plan(ctx,&request,candidates,2,&selection,&plan)==RNS8_SUCCESS);
+  CHECK(selection.selected_index==0);CHECK(selection.projected_ns==21010);
+  REQUIRE(rns8_destroy_basis_plan(plan)==RNS8_SUCCESS);
+  const auto saved=selection;
+  candidates[0].cost.ordered_moduli[0]^=1;candidates[1].cost.gemm_ns=UINT64_MAX;
+  CHECK(rns8_select_basis_plan(ctx,&request,candidates,2,&selection)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(std::memcmp(&selection,&saved,sizeof(saved))==0);
+  candidates[0].cost.ordered_moduli[0]^=1;candidates[1].cost.gemm_ns=30;
+  request.magnitude_bound[2]=UINT64_MAX;
+  CHECK(rns8_select_basis_plan(ctx,&request,candidates,2,&selection)==RNS8_UNSUPPORTED_BACKEND);
+  request.magnitude_bound[2]=0;request.reuse_count=UINT64_MAX;
+  CHECK(rns8_select_basis_plan(ctx,&request,candidates,2,&selection)==RNS8_UNSUPPORTED_BACKEND);
+  request.reuse_count=1;request.n=4;
+  CHECK(rns8_select_basis_plan(ctx,&request,candidates,2,&selection)==RNS8_UNSUPPORTED_BACKEND);
+  REQUIRE(rns8_destroy_basis(first)==RNS8_SUCCESS);REQUIRE(rns8_destroy_basis(second)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

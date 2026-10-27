@@ -4939,6 +4939,7 @@
         }
       ],
       "anchors": [
+        "canonical-rank48-straight-line-execution",
         "one-level-rank48-dyadic-extension",
         "public-bilinear-exact-products"
       ]
@@ -5353,7 +5354,8 @@
         }
       ],
       "anchors": [
-        "experimental-ordered-runtime-bases"
+        "experimental-ordered-runtime-bases",
+        "explicit-library-computation-and-runtime-basis-selection"
       ]
     },
     {
@@ -5551,6 +5553,7 @@
         }
       ],
       "anchors": [
+        "complete-ordered-basis-ownership",
         "experimental-distributed-hip-execution",
         "future-qualification-commands",
         "mn-2-d-output-and-k-fragment-source-paths",

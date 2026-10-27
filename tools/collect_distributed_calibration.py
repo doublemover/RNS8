@@ -16,16 +16,18 @@ from modulus_set_search import DEFAULT_MODULI
 
 
 def fragment_count(case):
-    return case.get('k_fragments',1) if case.get('axis')=='contraction' else 1
+    return case['k_fragments'] if case['axis']=='contraction' else 1
 
 def validate_case(case):
     keys = {'schema','m','n','k','prefix','tile','slots','devices','transport','scope',
-            'host_budget','pinned_budget','device_budget','warmups','repeats'}
-    axes=type(case) is dict and case.get('schema')=='rns8_distributed_case_v2'
-    if axes:keys|={'axis','k_fragments','rank_grid_rows','rank_grid_cols'}
-    if type(case) is not dict or set(case)-{'native_integrity'} != keys or case['schema'] not in ('rns8_distributed_case_v1','rns8_distributed_case_v2'):
+            'host_budget','pinned_budget','device_budget','warmups','repeats',
+            'axis','k_fragments','rank_grid_rows','rank_grid_cols','basis','native_integrity'}
+    if type(case) is not dict or set(case) != keys or case['schema']!='rns8_distributed_case_v3':
         raise ValueError('case ABI')
-    if 'native_integrity' in case and type(case['native_integrity']) is not bool:raise ValueError('integrity policy')
+    if type(case['native_integrity']) is not bool:raise ValueError('integrity policy')
+    basis=case['basis'] or list(DEFAULT_MODULI[:20])
+    if type(case['basis']) is not list or not 1<=len(basis)<=20 or any(type(q) is not int or not 2<=q<=256 for q in basis):raise ValueError('basis domain')
+    if any(math.gcd(q,p)!=1 for i,q in enumerate(basis) for p in basis[:i]) or (type(case['prefix']) is not int or case['prefix']>len(basis)):raise ValueError('ordered basis contract')
     for key, low, high in [('m',1,8192),('n',1,8192),('k',1,131073),('prefix',1,20),('tile',1,256),
             ('slots',1,3),('host_budget',1,2**60),('pinned_budget',4,2**30),('device_budget',1,2**60),
             ('warmups',1,100),('repeats',3,100)]:
@@ -35,18 +37,17 @@ def validate_case(case):
         raise ValueError('explicit unique visible device inventory')
     if case['transport'] not in ('local','peer','pinned') or (case['transport']=='local') != (len(devices)==1):
         raise ValueError('explicit transport and single-device control')
-    if axes:
-        if case['axis'] not in ('modulus','rows','columns','2d','contraction'):raise ValueError('axis')
-        for key in ('k_fragments','rank_grid_rows','rank_grid_cols'):
-            if type(case[key]) is not int or not 0<=case[key]<=64:raise ValueError(key)
-        if case['axis']=='contraction':
-            if not 1<=case['k_fragments']<=min(64,case['k']):raise ValueError('contraction fragments')
-        elif case['k_fragments']:raise ValueError('inactive contraction count')
-        if case['axis']=='2d':
-            if not case['rank_grid_rows'] or not case['rank_grid_cols'] or case['rank_grid_rows']*case['rank_grid_cols']!=len(devices):raise ValueError('rank grid')
-        elif case['rank_grid_rows'] or case['rank_grid_cols']:raise ValueError('inactive rank grid')
+    if case['axis'] not in ('modulus','rows','columns','2d','contraction'):raise ValueError('axis')
+    for key in ('k_fragments','rank_grid_rows','rank_grid_cols'):
+        if type(case[key]) is not int or not 0<=case[key]<=64:raise ValueError(key)
+    if case['axis']=='contraction':
+        if not 1<=case['k_fragments']<=min(64,case['k']):raise ValueError('contraction fragments')
+    elif case['k_fragments']:raise ValueError('inactive contraction count')
+    if case['axis']=='2d':
+        if not case['rank_grid_rows'] or not case['rank_grid_cols'] or case['rank_grid_rows']*case['rank_grid_cols']!=len(devices):raise ValueError('rank grid')
+    elif case['rank_grid_rows'] or case['rank_grid_cols']:raise ValueError('inactive rank grid')
     if case['scope'] not in ('resident-device-limbs','resident-host-limbs','cold-host-limbs'):raise ValueError('scope')
-    if math.prod(DEFAULT_MODULI[:case['prefix']]) <= 12*case['k']:raise ValueError('strict signed output range')
+    if math.prod(basis[:case['prefix']]) <= 12*case['k']:raise ValueError('strict signed output range')
     if math.ceil(case['m']/case['tile'])*math.ceil(case['n']/case['tile'])*case['prefix']*fragment_count(case) > 2**20:raise ValueError('descriptor cap')
     return case
 
@@ -65,10 +66,11 @@ def validate_capture(capture, entry):
         dataset='signed_separable_7x3x5_v1',timer='single_host_steady_clock_nanoseconds',
         completion_inside_interval=True,oracle_inside_interval=False,exact_reference_passed=True,
         promotion_eligible=False,physical_card_count_known=False,allocator_overhead_known=False,published=True,
-        plan_reused=True,production_timing_hooks_enabled=False,affinity_policy='inherited_not_modified',numa_placement_observed=False)
+        plan_reused=True,production_timing_hooks_enabled=False,affinity_policy='inherited_not_modified',numa_placement_observed=False,
+        basis_moduli=case['basis'] or list(DEFAULT_MODULI[:20]))
     for key,value in fixed.items():
         if type(capture.get(key)) is not type(value) or capture[key] != value:raise ValueError('capture '+key)
-    integrity=case.get('native_integrity',False)
+    integrity=case['native_integrity']
     if capture.get('integrity_requested') is not integrity or capture.get('integrity_completed') is not integrity or type(capture.get('integrity_failure_mask')) is not int or capture['integrity_failure_mask']!=0 or capture.get('checking_moduli') != [257,263]:raise ValueError('independent integrity completion')
     if not manifest_provenance_complete(capture.get('build_manifest')) or not capture.get('execution_id'):
         raise ValueError('compiled/process provenance')
@@ -79,9 +81,8 @@ def validate_capture(capture, entry):
     expected = math.ceil(case['m']/case['tile'])*math.ceil(case['n']/case['tile'])*case['prefix']*fragment_count(case)
     if any(type(capture.get(k)) is not int or capture[k] != expected for k in ('expected_work','local_completed','transfers_queued')):
         raise ValueError('complete expected work membership')
-    if case['schema']=='rns8_distributed_case_v2':
-        axis={'modulus':0,'rows':1,'columns':2,'contraction':3,'2d':4}[case['axis']]
-        if capture.get('distribution_axis')!=axis or capture.get('k_fragments')!=fragment_count(case):raise ValueError('actual distribution')
+    axis={'modulus':0,'rows':1,'columns':2,'contraction':3,'2d':4}[case['axis']]
+    if capture.get('distribution_axis')!=axis or capture.get('k_fragments')!=fragment_count(case):raise ValueError('actual distribution')
     ranks = capture.get('ranks'); certificates = capture.get('arithmetic_certificates')
     if type(ranks) is not list or len(ranks) != len(case['devices']) or type(certificates) is not list or len(certificates) != len(ranks):raise ValueError('rank/certificate inventory')
     identities=[]
@@ -94,7 +95,7 @@ def validate_capture(capture, entry):
         identities.append(row['physical_id'])
         for field in ('native_inputs','packed_inputs','local_output','gather'):
             if type(row.get(field)) is not int or row[field] < 0:raise ValueError('rank payload accounting')
-        if case['schema']=='rns8_distributed_case_v2' and row.get('partial_gather') != (case['m']*case['n']*case['prefix']*fragment_count(case) if rank==0 and case['axis']=='contraction' else 0):raise ValueError('partial gather extent')
+        if row.get('partial_gather') != (case['m']*case['n']*case['prefix']*fragment_count(case) if rank==0 and case['axis']=='contraction' else 0):raise ValueError('partial gather extent')
         if row['gather'] != (case['m']*case['n']*case['prefix'] if rank==0 else 0):raise ValueError('owner gather extent')
         if row['native_inputs'] != (8*(case['m']*case['k']+case['k']*case['n']) if row['local_output'] or (integrity and rank==0) else 0):raise ValueError('resident source replication')
     if len(set(identities)) != len(identities):raise ValueError('duplicate observed devices')

@@ -95,24 +95,24 @@ extern "C" int rns8_hip_distributed_pack(const uint64_t* native_a, const uint64_
 extern "C" int rns8_hip_distributed_export(const int8_t* residues, uint64_t* output,
     int elements, int cols, uint32_t tile_rows, uint32_t tile_cols,
     const rns8::detail::distributed::DeviceTile* tiles, bool signed_value, bool bounded,
-    int* status, void* stream) {
+    int* status,rns8::detail::BasisPacket basis,void* stream) {
   hipLaunchKernelGGL(rns8_distributed_export_kernel, dim3((uint64_t(elements) + 255) / 256),
       dim3(256), 0, static_cast<hipStream_t>(stream), residues, output, elements, cols,
-      tile_rows, tile_cols, tiles, signed_value, bounded, status);
+      tile_rows, tile_cols, tiles, signed_value, bounded, status,basis);
   return int(hipGetLastError());
 }
 extern "C" int rns8_hip_distributed_reduce_partials(const int8_t* partials,int8_t* output,
-    const rns8::detail::distributed::DeviceTile* tiles,uint64_t rows,uint64_t cols,uint32_t tile_count,uint32_t prefix,void* stream) {
+    const rns8::detail::distributed::DeviceTile* tiles,uint64_t rows,uint64_t cols,uint32_t tile_count,uint32_t prefix,rns8::detail::BasisPacket basis,void* stream) {
   if(!partials || !output || !tiles || !rows || !cols || !tile_count || !prefix || prefix>20)return int(hipErrorInvalidValue);
   hipLaunchKernelGGL(rns8_distributed_reduce_partials_kernel,dim3(tile_count,prefix),dim3(256),0,
-      static_cast<hipStream_t>(stream),partials,output,tiles,rows,cols);
+      static_cast<hipStream_t>(stream),partials,output,tiles,rows,cols,basis);
   return int(hipGetLastError());
 }
 extern "C" int rns8_hip_distributed_materialize(const uint64_t* limbs, int8_t* residues,
-    int elements, uint32_t prefix, bool signed_value, void* stream) {
+    int elements, uint32_t prefix, bool signed_value,rns8::detail::BasisPacket basis,void* stream) {
   hipLaunchKernelGGL(rns8_distributed_materialize_kernel,
       dim3((uint64_t(elements) * prefix + 255) / 256), dim3(256), 0,
-      static_cast<hipStream_t>(stream), limbs, residues, elements, prefix, signed_value);
+      static_cast<hipStream_t>(stream), limbs, residues, elements, prefix, signed_value,basis);
   return int(hipGetLastError());
 }
 extern "C" int rns8_hip_distributed_integrity(const uint64_t* a,const uint64_t* b,const uint64_t* candidate,

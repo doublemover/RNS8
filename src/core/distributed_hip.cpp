@@ -11,10 +11,10 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_distributed_pack(const uint64_t*, const uint64_t*, int8_t*, int8_t*,
     uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, bool, uint32_t, uint64_t, void*);
-extern "C" int rns8_hip_distributed_reduce_partials(const int8_t*,int8_t*,const rns8::detail::distributed::DeviceTile*,uint64_t,uint64_t,uint32_t,uint32_t,void*);
+extern "C" int rns8_hip_distributed_reduce_partials(const int8_t*,int8_t*,const rns8::detail::distributed::DeviceTile*,uint64_t,uint64_t,uint32_t,uint32_t,rns8::detail::BasisPacket,void*);
 extern "C" int rns8_hip_distributed_export(const int8_t*, uint64_t*, int, int, uint32_t,
-    uint32_t, const rns8::detail::distributed::DeviceTile*, bool, bool, int*, void*);
-extern "C" int rns8_hip_distributed_materialize(const uint64_t*, int8_t*, int, uint32_t, bool, void*);
+    uint32_t, const rns8::detail::distributed::DeviceTile*, bool, bool, int*, rns8::detail::BasisPacket,void*);
+extern "C" int rns8_hip_distributed_materialize(const uint64_t*, int8_t*, int, uint32_t, bool, rns8::detail::BasisPacket,void*);
 extern "C" int rns8_hip_distributed_integrity(const uint64_t*,const uint64_t*,const uint64_t*,
     uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,bool,int*,void*);
 extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(const int8_t*, const int8_t*, int8_t*,
@@ -126,7 +126,7 @@ struct HipExecution::Impl {
       c.semantics = uint32_t(r.semantics); c.signed_output = plan->signed_value();
       c.requires_range_guard = c.bound_known = true;
       for (const auto& tile : plan->tiles()) c.output_bound = std::max(c.output_bound, tile.magnitude);
-      for (uint32_t plane = 0; plane < r.prefix; ++plane) c.basis.push_back(garner::kConstants.moduli[plane]);
+      for (uint32_t plane = 0; plane < r.prefix; ++plane) c.basis.push_back(r.basis[plane]);
       auto& instruction = c.instruction;
       instruction.target = rank.target; instruction.opcode = "rns8_ring_gemm_i8_i32_tiled_kernel";
 #ifdef RNS8_BUILD_MANIFEST_JSON
@@ -390,11 +390,11 @@ struct HipExecution::Impl {
     if (!final_queued && progress.transfers_queued == plan->work().size()) {
       auto code=hipSuccess;
       if(partials)code=hipError_t(rns8_hip_distributed_reduce_partials(static_cast<const int8_t*>(partials.get()),static_cast<int8_t*>(gather.get()),
-          static_cast<const DeviceTile*>(directory.get()),r.m,r.n,uint32_t(plan->tiles().size()),r.prefix,gather_stream.get()));
+          static_cast<const DeviceTile*>(directory.get()),r.m,r.n,uint32_t(plan->tiles().size()),r.prefix,plan->basis_packet(),gather_stream.get()));
       if(code==hipSuccess)code = hipError_t(rns8_hip_distributed_export(static_cast<const int8_t*>(gather.get()),
           static_cast<uint64_t*>(result.get()), int(r.m * r.n), int(r.n), r.tile_rows, r.tile_cols,
           static_cast<const DeviceTile*>(directory.get()), plan->signed_value(), plan->bounded(),
-          static_cast<int*>(status.get()), gather_stream.get()));
+          static_cast<int*>(status.get()),plan->basis_packet(),gather_stream.get()));
       if(code==hipSuccess && r.native_integrity) {
         const auto& source=devices[r.owner];
         code=hipError_t(rns8_hip_distributed_integrity(static_cast<const uint64_t*>(source.a.get()),
@@ -644,10 +644,10 @@ Admission HipExecution::materialize(uint64_t epoch, uint32_t prefix, uint64_t ma
   auto& p = *impl_; const auto& r = p.plan->request();
   if (p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || p.readers)
     return reject(RNS8_BUSY, "unborrowed_published_result_required");
-  if (!prefix || prefix > 20) return reject(RNS8_INVALID_ARGUMENT, "materialization_prefix");
+  if (!prefix || prefix > p.plan->basis_packet().count) return reject(RNS8_INVALID_ARGUMENT, "materialization_prefix");
   try {
     Integer product = 1;
-    for (uint32_t plane = 0; plane < prefix; ++plane) product *= garner::kConstants.moduli[plane];
+    for (uint32_t plane = 0; plane < prefix; ++plane) product *= r.basis[plane];
     for (const auto& tile : p.plan->tiles())
       if (product <= tile.magnitude * (p.plan->signed_value() ? 2 : 1))
         return reject(RNS8_RANGE_ERROR, "materialization_basis_insufficient");
@@ -665,7 +665,7 @@ Admission HipExecution::materialize(uint64_t epoch, uint32_t prefix, uint64_t ma
   if (selected.status() != hipSuccess) return reject(RNS8_BACKEND_FAILURE, "materialization_device");
   p.pending(true); p.issued = true;
   auto code = hipError_t(rns8_hip_distributed_materialize(static_cast<const uint64_t*>(p.result.get()),
-      static_cast<int8_t*>(p.uniform_pending.get()), int(r.m * r.n), prefix, p.plan->signed_value(), p.gather_stream.get()));
+      static_cast<int8_t*>(p.uniform_pending.get()), int(r.m * r.n), prefix, p.plan->signed_value(),p.plan->basis_packet(),p.gather_stream.get()));
   const auto drained = hipStreamSynchronize(p.gather_stream.get());
   if (drained != hipSuccess) { p.error(code != hipSuccess ? code : drained, "materialization_failed_drain"); return p.progress.operation; }
   p.pending(false); p.issued = false;
@@ -676,16 +676,16 @@ Admission HipExecution::materialize(uint64_t epoch, uint32_t prefix, uint64_t ma
   (void)max_bytes; return reject(RNS8_UNSUPPORTED_BACKEND, "hip_not_compiled");
 #endif
 }
-Admission HipExecution::resident_residues(uint64_t epoch, int& device, const void*& pointer, uint32_t& prefix) const {
+Admission HipExecution::resident_residues(uint64_t epoch, int& device, const void*& pointer, uint32_t& prefix,const BasisPacket*& basis) const {
   const auto& p = *impl_;
   if (p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || !p.readers)
     return reject(RNS8_BUSY, "retained_published_result_required");
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!p.uniform_prefix) return reject(RNS8_INVALID_ARGUMENT, "uniform_materialization_required");
-  device = int(p.plan->request().ranks[p.plan->request().owner].ordinal); pointer = p.uniform.get(); prefix = p.uniform_prefix;
+  device = int(p.plan->request().ranks[p.plan->request().owner].ordinal); pointer = p.uniform.get(); prefix = p.uniform_prefix;basis=&p.plan->basis_packet();
   return {};
 #else
-  (void)device; (void)pointer; (void)prefix; return reject(RNS8_UNSUPPORTED_BACKEND, "hip_not_compiled");
+  (void)device; (void)pointer; (void)prefix;(void)basis; return reject(RNS8_UNSUPPORTED_BACKEND, "hip_not_compiled");
 #endif
 }
 Admission HipExecution::close() {

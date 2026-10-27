@@ -7,6 +7,15 @@
 
 #include "core/internal.hpp"
 #include "rns8/moduli.h"
+#include "backend_common/finite_u8_reducer.hpp"
+
+TEST_CASE("runtime byte reducers cover every modulus and full INT32 endpoints") {
+  for(uint32_t q=2;q<=256;++q)for(int32_t value:{INT32_MIN,INT32_MIN+1,-65537,-128,-1,0,1,127,65537,INT32_MAX}) {
+    int64_t expected=int64_t(value)%q;if(expected<0)expected+=q;
+    if(expected>=int64_t((q+1)/2))expected-=q;
+    CHECK(int(rns8::detail::finite_u8::reduce_to_centered_byte_modulus_i32(value,q))==expected);
+  }
+}
 
 TEST_CASE("default modulus ladder is stable and pairwise coprime") {
   const uint16_t expected[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,

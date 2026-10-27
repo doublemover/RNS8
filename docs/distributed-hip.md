@@ -195,7 +195,23 @@ partial integers. These CPU/mock and one-device HIP execution fixtures pass the
 [October27 implementation validation](../metadata/implementation-closeout-20261027.json). One-device execution does not test physical
 peer transport, rank failures or multi-GPU scaling.
 
-The calibrator accepts the explicit version2 case fields `axis`, `k_fragments`,
-`rank_grid_rows` and `rank_grid_cols`. The compact catalogue contains single-device
+The calibrator uses version3 cases with explicit `basis`, `native_integrity`,
+`axis`, `k_fragments`, `rank_grid_rows` and `rank_grid_cols`; old case versions
+are retired. The compact catalogue contains single-device
 and two-device staged controls. Capture validation checks actual axis/count,
 all fragment work and partial-gather bytes. These cases have not been executed.
+## Complete ordered basis ownership
+
+`Request::basis` owns1–20 pairwise-coprime moduli in2..256; an empty request
+selects the default20 in the retained plan. Every range product, shard descriptor,
+arithmetic certificate and structural identity uses this complete order. Reordered
+channels are distinct, including inactive suffix channels. An immutable packet
+holds actual products and inverses; it is passed by value to GPU CRT, K-fragment
+reduction and materialization kernels. No short custom basis is interpreted with
+default-ladder inverses. A `resident_residues` borrow now returns its retained
+basis packet alongside pointer and prefix; ordinary default-basis consumers must
+not infer compatibility from those bytes. Materialization uses the same owned
+basis and checks its requested prefix range. Host metadata budgets include the
+packet and ordered channels. New CPU/Boost and HIP fixtures cover every axis,
+small composite channels, full-width inputs and basis reordering; execution is
+deferred to the combined batch.

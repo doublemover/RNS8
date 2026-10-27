@@ -5,6 +5,10 @@
 #include "rns8/experimental_basis.h"
 #include "backend_common/basis_word_arithmetic.hpp"
 #include "core/prepared_transfer.hpp"
+#include "backend_ck/ck_backend.hpp"
+#include "backend_rocwmma/rocwmma_backend.hpp"
+#include "backend_hipblaslt/hipblaslt_backend.hpp"
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include <algorithm>
 #include <cstring>
 #include <mutex>
@@ -24,6 +28,8 @@ struct rns8_basis_plan {
   std::vector<uint64_t> host_words;
   std::vector<int8_t> host_residues;
   uint64_t max_cells=0,packet_target=0,packet_source=0,native_upload=0,scratch=0;
+  uint64_t provider_scratch=0,provider_aux=0,provider_bytes=0,provider_aux_bytes=0;
+  void* provider_handle=nullptr;
   bool target_uploaded=false,retiring=false;
   int device_status=0;
 };
@@ -59,11 +65,36 @@ bool equal_basis(const ExperimentalBasis& a,const ExperimentalBasis& b) {
 }
 struct BasisStorage {
   uint64_t cells=0,host=0,device=0,target=0,source=0,native=0,scratch=0;
+  uint64_t provider_scratch=0,provider_aux=0,provider_bytes=0,provider_aux_bytes=0;
 };
+bool basis_device_backend(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_HIP_DIRECT || backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA ||
+      backend==RNS8_BACKEND_HIPBLASLT || backend==RNS8_BACKEND_AMDGPU_BUILTINS;
+}
+bool basis_backend_compiled(rns8_backend_kind backend) {
+  switch(backend){
+    case RNS8_BACKEND_CPU_REFERENCE:return true;
+    case RNS8_BACKEND_HIP_DIRECT:return direct_hip_compiled();
+    case RNS8_BACKEND_CK:return ck_compiled();
+    case RNS8_BACKEND_ROCWMMA:return rocwmma_compiled();
+    case RNS8_BACKEND_AMDGPU_BUILTINS:return amdgpu_builtins_compiled();
+    case RNS8_BACKEND_HIPBLASLT:
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+      return true;
+#else
+      return false;
+#endif
+    default:return false;
+  }
+}
+bool basis_context_matches(const rns8_context& ctx,rns8_backend_kind backend) {
+  return ctx.backend==(backend==RNS8_BACKEND_CPU_REFERENCE?RNS8_BACKEND_CPU_REFERENCE:RNS8_BACKEND_HIP_DIRECT);
+}
 rns8_status basis_plan_storage(const ExperimentalBasis& basis,const rns8_basis_plan_desc& d,BasisStorage& out) {
   if(!valid_abi(d.struct_size,d.abi_version,sizeof(d)) || d.flags || !d.prefix || d.prefix>basis.packet.count ||
       d.m<=0 || d.n<=0 || d.k<=0)return RNS8_INVALID_ARGUMENT;
-  if(!exact_wide_semantics(d.semantics) || (d.backend!=RNS8_BACKEND_CPU_REFERENCE && d.backend!=RNS8_BACKEND_HIP_DIRECT))return RNS8_UNSUPPORTED_BACKEND;
+  if(!exact_wide_semantics(d.semantics) || (d.backend!=RNS8_BACKEND_CPU_REFERENCE && !basis_device_backend(d.backend)))return RNS8_UNSUPPORTED_BACKEND;
+  if(d.backend==RNS8_BACKEND_AMDGPU_BUILTINS && d.k>65536)return RNS8_UNSUPPORTED_BACKEND;
   for(const auto shape:{std::pair<int64_t,int64_t>{d.m,d.k},{d.k,d.n},{d.m,d.n}}) {
     AddressDomain domain;
     if(!checked_host_plane_address(shape.first,shape.second,shape.second,1,24,domain))return RNS8_RANGE_ERROR;
@@ -82,6 +113,12 @@ rns8_status basis_plan_storage(const ExperimentalBasis& basis,const rns8_basis_p
     };
     if(!add(sizeof(BasisPacket),out.target) || !add(sizeof(BasisPacket),out.source) ||
         !add(out.cells*8,out.native) || !add(std::max(out.cells*count,out.cells*24+4),out.scratch))return RNS8_RANGE_ERROR;
+    size_t a=0,b=0,c=0,total=0;
+    if(d.backend==RNS8_BACKEND_CK){if(!ck_workspace_requirements(d.m,d.n,d.k,a,b,c,total))return RNS8_RANGE_ERROR;out.provider_bytes=total;}
+    if(d.backend==RNS8_BACKEND_ROCWMMA){if(!rocwmma_workspace_requirements(d.m,d.n,d.k,a,b,total))return RNS8_RANGE_ERROR;out.provider_bytes=total;}
+    if(d.backend==RNS8_BACKEND_HIPBLASLT){if(!hipblaslt_baseline_workspace_requirements(d.m,d.n,d.k,a,b))return RNS8_RANGE_ERROR;out.provider_aux_bytes=a;out.provider_bytes=b;}
+    if(out.provider_bytes && !add(out.provider_bytes,out.provider_scratch))return RNS8_RANGE_ERROR;
+    if(out.provider_aux_bytes && !add(out.provider_aux_bytes,out.provider_aux))return RNS8_RANGE_ERROR;
   }
   return out.device>d.max_device_bytes || out.host>d.max_host_bytes?RNS8_WORKSPACE_TOO_SMALL:RNS8_SUCCESS;
 }
@@ -168,11 +205,12 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx,const rns8_basis*
     };
     if(operation>=RNS8_OP_COUNT || !modes || (modes&~127u))
       return finish(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"operation/modes","invalid operation or execution mode");
-    if(desc->backend!=RNS8_BACKEND_CPU_REFERENCE && desc->backend!=RNS8_BACKEND_HIP_DIRECT)
-      return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"backend","explicit ordered basis has only CPU/direct-HIP owners");
-    out.source_implemented=1;out.compiled_inventory=desc->backend==RNS8_BACKEND_CPU_REFERENCE || hip_direct_compiled();
-    if(!out.compiled_inventory)return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_NOT_COMPILED,"backend","direct-HIP source is not compiled in this build");
-    if(ctx->backend!=desc->backend)return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"context","owner backend must match its context");
+    if(desc->backend!=RNS8_BACKEND_CPU_REFERENCE && !basis_device_backend(desc->backend))
+      return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"backend","no explicit ordered-basis compute provider");
+    out.source_implemented=1;out.compiled_inventory=basis_backend_compiled(desc->backend);
+    if(!out.compiled_inventory)return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_NOT_COMPILED,"backend","selected basis compute provider is not compiled in this build");
+    if(desc->backend!=RNS8_BACKEND_CPU_REFERENCE && desc->backend!=RNS8_BACKEND_HIP_DIRECT)out.resource_status=1;
+    if(!basis_context_matches(*ctx,desc->backend))return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"context","GPU basis storage requires a direct-HIP context; compute provider is selected separately");
     out.runtime_observed=desc->backend==RNS8_BACKEND_CPU_REFERENCE || ctx->device_info.hip_available;
     if(operation!=RNS8_OP_GEMM && operation!=RNS8_OP_PACK && operation!=RNS8_OP_EXPORT &&
         operation!=RNS8_OP_BASE_EXTEND && operation!=RNS8_OP_EXPERIMENTAL_BASIS)
@@ -199,13 +237,14 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx,const rns8_basis*
         ";hostbudget="+std::to_string(desc->max_host_bytes);
     const auto digest=sha256(identity);text(out.provider_identity_sha256,sizeof(out.provider_identity_sha256),digest.c_str());
     if(status==RNS8_WORKSPACE_TOO_SMALL)return finish(status,RNS8_SUPPORT_BUDGET,"budgets","plan payload exceeds its explicit device/host budgets");
-    return finish(RNS8_SUCCESS,RNS8_SUPPORT_COMPATIBLE,"","explicit ordered CPU/direct-HIP owner; complete current basis/range/generation binding still required");
+    return finish(RNS8_SUCCESS,RNS8_SUPPORT_COMPATIBLE,"","explicit ordered basis/provider owner; complete current basis/range/generation binding still required; opaque vendor setup is additional");
   });
 }
 rns8_status rns8_create_basis_plan(rns8_context* ctx,const rns8_basis* basis,const rns8_basis_plan_desc* desc,rns8_basis_plan** out) {
   return guard_api([&]() -> rns8_status {
     if(!out)return RNS8_INVALID_ARGUMENT;*out=nullptr;
-    if(!ctx || !desc || ctx->backend!=desc->backend)return RNS8_INVALID_ARGUMENT;
+    if(!ctx || !desc || !basis_context_matches(*ctx,desc->backend))return RNS8_INVALID_ARGUMENT;
+    if(!basis_backend_compiled(desc->backend))return RNS8_UNSUPPORTED_BACKEND;
     if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
     if(ctx->prepared_references==UINT64_MAX)return RNS8_RANGE_ERROR;
     auto data=basis_data(basis);BasisStorage storage;
@@ -213,6 +252,8 @@ rns8_status rns8_create_basis_plan(rns8_context* ctx,const rns8_basis* basis,con
     auto plan=std::make_unique<rns8_basis_plan>();plan->ctx=ctx;plan->desc=*desc;plan->basis=std::move(data);
     plan->max_cells=storage.cells;plan->packet_target=storage.target;plan->packet_source=storage.source;
     plan->native_upload=storage.native;plan->scratch=storage.scratch;
+    plan->provider_scratch=storage.provider_scratch;plan->provider_aux=storage.provider_aux;
+    plan->provider_bytes=storage.provider_bytes;plan->provider_aux_bytes=storage.provider_aux_bytes;
     plan->host_words.resize(size_t(storage.cells*3));
     if(desc->backend==RNS8_BACKEND_CPU_REFERENCE)plan->host_residues.resize(size_t(storage.cells*plan->basis->packet.count));
     if(plan->host_words.capacity()>desc->max_host_bytes/8 ||
@@ -221,6 +262,11 @@ rns8_status rns8_create_basis_plan(rns8_context* ctx,const rns8_basis* basis,con
       if(!direct_hip_compiled())return RNS8_UNSUPPORTED_BACKEND;
       const auto allocated=plan->device.allocate(ctx->device_id,size_t(storage.device));if(allocated!=RNS8_SUCCESS)return allocated;
     }
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+    if(desc->backend==RNS8_BACKEND_HIPBLASLT){rns8_device_info observed{};std::string version;
+      const auto created=hipblaslt_create_context(ctx->device_id,observed,&plan->provider_handle,version);
+      if(created!=RNS8_SUCCESS){if(plan->provider_handle){plan->retiring=true;++ctx->prepared_references;*out=plan.release();}return created;}}
+#endif
     ++ctx->prepared_references;*out=plan.release();return RNS8_SUCCESS;
   });
 }
@@ -228,6 +274,9 @@ rns8_status rns8_destroy_basis_plan(rns8_basis_plan* plan) {
   if(!plan)return RNS8_SUCCESS;
   std::unique_lock<std::mutex> lock(plan->mutex,std::try_to_lock);if(!lock.owns_lock() || plan->lease_work.in_flight)return RNS8_BUSY;
   plan->retiring=true;plan->device.mark_completed();
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+  if(plan->provider_handle){const auto closed=hipblaslt_destroy_context(plan->ctx->device_id,plan->provider_handle);if(closed!=RNS8_SUCCESS)return closed;plan->provider_handle=nullptr;}
+#endif
   const auto status=plan->device.reset();if(status!=RNS8_SUCCESS)return status;
   --plan->ctx->prepared_references;lock.unlock();delete plan;return RNS8_SUCCESS;
 }
@@ -267,6 +316,28 @@ rns8_status basis_matrix_contract(const rns8_basis_plan& plan,const rns8_matrix&
 }
 void* basis_device(rns8_basis_plan& plan,uint64_t offset) {return static_cast<uint8_t*>(plan.device.get())+offset;}
 void* basis_device_flag(rns8_basis_plan& plan) {return basis_device(plan,plan.scratch+plan.max_cells*24);}
+rns8_status basis_provider_gemm(rns8_basis_plan& plan,const rns8_matrix& a,const rns8_matrix& b) {
+  const auto& d=plan.desc;auto* output=static_cast<int8_t*>(basis_device(plan,plan.scratch));
+  if(d.backend==RNS8_BACKEND_HIP_DIRECT)return hip_direct_basis_gemm(plan.ctx->device_id,a.hip_residues,b.hip_residues,output,d.m,d.n,d.k,plan.basis->packet.moduli,d.prefix);
+  auto* scratch=plan.provider_bytes?basis_device(plan,plan.provider_scratch):nullptr;
+  for(uint32_t p=0;p<d.prefix;++p){
+    const auto* left=static_cast<const int8_t*>(a.hip_residues)+uint64_t(p)*d.m*d.k;
+    const auto* right=static_cast<const int8_t*>(b.hip_residues)+uint64_t(p)*d.k*d.n;
+    auto* result=output+uint64_t(p)*d.m*d.n;const auto q=plan.basis->packet.moduli[p];rns8_status status=RNS8_UNSUPPORTED_BACKEND;
+    switch(d.backend){
+      case RNS8_BACKEND_CK:status=ck_gemm_finite_u8_device(plan.ctx->device_id,left,right,result,scratch,plan.provider_bytes,d.m,d.n,d.k,d.k,d.n,d.n,q);break;
+      case RNS8_BACKEND_ROCWMMA:status=rocwmma_gemm_finite_u8_device(plan.ctx->device_id,left,right,result,scratch,plan.provider_bytes,d.m,d.n,d.k,d.k,d.n,d.n,q);break;
+      case RNS8_BACKEND_AMDGPU_BUILTINS:status=amdgpu_builtins_gemm_finite_u8_device(plan.ctx->device_id,left,right,result,d.m,d.n,d.k,d.k,d.n,d.n,q);break;
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+      case RNS8_BACKEND_HIPBLASLT:status=hipblaslt_gemm_finite_u8_device(plan.ctx->device_id,plan.provider_handle,left,right,result,
+          basis_device(plan,plan.provider_aux),plan.provider_aux_bytes,scratch,plan.provider_bytes,d.m,d.n,d.k,d.k,d.n,d.n,q);break;
+#endif
+      default:break;
+    }
+    if(status!=RNS8_SUCCESS)return status;
+  }
+  return RNS8_SUCCESS;
+}
 rns8_status upload_basis_packet(rns8_basis_plan& plan,const std::shared_ptr<const ExperimentalBasis>& source={}) {
   if(!plan.target_uploaded) {
     const auto status=hip_direct_copy_host_to_device(plan.ctx->device_id,basis_device(plan,plan.packet_target),&plan.basis->packet,sizeof(BasisPacket));
@@ -373,9 +444,8 @@ rns8_status rns8_gemm_basis(rns8_basis_plan* plan,const rns8_matrix* a,const rns
     cpp_int bound=cpp_int(d.k)*a->exact_max_magnitude*b->exact_max_magnitude;
     if(!exact_range_fits(d.semantics,bound,plan->basis->products[d.prefix]))return RNS8_RANGE_ERROR;
     status=basis_transaction(*plan,a,b,c,false,[&](bool& written) -> rns8_status {
-      if(d.backend==RNS8_BACKEND_HIP_DIRECT) {
-        const auto result=hip_direct_basis_gemm(plan->ctx->device_id,a->hip_residues,b->hip_residues,basis_device(*plan,plan->scratch),
-            d.m,d.n,d.k,plan->basis->packet.moduli,d.prefix);if(result!=RNS8_SUCCESS)return result;
+      if(basis_device_backend(d.backend)) {
+        const auto result=basis_provider_gemm(*plan,*a,*b);if(result!=RNS8_SUCCESS)return result;
       } else for(uint32_t p=0;p<d.prefix;++p)for(int64_t row=0;row<d.m;++row)for(int64_t col=0;col<d.n;++col) {
         const auto modulus=int32_t(plan->basis->packet.moduli[p]);int32_t residue=0;
         for(int64_t begin=0;begin<d.k;) {
@@ -506,7 +576,7 @@ rns8_status rns8_export_basis_limbs(rns8_basis_plan* plan,const rns8_matrix* mat
     if(matrix->exact_max_magnitude>=(cpp_int(1)<<bits))return RNS8_RANGE_ERROR;
     const auto cells=uint64_t(matrix->desc.rows)*matrix->desc.cols;
     status=basis_transaction(*plan,matrix,nullptr,nullptr,false,[&](bool&) -> rns8_status {
-      if(plan->desc.backend==RNS8_BACKEND_HIP_DIRECT) {
+      if(plan->ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
         auto result=upload_basis_packet(*plan);if(result!=RNS8_SUCCESS)return result;
         BasisMagnitude bound;basis_words(matrix->exact_max_magnitude,bound.words);
         result=hip_direct_basis_export(plan->ctx->device_id,matrix->hip_residues,basis_device(*plan,plan->scratch),cells,
@@ -542,7 +612,7 @@ rns8_status rns8_convert_basis_values(rns8_basis_plan* plan,const rns8_matrix* s
     const auto from=matrix_basis(*source);const auto cells=uint64_t(source->desc.rows)*source->desc.cols;
     const bool sign=source->desc.semantics==RNS8_EXACT_WIDE_SIGNED;
     status=basis_transaction(*plan,source,source,destination,false,[&](bool& written) -> rns8_status {
-      if(plan->desc.backend==RNS8_BACKEND_HIP_DIRECT) {
+      if(plan->ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
         auto result=upload_basis_packet(*plan,from);if(result!=RNS8_SUCCESS)return result;
         BasisMagnitude magnitude;basis_words(bound,magnitude.words);
         result=hip_direct_basis_convert(plan->ctx->device_id,source->hip_residues,basis_device(*plan,plan->scratch),cells,
@@ -564,3 +634,4 @@ rns8_status rns8_convert_basis_values(rns8_basis_plan* plan,const rns8_matrix* s
   });
 }
 #include "api_prepared_basis_conversion.inc"
+#include "api_basis_selection.inc"

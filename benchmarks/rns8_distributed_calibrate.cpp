@@ -31,13 +31,14 @@ uint64_t elapsed(Clock::time_point start) {
 int main(int argc, char** argv) { try {
   if (argc != 3) throw std::invalid_argument("usage: rns8-distributed-calibrate CASE.json unique-run-id");
   json c; std::ifstream(argv[1]) >> c;
-  const bool axes=c.at("schema")=="rns8_distributed_case_v2";
-  if ((!axes && c.at("schema") != "rns8_distributed_case_v1") || c.size() != 15+4*unsigned(axes)+unsigned(c.contains("native_integrity")) || std::string(argv[2]).empty())
+  if (c.at("schema") != "rns8_distributed_case_v3" || c.size() != 21 || std::string(argv[2]).empty())
     throw std::invalid_argument("case/run identity");
   d::Request r; r.operation = 5001; r.semantics = RNS8_BOUNDED_I64; r.host_storage = d::HostStorage::limbs_only;
-  if(c.contains("native_integrity")){if(!c["native_integrity"].is_boolean())throw std::invalid_argument("integrity policy");r.native_integrity=c["native_integrity"].get<bool>();}
+  if(!c["native_integrity"].is_boolean())throw std::invalid_argument("integrity policy");r.native_integrity=c["native_integrity"].get<bool>();
+  if(!c.at("basis").is_array() || c["basis"].size()>20)throw std::invalid_argument("basis domain");
+  for(const auto& q:c["basis"]){if(!q.is_number_unsigned() || q.get<uint64_t>()<2 || q.get<uint64_t>()>256)throw std::invalid_argument("basis modulus");r.basis.push_back(q.get<uint16_t>());}
   r.m = integer(c, "m", 1, 8192); r.n = integer(c, "n", 1, 8192); r.k = integer(c, "k", 1, 131073);
-  if(axes){const std::string axis=c.at("axis");
+  {const std::string axis=c.at("axis");
     if(axis=="modulus")r.axis=d::Axis::modulus;else if(axis=="rows")r.axis=d::Axis::rows;else if(axis=="columns")r.axis=d::Axis::columns;
     else if(axis=="2d")r.axis=d::Axis::hybrid;else if(axis=="contraction")r.axis=d::Axis::contraction;else throw std::invalid_argument("axis");
     r.k_fragments=uint32_t(integer(c,"k_fragments",0,64));r.rank_grid_rows=uint32_t(integer(c,"rank_grid_rows",0,64));r.rank_grid_cols=uint32_t(integer(c,"rank_grid_cols",0,64));}
@@ -159,7 +160,7 @@ int main(int argc, char** argv) { try {
       {"build_manifest", manifest}, {"dataset", "signed_separable_7x3x5_v1"}, {"ranks", ranks},
       {"host_platform", host_platform}, {"host_hardware_threads", std::thread::hardware_concurrency()},
       {"affinity_policy", "inherited_not_modified"}, {"numa_placement_observed", false},
-      {"physical_card_count_known", false}, {"plan_sha256", rns8::detail::sha256(plan->identity())},
+      {"physical_card_count_known", false}, {"plan_sha256", rns8::detail::sha256(plan->identity())}, {"basis_moduli",plan->request().basis},
       {"arithmetic_certificates", certificates},{"distribution_axis",unsigned(r.axis)},{"k_fragments",plan->k_fragments()}, {"expected_work", plan->work().size()},
       {"local_completed", last.local_completed}, {"transfers_queued", last.transfers_queued},
       {"published", last.output_current}, {"calls", calls}, {"setup_ns", setup_ns}, {"first_ns", first_ns},

@@ -64,7 +64,7 @@ inline Admission validate_inputs(const Plan& plan, const Inputs& inputs) {
       }
       const Integer left = am * bs, right = as * bm;
       Integer product = 1;
-      for (uint32_t plane = 0; plane < tile.prefix; ++plane) product *= garner::kConstants.moduli[plane];
+      for (uint32_t plane = 0; plane < tile.prefix; ++plane) product *= r.basis[plane];
       if (product <= std::min(left, right) * (plan.signed_value() ? 2 : 1))
         return reject(RNS8_RANGE_ERROR, "native_uniqueness_basis_insufficient");
     }

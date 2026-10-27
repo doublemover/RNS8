@@ -81,3 +81,39 @@ TEST_CASE("ordered basis native transfers and exact conversion compose real stre
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 #endif
 }
+TEST_CASE("ordered runtime bases execute actual library and builtin planes including small composite moduli") {
+  if(!hip_available())SKIP("HIP device required for basis providers");
+  using boost::multiprecision::cpp_int;
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  const std::array<uint16_t,20> order{9,16,25,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173,167,163};
+  auto* basis=experimental_basis_fixture::create(order);
+  for(bool sign:{false,true})for(auto backend:{RNS8_BACKEND_CK,RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_AMDGPU_BUILTINS}) {
+    CAPTURE(sign,backend);
+    rns8_backend_capability_info capability{};capability.struct_size=sizeof(capability);capability.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_backend_capability_info(backend,&capability)==RNS8_SUCCESS);
+    rns8_basis_plan_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.backend=backend;
+    d.semantics=sign?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;d.m=2;d.n=3;d.k=5;d.prefix=20;
+    d.max_host_bytes=d.max_device_bytes=UINT64_MAX;rns8_basis_plan* plan=nullptr;
+    if(!capability.compiled_kernel_available){CHECK(rns8_create_basis_plan(ctx,basis,&d,&plan)==RNS8_UNSUPPORTED_BACKEND);continue;}
+    REQUIRE(rns8_create_basis_plan(ctx,basis,&d,&plan)==RNS8_SUCCESS);
+    auto* a=experimental_basis_fixture::matrix(ctx,basis,d.semantics,2,5);
+    auto* b=experimental_basis_fixture::matrix(ctx,basis,d.semantics,5,3);
+    auto* c=experimental_basis_fixture::matrix(ctx,basis,d.semantics,2,3);
+    std::vector<uint64_t> av(14,99),bv(25,99),out(24,99);
+    for(int row=0;row<2;++row)for(int k=0;k<5;++k)av[row*7+k]=(row+k)%2?UINT64_MAX:(UINT64_C(1)<<63);
+    for(int k=0;k<5;++k)for(int col=0;col<3;++col)bv[k*5+col]=(col+k)%2?UINT64_MAX:17;
+    REQUIRE((sign?rns8_pack_basis_i64(plan,a,reinterpret_cast<const int64_t*>(av.data()),7,0):rns8_pack_basis_u64(plan,a,av.data(),7,0))==RNS8_SUCCESS);
+    REQUIRE((sign?rns8_pack_basis_i64(plan,b,reinterpret_cast<const int64_t*>(bv.data()),5,0):rns8_pack_basis_u64(plan,b,bv.data(),5,0))==RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_basis(plan,a,b,c)==RNS8_SUCCESS);
+    REQUIRE(rns8_export_basis_limbs(plan,c,out.data(),4,3)==RNS8_SUCCESS);
+    for(int row=0;row<2;++row)for(int col=0;col<3;++col){cpp_int expected=0;
+      for(int k=0;k<5;++k)expected+=(sign?cpp_int(int64_t(av[row*7+k])):cpp_int(av[row*7+k]))*(sign?cpp_int(int64_t(bv[k*5+col])):cpp_int(bv[k*5+col]));
+      if(expected<0)expected+=cpp_int(1)<<192;
+      for(int limb=0;limb<3;++limb){CHECK(out[(row*4+col)*3+limb]==uint64_t(expected&UINT64_MAX));expected>>=64;}
+    }
+    for(int row=0;row<2;++row)for(int limb=0;limb<3;++limb)CHECK(out[(row*4+3)*3+limb]==99);
+    REQUIRE(rns8_destroy_basis_plan(plan)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_basis(basis)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

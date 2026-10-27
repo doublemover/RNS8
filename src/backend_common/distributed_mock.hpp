@@ -55,10 +55,10 @@ class MockExecution {
   // It cannot fabricate suffix planes from one rank's insufficient subset.
   Admission materialize(uint32_t prefix, uint64_t budget, std::vector<uint8_t>& output) const {
     if (state_ != State::published) return reject(RNS8_BUSY, "published_result_required");
-    if (!prefix || prefix > 20) return reject(RNS8_INVALID_ARGUMENT, "target_prefix");
+    if (!prefix || prefix > plan_->basis_packet().count) return reject(RNS8_INVALID_ARGUMENT, "target_prefix");
     const auto& r = plan_->request();
     Integer product = 1;
-    for (uint32_t plane = 0; plane < prefix; ++plane) product *= garner::kConstants.moduli[plane];
+    for (uint32_t plane = 0; plane < prefix; ++plane) product *= r.basis[plane];
     for (const auto& tile : plan_->tiles())
       if (product <= (plan_->signed_value() ? Integer(2 * tile.magnitude) : tile.magnitude))
         return reject(RNS8_RANGE_ERROR, "target_basis_insufficient");
@@ -68,7 +68,7 @@ class MockExecution {
     try {
       std::vector<uint8_t> staged(static_cast<std::size_t>(bytes));
       for (uint32_t plane = 0; plane < prefix; ++plane) {
-        const auto modulus = garner::kConstants.moduli[plane];
+        const auto modulus = r.basis[plane];
         for (std::size_t cell = 0; cell < result_.size(); ++cell) {
           Integer residue = result_[cell] % modulus;
           if (residue < 0) residue += modulus;
@@ -210,15 +210,15 @@ class MockExecution {
       std::vector<Integer> staged(static_cast<std::size_t>(r.m * r.n));
       for (const auto& tile : plan_->tiles()) {
         Integer product = 1;
-        for (uint32_t plane = 0; plane < tile.prefix; ++plane) product *= garner::kConstants.moduli[plane];
+        for (uint32_t plane = 0; plane < tile.prefix; ++plane) product *= r.basis[plane];
         for (uint64_t row = tile.row; row < tile.row + tile.rows; ++row)
           for (uint64_t col = tile.col; col < tile.col + tile.cols; ++col) {
             Integer value = 0, prefix_product = 1;
             for (uint32_t plane = 0; plane < tile.prefix; ++plane) {
-              const uint32_t modulus = garner::kConstants.moduli[plane];
+              const uint32_t modulus = r.basis[plane];
               const uint32_t residue = gather_[(plane * r.m + row) * r.n + col];
               const uint32_t previous = (value % modulus).convert_to<uint32_t>();
-              const uint32_t digit = ((residue + modulus - previous) * garner::kConstants.inverses[plane]) % modulus;
+              const uint32_t digit = ((residue + modulus - previous) * plan_->basis_packet().inverse_prefix[plane]) % modulus;
               value += prefix_product * digit; prefix_product *= modulus;
             }
             if (plan_->signed_value() && value >= (product + 1) / 2) value -= product;
@@ -385,7 +385,7 @@ inline std::string report_json(const MockExecution& execution) {
       << ",\"result_readers\":" << report.result_readers
       << ",\"pending_host_stage_work\":" << report.pending_host_stage_work
       << ",\"allocator_overhead_known\":false,\"basis_moduli\":[";
-  for (uint32_t plane = 0; plane < r.prefix; ++plane) { if (plane) out << ','; out << garner::kConstants.moduli[plane]; }
+  for (uint32_t plane = 0; plane < r.prefix; ++plane) { if (plane) out << ','; out << r.basis[plane]; }
   out << "],\"tiles\":[";
   for (std::size_t i = 0; i < plan.tiles().size(); ++i) {
     if (i) out << ',';

@@ -129,7 +129,7 @@ __device__ __forceinline__ uint32_t sparse_index_for_group(
 }
 
 __device__ __forceinline__ int8_t reduce_centered(int32_t value, int modulus) {
-  return rns8::detail::finite_u8::reduce_to_centered_static_byte_modulus_i32(value, static_cast<uint32_t>(modulus));
+  return rns8::detail::finite_u8::reduce_to_centered_byte_modulus_i32(value, static_cast<uint32_t>(modulus));
 }
 
 __device__ __forceinline__ void store_rns_accumulator(
@@ -1006,7 +1006,7 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
     int modulus,
     int dense_kernel_variant) {
   if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc) ||
-      !rns8::detail::finite_u8::static_byte_modulus_supported(static_cast<uint32_t>(modulus))) {
+      (modulus<2 || modulus>256)) {
     return 1;
   }
   return launch_dense<true>(
@@ -1057,7 +1057,7 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
     int ldc,
     int modulus) {
   if (!common_sparse_args_valid(device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc) ||
-      !rns8::detail::finite_u8::static_byte_modulus_supported(static_cast<uint32_t>(modulus))) {
+      (modulus<2 || modulus>256)) {
     return 1;
   }
   return launch_sparse_a<true>(
@@ -1069,7 +1069,7 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
 extern "C" int rns8_amdgpu_builtin_enqueue_dense(int device_id,const void* a,const void* b,void* c,
     int m,int n,int k,int lda,int ldb,int ldc,unsigned value,bool finite,void* stream) {
   if(!stream || !common_dense_args_valid(a,b,c,m,n,k,lda,ldb,ldc) || k>65536 ||
-      (finite?!rns8::detail::finite_u8::static_byte_modulus_supported(value):value<1 || value>20))return 1;
+      (finite?(value<2 || value>256):value<1 || value>20))return 1;
   return finite?launch_dense<true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true):
       launch_dense<false>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true);
 }

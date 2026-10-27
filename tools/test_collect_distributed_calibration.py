@@ -4,16 +4,24 @@ import json
 import unittest
 from collect_distributed_calibration import validate_case, validate_capture, summarize
 from test_capture_identity_support import synthetic_identity
+from modulus_set_search import DEFAULT_MODULI
 
 def case():
-    return dict(schema='rns8_distributed_case_v1',m=17,n=19,k=65,prefix=3,tile=16,slots=2,
+    return dict(schema='rns8_distributed_case_v3',m=17,n=19,k=65,prefix=3,tile=16,slots=2,
         devices=[0],transport='local',scope='resident-device-limbs',host_budget=2**30,
-        pinned_budget=2**20,device_budget=2**30,warmups=3,repeats=5)
+        pinned_budget=2**20,device_budget=2**30,warmups=3,repeats=5,
+        axis='modulus',k_fragments=0,rank_grid_rows=0,rank_grid_cols=0,basis=[],native_integrity=False)
 
 class DistributedCases(unittest.TestCase):
+    def test_custom_basis_is_coprime_and_bound_to_capture(self):
+        c=case();c['basis']=[9,16,25];self.assertEqual(validate_case(c),c)
+        for basis in ([9,15,25],[1,16,25],[9,16,257],[9,16]):
+            with self.subTest(basis=basis),self.assertRaises(ValueError):validate_case(dict(c,basis=basis))
+        entry,capture=self.fixture();capture['basis_moduli'][0]=9
+        with self.assertRaises(ValueError):validate_capture(capture,entry)
     def test_explicit_axes_and_fragment_membership(self):
         for axis in ('modulus','rows','columns','2d','contraction'):
-            c=case();c.update(schema='rns8_distributed_case_v2',axis=axis,
+            c=case();c.update(axis=axis,
                 k_fragments=3 if axis=='contraction' else 0,
                 rank_grid_rows=1 if axis=='2d' else 0,rank_grid_cols=1 if axis=='2d' else 0)
             self.assertEqual(validate_case(c),c)
@@ -28,14 +36,14 @@ class DistributedCases(unittest.TestCase):
         cells=request['m']*request['n'];total=cells*request['prefix'];local=[total-total//2,total//2] if multi else [total]
         ranks=[dict(rank=i,ordinal=i,physical_id=f'synthetic-visible-{i}',target='gfx1100',runtime_version=701,driver_version=701,
             requested_device_reservation=2**20,native_inputs=8*(request['m']*request['k']+request['k']*request['n']),
-            packed_inputs=4096,local_output=local[i],gather=total if i==0 else 0) for i in range(len(local))]
+            packed_inputs=4096,local_output=local[i],gather=total if i==0 else 0,partial_gather=0) for i in range(len(local))]
         capture=dict(schema='rns8_distributed_microcase_v1',case=request,run_id=entry['run_id'],
             dataset='signed_separable_7x3x5_v1',timer='single_host_steady_clock_nanoseconds',completion_inside_interval=True,
             oracle_inside_interval=False,exact_reference_passed=True,promotion_eligible=False,physical_card_count_known=False,
-            allocator_overhead_known=False,published=True,ranks=ranks,arithmetic_certificates=['a'*64]*len(local),
+            allocator_overhead_known=False,published=True,ranks=ranks,arithmetic_certificates=['a'*64]*len(local),basis_moduli=list(DEFAULT_MODULI[:20]),
             plan_reused=True,plan_compilation_ns=1,production_timing_hooks_enabled=False,affinity_policy='inherited_not_modified',
             numa_placement_observed=False,host_platform='other',host_hardware_threads=8,
-            expected_work=12,local_completed=12,transfers_queued=12,plan_sha256='a'*64,
+            expected_work=12,local_completed=12,transfers_queued=12,plan_sha256='a'*64,distribution_axis=0,k_fragments=1,
             caller_output_bytes=request['m']*(request['n']+2)*24,host_owner_reservation=2**20,pinned_reservation=256,
             transfer_bytes_per_call=sum(local[1:]),setup_ns=1,first_ns=1000,samples_ns=[1000]*request['repeats'],
             sustained=[dict(calls=16,elapsed_ns=250000000,mean_call_ns=250000000/16,duration_reached=True,stop_reason='duration') for _ in range(3)],

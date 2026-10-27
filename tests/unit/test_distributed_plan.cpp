@@ -107,6 +107,27 @@ TEST_CASE("distributed modulus mock matches independent full-width Boost product
     }
 }
 
+TEST_CASE("distributed ordered bases retain complete identity through every axis and exact reconstruction", "[distributed][cpu]") {
+  for(auto axis:{d::Axis::modulus,d::Axis::rows,d::Axis::columns,d::Axis::hybrid,d::Axis::contraction}) {
+    auto r=distributed_request(3);r.axis=axis;r.magnitude_bound=cpp_int(1)<<135;
+    r.basis={9,16,25,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173,167,163};
+    if(axis==d::Axis::hybrid){r.rank_grid_rows=1;r.rank_grid_cols=3;}
+    auto plan=distributed_plan(r);const auto identity=plan->identity();
+    auto inputs=distributed_inputs(r);d::MockExecution execution(plan);uint64_t clock=1;
+    REQUIRE(execution.begin(1,inputs,clock,1000000));finish(execution,clock);REQUIRE(execution.publish(++clock));
+    CHECK(*execution.result()==distributed_oracle(r,*inputs));
+    for(const auto& work:plan->work())CHECK(work.modulus==r.basis[work.logical_plane]);
+    std::reverse(r.basis.begin(),r.basis.end());auto reordered=distributed_plan(r);CHECK(reordered->identity()!=identity);
+    CHECK(reordered->basis_packet().identity!=plan->basis_packet().identity);
+    std::vector<uint8_t> materialized;REQUIRE(execution.materialize(20,1000000,materialized));
+    for(unsigned plane=0;plane<20;++plane)for(size_t cell=0;cell<execution.result()->size();++cell){
+      cpp_int residue=(*execution.result())[cell]%plan->request().basis[plane];if(residue<0)residue+=plan->request().basis[plane];
+      CHECK(materialized[plane*execution.result()->size()+cell]==residue.convert_to<unsigned>());}
+    r.basis[1]=r.basis[0];std::shared_ptr<const d::Plan> rejected;
+    CHECK(d::Plan::create(r,rejected).status==RNS8_INVALID_ARGUMENT);
+  }
+}
+
 TEST_CASE("distributed output and contraction axes own exact complete fragment coverage", "[distributed][cpu]") {
   for(uint32_t ranks:{1u,2u,3u,4u})for(auto axis:{d::Axis::rows,d::Axis::columns,d::Axis::hybrid,d::Axis::contraction})
   for(auto semantics:{RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {

@@ -79,7 +79,7 @@ TEST_CASE("distributed integrity distinguishes native checks from range and invi
   CHECK(d::distributed_commit_status(0)==RNS8_SUCCESS);
   r.native_integrity=false;auto unchecked=make_plan(r);CHECK(plan->identity()!=unchecked->identity());
 }
-static void check_real_modulus_shards(uint64_t k,d::Axis axis=d::Axis::modulus) {
+static void check_real_modulus_shards(uint64_t k,d::Axis axis=d::Axis::modulus,bool custom_basis=false) {
   if (!d::HipExecution::compiled()) SKIP("direct HIP not compiled");
   rns8_device_info info{};
   if (rns8::detail::hip_direct_probe(0, info) != RNS8_SUCCESS) SKIP("HIP device unavailable");
@@ -102,9 +102,10 @@ static void check_real_modulus_shards(uint64_t k,d::Axis axis=d::Axis::modulus) 
   for (auto semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64, RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) for (bool ragged : {false, true}) {
     CAPTURE(semantics, selected, peer, ragged);
     auto r = live_request(); r.semantics = semantics; r.k = k; r.lda = k + 2;r.axis=axis;
+    if(custom_basis){r.basis={9,16,25,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173,167,163};r.magnitude_bound=d::Integer(1)<<135;}
     if(axis==d::Axis::contraction)r.k_fragments=3;
     const bool narrow = semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
-    if (narrow) { r.prefix = k < 128 ? 1 : 9; r.magnitude_bound = r.k; }
+    if (narrow) { r.prefix = k < 128 ? (custom_basis?2:1) : 9; r.magnitude_bound = r.k; }
     const bool full_bounded = narrow && ragged;
     if (full_bounded) { r.prefix = 20; r.magnitude_bound = semantics == RNS8_BOUNDED_I64 ? d::Integer(INT64_MAX) : d::Integer(UINT64_MAX); }
     REQUIRE(d::HipExecution::discover(ordinals, r.ranks, r.edges));
@@ -148,7 +149,9 @@ static void check_real_modulus_shards(uint64_t k,d::Axis axis=d::Axis::modulus) 
     REQUIRE(execution->materialize(1, materialized_prefix, r.m * r.n * materialized_prefix));
     REQUIRE(execution->retain(1));
     int residue_device = -1; const void* residue_pointer = nullptr; uint32_t residue_prefix = 0;
-    REQUIRE(execution->resident_residues(1, residue_device, residue_pointer, residue_prefix));
+    const rns8::detail::BasisPacket* residue_basis=nullptr;
+    REQUIRE(execution->resident_residues(1, residue_device, residue_pointer, residue_prefix,residue_basis));
+    REQUIRE(residue_basis!=nullptr);CHECK(residue_basis->identity==plan->basis_packet().identity);
     CHECK(residue_prefix == materialized_prefix);
     std::vector<int8_t> residues(size_t(r.m * r.n * residue_prefix));
     REQUIRE(rns8::detail::hip_direct_copy_device_to_host(residue_device, residues.data(), residue_pointer, residues.size()) == RNS8_SUCCESS);
@@ -157,7 +160,7 @@ static void check_real_modulus_shards(uint64_t k,d::Axis axis=d::Axis::modulus) 
         d::Integer exact = 0;
         for (unsigned limb = 0; limb < 3; ++limb) exact += d::Integer(observed[(row * (r.n + 2) + col) * 3 + limb]) << (64 * limb);
         if (signed_value && (observed[(row * (r.n + 2) + col) * 3 + 2] >> 63)) exact -= d::Integer(1) << 192;
-        const auto modulus = rns8_default_modulus(plane); d::Integer reduced = exact % modulus;
+        const auto modulus = residue_basis->moduli[plane]; d::Integer reduced = exact % modulus;
         if (reduced < 0) reduced += modulus;
         if (reduced >= (modulus + 1) / 2) reduced -= modulus;
         CHECK(residues[plane * r.m * r.n + row * r.n + col] == reduced.convert_to<int>());
@@ -208,4 +211,7 @@ TEST_CASE("HIP distributed integrity compares complete limbs against independent
 
 TEST_CASE("real HIP explicit output and contraction distributions retain complete exact results", "[distributed][hip]") {
   for(auto axis:{d::Axis::rows,d::Axis::columns,d::Axis::hybrid,d::Axis::contraction})check_real_modulus_shards(65,axis);
+}
+TEST_CASE("real HIP distributed ordered bases retain small composite and reordered channel identities", "[distributed][hip]") {
+  for(auto axis:{d::Axis::modulus,d::Axis::rows,d::Axis::columns,d::Axis::hybrid,d::Axis::contraction})check_real_modulus_shards(65,axis,true);
 }

@@ -9,7 +9,7 @@ typedef struct rns8_basis_plan rns8_basis_plan;
 
 /* Explicit experimental ordered centered-INT8 basis. Moduli are copied, each
  * lies in 2..256, and every pair must be coprime. Order is storage identity.
- * No automatic basis selection or default-ladder replacement occurs. */
+ * The explicit cost-bound selector below is opt-in; the default ladder is unchanged. */
 typedef struct rns8_basis_desc {
   uint64_t struct_size;
   uint32_t abi_version,representation;
@@ -28,6 +28,8 @@ typedef struct rns8_basis_plan_desc {
   uint64_t struct_size;
   uint32_t abi_version;
   rns8_semantics semantics;
+  /* Compute provider. CPU requires a CPU context. HIP/direct and optional
+   * CK/rocWMMA/hipBLASLt/builtins require direct-HIP storage/context ownership. */
   rns8_backend_kind backend;
   int64_t m,n,k;
   uint32_t prefix,flags;
@@ -40,6 +42,46 @@ typedef struct rns8_basis_resources {
   uint64_t ordered_basis_identity;
   uint32_t prefix,representation;
 } rns8_basis_resources;
+
+/* Explicit opt-in runtime choice. Prices bind the entire ordered basis and
+ * compiled workload; they are caller-supplied observations/models, never an
+ * arithmetic certificate or automatic performance qualification. */
+typedef struct rns8_basis_cost {
+  uint64_t struct_size;
+  uint32_t abi_version,kind; /* 1=observed, 2=modeled */
+  char build_identity[65],cohort_identity[65],target_id[64];
+  uint16_t ordered_moduli[20];
+  uint32_t count,prefix;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  int64_t m,n,k;
+  uint64_t device_bytes,host_bytes;
+  uint64_t preparation_ns,pack_ns,gemm_ns,export_ns; /* UINT64_MAX=unknown */
+} rns8_basis_cost;
+typedef struct rns8_basis_candidate {
+  const rns8_basis* basis; /* null denotes the default ordered basis */
+  rns8_basis_plan_desc plan;
+  rns8_basis_cost cost;
+} rns8_basis_candidate;
+typedef struct rns8_basis_selection_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,flags; /* bit0: repack each call, bit1: export each call */
+  rns8_semantics semantics;
+  int64_t m,n,k;
+  char cohort_identity[65];
+  uint64_t reuse_count,magnitude_bound[3];
+} rns8_basis_selection_desc;
+typedef struct rns8_basis_selection {
+  uint64_t struct_size;
+  uint32_t abi_version,selected_index;
+  uint32_t eligible_candidates,price_kind;
+  uint64_t projected_ns;
+  rns8_basis_resources resources;
+} rns8_basis_selection;
+RNS8_API rns8_status rns8_select_basis_plan(const rns8_context*,const rns8_basis_selection_desc*,
+    const rns8_basis_candidate*,uint32_t,rns8_basis_selection*);
+RNS8_API rns8_status rns8_create_selected_basis_plan(rns8_context*,const rns8_basis_selection_desc*,
+    const rns8_basis_candidate*,uint32_t,rns8_basis_selection*,rns8_basis_plan**);
 RNS8_API rns8_status rns8_create_basis(const rns8_basis_desc*,rns8_basis**);
 RNS8_API rns8_status rns8_destroy_basis(rns8_basis*);
 RNS8_API rns8_status rns8_get_basis_info(const rns8_basis*,uint32_t prefix,rns8_basis_info*);
