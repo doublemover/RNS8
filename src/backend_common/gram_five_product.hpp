@@ -8,7 +8,9 @@
 #endif
 namespace rns8::detail {
 constexpr bool gram_five_prime(uint32_t q) {
-  if(q<2 || q>251)return false;for(uint32_t d=2;d*d<=q;++d)if(q%d==0)return false;return true;
+  if(q<2 || q>251)return false;
+  for(uint32_t d=2;d*d<=q;++d)if(q%d==0)return false;
+  return true;
 }
 struct GramFivePacket {
   uint32_t prefix=0;uint16_t moduli[20]{},a[20]{},b[20]{};uint8_t certified[20]{};
@@ -67,7 +69,8 @@ RNS8_GRAM5_HD inline int gram_five_right_y(const int8_t* x,const GramFivePacket&
 RNS8_GRAM5_HD inline int8_t gram_five_transform_value(const int8_t* x,const GramFivePacket& p,uint32_t plane,int term,bool left,int64_t row,int64_t col) {
   if(!p.certified[plane])return 0;
   const int q=p.moduli[plane],a11=gram_five_block(x,p,plane,0,row,col),a12=gram_five_block(x,p,plane,1,row,col),a22=gram_five_block(x,p,plane,3,row,col);
-  if(term==0)return int8_t(a11);if(term==1)return int8_t(a12);
+  if(term==0)return int8_t(a11);
+  if(term==1)return int8_t(a12);
   const int y21=gram_five_right_y(x,p,plane,2,row,col),y11=gram_five_right_y(x,p,plane,0,row,col);
   const int s1=gram_five_center(y21-y11,q),s2=gram_five_center(a22-y21,q),s3=gram_five_center(s1-a22,q);
   return int8_t(term==2?(left?a22:gram_five_center(s3+a12,q)):term==3?(left?s1:s2):s3);
