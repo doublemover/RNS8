@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include "core/hip_resources.hpp"
+#include "core/experimental_basis.hpp"
 #include "core/ragged_recipe_binding.hpp"
 using namespace rns8::detail;
 using namespace rns8::detail::api;
@@ -27,11 +28,10 @@ rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx,const rns8_mat
     if(source->in_flight_writer) return RNS8_BUSY;
     if(source->backend!=ctx->backend || !exact_wide_semantics(source->desc.semantics) ||
         !source->prefix || source->prefix>20 || source->desc.rows<=0 || source->desc.cols<=0 ||
-        source->generation_exhausted || !matrix_descriptor_matches(*source,source->desc.semantics,
-            RNS8_BOUND_NONE,source->desc.rows,source->desc.cols,source->prefix,0,0) ||
-        !rns_matrix_storage_matches(*source,ctx->backend,source->desc.rows,source->desc.cols,source->prefix) ||
+        source->generation_exhausted ||
+        !basis_storage_matches(*source,ctx->backend) ||
         !rns_residue_state_current_for_backend(*source,ctx->backend) || source->exact_range_prefix<source->prefix ||
-        !exact_range_fits(source->desc.semantics,source->exact_max_magnitude,modulus_product(source->prefix)))
+        !exact_range_fits(source->desc.semantics,source->exact_max_magnitude,stored_basis(*source)->products[source->prefix]))
       return RNS8_INVALID_ARGUMENT;
     if(ctx->prepared_references==UINT64_MAX || source->prepared_references==UINT64_MAX || source->in_flight_readers==UINT64_MAX) return RNS8_RANGE_ERROR;
     const bool gpu=ctx->backend==RNS8_BACKEND_HIP_DIRECT;
@@ -58,6 +58,7 @@ rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx,const rns8_mat
     layout.grid_rows=1+(layout.rows-1)/tile_rows;layout.grid_cols=1+(layout.cols-1)/tile_cols;
     layout.value_instance=source->matrix_instance_id;layout.value_generation=source->content_generation;
     layout.signed_value=source->desc.semantics==RNS8_EXACT_WIDE_SIGNED;
+    layout.basis=stored_basis(*source)->packet;
     const uint64_t limit=uint64_t(PTRDIFF_MAX);
     if(layout.grid_rows>limit/layout.grid_cols/sizeof(RaggedResidueTile)) return RNS8_RANGE_ERROR;
     const uint64_t metadata=layout.grid_rows*layout.grid_cols*sizeof(RaggedResidueTile);
@@ -81,7 +82,7 @@ rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx,const rns8_mat
       owner->pending=false;
     }
     const uint64_t cells=layout.rows*layout.cols,area=uint64_t(tile_rows)*tile_cols;
-    const cpp_int product=modulus_product(source->prefix),mask=(cpp_int(1)<<64)-1;
+    const cpp_int product=stored_basis(*source)->products[source->prefix],mask=(cpp_int(1)<<64)-1;
     std::vector<int8_t> residues(source->prefix);
     for(uint64_t tr=0;tr<layout.grid_rows;++tr) for(uint64_t tc=0;tc<layout.grid_cols;++tc) {
       auto& tile=layout.tiles[tr*layout.grid_cols+tc];cpp_int bound=0;
@@ -89,18 +90,20 @@ rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx,const rns8_mat
       else for(uint64_t row=tr*tile_rows;row<std::min(layout.rows,(tr+1)*tile_rows);++row)
         for(uint64_t col=tc*tile_cols;col<std::min(layout.cols,(tc+1)*tile_cols);++col) {
           for(uint32_t p=0;p<source->prefix;++p) {
-            const int value=uniform[p*cells+row*layout.cols+col],q=kDefaultModuli[p];
+            const int value=uniform[p*cells+row*layout.cols+col],q=layout.basis.moduli[p];
             if(value<-(q/2) || value>(q-1)/2) return RNS8_INVALID_ARGUMENT;
             residues[p]=static_cast<int8_t>(value);
           }
-          cpp_int value=reconstruct_canonical(residues,source->prefix);
+          uint64_t words[3]{};
+          if(!basis_reconstruct_words(residues.data(),1,source->prefix,layout.basis,false,words))return RNS8_INVALID_ARGUMENT;
+          cpp_int value=cpp_int(words[0])+(cpp_int(words[1])<<64)+(cpp_int(words[2])<<128);
           if(layout.signed_value && value>=(product+1)/2) value-=product;
           const cpp_int magnitude=boost::multiprecision::abs(value);
           if(magnitude>source->exact_max_magnitude) return RNS8_RANGE_ERROR;
           if(magnitude>bound) bound=magnitude;
         }
       tile.prefix=1;
-      while(tile.prefix<source->prefix && !exact_range_fits(source->desc.semantics,bound,modulus_product(tile.prefix)))
+      while(tile.prefix<source->prefix && !exact_range_fits(source->desc.semantics,bound,stored_basis(*source)->products[tile.prefix]))
         ++tile.prefix;
       tile.byte_offset=layout.bytes;
       const uint64_t bytes=area*tile.prefix;
@@ -184,14 +187,15 @@ rns8_status rns8_materialize_ragged_exact(rns8_context* ctx,const rns8_ragged_ma
         source.content_generation!=owner->layout.value_generation || !rns_residue_state_current_for_backend(source,ctx->backend))
       return RNS8_INVALID_ARGUMENT;
     if(output->generation_exhausted || output->prepared_references==UINT64_MAX) return RNS8_RANGE_ERROR;
-    if(output->backend!=ctx->backend || !output->prefix || output->prefix>20 || !matrix_descriptor_matches(*output,source.desc.semantics,RNS8_BOUND_NONE,
-        source.desc.rows,source.desc.cols,output->prefix,0,0) ||
-        !rns_matrix_storage_matches(*output,ctx->backend,source.desc.rows,source.desc.cols,output->prefix) ||
+    if(output->backend!=ctx->backend || !output->prefix || output->prefix>20 || output->desc.semantics!=source.desc.semantics ||
+        output->desc.rows!=source.desc.rows || output->desc.cols!=source.desc.cols ||
+        !basis_storage_matches(*output,ctx->backend) ||
+        !(ordered_basis_identity(stored_basis(*output)->packet)==ordered_basis_identity(owner->layout.basis)) ||
         (ctx->backend==RNS8_BACKEND_HIP_DIRECT && output->hip_device_id!=ctx->device_id)) return RNS8_INVALID_ARGUMENT;
-    if(!exact_range_fits(source.desc.semantics,owner->bound,modulus_product(output->prefix))) return RNS8_RANGE_ERROR;
+    if(!exact_range_fits(source.desc.semantics,owner->bound,stored_basis(*output)->products[output->prefix])) return RNS8_RANGE_ERROR;
     ResidueLayout target;
     if(!make_residue_layout(ResidueLayoutKind::modulus_major,source.desc.rows,source.desc.cols,source.desc.cols,
-        output->prefix,0,0,target)) return RNS8_INVALID_ARGUMENT;
+        output->prefix,0,0,target,ordered_basis_identity(owner->layout.basis))) return RNS8_INVALID_ARGUMENT;
     cpp_int bound=owner->bound; // stage all fallible proof work before publication
     bool started=false;
     struct Guard { rns8_matrix& output;bool& started;bool published=false;

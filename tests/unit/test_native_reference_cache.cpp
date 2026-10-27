@@ -47,3 +47,23 @@ TEST_CASE("native reference cache corruption and overflowing exact results fail 
   REQUIRE(std::filesystem::is_empty(directory.path));
   REQUIRE_THROWS(verify_native_reference(1, 1, 2, 0, a, b, c, directory.path.string(), false));
 }
+
+TEST_CASE("integer reference cache distinguishes wrap finite and signed wide semantics", "[native-reference-cache]") {
+  using namespace rns8::bench;ReferenceDirectory directory;
+  const std::vector<uint64_t> a{UINT64_MAX},b{2},wrap{UINT64_MAX-1};
+  const auto wrapped=verify_integer_reference(1,1,1,1,a,b,wrap,{ReferenceSemantics::wrap64},directory.path.string(),true);
+  CHECK(verify_integer_reference(1,1,1,1,a,b,wrap,{ReferenceSemantics::wrap64},directory.path.string(),false).method=="cached_full_integer_reference");
+  REQUIRE_THROWS(verify_native_reference(1,1,1,1,a,b,wrap,directory.path.string(),false));
+  const std::vector<uint8_t> fa{5,4},fb{3,2},fc{5};
+  const auto ring=verify_integer_reference(1,1,2,1,fa,fb,fc,{ReferenceSemantics::finite_ring,6,1},directory.path.string(),true);
+  CHECK(ring.key!=wrapped.key);
+  CHECK(verify_integer_reference(1,1,2,1,fa,fb,fc,{ReferenceSemantics::finite_ring,6,1},directory.path.string(),false).checked_cells==1);
+  REQUIRE_THROWS(verify_integer_reference(1,1,2,1,fa,fb,fc,{ReferenceSemantics::finite_field,6,1},directory.path.string(),false));
+  const std::vector<int64_t> sa{INT64_MIN},sb{2};const std::vector<uint64_t> wide{0,UINT64_MAX};
+  const auto generated=verify_integer_reference(1,1,1,1,sa,sb,wide,{ReferenceSemantics::wide_signed,0,2},directory.path.string(),true);
+  CHECK(verify_integer_reference(1,1,1,1,sa,sb,wide,{ReferenceSemantics::wide_signed,0,2},directory.path.string(),false).method=="cached_full_integer_reference");
+  CHECK(generated.key!=integer_reference_key(1,1,1,sa,sb,{ReferenceSemantics::wide_signed,0,3}));
+  auto corrupted=wide;corrupted[1]^=1;
+  REQUIRE_THROWS(verify_integer_reference(1,1,1,1,sa,sb,corrupted,{ReferenceSemantics::wide_signed,0,2},directory.path.string(),false));
+  REQUIRE_THROWS(verify_integer_reference(1,1,1,1,sa,sb,wide,{ReferenceSemantics::wide_unsigned,0,2},directory.path.string(),false));
+}

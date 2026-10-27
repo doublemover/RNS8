@@ -14,8 +14,9 @@ extern "C" {
  * physical packed B prefix shared by all readers, not its current prefix.
  * Valid packed entries have 1<=compute_prefix<=capacity<=20 and
  * 0<=old_prefix<new_prefix<=capacity. Unused cells must remain unknown.
- * Packing is shared by logical B value within a replay, including incremental
- * plane growth. Each replay repacks; no hidden cross-execution cache is assumed. */
+ * Packing is shared by logical B value, including incremental plane growth.
+ * Cross-replay external-input retention is explicit, generation-bound and
+ * charged for the owner's entire lifetime. Intermediates never survive replay. */
 typedef struct rns8_product_materialization_identity {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -28,7 +29,9 @@ typedef struct rns8_product_materialization_identity {
   char target[128];
 } rns8_product_materialization_identity;
 enum {
-  RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION = 2,
+  RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION = 3,
+  RNS8_PRODUCT_RETAIN_EXTERNAL_PACKED_B = 1,
+  RNS8_PRODUCT_REQUIRE_PROJECTED_AMORTIZATION = 2,
   RNS8_PRODUCT_MATERIALIZATION_PREFIX_COUNT = 21,
   RNS8_PRODUCT_MATERIALIZATION_UNIFORM_GEMM_COST_COUNT = 21,
   RNS8_PRODUCT_MATERIALIZATION_LIFT_COST_COUNT = 441,
@@ -53,6 +56,11 @@ typedef struct rns8_product_materialization_profile {
   rns8_product_materialization_identity identity;
   char calibration_identity[128];
   const rns8_product_materialization_node_costs* nodes;
+  uint32_t flags; /* RETAIN_EXTERNAL_PACKED_B | REQUIRE_PROJECTED_AMORTIZATION */
+  uint32_t reserved;
+  uint64_t expected_replays; /* 1..UINT64_MAX-1, explicit lifetime estimate */
+  uint64_t preparation_ns,calibration_ns,orchestration_ns,publication_ns;
+  uint64_t baseline_replay_ns,baseline_preparation_ns; /* UINT64_MAX = unknown */
 } rns8_product_materialization_profile;
 typedef struct rns8_product_materialization_info {
   uint64_t struct_size;
@@ -67,6 +75,11 @@ typedef struct rns8_product_materialization_info {
   uint64_t packed_payload_bytes; /* sum of packed views before arena reuse */
   uint64_t completed_packing_calls; /* last replay's completed conversions */
   char calibration_identity[128];
+  uint64_t estimated_first_replay_ns,estimated_steady_replay_ns,one_time_ns,lifetime_ns,amortized_ns;
+  uint64_t expected_replays,projected_break_even_replays,retained_external_packed_bytes;
+  uint64_t completed_replays,reused_external_packing_calls;
+  uint32_t amortization_status; /* 0 unknown,1 projected profitable,2 nonprofitable */
+  uint32_t flags;
 } rns8_product_materialization_info;
 typedef struct rns8_product_materialization_choice {
   uint32_t compute_prefix;

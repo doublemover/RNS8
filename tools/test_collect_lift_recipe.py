@@ -3,6 +3,14 @@ import unittest
 from unittest.mock import patch
 from collect_lift_recipe import validate_case,validate_capture,summarize,bounds,native_payload,payload_bytes
 
+def replay_receipt(c,publish=0):
+    from product_replay import policy,estimate
+    p=policy(c['case'],c.get('stage_price_training_charge_ns',0),publish)
+    plan=c['materialization_plan'];backend=plan['estimated_ns']-p['orchestration_ns']-p['publication_ns']
+    plan.update(replay_policy=p,replay_costs=estimate(p,backend,backend),
+        completed_replays=1+c['case']['warmups']+c['case']['repeats']+sum(s['calls'] for s in c['sustained']),
+        reused_external_packing_calls=0,retained_external_packed_bytes=0)
+
 class LiftRecipeContracts(unittest.TestCase):
     def case(self):return dict(schema='lift_recipe_case_v1',side=32,depth=3,prefix=20,source_prefix=1,repeats=3,warmups=1,model_launch_ns=5000,max_payload_bytes=1<<30,unsigned_inputs=False,mode='recipe-minimum',topology='chain')
     def capture(self,mode=None,**changes):
@@ -39,10 +47,11 @@ class LiftRecipeContracts(unittest.TestCase):
         c=self.capture();c['case']['mode']='recipe-packed-minimum';c['recipe_arena_bytes']=65536
         c['cost_model']=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=5000,
             gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',
-            pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=2,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
+            pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=3,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
         view=dict(value_id=1,capacity_prefix=3,first_reader=0,last_reader=2,bytes=3072,arena_offset=0)
         c['materialization_plan']=dict(packed_b=[1,1,1],packed_values=[view],evaluated=4096,exhaustive=False,
             chain_dynamic_programming=True,cost_optimal=False,estimated_ns=199928,completed_packing_calls=3)
+        replay_receipt(c)
         e=dict(case=c['case'],run_id='fixture');self.assertEqual(validate_capture(c,e),c)
         for key,value in [('completed_packing_calls',1),('estimated_ns',199927),('packed_b',[1,0,1]),('evaluated',True)]:
             bad=copy.deepcopy(c);bad['materialization_plan'][key]=value
@@ -55,6 +64,7 @@ class LiftRecipeContracts(unittest.TestCase):
         full=copy.deepcopy(c);full['case']['mode']='recipe-packed-full';full['selected_compute_prefixes']=[20]*3
         full['materialization_plan'].update(estimated_ns=552480,completed_packing_calls=1)
         full['materialization_plan']['packed_values'][0].update(capacity_prefix=20,bytes=20480)
+        replay_receipt(full)
         self.assertEqual(validate_capture(full,dict(case=full['case'],run_id='fixture')),full)
         bad=copy.deepcopy(c);del bad['materialization_plan']
         with self.assertRaises(ValueError):validate_capture(bad,e)
@@ -74,6 +84,7 @@ class LiftRecipeContracts(unittest.TestCase):
     @patch('collect_lift_recipe.manifest_provenance_complete',return_value=True)
     def test_native_roundtrip_logical_and_actual_transfer_receipts(self,_manifest):
         c=self.capture('native-roundtrip');e=dict(case=c['case'],run_id='fixture')
+        replay_receipt(c)
         self.assertEqual(validate_capture(c,e),c)
         self.assertNotEqual(c['replay_hip_h2d_bytes'],c['native_roundtrip_h2d_payload_bytes_per_replay'])
         for key,value in [('native_roundtrip_control',False),('extra_intermediate_observations',True),
@@ -115,5 +126,33 @@ class LiftRecipeContracts(unittest.TestCase):
         with self.assertRaises(ValueError):summarize([(e,c)])
         d=copy.deepcopy(c);d['execution_id']='process2';r=summarize([(e,c),(dict(e,independent_run=1),d)])
         self.assertEqual(r[0]['matched_comparisons'],{});self.assertIsNone(r[0]['baseline'])
+
+class ReplayPolicyContracts(unittest.TestCase):
+    def test_dataset_signedness_identity_and_propagation(self):
+        from product_dataset import inputs,identity
+        base=LiftRecipeContracts().case()
+        self.assertEqual(inputs(base),[1,1])
+        changed=dict(base,input_values=[-2,3])
+        self.assertEqual(bounds(changed),[2,3,192,18432,1769472])
+        self.assertNotEqual(identity(base),identity(changed))
+        self.assertEqual(validate_case(changed),changed)
+        for values in ([True,1],[2**63,1],[1],[-1,1]):
+            bad=dict(base,input_values=values,unsigned_inputs=True)
+            if values==[2**63,1]:bad['unsigned_inputs']=False
+            with self.assertRaises(ValueError):validate_case(bad)
+    def test_cold_steady_training_strict_payback_and_unknown(self):
+        from product_replay import policy,estimate,LIMIT
+        p=policy(dict(replay_policy=dict(expected_replays=100,retain_external_b=True,
+            preparation_ns=200,calibration_ns=1,orchestration_ns=7,publication_ns=11,
+            baseline_replay_ns=300)),training_ns=500)
+        r=estimate(p,1030,30)
+        self.assertEqual((r['first_ns'],r['steady_ns'],r['once_ns'],r['lifetime_ns'],r['amortized_ns']),(1048,48,700,6500,65))
+        self.assertEqual(r['break_even_replays'],7);self.assertEqual(r['amortization_status'],1)
+        p['expected_replays']=6;self.assertEqual(estimate(p,1030,30)['amortization_status'],2)
+        p['baseline_replay_ns']=LIMIT;self.assertEqual(estimate(p,1030,30)['amortization_status'],0)
+        for extra in (dict(expected_replays=0),dict(expected_replays=True),dict(retain_external_b=1),dict(unknown=1)):
+            with self.assertRaises(ValueError):policy(dict(replay_policy=extra))
+        p['calibration_ns']=LIMIT
+        with self.assertRaises(ValueError):estimate(p,1030,30)
 
 if __name__=='__main__':unittest.main()

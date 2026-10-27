@@ -1,6 +1,6 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_materialize_ragged(
-    const int8_t*, const RaggedResidueTile*, int, int, int, bool, int8_t*, ResidueLayout, int*);
+    const int8_t*, const RaggedResidueTile*, int, int, int, bool, int8_t*, ResidueLayout, BasisPacket, int*);
 #endif
 rns8_status hip_direct_materialize_ragged_residues(
     int device_id, const void* source, const RaggedResidueLayout& layout,
@@ -37,7 +37,7 @@ rns8_status hip_direct_materialize_ragged_residues(
     const auto launched = static_cast<hipError_t>(rns8_hip_materialize_ragged(
         static_cast<const int8_t*>(source), static_cast<const RaggedResidueTile*>(directory),
         static_cast<int>(layout.tile_rows), static_cast<int>(layout.tile_cols), static_cast<int>(layout.grid_cols),
-        layout.signed_value, static_cast<int8_t*>(staged), target, static_cast<int*>(device_status)));
+        layout.signed_value, static_cast<int8_t*>(staged), target, layout.basis, static_cast<int*>(device_status)));
     return launched == hipSuccess ? hipDeviceSynchronize() : launched;
   });
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
@@ -57,7 +57,7 @@ rns8_status hip_direct_materialize_ragged_residues(
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_discover_ragged_bounds(const int8_t*, int, int, int, int, int, int,
-    bool, uint64_t, uint64_t, uint64_t, RaggedResidueTile*, int*);
+    bool, uint64_t, uint64_t, uint64_t, BasisPacket, RaggedResidueTile*, int*);
 extern "C" int rns8_hip_compact_ragged(const int8_t*, int, int, const RaggedResidueTile*, int, int, int, int8_t*);
 #endif
 // Scratch is caller-owned so failed drains never destroy live kernel resources.
@@ -87,7 +87,7 @@ rns8_status hip_direct_discover_ragged_bounds(int device_id, const void* source,
     const auto launched = static_cast<hipError_t>(rns8_hip_discover_ragged_bounds(
         static_cast<const int8_t*>(source), int(layout.rows), int(layout.cols), int(prefix),
         int(layout.tile_rows), int(layout.tile_cols), int(layout.grid_cols), layout.signed_value,
-        bound[0],bound[1],bound[2],static_cast<RaggedResidueTile*>(device_directory),static_cast<int*>(device_status)));
+        bound[0],bound[1],bound[2],layout.basis,static_cast<RaggedResidueTile*>(device_directory),static_cast<int*>(device_status)));
     return launched == hipSuccess ? hipDeviceSynchronize() : launched;
   });
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;

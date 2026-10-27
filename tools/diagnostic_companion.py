@@ -51,6 +51,9 @@ def common_identity(capture):
         if key.endswith('_us') or key in {'execution_id', 'request_identity', 'artifact_capture', 'command_line',
                 'derived_tops_equivalent', 'comparison_baseline', 'timing_note', 'capture_timestamp_utc'}:
             identity.pop(key)
+    for section,fields in (('native_reference_verification',('elapsed_us',)),('exact_wide_magnitude',('admission_us','oracle_us'))):
+        for field in fields:
+            if isinstance(identity.get(section),dict):identity[section].pop(field,None)
     timing = identity.get('timing_metadata') or {}
     for key in list(timing):
         if key.startswith('gpu_event_') or key in {'host_instrumentation_state', 'phase_states', 'timer_pair_median_us',

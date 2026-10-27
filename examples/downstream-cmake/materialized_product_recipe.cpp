@@ -43,7 +43,7 @@ int main() {
     desc.inputs=inputs;desc.input_count=2;desc.nodes=nodes;desc.node_count=3;desc.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;
     desc.max_arena_and_lift_bytes=1u<<20;
     rns8_product_materialization_profile prices{};prices.struct_size=sizeof(prices);prices.abi_version=RNS8_ABI_VERSION;
-    prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
+    prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.expected_replays=1;prices.baseline_replay_ns=UINT64_MAX;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
     prices.node_count=3;prices.max_evaluations=4096;prices.max_chain_frontier=256;
     prices.identity.struct_size=sizeof(prices.identity);prices.identity.abi_version=RNS8_ABI_VERSION;
     check(rns8_query_product_materialization_identity(owner.ctx,&desc,nullptr,0,&prices.identity));

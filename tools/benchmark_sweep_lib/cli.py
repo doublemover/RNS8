@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from benchmark_references import cached_arguments,prepare,DEFAULT_INDEX
 
 from evidence_database_lib.isa import load_isa_index
 from diagnostic_companion import load_bindings
@@ -22,6 +23,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="print supported scenario names as JSON and exit without creating captures",
     )
+    parser.add_argument("--reference-cache-dir",type=Path,help="read-only full integer reference cache for eligible single products; fixtures restored before execution")
+    parser.add_argument("--reference-cache-index",type=Path,default=DEFAULT_INDEX)
     parser.add_argument("--bench", type=Path, help="path to rns8-bench executable")
     parser.add_argument(
         "--bench-for",
@@ -525,6 +528,8 @@ def main() -> int:
         if args.bench is None:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
+        if args.reference_cache_dir:
+            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
         lint_errors = validate_scenario_catalog(scenario_data_dir())
         output = {
@@ -542,6 +547,8 @@ def main() -> int:
         if args.bench is None:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
+        if args.reference_cache_dir:
+            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
         release_readiness = release_preflight_readiness(args, entries)
         command_paths = write_command_plan(entries, args.out_root, release_readiness)
@@ -564,6 +571,9 @@ def main() -> int:
         if args.bench is None:
             raise SystemExit("--bench is required unless --review-only is used")
         entries = sweep_command_entries(args)
+        if args.reference_cache_dir:
+            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
+        if args.reference_cache_dir:prepare(args.reference_cache_index,args.reference_cache_dir)
         execution_stats = execute_sweep_entries(entries, args, capture_paths)
 
     captures = validate_paths(capture_paths)

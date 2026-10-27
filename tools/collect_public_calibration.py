@@ -12,18 +12,7 @@ from pathlib import Path
 from benchmark_sweep_lib.execution import run_command, validate_paths
 from observation_cohorts import aggregate_captures
 from benchmark_schema.wide_magnitude import MODULI
-from benchmark_references import DEFAULT_INDEX, DEFAULT_CACHE, prepare as prepare_references
-
-
-def reference_cache_supported(arguments):
-    def option(flag, default):
-        return arguments[arguments.index(flag) + 1] if flag in arguments else default
-    return (option("--semantics", "bounded-i64") in ("bounded-i64", "bounded-u64") and
-        all(option(flag, "1") == "1" for flag in ("--residue-chain-length", "--host-api-batch-size", "--grouped-dispatch")) and
-        not any(flag in arguments for flag in ("--native-to-rns-bridge", "--vector-to-rns-chain",
-            "--force-native-to-rns-bridge", "--vector-native-to-rns-chain", "--vector-to-rns-chain-host-repack-control",
-            "--vector-native-to-rns-chain-host-repack-control", "--transient-uniform-small-inputs",
-            "--transient-uniform-small-i8-inputs", "--residue-channel-fusion", "--streaming-overlap", "--hip-graph-replay")))
+from benchmark_references import DEFAULT_INDEX, DEFAULT_CACHE, prepare as prepare_references, reference_cache_supported
 
 
 def validate_initial_plan_capacity(arguments, name):

@@ -267,11 +267,17 @@ extern "C" int rns8_hip_block_sparse_gemm(
 extern "C" int rns8_hip_discover_ragged_bounds(const int8_t* source, int rows, int cols,
     int prefix, int tile_rows, int tile_cols, int grid_cols, bool signed_value,
     uint64_t bound0, uint64_t bound1, uint64_t bound2,
-    rns8::detail::RaggedResidueTile* directory, int* status) {
+    rns8::detail::BasisPacket basis, rns8::detail::RaggedResidueTile* directory, int* status) {
   const uint64_t tiles = ((uint64_t(rows) + tile_rows - 1) / tile_rows) * grid_cols;
-  hipLaunchKernelGGL(rns8_discover_ragged_bounds_kernel, dim3(tiles), dim3(128), 0, nullptr,
+  if(rns8::detail::ordered_basis_identity(basis)==rns8::detail::OrderedBasisIdentity{}) {
+  hipLaunchKernelGGL((rns8_discover_ragged_bounds_kernel<true>), dim3(tiles), dim3(128), 0, nullptr,
       source, rows, cols, prefix, tile_rows, tile_cols, grid_cols, signed_value,
-      (rns8_u192_device{bound0, bound1, bound2}), directory, status);
+      (rns8_u192_device{bound0, bound1, bound2}), basis, directory, status);
+  } else {
+  hipLaunchKernelGGL((rns8_discover_ragged_bounds_kernel<false>), dim3(tiles), dim3(128), 0, nullptr,
+      source, rows, cols, prefix, tile_rows, tile_cols, grid_cols, signed_value,
+      (rns8_u192_device{bound0, bound1, bound2}), basis, directory, status);
+  }
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_compact_ragged(const int8_t* source, int rows, int cols,
@@ -286,9 +292,14 @@ extern "C" int rns8_hip_compact_ragged(const int8_t* source, int rows, int cols,
 extern "C" int rns8_hip_materialize_ragged(
     const int8_t* source, const rns8::detail::RaggedResidueTile* tiles,
     int tile_rows, int tile_cols, int grid_cols, bool signed_value,
-    int8_t* destination, rns8::detail::ResidueLayout target, int* status) {
-  hipLaunchKernelGGL(rns8_materialize_ragged_kernel, dim3((target.rows * target.cols + 255) / 256),
-      dim3(256), 0, nullptr, source, tiles, tile_rows, tile_cols, grid_cols, signed_value, destination, target, status);
+    int8_t* destination, rns8::detail::ResidueLayout target, rns8::detail::BasisPacket basis, int* status) {
+  if(rns8::detail::ordered_basis_identity(basis)==rns8::detail::OrderedBasisIdentity{}) {
+  hipLaunchKernelGGL((rns8_materialize_ragged_kernel<true>), dim3((target.rows * target.cols + 255) / 256),
+      dim3(256), 0, nullptr, source, tiles, tile_rows, tile_cols, grid_cols, signed_value, destination, target, basis, status);
+  } else {
+  hipLaunchKernelGGL((rns8_materialize_ragged_kernel<false>), dim3((target.rows * target.cols + 255) / 256),
+      dim3(256), 0, nullptr, source, tiles, tile_rows, tile_cols, grid_cols, signed_value, destination, target, basis, status);
+  }
   return static_cast<int>(hipGetLastError());
 }
 

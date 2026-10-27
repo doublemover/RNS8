@@ -12,6 +12,8 @@ from collect_native_calibration import strict_json
 from collect_native_integrity import MODULI, positive
 from collect_native_interop import quantile
 from product_stage_contract import price_cells,price_identity
+from product_dataset import inputs as dataset_inputs,identity as dataset_identity
+from product_replay import policy as replay_policy,estimate as replay_estimate
 
 MATERIALIZED_MODES=('recipe-packed-full','recipe-packed-minimum','recipe-layout-model','recipe-measured')
 MODES=(*MATERIALIZED_MODES,'recipe-ragged-full','recipe-ragged-minimum','recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-scalar-first','manual-auto','native-roundtrip','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
@@ -23,7 +25,13 @@ def graph(c):
 
 
 def bounds(c):
-    result=[1,1]
+    result=list(map(abs,dataset_inputs(c)))
+    for a,b in graph(c):result.append(c['side']*result[a]*result[b])
+    return result
+
+
+def integer_values(c):
+    result=list(dataset_inputs(c))
     for a,b in graph(c):result.append(c['side']*result[a]*result[b])
     return result
 
@@ -43,10 +51,15 @@ def payload_bytes(c):
 
 def validate_case(c):
     keys={'schema','side','depth','prefix','source_prefix','repeats','warmups','model_launch_ns','max_payload_bytes','unsigned_inputs','mode','topology'}
-    if type(c) is not dict or set(c)!=keys or c['schema']!='lift_recipe_case_v1' or type(c['unsigned_inputs']) is not bool:
+    if type(c) is not dict or not keys<=set(c) or set(c)-keys-{'input_values','replay_policy'} or c['schema']!='lift_recipe_case_v1' or type(c['unsigned_inputs']) is not bool:
         raise ValueError('case ABI')
     for key,lo,hi in [('side',1,256),('depth',1,12),('prefix',1,20),('source_prefix',1,20),('repeats',3,100),('warmups',1,100),('model_launch_ns',0,10**9),('max_payload_bytes',64,2**40)]:
         if type(c[key]) is not int or not lo<=c[key]<=hi:raise ValueError(key)
+    dataset_inputs(c)
+    replay_policy(c)
+    if 'replay_policy' in c and c['mode'] not in MATERIALIZED_MODES:raise ValueError('replay policy requires materialized mode')
+    if 'input_values' in c and (c['mode'].startswith('lift-') or c['mode'] in ('wider-producer','recipe-ragged-full','recipe-ragged-minimum')):
+        raise ValueError('constant dataset extension requires an ordinary product graph')
     if c['source_prefix']>c['prefix'] or c['mode'] not in MODES or c['topology'] not in ('chain','diamond') or (c['topology']=='diamond' and c['depth']!=4):
         raise ValueError('route/topology')
     lift=c['mode'].startswith('lift-');single=lift or c['mode']=='wider-producer'
@@ -55,7 +68,7 @@ def validate_case(c):
     if math.prod(MODULI[:c['prefix']])<=b*factor or (lift and math.prod(MODULI[:c['source_prefix']])<=c['side']*factor):raise ValueError('strict range')
     if c['mode']=='native-roundtrip':
         lo,hi=(0,2**64-1) if c['unsigned_inputs'] else (-2**63,2**63-1)
-        if any(not lo<=v<=hi for v in bounds(c)[2:-1]):raise ValueError('native roundtrip intermediate exceeds native64')
+        if any(not lo<=v<=hi for v in integer_values(c)[2:-1]):raise ValueError('native roundtrip intermediate exceeds native64')
     cells=c['side']**2;nodes=len(graph(c));payload=payload_bytes(c)
     if payload>=c['max_payload_bytes'] or cells*c['prefix']>2**31-1 or c['side']**3*nodes>134217728:raise ValueError('payload/work')
     return c
@@ -103,9 +116,10 @@ def validate_capture(c,entry):
         if type(actual) is not dict or actual!=document['identity'] or any(type(actual.get(k)) is not type(v) for k,v in document['identity'].items()) or any(type(q) is not int for q in actual['minimum_prefixes']) or document['identity']['minimum_prefixes']!=minimum:
             raise ValueError('actual measured graph/build/range identity')
         if type(c.get('stage_price_training_charge_ns')) is not int or c['stage_price_training_charge_ns']!=document['training_charge_ns']:raise ValueError('stage training charge receipt')
-        expected_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=2,price_sha256=identity,qualified=False)
+        expected_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=3,price_sha256=identity,qualified=False)
+        if document['dataset']!=dataset_identity(case):raise ValueError('measured dataset identity')
         if document['identity']['target']!=c['target'] or document['identity']['node_count']!=nodes or document['device']!=c['device'] or document['runtime_version']!=c['runtime_version']:raise ValueError('measured graph/target/device/runtime')
-    elif mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=2,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
+    elif mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=3,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
     if mode!='recipe-measured' and (c.get('stage_price_identity',False) is not None or c.get('stage_price_graph_identity',False) is not None or type(c.get('stage_price_training_charge_ns')) is not int or c['stage_price_training_charge_ns']!=0):raise ValueError('unrequested stage prices')
     validate_materializations(c,case,selected,prices)
     if type(model) is not type(expected_model) or model!=expected_model or (expected_model is not None and any(type(model[k]) is not type(v) for k,v in expected_model.items())):raise ValueError('unqualified cost model identity')
@@ -126,7 +140,10 @@ def validate_materializations(c,case,selected,prices=None):
     if case['mode'] not in MATERIALIZED_MODES:
         if plan is not None:raise ValueError('unrequested materialization receipt')
         return
-    if type(plan) is not dict or set(plan)!={'packed_b','packed_values','evaluated','exhaustive','chain_dynamic_programming','cost_optimal','estimated_ns','completed_packing_calls'}:raise ValueError('materialization ABI')
+    if type(plan) is not dict or set(plan)!={'packed_b','packed_values','evaluated','exhaustive','chain_dynamic_programming','cost_optimal','estimated_ns','completed_packing_calls','replay_policy','replay_costs','completed_replays','reused_external_packing_calls','retained_external_packed_bytes'}:raise ValueError('materialization ABI')
+    for key in ('completed_replays','reused_external_packing_calls','retained_external_packed_bytes'):
+        if type(plan[key]) is not int or not 0<=plan[key]<2**64-1:raise ValueError('replay counter type/range')
+    if type(plan['replay_costs']) is not dict or any(type(v) is not int for v in plan['replay_costs'].values()):raise ValueError('replay cost receipt types')
     nodes=graph(case);flags=plan['packed_b'];views=plan['packed_values']
     if type(flags) is not list or len(flags)!=len(nodes) or any(type(x) is not int or x not in (0,1) for x in flags):raise ValueError('packed choice')
     if case['mode'] not in ('recipe-layout-model','recipe-measured') and flags!=[1]*len(nodes):raise ValueError('forced packed control')
@@ -134,9 +151,13 @@ def validate_materializations(c,case,selected,prices=None):
     for key in ('exhaustive','chain_dynamic_programming','cost_optimal'):
         if type(plan[key]) is not bool:raise ValueError('search scope')
     if type(plan['evaluated']) is not int or not 1<=plan['evaluated']<=4096 or type(plan['estimated_ns']) is not int or not 0<=plan['estimated_ns']<2**64-1:raise ValueError('search cost/evaluations')
-    if type(views) is not list:raise ValueError('packed views')
+    if type(views) is not list or any(type(v) is not dict or set(v)!={'value_id','capacity_prefix','first_reader','last_reader','bytes','arena_offset'} or any(type(x) is not int for x in v.values()) for v in views):raise ValueError('packed views')
     expected={};current={};calls=0;raw=[case['prefix'],case['prefix']]+[0]*len(nodes);cost=0
     cells=case['side']**2;launch=case['model_launch_ns']
+    publish=prices[(len(nodes)-1,'publish',0,0,case['prefix'])]['cost_ns'] if prices is not None else 0
+    policy=replay_policy(case,c.get('stage_price_training_charge_ns',0),publish)
+    if plan['replay_policy']!=policy:raise ValueError('replay policy identity')
+    cold_external_cost=external_calls=0
     capacities={}
     for (_,b),p,flag in zip(nodes,selected,flags):
         if flag:capacities[b]=max(capacities.get(b,0),p)
@@ -153,13 +174,22 @@ def validate_materializations(c,case,selected,prices=None):
         if not flag:
             demand(b,p);cost+=stage(i,'uniform_gemm',0,0,p,launch+cells*case['side']*p);raw[i+2]=p;continue
         if current.get(b,0)<p:
-            demand(b,p);cost+=stage(i,'pack',capacities[b],current.get(b,0),p,launch+2*cells*(p-current.get(b,0)))
+            demand(b,p);packing_cost=stage(i,'pack',capacities[b],current.get(b,0),p,launch+2*cells*(p-current.get(b,0)));cost+=packing_cost
+            if b<2:cold_external_cost+=packing_cost;external_calls+=1
         cost+=stage(i,'packed_gemm',capacities[b],0,p,launch+cells*((case['side']+3)//4)*p);raw[i+2]=p
         if b not in expected:expected[b]=dict(value_id=b,capacity_prefix=p,first_reader=i,last_reader=i)
         expected[b]['capacity_prefix']=max(expected[b]['capacity_prefix'],p);expected[b]['last_reader']=i
         if current.get(b,0)<p:current[b]=p;calls+=1
     demand(len(nodes)+1,case['prefix'])
-    if plan['estimated_ns']!=cost:raise ValueError('materialization cost trace')
+    expected_cost=replay_estimate(policy,cost,cost-cold_external_cost if policy['retain_external_b'] else cost)
+    if plan['replay_costs']!=expected_cost or plan['estimated_ns']!=expected_cost['first_ns']:raise ValueError('materialization complete cost trace')
+    if policy['require_amortization'] and expected_cost['amortization_status']!=1:raise ValueError('unamortized plan')
+    if policy['retain_external_b']:calls-=external_calls
+    completed=1+case['warmups']+case['repeats']+sum(s['calls'] for s in c['sustained'])
+    if type(plan['completed_replays']) is not int or plan['completed_replays']!=completed:raise ValueError('completed replay coverage')
+    reused=sum(flag and b<2 for (_,b),flag in zip(nodes,flags)) if policy['retain_external_b'] else 0
+    retained=sum(v['bytes'] for v in views if v['value_id']<2) if policy['retain_external_b'] else 0
+    if plan['reused_external_packing_calls']!=reused or plan['retained_external_packed_bytes']!=retained:raise ValueError('retained packing scope')
     if type(plan['completed_packing_calls']) is not int or plan['completed_packing_calls']!=calls or len(views)!=len(expected):raise ValueError('packing reuse/growth')
     seen=set();tile_cells=((case['side']+15)//16*16)**2;arena=c['recipe_arena_bytes']
     for view in views:
@@ -170,7 +200,7 @@ def validate_materializations(c,case,selected,prices=None):
         if view['bytes']!=tile_cells*view['capacity_prefix'] or view['arena_offset']<0 or view['arena_offset']%256 or view['arena_offset']+view['bytes']>arena:raise ValueError('packed capacity/budget')
     for i,a in enumerate(views):
         for b in views[i+1:]:
-            simultaneous=a['first_reader']<=b['last_reader'] and b['first_reader']<=a['last_reader']
+            simultaneous=(policy['retain_external_b'] and (a['value_id']<2 or b['value_id']<2)) or (a['first_reader']<=b['last_reader'] and b['first_reader']<=a['last_reader'])
             overlaps=a['arena_offset']<b['arena_offset']+b['bytes'] and b['arena_offset']<a['arena_offset']+a['bytes']
             if simultaneous and overlaps:raise ValueError('packed reader interference')
     if c['recipe_arena_bytes']+c['recipe_retained_lift_bytes']>case['max_payload_bytes']-c['logical_payload_estimate_bytes']:raise ValueError('retained recipe budget')

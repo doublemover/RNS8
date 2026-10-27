@@ -81,7 +81,9 @@ class ReferenceTests(unittest.TestCase):
         self.assertTrue(all("--populate-reference-cache" not in entry["command"] for entry in plan))
         fresh = commands(Path("bench"), cases, 2, 7, Path("out"), verify_native_output=True)
         self.assertTrue(all("--verify-native-output" in entry["command"] for entry in fresh))
-        for arguments in (["--semantics", "wrap-u64"], ["--host-api-batch-size", "2"], ["--force-native-to-rns-bridge"]):
+        for semantics in ("wrap-u64-mod-2-64","finite-ring-u8","finite-field-u8","exact-wide-signed","exact-wide-unsigned"):
+            self.assertTrue(reference_cache_supported(["--semantics",semantics]))
+        for arguments in (["--host-api-batch-size", "2"], ["--force-native-to-rns-bridge"]):
             self.assertFalse(reference_cache_supported(arguments))
         with self.assertRaises(ValueError):
             commands(Path("bench"), [dict(name="override", arguments=["--reference-cache-dir", "elsewhere"])], 2, 7, Path("out"))

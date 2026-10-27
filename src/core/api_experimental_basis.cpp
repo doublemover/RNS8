@@ -4,6 +4,7 @@
 #include "backend_common/sha256.hpp"
 #include "rns8/experimental_basis.h"
 #include "backend_common/basis_word_arithmetic.hpp"
+#include "core/prepared_transfer.hpp"
 #include <algorithm>
 #include <cstring>
 #include <mutex>
@@ -154,7 +155,10 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx,const rns8_basis*
     if(described!=RNS8_SUCCESS)return described;
     rns8_operation_support out{};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;
     out.backend=desc->backend;out.operation=operation;out.requires_binding=1;
-    out.supported_execution_modes=RNS8_EXEC_SYNC;out.safe_k=65536;
+    out.supported_execution_modes=RNS8_EXEC_SYNC;
+    if(operation==RNS8_OP_GEMM && desc->backend==RNS8_BACKEND_HIP_DIRECT)
+      out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;
+    out.safe_k=65536;
     out.alignment=desc->backend==RNS8_BACKEND_CPU_REFERENCE?alignof(uint64_t):256;
     const auto text=[](char* dst,size_t bytes,const char* src){std::strncpy(dst,src,bytes-1);};
     text(out.target_id,sizeof(out.target_id),desc->backend==RNS8_BACKEND_CPU_REFERENCE?"cpu":ctx->device_info.gcn_arch);
@@ -175,8 +179,8 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx,const rns8_basis*
       return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","operation has no explicit ordered-basis adapter");
     if(!exact_wide_semantics(desc->semantics))return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,
         "semantics","explicit basis owner requires signed/unsigned exact-wide arithmetic");
-    if(modes&~uint32_t(RNS8_EXEC_SYNC))return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_EXECUTION_MODE,
-        "execution_modes","basis-plan API is synchronous; no inferred graph/library/prepack support");
+    if(modes&~out.supported_execution_modes)return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_EXECUTION_MODE,
+        "execution_modes","this operation has no explicit ordered-basis execution adapter");
     if(ctx->hip_failure_poisoned)return finish(RNS8_BACKEND_FAILURE,RNS8_SUPPORT_RUNTIME,"context","context has a poisoned failure lease");
     BasisStorage storage;const auto status=basis_plan_storage(*data,*desc,storage);
     out.required_device_bytes=storage.device;out.required_host_bytes=storage.host;
@@ -387,6 +391,102 @@ rns8_status rns8_gemm_basis(rns8_basis_plan* plan,const rns8_matrix* a,const rns
     });
     if(status==RNS8_SUCCESS)publish_basis_value(*plan,*c,d.prefix,bound);
     return status;
+  });
+}
+namespace {
+class PreparedBasisGemm final:public PreparedTransfer {
+ public:
+  const rns8_matrix *a=nullptr,*b=nullptr;
+  rns8_basis_plan_desc desc{};
+  std::shared_ptr<const ExperimentalBasis> basis;
+  uint64_t published_generation=0;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hipStream_t stream=nullptr;
+#endif
+  const rns8_matrix* input_a() const noexcept override{return a;}
+  const rns8_matrix* input_b() const noexcept override{return b;}
+  bool writes_matrix() const noexcept override{return true;}
+  bool reads_matrix() const noexcept override{return true;}
+  bool produces_resident() const noexcept override{return true;}
+  uint32_t output_prefix() const noexcept override{return desc.prefix;}
+  const char* operation_name() const noexcept override{return "ordered_basis_gemm";}
+  void* sync_stream() const noexcept override {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    return stream;
+#else
+    return nullptr;
+#endif
+  }
+  rns8_status validate(const cpp_int* pending,uint32_t,cpp_int& bound) override {
+    if(pending)return RNS8_UNSUPPORTED_BACKEND;
+    if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
+    if(a==matrix || b==matrix)return RNS8_INVALID_ARGUMENT;
+    for(const auto* value:{a,b,static_cast<const rns8_matrix*>(matrix)}) {
+      if(value->in_flight_writer || (value==matrix && value->in_flight_readers))return RNS8_BUSY;
+      if(value->generation_exhausted || (value==matrix && value->content_generation==UINT64_MAX))return RNS8_RANGE_ERROR;
+      if(!basis_storage_matches(*value,RNS8_BACKEND_HIP_DIRECT) || value->hip_device_id!=ctx->device_id ||
+          value->desc.semantics!=desc.semantics || value->prefix<desc.prefix ||
+          !equal_basis(*stored_basis(*value),*basis))return RNS8_INVALID_ARGUMENT;
+    }
+    if(a->desc.rows!=desc.m || a->desc.cols!=desc.k || b->desc.rows!=desc.k || b->desc.cols!=desc.n ||
+        matrix->desc.rows!=desc.m || matrix->desc.cols!=desc.n)return RNS8_INVALID_ARGUMENT;
+    for(const auto* value:{a,b}) {
+      if(value->in_flight_readers==UINT64_MAX)return RNS8_RANGE_ERROR;
+      if(!value->device_residues_current || value->exact_range_prefix<desc.prefix || value->exact_range_prefix>value->prefix ||
+          value->materialized_rns_prefix<desc.prefix ||
+          !exact_range_fits(desc.semantics,value->exact_max_magnitude,basis->products[value->exact_range_prefix]))return RNS8_RANGE_ERROR;
+    }
+    bound=cpp_int(desc.k)*a->exact_max_magnitude*b->exact_max_magnitude;
+    return exact_range_fits(desc.semantics,bound,basis->products[desc.prefix])?RNS8_SUCCESS:RNS8_RANGE_ERROR;
+  }
+  rns8_status enqueue(void* target) override {
+    return hip_direct_enqueue_basis_gemm(ctx->device_id,a->hip_residues,b->hip_residues,matrix->hip_residues,
+        desc.m,desc.n,desc.k,basis->packet.moduli,desc.prefix,target);
+  }
+  void reserve() noexcept override {
+    ++a->in_flight_readers;if(a!=b)++b->in_flight_readers;
+    clear_residue_current(*matrix);clear_native_current(*matrix);clear_byte_limb_current(*matrix);
+    ++matrix->prepared_in_flight_writers;matrix->in_flight_writer=true;published_generation=0;
+  }
+  rns8_status finish(rns8_status operation,cpp_int& bound) noexcept override {
+    --a->in_flight_readers;if(a!=b)--b->in_flight_readers;
+    --matrix->prepared_in_flight_writers;matrix->in_flight_writer=matrix->prepared_in_flight_writers!=0;
+    if(operation==RNS8_SUCCESS) {
+      mark_output_device_residues_current(*matrix);matrix->exact_max_magnitude.swap(bound);
+      matrix->exact_range_prefix=desc.prefix;matrix->materialized_rns_prefix=desc.prefix;
+      matrix->exact_axis_ranges.rows.clear();matrix->exact_axis_ranges.cols.clear();
+      published_generation=matrix->content_generation;
+    }
+    return operation;
+  }
+  bool output_current() const noexcept override {
+    return published_generation && matrix->content_generation==published_generation && matrix->device_residues_current;
+  }
+  rns8_status close() override {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(stream){hip_scoped_device selected(ctx->device_id);if(selected.status()!=hipSuccess || hipStreamDestroy(stream)!=hipSuccess)return RNS8_BACKEND_FAILURE;stream=nullptr;}
+#endif
+    return RNS8_SUCCESS;
+  }
+  ~PreparedBasisGemm() override {(void)close();}
+};
+}
+rns8_status rns8_prepare_basis_gemm_hip(rns8_basis_plan* plan,const rns8_matrix* a,const rns8_matrix* b,
+    rns8_matrix* c,rns8_prepared_execution** out) {
+  return guard_api([&]() -> rns8_status {
+    if(!out)return RNS8_INVALID_ARGUMENT;*out=nullptr;
+    if(!plan || !a || !b || !c)return RNS8_INVALID_ARGUMENT;
+    if(plan->desc.backend!=RNS8_BACKEND_HIP_DIRECT || !direct_hip_compiled())return RNS8_UNSUPPORTED_BACKEND;
+    std::unique_lock<std::mutex> lock(plan->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
+    const auto ready=basis_plan_ready(*plan);if(ready!=RNS8_SUCCESS)return ready;
+    auto owner=std::make_unique<PreparedBasisGemm>();owner->ctx=plan->ctx;owner->matrix=c;owner->a=a;owner->b=b;
+    owner->desc=plan->desc;owner->basis=plan->basis;
+    cpp_int bound;const auto valid=owner->validate(nullptr,0,bound);if(valid!=RNS8_SUCCESS)return valid;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    hip_scoped_device selected(plan->ctx->device_id);
+    if(selected.status()!=hipSuccess || hipStreamCreateWithFlags(&owner->stream,hipStreamNonBlocking)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+#endif
+    return create_transfer_prepared(std::move(owner),out);
   });
 }
 rns8_status rns8_export_basis_limbs(rns8_basis_plan* plan,const rns8_matrix* matrix,uint64_t* destination,int64_t ld,uint32_t limbs) {

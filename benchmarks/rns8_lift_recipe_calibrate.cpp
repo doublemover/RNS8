@@ -2,6 +2,8 @@
 #include "core/api_internal.hpp"
 #include "core/runtime_product_recipe.hpp"
 #include "product_stage_prices.hpp"
+#include "product_dataset.hpp"
+#include "product_replay_policy.hpp"
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -16,7 +18,7 @@ uint64_t number(const json& c,const char* key,uint64_t lo,uint64_t hi){if(!c.at(
 int main(int argc,char** argv){try {
   using namespace rns8::detail;using namespace rns8::detail::api;
   if(argc!=3 && argc!=4)throw std::invalid_argument("usage: rns8-lift-recipe-calibrate CASE.json unique-run-id [prices.json]");json c;std::ifstream(argv[1])>>c;
-  if(c.size()!=12 || c.at("schema")!="lift_recipe_case_v1" || !c.at("unsigned_inputs").is_boolean())throw std::invalid_argument("case ABI");
+  if(c.size()!=12+unsigned(c.contains("input_values"))+unsigned(c.contains("replay_policy")) || c.at("schema")!="lift_recipe_case_v1" || !c.at("unsigned_inputs").is_boolean())throw std::invalid_argument("case ABI");
   const unsigned side=number(c,"side",1,256),depth=number(c,"depth",1,12),prefix=number(c,"prefix",1,20),source=number(c,"source_prefix",1,prefix),
       repeats=number(c,"repeats",3,100),warmups=number(c,"warmups",1,100),model_launch=number(c,"model_launch_ns",0,1000000000);
   const uint64_t budget=number(c,"max_payload_bytes",64,UINT64_C(1)<<40);const bool u=c.at("unsigned_inputs");const std::string mode=c.at("mode"),shape=c.at("topology");
@@ -25,12 +27,16 @@ int main(int argc,char** argv){try {
   const bool measured=mode=="recipe-measured";
   if((argc==4)!=measured)throw std::invalid_argument("measured recipe requires exactly one frozen price file");
   const bool materialized=mode=="recipe-packed-full" || mode=="recipe-packed-minimum" || mode=="recipe-layout-model" || measured;
+  if(c.contains("input_values") && (lift || ragged || mode=="wider-producer"))throw std::invalid_argument("dataset requires ordinary product graph");
+  if(c.contains("replay_policy") && !materialized)throw std::invalid_argument("replay pricing requires materialized recipe");
+  const auto dataset=rns8::bench::product_dataset_inputs(c);
+  const auto replay_policy=rns8::bench::product_replay_policy(c);
   if((shape!="chain" && shape!="diamond") || (mode!="recipe-ragged-full" && mode!="recipe-ragged-minimum" && mode!="recipe-full" && mode!="recipe-minimum" && mode!="recipe-cost-model" && mode!="manual-full" && mode!="manual-auto" && !native_roundtrip && !scalar_first && !eager && !materialized &&
       mode!="lift-wide" && mode!="lift-mixed" && mode!="lift-graph" && !cpu_lift && mode!="wider-producer") || (lift && shape!="chain"))throw std::invalid_argument("route/topology");
   const uint64_t cells=uint64_t(side)*side;const auto semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;
   std::vector<ProductNode> nodes;if(shape=="chain"){for(unsigned i=0;i<depth;++i)nodes.push_back({i?i+1:0,1});}
   else{nodes={{0,1},{2,1},{0,2},{3,4}};if(depth!=4)throw std::invalid_argument("diamond depth is four");}
-  std::vector<cpp_int> values{cpp_int(1),cpp_int(1)};for(auto node:nodes)values.push_back(cpp_int(side)*values[node.a]*values[node.b]);
+  std::vector<cpp_int> values(dataset.begin(),dataset.end());for(auto node:nodes)values.push_back(cpp_int(side)*values[node.a]*values[node.b]);
   if(native_roundtrip) {
     const cpp_int native_min=u?cpp_int(0):cpp_int(-(cpp_int(1)<<63)),native_max=(cpp_int(1)<<(u?64:63))-1;
     for(size_t id=2;id+1<values.size();++id)
@@ -39,7 +45,7 @@ int main(int argc,char** argv){try {
   const uint64_t native_host_bytes=native_roundtrip?(nodes.size()+1)*cells*sizeof(uint64_t):0;
   uint64_t native_h2d=0,native_d2h=native_roundtrip?(nodes.size()-1)*cells*sizeof(uint64_t):0;
   if(native_roundtrip)for(auto node:nodes)native_h2d+=cells*sizeof(uint64_t)*(node.a==node.b?1:2);
-  const cpp_int final_bound=(lift || mode=="wider-producer")?cpp_int(side):values.back();if(!exact_range_fits(semantics,final_bound,modulus_product(prefix)) ||
+  const cpp_int final_bound=(lift || mode=="wider-producer")?cpp_int(side):boost::multiprecision::abs(values.back());if(!exact_range_fits(semantics,final_bound,modulus_product(prefix)) ||
       (lift && !exact_range_fits(semantics,cpp_int(side),modulus_product(source))))throw std::invalid_argument("strict range");
   const uint64_t known_payload=(nodes.size()+3)*cells*prefix+cells*48*(nodes.size()+1)+cells*16+native_host_bytes;
   if(known_payload>=budget || cells*prefix>INT32_MAX || uint64_t(side)*side*side*nodes.size()>134217728)throw std::invalid_argument("payload/work");
@@ -55,12 +61,15 @@ int main(int argc,char** argv){try {
   auto create_plan=[&](rns8_context* context,unsigned p,bool force,rns8_plan** out,rns8_workspace** work){rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=semantics;d.bound_kind=RNS8_BOUND_NONE;d.requested_backend=context->backend;d.m=side;d.n=side;d.k=side;d.max_prefix=p;d.flags=force?(RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND|(scalar_first?RNS8_PLAN_EXACT_SCALAR_FIRST:0)):0;check(rns8_create_plan(context,&d,out));if(work)check(rns8_create_workspace(context,*out,work));};
   auto matrix=[&](rns8_context* context,rns8_matrix** out){rns8_matrix_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=semantics;d.bound_kind=RNS8_BOUND_NONE;d.rows=side;d.cols=side;d.logical_ld=side;d.logical_layout=RNS8_LAYOUT_ROW_MAJOR;d.max_prefix=prefix;check(rns8_create_matrix(context,&d,out));};
   const auto setup_begin=Clock::now();check(rns8_create_context(0,&co,&ctx));create_plan(ctx,prefix,true,&fixed,&fixed_work);create_plan(ctx,prefix,false,&adaptive,&auto_work);create_plan(ctx,source,true,&producer,&producer_work);
-  for(auto& m:matrices)matrix(ctx,&m);if(!native_roundtrip)for(unsigned i=0;i<2;++i)check(u?rns8_pack_u64(ctx,matrices[i],ones.data(),side,1):rns8_pack_i64(ctx,matrices[i],reinterpret_cast<const int64_t*>(ones.data()),side,1));
+  for(auto& m:matrices)matrix(ctx,&m);if(!native_roundtrip)for(unsigned i=0;i<2;++i) {
+    std::fill(ones.begin(),ones.end(),rns8::bench::product_dataset_word(dataset[i]));
+    check(u?rns8_pack_u64(ctx,matrices[i],ones.data(),side,1):rns8_pack_i64(ctx,matrices[i],reinterpret_cast<const int64_t*>(ones.data()),side,1));
+  }
   if(native_roundtrip) {
     native_values.resize(nodes.size()+1);
     for(auto& value:native_values)value.resize(cells);
-    std::fill(native_values[0].begin(),native_values[0].end(),1);
-    std::fill(native_values[1].begin(),native_values[1].end(),1);
+    std::fill(native_values[0].begin(),native_values[0].end(),rns8::bench::product_dataset_word(dataset[0]));
+    std::fill(native_values[1].begin(),native_values[1].end(),rns8::bench::product_dataset_word(dataset[1]));
   }
   std::vector<const rns8_matrix*> inputs{matrices[0],matrices[1]};json selected=json::array();uint64_t arena_bytes=0,lift_bytes=0,stage_price_training_charge_ns=0;json cost_model=nullptr,materialization_plan=nullptr,stage_price_identity=nullptr,stage_price_graph_identity=nullptr;
   if(ragged){matrix(ctx,&ragged_converted);check(rns8_prepare_ragged_materialization(ctx,matrices[0],3,5,budget-known_payload,&ragged_source));inputs[0]=ragged_converted;
@@ -76,7 +85,7 @@ int main(int argc,char** argv){try {
       for(auto& row:costs.nodes)for(unsigned p=1;p<=prefix;++p){row.gemm[p]=model_launch+cells*side*p;for(unsigned q=p;q<=prefix;++q)row.lift[p*21+q]=q==p?0:3*uint64_t(model_launch)+cells*(uint64_t(p)*p+(q-p)*p);}
       chosen=&costs;cost_model={{"kind",costs.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_modular_multiply"},{"qualified",false}};}
     if(materialized) {
-      layouts.uniform=costs;layouts.uniform.provenance="explicit-unqualified-layout-work-model-v2";layouts.packed.resize(nodes.size());
+      layouts.uniform=costs;layouts.replay=replay_policy;layouts.uniform.provenance="explicit-unqualified-layout-work-model-v2";layouts.packed.resize(nodes.size());
       for(size_t i=0;i<nodes.size();++i)for(unsigned p=1;p<=20;++p) {
         for(unsigned capacity=p;capacity<=20;++capacity) {
           layouts.packed[i].gemm[ProductPackedCosts::gemm_index(capacity,p)]=model_launch+cells*((side+3)/4)*p;
@@ -99,9 +108,9 @@ int main(int argc,char** argv){try {
         std::vector<uint32_t> minimum(identity.minimum_prefixes,identity.minimum_prefixes+identity.node_count);
         stage_price_graph_identity={{"graph_sha256",identity.graph_sha256},{"build_sha256",identity.build_sha256},{"target",identity.target},
           {"node_count",identity.node_count},{"minimum_prefixes",minimum}};
-        const auto document=rns8::bench::read_product_stage_prices(argv[3]);rns8::bench::apply_product_stage_prices(document,identity,prefix,ctx->device_info.name,ctx->device_info.hip_runtime_version,layouts);
+        const auto document=rns8::bench::read_product_stage_prices(argv[3]);rns8::bench::apply_product_stage_prices(document,identity,prefix,ctx->device_info.name,ctx->device_info.hip_runtime_version,layouts,rns8::bench::product_dataset_identity(c));
         stage_price_identity=rns8::bench::product_stage_price_identity(document);stage_price_training_charge_ns=document.at("training_charge_ns").get<uint64_t>();
-        cost_model={{"kind","measured-stage-prices-unqualified"},{"cost_schema_version",2},{"price_sha256",stage_price_identity},{"qualified",false}};
+        cost_model={{"kind","measured-stage-prices-unqualified"},{"cost_schema_version",3},{"price_sha256",stage_price_identity},{"qualified",false}};
       }
     }
     check(RuntimeProductRecipe::create(ctx,inputs,nodes,budget-known_payload,owner,
@@ -174,6 +183,14 @@ int main(int argc,char** argv){try {
     materialization_plan={{"packed_b",plan.packed_b},{"packed_values",packed},{"evaluated",plan.evaluated},
         {"exhaustive",plan.exhaustive},{"chain_dynamic_programming",plan.chain_dynamic_programming},{"cost_optimal",plan.cost_optimal},
         {"estimated_ns",plan.estimated_ns},{"completed_packing_calls",owner->completed_packing_calls()}};
+    const auto& cost=plan.replay_cost;
+    materialization_plan["replay_policy"]=rns8::bench::product_replay_policy_json(owner->replay_policy());
+    materialization_plan["replay_costs"]={{"first_ns",cost.first_ns},{"steady_ns",cost.steady_ns},{"once_ns",cost.once_ns},
+        {"lifetime_ns",cost.lifetime_ns},{"amortized_ns",cost.amortized_ns},{"break_even_replays",cost.break_even_replays},
+        {"amortization_status",cost.amortization_status}};
+    materialization_plan["completed_replays"]=owner->completed_replays();
+    materialization_plan["reused_external_packing_calls"]=owner->reused_packing_calls();
+    materialization_plan["retained_external_packed_bytes"]=plan.retained_external_packed_bytes;
   }
   if(owner)check(owner->close());owner.reset();if(ragged_recipe)check(rns8_destroy_product_recipe(ragged_recipe));if(ragged_source)check(rns8_destroy_ragged_materialization(ragged_source));if(ragged_converted)check(rns8_destroy_matrix(ragged_converted));if(prepared_lift)check(rns8_destroy_prepared_execution(prepared_lift));if(host_matrix)check(rns8_destroy_matrix(host_matrix));if(cpu)check(rns8_destroy_context(cpu));for(auto* m:matrices)check(rns8_destroy_matrix(m));
   for(auto* w:{fixed_work,auto_work,producer_work})check(rns8_destroy_workspace(w));for(auto* p:{fixed,adaptive,producer})check(rns8_destroy_plan(p));check(rns8_destroy_context(ctx));

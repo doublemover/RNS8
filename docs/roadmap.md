@@ -6,6 +6,17 @@ and the [research index](research/README.md) distinguish public paths from priva
 prototypes. The [implementation chronology](archive/implementation-checkpoints-2026-10-23.md)
 preserves earlier work without duplicating current status.
 
+## Current implementation pass
+
+The [materialized replay extension](materialized-replay-lifetimes.md) adds lifetime
+costs, projected amortization admission and generation-bound external packed B.
+Bound recipes now compose bounded/finite/wrap uniform owners and checked async
+host export. Experimental basis owners support ragged/packed composition and
+prepared stream/graph GEMM. Integer reference caching covers exact-wide, finite
+and wrap outputs and additional collectors. Source and regression fixtures are
+written; the combined validation pass is pending. Existing measured evidence
+below retains its original source and toolchain identity.
+
 ## Recorded baseline
 
 The [October 26 Core SDK10.1 local Release validation](platform-windows.md#october-26-core-sdk-101-local-release-validation)

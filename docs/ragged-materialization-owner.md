@@ -3,17 +3,16 @@
 `rns8_prepare_ragged_materialization` creates an explicit compact representation
 of a current signed/unsigned exact-wide matrix on CPU or direct HIP. The owner
 retains the source and context, binds the source instance and content generation,
-and records the existing default-basis ragged directory. Source mutation makes
+and records the complete immutable ordered basis with its ragged directory. Source mutation makes
 materialization fail until the caller prepares a replacement owner. Source and
 context destruction return BUSY while the owner exists.
 
-Preparation is deliberately a **cold host-assisted conversion**. It scans the
-complete source residue planes, reconstructs each unique integer under the source
-proof, rejects malformed centered residues or a value exceeding that proof, and
-chooses the smallest sufficient prefix for each caller-selected tile. HIP
-preparation downloads the uniform source and uploads the compact payload. It is
-not a device-produced adaptive directory, and its cost must be included when
-comparing compact routes. Tile dimensions are explicit, independently selected
+Preparation is a cold conversion. CPU scans source residue planes; HIP discovers
+per-tile bounds and compacts payload on device, downloading only the small
+bound directory. Both reconstruct unique integers under the actual ordered basis,
+reject malformed centered residues and values exceeding the source proof, and
+choose the smallest sufficient prefix for each tile. Include preparation cost
+when comparing compact routes. Tile dimensions are explicit, independently selected
 from a later consumer's GEMM tiles, and limited to 1..128 in each direction.
 
 The directory contains per-tile payload offset, selected prefix and magnitude
@@ -25,15 +24,17 @@ minimum/maximum prefix, tile count and source identity. Logical identity stays
 bound to the source through format conversion.
 
 `rns8_materialize_ragged_exact` reconstructs/extends into a distinct ordinary
-uniform matrix using the existing transactional CPU/HIP adapter. The destination
+uniform matrix with the same complete ordered basis using the transactional
+CPU/HIP adapter. Default and experimental basis identities cannot be mixed.
+Packed materialization recipes can bind these ragged owners on CPU/direct HIP. The destination
 may have a different sufficient prefix. All requested planes become valid, so a
 subsequent ordinary GEMM can use a different tile geometry without consuming
 uncomputed channels. Exact bound metadata is published with the new destination
 generation. It is an ordinary value copy into another matrix handle, not identity
 reuse between handles. Native input caches on the destination are retired.
 
-Preparation budgets cover logical retained directory, the HIP uniform snapshot,
-and compact host/device payloads overlapping during upload. CPU needs directory
+Preparation budgets cover the host directory, HIP device directory and proof
+status, and compact backend payload. CPU needs directory
 plus compact payload. Fixed proof temporaries and allocator bookkeeping are not
 included. The retained GPU owner has a host directory and device payload; its
 host payload is released after upload. Old live owners remain separate allocations.

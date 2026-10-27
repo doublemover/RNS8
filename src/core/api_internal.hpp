@@ -31,6 +31,10 @@
 #include "core/backend_common.hpp"
 
 namespace rns8::detail::api {
+// Preparation-only envelope: runtime publication still requires the actual
+// producer token and its checked pending range. No fictitious matrix currentness.
+rns8_status prepare_bound_host_export_hip(rns8_context*,rns8_matrix*,rns8_pinned_host_buffer*,
+    uint32_t,const boost::multiprecision::cpp_int&,uint64_t,rns8_prepared_execution**);
 // Discovery and the concrete resident-graph owner must admit the same backend
 // families. Dense/synchronous GEMM support alone does not provide a DAG owner.
 inline bool resident_graph_backend_supported(rns8_backend_kind backend) {

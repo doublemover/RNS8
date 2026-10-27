@@ -1,6 +1,7 @@
 #pragma once
 #include "product_prefix_cost.hpp"
 #include "residue_layout_gemm.hpp"
+#include "replay_cost.hpp"
 #include <map>
 #include <tuple>
 
@@ -16,8 +17,9 @@ struct ProductPackedCosts {
 struct ProductMaterializationProfile {
   ProductCostProfile uniform;
   std::vector<ProductPackedCosts> packed;
-  uint32_t cost_schema_version=2;
+  uint32_t cost_schema_version=3;
   uint32_t max_frontier=256;
+  ReplayCostPolicy replay;
 };
 struct ProductPackedValue {
   ResidueLayout layout;
@@ -35,6 +37,9 @@ struct ProductMaterializationSelection {
   uint32_t evaluated=0;
   bool exhaustive=false,chain_dynamic_programming=false,cost_optimal=false;
   uint64_t chain_cost_lower_bound=UINT64_MAX;
+  ReplayCostEstimate replay_cost;
+  uint64_t retained_external_packed_bytes=0;
+  bool retain_external_b=false;
 };
 inline uint64_t product_cost_add(uint64_t a,uint64_t b) {
   return a==UINT64_MAX || b==UINT64_MAX || a>=UINT64_MAX-b?UINT64_MAX:a+b;
@@ -50,11 +55,12 @@ inline ProductMaterializationSelection evaluate_product_materializations(
     const std::vector<uint32_t>& outputs={}) {
   ProductMaterializationSelection result;
   result.prefixes=chosen;result.capacities=chosen;result.packed_b=packing;result.estimated_ns=0;
+  result.retain_external_b=profile.replay.retain_external_b;
   result.arena=plan_product_arena(inputs,nodes,prefix,UINT64_MAX,{},outputs);
   if(result.arena.status!=RNS8_SUCCESS){result.status=result.arena.status;return result;}
   const auto input_count=static_cast<uint32_t>(inputs.size());
   const size_t count=result.arena.values.size();
-  if(profile.cost_schema_version!=2 || chosen.size()!=nodes.size() || packing.size()!=nodes.size() ||
+  if(profile.cost_schema_version!=3 || !profile.replay.replays || profile.replay.replays==UINT64_MAX || chosen.size()!=nodes.size() || packing.size()!=nodes.size() ||
       profile.uniform.nodes.size()!=nodes.size() || profile.packed.size()!=nodes.size()) {
     result.status=RNS8_INVALID_ARGUMENT;return result;
   }
@@ -68,9 +74,11 @@ inline ProductMaterializationSelection evaluate_product_materializations(
   }
   std::fill_n(current.begin(),input_count,prefix);
   for(uint32_t i=0;i<nodes.size();++i)raw_last[input_count+i]=i;
-  const auto add=[&](uint64_t ns) {
+  uint64_t steady=0;
+  const auto add=[&](uint64_t ns,bool first_only=false) {
     result.estimated_ns=product_cost_add(result.estimated_ns,ns);
-    return result.estimated_ns!=UINT64_MAX;
+    if(!first_only)steady=product_cost_add(steady,ns);
+    return result.estimated_ns!=UINT64_MAX && steady!=UINT64_MAX;
   };
   const auto demand=[&](uint32_t id,uint32_t target,uint32_t reader) {
     if(id<input_count)return true;
@@ -89,7 +97,8 @@ inline ProductMaterializationSelection evaluate_product_materializations(
       auto& packed=result.packed[node.b];packed.used=true;
       packed.first=std::min(packed.first,i);packed.last=i;
       if(packed_prefix[node.b]<p) {
-        if(!demand(node.b,p,i) || !add(profile.packed[i].pack[ProductPackedCosts::pack_index(packed_capacity[node.b],packed_prefix[node.b],p)]))return result;
+        if(!demand(node.b,p,i) || !add(profile.packed[i].pack[ProductPackedCosts::pack_index(packed_capacity[node.b],packed_prefix[node.b],p)],
+            profile.replay.retain_external_b && node.b<input_count))return result;
         packed_prefix[node.b]=p;
       }
       if(!add(profile.packed[i].gemm[ProductPackedCosts::gemm_index(packed_capacity[node.b],p)]))return result;
@@ -98,6 +107,10 @@ inline ProductMaterializationSelection evaluate_product_materializations(
   }
   const auto observed=outputs.empty()?std::vector<uint32_t>{static_cast<uint32_t>(count-1)}:outputs;
   for(auto id:observed)if(!demand(id,prefix,static_cast<uint32_t>(nodes.size())))return result;
+  result.replay_cost=estimate_replay_cost(profile.replay,result.estimated_ns,steady);
+  result.estimated_ns=result.replay_cost.first_ns;
+  if(result.replay_cost.amortized_ns==UINT64_MAX)return result;
+  if(profile.replay.require_amortization && result.replay_cost.amortization_status!=1)return result;
   if(gpu)for(uint32_t i=0;i<nodes.size();++i)if(result.capacities[i]>chosen[i]) {
     const auto shape=result.arena.values[input_count+i].shape;
     const auto support=profile.uniform.experimental_basis
@@ -125,7 +138,9 @@ inline ProductMaterializationSelection evaluate_product_materializations(
         (gpu && value.layout.bytes>INT32_MAX))return result;
     if(result.packed_payload_bytes>UINT64_MAX-value.layout.bytes){result.status=RNS8_RANGE_ERROR;return result;}
     result.packed_payload_bytes+=value.layout.bytes;
-    regions.push_back({value.first,value.last,id,value.layout.bytes,true});
+    const bool retained=profile.replay.retain_external_b && id<input_count;
+    if(retained)result.retained_external_packed_bytes+=value.layout.bytes;
+    regions.push_back({retained?0:value.first,retained?UINT32_MAX:value.last,id,value.layout.bytes,true});
   }
   std::sort(regions.begin(),regions.end(),[](const Region& a,const Region& b) {
     return std::tie(a.birth,a.packed,a.id)<std::tie(b.birth,b.packed,b.id);
@@ -169,7 +184,7 @@ inline ProductMaterializationChainPaths product_materialization_chain_paths(size
     const ProductMaterializationProfile& profile) {
   ProductMaterializationChainPaths result;
   if(!input_count || input_count>4096 || nodes.empty() || nodes.size()>64 || !prefix || prefix>20 ||
-      profile.cost_schema_version!=2 || !profile.max_frontier || profile.max_frontier>4096 || minimum.size()!=nodes.size() ||
+      profile.cost_schema_version!=3 || !profile.replay.replays || profile.replay.replays==UINT64_MAX || !profile.max_frontier || profile.max_frontier>4096 || minimum.size()!=nodes.size() ||
       profile.uniform.nodes.size()!=nodes.size() || profile.packed.size()!=nodes.size())return result;
   for(size_t i=0;i<nodes.size();++i)
     if(!minimum[i] || minimum[i]>prefix || nodes[i].a>=input_count+i || nodes[i].b>=input_count+i)return result;
@@ -179,6 +194,7 @@ inline ProductMaterializationChainPaths product_materialization_chain_paths(size
     for(auto id:{nodes[i].a,nodes[i].b})if(id>=input_count && id!=previous)return result;
   }
   result.applicable=true;
+  const auto repeated=[&](uint64_t ns){return replay_cost_mul(ns,profile.replay.replays);};
   std::vector<uint32_t> external_slot(input_count,UINT32_MAX);uint32_t external_count=0;
   for(const auto node:nodes)if(node.b<input_count && external_slot[node.b]==UINT32_MAX)
     external_slot[node.b]=external_count++;
@@ -199,10 +215,13 @@ inline ProductMaterializationChainPaths product_materialization_chain_paths(size
       if(packing && capacity<p)continue;
       auto candidate=state;
       if(i && state.prefixes.back()<p)
-        candidate.cost=product_cost_add(candidate.cost,profile.uniform.nodes[i-1].lift[state.prefixes.back()*21+p]);
+        candidate.cost=product_cost_add(candidate.cost,repeated(profile.uniform.nodes[i-1].lift[state.prefixes.back()*21+p]));
       if(packing) {
         const uint32_t old=external?state.packed_prefix[slot]:0;
-        if(old<p)candidate.cost=product_cost_add(candidate.cost,profile.packed[i].pack[ProductPackedCosts::pack_index(capacity,old,p)]);
+        if(old<p) {
+          const auto ns=profile.packed[i].pack[ProductPackedCosts::pack_index(capacity,old,p)];
+          candidate.cost=product_cost_add(candidate.cost,external && profile.replay.retain_external_b?ns:repeated(ns));
+        }
         if(external){candidate.packed_prefix[slot]=std::max(old,p);candidate.packed_capacity[slot]=capacity;}
       }
       // The evaluator retains exactly the largest packed demand. A speculative
@@ -210,7 +229,7 @@ inline ProductMaterializationChainPaths product_materialization_chain_paths(size
       bool realizable=true;
       for(uint32_t s=0;s<external_count;++s)if(last_use[s]<=i && candidate.packed_prefix[s]!=candidate.packed_capacity[s]){realizable=false;break;}
       if(!realizable)continue;
-      candidate.cost=product_cost_add(candidate.cost,packing?profile.packed[i].gemm[ProductPackedCosts::gemm_index(capacity,p)]:profile.uniform.nodes[i].gemm[p]);
+      candidate.cost=product_cost_add(candidate.cost,repeated(packing?profile.packed[i].gemm[ProductPackedCosts::gemm_index(capacity,p)]:profile.uniform.nodes[i].gemm[p]));
       if(candidate.cost==UINT64_MAX){result.unknown_cost=true;continue;}
       candidate.prefixes.push_back(p);candidate.packing.push_back(packing);
       // Dead external caches cannot affect subsequent cost. Coalesce them so
@@ -231,7 +250,7 @@ inline ProductMaterializationChainPaths product_materialization_chain_paths(size
   }
   for(auto& path:current) {
     if(path.prefixes.back()<prefix)path.cost=product_cost_add(path.cost,
-        profile.uniform.nodes.back().lift[path.prefixes.back()*21+prefix]);
+        repeated(profile.uniform.nodes.back().lift[path.prefixes.back()*21+prefix]));
     if(path.cost!=UINT64_MAX)result.paths.push_back(std::move(path));
     else result.unknown_cost=true;
   }
@@ -247,7 +266,7 @@ inline ProductMaterializationSelection select_product_materializations(
     const std::vector<uint32_t>& minimum,uint64_t budget,bool gpu,
     const ProductMaterializationProfile& profile,const std::vector<uint32_t>& outputs={}) {
   ProductMaterializationSelection best;const auto& costs=profile.uniform;
-  if(profile.cost_schema_version!=2 || costs.version!=2 || !valid_ordered_basis(costs.basis) || !prefix || prefix>costs.basis.count ||
+  if(profile.cost_schema_version!=3 || !profile.replay.replays || profile.replay.replays==UINT64_MAX || costs.version!=2 || !valid_ordered_basis(costs.basis) || !prefix || prefix>costs.basis.count ||
       inputs.empty() || nodes.empty() || nodes.size()>64 || minimum.size()!=nodes.size() ||
       costs.nodes.size()!=nodes.size() || profile.packed.size()!=nodes.size() ||
       costs.target.empty() || costs.provenance.empty() || costs.max_evaluations<4 || costs.max_evaluations>65536 ||
@@ -273,8 +292,8 @@ inline ProductMaterializationSelection select_product_materializations(
     }
     const auto peak=candidate.arena.arena_bytes+candidate.lift_scratch_bytes;
     const auto best_peak=best.arena.arena_bytes+best.lift_scratch_bytes;
-    if(best.status!=RNS8_SUCCESS || std::tie(candidate.estimated_ns,peak,candidate.prefixes,candidate.packed_b)<
-        std::tie(best.estimated_ns,best_peak,best.prefixes,best.packed_b))best=std::move(candidate);
+    if(best.status!=RNS8_SUCCESS || std::tie(candidate.replay_cost.lifetime_ns,peak,candidate.prefixes,candidate.packed_b)<
+        std::tie(best.replay_cost.lifetime_ns,best_peak,best.prefixes,best.packed_b))best=std::move(candidate);
   };
   ProductMaterializationChainPaths chain;
   if(combinations<=costs.max_evaluations) {
@@ -303,9 +322,10 @@ inline ProductMaterializationSelection select_product_materializations(
   }
   if(best.status!=RNS8_SUCCESS && best.exhaustive && !unknown && budget_rejected)best.status=RNS8_WORKSPACE_TOO_SMALL;
   best.evaluated=evaluated;best.chain_dynamic_programming=chain.applicable;
-  best.chain_cost_lower_bound=chain.lower_bound;
+  const auto common=estimate_replay_cost(profile.replay,0,0).lifetime_ns;
+  best.chain_cost_lower_bound=product_cost_add(chain.lower_bound,common);
   best.cost_optimal=best.status==RNS8_SUCCESS && ((best.exhaustive && !unknown) ||
-      (chain.lower_bound!=UINT64_MAX && best.estimated_ns==chain.lower_bound));
+      (best.chain_cost_lower_bound!=UINT64_MAX && best.replay_cost.lifetime_ns==best.chain_cost_lower_bound));
   return best;
 }
 } // namespace rns8::detail

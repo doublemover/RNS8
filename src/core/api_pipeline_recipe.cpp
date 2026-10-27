@@ -4,6 +4,7 @@
 #include "backend_common/encoded_b_layout.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
 #include "backend_common/native_locality.hpp"
+#include "backend_common/pinned_host_contract.hpp"
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -15,7 +16,7 @@ bool terminated(const char* text,size_t size){return std::memchr(text,0,size)!=n
 bool valid_recipe_options(const rns8_pipeline_recipe_options& o) {
   return valid_abi(o.struct_size,o.abi_version,sizeof(o)) && o.route_mask && !(o.route_mask&~31u) &&
       (o.execution_mode==RNS8_EXEC_SYNC || o.execution_mode==RNS8_EXEC_BORROWED_STREAM || o.execution_mode==RNS8_EXEC_OWNED_GRAPH) &&
-      o.output_mode<=3 && (o.output_mode?(o.output_limbs>=1 && o.output_limbs<=32 && o.export_algorithm<=4 && o.output_ld>0):(!o.output_limbs && !o.export_algorithm && !o.output_ld)) &&
+      o.output_mode<=5 && (o.output_mode?(o.output_limbs>=1 && o.output_limbs<=(o.output_mode>=4?1u:32u) && o.export_algorithm<=(o.output_mode>=4?0u:4u) && o.output_ld>0):(!o.output_limbs && !o.export_algorithm && !o.output_ld)) &&
       (o.modulus_group==1 || o.modulus_group==2 || o.modulus_group==4) && o.workers && o.workers<=1024 &&
       o.fragments && o.fragments<=4096 && o.fragment_window && o.fragment_window<=o.fragments &&
       !(o.locality_order_mask&~15u) && o.reuse_count && o.max_extra_payload_bytes;
@@ -29,7 +30,7 @@ std::string recipe_identity(const rns8_plan& p,const rns8_matrix& a,const rns8_m
   const auto text=[&](const std::string& x){key+=std::to_string(x.size())+":"+x;};
   const auto number=[&](uint64_t x){text(std::to_string(x));};
   text(p.backend_target_id);text(p.arithmetic_guard?p.arithmetic_guard->checked.sha256:"");text(provider);
-  number(p.backend);number(p.desc.semantics);number(p.desc.m);number(p.desc.n);number(p.desc.k);number(p.prefix);number(p.desc.flags);
+  number(p.backend);number(p.desc.semantics);number(p.desc.finite_modulus);number(p.desc.m);number(p.desc.n);number(p.desc.k);number(p.prefix);number(p.desc.flags);
   number(a.prefix);number(b.prefix);number(c.prefix);number(a.exact_range_prefix);number(b.exact_range_prefix);
   text(a.exact_max_magnitude.str());text(b.exact_max_magnitude.str());number(a.device_native_current);number(b.device_native_current);
   if(binding){number(a.matrix_instance_id);number(a.content_generation);number(b.matrix_instance_id);number(b.content_generation);number(c.matrix_instance_id);}
@@ -49,11 +50,18 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx,const rns8_plan*
     if(!ctx || !plan || !a || !b || !c || !options || !required || (capacity && !output) ||
         (count && !prices) || count>256 || !valid_recipe_options(*options))return RNS8_INVALID_ARGUMENT;
     *required=0;const auto& o=*options;
-    if(!exact_wide_semantics(plan->desc.semantics) || !plan->tile_schedule.empty())return RNS8_UNSUPPORTED_BACKEND;
+    if(!plan->tile_schedule.empty())return RNS8_UNSUPPORTED_BACKEND;
+    const bool wide=exact_wide_semantics(plan->desc.semantics),finite=uses_finite_storage(plan->desc.semantics);
+    if((o.output_mode && o.output_mode<=3 && !wide) ||
+        (o.output_mode==4 && plan->desc.semantics!=RNS8_BOUNDED_I64 && plan->desc.semantics!=RNS8_BOUNDED_U64 && plan->desc.semantics!=RNS8_WRAP_U64_MOD_2_64) ||
+        (o.output_mode==5 && !finite))return RNS8_INVALID_ARGUMENT;
     AddressDomain host_output;if(o.output_mode && (o.output_ld<plan->desc.n ||
         !checked_host_plane_address(plan->desc.m,plan->desc.n,o.output_ld,1,uint64_t(o.output_limbs)*8,host_output)))return RNS8_RANGE_ERROR;
     if(!plan_schedule_contract_matches(*plan) || !plan->arithmetic_guard)return RNS8_INVALID_ARGUMENT;
-    const auto admitted=validate_rns_gemm_operands(*ctx,*plan,*a,*b,*c);if(admitted!=RNS8_SUCCESS)return admitted;
+    const auto admitted=finite?validate_finite_gemm_operands(*ctx,*plan,uint16_t(plan->desc.finite_modulus),*a,*b,*c):
+        plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64?validate_wrap_gemm_operands(*ctx,*plan,*a,*b,*c):
+        validate_rns_gemm_operands(*ctx,*plan,*a,*b,*c);
+    if(admitted!=RNS8_SUCCESS)return admitted;
     char build[65]{};auto status=rns8_get_pipeline_build_identity(build,sizeof(build));if(status!=RNS8_SUCCESS)return status;
     for(uint32_t i=0;i<count;++i) {
       const auto& p=prices[i];if(!valid_abi(p.struct_size,p.abi_version,sizeof(p)) || p.known_mask>7 ||
@@ -89,8 +97,12 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx,const rns8_plan*
         if(support.resource_status==2)x.resource_status=2;
         set_text(x.provider_identity_sha256,sizeof(x.provider_identity_sha256),support.provider_identity_sha256);
         set_text(x.explanation,sizeof(x.explanation),support.explanation);
-        if(x.status==RNS8_SUCCESS && o.execution_mode!=RNS8_EXEC_SYNC && o.output_mode)
-          reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_EXECUTION_MODE,"this bound recipe supports async resident output; host transfer has its own explicit prepared owner");
+        if(x.status==RNS8_SUCCESS && !wide && route!=RNS8_ROUTE_UNIFORM)
+          reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"this semantic contract uses the uniform prepared producer");
+        if(x.status==RNS8_SUCCESS && o.execution_mode!=RNS8_EXEC_SYNC && o.output_mode &&
+            (plan->backend!=RNS8_BACKEND_HIP_DIRECT || o.export_algorithm ||
+             (o.output_mode!=1 && o.output_mode!=2) || (o.output_mode==1)!=(plan->desc.semantics==RNS8_EXACT_WIDE_SIGNED)))
+          reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_EXECUTION_MODE,"async host output requires direct-HIP signed/unsigned checked Garner limbs matching the exact-wide semantic");
         uint64_t extra=route==RNS8_ROUTE_SPLIT_K?0:plan->backend_workspace_required_bytes;
         if(x.status==RNS8_SUCCESS && route==RNS8_ROUTE_NARROW &&
             (!add_payload(extra,support.required_device_bytes) || !add_payload(extra,support.required_host_bytes)))
@@ -136,7 +148,21 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx,const rns8_plan*
           }
         }
         x.retained_payload_bytes=extra;x.preparation_peak_bytes=extra;
-        if(x.status==RNS8_SUCCESS && o.output_mode) {
+        if(x.status==RNS8_SUCCESS && o.output_mode && o.execution_mode!=RNS8_EXEC_SYNC) {
+          rns8_pinned_host_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
+          d.element_type=o.output_mode==1?RNS8_NATIVE_DEVICE_SIGNED_LIMBS:RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS;
+          d.access=RNS8_NATIVE_DEVICE_WRITE;d.rows=plan->desc.m;d.cols=plan->desc.n;d.ld=o.output_ld;d.limb_count=o.output_limbs;
+          PinnedHostResources r;uint64_t device=0,pinned=0,total=0;
+          const auto s=query_pinned_host_contract(d,r);
+          if(s!=RNS8_SUCCESS || !pinned_host_transfer_bytes(r,plan->prefix,false,false,device,pinned,total))
+            reject(s==RNS8_SUCCESS?RNS8_RANGE_ERROR:s,RNS8_SUPPORT_RESOURCE_OVERFLOW,"async checked host export payload query failed");
+          else {x.export_payload_bytes=total;if(!add_payload(extra,total))reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_RESOURCE_OVERFLOW,"producer/export payload overflow");}
+        } else if(x.status==RNS8_SUCCESS && o.output_mode>=4) {
+          // Finite output is staged as bytes then widened to the documented
+          // word representation. Native exporters own their checked staging.
+          x.export_payload_bytes=plan->desc.m*plan->desc.n*uint64_t(o.output_mode==5?1:8);
+          if(!add_payload(extra,x.export_payload_bytes))reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_RESOURCE_OVERFLOW,"native export payload overflow");
+        } else if(x.status==RNS8_SUCCESS && o.output_mode) {
           const bool gpu=hip_device_backend_kind(plan->backend);
           if(!checked_crt_backend_supported(plan->backend))reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"selected producer cannot bind the requested checked CRT owner");
           else {
@@ -193,6 +219,8 @@ struct rns8_pipeline_recipe {
   rns8_workspace* workspace=nullptr;rns8_prepared_execution* execution=nullptr;
   rns8_prepared_group* group=nullptr;rns8_encoded_b* encoded=nullptr;
   rns8_split_k* split=nullptr;rns8_crt_export* export_owner=nullptr;
+  rns8_pinned_host_buffer* host_output=nullptr;rns8_prepared_execution* host_export=nullptr;
+  rns8_prepared_execution* latest_owner=nullptr;
   rns8_completion_token latest{};bool async_issued=false,refs=false,usable=false;
   rns8_pipeline_recipe* cleanup_next=nullptr;
 };
@@ -206,13 +234,17 @@ rns8_status close_recipe(rns8_pipeline_recipe& p) {
   p.usable=false;
   // A failed operation may nevertheless have drained. The actual child owners
   // decide whether resources can be destroyed; a failed wait never permits free.
-  if(p.async_issued && p.execution) {
+  if(p.async_issued && p.latest_owner) {
     rns8_completion_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
-    (void)rns8_wait_prepared_hip(p.execution,p.latest,&info);
+    (void)rns8_wait_prepared_hip(p.latest_owner,p.latest,&info);
   }
+  if(p.host_export){const auto s=rns8_destroy_prepared_execution(p.host_export);if(s!=RNS8_SUCCESS)return s;
+    if(p.latest_owner==p.host_export){p.latest_owner=nullptr;p.async_issued=false;}p.host_export=nullptr;}
+  if(p.host_output){const auto s=rns8_destroy_pinned_host_buffer(p.host_output);if(s!=RNS8_SUCCESS)return s;p.host_output=nullptr;}
   if(p.export_owner){const auto s=rns8_destroy_crt_export(p.export_owner);if(s!=RNS8_SUCCESS)return s;p.export_owner=nullptr;}
   if(p.group){const auto s=rns8_destroy_prepared_group(p.group);if(s!=RNS8_SUCCESS)return s;p.group=nullptr;}
-  if(p.execution){const auto s=rns8_destroy_prepared_execution(p.execution);if(s!=RNS8_SUCCESS)return s;p.execution=nullptr;}
+  if(p.execution){const auto s=rns8_destroy_prepared_execution(p.execution);if(s!=RNS8_SUCCESS)return s;
+    if(p.latest_owner==p.execution){p.latest_owner=nullptr;p.async_issued=false;}p.execution=nullptr;}
   if(p.encoded){const auto s=rns8_destroy_encoded_b(p.encoded);if(s!=RNS8_SUCCESS)return s;p.encoded=nullptr;}
   if(p.split){const auto s=rns8_destroy_split_k(p.split);if(s!=RNS8_SUCCESS)return s;p.split=nullptr;}
   if(p.workspace){const auto s=rns8_destroy_workspace(p.workspace);if(s!=RNS8_SUCCESS)return s;p.workspace=nullptr;}
@@ -295,6 +327,17 @@ rns8_status rns8_prepare_pipeline_recipe(rns8_context* ctx,const rns8_plan* plan
         if(status!=RNS8_SUCCESS)return fail(status);
       }
     }
+    if(options->output_mode && options->execution_mode!=RNS8_EXEC_SYNC) {
+      rns8_pinned_host_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
+      d.element_type=options->output_mode==1?RNS8_NATIVE_DEVICE_SIGNED_LIMBS:RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS;
+      d.access=RNS8_NATIVE_DEVICE_WRITE;d.rows=plan->desc.m;d.cols=plan->desc.n;d.ld=options->output_ld;d.limb_count=options->output_limbs;
+      boost::multiprecision::cpp_int envelope;status=exact_gemm_range(*plan,*a,*b,envelope);
+      if(status!=RNS8_SUCCESS)return fail(status);
+      status=rns8_create_pinned_host_buffer_hip(ctx,&d,p->candidate.export_payload_bytes,&p->host_output);
+      if(status!=RNS8_SUCCESS)return fail(status);
+      status=prepare_bound_host_export_hip(ctx,c,p->host_output,plan->prefix,envelope,p->candidate.export_payload_bytes,&p->host_export);
+      if(status!=RNS8_SUCCESS)return fail(status);
+    }
     p->usable=true;*out=p.release();return RNS8_SUCCESS;
   });
 }
@@ -312,6 +355,15 @@ rns8_status rns8_execute_pipeline_recipe(rns8_pipeline_recipe* p,uint64_t* dst,i
     else if(p->group){uint32_t done=0;status=rns8_execute_prepared_group(p->group,&p->latest,1,&done);}
     else status=rns8_execute_prepared(p->execution,&p->latest);
     if(status!=RNS8_SUCCESS || !dst)return status;
+    if(p->options.output_mode==4)return p->plan->desc.semantics==RNS8_BOUNDED_I64?
+        rns8_export_i64(p->ctx,p->plan,p->c,reinterpret_cast<int64_t*>(dst),ld):rns8_export_u64(p->ctx,p->plan,p->c,dst,ld);
+    if(p->options.output_mode==5) {
+      std::vector<uint8_t> values(size_t(p->plan->desc.m*p->plan->desc.n));
+      status=rns8_export_finite_u8(p->ctx,p->plan,uint16_t(p->plan->desc.finite_modulus),p->c,values.data(),p->plan->desc.n);
+      if(status!=RNS8_SUCCESS)return status;
+      for(int64_t row=0;row<p->plan->desc.m;++row)for(int64_t col=0;col<p->plan->desc.n;++col)dst[row*ld+col]=values[size_t(row*p->plan->desc.n+col)];
+      return RNS8_SUCCESS;
+    }
     if(!p->export_owner) {
       rns8_crt_export_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
       d.algorithm=p->options.export_algorithm;d.mode=p->options.output_mode-1;d.limb_count=p->options.output_limbs;d.max_scratch_bytes=p->candidate.export_payload_bytes;
@@ -324,21 +376,40 @@ rns8_status rns8_submit_pipeline_recipe_hip(rns8_pipeline_recipe* p,void* stream
   return guard_api([&]() -> rns8_status {
     if(!out || !stream)return RNS8_INVALID_ARGUMENT;
     auto status=recipe_current(p);if(status!=RNS8_SUCCESS)return status;
-    if(p->options.output_mode || p->options.execution_mode==RNS8_EXEC_SYNC || !p->execution)return RNS8_UNSUPPORTED_BACKEND;
+    if(p->options.execution_mode==RNS8_EXEC_SYNC || !p->execution)return RNS8_UNSUPPORTED_BACKEND;
+    if(p->host_output) {
+      rns8_pinned_host_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+      status=rns8_get_pinned_host_info(p->host_output,&info);if(status!=RNS8_SUCCESS)return status;
+      if(info.device_writer || info.host_readers || info.write_window || info.device_readers)return RNS8_BUSY;
+    }
     const bool graph=p->options.execution_mode==RNS8_EXEC_OWNED_GRAPH;rns8_completion_token token{};
     if(p->group){uint32_t issued=0;status=graph?rns8_submit_native_group_hip_graph(p->group,stream,&token,1,&issued):rns8_submit_native_group_hip(p->group,stream,&token,1,&issued);}
     else status=graph?rns8_submit_prepared_hip_graph(p->execution,stream,&token):rns8_submit_prepared_hip(p->execution,stream,&token);
-    if(token.epoch){p->latest=token;p->async_issued=true;*out=token;}return status;
+    if(token.epoch){p->latest=token;p->latest_owner=p->execution;p->async_issued=true;*out=token;}
+    if(status!=RNS8_SUCCESS || !p->host_export)return status;
+    status=rns8_bind_prepared_dependency(p->host_export,p->execution,token);
+    if(status!=RNS8_SUCCESS)return status;
+    rns8_completion_token exported{};status=rns8_submit_prepared_hip_pipeline(p->host_export,stream,&exported);
+    if(exported.epoch){p->latest=exported;p->latest_owner=p->host_export;*out=exported;}
+    return status;
   });
 }
 rns8_status rns8_query_pipeline_recipe_hip(rns8_pipeline_recipe* p,rns8_completion_token token,rns8_completion_info* info) {
-  if(!p || !p->execution || !p->async_issued)return RNS8_INVALID_ARGUMENT;return rns8_query_prepared_hip(p->execution,token,info);
+  if(!p || !p->latest_owner || !p->async_issued)return RNS8_INVALID_ARGUMENT;return rns8_query_prepared_hip(p->latest_owner,token,info);
 }
 rns8_status rns8_wait_pipeline_recipe_hip(rns8_pipeline_recipe* p,rns8_completion_token token,rns8_completion_info* info) {
-  if(!p || !p->execution || !p->async_issued)return RNS8_INVALID_ARGUMENT;return rns8_wait_prepared_hip(p->execution,token,info);
+  if(!p || !p->latest_owner || !p->async_issued)return RNS8_INVALID_ARGUMENT;return rns8_wait_prepared_hip(p->latest_owner,token,info);
 }
 rns8_status rns8_cancel_pipeline_recipe_hip(rns8_pipeline_recipe* p,rns8_completion_token token) {
-  if(!p || !p->execution || !p->async_issued)return RNS8_INVALID_ARGUMENT;return rns8_cancel_prepared_hip(p->execution,token);
+  if(!p || !p->latest_owner || !p->async_issued)return RNS8_INVALID_ARGUMENT;return rns8_cancel_prepared_hip(p->latest_owner,token);
+}
+rns8_status rns8_begin_pipeline_recipe_host_read(rns8_pipeline_recipe* p,const uint64_t** data,uint64_t* bytes) {
+  if(!p || !p->host_output || !data || !bytes)return RNS8_INVALID_ARGUMENT;
+  const void* pointer=nullptr;const auto status=rns8_begin_pinned_host_read(p->host_output,&pointer,bytes);
+  if(status==RNS8_SUCCESS)*data=static_cast<const uint64_t*>(pointer);return status;
+}
+rns8_status rns8_end_pipeline_recipe_host_read(rns8_pipeline_recipe* p) {
+  return p && p->host_output?rns8_end_pinned_host_read(p->host_output):RNS8_INVALID_ARGUMENT;
 }
 rns8_status rns8_get_pipeline_recipe_candidate(const rns8_pipeline_recipe* p,rns8_pipeline_recipe_candidate* out) {
   if(!p || !out || !valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;*out=p->candidate;return RNS8_SUCCESS;

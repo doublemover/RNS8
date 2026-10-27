@@ -14,7 +14,7 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
   rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(backend==RNS8_BACKEND_CPU_REFERENCE?-1:0,&options,&ctx)==RNS8_SUCCESS);
   auto* basis=experimental?experimental_basis_fixture::create(experimental_basis_fixture::moduli()):nullptr;
   for(const auto semantics:{RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED})
-    for(bool diamond:{false,true})for(const auto policy:{RNS8_PRODUCT_FULL_PREFIX,RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX}) {
+    for(bool retain:{false,true})for(bool diamond:{false,true})for(const auto policy:{RNS8_PRODUCT_FULL_PREFIX,RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX}) {
       rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.rows=md.cols=2;
       md.semantics=semantics;md.bound_kind=RNS8_BOUND_NONE;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.max_prefix=20;
       std::array<rns8_matrix*,4> matrices{};
@@ -38,7 +38,8 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       rns8_product_recipe_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;desc.prefix_policy=policy;
       desc.inputs=inputs;desc.input_count=2;desc.nodes=nodes.data();desc.node_count=static_cast<uint32_t>(nodes.size());desc.max_arena_and_lift_bytes=UINT64_MAX;
       rns8_product_materialization_profile prices{};prices.struct_size=sizeof(prices);prices.abi_version=RNS8_ABI_VERSION;
-      prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
+      prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.expected_replays=1;prices.baseline_replay_ns=UINT64_MAX;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
+      prices.flags=retain?RNS8_PRODUCT_RETAIN_EXTERNAL_PACKED_B:0;prices.expected_replays=retain?8:1;
       prices.node_count=desc.node_count;prices.max_evaluations=4096;prices.max_chain_frontier=256;
       {constexpr char label[]="synthetic-correctness-only-profile";std::copy_n(label,sizeof(label),prices.calibration_identity);}
       prices.identity.struct_size=sizeof(prices.identity);prices.identity.abi_version=RNS8_ABI_VERSION;
@@ -60,7 +61,7 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       prices.nodes=costs.data();rns8_product_recipe* recipe=nullptr;
       // These malformed headers carry an unreadable node pointer so a widened
       // table read before schema/stride/outer-size validation is observable.
-      for(uint32_t schema:{0u,1u,3u}) {
+      for(uint32_t schema:{0u,1u,2u,4u}) {
         auto malformed=prices;malformed.cost_schema_version=schema;
         malformed.nodes=reinterpret_cast<const rns8_product_materialization_node_costs*>(uintptr_t(1));
         CHECK(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,&malformed,&recipe)==RNS8_INVALID_ARGUMENT);CHECK_FALSE(recipe);
@@ -93,7 +94,9 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
         const auto after=hip_direct_allocation_counters_snapshot();
         CHECK(after.allocate_calls==before.allocate_calls);CHECK(after.free_calls==before.free_calls);
         REQUIRE(rns8_get_product_materialization_info(recipe,&info)==RNS8_SUCCESS);
-        if(policy==RNS8_PRODUCT_FULL_PREFIX)CHECK(info.completed_packing_calls==(diamond?2:1));
+        if(policy==RNS8_PRODUCT_FULL_PREFIX)CHECK(info.completed_packing_calls==uint64_t((diamond?2:1)-(retain && repeat?1:0)));
+        CHECK(info.completed_replays==repeat+1);
+        CHECK((info.retained_external_packed_bytes>0)==retain);
         CHECK(info.completed_packing_calls<=nodes.size());
         for(unsigned output=0;output<2;++output) {
           std::vector<uint64_t> limbs(2*3*3,UINT64_C(0xfeed));
@@ -115,6 +118,16 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       CHECK(matrices[2]->content_generation==generation);
       REQUIRE(rns8_rebind_product_recipe_inputs(recipe,inputs,2)==RNS8_SUCCESS);
       REQUIRE(rns8_execute_product_recipe_outputs(recipe,destinations.data(),2)==RNS8_SUCCESS);
+      if(retain && policy==RNS8_PRODUCT_FULL_PREFIX) {
+        REQUIRE(rns8_get_product_materialization_info(recipe,&info)==RNS8_SUCCESS);
+        CHECK(info.completed_packing_calls==uint64_t(diamond?1:0));
+        REQUIRE(pack(1,2)==RNS8_SUCCESS);
+        CHECK(rns8_execute_product_recipe_outputs(recipe,destinations.data(),2)==RNS8_INVALID_ARGUMENT);
+        REQUIRE(rns8_rebind_product_recipe_inputs(recipe,inputs,2)==RNS8_SUCCESS);
+        REQUIRE(rns8_execute_product_recipe_outputs(recipe,destinations.data(),2)==RNS8_SUCCESS);
+        REQUIRE(rns8_get_product_materialization_info(recipe,&info)==RNS8_SUCCESS);
+        CHECK(info.completed_packing_calls==uint64_t(diamond?2:1));
+      }
       REQUIRE(rns8_destroy_product_recipe(recipe)==RNS8_SUCCESS);
       if(basis_plan)REQUIRE(rns8_destroy_basis_plan(basis_plan)==RNS8_SUCCESS);
       if(export_plan)REQUIRE(rns8_destroy_plan(export_plan)==RNS8_SUCCESS);

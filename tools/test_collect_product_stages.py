@@ -89,10 +89,12 @@ class ProductStageContracts(unittest.TestCase):
             dataset='all_one_inputs_exact_integer_dag_v1',cache_state='hot_repeated_stage',timing_source='host_monotonic_completed_backend_call',device='fixture',runtime_version=7,training_charge_ns=1000000,cells=cells,qualified=False,promotion_eligible=False)
         capture['runtime_version']=7
         capture.update(stage_price_identity=price_identity(bundle),stage_price_training_charge_ns=bundle['training_charge_ns'],stage_price_graph_identity=identity,selected_compute_prefixes=[20]*3,recipe_retained_lift_bytes=0,
-            cost_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=2,price_sha256=price_identity(bundle),qualified=False),
-            materialization_plan=dict(packed_b=[0,0,0],packed_values=[],evaluated=4,exhaustive=False,chain_dynamic_programming=True,cost_optimal=False,estimated_ns=300,completed_packing_calls=0))
-        phase=dict(producer_us=1.,execute_lift_us=.35,final_export_us=3.,total_us=4.35)
+            cost_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=3,price_sha256=price_identity(bundle),qualified=False),
+            materialization_plan=dict(packed_b=[0,0,0],packed_values=[],evaluated=4,exhaustive=False,chain_dynamic_programming=True,cost_optimal=False,estimated_ns=350,completed_packing_calls=0))
+        phase=dict(producer_us=1.,execute_lift_us=.30,final_export_us=.05,total_us=1.35)
         capture.update(first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)])
+        from test_collect_lift_recipe import replay_receipt
+        replay_receipt(capture,50)
         observations=[]
         for i in range(5):
             c=copy.deepcopy(capture);c.update(run_id='held'+str(i),execution_id='held-process'+str(i))
@@ -129,7 +131,7 @@ class ProductStageContracts(unittest.TestCase):
         bad=copy.deepcopy(observations);bad[0][1]['stage_price_identity']='e'*64
         with self.assertRaises(ValueError):held_out_report(bundle,bad,.1)
         bad=copy.deepcopy(observations)
-        for sample in bad[0][1]['samples']:sample.update(execute_lift_us=100.,total_us=104.)
+        for sample in bad[0][1]['samples']:sample.update(execute_lift_us=100.,total_us=101.05)
         self.assertFalse(held_out_report(bundle,bad,.1)['held_out_passed'])
 
 

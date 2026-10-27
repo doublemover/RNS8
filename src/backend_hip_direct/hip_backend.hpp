@@ -25,6 +25,7 @@
 #include "backend_common/native_tdm.hpp"
 
 namespace rns8::detail {
+rns8_status hip_direct_enqueue_basis_gemm(int,const void*,const void*,void*,int64_t,int64_t,int64_t,const uint16_t*,uint32_t,void*);
 namespace checked_crt {struct Decode;}
 rns8_status hip_direct_decode_crt_roots_device(int,const void*,void*,int64_t,const checked_crt::Decode&,void*);
 rns8_status hip_direct_basis_pack(int,const void*,void*,uint64_t,const void*,uint32_t,bool);

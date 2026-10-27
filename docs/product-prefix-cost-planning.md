@@ -81,3 +81,9 @@ staged copy, not zero cost for retained capacity. Version1 is rejected because
 its one-shot allocation boundary is no longer the runtime recipe boundary.
 The maximum scratch remains part of peak/retained budget admission. No measured
 costs or profitable policy are inferred from this ownership change.
+
+The public materialization selector additionally chooses packed B under explicit
+[schema3 lifetime pricing and retention](materialized-replay-lifetimes.md). Its
+lifetime ranking includes common publication, orchestration, preparation and
+calibration terms; the uniform-only internal adapter above retains its separate
+version2 primitive-cost contract.

@@ -68,19 +68,23 @@ extern "C" int rns8_hip_basis_convert(const int8_t* source,int8_t* destination,u
   hipLaunchKernelGGL(basis_convert_kernel,dim3((cells+255)/256),dim3(256),0,nullptr,source,destination,cells,from,to,source_prefix,target_prefix,signed_values,bound,status);
   return int(hipGetLastError());
 }
-extern "C" int rns8_hip_basis_gemm(const int8_t* a,const int8_t* b,int8_t* c,int m,int n,int k,
-    const uint16_t* host_moduli,uint32_t prefix) {
+extern "C" int rns8_hip_basis_gemm_stream(const int8_t* a,const int8_t* b,int8_t* c,int m,int n,int k,
+    const uint16_t* host_moduli,uint32_t prefix,void* stream) {
   if(!a || !b || !c || !host_moduli || m<=0 || n<=0 || k<=0 || !prefix || prefix>20)return int(hipErrorInvalidValue);
   const dim3 block(kRns8HipTileN,kRns8HipTileM),grid((uint32_t(n)+block.x-1)/block.x,(uint32_t(m)+block.y-1)/block.y);
   for(uint32_t p=0;p<prefix;++p) {
     const auto modulus=host_moduli[p];if(modulus<2 || modulus>256)return int(hipErrorInvalidValue);
     for(int offset=0;offset<k;) {
       const int depth=k-offset>65536?65536:k-offset;
-      hipLaunchKernelGGL(rns8_ring_gemm_i8_i32_tiled_kernel,grid,block,0,nullptr,
+      hipLaunchKernelGGL(rns8_ring_gemm_i8_i32_tiled_kernel,grid,block,0,static_cast<hipStream_t>(stream),
           a+uint64_t(p)*m*k,b+uint64_t(p)*k*n,c+uint64_t(p)*m*n,
           m,n,offset,depth,k,n,n,int(modulus),rns8_modulus_reciprocal_host(modulus),offset!=0);
       const auto error=hipGetLastError();if(error!=hipSuccess)return int(error);offset+=depth;
     }
   }
   return int(hipSuccess);
+}
+extern "C" int rns8_hip_basis_gemm(const int8_t* a,const int8_t* b,int8_t* c,int m,int n,int k,
+    const uint16_t* host_moduli,uint32_t prefix) {
+  return rns8_hip_basis_gemm_stream(a,b,c,m,n,k,host_moduli,prefix,nullptr);
 }

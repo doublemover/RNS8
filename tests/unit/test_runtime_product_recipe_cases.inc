@@ -24,6 +24,37 @@ rns8::detail::ProductMaterializationProfile materialization_prices(
   return p;
 }
 }
+TEST_CASE("materialization lifetime pricing charges calibration and retains only immutable external packs") {
+  using namespace rns8::detail;
+  const std::vector<ProductShape> inputs{{16,16},{16,16}};
+  const std::vector<ProductNode> nodes{{0,1},{2,1},{3,1}};
+  auto prices=materialization_prices(inputs,nodes,1);
+  for(auto& p:prices.packed)p.pack[ProductPackedCosts::pack_index(1,0,1)]=1000;
+  auto cold=select_product_materializations(inputs,nodes,1,{1,1,1},UINT64_MAX,false,prices);
+  REQUIRE(cold.status==RNS8_SUCCESS);CHECK(cold.packed_b==std::vector<uint8_t>(3,0));
+  prices.replay.replays=100;prices.replay.retain_external_b=true;
+  prices.replay.calibration_ns=500;prices.replay.preparation_ns=200;
+  prices.replay.orchestration_ns=7;prices.replay.publication_ns=11;
+  prices.replay.baseline_replay_ns=300;prices.replay.require_amortization=true;
+  auto retained=select_product_materializations(inputs,nodes,1,{1,1,1},UINT64_MAX,false,prices);
+  REQUIRE(retained.status==RNS8_SUCCESS);CHECK(retained.packed_b==std::vector<uint8_t>(3,1));
+  CHECK(retained.replay_cost.first_ns==1048);CHECK(retained.replay_cost.steady_ns==48);
+  CHECK(retained.replay_cost.lifetime_ns==6500);CHECK(retained.estimated_ns==1048);CHECK(retained.replay_cost.amortized_ns==65);
+  CHECK(retained.replay_cost.break_even_replays==7);CHECK(retained.replay_cost.amortization_status==1);
+  CHECK(retained.retained_external_packed_bytes==256);
+  const auto& packed=retained.packed[1];
+  for(size_t i=0;i<nodes.size();++i) {
+    const auto& v=retained.arena.values[inputs.size()+i];
+    CHECK((packed.offset+packed.layout.bytes<=v.offset || v.offset+v.bytes<=packed.offset));
+  }
+  prices.replay.replays=1;
+  CHECK(select_product_materializations(inputs,nodes,1,{1,1,1},UINT64_MAX,false,prices).status==RNS8_UNSUPPORTED_BACKEND);
+  prices.replay.require_amortization=false;prices.replay.calibration_ns=UINT64_MAX;
+  CHECK(select_product_materializations(inputs,nodes,1,{1,1,1},UINT64_MAX,false,prices).status==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(estimate_replay_cost(ReplayCostPolicy{},UINT64_MAX,0).amortized_ns==UINT64_MAX);
+  ReplayCostPolicy overflow;overflow.replays=UINT64_MAX-1;
+  CHECK(estimate_replay_cost(overflow,1,2).lifetime_ns==UINT64_MAX);
+}
 TEST_CASE("joint prefix and B-layout planning charges shared growth and physical liveness") {
   using namespace rns8::detail;
   const std::vector<ProductShape> inputs{{16,16},{16,16}};
@@ -137,7 +168,7 @@ TEST_CASE("materialization identity reports the first blocking edge before unbou
   rns8_product_recipe_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;
   desc.inputs=inputs;desc.input_count=1;desc.nodes=nodes.data();desc.node_count=64;desc.max_arena_and_lift_bytes=UINT64_MAX;
   rns8_product_materialization_profile prices{};prices.struct_size=sizeof(prices);prices.abi_version=RNS8_ABI_VERSION;
-  prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
+  prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.expected_replays=1;prices.baseline_replay_ns=UINT64_MAX;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
   prices.node_count=64;prices.max_evaluations=4;prices.max_chain_frontier=1;
   prices.identity.struct_size=sizeof(prices.identity);prices.identity.abi_version=RNS8_ABI_VERSION;
   REQUIRE(rns8_query_product_materialization_identity(ctx,&desc,nullptr,0,&prices.identity)==RNS8_SUCCESS);

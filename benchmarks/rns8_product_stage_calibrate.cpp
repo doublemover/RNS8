@@ -5,6 +5,7 @@
 #include "backend_common/product_materialization_plan.hpp"
 #include "rns8/experimental_product.h"
 #include "test_product_stage_prices.hpp"
+#include "product_dataset.hpp"
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -37,7 +38,7 @@ int main(int argc,char** argv){try {
   if(argc==2 && std::string(argv[1])=="--self-test"){rns8::bench::test_product_stage_price_ingestion();std::cout<<"stage price ingestion passed\n";return 0;}
   if(argc!=3 || !argv[2][0])throw std::invalid_argument("usage: rns8-product-stage-calibrate CASE.json unique-run-id");
   json c;std::ifstream(argv[1])>>c;
-  if(c.size()!=11 || c.at("schema")!="product_stage_case_v1" || !c.at("unsigned_inputs").is_boolean())throw std::invalid_argument("case ABI");
+  if(c.size()!=11+unsigned(c.contains("input_values")) || c.at("schema")!="product_stage_case_v1" || !c.at("unsigned_inputs").is_boolean())throw std::invalid_argument("case ABI");
   const auto side=number(c,"side",1,256),depth=number(c,"depth",1,12),prefix=number(c,"prefix",1,20);
   const auto warmups=number(c,"warmups",1,100),repeats=number(c,"repeats",3,100);
   const auto ps=domain(c,"prefixes",prefix),caps=domain(c,"capacities",prefix);
@@ -49,9 +50,10 @@ int main(int argc,char** argv){try {
   else if(topology=="diamond" && depth==4)nodes={{0,1},{2,1},{0,2},{3,4}};
   else throw std::invalid_argument("topology");
   const uint64_t cells=uint64_t(side)*side;
-  std::vector<cpp_int> values{1,1};
+  const auto dataset=rns8::bench::product_dataset_inputs(c);
+  std::vector<cpp_int> values(dataset.begin(),dataset.end());
   for(auto node:nodes){cpp_int value=cpp_int(side)*values[node.a]*values[node.b];
-    if(!exact_range_fits(semantics,value,modulus_product(prefix)))throw std::invalid_argument("strict range");values.push_back(std::move(value));}
+    if(!exact_range_fits(semantics,boost::multiprecision::abs(value),modulus_product(prefix)))throw std::invalid_argument("strict range");values.push_back(std::move(value));}
   ResidueLayout uniform;check(make_residue_layout(ResidueLayoutKind::modulus_major,side,side,side,prefix,0,0,uniform)?RNS8_SUCCESS:RNS8_RANGE_ERROR);
   ResidueLayout largest;check(make_residue_layout(ResidueLayoutKind::tile_major,side,side,side,caps.back(),16,16,largest)?RNS8_SUCCESS:RNS8_RANGE_ERROR);
   const uint64_t scratch_bytes=sizeof(int)+cells*(prefix-1);
@@ -62,6 +64,7 @@ int main(int argc,char** argv){try {
   hip_direct_timing_set_enabled(false);check(rns8_create_context(0,&options,&context.value));auto* ctx=context.value;
   std::vector<uint64_t> ones(cells,1);
   for(unsigned i=0;i<2;++i){rns8_matrix_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=semantics;
+    std::fill(ones.begin(),ones.end(),rns8::bench::product_dataset_word(dataset[i]));
     d.rows=side;d.cols=side;d.logical_ld=side;d.logical_layout=RNS8_LAYOUT_ROW_MAJOR;d.max_prefix=prefix;
     rns8_matrix* m=nullptr;check(rns8_create_matrix(ctx,&d,&m));context.inputs.push_back(m);
     check(uns?rns8_pack_u64(ctx,m,ones.data(),side,1):rns8_pack_i64(ctx,m,reinterpret_cast<const int64_t*>(ones.data()),side,1));}
@@ -109,7 +112,7 @@ int main(int argc,char** argv){try {
       for(auto q:ps)if(q>p) {
         initial.assign(uniform.bytes,63);fill(expected,values[i+2]);std::copy_n(expected.data(),p*cells,initial.data());upload(result.get(),initial);
         std::fill(expected.begin()+q*cells,expected.end(),63);
-        uint64_t words[3]{};cpp_int bound=values[i+2],mask=(cpp_int(1)<<64)-1;
+        uint64_t words[3]{};cpp_int bound=boost::multiprecision::abs(values[i+2]),mask=(cpp_int(1)<<64)-1;
         for(auto& word:words){word=(bound&mask).convert_to<uint64_t>();bound>>=64;}if(bound!=0)throw std::runtime_error("bound width");
         record("lift",0,p,q,[&]{bool touched=false;check(hip_direct_lift_exact_suffix_workspace(ctx->device_id,result.get(),cells,p,q,!uns,words,scratch.get(),scratch_bytes,touched));},result.get(),expected);
       }
@@ -134,7 +137,7 @@ int main(int argc,char** argv){try {
   std::cout<<json({{"schema","rns8_product_stage_capture_v1"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"identity",{{"graph_sha256",identity.graph_sha256},{"build_sha256",identity.build_sha256},{"target",identity.target},{"node_count",identity.node_count},{"minimum_prefixes",minima}}},
     {"device",ctx->device_info.name},{"runtime_version",ctx->device_info.hip_runtime_version},{"cost_schema_version",2},
-    {"dataset","all_one_inputs_exact_integer_dag_v1"},{"cache_state","hot_repeated_stage"},{"timing_source","host_monotonic_completed_backend_call"},
+    {"dataset",rns8::bench::product_dataset_identity(c)},{"cache_state","hot_repeated_stage"},{"timing_source","host_monotonic_completed_backend_call"},
     {"nominal_clock_tick_ns",1e9*double(Clock::period::num)/double(Clock::period::den)},
     {"host_instrumentation_state","hooks_disabled"},{"setup_us",setup_us},
     {"calibration_total_us",std::chrono::duration<double,std::micro>(Clock::now()-setup_begin).count()},{"logical_device_payload_bytes",payload},

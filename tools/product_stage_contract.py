@@ -18,7 +18,8 @@ def price_cells(document):
     keys={'schema','cost_schema_version','identity','training_run_ids','training_execution_ids','source_artifacts','dataset','cache_state','timing_source','device','runtime_version','training_charge_ns','cells','qualified','promotion_eligible'}
     if type(document) is not dict or set(document)!=keys or document['schema']!='rns8_product_stage_prices_v1' or type(document['cost_schema_version']) is not int or document['cost_schema_version']!=2 or document['qualified'] is not False or document['promotion_eligible'] is not False:
         raise ValueError('stage price ABI')
-    if document['dataset']!='all_one_inputs_exact_integer_dag_v1' or document['cache_state']!='hot_repeated_stage' or document['timing_source']!='host_monotonic_completed_backend_call':raise ValueError('stage price scope')
+    if (type(document['dataset']) is not str or not re.fullmatch(r'all_one_inputs_exact_integer_dag_v1|constant_native64_dag_v1;A=-?[0-9]+;B=-?[0-9]+',document['dataset']) or
+            document['cache_state']!='hot_repeated_stage' or document['timing_source']!='host_monotonic_completed_backend_call'):raise ValueError('stage price scope')
     if type(document['device']) is not str or not document['device'] or type(document['runtime_version']) is not int or not 1<=document['runtime_version']<=2**31-1:raise ValueError('stage price device/runtime')
     if type(document['training_charge_ns']) is not int or not 1<=document['training_charge_ns']<2**64-1:raise ValueError('stage training charge')
     identity=document['identity']

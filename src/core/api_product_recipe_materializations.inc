@@ -94,6 +94,8 @@ rns8_status materialization_profile(rns8_context* ctx,const rns8_product_recipe_
     if(!prices || !valid_abi(prices->struct_size,prices->abi_version,sizeof(*prices)) ||
         prices->cost_schema_version!=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION ||
         prices->node_costs_size!=sizeof(rns8_product_materialization_node_costs) ||
+        prices->reserved || (prices->flags&~uint32_t(RNS8_PRODUCT_RETAIN_EXTERNAL_PACKED_B|RNS8_PRODUCT_REQUIRE_PROJECTED_AMORTIZATION)) ||
+        !prices->expected_replays || prices->expected_replays==UINT64_MAX ||
         !prices->nodes || !prices->node_count || prices->node_count>64 ||
         prices->max_evaluations<4 || prices->max_evaluations>65536 ||
         !prices->max_chain_frontier || prices->max_chain_frontier>4096 ||
@@ -112,6 +114,12 @@ rns8_status materialization_profile(rns8_context* ctx,const rns8_product_recipe_
             std::begin(identity.minimum_prefixes)))return RNS8_INVALID_ARGUMENT;
     profile.cost_schema_version=prices->cost_schema_version;
     profile.max_frontier=prices->max_chain_frontier;
+    profile.replay.replays=prices->expected_replays;
+    profile.replay.preparation_ns=prices->preparation_ns;profile.replay.calibration_ns=prices->calibration_ns;
+    profile.replay.orchestration_ns=prices->orchestration_ns;profile.replay.publication_ns=prices->publication_ns;
+    profile.replay.baseline_replay_ns=prices->baseline_replay_ns;profile.replay.baseline_preparation_ns=prices->baseline_preparation_ns;
+    profile.replay.retain_external_b=(prices->flags&RNS8_PRODUCT_RETAIN_EXTERNAL_PACKED_B)!=0;
+    profile.replay.require_amortization=(prices->flags&RNS8_PRODUCT_REQUIRE_PROJECTED_AMORTIZATION)!=0;
     auto& uniform=profile.uniform;uniform.max_evaluations=prices->max_evaluations;uniform.backend=ctx->backend;
     uniform.semantics=desc->inputs[0]->desc.semantics;uniform.target=identity.target;uniform.provenance=prices->calibration_identity;
     uniform.basis=ordered_basis_identity(recipe_basis(*desc->inputs[0])->packet);
@@ -195,6 +203,14 @@ rns8_status rns8_get_product_materialization_info(const rns8_product_recipe* rec
   info.chain_dynamic_programming=plan.chain_dynamic_programming;info.cost_optimal=plan.cost_optimal;info.estimated_ns=plan.estimated_ns;
   info.retained_arena_and_lift_bytes=plan.arena.arena_bytes+plan.lift_scratch_bytes;info.packed_payload_bytes=plan.packed_payload_bytes;
   info.completed_packing_calls=recipe->owner->completed_packing_calls();
+  info.estimated_first_replay_ns=plan.replay_cost.first_ns;info.estimated_steady_replay_ns=plan.replay_cost.steady_ns;
+  info.one_time_ns=plan.replay_cost.once_ns;info.lifetime_ns=plan.replay_cost.lifetime_ns;
+  info.amortized_ns=plan.replay_cost.amortized_ns;
+  info.expected_replays=recipe->owner->expected_replays();info.projected_break_even_replays=plan.replay_cost.break_even_replays;
+  info.amortization_status=plan.replay_cost.amortization_status;info.retained_external_packed_bytes=plan.retained_external_packed_bytes;
+  info.completed_replays=recipe->owner->completed_replays();info.reused_external_packing_calls=recipe->owner->reused_packing_calls();
+  info.flags=(plan.retain_external_b?RNS8_PRODUCT_RETAIN_EXTERNAL_PACKED_B:0)|
+      (recipe->owner->replay_policy().require_amortization?RNS8_PRODUCT_REQUIRE_PROJECTED_AMORTIZATION:0);
   rns8::detail::api::set_text(info.calibration_identity,sizeof(info.calibration_identity),recipe->materialization_calibration);
   *out=info;return RNS8_SUCCESS;
 }

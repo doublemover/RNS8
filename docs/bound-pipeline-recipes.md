@@ -7,8 +7,9 @@ providers. It does not change AUTO or install reviewed cache entries.
 
 ## Routes and admission
 
-The initial envelope is a uniform exact-wide signed/unsigned plan with current
-inputs. Candidates select an ordinary prepared RNS product, generation-bound
+Uniform recipes accept bounded i64/u64, exact-wide signed/unsigned, finite
+ring/field and strict wrap64 plans with current inputs. Representation-specific
+routes retain their exact-wide admission. Candidates select an ordinary prepared RNS product, generation-bound
 encoded B with its ordinary native-grid consumer, a windowed split-K owner,
 one of four narrow native methods, or a persistent native queue with optional
 explicit-work locality order. Each uses the shared operation provider and the
@@ -51,7 +52,11 @@ cost/status/resource fields. It acquires the real workspace, representation,
 split-K, prepared-execution/group and graph owners. It retains context, plan and
 all borrowed matrices. A changed input generation requires a new recipe.
 
-Synchronous recipes can retain resident output or perform a final checked CRT
+Synchronous bounded/wrap recipes can export native words (output_mode4); finite
+recipes export canonical values widened to uint64 words (output_mode5). These
+require one output limb and algorithm0. Host padding is preserved.
+
+Synchronous exact-wide recipes can retain resident output or perform a final checked CRT
 export using algorithm0..4 and explicit signed, unsigned or canonical limb
 semantics. The first successful producer permits lazy checked-export preparation;
 subsequent calls reuse/rebind it. Charge this first export setup to preparation
@@ -60,8 +65,19 @@ before caller writes. If export fails after successful compute, the successful
 resident C remains current: publication is sequential, not atomic across both
 boundaries.
 
-Borrowed-stream and owned-graph recipes accept resident output only, for routes
-whose actual prepared owners support that mode. Submission returns the real
+Borrowed-stream and owned-graph recipes support resident output for routes
+whose actual prepared owners support that mode. Direct-HIP exact-wide recipes
+also accept matching signed/unsigned host limbs with checked Garner export.
+Preparation allocates a private pinned buffer and a checked transfer owner against
+the actual producer range envelope, without marking an unwritten C current.
+Submission chains export to the producer token and event on the borrowed stream.
+An owned graph applies to the producer; its export remains an ordinary dependent
+submission. Export publication observes producer failure/cancellation first.
+`rns8_begin_pipeline_recipe_host_read` exposes the retained result only after
+successful completion; `rns8_end_pipeline_recipe_host_read` ends the borrow. A
+read window blocks replay and destruction. All pinned, bounce and guarded
+conversion payloads count toward the explicit budget. Other async export
+policies remain explicitly unsupported. Submission returns the real
 child token, including an issued token on partial enqueue failure. Query, wait
 and cancel use that child's completion machinery. Calls sharing handles must
 be serialized; tokens do not retain the recipe. Ordinary unsupported graph,

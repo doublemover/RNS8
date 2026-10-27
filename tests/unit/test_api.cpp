@@ -181,5 +181,5 @@ TEST_CASE("ragged producer binds retained multi-output recipe consumers") {
 #include "test_api_value_bound_plan_cases.inc"
 
 TEST_CASE("CPU materialized recipes consume and refresh differently tiled ragged producers") {
-  auto* ctx=create_cpu_context();for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u,true);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  auto* ctx=create_cpu_context();for(bool u:{false,true})for(bool experimental:{false,true})ragged_recipe_fixture::check(ctx,u,true,experimental);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

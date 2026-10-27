@@ -31,6 +31,10 @@ class RuntimeProductRecipe {
   const ProductPrefixSelection& cost_selection() const;
   const ProductMaterializationSelection& materialization_selection() const;
   uint64_t completed_packing_calls() const;
+  uint64_t completed_replays() const;
+  uint64_t reused_packing_calls() const;
+  uint64_t expected_replays() const;
+  const ReplayCostPolicy& replay_policy() const;
   uint32_t materialization_b_value(uint32_t node) const;
   const std::vector<uint32_t>& compute_prefixes() const;
   const BasisPacket& basis_packet() const;

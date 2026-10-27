@@ -1,9 +1,21 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_basis_pack(const uint64_t*,int8_t*,uint64_t,const BasisPacket*,uint32_t,bool);
 extern "C" int rns8_hip_basis_gemm(const int8_t*,const int8_t*,int8_t*,int,int,int,const uint16_t*,uint32_t);
+extern "C" int rns8_hip_basis_gemm_stream(const int8_t*,const int8_t*,int8_t*,int,int,int,const uint16_t*,uint32_t,void*);
 extern "C" int rns8_hip_basis_export(const int8_t*,uint64_t*,uint64_t,const BasisPacket*,uint32_t,bool,uint32_t,BasisMagnitude,int*);
 extern "C" int rns8_hip_basis_convert(const int8_t*,int8_t*,uint64_t,const BasisPacket*,const BasisPacket*,uint32_t,uint32_t,bool,BasisMagnitude,int*);
 #endif
+rns8_status hip_direct_enqueue_basis_gemm(int device,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,const uint16_t* moduli,uint32_t prefix,void* stream) {
+  if(!stream || !moduli || !prefix || prefix>20 || !qualified_i32_gemm_address(m,n,k,k,n,n,prefix))return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(set_hip_device(device)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+  return static_cast<hipError_t>(rns8_hip_basis_gemm_stream(static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),
+      static_cast<int8_t*>(c),int(m),int(n),int(k),moduli,prefix,stream))==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)device;(void)a;(void)b;(void)c;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 rns8_status hip_direct_basis_pack(int device,const void* native,void* residues,uint64_t cells,const void* packet,uint32_t prefix,bool sign) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if(set_hip_device(device)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;

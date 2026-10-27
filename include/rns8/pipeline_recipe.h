@@ -15,7 +15,8 @@ typedef enum rns8_pipeline_route_kind {
 typedef struct rns8_pipeline_recipe_options {
   uint64_t struct_size;uint32_t abi_version,route_mask;
   uint32_t execution_mode; /* exactly SYNC, BORROWED_STREAM or OWNED_GRAPH */
-  uint32_t output_mode; /* resident0; signed/unsigned/canonical host limbs1/2/3 */
+  uint32_t output_mode; /* resident0; signed/unsigned/canonical host limbs1/2/3;
+                        * native bounded/wrap words4; finite canonical words5 */
   uint32_t output_limbs,export_algorithm; /* checked CRT0..4, resident requires0 */
   int64_t output_ld; /* bound host cell stride; resident requires0 */
   uint32_t modulus_group,workers,fragments,fragment_window,locality_order_mask;
@@ -57,13 +58,20 @@ RNS8_API rns8_status rns8_prepare_pipeline_recipe(rns8_context*,const rns8_plan*
  * before writing the caller. The producer's successful resident value remains
  * current if a later host export fails; this is a sequential pipeline. */
 RNS8_API rns8_status rns8_execute_pipeline_recipe(rns8_pipeline_recipe*,uint64_t* dst,int64_t ld);
-/* Async resident routes only; borrowed nondefault stream and existing token
+/* Async resident or matching exact-wide signed/unsigned Garner host limbs;
+ * the latter owns pinned output and chains an ordinary checked export after
+ * the producer event (also when the producer uses an owned graph). No implicit
+ * host synchronization. Read host output only inside begin/end below after
+ * successful completion. A read window blocks replay and destruction.
+ * Borrowed nondefault stream and existing token
  * semantics. The token does not retain this owner. Partial enqueue returns its
  * issued token. Query/wait/cancel delegate to the actual prepared execution. */
 RNS8_API rns8_status rns8_submit_pipeline_recipe_hip(rns8_pipeline_recipe*,void* stream,rns8_completion_token*);
 RNS8_API rns8_status rns8_query_pipeline_recipe_hip(rns8_pipeline_recipe*,rns8_completion_token,rns8_completion_info*);
 RNS8_API rns8_status rns8_wait_pipeline_recipe_hip(rns8_pipeline_recipe*,rns8_completion_token,rns8_completion_info*);
 RNS8_API rns8_status rns8_cancel_pipeline_recipe_hip(rns8_pipeline_recipe*,rns8_completion_token);
+RNS8_API rns8_status rns8_begin_pipeline_recipe_host_read(rns8_pipeline_recipe*,const uint64_t**,uint64_t* bytes);
+RNS8_API rns8_status rns8_end_pipeline_recipe_host_read(rns8_pipeline_recipe*);
 RNS8_API rns8_status rns8_get_pipeline_recipe_candidate(const rns8_pipeline_recipe*,rns8_pipeline_recipe_candidate*);
 RNS8_API rns8_status rns8_destroy_pipeline_recipe(rns8_pipeline_recipe*);
 /* Preparation exception cleanup uses an allocation-free complete-owner queue;

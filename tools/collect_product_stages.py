@@ -15,6 +15,7 @@ from collect_lift_recipe import graph, bounds, validate_capture as validate_reci
 from collect_native_calibration import strict_json
 from collect_native_integrity import MODULI, positive
 from product_stage_contract import price_cells,price_identity
+from product_dataset import inputs as dataset_inputs,identity as dataset_identity
 
 
 def digest(value):
@@ -23,10 +24,11 @@ def digest(value):
 
 def validate_case(c):
     fields={'schema','side','depth','prefix','topology','unsigned_inputs','prefixes','capacities','warmups','repeats','max_payload_bytes'}
-    if type(c) is not dict or set(c)!=fields or c['schema']!='product_stage_case_v1' or type(c['unsigned_inputs']) is not bool:
+    if type(c) is not dict or not fields<=set(c) or set(c)-fields-{'input_values'} or c['schema']!='product_stage_case_v1' or type(c['unsigned_inputs']) is not bool:
         raise ValueError('stage case ABI')
     for key,lo,hi in [('side',1,256),('depth',1,12),('prefix',1,20),('warmups',1,100),('repeats',3,100),('max_payload_bytes',64,2**32-1)]:
         if type(c[key]) is not int or not lo<=c[key]<=hi:raise ValueError(key)
+    dataset_inputs(c)
     if c['topology'] not in ('chain','diamond') or (c['topology']=='diamond' and c['depth']!=4):raise ValueError('stage topology')
     for key in ('prefixes','capacities'):
         values=c[key]
@@ -66,7 +68,7 @@ def cell_key(cell):
 def validate_capture(c,entry):
     case=validate_case(entry['case'])
     fixed=dict(schema='rns8_product_stage_capture_v1',case=case,run_id=entry['run_id'],cost_schema_version=2,
-        dataset='all_one_inputs_exact_integer_dag_v1',cache_state='hot_repeated_stage',timing_source='host_monotonic_completed_backend_call',
+        dataset=dataset_identity(case),cache_state='hot_repeated_stage',timing_source='host_monotonic_completed_backend_call',
         host_instrumentation_state='hooks_disabled',exact_reference_passed=True,promotion_eligible=False)
     for key,value in fixed.items():
         if type(c.get(key)) is not type(value) or c.get(key)!=value:raise ValueError('stage capture '+key)
@@ -143,6 +145,8 @@ def held_out_report(bundle,observations,relative_tolerance):
             raise ValueError('held-out frozen price identity')
         receipt=c['materialization_plan'];ps=c['selected_compute_prefixes'];flags=receipt['packed_b'];nodes=graph(entry['case']);p=entry['case']['prefix']
         capacities={v['value_id']:v['capacity_prefix'] for v in receipt['packed_values']};raw=[p,p]+[0]*len(nodes);packed={};lower=upper=0
+        policy=receipt['replay_policy']
+        if policy['retain_external_b']:packed={v:cap for v,cap in capacities.items() if v<2}
         def add(key):
             nonlocal lower,upper
             if key not in costs:raise ValueError('unmeasured selected stage')
@@ -158,16 +162,19 @@ def held_out_report(bundle,observations,relative_tolerance):
             else:demand(b,q);add((i,'uniform_gemm',0,0,q))
             raw[i+2]=q
         demand(len(nodes)+1,p);add((len(nodes)-1,'publish',0,0,p))
-        measured_ns=statistics.mean(s['execute_lift_us']*1000 for s in c['samples'])
+        overhead=policy['orchestration_ns']+max(0,policy['publication_ns']-costs[(len(nodes)-1,'publish',0,0,p)]['cost_ns'])
+        lower+=overhead;upper+=overhead
+        measured_ns=statistics.mean((s['execute_lift_us']+s['final_export_us'])*1000 for s in c['samples'])
         rows.append(dict(execution_id=c['execution_id'],predicted_lower_ns=lower,predicted_upper_ns=upper,measured_mean_ns=measured_ns,
             within_tolerance=lower*(1-relative_tolerance)<=measured_ns<=upper*(1+relative_tolerance)))
-    cohorts={json.dumps({k:c[k] for k in ('case','build_manifest','target','device','runtime_version','selected_compute_prefixes','materialization_plan')},sort_keys=True) for _,c in observations}
+    cohorts={json.dumps({**{k:c[k] for k in ('case','build_manifest','target','device','runtime_version','selected_compute_prefixes')},
+        'materialization_plan':{k:v for k,v in c['materialization_plan'].items() if k not in ('completed_packing_calls','completed_replays','reused_external_packing_calls')}},sort_keys=True) for _,c in observations}
     if len(cohorts)!=1:raise ValueError('held-out prediction cohort changed')
-    measured=independent_run_interval([[s['execute_lift_us']*1000 for s in c['samples']] for _,c in observations],max(c['nominal_clock_tick_ns'] for _,c in observations))
+    measured=independent_run_interval([[(s['execute_lift_us']+s['final_export_us'])*1000 for s in c['samples']] for _,c in observations],max(c['nominal_clock_tick_ns'] for _,c in observations))
     lower,upper=rows[0]['predicted_lower_ns'],rows[0]['predicted_upper_ns']
     interval_passed=measured['lower_ns']>=lower*(1-relative_tolerance) and measured['upper_ns']<=upper*(1+relative_tolerance)
     return dict(schema='rns8_product_stage_held_out_v1',relative_tolerance=relative_tolerance,cases=rows,measured_process_interval=measured,
-        held_out_passed=interval_passed and all(row['within_tolerance'] for row in rows),scope='independent_processes_same_graph_dataset_and_build',promotion_eligible=False)
+        held_out_passed=interval_passed and all(row['within_tolerance'] for row in rows),scope='independent_processes_same_graph_dataset_and_build',prediction_boundary='producer_execution_plus_final_export',common_cost_scope='declared_orchestration_and_publication_override_are_modeled',promotion_eligible=False)
 
 
 def main():

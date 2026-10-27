@@ -2176,3 +2176,17 @@ default rate substitution or promotion is permitted. See
 [prepared integer CRT shortlist contracts](planning-recipes.md#prepared-integer-crt-policies-in-the-shortlist)
 for binding, identity and padded-payload admission. This source addition is
 syntax checked only; execution qualification remains deferred.
+
+
+Explicit materialized recipes price cold and steady replay separately, including
+preparation, calibration, orchestration and final publication over a declared
+reuse lifetime. Retained external packed B is bound to full basis identity,
+input instance and content generation; intermediate caches cannot survive a
+replay. A projected amortization guard never substitutes for measured gains.
+See [materialized replay contracts](materialized-replay-lifetimes.md). Uniform
+bound recipes preserve bounded, finite and wrap semantics, and direct-HIP
+exact-wide asynchronous host exports use token-qualified checked pinned owners.
+Experimental ordered bases compose with ragged/packed recipes and explicit
+prepared GEMM stream/graph owners; ordinary default-basis APIs still reject
+experimental storage. Reference caches bind full mathematical contracts and
+actual input bytes, compare every output word, and remain outside timed calls.

@@ -4,7 +4,7 @@
 fixed topologically ordered exact-wide product DAG. It accepts current public
 matrix inputs and publishes a final public matrix through `rns8_execute_product_recipe`,
 or an explicitly ordered set of node results through the multi-output API. Inputs must share explicit
-signedness, the default basis, a common input/output prefix and modulus-major storage. It
+signedness, one complete ordered default or experimental basis, a common input/output prefix and modulus-major storage. It
 retains context/input lifetimes and binds their engine instance/generation;
 repacking requires explicit input rebinding or creating a new recipe. Changed or busy inputs reject execution.
 
@@ -39,7 +39,7 @@ No speedup or global allocation optimality is claimed.
 
 ## Consumer-driven exact prefix materialization
 
-The optional `minimize_compute_prefix` policy selects the smallest default-basis
+The optional `minimize_compute_prefix` policy selects the smallest ordered-basis
 prefix certified by each node's conservative complete-product bound. It reserves
 each value's maximum required consumer prefix, rather than the common ceiling.
 Before a consumer runs, any missing input suffix is reconstructed from the already
@@ -168,3 +168,12 @@ entries price inline host extension. Version1 profiles are rejected instead of
 silently relabeling old one-shot preparation costs. Unknown estimates remain
 unknown; retaining memory does not make the lift free. Full hardware compilation,
 complete-call/sustained measurements and failure qualification remain deferred.
+
+Explicit packed-B replay retention and lifetime cost accounting are described in
+[materialized replay lifetimes](materialized-replay-lifetimes.md). Ragged inputs
+can feed uniform or packed recipes under the same complete basis identity.
+The separate `rns8_prepare_basis_gemm_hip` owner executes a fixed-address ordered
+basis product through ordinary prepared stream, owned graph, refresh, cancel
+and completion APIs. It retains basis data and matrices independently of the
+basis-plan handle. Basis pack, conversion, lift and export retain their explicit
+synchronous contracts. No library accelerator or default-basis owner is inferred.

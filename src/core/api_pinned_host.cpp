@@ -26,7 +26,7 @@ bool host_buffer_writable(const rns8_pinned_host_buffer& b) noexcept {
 }
 class PreparedHostTransfer final:public PreparedTransfer {
  public:
-  rns8_pinned_host_buffer* buffer=nullptr;bool retained=false,importing=false,signed_values=false,verify=false,published=false;
+  rns8_pinned_host_buffer* buffer=nullptr;bool retained=false,importing=false,signed_values=false,verify=false,published=false,preparing_export=false;
   uint32_t prefix=0,limbs=0;uint64_t external_generation=0,published_generation=0,bound_native=0,retained_bytes=0;
   void* matrix_allocation=nullptr;void* retained_native=nullptr;boost::multiprecision::cpp_int envelope;
   hip_direct_device_buffer native,conversion;
@@ -61,6 +61,7 @@ class PreparedHostTransfer final:public PreparedTransfer {
       if(matrix->in_flight_writer || matrix->in_flight_readers)return RNS8_BUSY;
       if(retained_native && retained_native!=(signed_values?matrix->hip_native_i64:matrix->hip_native_u64))return RNS8_INVALID_ARGUMENT;
       bound=envelope;return RNS8_SUCCESS;}
+    if(preparing_export && !pending){bound=envelope;return RNS8_SUCCESS;}
     if(matrix->in_flight_writer && !pending)return RNS8_BUSY;
     if(matrix->in_flight_readers==UINT64_MAX)return RNS8_RANGE_ERROR;
     if(pending && (!matrix->in_flight_writer || !matrix->prepared_in_flight_writers))return RNS8_INVALID_ARGUMENT;
@@ -180,8 +181,9 @@ rns8_status rns8_begin_pinned_host_read(rns8_pinned_host_buffer* b,const void** 
 rns8_status rns8_end_pinned_host_read(rns8_pinned_host_buffer* b) {
   if(!b || !b->host_readers)return RNS8_INVALID_ARGUMENT;--b->host_readers;return RNS8_SUCCESS;
 }
-rns8_status rns8_prepare_host_transfer_hip(rns8_context* ctx,rns8_matrix* matrix,rns8_pinned_host_buffer* buffer,
-    const rns8_native_transfer_options* options,rns8_prepared_execution** out) {
+static rns8_status prepare_host_transfer(rns8_context* ctx,rns8_matrix* matrix,rns8_pinned_host_buffer* buffer,
+    const rns8_native_transfer_options* options,rns8_prepared_execution** out,
+    const boost::multiprecision::cpp_int* declared=nullptr,uint32_t declared_prefix=0) {
   return guard_api([&]()->rns8_status{
     if(!ctx || !matrix || !buffer || !options || !out || !valid_abi(options->struct_size,options->abi_version,sizeof(*options)) || options->flags || options->import_values>1 || options->verify_input_bound>1)return RNS8_INVALID_ARGUMENT;
     *out=nullptr;if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
@@ -195,11 +197,11 @@ rns8_status rns8_prepare_host_transfer_hip(rns8_context* ctx,rns8_matrix* matrix
     if(buffer->prepared_references==UINT64_MAX)return RNS8_RANGE_ERROR;
     if(!rns_matrix_storage_matches(*matrix,ctx->backend,matrix->desc.rows,matrix->desc.cols,matrix->prefix))return RNS8_INVALID_ARGUMENT;
     auto owner=std::make_unique<PreparedHostTransfer>();owner->ctx=ctx;owner->matrix=matrix;owner->buffer=buffer;owner->importing=importing;owner->signed_values=sign;owner->verify=options->verify_input_bound;
-    owner->limbs=buffer->desc.limb_count;owner->external_generation=buffer->generation;owner->matrix_allocation=matrix->hip_residues;owner->prefix=importing?matrix->prefix:matrix->exact_range_prefix;
+    owner->limbs=buffer->desc.limb_count;owner->external_generation=buffer->generation;owner->matrix_allocation=matrix->hip_residues;owner->prefix=declared?declared_prefix:importing?matrix->prefix:matrix->exact_range_prefix;
     if(!owner->prefix || owner->prefix>matrix->prefix)return RNS8_RANGE_ERROR;
     if(importing){owner->bound_native=owner->verify?options->max_input_magnitude:sign?(UINT64_C(1)<<63):UINT64_MAX;
       if(sign && owner->bound_native>(UINT64_C(1)<<63))return RNS8_INVALID_ARGUMENT;owner->envelope=owner->bound_native;
-    }else{if(!matrix->device_residues_current)return RNS8_INVALID_ARGUMENT;owner->envelope=matrix->exact_max_magnitude;
+    }else{if(!declared && !matrix->device_residues_current)return RNS8_INVALID_ARGUMENT;owner->envelope=declared?*declared:matrix->exact_max_magnitude;
       const boost::multiprecision::cpp_int limit=owner->limbs?(boost::multiprecision::cpp_int(1)<<(64*owner->limbs-(sign?1:0)))-1:
         sign?boost::multiprecision::cpp_int(1)<<63:boost::multiprecision::cpp_int(UINT64_MAX);
       if(owner->envelope<0 || owner->envelope>limit)return RNS8_RANGE_ERROR;owner->bound_native=owner->limbs?0:owner->envelope.convert_to<uint64_t>();}
@@ -213,6 +215,7 @@ rns8_status rns8_prepare_host_transfer_hip(rns8_context* ctx,rns8_matrix* matrix
     q.problem.requested_backend=RNS8_BACKEND_HIP_DIRECT;q.problem.m=matrix->desc.rows;q.problem.n=matrix->desc.cols;q.problem.k=1;q.problem.max_prefix=owner->prefix;
     q.lda=importing?buffer->desc.ld:matrix->desc.cols;q.ldc=importing?matrix->desc.cols:buffer->desc.ld;q.algorithm=owner->verify;q.output_limbs=owner->limbs;q.scratch_budget=options->max_total_scratch_bytes;
     const auto support=operation_support(*ctx,q,RNS8_BACKEND_HIP_DIRECT);if(support.status!=RNS8_SUCCESS)return support.status;
+    owner->preparing_export=declared!=nullptr;
     boost::multiprecision::cpp_int bound;auto valid=owner->validate(nullptr,0,bound);if(valid!=RNS8_SUCCESS)return valid;
     if(retain){const uint64_t bytes=uint64_t(matrix->desc.rows)*matrix->desc.cols*8;auto& pointer=sign?matrix->hip_native_i64:matrix->hip_native_u64;auto& capacity=sign?matrix->hip_native_i64_bytes:matrix->hip_native_u64_bytes;
       if((pointer || capacity) && (!pointer || capacity!=bytes))return RNS8_INVALID_ARGUMENT;
@@ -222,9 +225,23 @@ rns8_status rns8_prepare_host_transfer_hip(rns8_context* ctx,rns8_matrix* matrix
     valid=owner->native.allocate(ctx->device_id,buffer->resources.compact);if(valid!=RNS8_SUCCESS)return valid;
     valid=owner->conversion.allocate(ctx->device_id,device-buffer->resources.compact);if(valid!=RNS8_SUCCESS)return valid;
     if(owner->status.ensure(ctx->device_id,4)!=hipSuccess || hipStreamCreateWithFlags(&owner->owned_stream,hipStreamNonBlocking)!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    ++buffer->prepared_references;owner->retained=true;return create_transfer_prepared(std::move(owner),out);
+    ++buffer->prepared_references;owner->retained=true;auto* transfer=owner.get();
+    valid=create_transfer_prepared(std::move(owner),out);
+    if(valid==RNS8_SUCCESS)transfer->preparing_export=false;
+    return valid;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
 #endif
   });
+}
+rns8_status rns8_prepare_host_transfer_hip(rns8_context* ctx,rns8_matrix* matrix,rns8_pinned_host_buffer* buffer,
+    const rns8_native_transfer_options* options,rns8_prepared_execution** out) {
+  return prepare_host_transfer(ctx,matrix,buffer,options,out);
+}
+rns8_status rns8::detail::api::prepare_bound_host_export_hip(rns8_context* ctx,rns8_matrix* matrix,
+    rns8_pinned_host_buffer* buffer,uint32_t prefix,const boost::multiprecision::cpp_int& envelope,
+    uint64_t budget,rns8_prepared_execution** out) {
+  rns8_native_transfer_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
+  options.max_total_scratch_bytes=budget;
+  return prepare_host_transfer(ctx,matrix,buffer,&options,out,&envelope,prefix);
 }

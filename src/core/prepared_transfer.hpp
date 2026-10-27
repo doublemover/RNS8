@@ -10,6 +10,8 @@ class PreparedTransfer {
  public:
   rns8_context* ctx=nullptr;
   rns8_matrix* matrix=nullptr;
+  virtual const rns8_matrix* input_a() const noexcept {return matrix;}
+  virtual const rns8_matrix* input_b() const noexcept {return matrix;}
   virtual ~PreparedTransfer()=default;
   virtual bool writes_matrix() const noexcept=0;
   virtual bool reads_matrix() const noexcept=0;

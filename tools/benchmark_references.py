@@ -1,4 +1,8 @@
-"""Restore or package complete, content-bound native GEMM reference fixtures."""
+"""Restore or package complete, content-bound integer GEMM reference fixtures.
+
+The header count is the number of canonical uint64 words (cells times limbs).
+Keys bind bounded, exact-wide, finite-ring/field and strict-wrap contracts.
+"""
 from __future__ import annotations
 
 import argparse
@@ -14,6 +18,23 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INDEX = ROOT / "tests/fixtures/native-reference/index.json"
 DEFAULT_CACHE = ROOT / "temp/benchmark-references"
 LIMIT = 128 * 1024 * 1024
+
+
+def reference_cache_supported(arguments):
+    def option(flag,default):
+        return arguments[arguments.index(flag)+1] if flag in arguments else default
+    return (all(option(flag,"1")=="1" for flag in ("--residue-chain-length","--host-api-batch-size","--grouped-dispatch")) and
+        not any(flag in arguments for flag in ("--native-to-rns-bridge","--vector-to-rns-chain",
+            "--force-native-to-rns-bridge","--vector-native-to-rns-chain","--vector-to-rns-chain-host-repack-control",
+            "--vector-native-to-rns-chain-host-repack-control","--transient-uniform-small-inputs",
+            "--transient-uniform-small-i8-inputs","--residue-channel-fusion","--streaming-overlap","--hip-graph-replay")))
+
+
+def cached_arguments(arguments,directory):
+    if directory is None or not reference_cache_supported(arguments):return list(arguments)
+    if any(arg in arguments for arg in ("--reference-cache-dir","--populate-reference-cache")):
+        raise ValueError("collector owns its read-only reference cache arguments")
+    return [*arguments,"--reference-cache-dir",str(Path(directory).resolve())]
 
 
 def digest(data):

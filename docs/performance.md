@@ -110,19 +110,30 @@ stdout/stderr, build logs, exact commands, and disassembly together.
 
 The public collector restores the compressed fixtures in
 `tests/fixtures/native-reference/` into ignored `temp/benchmark-references/` and
-passes that directory to ordinary single-product bounded-i64/u64 runs. Every
+passes that directory to ordinary single-product bounded, exact-wide, finite
+ring/field and strict wrap64 runs. Every
 logical output element is compared outside production timing. A cache miss
 computes the complete Boost.Multiprecision reference; a malformed existing
 fixture fails the run. `--no-reference-cache` requests fresh computation in the
-collector. Other arithmetic/composition modes keep their existing oracles.
+collector. Composed and batched modes keep their existing oracles.
 
 Fixture identity hashes the arithmetic contract, M/N/K and every actual input
-word in canonical little-endian order. The file also binds the complete expected
+word in canonical little-endian order. Extended keys also bind finite modulus,
+input width and output limb count; ring, field, exact-wide and strict wrap
+contracts have distinct identities. The file also binds the complete expected
 output by SHA256. Backend, prefix, timing hooks and device identity do not change
 the exact mathematical answer. Input-generator or C++ distribution differences
 produce a different input digest and a cache miss. No correctness claim rests
 on the seed or output checksum alone. Captures report the method, content key,
 payload digest, checked-cell count and time spent outside production intervals.
+
+The paired diagnostic collector uses the same read-only cache by default.
+Benchmark sweeps accept an explicit `--reference-cache-dir` and restore the
+selected fixture index before execution. The existing three checked-in fixtures
+cover bounded signed cases; other keys initially miss until independently
+generated and explicitly packaged. The unchanged RNS8REF1 header counts uint64
+words, so wide payloads contain cells times limbs words. Every logical limb is
+compared, and exact-wide padding and magnitude receipts remain checked.
 
 Restore the reviewed fixtures for direct benchmark invocation:
 

@@ -1,7 +1,9 @@
+#include "backend_common/basis_word_arithmetic.hpp"
+template<bool DefaultBasis>
 __global__ void rns8_materialize_ragged_kernel(
     const int8_t* source, const rns8::detail::RaggedResidueTile* tiles,
     int tile_rows, int tile_cols, int grid_cols, bool signed_value,
-    int8_t* destination, rns8::detail::ResidueLayout target, int* status) {
+    int8_t* destination, rns8::detail::ResidueLayout target, rns8::detail::BasisPacket basis, int* status) {
   const uint64_t cell = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (cell >= target.rows * target.cols) return;
   const uint64_t row = cell / target.cols, col = cell % target.cols;
@@ -10,13 +12,19 @@ __global__ void rns8_materialize_ragged_kernel(
   const int area = tile_rows * tile_cols;
   const auto* input = source + tile.byte_offset;
   for (uint32_t p = 0; p < tile.prefix; ++p) {
-    const int value = input[p * area + local], modulus = rns8_default_moduli_device[p];
+    const int value = input[p * area + local], modulus = DefaultBasis?rns8_default_moduli_device[p]:basis.moduli[p];
     if (value < -(modulus / 2) || value > (modulus - 1) / 2) {
       atomicMax(status, 1); return;
     }
   }
-  rns8_u192_device value{}, product{};
-  rns8_reconstruct_canonical_wide_device(input, local, area, tile.prefix, &value, &product);
+  rns8_u192_device value{},product{};
+  if constexpr(DefaultBasis)rns8_reconstruct_canonical_wide_device(input,local,area,tile.prefix,&value,&product);
+  else {
+    uint64_t words[3]{};
+    if(!rns8::detail::basis_reconstruct_words(input+local,area,tile.prefix,basis,false,words)){atomicMax(status,1);return;}
+    value={words[0],words[1],words[2]};const auto* product_words=basis.products[tile.prefix];
+    product={product_words[0],product_words[1],product_words[2]};
+  }
   const bool negative = signed_value && rns8_u192_centered_is_negative_device(value, product);
   const auto magnitude = negative ? rns8_u192_sub_device(product, value) : value;
   const rns8_u192_device bound{tile.magnitude_bound[0],tile.magnitude_bound[1],tile.magnitude_bound[2]};
@@ -25,7 +33,7 @@ __global__ void rns8_materialize_ragged_kernel(
     int8_t stored = 0;
     if (p < tile.prefix) stored = input[p * area + local];
     else {
-      const uint32_t modulus = rns8_default_moduli_device[p];
+      const uint32_t modulus = DefaultBasis?rns8_default_moduli_device[p]:basis.moduli[p];
       uint32_t residue = rns8_u192_mod_u32_device(magnitude, modulus);
       if (negative && residue) residue = modulus - residue;
       const int centered = residue >= (modulus + 1) / 2 ? static_cast<int>(residue) - static_cast<int>(modulus)
@@ -37,9 +45,10 @@ __global__ void rns8_materialize_ragged_kernel(
 }
 
 // One block owns each directory tile. Only its maximum magnitude leaves the GPU.
+template<bool DefaultBasis>
 __global__ void rns8_discover_ragged_bounds_kernel(const int8_t* source, int rows, int cols,
     int prefix, int tile_rows, int tile_cols, int grid_cols, bool signed_value,
-    rns8_u192_device source_bound, rns8::detail::RaggedResidueTile* directory, int* status) {
+    rns8_u192_device source_bound, rns8::detail::BasisPacket basis, rns8::detail::RaggedResidueTile* directory, int* status) {
   __shared__ rns8_u192_device maxima[128];
   const int tr = blockIdx.x / grid_cols, tc = blockIdx.x % grid_cols;
   const int area = tile_rows * tile_cols, cells = rows * cols;
@@ -51,12 +60,18 @@ __global__ void rns8_discover_ragged_bounds_kernel(const int8_t* source, int row
     const int cell = row * cols + col;
     bool valid = true;
     for (int p = 0; p < prefix; ++p) {
-      const int value = source[p * cells + cell], modulus = rns8_default_moduli_device[p];
+      const int value = source[p * cells + cell], modulus = DefaultBasis?rns8_default_moduli_device[p]:basis.moduli[p];
       if (value < -(modulus / 2) || value > (modulus - 1) / 2) valid = false;
     }
     if (!valid) { atomicMax(status, 1); continue; }
-    rns8_u192_device value{}, product{};
-    rns8_reconstruct_canonical_wide_device(source, cell, cells, prefix, &value, &product);
+    rns8_u192_device value{},product{};
+    if constexpr(DefaultBasis)rns8_reconstruct_canonical_wide_device(source,cell,cells,prefix,&value,&product);
+    else {
+      uint64_t words[3]{};
+      if(!rns8::detail::basis_reconstruct_words(source+cell,cells,prefix,basis,false,words)){atomicMax(status,1);continue;}
+      value={words[0],words[1],words[2]};const auto* product_words=basis.products[prefix];
+      product={product_words[0],product_words[1],product_words[2]};
+    }
     const auto magnitude = signed_value && rns8_u192_centered_is_negative_device(value, product)
         ? rns8_u192_sub_device(product, value) : value;
     if (rns8_u192_compare_device(magnitude, source_bound) > 0) atomicMax(status, 2);

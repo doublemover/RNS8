@@ -493,7 +493,7 @@ rns8_status rns8::detail::api::create_transfer_prepared(std::unique_ptr<Prepared
     if(!transfer || !out || !transfer->ctx || !transfer->matrix)return RNS8_INVALID_ARGUMENT;
     *out=nullptr;
     auto e=std::make_unique<rns8_prepared_execution>();e->ctx=transfer->ctx;
-    e->a=e->b=e->c=transfer->matrix;e->transfer=std::move(transfer);
+    e->a=transfer->input_a();e->b=transfer->input_b();e->c=transfer->matrix;e->transfer=std::move(transfer);
     const auto valid=validate_prepared(*e);if(valid!=RNS8_SUCCESS)return valid;
     uint64_t* slots[7]{};reference_slots(*e,slots);
     for(const auto* slot:slots)if(slot && *slot==UINT64_MAX)return RNS8_RANGE_ERROR;

@@ -31,14 +31,17 @@ inline uint64_t reference_word(const char* bytes) {
 }
 
 template<class T> std::string reference_input_digest(const std::vector<T>& values) {
-  static_assert(sizeof(T) == 8 && std::is_integral_v<T>);
+  static_assert((sizeof(T) == 8 || sizeof(T) == 1) && std::is_integral_v<T>);
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
   static_assert(!std::is_signed_v<T> || std::numeric_limits<T>::min() == -std::numeric_limits<T>::max() - 1);
-  return detail::sha256(std::string_view(reinterpret_cast<const char*>(values.data()), values.size() * 8));
+  return detail::sha256(std::string_view(reinterpret_cast<const char*>(values.data()), values.size() * sizeof(T)));
 #else
   std::string bytes;
-  bytes.reserve(values.size() * 8);
-  for (T value : values) reference_append_word(bytes, static_cast<uint64_t>(value));
+  bytes.reserve(values.size() * sizeof(T));
+  for (T value : values) {
+    if constexpr(sizeof(T)==1)bytes.push_back(static_cast<char>(value));
+    else reference_append_word(bytes, static_cast<uint64_t>(value));
+  }
   return detail::sha256(bytes);
 #endif
 }
@@ -75,6 +78,9 @@ inline std::string read_native_reference(const std::filesystem::path& path,
 
 inline void write_native_reference(const std::filesystem::path& directory,
                                     const std::string& key, const std::string& payload) {
+  if(key.size()!=64 || key.find_first_not_of("0123456789abcdef")!=std::string::npos || payload.empty() ||
+      payload.size()%8 || payload.size()>reference_cache_max_bytes-reference_cache_header_bytes)
+    throw std::invalid_argument("reference cache key or payload budget");
   std::filesystem::create_directories(directory);
   const auto target = directory / (key + ".bin");
   const auto lock = directory / (key + ".lock");
@@ -100,46 +106,97 @@ inline void write_native_reference(const std::filesystem::path& directory,
   }
 }
 
-template<class T>
-NativeReferenceVerification verify_native_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc,
-    const std::vector<T>& a, const std::vector<T>& b, const std::vector<T>& c,
-    const std::string& cache_directory, bool populate) {
-  static_assert(sizeof(T) == 8 && std::is_integral_v<T>);
+enum class ReferenceSemantics {bounded_i64,bounded_u64,wrap64,finite_ring,finite_field,wide_signed,wide_unsigned};
+struct ReferenceContract {
+  ReferenceSemantics semantics;
+  uint32_t modulus=0,limbs=1;
+};
+inline const char* reference_semantic_name(ReferenceSemantics semantics) {
+  switch(semantics) {
+    case ReferenceSemantics::bounded_i64:return "bounded-i64";
+    case ReferenceSemantics::bounded_u64:return "bounded-u64";
+    case ReferenceSemantics::wrap64:return "wrap-u64-mod-2-64";
+    case ReferenceSemantics::finite_ring:return "finite-ring-u8";
+    case ReferenceSemantics::finite_field:return "finite-field-u8";
+    case ReferenceSemantics::wide_signed:return "exact-wide-signed";
+    case ReferenceSemantics::wide_unsigned:return "exact-wide-unsigned";
+  }
+  throw std::invalid_argument("unknown reference semantic");
+}
+template<class T> void validate_reference_contract(ReferenceContract contract) {
+  const bool finite=contract.semantics==ReferenceSemantics::finite_ring || contract.semantics==ReferenceSemantics::finite_field;
+  const bool wide=contract.semantics==ReferenceSemantics::wide_signed || contract.semantics==ReferenceSemantics::wide_unsigned;
+  const bool sign=contract.semantics==ReferenceSemantics::bounded_i64 || contract.semantics==ReferenceSemantics::wide_signed;
+  (void)reference_semantic_name(contract.semantics);
+  if(!contract.limbs || contract.limbs>(wide?32u:1u) ||
+      (finite?(contract.modulus<2 || contract.modulus>256 || sizeof(T)!=1 || std::is_signed_v<T>):
+          (contract.modulus || sizeof(T)!=8 || std::is_signed_v<T>!=sign)))
+    throw std::invalid_argument("reference semantic/input/output contract mismatch");
+  if(contract.semantics==ReferenceSemantics::finite_field)
+    for(uint32_t q=2;q*q<=contract.modulus;++q)if(contract.modulus%q==0)throw std::invalid_argument("field reference needs prime modulus");
+}
+template<class T> std::string integer_reference_key(uint64_t m,uint64_t n,uint64_t k,
+    const std::vector<T>& a,const std::vector<T>& b,ReferenceContract contract) {
+  validate_reference_contract<T>(contract);
+  // Preserve the existing bounded fixtures byte-for-byte.
+  if(contract.semantics==ReferenceSemantics::bounded_i64 || contract.semantics==ReferenceSemantics::bounded_u64)
+    return native_reference_key(m,n,k,a,b);
+  return detail::sha256(std::string("rns8-integer-gemm-reference-v2\n")+reference_semantic_name(contract.semantics)+"\n"+
+      std::to_string(contract.modulus)+"\n"+std::to_string(contract.limbs)+"\n"+std::to_string(sizeof(T))+"\n"+
+      std::to_string(m)+"\n"+std::to_string(n)+"\n"+std::to_string(k)+"\n"+
+      reference_input_digest(a)+"\n"+reference_input_digest(b)+"\n");
+}
+template<class T,class Output>
+NativeReferenceVerification verify_integer_reference(uint64_t m,uint64_t n,uint64_t k,uint64_t ldc,
+    const std::vector<T>& a,const std::vector<T>& b,const std::vector<Output>& c,ReferenceContract contract,
+    const std::string& cache_directory,bool populate) {
+  static_assert(std::is_integral_v<T> && std::is_integral_v<Output>);
   using boost::multiprecision::cpp_int;
-  const auto start = std::chrono::steady_clock::now();
-  if (!m || !n || !k || ldc < n || m > UINT64_MAX / k || k > UINT64_MAX / n ||
-      m > UINT64_MAX / ldc || a.size() != m * k || b.size() != k * n || c.size() < m * ldc ||
-      m > (reference_cache_max_bytes - reference_cache_header_bytes) / 8 / n)
+  const auto start=std::chrono::steady_clock::now();
+  validate_reference_contract<T>(contract);
+  const uint64_t limbs=contract.limbs;
+  if(!m || !n || !k || ldc<n || m>UINT64_MAX/k || k>UINT64_MAX/n ||
+      m>UINT64_MAX/ldc/limbs || a.size()!=m*k || b.size()!=k*n || c.size()<m*ldc*limbs ||
+      m>(reference_cache_max_bytes-reference_cache_header_bytes)/8/limbs/n)
     throw std::invalid_argument("reference cache shape or byte budget");
-  NativeReferenceVerification result;
-  result.key = native_reference_key(m, n, k, a, b);
-  std::string payload;
-  const auto path = std::filesystem::path(cache_directory) / (result.key + ".bin");
-  const bool hit = !cache_directory.empty() && std::filesystem::exists(path);
-  if (hit) payload = read_native_reference(path, result.key, m * n);
+  const bool finite=contract.semantics==ReferenceSemantics::finite_ring || contract.semantics==ReferenceSemantics::finite_field;
+  if(finite)for(const auto* input:{&a,&b})for(T value:*input)if(uint32_t(value)>=contract.modulus)
+    throw std::invalid_argument("noncanonical finite reference input");
+  NativeReferenceVerification result;result.key=integer_reference_key(m,n,k,a,b,contract);
+  std::string payload;const auto path=std::filesystem::path(cache_directory)/(result.key+".bin");
+  const bool hit=!cache_directory.empty() && std::filesystem::exists(path);
+  if(hit)payload=read_native_reference(path,result.key,m*n*limbs);
   else {
-    payload.reserve(static_cast<std::size_t>(m * n * 8));
-    for (uint64_t row = 0; row < m; ++row) for (uint64_t col = 0; col < n; ++col) {
-      cpp_int expected = 0;
-      for (uint64_t q = 0; q < k; ++q) expected += cpp_int(a[row * k + q]) * b[q * n + col];
-      if (expected < cpp_int(std::numeric_limits<T>::min()) || expected > cpp_int(std::numeric_limits<T>::max()))
-        throw std::overflow_error("exact reference exceeds bounded native output");
-      reference_append_word(payload, static_cast<uint64_t>(expected.convert_to<T>()));
+    payload.reserve(size_t(m*n*limbs*8));
+    const cpp_int storage=cpp_int(1)<<(64*limbs),mask=(cpp_int(1)<<64)-1;
+    const bool sign=contract.semantics==ReferenceSemantics::bounded_i64 || contract.semantics==ReferenceSemantics::wide_signed;
+    const cpp_int lower=sign?cpp_int(-(storage>>1)):cpp_int(0),upper=sign?cpp_int((storage>>1)-1):cpp_int(storage-1);
+    for(uint64_t row=0;row<m;++row)for(uint64_t col=0;col<n;++col) {
+      cpp_int expected=0;
+      for(uint64_t q=0;q<k;++q)expected+=cpp_int(a[row*k+q])*b[q*n+col];
+      if(finite)expected%=contract.modulus;
+      else if(contract.semantics==ReferenceSemantics::wrap64)expected&=mask;
+      else if(expected<lower || expected>upper)throw std::overflow_error("exact reference exceeds declared output width");
+      if(expected<0)expected+=storage;
+      for(uint32_t word=0;word<limbs;++word){reference_append_word(payload,static_cast<uint64_t>(expected&mask));expected>>=64;}
     }
   }
-  // Check every logical element, including padded destinations. A digest alone
-  // never substitutes for exact output comparison.
-  for (uint64_t row = 0; row < m; ++row) for (uint64_t col = 0; col < n; ++col)
-    if (reference_word(payload.data() + (row * n + col) * 8) != static_cast<uint64_t>(c[row * ldc + col]))
+  for(uint64_t row=0;row<m;++row)for(uint64_t col=0;col<n;++col)for(uint32_t word=0;word<limbs;++word)
+    if(reference_word(payload.data()+((row*n+col)*limbs+word)*8)!=static_cast<uint64_t>(c[(row*ldc+col)*limbs+word]))
       throw std::runtime_error("public output disagrees with complete integer reference");
-  if (!hit && populate) {
-    if (cache_directory.empty()) throw std::invalid_argument("reference population requires a directory");
-    write_native_reference(cache_directory, result.key, payload);
+  if(!hit && populate) {
+    if(cache_directory.empty())throw std::invalid_argument("reference population requires a directory");
+    write_native_reference(cache_directory,result.key,payload);
   }
-  result.method = hit ? "cached_full_integer_reference" : "boost_cpp_int_full_integer_reference";
-  result.payload_sha256 = detail::sha256(payload);
-  result.checked_cells = m * n;
-  result.elapsed_us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
-  return result;
+  result.method=hit?"cached_full_integer_reference":"boost_cpp_int_full_integer_reference";
+  result.payload_sha256=detail::sha256(payload);result.checked_cells=m*n;
+  result.elapsed_us=std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-start).count();return result;
+}
+template<class T>
+NativeReferenceVerification verify_native_reference(uint64_t m,uint64_t n,uint64_t k,uint64_t ldc,
+    const std::vector<T>& a,const std::vector<T>& b,const std::vector<T>& c,const std::string& directory,bool populate) {
+  static_assert(sizeof(T)==8 && std::is_integral_v<T>);
+  return verify_integer_reference(m,n,k,ldc,a,b,c,
+      {std::is_signed_v<T>?ReferenceSemantics::bounded_i64:ReferenceSemantics::bounded_u64},directory,populate);
 }
 }  // namespace rns8::bench

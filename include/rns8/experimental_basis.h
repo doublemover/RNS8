@@ -65,6 +65,12 @@ RNS8_API rns8_status rns8_get_basis_plan_info(const rns8_basis_plan*,rns8_basis_
 RNS8_API rns8_status rns8_pack_basis_i64(rns8_basis_plan*,rns8_matrix*,const int64_t*,int64_t ld,uint64_t version);
 RNS8_API rns8_status rns8_pack_basis_u64(rns8_basis_plan*,rns8_matrix*,const uint64_t*,int64_t ld,uint64_t version);
 RNS8_API rns8_status rns8_gemm_basis(rns8_basis_plan*,const rns8_matrix*,const rns8_matrix*,rns8_matrix*);
+/* Direct-HIP fixed-address prepared GEMM with the ordinary stream, owned graph,
+ * completion, cancellation and refresh APIs. Retains the full immutable basis
+ * and matrices independently of the basis-plan handle. No hidden synchronization
+ * or default-ladder reinterpretation; input generation changes require refresh.
+ * Explicit basis conversion/lift/export remain synchronous. */
+RNS8_API rns8_status rns8_prepare_basis_gemm_hip(rns8_basis_plan*,const rns8_matrix*,const rns8_matrix*,rns8_matrix*,rns8_prepared_execution**);
 RNS8_API rns8_status rns8_export_basis_limbs(rns8_basis_plan*,const rns8_matrix*,uint64_t*,int64_t ld,uint32_t limbs);
 /* Explicit uniquely represented integer conversion, including reordered bases.
  * Source and destination signedness must agree. The source proof must be valid

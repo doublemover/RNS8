@@ -65,6 +65,41 @@ inline void roundtrip(rns8_context* ctx,bool sign) {
     if(sign && output[at+2]>>63)actual-=cpp_int(1)<<192;
     REQUIRE(actual==expected);
   }
+  auto* ragged_copy=matrix(ctx,nullptr,semantics,3,2);
+  // A differently ordered destination must never reinterpret the directory.
+  rns8_ragged_materialization* ragged=nullptr;
+  REQUIRE(rns8_prepare_ragged_materialization(ctx,c,2,1,UINT64_MAX,&ragged)==RNS8_SUCCESS);
+  CHECK(rns8_materialize_ragged_exact(ctx,ragged,ragged_copy,UINT64_MAX)==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_destroy_matrix(ragged_copy)==RNS8_SUCCESS);
+  auto same_desc=c->desc;REQUIRE(rns8_create_matrix(ctx,&same_desc,&ragged_copy)==RNS8_SUCCESS);
+  ragged_copy->experimental_basis=c->experimental_basis;
+  REQUIRE(rns8_materialize_ragged_exact(ctx,ragged,ragged_copy,UINT64_MAX)==RNS8_SUCCESS);
+  std::vector<uint64_t> ragged_result(27,99);
+  REQUIRE(rns8_export_basis_limbs(p,ragged_copy,ragged_result.data(),3,3)==RNS8_SUCCESS);CHECK(ragged_result==output);
+  REQUIRE(rns8_destroy_ragged_materialization(ragged)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_matrix(ragged_copy)==RNS8_SUCCESS);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
+    rns8_prepared_execution* prepared=nullptr;
+    REQUIRE(rns8_prepare_basis_gemm_hip(p,a,b,c,&prepared)==RNS8_SUCCESS);
+    REQUIRE(rns8_capture_prepared_hip_graph(prepared)==RNS8_SUCCESS);
+    rns8::detail::hip_unique_stream stream;REQUIRE(stream.create_non_blocking()==hipSuccess);
+    for(bool graph:{false,true}) {
+      rns8_completion_token token{};
+      REQUIRE((graph?rns8_submit_prepared_hip_graph(prepared,stream.get(),&token):rns8_submit_prepared_hip(prepared,stream.get(),&token))==RNS8_SUCCESS);
+      CHECK(rns8_destroy_matrix(a)==RNS8_BUSY);CHECK(pack(a,av,7)==RNS8_BUSY);
+      rns8_completion_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_wait_prepared_hip(prepared,token,&info)==RNS8_SUCCESS);REQUIRE(info.operation_status==RNS8_SUCCESS);CHECK(info.output_is_current);
+      REQUIRE(rns8_export_basis_limbs(p,c,other.data(),3,3)==RNS8_SUCCESS);CHECK(other==output);
+    }
+    rns8_completion_token canceled{};REQUIRE(rns8_submit_prepared_hip(prepared,stream.get(),&canceled)==RNS8_SUCCESS);
+    REQUIRE(rns8_cancel_prepared_hip(prepared,canceled)==RNS8_SUCCESS);
+    rns8_completion_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_wait_prepared_hip(prepared,canceled,&info)==RNS8_SUCCESS);CHECK(info.operation_status==RNS8_CANCELED);CHECK_FALSE(info.output_is_current);
+    rns8_completion_token restored_token{};REQUIRE(rns8_execute_prepared(prepared,&restored_token)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_prepared_execution(prepared)==RNS8_SUCCESS);
+  }
+#endif
   const auto prior=converted->content_generation;
   REQUIRE(rns8_gemm_basis(q,a,b,converted)==RNS8_INVALID_ARGUMENT);CHECK(converted->content_generation==prior);
   const auto source_generation=c->content_generation;
