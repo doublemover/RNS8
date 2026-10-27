@@ -62,7 +62,9 @@ RNS8_TDM_HD constexpr bool make_native_tdm_descriptor(uint64_t global,uint32_t l
 inline bool native_tdm_source(uint32_t row,uint32_t col,uint32_t valid_rows,uint32_t valid_cols,
     uint64_t stride,uint64_t& index) {
   if(row>=valid_rows || col>=valid_cols)return false;
-  if(row && stride>(UINT64_MAX-col)/row)return false;index=uint64_t(row)*stride+col;return true;
+  if(row && stride>(UINT64_MAX-col)/row)return false;
+  index=uint64_t(row)*stride+col;
+  return true;
 }
 } // namespace rns8::detail
 #undef RNS8_TDM_HD
