@@ -53,5 +53,6 @@ sized per-tile ranges, 3x5 tiles over a 17x19 source, partial edges, repeated
 materialization, budgets, BUSY/lifetime holds and stale-source rejection. They
 compare every restored residue and then run a 17x19 by 19x7 ordinary GEMM against
 an independent Boost integer result. Existing private adapter tests retain
-malformed directory, padding, prefix and transactional checks. All execution and
-performance qualification remain pending the consolidated final batch.
+malformed directory, padding, prefix and transactional checks. The [October27 validation](../metadata/replay-extension-validation-20261027.json)
+passes CPU/direct-HIP and sanitizer coverage, including ordered-basis packed
+consumers. Measured gains and broader target qualification remain separate.

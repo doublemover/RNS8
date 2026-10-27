@@ -34,7 +34,7 @@ host exclusion. Concurrent execute attempts return BUSY.
 
 Authored CPU cases cover linear and diamond reuse, all overlapping live intervals,
 budget boundaries, lifetime/currentness and replay. A HIP diamond uses independent
-Boost full-output comparison. They have not been executed in this frontload.
+Boost full-output comparison. These cases pass the current CPU/direct-HIP validation.
 No speedup or global allocation optimality is claimed.
 
 ## Consumer-driven exact prefix materialization
@@ -53,13 +53,14 @@ staged exact lift with the same bound; its maximum suffix-plus-status scratch is
 reserved separately from the arena. `lift_scratch_bytes()` exposes that peak.
 Replay resets materialization state and never treats leftover suffix bytes as valid.
 Authored linear/diamond CPU and HIP fixtures exercise both policies, replay, exact
-exports and the combined arena/lift budget boundary; execution is still pending.
+exports and the combined arena/lift budget boundary; current execution coverage passes.
 
 This policy minimizes compute prefix under a conservative bound, not total measured
 cost. Small prefixes can lose after lift overhead; the full-prefix route is the
-control. Layout conversion/ragged inputs, public graph arena integration,
-multi-stream execution and an exhaustive prefix/layout cost optimizer remain
-separate work.
+control. Explicit ragged inputs and packed-B conversion compose with this
+executor. Public resident-graph arena integration and multi-stream execution
+remain separate. Exhaustive prefix/layout selection covers admitted tiny search
+domains; larger graphs report bounded search.
 
 ## Public recipe lifecycle
 
@@ -103,8 +104,8 @@ An uncertain device drain retains the arena, input readers and output ownership,
 and poisons the context. Destruction returns a failure while retaining the recipe
 when draining or freeing fails, so callers can retry destruction safely. Private
 RAII destruction cannot report errors and retains a failed owner instead of freeing
-possibly active storage. This is source-level ownership behavior awaiting the
-consolidated validation campaign, not a completed device-failure qualification.
+possibly active storage. Ordinary execution, cleanup and preservation fixtures pass the current
+validation; real device-failure qualification remains open.
 
 
 ## Multiple observable results
@@ -127,13 +128,13 @@ host exclusion, not an atomic snapshot for concurrent readers. Output order foll
 the requested IDs, including a non-topological order.
 
 The single-output API keeps its final-node default. A recipe explicitly requesting
-one intermediate can also use single-output execution. The internal calibrated
-cost selector still models one final result and rejects other observable sets;
-full-prefix and minimum-compute-prefix policies support multiple results without
-claiming global cost optimality. Authored CPU/HIP fixtures compare signed and
+one intermediate can also use single-output execution. Uniform and packed cost profiles bind the ordered observed outputs and their
+retained lifetimes. The chain lower-bound proof applies only to one final output;
+multi-output DAGs use the bounded full-demand search without claiming global
+cost optimality outside exhaustive domains. Authored CPU/HIP fixtures compare signed and
 unsigned diamond intermediates and final outputs to Boost, exercise both prefix
 policies, and cover retained live ranges, exact budget rejection, duplicate/null/
-input aliases and all-output precommit preservation. Execution remains pending.
+input aliases and all-output precommit preservation. Current execution coverage passes.
 
 ## Physically retained lift workspace
 
@@ -160,9 +161,9 @@ physically reserves43,012 bytes once. The three lifts no longer allocate/free
 workspace during replay; this is a source allocation count, not a hardware
 measurement. Regression coverage checks positive replay and compatible-rebind
 allocation/free deltas, every prefix pair, status reuse after rejected proofs,
-full output residues and exact budget boundaries. These regressions are unrun.
+full output residues and exact budget boundaries. These regressions pass in the current validation.
 
-Internal cost profiles are now version2: HIP lift entries must price the retained
+Uniform primitive cost tables retain version2: HIP lift entries must price the retained
 workspace implementation, including reset/check and staged copy, while CPU
 entries price inline host extension. Version1 profiles are rejected instead of
 silently relabeling old one-shot preparation costs. Unknown estimates remain
@@ -177,3 +178,7 @@ basis product through ordinary prepared stream, owned graph, refresh, cancel
 and completion APIs. It retains basis data and matrices independently of the
 basis-plan handle. Basis pack, conversion, lift and export retain their explicit
 synchronous contracts. No library accelerator or default-basis owner is inferred.
+
+The [October27 validation receipt](../metadata/replay-extension-validation-20261027.json)
+records current CPU/HIP/ASan, zero-replay-transfer and collector checks. Earlier
+dated measurements retain their original source identities.

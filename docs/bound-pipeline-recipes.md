@@ -90,6 +90,7 @@ retain complete owners on an allocation-free cleanup queue, retried by
 
 Fixtures cover CPU/direct-HIP exports across all five CRT algorithms, resource
 and cost identity, stale/forged binding, retained lifetimes, and real stream/graph
-replay. This source pass is compile checked; these new fixtures have not run.
+replay. The [October27 CPU/HIP/ASan pass](../metadata/replay-extension-validation-20261027.json)
+executes the expanded semantic, pinned export, stream/graph and lifetime fixtures.
 Measured routing, held-out regret, opaque peak accounting and target qualification
 remain [issue30](https://github.com/doublemover/RNS8/issues/30) evidence gates.

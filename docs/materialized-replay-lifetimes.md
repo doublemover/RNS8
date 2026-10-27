@@ -47,5 +47,6 @@ process checks remain scoped to the same graph, dataset and build; neighboring
 shapes or datasets require their own calibration and held-out observations.
 
 These additions do not change the source/toolchain boundary of earlier archived
-measurements. New runtime and collector fixtures await the combined validation
-pass; no new elapsed performance gain is asserted from implementation alone.
+measurements. The [combined CPU/HIP and collector validation](../metadata/replay-extension-validation-20261027.json)
+passes the new runtime and collector fixtures. No new elapsed performance gain is
+asserted from implementation alone.

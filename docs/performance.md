@@ -490,3 +490,9 @@ Git bytes, then uses native line endings so Windows case hashes match the
 earlier checkout. CMake generates its own verified inputs under the build tree
 automatically; Python corpus tests use an isolated content-addressed scratch
 directory. No benchmark is executed by materialization or restoration.
+
+The [October27 reference extension](../metadata/replay-extension-validation-20261027.json)
+passes 28 GPU/CPU captures across all seven integer contracts, seven deliberate
+corrupt-file rejections, two cached exact-wide diagnostic pairs, and negative-input
+retained-recipe/stage captures. These are correctness and integration checks,
+not a new elapsed-performance campaign.

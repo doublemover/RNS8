@@ -13,8 +13,10 @@ costs, projected amortization admission and generation-bound external packed B.
 Bound recipes now compose bounded/finite/wrap uniform owners and checked async
 host export. Experimental basis owners support ragged/packed composition and
 prepared stream/graph GEMM. Integer reference caching covers exact-wide, finite
-and wrap outputs and additional collectors. Source and regression fixtures are
-written; the combined validation pass is pending. Existing measured evidence
+and wrap outputs and additional collectors. The [October27 combined validation](../metadata/replay-extension-validation-20261027.json)
+passes 1,088 HIP tests and 609 CPU-ASan tests with explicit skips and zero
+failures; the unchanged symbolic checker is carried from its successful full run.
+Extended integer-cache and collector integration passes. Existing measured evidence
 below retains its original source and toolchain identity.
 
 ## Recorded baseline
