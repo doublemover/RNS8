@@ -46,6 +46,18 @@ if(WIN32 AND RNS8_NATIVE_USE_SHARED)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${_rns8}>" "$<TARGET_FILE_DIR:rns8-native-device-consumer>")
 endif()
 enable_testing()
+if(WIN32)
+  # Bind CTest to the SDK that compiled the external producer. A different
+  # inherited HIP_PATH can make the selected runtime discover no devices.
+  get_filename_component(_native_sdk_root "${RNS8_NATIVE_HIP_INCLUDE}" DIRECTORY)
+  find_program(RNS8_NATIVE_HIP_CLANG NAMES clang++ clang++.exe
+    HINTS "${_native_sdk_root}/lib/llvm/bin" "${_native_sdk_root}/llvm/bin" "${_native_sdk_root}/bin"
+    NO_DEFAULT_PATH REQUIRED)
+  get_filename_component(_native_compiler_bin "${RNS8_NATIVE_HIP_CLANG}" DIRECTORY)
+  get_filename_component(_native_llvm_root "${_native_compiler_bin}" DIRECTORY)
+  configure_file(WindowsTestSDK.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/native-test-sdk.cmake" @ONLY)
+  set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES "${CMAKE_CURRENT_BINARY_DIR}/native-test-sdk.cmake")
+endif()
 add_test(NAME native-device-producer-consumer COMMAND rns8-native-device-consumer)
 set_tests_properties(native-device-producer-consumer PROPERTIES TIMEOUT 120 LABELS "package;hip;interop")
 

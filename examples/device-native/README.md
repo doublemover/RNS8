@@ -72,3 +72,7 @@ GPU consumer then use `DLManagedTensorVersioned` leases. Each tensor deleter
 must run once after all prepared owners retire. These modes retain the complete
 independent host oracle and require no Python framework. Existing native-only
 execution receipts do not establish these new modes' qualification.
+
+On Windows, CTest binds its process to the SDK selected for the producer's
+compiler and headers, including when the calling shell still names an older
+HIP installation. This changes no user or system environment variables.
