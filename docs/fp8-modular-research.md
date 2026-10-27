@@ -224,4 +224,7 @@ ships the same source under `share/RNS8/examples/integer-split`. CPU fixtures
 independently reconstruct every digit with Boost, cover signed byte values,
 full-width/power-of-two/2^53 boundaries and deterministic arbitrary bit patterns,
 and check failure preservation for malformed final cells and invalid spans.
-Execution of this new source awaits the consolidated batch.
+The [full implementation validation](../metadata/full-implementation-validation-20261027.json)
+passes all four new CPU-ASan regressions and both installed C17 linkage cases.
+Strict GCC C17/C++17 linkage/execution also passes under Ubuntu24.04/WSL.
+Floating instruction qualification retains its separate target-specific gates.

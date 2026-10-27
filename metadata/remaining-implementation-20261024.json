@@ -9,7 +9,7 @@
       "issue": 18,
       "title": "[P1] Invalidate or roll back bounded outputs after partial GEMM failure; mixed CRT planes currently export successfully",
       "url": "https://github.com/doublemover/RNS8/issues/18",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Ordinary arithmetic output invalidation exists, but ensure_hip_export_tile_metadata still mutates existing schedule/bounds/masks without invalidating old fingerprint before upload (current comment requirement remains).",
       "implementation": [
         {
@@ -44,7 +44,10 @@
         "scope": "Release prepared-export readers on CPU exceptions while retaining pending GPU readers on failed drain; dedicated allocation-fault sweeps authored.",
         "file": "src/core/prepared_export_read.hpp",
         "real_device_fault_qualification": false
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 19,
@@ -90,7 +93,7 @@
       "issue": 20,
       "title": "[P2] Compute exact-wide admission once and make expensive moment refinement demand-driven",
       "url": "https://github.com/doublemover/RNS8/issues/20",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Single proof pass and opt-in scalar-first implemented; remaining comment's measurement policy identity missing from result_compare and shared capture_contract_key.",
       "implementation": [
         {
@@ -154,7 +157,10 @@
         "qualified_gains": 0,
         "all_facts_preserved": true,
         "scope": "Native packing proof construction, not a new lazy GEMM-refinement policy; arbitrary-width imports remain unbounded."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 24,
@@ -321,7 +327,7 @@
       "issue": 30,
       "title": "[Research P1] Add a conversion-aware analytical planner before measured kernel promotion",
       "url": "https://github.com/doublemover/RNS8/issues/30",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Offline typed planning/resource prototype exists, but shared operation/provider parity query/runtime integration and current actual AUTO rejection decision trace absent; emitter still hardcodes no exact entry.",
       "implementation": [
         {
@@ -554,13 +560,16 @@
         "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
         "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open.",
         "held_out_gate": "256\u00b3 same-graph/dataset/build process-held-out interval passes in both cohorts; 128\u00b3 fails. Idle-host costed steady gains are1.3\u20131.6%; median-based setup/training break-even144672\u2013194549calls is projected, not observed."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 31,
       "title": "[Research P1] Calibrate exact-GEMM roofs with instruction, conversion and memory microbenchmarks",
       "url": "https://github.com/doublemover/RNS8/issues/31",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Calibration infrastructure and native hook-disabled bursts exist; public hook-disabled lane/minimal cold conversion/batch observation/event hierarchy/work units and prefix1 catalog corrections in relevant comments not all implemented.",
       "implementation": [
         {
@@ -694,7 +703,10 @@
         "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
         "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open.",
         "held_out_gate": "256\u00b3 same-graph/dataset/build process-held-out interval passes in both cohorts; 128\u00b3 fails. Idle-host costed steady gains are1.3\u20131.6%; median-based setup/training break-even144672\u2013194549calls is projected, not observed."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 32,
@@ -824,13 +836,15 @@
       "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
       "historical_pre_extension_remaining_20261027": [
         "Independent complete-pipeline custom-basis/form calibration and broader-target qualification remain. Experimental-basis accelerator-library/distributed providers and automatic basis selection remain outside the current CPU/direct-HIP phase."
-      ]
+      ],
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 34,
       "title": "[Research P1] Build cost-aware device bound discovery and compact adaptive-prefix schedules",
       "url": "https://github.com/doublemover/RNS8/issues/34",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Device bound scan/adaptive compact producer and sealed core schedule implemented. Remaining direct-HIP ordinary tiled consumer rebuilds checked immutable schedule/active counts each call; current native campaign lacks heterogeneous controls.",
       "implementation": [
         {
@@ -925,13 +939,16 @@
         "implementation_complete": true,
         "scope": "Device summary/buckets, adaptive consumers, immutable proof/schedule reuse and proof-policy planning.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 35,
       "title": "[Research P1] Fuse native conversion and multiple residue channels inside matrix-engine tiles",
       "url": "https://github.com/doublemover/RNS8/issues/35",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Native grouped/tiled WMMA register/raw-LDS kernels exist; current encode-once cooperative/encoded-LDS candidates and prepared tiled capability amortization absent. Wrapper still allocates/probes/syncs/readbacks immutable capability per call.",
       "implementation": [
         {
@@ -986,13 +1003,16 @@
         "implementation_complete": true,
         "scope": "Multi-channel/wave native WMMA, register/LDS pipelines and conversion ownership.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 36,
       "title": "[Research P2] Schedule residue and output tiles for measured XCD/cache locality",
       "url": "https://github.com/doublemover/RNS8/issues/36",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Offline typed locality schedule bijection/cache simulator implemented; no actual target-specific launch remapping consumer or associated kernel integration in source. Hardware execution alone is not the missing item.",
       "implementation": [
         {
@@ -1054,13 +1074,16 @@
         "implementation_complete": true,
         "scope": "Checked locality permutations, explicit queue/split-K lowering and displacement controls.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 37,
       "title": "[Research P2] Add exact split-K/Stream-K with hierarchical modular partial reduction",
       "url": "https://github.com/doublemover/RNS8/issues/37",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Split-K canonical resident producers, windowed/hierarchical merge and native variant exist. Latest comment's native first-merge fusion and bounded native fragment count control not implemented; separate canonicalization launch remains.",
       "implementation": [
         {
@@ -1103,13 +1126,16 @@
         "implementation_complete": true,
         "scope": "Exact split-K, hierarchical/fused merge, bounded windows and controls.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 38,
       "title": "[Research P2] Build heterogeneous grouped matrix-engine work queues with bounded persistent scheduling",
       "url": "https://github.com/doublemover/RNS8/issues/38",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Prepared heterogeneous persistent queue exists; explicit NativeWmmaWork list still O(work_count), no procedural schedule mode; latest benchmark compact versus padded per-repeat scatter boundary remains.",
       "implementation": [
         {
@@ -1195,13 +1221,16 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 39,
       "title": "[Research P1] Compare overflow-proven direct CRT and balanced merge trees against current Garner",
       "url": "https://github.com/doublemover/RNS8/issues/39",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Host/device direct CRT, balanced tree and calibrator implemented; latest quarter-range certified correction-free quotient/delayed-carry narrow-limb public export integration absent.",
       "implementation": [
         {
@@ -1371,13 +1400,16 @@
         "receipt": "metadata/sdk101-followup-20261026.json",
         "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
         "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 40,
       "title": "[Research P2] Co-design residue layouts for packing, matrix tiles and CRT export",
       "url": "https://github.com/doublemover/RNS8/issues/40",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Real layout converters, ragged owner and consumers exist; executable fragment algebra/GF2 paired-column candidate and latest cost/retention/panel-reuse integrations remain incomplete; ragged materialization still reuploads directory and precopies compact destination.",
       "implementation": [
         {
@@ -1505,13 +1537,16 @@
         "implementation_complete": true,
         "scope": "Executable layout algebra, real consumers, ragged adapters and retained panels.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 41,
       "title": "[Research P1] Implement value-preserving device exact-wide base extension",
       "url": "https://github.com/doublemover/RNS8/issues/41",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Public synchronous HIP value-preserving lift, staged commit, shared mixed-radix digit suffix kernel and recipe consumer exist. Device selection/general async+graph extension phases not complete: header explicitly says operation is not graph-safe.",
       "implementation": [
         {
@@ -1643,13 +1678,16 @@
         "implementation_complete": true,
         "scope": "Sign-correct exact GPU extension, shared digits, prepared/graph and explicit bases.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 42,
       "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
       "url": "https://github.com/doublemover/RNS8/issues/42",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Resident recipe DAG arena/liveness and consumer-driven prefix planner implemented. Latest comment remains: arena retained but suffix lifting uses one-shot helper allocating suffix+status per replay, not prepared workspace.",
       "implementation": [
         {
@@ -1848,7 +1886,10 @@
         "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
         "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open.",
         "held_out_gate": "256\u00b3 same-graph/dataset/build process-held-out interval passes in both cohorts; 128\u00b3 fails. Idle-host costed steady gains are1.3\u20131.6%; median-based setup/training break-even144672\u2013194549calls is projected, not observed."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 43,
@@ -2093,7 +2134,9 @@
       "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
       "historical_pre_extension_remaining_20261027": [
         "Native Linux/CDNA adapter/caller-graph execution, real device-fault/failed-drain recovery, physical overlap/traffic and complete-route performance remain unqualified. Existing single-epoch, externally serialized handle and one-body caller-capture contracts remain explicit."
-      ]
+      ],
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 45,
@@ -2166,7 +2209,8 @@
       "commits": [
         "543fa115e6b7e9313928d09b206186de57dc6f25",
         "3359fd0c9688f7322335d65bf417174ec17b696a",
-        "2c94b994190e6571136820cda07a43f0072d212f"
+        "2c94b994190e6571136820cda07a43f0072d212f",
+        "3b6bc72eaa83e8b2e2041a127caa16389f8dd0f3"
       ],
       "remaining": [
         "Actual gfx942/gfx1201 FP8 and gfx950 fixed/dynamic/mixed FP4/FP6/FP8 lane, scale-ordering, internal-accumulator and adversarial exactness qualification remains. Strongest complete INT8 controls, resource/counter evidence and profitable routing remain unmeasured."
@@ -2191,26 +2235,29 @@
         "qualification": "deferred; no new tests or benchmarks"
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
+      "current_scope_receipt": "metadata/full-implementation-validation-20261027.json",
       "historical_pre_extension_remaining_20261027": [
         "Compile-only gfx942 MFMA and gfx1201 WMMA code generation is recorded. Actual target lane/accumulator/adversarial exact arithmetic and complete INT8-versus-FP8 route costs require those GPUs. FP4/FP6/dynamic/mixed-scale contracts remain separately gated later forms."
       ],
       "integer_split_implementation_20261027": {
-        "status": "implemented_execution_pending",
+        "status": "implemented_local_validation_passed",
         "audit": "metadata/full-implementation-audit-20261027.json",
         "retired_symbol": "rns8_ozaki_decompose_i64",
         "replacement": [
           "rns8_query_integer_split_i64",
           "rns8_split_i64",
           "rns8_merge_i64"
-        ]
-      }
+        ],
+        "validation_receipt": "metadata/full-implementation-validation-20261027.json"
+      },
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 46,
       "title": "[Research P3] Qualify packed INT4/IU4 kernels for narrow exact semantic subsets",
       "url": "https://github.com/doublemover/RNS8/issues/46",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Private gfx11 signed-nibble finite INT4 builtin kernel exists; no typed public opt-in recipe/reusable versioned packed-B route or prepared capability ownership as latest scope requires.",
       "implementation": [
         {
@@ -2251,13 +2298,16 @@
         "implementation_complete": true,
         "scope": "Explicit finite signed INT4 owner and generation-bound packed B.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 47,
       "title": "[Research P2] Add exact algebraic epilogue composition without intermediate residue round trips",
       "url": "https://github.com/doublemover/RNS8/issues/47",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Exact axpby public CPU/direct HIP, rocWMMA fused epilogue and DAG integration implemented; latest zero coefficient/channel specialization and direct-HIP host-hoisted coefficient lowering still absent (helper uses full-width % per output).",
       "implementation": [
         {
@@ -2303,7 +2353,10 @@
         "implementation_complete": true,
         "scope": "Shared exact coefficient lowering and dead-term specialization.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 48,
@@ -2422,13 +2475,15 @@
       "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
       "historical_pre_extension_remaining_20261027": [
         "Strongest-control large-shape one-level bilinear performance, physical ISA/resources and the unchanged speed/memory promotion gates remain. Rank48 coefficient execution is implemented; the paper-specific lower-addition SLP is not claimed by that coefficient route."
-      ]
+      ],
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 49,
       "title": "[Research P3] Add opt-in Freivalds and redundant-residue checks with explicit guarantees",
       "url": "https://github.com/doublemover/RNS8/issues/49",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Public finite CPU/HIP Freivalds verifier and replay/exact-exponent contract implemented; independent native sentinel is private and not wired to resident/DAG producer publication. Offline redundant checker explicitly does not authorize runtime publication, so commit-boundary integration remains.",
       "implementation": [
         {
@@ -2501,7 +2556,10 @@
         "report": "docs/five-issue-implementation-20261026.md",
         "metadata": "metadata/five-issue-implementation-20261026.json",
         "qualification": "deferred; no new tests or benchmarks"
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 50,
@@ -2609,13 +2667,15 @@
       "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
       "historical_pre_extension_remaining_20261027": [
         "Applicable CPU/mock and single-device gfx1100 partition/reduction regressions pass. Actual multi-GPU Windows and native Linux gfx942/gfx950 transport, rank/device-fault cleanup, topology/NUMA/traffic and scaling remain unqualified. Optional RCCL/multiprocess/multinode/device-initiated M3 transports remain separately gated extensions."
-      ]
+      ],
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 51,
       "title": "[Research P3] Qualify explicit Sparse-A and proof-preserving hybrid block-sparse execution",
       "url": "https://github.com/doublemover/RNS8/issues/51",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Public block sparse/hybrid and structured paths implemented; current comment's collector counterbalancing and CDNA3 larger-family producer/schema event mapping remain incomplete.",
       "implementation": [
         {
@@ -2660,13 +2720,16 @@
         "implementation_complete": true,
         "scope": "Explicit Sparse-A/hybrid owners/examples, real target builtins and shared metadata.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 52,
       "title": "[Research P3] Prototype CDNA5 TDM and cluster multicast for shared RNS source tiles",
       "url": "https://github.com/doublemover/RNS8/issues/52",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "No CDNA5 TDM/cluster transfer/barrier litmus or two-stage/multicast kernel in current source; existing gfx11/gfx94/gfx95 paths are not this implementation.",
       "implementation": [
         {
@@ -2707,13 +2770,16 @@
         "report": "docs/five-issue-implementation-20261026.md",
         "metadata": "metadata/five-issue-implementation-20261026.json",
         "qualification": "deferred; no new tests or benchmarks"
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 53,
       "title": "[Research P2] Add proof-selected native narrow-integer paths for tiny and skinny GEMM",
       "url": "https://github.com/doublemover/RNS8/issues/53",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Proof-admitted public narrow scalar/byte WMMA and controls exist; current public advertised GEMV versus actual generic launch mismatch, width-8 vector control and optional fused persistent-RNS narrow epilogue remain implementation work.",
       "implementation": [
         {
@@ -2798,13 +2864,16 @@
         "receipt": "metadata/sdk101-followup-20261026.json",
         "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
         "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 54,
       "title": "[Research P3] Add optional CPU matrix-instruction backends while preserving the independent scalar oracle",
       "url": "https://github.com/doublemover/RNS8/issues/54",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "CPU scalar/OpenMP oracle present; no separately named optimized AMX/Arm matrix-instruction backend, runtime OS/thread admission or matrix microkernel implementation.",
       "implementation": [
         {
@@ -2868,13 +2937,15 @@
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/implementation-closeout-20261027.json",
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 55,
       "title": "[Research P2] Generate and prune certified kernel variants with inspectable manifests",
       "url": "https://github.com/doublemover/RNS8/issues/55",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Bounded native WMMA generator/symbol checker and manifests implemented; current body asks source-bound logical interpreter with mutation/coverage assurance, absent from current generation checker. ISA substring/symbol checks are not that implementation.",
       "implementation": [
         {
@@ -2921,19 +2992,22 @@
         "implementation_complete": true,
         "scope": "Actual bounded generated kernels and source-bound symbolic/mutation/lifetime checks.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 56,
       "title": "[Roadmap] Execute the research-derived exact-GEMM architecture backlog",
       "url": "https://github.com/doublemover/RNS8/issues/56",
-      "state": "implementation_pending",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Roadmap index exists but explicitly owns executing 34 child scopes; multiple source-missing/partial algorithms and integrations confirmed above. Not an issue closed merely by writing backlog.",
       "implementation": [],
       "regressions": [],
       "commits": [],
       "remaining": [
-        "Umbrella acceptance depends on the remaining child measurement, failure, configuration and hardware gates, plus explicitly unsupported provider/conditional extensions; a local Release pass does not complete the whole roadmap."
+        "Retire child acceptance gates using their required hardware, OS, fault, resource and matched performance evidence. The current full-inventory audit records no known remaining concrete implementation work."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2978,13 +3052,16 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 57,
       "title": "Autodetect GPU toolchains, vcpkg and dependencies in Windows/Linux presets",
       "url": "https://github.com/doublemover/RNS8/issues/57",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Dependency/preset discovery framework exists; latest comment still true: build_accelerators configure-only invokes full build then breaks after first selected preset, overreporting count.",
       "implementation": [
         {
@@ -3012,13 +3089,16 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 58,
       "title": "Prepare reproducible Linux GPU sessions with preflight, locked setup and bounded run plans",
       "url": "https://github.com/doublemover/RNS8/issues/58",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Bounded session/preflight/lock infrastructure exists; latest ordinary producer/consumer defect remains: inspector emits numeric hip_available=1 but qualification validates identity with `is True`, preventing successful session GPU identification.",
       "implementation": [
         {
@@ -3046,13 +3126,16 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 59,
       "title": "[Research P2] Add exact complex 3M GEMM as a residue-resident paired-value composition",
       "url": "https://github.com/doublemover/RNS8/issues/59",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Complex3M/4M CPU/HIP/public/graph paired publication implemented; latest liveness refinement remains: two extra full product-sized staged component buffers rather than reusing dead p0/p1 slots.",
       "implementation": [
         {
@@ -3097,13 +3180,16 @@
         "implementation_complete": true,
         "scope": "Atomic paired 3M/4M, transpose/conjugation and reduced scratch with graph composition.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 60,
       "title": "[Build] Upgrade LLVM/Clang and all dependencies through compatibility-gated locks",
       "url": "https://github.com/doublemover/RNS8/issues/60",
-      "state": "qualification_deferred",
+      "state": "implementation_infrastructure_present_outcome_pending",
       "base_gap": "Version policy/inventory/bootstrap/dependency-resolution tooling implemented with selected/observed/last-tested distinction and explicit exceptions. Issue's newest-compatible upgrade/maintained lock outcome is qualification-dependent; metadata still candidate_pending_qualification with promotion_allowed=false, so source alone cannot establish that outcome. Retained separately rather than treating deferred tests as missing implementation.",
       "implementation": [],
       "regressions": [],
@@ -3126,13 +3212,16 @@
         "receipt": "metadata/sdk101-followup-20261026.json",
         "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
         "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 61,
       "title": "[Docs] Deslopify the README and consolidate all project documentation",
       "url": "https://github.com/doublemover/RNS8/issues/61",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "README/docs consolidation/form/checker implemented, but latest head adds docs/7900xtx-partial-campaign-2026-10-24.md absent from required documentation inventory. This is missing artifact integration, not deferred validation.",
       "implementation": [
         {
@@ -3177,13 +3266,16 @@
         "report": "docs/five-issue-implementation-20261026.md",
         "metadata": "metadata/five-issue-implementation-20261026.json",
         "qualification": "deferred; no new tests or benchmarks"
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 63,
       "title": "[Research P2] Add symmetry-aware exact Gram/SYRK execution with triangular ownership and single-source packing",
       "url": "https://github.com/doublemover/RNS8/issues/63",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Public single-source CPU/direct-HIP scalar+WMMA triangular Gram and prepared reuse implemented. Native fused producer/retained orientation adapter/reconstruct-once triangular output variants in required milestones absent; current API only dense mirrored resident residues.",
       "implementation": [
         {
@@ -3239,13 +3331,15 @@
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/implementation-closeout-20261027.json",
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 64,
       "title": "[Research P2] Recode wrap64 into signed radix-256 digits for correction-free matrix-engine convolution",
       "url": "https://github.com/doublemover/RNS8/issues/64",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Host carry-recode/certificate and real signed/U8 gfx11 WMMA controls implemented. Linux/Instinct signed MFMA target implementation from phased scope absent; current wrap-radix builtin kernel is gfx1100/1101/1102 only.",
       "implementation": [
         {
@@ -3291,13 +3385,16 @@
         "implementation_complete": true,
         "scope": "Signed-radix wrap64 with separate RDNA3/CDNA2/3/4 matrix maps and slabs.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 65,
       "title": "[Perf P2] Make resident storage demand-driven and eliminate duplicate native upload materializations",
       "url": "https://github.com/doublemover/RNS8/issues/65",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Lazy HIP host mirrors and deduplicated retained native materialization implemented; latest finite-mod256 byte-identity host pack/export optimization still absent, existing adapter stages and converts identical bytes.",
       "implementation": [
         {
@@ -3370,13 +3467,16 @@
         "implementation_complete": true,
         "scope": "Lazy host storage, canonical upload, mod256 byte identity, trim/retention and allocation observations.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 66,
       "title": "[Research P3] Prototype word-size modular GEMM with certified asymmetric multiword lowering",
       "url": "https://github.com/doublemover/RNS8/issues/66",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Word-mod descriptor/oracle and real scalar/UDOT4/WMMA kernel candidates implemented. Latest packed-dot canonical-width specialization absent: always extracts eight bytes and 8x8 products, unlike width-bounded WMMA sibling.",
       "implementation": [
         {
@@ -3434,13 +3534,16 @@
         "implementation_complete": true,
         "scope": "Exact word split/recombine, width-specific dot4 and asymmetric/concatenated FP64 MFMA.",
         "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 67,
       "title": "[Architecture P2] Add public HIP-native buffer import and export with explicit ownership and stream interoperability",
       "url": "https://github.com/doublemover/RNS8/issues/67",
-      "state": "implemented_remaining_acceptance",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Public typed device-native leases, verified import/export and installed HIP producer-consumer example implemented. Prepared async external bindings and graph reuse phase missing: only synchronous readiness/lease boundary is exposed.",
       "implementation": [
         {
@@ -3539,13 +3642,15 @@
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       },
       "current_requested_implementation_complete": true,
-      "current_scope_receipt": "metadata/implementation-closeout-20261027.json"
+      "current_scope_receipt": "metadata/implementation-closeout-20261027.json",
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 68,
       "title": "[Research P2] Execute exact GEMM beyond device memory with budgeted single-GPU panel streaming",
       "url": "https://github.com/doublemover/RNS8/issues/68",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Serial public bounded panel-streaming owner implemented; overlap/retained-B/cost selection phases incomplete and latest nested pinned export staging remains outside declared host budget unless explicitly excluded/charged.",
       "implementation": [
         {
@@ -3640,13 +3745,16 @@
         "three_stream_requested_device_peak": 36096000,
         "three_stream_requested_pinned_peak": 16986624,
         "all_payload_retired": true
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 69,
       "title": "[Research P2] Accelerate RNS conversion and CRT with fixed-matrix transforms and packed dot products",
       "url": "https://github.com/doublemover/RNS8/issues/69",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Fixed-matrix scalar/dot/WMMA conversion/CRT prototypes exist. Latest public signed dispatch still uses per-plane pack family and redundant synchronization; shared floor-reciprocal helper still has redundant second correction. Actual current commented implementation refinements not done.",
       "implementation": [
         {
@@ -3792,7 +3900,10 @@
         "receipt": "metadata/sdk101-followup-20261026.json",
         "compiled_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
         "scope": "Local configuration checks and two separate bounded measurement cohorts; broader acceptance remains open."
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 70,
@@ -3866,7 +3977,7 @@
       "issue": 71,
       "title": "[Perf P2] Preserve packed-dot residue GEMM across all modulus planes and grouped/scheduled paths",
       "url": "https://github.com/doublemover/RNS8/issues/71",
-      "state": "implemented_validation_deferred",
+      "state": "implemented_qualification_remaining",
       "base_gap": "Existing dot4 implementation not extended: uniform use_dp4a remains restricted to 256/255/251 and grouped/region/scheduled scalar routes remain. Requested all-modulus/composed compute parity absent.",
       "implementation": [
         {
@@ -3930,7 +4041,10 @@
         "timing_captures": 0,
         "status": "folded_uniform_owner_repair_authored_validation_budget_exhausted",
         "next": "An additional validation batch requires user authorization under the one-retry limit; do not launch the frozen 660-capture collection until it passes"
-      }
+      },
+      "current_requested_implementation_complete": true,
+      "source_audit_receipt": "metadata/full-implementation-audit-20261027.json",
+      "current_validation_receipt": "metadata/full-implementation-validation-20261027.json"
     },
     {
       "issue": 72,
@@ -4395,7 +4509,7 @@
     "default_routing_changed": false,
     "issues_closed": []
   },
-  "current_closeout_receipt": "metadata/remaining-code-validation-20261027.json",
+  "current_closeout_receipt": "metadata/full-implementation-validation-20261027.json",
   "remaining_source_extensions_20261027": {
     "status": "implemented",
     "issues": [

@@ -8,12 +8,13 @@ preserves earlier work without duplicating current status.
 
 ## Current implementation pass
 
-The [remaining-code closeout](../metadata/remaining-code-validation-20261027.json)
-records the complete requested source, including all five formerly deferred
-extensions, at compiled revision `2c94b99`. It identifies initial failures, the
-consolidated repair, combined CPU-ASan/HIP retest, installed DLPack consumers and
-compile-only instruction/transport evidence. The [earlier eight-milestone receipt](../metadata/implementation-closeout-20261027.json)
-retains its original source. No new performance campaign ran.
+The [full implementation audit](../metadata/full-implementation-audit-20261027.json)
+reconciles all 40 open issues and their comments. All concrete source work is
+written, including the explicit native-integer split/merge that replaces the
+last reserved decomposition stub. The [post-source validation](../metadata/full-implementation-validation-20261027.json)
+records clean compiled revision `3b6bc72`, full CPU-ASan/gfx1100 suites and fresh
+native/DLPack/C17 installed consumers. Source was committed before tests began;
+no new benchmark campaign or routing promotion follows.
 
 | Issue | Implemented extension | Remaining qualification |
 |---|---|---|
@@ -136,7 +137,7 @@ while sustained production-boundary measurements remain unqualified. Documentati
 
 ### Current validation and remaining work
 
-The current local source/test receipt is the [remaining-code closeout](../metadata/remaining-code-validation-20261027.json).
+The current local source/test receipt is the [full implementation validation](../metadata/full-implementation-validation-20261027.json).
 It distinguishes real gfx1100 execution, target-inapplicable skips and compile-only
 AMX/I8MM/FP8 source evidence. Native Linux, multi-GPU, Instinct/CDNA and unavailable
 instruction families remain separate qualification lanes. The current Windows
@@ -153,13 +154,10 @@ uninstalled. Explicit gfx950 FP4/FP6/FP8 fixed/dynamic/mixed-format kernels are
 implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
 paths, with physical cluster/memory-ordering/failure qualification pending. There are 40 open issues;
-child acceptance gates remain the roadmap's retirement criterion. All five previously
-deferred source extensions are implemented; no known implementation item remains
-in the requested backlog as of that receipt. A fresh full-inventory audit found
-the reserved native-decomposition stub; its explicit radix128 split/merge
-replacement is now written, with execution pending the new consolidated batch.
-The current receipt records the consolidated repair and
-combined retest, including stopped lanes and unavailable-target limits.
+child acceptance gates remain the roadmap's retirement criterion. The full audit
+records no known remaining implementation in the requested backlog. The current
+receipt distinguishes applicable local passes, unchanged carried evidence,
+explicit stopped lanes and unavailable-target qualification.
 
 ## Stop conditions for hardware work
 

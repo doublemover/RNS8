@@ -11,7 +11,7 @@
   },
   "source_complete": true,
   "remaining_implementation": [],
-  "test_status": "New source is frontloaded; full configured CPU-ASan/HIP suites and fresh installed native/DLPack/C17 consumers run after the source commit.",
+  "test_status": "Applicable full configured local CPU-ASan/HIP suites and fresh installed native/DLPack/C17 consumers pass; unavailable targets and explicit stopped lanes retain their recorded boundaries.",
   "interpretation": "Source completion covers the concrete implemented issue envelopes. Hardware availability, supported numerical/instruction contracts, native OS/link qualification, physical fault/counter evidence and measured payoff remain separate. This is not an all-issues-closed or default-route promotion assertion.",
   "issues": [
     {
@@ -824,5 +824,7 @@
       "source_reference_count": 11,
       "requirements_sha256": "a65f2245cc70039feb59541fda95c543eb75306a305fce513049c742b65080f3"
     }
-  ]
+  ],
+  "validation_receipt": "metadata/full-implementation-validation-20261027.json",
+  "validated_source_commit": "3b6bc72eaa83e8b2e2041a127caa16389f8dd0f3"
 }
