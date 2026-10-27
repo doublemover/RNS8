@@ -148,7 +148,7 @@ hipError_t enqueue_timed_stream_operation(const char* label, hipStream_t stream,
   if (status != hipSuccess) {
     return status;
   }
-  rns8::detail::hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
+  rns8::detail::hip_direct_timing_record_pending_event(label, std::move(events));
   return hipSuccess;
 }
 
