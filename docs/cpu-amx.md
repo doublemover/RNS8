@@ -91,8 +91,27 @@ native inputs, 16-cell tails, 65,536/131,072 K boundaries, signed/unsigned full
 thread ceilings, repeated-B mutation, and prepared-group refresh.
 They have **not** been executed. AMX source/object compilation is not proof of
 OS admission, emitted instructions executing correctly, or performance/energy.
-The optional second architecture remains evidence-gated by the issue; none is
-claimed from a portable build. Target execution, independent exact comparison,
+The optional second architecture now has an explicit Linux AArch64 I8MM owner
+in `rns8/cpu_i8mm.h`, selected with `RNS8_ENABLE_CPU_I8MM`. It uses ordinary
+CPU-resident matrices and CPU plans for semantic admission; execution calls
+the isolated SMMLA kernel rather than the scalar oracle. OS `AT_HWCAP` ASIMD
+and `AT_HWCAP2` I8MM are required before any instruction executes. Only the
+kernel translation unit has `-march=armv8.2-a+i8mm`; LTO is disabled there.
+This is fixed-width Advanced SIMD I8MM, independent of SVE vector length and SME
+state. [ACLE's SMMLA interface](https://arm-software.github.io/acle/neon_intrinsics/advsimd.html)
+and [Linux's capability definitions](https://github.com/torvalds/linux/blob/master/arch/arm64/include/uapi/asm/hwcap.h)
+define the selected instruction and OS contract.
+
+Preparation retains generation-bound two-column/eight-byte B panels and a full
+transactional output stage under an explicit payload budget. A panels are packed
+on demand into bounded worker-local storage. K slabs include the prior centered
+residue, cap at65536, reduce locally and mask all row/column/K tails. Repeats
+retain B; refresh rebuilds only changed B and rejects expanded proof envelopes.
+Uniform bounded/wide signed/unsigned and finite contracts are implemented;
+adaptive, wrap, experimental-basis and asynchronous execution reject explicitly.
+The query reports compiled/OS admission independently. CPU layout/byte-dot and
+actual-target scalar/Boost, full64-bit, long-K, lifecycle and refresh fixtures
+are authored. Target execution, independent exact comparison,
 end-to-end timing, affinity/NUMA sensitivity, and hardware adoption remain open.
 
 ## Instruction and OS references

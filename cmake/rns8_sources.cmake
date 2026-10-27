@@ -6,6 +6,7 @@ set(RNS8_PUBLIC_HEADERS
   include/rns8/moduli.h
   include/rns8/experimental_basis.h
   include/rns8/dlpack.hpp
+  include/rns8/cpu_i8mm.h
   include/rns8/rns8.h
   include/rns8/pipeline_recipe.h
   include/rns8/rns8.hpp
@@ -47,6 +48,7 @@ set(RNS8_SOURCES
   src/core/plan_lowering.cpp
   src/core/status.cpp
   src/cpu/cpu_amx.cpp
+  src/cpu/cpu_i8mm.cpp
   src/cpu/cpu_parallel.cpp
   src/cpu/cpu_reference.cpp
   src/cpu/block_sparse.cpp
@@ -64,6 +66,20 @@ set(RNS8_SOURCES
   src/backend_wrap64/wrap64_hip.cpp
   src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp
 )
+
+set(RNS8_CPU_I8MM_COMPILED OFF)
+if(RNS8_ENABLE_CPU_I8MM AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+    CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$" AND
+    CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  include(CheckCXXCompilerFlag)
+  check_cxx_compiler_flag("-march=armv8.2-a+i8mm" RNS8_CPU_I8MM_FLAG)
+  if(NOT RNS8_CPU_I8MM_FLAG)
+    message(FATAL_ERROR "The selected Arm compiler does not support explicit +i8mm isolation")
+  endif()
+  list(APPEND RNS8_SOURCES src/cpu/cpu_i8mm_kernel.cpp)
+  set_source_files_properties(src/cpu/cpu_i8mm_kernel.cpp PROPERTIES COMPILE_OPTIONS "-march=armv8.2-a+i8mm;-fno-lto")
+  set(RNS8_CPU_I8MM_COMPILED ON)
+endif()
 
 function(rns8_apply_ck_wmma_no_divide_patch out_include_dir out_header)
   set(_ck_gridwise_source "${RNS8_CK_INCLUDE_DIR}/ck/tensor_operation/gpu/grid/gridwise_gemm_wmma.hpp")
