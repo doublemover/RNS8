@@ -81,6 +81,55 @@ class CatalogTests(unittest.TestCase):
         items = [item for family in scenario_catalog().values() for item in family]
         self.assertTrue(any(item.case.input_profile == "wide-three-limb-mixed" for item in items))
 
+    def test_transient_read_denial_preserves_verified_case_and_persistent_denial_fails(self):
+        for persistent in (False, True):
+            with self.subTest(persistent=persistent), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                catalogs = root / 'benchmarks/cases'
+                catalogs.mkdir(parents=True)
+                value, _ = self.fixture()
+                (catalogs / 'fixture.json').write_text(json.dumps(value))
+                output = root / 'temp/cases'
+                materialize(output, root)
+                target = output / 'fixture/sample.json'
+                before = target.stat().st_mtime_ns
+                original = Path.read_bytes
+                denied = 0
+                def reader(path):
+                    nonlocal denied
+                    if path == target and (persistent or denied == 0):
+                        denied += 1
+                        raise PermissionError('simulated pending replacement')
+                    return original(path)
+                with patch.object(Path, 'read_bytes', reader), patch('benchmark_cases.time.sleep'):
+                    if persistent:
+                        with self.assertRaises(PermissionError):
+                            materialize(output, root)
+                        self.assertEqual(denied, 8)
+                    else:
+                        self.assertEqual(materialize(output, root)['cases'], 1)
+                        self.assertEqual(denied, 1)
+                self.assertEqual(target.stat().st_mtime_ns, before)
+
+    def test_symlink_destinations_cannot_escape_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            catalogs = root / 'benchmarks/cases'
+            catalogs.mkdir(parents=True)
+            value, _ = self.fixture()
+            (catalogs / 'fixture.json').write_text(json.dumps(value))
+            output = root / 'temp/cases'
+            outside = root / 'outside'
+            outside.mkdir()
+            output.mkdir(parents=True)
+            try:
+                (output / 'fixture').symlink_to(outside, target_is_directory=True)
+            except OSError as error:
+                self.skipTest(f'symlink creation unavailable: {error}')
+            with self.assertRaisesRegex(ValueError, 'escapes output'):
+                materialize(output, root)
+            self.assertFalse(list(outside.iterdir()))
+
     def test_duplicate_cases_rejected_before_publication(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

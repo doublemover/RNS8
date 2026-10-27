@@ -28,7 +28,7 @@ extern "C" int rns8_rocshmem_runtime_finalize();
 #if defined(RNS8_ENABLE_DISTRIBUTED_MPI) && RNS8_ENABLE_DISTRIBUTED_MPI && defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #define RNS8_PROCESS_ENABLED 1
 extern "C" int rns8_hip_distributed_pack(const uint64_t*,const uint64_t*,int8_t*,int8_t*,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,bool,uint32_t,uint64_t,void*);
-extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(const int8_t*,const int8_t*,int8_t*,int,int,int,int,int,int,int,uint32_t,int,int,int,void*);
+extern "C" int rns8_hip_basis_gemm_stream(const int8_t*,const int8_t*,int8_t*,int,int,int,const uint16_t*,uint32_t,void*);
 extern "C" int rns8_hip_distributed_reduce_partials(const int8_t*,int8_t*,const rns8::detail::distributed::DeviceTile*,uint64_t,uint64_t,uint32_t,uint32_t,rns8::detail::BasisPacket,void*);
 extern "C" int rns8_hip_distributed_export(const int8_t*,uint64_t*,int,int,uint32_t,uint32_t,const rns8::detail::distributed::DeviceTile*,bool,bool,int*,rns8::detail::BasisPacket,void*);
 extern "C" int rns8_hip_distributed_integrity(const uint64_t*,const uint64_t*,const uint64_t*,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,bool,int*,void*);

@@ -17,8 +17,8 @@ extern "C" int rns8_hip_distributed_export(const int8_t*, uint64_t*, int, int, u
 extern "C" int rns8_hip_distributed_materialize(const uint64_t*, int8_t*, int, uint32_t, bool, rns8::detail::BasisPacket,void*);
 extern "C" int rns8_hip_distributed_integrity(const uint64_t*,const uint64_t*,const uint64_t*,
     uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,bool,int*,void*);
-extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(const int8_t*, const int8_t*, int8_t*,
-    int, int, int, int, int, int, int, uint32_t, int, int, int, void*);
+extern "C" int rns8_hip_basis_gemm_stream(const int8_t*, const int8_t*, int8_t*,
+    int, int, int, const uint16_t*, uint32_t, void*);
 #endif
 
 namespace rns8::detail::distributed {
@@ -252,9 +252,9 @@ struct HipExecution::Impl {
     auto code = hipError_t(rns8_hip_distributed_pack(static_cast<const uint64_t*>(device.a.get()),
         static_cast<const uint64_t*>(device.b.get()), a, b, tile.row, tile.col, tile.rows, tile.cols,
         local_k, r.lda, r.ldb, plan->signed_value(), work.modulus,work.k_begin, slot.stream.get()));
-    if (code == hipSuccess) code = hipError_t(rns8_hip_direct_ring_gemm_i8_device_on_stream(a, b, c,
-        int(tile.rows), int(tile.cols), int(local_k), int(local_k), int(tile.cols), int(tile.cols), int(work.modulus),
-        uint32_t((uint64_t{1} << 32) / work.modulus), int(work.logical_plane), int(r.prefix), 65536, slot.stream.get()));
+    const auto modulus = static_cast<uint16_t>(work.modulus);
+    if (code == hipSuccess) code = hipError_t(rns8_hip_basis_gemm_stream(a, b, c,
+        int(tile.rows), int(tile.cols), int(local_k), &modulus, 1, slot.stream.get()));
     if (code == hipSuccess) code = hipEventRecord(slot.ready.get(), slot.stream.get());
     if (code != hipSuccess) return error(code, "shard_enqueue", rank, id);
     ++device.next; return {};

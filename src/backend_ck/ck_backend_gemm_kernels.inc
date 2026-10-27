@@ -349,7 +349,6 @@ int run_ck_tile_modulus(
     int modulus,
     uint32_t reciprocal,
     int prefix_index,hipStream_t stream=nullptr) {
-  (void)reciprocal;
 #define RNS8_CK_FIXED_MODULUS_CASE(modulus_value)                                                        \
   case modulus_value:                                                                                    \
     return run_ck_tile_modulus_fixed<modulus_value>(                                                     \
@@ -387,7 +386,10 @@ int run_ck_tile_modulus(
     RNS8_CK_FIXED_MODULUS_CASE(131);
     RNS8_CK_FIXED_MODULUS_CASE(127);
     default:
-      return ck_unsupported_backend;
+      if (modulus < 2 || modulus > 256) return ck_unsupported_backend;
+      return run_ck_tile_modulus_impl(a, b, c, a_workspace, b_workspace, temp_c,
+          m, n, k, lda, ldb, ldc, modulus, reciprocal, prefix_index,
+          CenteredModulo{modulus, reciprocal}, stream);
   }
 #undef RNS8_CK_FIXED_MODULUS_CASE
 }

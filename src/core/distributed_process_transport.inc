@@ -4,7 +4,8 @@ Admission shard(const Work& work) {
   auto* output=static_cast<int8_t*>(local_output.get())+work.byte_offset;
   auto code=hipError_t(rns8_hip_distributed_pack(static_cast<const uint64_t*>(a.get()),static_cast<const uint64_t*>(b.get()),ap,bp,
       tile.row,tile.col,tile.rows,tile.cols,k,r.lda,r.ldb,plan->signed_value(),work.modulus,work.k_begin,stream.get()));
-  if(code==hipSuccess)code=hipError_t(rns8_hip_direct_ring_gemm_i8_device_on_stream(ap,bp,output,int(tile.rows),int(tile.cols),int(k),int(k),int(tile.cols),int(tile.cols),int(work.modulus),uint32_t((uint64_t{1}<<32)/work.modulus),int(work.logical_plane),int(r.prefix),65536,stream.get()));
+  const auto modulus=static_cast<uint16_t>(work.modulus);
+  if(code==hipSuccess)code=hipError_t(rns8_hip_basis_gemm_stream(ap,bp,output,int(tile.rows),int(tile.cols),int(k),&modulus,1,stream.get()));
   const auto admitted=hip(code,"process_local_shard");if(!admitted)return admitted;return wait_device();
 }
 Admission message(bool sending,void* buffer,int bytes,int peer,int tag) {

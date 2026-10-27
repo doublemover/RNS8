@@ -10,6 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "rns8_benchmark_catalog_v1"
@@ -90,6 +91,20 @@ def source_files(root: Path):
     return catalogs, retained
 
 
+def read_published(path: Path) -> bytes | None:
+    # Windows can briefly deny reads while another immutable publisher closes
+    # its replacement handle. Retry that condition, but never trust unread bytes.
+    for attempt in range(8):
+        try:
+            return path.read_bytes()
+        except FileNotFoundError:
+            return None
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(0.002 * (1 << attempt))
+
+
 def materialize(output: Path, root: Path = ROOT) -> dict:
     catalogs, retained = source_files(root)
     documents = {}
@@ -110,15 +125,24 @@ def materialize(output: Path, root: Path = ROOT) -> dict:
     if output.is_relative_to(root.resolve()) and (output == root.resolve() or output.relative_to(root.resolve()).parts[0] not in ("temp", "build", "out")):
         raise ValueError("in-repository case output must use temp/, build/ or out/")
     output.mkdir(parents=True, exist_ok=True)
+    parents = {}
     for relative, data in documents.items():
-        target = output / relative
-        if not target.resolve().is_relative_to(output):
+        # Resolve each directory once instead of walking the filesystem for
+        # every case. Files may be atomically replaced by concurrent readers.
+        if relative.parent not in parents:
+            parent = output / relative.parent
+            parent.mkdir(parents=True, exist_ok=True)
+            parent = parent.resolve()
+            if not parent.is_relative_to(output):
+                raise ValueError("case destination escapes output")
+            parents[relative.parent] = parent
+        target = parents[relative.parent] / relative.name
+        if target.is_symlink() and not target.resolve().is_relative_to(output):
             raise ValueError("case destination escapes output")
         # Match the repository's native checkout line endings, preserving the
         # historical Windows collector hashes as well as canonical Git hashes.
         native = data.replace(b"\n", b"\r\n") if os.name == "nt" else data
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.is_file() and target.read_bytes() == native:
+        if read_published(target) == native:
             continue
         temporary = None
         try:
@@ -132,7 +156,7 @@ def materialize(output: Path, root: Path = ROOT) -> dict:
                 # Windows process holds a reader that forbids replacement.
                 # Accept only independently verified identical destination
                 # bytes; a different/absent value remains a real failure.
-                if not target.is_file() or target.read_bytes() != native:
+                if read_published(target) != native:
                     raise
         finally:
             if temporary is not None:
