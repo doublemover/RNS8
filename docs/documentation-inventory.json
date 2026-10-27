@@ -487,10 +487,6 @@
           "reference": "../7900xtx-large-throughput-2026-10-23.md"
         },
         {
-          "source": "docs/roadmap.md",
-          "reference": "7900xtx-large-throughput-2026-10-23.md"
-        },
-        {
           "source": "src/backend_hipblaslt/README.md",
           "reference": "../../docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse"
         },
@@ -534,10 +530,6 @@
         },
         {
           "source": "docs/performance.md",
-          "reference": "7900xtx-throughput-2026-10-23.md"
-        },
-        {
-          "source": "docs/roadmap.md",
           "reference": "7900xtx-throughput-2026-10-23.md"
         },
         {
@@ -983,6 +975,10 @@
         {
           "source": "docs/archive/README.md",
           "reference": "implementation-checkpoints-2026-10-23.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "archive/implementation-checkpoints-2026-10-23.md"
         },
         {
           "source": "docs/roadmap.md",
@@ -1530,10 +1526,6 @@
         {
           "source": "docs/archive/roadmap-status.md",
           "reference": "../audit-2026-10-06.md"
-        },
-        {
-          "source": "docs/roadmap.md",
-          "reference": "audit-2026-10-06.md"
         }
       ],
       "anchors": [
@@ -2808,10 +2800,6 @@
           "reference": "local-all-features-20261023.md"
         },
         {
-          "source": "docs/roadmap.md",
-          "reference": "local-all-features-20261023.md"
-        },
-        {
           "source": "docs/strassen-device.md",
           "reference": "local-all-features-20261023.md"
         },
@@ -3446,6 +3434,10 @@
         },
         {
           "source": "docs/roadmap.md",
+          "reference": "performance.md"
+        },
+        {
+          "source": "docs/roadmap.md",
           "reference": "performance.md#october-26-sdk101-bounded-measurements"
         },
         {
@@ -3746,10 +3738,6 @@
         },
         {
           "source": "docs/roadmap.md",
-          "reference": "platform-windows.md#october-26-core-sdk-101-local-release-validation"
-        },
-        {
-          "source": "docs/roadmap.md",
           "reference": "platform-windows.md#october-26-configuration-follow-up"
         },
         {
@@ -3844,7 +3832,7 @@
         "prepared-execution-and-completion-ownership",
         "stream-providers-and-explicit-caller-graphs",
         "strict-wrap64-resident-edges",
-        "token-qualified-producer-binding-authored-validation-pending"
+        "token-qualified-producer-binding"
       ]
     },
     {
@@ -5254,10 +5242,6 @@
           "reference": "7900xtx-partial-campaign-2026-10-24.md"
         },
         {
-          "source": "docs/roadmap.md",
-          "reference": "7900xtx-partial-campaign-2026-10-24.md"
-        },
-        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/7900xtx-partial-campaign-2026-10-24.md"
         }
@@ -5418,18 +5402,6 @@
           "reference": "local-validation-20261025.md#subsequent-materialization-integration"
         },
         {
-          "source": "docs/roadmap.md",
-          "reference": "local-validation-20261025.md#subsequent-materialization-integration"
-        },
-        {
-          "source": "docs/roadmap.md",
-          "reference": "local-validation-20261025.md"
-        },
-        {
-          "source": "docs/roadmap.md",
-          "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
-        },
-        {
           "source": "docs/selected-implementation-20261026.md",
           "reference": "local-validation-20261025.md#october-26-frontloaded-source-and-combined-retest"
         },
@@ -5501,10 +5473,6 @@
         {
           "source": "docs/planning-recipes.md",
           "reference": "focused-closeout-measurements-20261025.md#packed-storage-and-the-analytical-model"
-        },
-        {
-          "source": "docs/roadmap.md",
-          "reference": "focused-closeout-measurements-20261025.md"
         },
         {
           "source": "docs/roadmap.md",
@@ -5644,10 +5612,6 @@
         },
         {
           "source": "docs/five-issue-implementation-20261026.md",
-          "reference": "selected-implementation-20261026.md"
-        },
-        {
-          "source": "docs/roadmap.md",
           "reference": "selected-implementation-20261026.md"
         },
         {
@@ -5848,10 +5812,6 @@
         },
         {
           "source": "docs/product-prefix-cost-planning.md",
-          "reference": "materialized-replay-lifetimes.md"
-        },
-        {
-          "source": "docs/roadmap.md",
           "reference": "materialized-replay-lifetimes.md"
         },
         {

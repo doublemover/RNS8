@@ -96,7 +96,8 @@ export. It preserves the same readiness events, generation refresh, ownership,
 stream/graph completion and dependent-token rules as ordinary native transfers.
 Value packet kernel arguments freeze full basis content without borrowed packet
 uploads. The original host-pointer packing/conversion/export calls remain
-synchronous. New prepared transfer/conversion fixtures await the combined batch.
+synchronous. New prepared transfer/conversion fixtures pass the applicable CPU-ASan
+and gfx1100 HIP lanes in the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 Accelerator-library and other unsupported operations reject explicitly.
 Ordinary inventory identifies the implemented source and directs
 callers to this explicit query; it cannot infer an experimental basis from a

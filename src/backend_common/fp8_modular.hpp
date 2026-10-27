@@ -32,8 +32,9 @@ RNS8_FP8_HD inline bool integer_partial(float value,int& result,int bound=419430
 }
 RNS8_FP8_HD constexpr int low(int value){return ((value+136)&15)-8;}
 RNS8_FP8_HD constexpr int high(int value){return (value-low(value))/16;}
-// CDNA3 E4M3 FNUZ: bias8, unique positive zero. Only the exact integer
-// alphabet [-8,8] is admitted; no host floating casts or scale-byte guesses.
+// Exact E4M3 integers: FNUZ uses bias8, OCP bias7. Four-product digits
+// use [-8,8]; the three-product alphabets extend to [-15,15].
+// No host floating casts or scale-byte guesses.
 RNS8_FP8_HD constexpr uint8_t encode(int value,bool ocp=false) {
   if(!value)return 0;
   const unsigned magnitude=value<0?unsigned(-value):unsigned(value);

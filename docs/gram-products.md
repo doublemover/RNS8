@@ -78,9 +78,9 @@ both orientations, padded host inputs, full signed extrema, composite/prime
 finite moduli, K=65537, exact Boost residue outputs, dense symmetry, budget
 rejection and reservations. Prepared-owner fixtures additionally cover repeated
 execution without GPU allocation, stale generations, refresh, retained lifetimes
-and rejection of an expanded proof envelope. Compilation and execution remain pending.
-Hardware compilation, regression execution, ISA inspection and measured sustained
-profitability remain deferred. No source result qualifies a target or speedup.
+and rejection of an expanded proof envelope. Applicable CPU-ASan and gfx1100
+HIP regressions pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json). Physical ISA/resource
+inspection, broader targets and measured sustained profitability remain open.
 The prime-channel five-product experiment is implemented through
 `rns8_prepare_gram_five_product`, followed by the ordinary prepared Gram execute,
 refresh, info and destroy calls. It executes one level of
@@ -107,7 +107,8 @@ Independent CPU/Boost fixtures cover every admitted prime, skew certificates,
 both orientations, padded inputs, odd dimensions and original full-width values.
 HIP fixtures cover mixed prime/composite bases, real matrix subproducts, K-slab
 tails, retained lifetimes, budgets and stale-generation rejection. Host and
-gfx1100 HIP syntax checks pass; execution and performance gates remain deferred.
+gfx1100 HIP builds and direct/matrix execution fixtures pass the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json). Broader targets and performance gates remain deferred.
 
 ## Independent prepared input and output ablations
 

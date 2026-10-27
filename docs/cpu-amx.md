@@ -111,7 +111,9 @@ Uniform bounded/wide signed/unsigned and finite contracts are implemented;
 adaptive, wrap, experimental-basis and asynchronous execution reject explicitly.
 The query reports compiled/OS admission independently. CPU layout/byte-dot and
 actual-target scalar/Boost, full64-bit, long-K, lifecycle and refresh fixtures
-are authored. Target execution, independent exact comparison,
+are implemented. The host layout/capability fixtures pass the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json); an independent AArch64 compile emits SMMLA.
+Actual target execution, independent exact comparison,
 end-to-end timing, affinity/NUMA sensitivity, and hardware adoption remain open.
 
 ## Instruction and OS references
@@ -163,4 +165,5 @@ energy deltas; process attribution and unknown multiple wraps are not invented.
 Collector rejection fixtures cover missing OS permission, forged ISA/currentness,
 incomplete pairs, reused process receipts, incorrect packing/cache counts,
 underreported storage, altered safe K, false NUMA observation, and energy scope.
-All corpus and regression execution remains deferred by request.
+Applicable host collector regressions pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
+The target calibration corpus remains unexecuted; no AMX/I8MM elapsed result is claimed.

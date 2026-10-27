@@ -30,8 +30,9 @@ are drained even if the second launch fails before temporary buffers are release
 This is explicit opt-in execution with no AUTO change. Authored public fixtures
 exercise signed/unsigned full-width inputs, odd dimensions, changed input epochs,
 workspace/BUSY/invalid-method preservation and every exported cell against Boost.
-Private coefficient/SLP algebra and resource fixtures remain independent. All
-new public routes await the one consolidated qualification and timing campaign.
+Private coefficient/SLP algebra and resource fixtures remain independent. The
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json) passes applicable public and private CPU/HIP
+regressions. Matched timing and broader-target qualification remain open.
 ## One-level rank48 dyadic extension
 
 Methods 10/11 add a four-block rank48 coefficient program with direct or explicit
@@ -53,5 +54,6 @@ The collector accepts `rank48-dyadic` and charges four-block padding, all 48
 transform evaluations, even-channel work, reconstruction and final output.
 This coefficient implementation does not claim the paper's204-operation SLP
 count. CPU tensor/Boost, altered-coefficient, ring, resource and public HIP
-full-width/tail fixtures are authored. Target execution and measured routing
-remain deferred; no default route changes.
+full-width/tail fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json), including
+actual direct and matrix subproducts on gfx1100. Broader-target execution and
+measured routing remain deferred; no default route changes.

@@ -3,8 +3,9 @@
 The public workload `integer-cross-product --gram` computes `XᵀX`, with K
 observations and M=N integer features. Its explicit batch controls separate
 repeated computation on retained inputs from repeated output materialization.
-The new source, collector checks and CPU/HIP fixtures are authored only. They
-await the consolidated validation batch; no timings or speedup are claimed.
+The source, collector checks and applicable CPU/HIP fixtures pass the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json). The calibration campaign has not run; no
+new timing or speedup is claimed.
 
 ## Matched application contracts
 
@@ -128,7 +129,8 @@ and requires the prepared dense, ordinary/prepared triangular scalar, blocked Bo
 blocked native64 controls. Existing executable, build/source, command, process,
 clock and device provenance remains attached. Raw captures remain ineligible
 for performance promotion. The fixtures and CTest smoke registrations cover
-both export policies; their authored presence is not execution evidence.
+both export policies. Applicable registered correctness/collector checks pass;
+the benchmark input corpus remains distinct from an executed measurement campaign.
 
 ## Native/orientation/mirror/reconstruction ablations
 

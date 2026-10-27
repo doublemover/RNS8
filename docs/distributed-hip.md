@@ -107,7 +107,8 @@ cancellation or backend failure cannot fabricate a completed successful check.
 An error divisible by 257*263 is invisible. This is a declared integrity model,
 not arbitrary-error correction or a replacement for deterministic exactness.
 CPU corruption/invisibility fixtures and actual HIP signed/unsigned check
-fixtures are authored; no execution or cost claim is made by this source pass.
+fixtures pass applicable local CPU/gfx1100 checks in the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json). Actual multi-device behavior and cost remain unqualified.
 
 The collector accepts an explicit boolean `native_integrity` in its case and
 requires matching completion/zero-mask reports. Checked/unchecked modes remain
@@ -190,7 +191,9 @@ range proof. Host/device resources, pending flags and retryable cleanup include
 the entire partial gather. Existing cancellation, missing-coverage, failed-drain
 and retained-reader rules still apply. Authored CPU/Boost and HIP fixtures cover
 all axes, odd tiles, adaptive zero-prefix regions and cancellation across huge
-partial integers; execution remains deferred for this new source.
+partial integers. These CPU/mock and one-device HIP execution fixtures pass the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json). One-device execution does not test physical
+peer transport, rank failures or multi-GPU scaling.
 
 The calibrator accepts the explicit version2 case fields `axis`, `k_fragments`,
 `rank_grid_rows` and `rank_grid_cols`. The compact catalogue contains single-device

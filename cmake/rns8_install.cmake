@@ -75,5 +75,6 @@ install(
 
 install(FILES examples/device-native/CMakeLists.txt examples/device-native/README.md
     examples/device-native/main.cpp examples/device-native/producer_consumer.hip
+    examples/device-native/WindowsTestSDK.cmake.in
   DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/device-native"
   COMPONENT Development)

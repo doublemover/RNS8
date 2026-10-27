@@ -97,7 +97,8 @@ This is zero host **payload** round trip, not zero-copy conversion: import write
 RNS storage, export stages native data and performs a D2D copy, and compact
 status travels to the host. Conversion/reconstruction timings remain separate
 from status and commit traffic. Authored CPU descriptor and HIP full-width
-Boost/residue/output/padding/ownership fixtures await the consolidated campaign.
+Boost/residue/output/padding/ownership fixtures pass the applicable lanes of the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 Prepared async/graph binding is implemented below. The optional DLPack1.2
 C++ consumer is installed as `rns8/dlpack.hpp`. `rns8::dlpack::consume` accepts
 versioned ROCm tensors with scalar signed/unsigned64 elements, positive row
@@ -118,10 +119,11 @@ full independent output/padding oracle exercise this adapter. The adapter uses
 the [official1.2 header](https://github.com/dmlc/dlpack/blob/v1.2/include/dlpack/dlpack.h);
 it adds no framework or core dependency. Framework stream negotiation occurs
 before consumption; the adapter does not infer an ordering guarantee from a
-pointer. DLPack support remains separately qualified from historical native runs;
-new execution/failed-drain qualification and matched performance receipts remain
-unverified. No measured speedup or
-broader target support is claimed.
+pointer. The [October27 implementation validation](../metadata/implementation-closeout-20261027.json) separately records the optional
+DLPack unit coverage and four standalone installed producer/consumer checks,
+including synchronous and graph-backed DLPack paths on gfx1100. Real failed-drain
+recovery, native Linux and matched DLPack performance remain unqualified.
+No new measured speedup or broader target support is claimed.
 
 The installed `examples/device-native` consumer supplies custom HIP producer and
 consumer kernels around public exact GEMM. It independently checks all output
@@ -153,8 +155,9 @@ must not throw or reenter the lease.
 
 CPU descriptor tests and GPU signed/unsigned padded-view differential cases are
 authored for budget rejection, early external release, source overwrite/free,
-repeated verified import and exactly-once callback release. Execution remains
-pending the final consolidated campaign; no copy-mode speedup is claimed.
+repeated verified import and exactly-once callback release. Applicable execution
+passes the [October27 implementation validation](../metadata/implementation-closeout-20261027.json);
+no copy-mode speedup is claimed.
 
 ## Explicit multiword device output
 

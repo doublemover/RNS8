@@ -39,15 +39,17 @@ Generation exhaustion rejects preparation/refresh/execution rather than reusing
 an ambiguous identity.
 
 The explicit HIP submission subset below adds stream/event completion and a
-fixed-envelope graph replay path. Grouped and DAG submission remain separate
-implementation and qualification work. No speedup is claimed.
+fixed-envelope graph replay path. Independent groups, resident DAG submission,
+prepared transfers, dependencies and explicit caller-graph bindings are
+implemented below. Their supported envelopes remain operation-specific.
 
 ## Explicit HIP submission
 
 Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP bounded i64/u64, exact-wide, strict wrap64, or
 finite-ring/field execution to allocate its completion event. The subset has fixed
 shape/basis/prefix or one explicit finite modulus, and no adaptive tile schedule.
-Other semantics/backends return unsupported. Finite operations use their existing
+The dense stream-provider section below adds individually admitted accelerators;
+other semantics/backends return unsupported. Finite operations use their existing
 enqueue-only finite kernel wrapper, including dynamic composite moduli and ordered
 safe K slabs. They require current operands with the plan's modulus and do not
 invent an exact-integer range proof. Strict wrap64 uses eight unsigned byte-limb
@@ -82,8 +84,9 @@ and returns the failure with the issued token. A failed preflight does not issue
 an epoch or alter the caller's token. Old epochs never certify later writes.
 
 The host must serialize calls sharing handles; device work may overlap across
-independent streams. Consumers must observe producer completion before using the
-new value. Destruction remains BUSY while handles are retained or executions are
+independent streams. Ordinary consumers observe producer completion before using
+the new value; explicit token dependencies below retain pending producers and
+propagate their eventual status. Destruction remains BUSY while handles are retained or executions are
 pending. Event errors require an explicit blocking wait to drain before reservations are released;
 fatal device-context errors remain backend failures and are not repaired here.
 
@@ -214,9 +217,8 @@ before further arithmetic. No implicit device reset is performed. Submission,
 observation and owned graph/event cleanup select the context device and restore
 the caller's previous device.
 
-These recovery changes and host-side failure fixtures are authored for the next
-consolidated validation pass. Hardware fault recovery and cross-device behavior
-are not newly qualified by this change.
+Applicable host-side failure fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
+Real hardware fault recovery and cross-device behavior remain unqualified.
 
 
 ## Cooperative result discard
@@ -233,7 +235,7 @@ serialization is required for calls sharing handles.
 Submission rejects null, legacy-default and per-thread-default stream handles.
 The caller owns a nondefault stream and must keep it alive through terminal
 observation, including any failed-drain recovery. The cancellation and special
-stream fixtures are included in the pending consolidated validation batch.
+stream fixtures pass the applicable lanes of the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 
 
 ## Bounded completion observation
@@ -275,11 +277,11 @@ consistently for pending input writers or output readers/writers, before backend
 admission or output invalidation. Shared input readers remain legal. Sparse
 preflight follows the same rule. This is early admission/status parity; the
 existing write guard also rejects conflicting output reservations at mutation.
-The new all-semantics lifecycle fixtures are authored for the final batch and
-do not extend the supported asynchronous semantic subset.
+The all-semantics lifecycle fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json);
+fixture coverage does not broaden the advertised asynchronous semantic subset.
 
 
-## Token-qualified producer binding (authored, validation pending)
+## Token-qualified producer binding
 
 `rns8_bind_prepared_dependency(consumer, producer, token)` retains one exact
 producer epoch whose output occupies one or more consumer input slots.
@@ -313,7 +315,8 @@ CPU fixtures cover epoch retention, stale receipts and unrelated mutations. HIP
 fixtures cover successful publication and canceled-producer rejection. Additional
 CPU/HIP joins bind three producers, observe HIP completion in reverse order,
 execute an exact epilogue, reject an invalid rebind without dropping holds, and
-reject a cycle reachable through the second dependency branch. All newly authored cases remain queued for the consolidated campaign.
+reject a cycle reachable through the second dependency branch. Applicable
+CPU/HIP cases pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 
 
 C++ owners expose `close()` returning the C destruction status. `RNS8_BUSY`
@@ -333,7 +336,7 @@ clears exact-range/axis metadata; cancellation leaves the output unavailable.
 Authored HIP fixtures cover moduli 2/250/251/256, padded inputs/outputs, K=17 and
 65537, two-stream shared readers observed in reverse order, grouped graph replay,
 stale source generations, refresh, pending ownership and cancellation. This
-extension is source-only pending the final consolidated validation campaign.
+extension passes applicable gfx1100 fixtures in the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 
 
 Matrix destruction now also preserves its C handle after a failed backend release,
@@ -345,8 +348,8 @@ release. If creation fails and device cleanup also fails, the context retains th
 unpublished matrix in an allocation-free intrusive list, rejects further arithmetic,
 and retries those releases during context destruction. Context destruction also
 retains an unreleased hipBLASLt handle on backend failure. Creation still returns a
-null matrix output. These bookkeeping changes and CPU fixtures are authored for
-the consolidated batch; no device-fault or allocation-fault campaign was run.
+null matrix output. These bookkeeping CPU fixtures pass the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json); no real device-fault campaign was run.
 
 ### Strict wrap64 resident edges
 
@@ -362,8 +365,8 @@ base extension and wide-limb export nodes retain their exact-wide restrictions.
 The source regression cases cover unsigned full-width boundaries, CPU Boost
 references, non-square padded host buffers, K=4096/4097 accumulator selection,
 shared-reader groups observed in reverse order, stale generations, cancellation,
-and resident fan-out with unpublished intermediate values. Execution of these
-cases is pending the consolidated validation campaign.
+and resident fan-out with unpublished intermediate values. These applicable
+cases pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 
 ### Bounded prepared submissions
 
@@ -375,9 +378,11 @@ not reinterpret bounded storage as exact-wide or invent a dynamic range proof.
 Export still uses the checked signed or unsigned bounded API. The prepared object
 requires already-current RNS inputs; lazy native conversion must happen before
 submission. Bounded resident MatMul DAGs use the separate resident-graph APIs.
-Other prepared backends remain unsupported by this asynchronous surface. Source fixtures cover narrow and full-width declared
+The stream-provider section below describes individually admitted accelerators.
+Fixtures cover narrow and full-width declared
 bounds, signed extrema, unsigned maxima, pitched export, replay, refresh
-and cancellation; execution is pending the final campaign.
+and cancellation; applicable execution passes the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 
 Bounded RNS currentness also records the number of materialized planes. A small
 declared output bound can select fewer planes than a matrix's allocated capacity.
@@ -417,7 +422,7 @@ consume that depth limit. This path makes no measured overlap or speedup claim.
 The authored join fixture submits three independent producers and an axpby
 consumer before observing any producer, verifies unpublished storage and retained
 owners, checks the exact output, and repeats with late producer cancellation.
-These fixtures await the consolidated campaign.
+These applicable fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 
 Private direct-HIP device and pinned-host temporary buffer owners retain their
 pointer and capacity if an explicit reset/free fails. A replacement allocation then reports the failure
@@ -457,8 +462,8 @@ body under the same retained owner.
 Destroy first retires graph/event identities with checked HIP status, then
 releases transfer scratch. A failed destroy preserves the handle for cleanup
 retry, marks it closing and rejects further execution; it never erases a failed
-HIP object's only identity. Hardware execution and cleanup-failure qualification
-for this extension remain deferred.
+HIP object's only identity. Applicable local execution passes the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json); real cleanup-failure qualification remains deferred.
 
 ## Owned pinned-host transfer boundaries
 
@@ -531,8 +536,9 @@ explain why pinned storage and explicit lifetime are needed. They do not qualify
 this implementation or guarantee useful copy/compute overlap. The authored
 regressions cover padded import→GEMM→limb-export stream/graph pipelines, failed
 bound publication, stale generations, budget arithmetic and two shared H2D
-readers completed in reverse order. Execution, HIP compilation, overlap traces,
-performance and platform qualification remain deferred.
+readers completed in reverse order. Applicable CPU-ASan and gfx1100 HIP execution
+passes the [October27 implementation validation](../metadata/implementation-closeout-20261027.json). Physical overlap traces, performance
+and broader platform qualification remain deferred.
 
 Base-extension discovery is a value-preserving transfer contract, not a new
 native GEMM: a short source/target basis is admitted using the current source
@@ -541,7 +547,7 @@ GEMM plan creation's full-native range floor. The composed prepared-lift fixture
 therefore uses legal prefix17→prefix20 public plans; a separate pure provider
 fixture covers prefix3→prefix9 discovery, missing proof and reversed prefixes.
 Both lift device scratch and pinned status are explicitly pending until checked
-completion/drain. These newly authored/corrected fixtures have not been run.
+completion/drain. These applicable fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
 # Matched pinned-host transfer calibration
 
 `rns8-host-transfer-calibrate` compares ordinary pageable synchronous calls,
@@ -572,8 +578,8 @@ collector counterbalances independent processes, binds artifact/build/environmen
 identity, validates both generations and complete payload/audit/call receipts,
 and preserves p50/p95/sustained regressions. Its gains table contains only modes
 that improve all three observed metrics over the matched ordinary control.
-These sources await the consolidated validation pass; they establish no measured
-speedup or hardware qualification by themselves.
+Applicable collector and correctness checks pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json).
+No new timing campaign or speedup is claimed.
 
 ## Stream providers and explicit caller graphs
 
@@ -594,11 +600,13 @@ context references last through completion; an undrained preparation keeps its
 cleanup owner and workspace reservation and poisons the context. Opaque library
 setup remains additional to the known payload lower bound.
 
-These are source capabilities. Existing Windows direct-HIP receipts do not
-qualify these new adapters or Linux/CDNA. The authored fixtures exercise signed
+The [October27 implementation validation](../metadata/implementation-closeout-20261027.json) separately qualifies applicable adapter
+correctness on Windows/gfx1100; older direct-HIP receipts do not qualify the new
+adapters or Linux/CDNA. The fixtures exercise signed
 and unsigned full-width outputs, bounded exports, finite composite/prime rings,
 K tails, independent groups, shared readers and repeated graphs against the
-independent exact references. Their execution awaits the combined validation.
+independent exact references, including actual stream, owned-graph and
+caller-graph execution. These checks do not establish overlap or elapsed gains.
 
 Caller embedding is a separate four-step interface:
 

@@ -8,82 +8,44 @@ preserves earlier work without duplicating current status.
 
 ## Current implementation pass
 
-The [materialized replay extension](materialized-replay-lifetimes.md) adds lifetime
-costs, projected amortization admission and generation-bound external packed B.
-Bound recipes now compose bounded/finite/wrap uniform owners and checked async
-host export. Experimental basis owners support ragged/packed composition and
-prepared stream/graph GEMM. Integer reference caching covers exact-wide, finite
-and wrap outputs and additional collectors. The [October27 combined validation](../metadata/replay-extension-validation-20261027.json)
-passes 1,088 HIP tests and 609 CPU-ASan tests with explicit skips and zero
-failures; the unchanged symbolic checker is carried from its successful full run.
-Extended integer-cache and collector integration passes. Existing measured evidence
-below retains its original source and toolchain identity.
+The [October27 implementation closeout](../metadata/implementation-closeout-20261027.json)
+records the requested source milestones for #32, #43, #45, #48, #50, #54, #63 and
+#67 at compiled source `cf0ad32`. The receipt identifies the first batch's failures,
+their consolidated repairs, the final CPU-ASan/HIP results, installed DLPack
+consumers and compile-only instruction evidence. No new performance campaign ran.
+
+| Issue | Implemented extension | Remaining qualification |
+|---|---|---|
+| #32 | Prepared ordered-basis native transfers and exact basis conversion/lift | Broader targets, measured complete-pipeline basis/form selection |
+| #43 | Individually bound library/builtins streams and explicit caller graphs | Native Linux/CDNA, real fault recovery, physical overlap and payoff |
+| #45 | gfx942 FNUZ/gfx1201 OCP four/three-product FP8 recipes | Actual target lane/accumulator behavior, exact execution and complete-route timing |
+| #48 | Certified one-level rank48 coefficient execution with classical even channels | Large-shape strongest-control performance/memory gates |
+| #50 | Modulus, M/N, 2-D output and exact K-fragment HIP partitioning | Actual multi-GPU transport/failure/scaling qualification |
+| #54 | Optional isolated Linux AArch64 I8MM owner beside AMX | Actual supported CPU/OS execution and end-to-end measurements |
+| #63 | Prime-channel five-product Gram with composite-channel preservation | Broader targets and measured preparation/reuse/export benefit |
+| #67 | Optional installed DLPack1.2 adapter and standalone HIP consumer | Native Linux, real failed drains and matched interoperability timing |
+
+The [replay extension receipt](../metadata/replay-extension-validation-20261027.json)
+separately records lifetime cost models, external packed-B reuse, bound recipes,
+experimental-basis composition and full integer reference caching. Its counts and
+measurements retain their original source identity. Implementation does not close
+an issue's unfulfilled hardware or measured-performance acceptance gates.
 
 ## Recorded baseline
 
-The [October 26 Core SDK10.1 local Release validation](platform-windows.md#october-26-core-sdk-101-local-release-validation)
-records a fresh automatically resolved Windows/gfx1100 stack at `059fa45`:
-1,080 passes, 30 target/feature skips and zero failures in 1,110 registered
-tests, plus four installed static/shared native-device checks. Selected HIP
-runtime hashes are verified after loading. This supersedes pending local
-SDK10.1 Release bring-up, while broader hardware/configuration and matched
-performance gates remain. The [configuration follow-up](platform-windows.md#october-26-configuration-follow-up)
-at `72c55c2` passes HIP Debug, HIP OpenMP-OFF and supported CPU ASan, plus
-fresh primary Release artifact checks: 2,480 passes, 96 explicit skips and zero
-failures in supported final configurations. The
-[SDK10.1 bounded measurements](performance.md#october-26-sdk101-bounded-measurements)
-record separate original and post-restart cohorts, strongest tested controls
-and fixed acceptance gates. Historical measurements below retain their original
-source and toolchain boundaries; these within-SDK comparisons are not a matched
-prior/new-SDK regression study.
+The local stack is TheRock Core10.1 / HIP7.16.26385 / AMDClang24, VS2026,
+Python3.15.1 and Radeon RX7900XTX (`gfx1100`). Current compiled validation is
+recorded above. Earlier Release, Debug, OpenMP-OFF, CPU-ASan and installed-package
+checks remain in the [SDK record](../metadata/hip101-validation-20261026.json),
+[configuration follow-up](platform-windows.md#october-26-configuration-follow-up)
+and [replay receipt](../metadata/replay-extension-validation-20261027.json).
 
-The [October 26 selected implementation audit](selected-implementation-20261026.md)
-records source and fixtures for all 25 requested issue slices, including the new
-real modulus-sharded HIP owner and standalone system/LDS/memory probes. Only
-syntax checks were performed for that source; runtime and measurement gates
-remain. #28/#29 were already closed; this pass closes no issue from source alone.
-
-The [frontloaded combined retest](../metadata/frontloaded-combined-validation-20261026.json)
-records successful full builds at `f406c29`, 1,038 GPU passes / 17 skips and
-572 CPU-ASan passes / 32 skips, with one stale fixture assertion failing in each
-lane. The folded per-tile HIP export repair and new CPU/HIP regressions pass;
-18 installed consumers, two strict C17 probes and all 98 independently replayed
-CRT outputs pass. The stale assertion correction and direct reader-exception
-coverage subsequently pass the explicitly authorized
-[four-check targeted follow-up](../metadata/frontloaded-targeted-validation-20261026.json)
-at `84b4d9c`. Both historical full-suite failures remain in the receipt; the
-full suites were not repeated again. No research campaign resumed.
-
-The latest [materialization integration](local-validation-20261025.md#subsequent-materialization-integration)
-passed at `6ce489b`; subsequent address/metadata qualification brings the total
-to 11 evidence-backed closures and 40 open issues.
-The per-issue ledger separates the completed local checks from unresolved
-implementation, measurement and hardware requirements.
-
-The [October 25 consolidated validation](local-validation-20261025.md) records
-the expanded Windows/gfx1100 and CPU ASan correctness coverage, repaired
-failures, installed static/shared graph consumers and six closed tooling issues.
-Its separate artifact boundaries and pending dependency/external-link gates
-are explicit. Research performance and broader hardware qualification remain
-with their issue-specific gates below.
-
-The [October 24 partial campaign](7900xtx-partial-campaign-2026-10-24.md) records
-`ad71df5` production validation (747 passes, three expected skips), 5,382 admitted
-benchmark captures and reviewed matched gains. Collection is stopped by user
-request; unfinished cohorts remain unqualified. Its measurements supersede
-older results only for the exact source/configuration and contracts reported.
-
-The [expanded October 23 validation](local-all-features-20261023.md) records the
-`51ae8d8` Windows/gfx1100 all-feature build, 489 passes, three target-inapplicable
-sparse skips and zero failures. It supersedes older local pending-runtime notes
-for the registered applicable tests, including repaired hipBLASLt operand-cache
-identity. The [512³/1024³ report](7900xtx-large-throughput-2026-10-23.md) remains the
-historical large-shape comparison; [256³](7900xtx-throughput-2026-10-23.md) remains the
-initial diagnostic. Changed source/configurations need their own evidence.
-
-The [October 6 audit](audit-2026-10-06.md) preserves defect/repair history.
-Subsequent local CPU, allocation, package, lineage, range and cache checkpoints
-are catalogued in [history](archive/README.md); they retain their exact scope.
+The [SDK10.1 bounded measurements](performance.md#october-26-sdk101-bounded-measurements)
+preserve original and post-restart cohorts at source `72c55c2`, strongest tested
+controls and fixed gates. These within-SDK results are not a matched prior/new-SDK
+regression study and are not transferred to the new implementation. The stopped
+5,382/16,513-run campaign remains stopped. The [implementation chronology](archive/implementation-checkpoints-2026-10-23.md)
+and [historical index](archive/README.md) retain older checkpoints.
 
 ## 1. Source and CPU gate
 
@@ -147,11 +109,11 @@ Focused topic guides retain arithmetic proofs and remaining gates:
 | Scheduling | Private queue/split-K and logical locality models; measured configuration selection and broader target work remain | [#36](https://github.com/doublemover/RNS8/issues/36), [#37](https://github.com/doublemover/RNS8/issues/37), [#38](https://github.com/doublemover/RNS8/issues/38) |
 | Reconstruction/materialization | Public explicit CPU/HIP lift; private balanced/mixed-radix alternatives include an authored tile-major CRT consumer; performance and broader representation integration remain | [#39](https://github.com/doublemover/RNS8/issues/39), [#40](https://github.com/doublemover/RNS8/issues/40), [#41](https://github.com/doublemover/RNS8/issues/41) |
 | Resident execution | Native/uniform/ragged/packed planning and retained arenas, direct-HIP tokens/dependencies, transfers/lifts/exports and owned graphs are implemented; bounded same-graph measurements retain independent-process gates. Observed setup amortization, physical peak memory, broader graphs/providers and hardware qualification remain | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
-| Algebraic composition | Exact epilogues, paired 3M/4M and one-level Strassen/rank-23 coefficient/straight-line matrix subproducts are written; measured routing and conditional extensions remain gated | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
-| Low-bit/floating encodings | Scalar certificates now separate proof verdicts; a host rational/binary32 rewrite oracle is authored. An explicit gfx942 FNUZ FP8 finite owner and MFMA implementation are authored; target proof/ISA/performance execution gates remain | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
-| Integrity/sparse/multi-GPU | Private integrity candidates, public Sparse-A/hybrid owners and real modulus-sharded M1/M2 source; actual multi-GPU and sparse target execution/traffic/failure qualification remain | [#49](https://github.com/doublemover/RNS8/issues/49), [#50](https://github.com/doublemover/RNS8/issues/50), [#51](https://github.com/doublemover/RNS8/issues/51) |
+| Algebraic composition | Exact epilogues, paired 3M/4M and one-level Strassen/rank-23 coefficient/straight-line and rank48 mixed-channel matrix subproducts are written; measured routing and conditional extensions remain gated | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
+| Low-bit/floating encodings | Scalar certificates now separate proof verdicts; a host rational/binary32 rewrite oracle is authored. Explicit gfx942 FNUZ/gfx1201 OCP FP8 finite owners and MFMA/WMMA implementations are written; target proof/ISA/performance execution gates remain | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
+| Integrity/sparse/multi-GPU | Private integrity candidates, public Sparse-A/hybrid owners and real modulus/M/N/2-D/K-sharded M1/M2 source; actual multi-GPU and sparse target execution/traffic/failure qualification remain | [#49](https://github.com/doublemover/RNS8/issues/49), [#50](https://github.com/doublemover/RNS8/issues/50), [#51](https://github.com/doublemover/RNS8/issues/51) |
 | Narrow/generated kernels | Explicit public proof-selected native paths and source-bound generated families are written; target execution and measured selection remain | [#53](https://github.com/doublemover/RNS8/issues/53), [#55](https://github.com/doublemover/RNS8/issues/55) |
-| Additional hardware | Future CDNA5 TDM/cluster; Linux AMX-INT8 kernel, OS permission, packing/reuse and collector are written but require actual supported CPU qualification | [#52](https://github.com/doublemover/RNS8/issues/52), [#54](https://github.com/doublemover/RNS8/issues/54) |
+| Additional hardware | Future CDNA5 TDM/cluster; Linux AMX-INT8 and AArch64 I8MM kernels, OS admission and packing/reuse owners are written but require actual supported CPU qualification | [#52](https://github.com/doublemover/RNS8/issues/52), [#54](https://github.com/doublemover/RNS8/issues/54) |
 
 ## Setup and examples dependencies
 
@@ -170,53 +132,23 @@ while sustained production-boundary measurements remain unqualified. Documentati
 
 ### Current validation and remaining work
 
-Core SDK10.1 Windows/gfx1100 Release validation is complete at `059fa45`:
-1,080 registered passes, 30 target/feature skips and zero failures, plus four
-installed static/shared native-device checks. The automatic initializer and
-loaded SDK runtime identities are verified. Subsequent repository cleanup
-preserves every benchmark input and measurement record; its final integration
-batch passes 52 tests with 11 expected FP8/TDM hardware skips. See the
-[SDK record](../metadata/hip101-validation-20261026.json) and
-[cleanup record](../metadata/repository-cleanup-20261026.json).
+The current local source/test receipt is the [implementation closeout](../metadata/implementation-closeout-20261027.json).
+It distinguishes real gfx1100 execution, target-inapplicable skips and compile-only
+AMX/I8MM/FP8 source evidence. Native Linux, multi-GPU, Instinct/CDNA and unavailable
+instruction families remain separate qualification lanes. The current Windows
+suite cannot establish their behavior.
 
-The next local performance work is a fresh bounded SDK10.1 comparison against
-the strongest same-contract controls, followed by qualified stage prices for
-the planner and resident DAG. Keep exact-reference audits outside timed
-production intervals and include setup/reuse/export costs at the claimed
-boundary. The stopped campaign remains stopped; historical timing results do
-not establish new-stack performance. Local Debug/ASan, OpenMP-OFF and broader
-dependency/configuration qualification remain separate release work.
+Remaining local research work is measured strongest-control comparison, profitable
+whole-route selection, setup/reuse/export amortization, physical overlap/traffic
+and fault-recovery evidence. Existing reviewed gains remain in [performance](performance.md).
+No new campaign or route promotion follows from completing this implementation.
 
-The [October 25 allocation/global-control retry](local-validation-20261025.md#allocation-and-global-control-integration-retry)
-records clean `2fcb91c` artifacts: 547 CPU AddressSanitizer passes and 931 full-feature
-gfx1100 passes, with no failures. Both arithmetic controls passed 673 cases at
-`168a160`; 12 installed consumers and two strict C17 ABI probes also pass. The
-seven first-pass capture-contract failures were repaired together before the
-complete CPU/GPU retry. Unsupported target skips and the unchanged shared logical
-proof remain explicitly accounted for. A separate brace-only GCC warning repair
-passes actual Debug/Release compilation in WSL2; Linux CI completion is separate.
-
-Generation-bound native/pinned-host transfers, event-dependent joins, exact
-lift/export, paired-complex and block-sparse owners, custom bases and product
-arenas have applicable local regression evidence. Their issue-specific timing,
-profiler, capacity and broader-platform gates remain separate. A pushed source
-implementation or passing local test is not blanket hardware qualification.
-
-Unavailable Linux multi-GPU, Instinct/CDNA and instruction-family qualification
-remain deferred. SDK10.1 is the locally validated Release stack; retained HIP7.1
-source fallback pins and historical measurements keep their original scope.
-The selected Git candidate remains uninstalled (local2.52.0.windows.1 versus
-selected2.56.0.windows.3). Broader OS/compiler/package/runner qualification is
-still required under #57/#58/#60. All 44 official dependency/documentation URLs
-responded successfully in the recorded #61 check;
-actual matching-platform command rehearsals remain separate.
-The [focused measurements](focused-closeout-measurements-20261025.md) completed
-560 captures on the explicitly authorized shared host, including 20 independent
-stage-training and 140 new complete-route captures. Explicit scalar-first public
-proofs beat the default eager-axis policy at 128/256; compiled recipes do not
-establish a benefit over this stronger baseline. All four measured models fail
-the predeclared held-out tolerance; no route is promoted. The original
-5,382/16,513-run campaign remains stopped.
+Broader compiler/ABI/package/runner checks and native Linux command/session
+rehearsals remain under #57/#58/#60/#61. The selected Git candidate remains
+uninstalled. Conditional FP4/FP6/dynamic-scale contracts and M3 distributed
+transports are separately gated extensions; they are not silently advertised as
+supported by the current FP8 or modulus-sharded owners. There are 40 open issues;
+child acceptance gates remain the roadmap's retirement criterion.
 
 ## Stop conditions for hardware work
 

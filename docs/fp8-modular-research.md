@@ -6,7 +6,9 @@ RDNA4 `gfx1201` E4M3 **OCP**, with fixed exact integer encodings. It accepts fin
 matrix ownership. There is no Ozaki decomposition or default integer dispatch.
 
 Every signed storage byte is split into two balanced radix16 digits. Four
-`v_mfma_f32_16x16x32_fp8_fp8` products accumulate separate FP32 vectors. The
+matrix products accumulate separate FP32 vectors: gfx942 uses
+`v_mfma_f32_16x16x32_fp8_fp8`; gfx1201 uses
+`v_wmma_f32_16x16x16_fp8_fp8`. The
 largest digit magnitude is8; K slabs of65536 bound every partial sum by2^22.
 Each floating partial is converted to integer and reduced before weights
 1/16/16/256 are applied, then one centered residue byte is stored. Method0 fuses recombination. Method1
@@ -14,10 +16,12 @@ materializes four unweighted INT32 product-residue planes and launches a separat
 recombination kernel, providing a simple control for fusion. Its explicit retained
 budget is4+16*M*N bytes, compared with4bytes for the fused method. Tails use
 zero fragments; slab carries are reduced integers. No numeric-one scale byte
-is guessed: this unscaled opcode uses the exact FNUZ digit table.
+is guessed: each unscaled opcode uses its explicitly selected FNUZ or OCP
+digit table.
 
 `tools/fp8_modular_certificate.py` ties the four-product integer algebra,
-FNUZ alphabet, K cap and named instruction model to source/build identities.
+selected FNUZ/OCP alphabet, K cap and named instruction model to source/build
+identities.
 The FNUZ bias8 format is separately named in the floating oracle; OCP bias7 is
 not substituted. The conditional FP32 arithmetic model is not evidence of actual
 internal MFMA rounding or lane mapping. Preparation requires the explicit
@@ -40,8 +44,10 @@ shared handles require serialized host access.
 
 Authored CPU fixtures check every source byte/digit pair and all moduli; GPU
 fixtures cover complete Boost products, padding, aliases, every modulus2..256 at K33, plus moduli2/16/127/251/255/256
-at K31/32/33/65535/65536/65537. Both target code paths pass HIP syntax checks;
-the new target tests and actual ISA/accumulator adversarial probes have not run.
+at K31/32/33/65535/65536/65537. The host certificates and exact digit/layout checks pass the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json). Compile-only assembly contains the actual
+MFMA and WMMA opcodes. Target tests skip on gfx1100; actual lane/accumulator
+adversarial execution remains unqualified on both named targets.
 
 ## Matched capture source
 
