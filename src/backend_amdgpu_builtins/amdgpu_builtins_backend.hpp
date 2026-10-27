@@ -9,6 +9,9 @@
 namespace rns8::detail {
 
 bool amdgpu_builtins_compiled();
+// Pure enqueue; the prepared owner retains storage and observes completion.
+rns8_status amdgpu_builtins_enqueue_dense(int,const void*,const void*,void*,int64_t,int64_t,int64_t,
+    int64_t,int64_t,int64_t,uint32_t,bool,void* stream);
 rns8_status amdgpu_builtins_probe(int device_id, rns8_device_info& out);
 bool amdgpu_builtins_workspace_requirements(int64_t max_m, int64_t max_n, int64_t k, std::size_t& total_bytes);
 bool amdgpu_builtins_use_cdna3_mfma_32x32x16(int64_t m, int64_t n, int64_t k);

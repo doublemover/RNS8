@@ -709,7 +709,7 @@ int launch_dense(
     int ldb,
     int ldc,
     int plane_count_or_modulus,
-    int dense_kernel_variant,int batches=1) {
+    int dense_kernel_variant,int batches=1,hipStream_t stream=nullptr,bool asynchronous=false) {
   rns8_amdgpu_arch_kind kind{};
   const int arch_status = active_device_arch_kind(device_id, kind);
   if (arch_status != 0) {
@@ -728,7 +728,7 @@ int launch_dense(
             grid,
             dim3(64),
             0,
-            0,
+            stream,
             static_cast<const int8_t*>(device_a_residues),
             static_cast<const int8_t*>(device_b_residues),
             static_cast<int8_t*>(device_c_residues),
@@ -749,7 +749,7 @@ int launch_dense(
             grid,
             dim3(64),
             0,
-            0,
+            stream,
             static_cast<const int8_t*>(device_a_residues),
             static_cast<const int8_t*>(device_b_residues),
             static_cast<int8_t*>(device_c_residues),
@@ -776,7 +776,7 @@ int launch_dense(
           grid,
           dim3(32),
           0,
-          0,
+          stream,
           static_cast<const int8_t*>(device_a_residues),
           static_cast<const int8_t*>(device_b_residues),
           static_cast<int8_t*>(device_c_residues),
@@ -800,7 +800,7 @@ int launch_dense(
           grid,
           dim3(32),
           0,
-          0,
+          stream,
           static_cast<const int8_t*>(device_a_residues),
           static_cast<const int8_t*>(device_b_residues),
           static_cast<int8_t*>(device_c_residues),
@@ -820,6 +820,7 @@ int launch_dense(
   if (err != hipSuccess) {
     return 3;
   }
+  if(asynchronous)return 0;
   err = hipDeviceSynchronize();
   return err == hipSuccess ? 0 : 3;
 }
@@ -1061,4 +1062,14 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
   }
   return launch_sparse_a<true>(
       device_id, device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc, modulus);
+}
+
+// Allocation/timing-free stream entry. The prepared owner admitted the exact
+// target, shape, prefix/modulus and workspace before any enqueue.
+extern "C" int rns8_amdgpu_builtin_enqueue_dense(int device_id,const void* a,const void* b,void* c,
+    int m,int n,int k,int lda,int ldb,int ldc,unsigned value,bool finite,void* stream) {
+  if(!stream || !common_dense_args_valid(a,b,c,m,n,k,lda,ldb,ldc) || k>65536 ||
+      (finite?!rns8::detail::finite_u8::static_byte_modulus_supported(value):value<1 || value>20))return 1;
+  return finite?launch_dense<true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true):
+      launch_dense<false>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true);
 }

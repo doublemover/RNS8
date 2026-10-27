@@ -64,26 +64,26 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     case RNS8_OP_GEMM:case RNS8_OP_PREPARED_GROUP:
       out.supported_execution_modes|=RNS8_EXEC_GROUP;
       if(resident_graph_backend_supported(backend))out.supported_execution_modes|=RNS8_EXEC_DAG;
-      if(hip && !adaptive && !(d.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL))out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;
+      if((hip || backend==RNS8_BACKEND_AMDGPU_BUILTINS || backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_HIPBLASLT) && !adaptive && !(d.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL))out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_CALLER_CAPTURE;
       break;
     case RNS8_OP_EXACT_EPILOGUE:
       if((!cpu && !hip) || !rns8::detail::exact_wide_semantics(d.semantics) || adaptive)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","exact epilogue requires uniform CPU/direct-HIP RNS lowering");
       if(d.semantics==RNS8_EXACT_WIDE_UNSIGNED && (query.alpha<0 || query.beta<0))
         return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_SEMANTICS,"coefficients","unsigned exact epilogue rejects negative coefficients");
       out.supported_execution_modes|=RNS8_EXEC_GROUP|RNS8_EXEC_DAG;
-      if(hip)out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;break;
+      if(hip)out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_CALLER_CAPTURE;break;
     case RNS8_OP_PACK:case RNS8_OP_EXPORT:break;
     case RNS8_OP_BASE_EXTEND:
       if((!cpu && !hip) || !rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","exact base extension requires CPU/direct-HIP exact-wide values");
       if(!(query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"range","base extension requires current source uniqueness proof");
       if(!query.source_prefix || query.source_prefix>prefix)return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"source_prefix","base extension requires a concrete source no wider than its target");
-      if(hip)out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_GROUP|RNS8_EXEC_DAG;break;
+      if(hip)out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_CALLER_CAPTURE|RNS8_EXEC_GROUP|RNS8_EXEC_DAG;break;
     case RNS8_OP_NATIVE_INTEGRITY:
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics) || adaptive || (d.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL))
         return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","native integrity requires uniform direct-HIP exact-wide prepared GEMM");
       if((query.proof_flags&(RNS8_QUERY_NATIVE_RETAINED|RNS8_QUERY_CURRENT_RANGE_PROOF))!=(RNS8_QUERY_NATIVE_RETAINED|RNS8_QUERY_CURRENT_RANGE_PROOF))
         return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"native_bound","native integrity requires retained current native inputs and independent product bound");
-      out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_GROUP|RNS8_EXEC_DAG;break;
+      out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_CALLER_CAPTURE|RNS8_EXEC_GROUP|RNS8_EXEC_DAG;break;
     case RNS8_OP_NATIVE_GROUP:
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics) || adaptive)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","native group requires uniform direct-HIP exact-wide plans");
       if(!(query.proof_flags&RNS8_QUERY_NATIVE_RETAINED))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"native_storage","native group requires retained current native inputs");
@@ -121,7 +121,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics) || adaptive)
         return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","prepared native transfer requires uniform direct-HIP exact-wide values");
       if(!(query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"range","native transfer requires a type/device-checked import envelope or current export proof");
-      out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_GROUP|RNS8_EXEC_DAG;break;
+      out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_CALLER_CAPTURE|RNS8_EXEC_GROUP|RNS8_EXEC_DAG;break;
     case RNS8_OP_NATIVE_LEASE:
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","native lease requires direct-HIP exact-wide context");break;
     case RNS8_OP_NARROW_NATIVE:

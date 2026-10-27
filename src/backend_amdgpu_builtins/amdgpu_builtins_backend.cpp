@@ -17,6 +17,7 @@
 #  include <hip/hip_runtime_api.h>
 
 
+extern "C" int rns8_amdgpu_builtin_enqueue_dense(int,const void*,const void*,void*,int,int,int,int,int,int,unsigned,bool,void*);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,int,int,int);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
     int device_id,
@@ -223,6 +224,18 @@ const char* amdgpu_builtins_sparse_event_label(int device_id, bool finite, int64
 }
 
 }  // namespace
+
+ rns8_status amdgpu_builtins_enqueue_dense(int device,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+     int64_t lda,int64_t ldb,int64_t ldc,uint32_t value,bool finite,void* stream) {
+   if(!stream || !a || !b || !c || value<1 || (!finite && value>20) ||
+       (finite && !finite_u8::static_byte_modulus_supported(value)))return RNS8_INVALID_ARGUMENT;
+   if(k>65536 || !qualified_i32_gemm_address(m,n,k,lda,ldb,ldc,finite?1:value))return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+   return status_from_device_code(rns8_amdgpu_builtin_enqueue_dense(device,a,b,c,int(m),int(n),int(k),int(lda),int(ldb),int(ldc),value,finite,stream));
+#else
+   (void)device;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+ }
 
 bool amdgpu_builtins_compiled() {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && \

@@ -1,4 +1,5 @@
 #include "backend_common/address_domain.hpp"
+#include "backend_common/finite_u8_reducer.hpp"
 #include "backend_ck/ck_backend.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
@@ -57,6 +58,11 @@ extern "C" int rns8_ck_gemm_finite_u8_device(
     long long ldb,
     long long ldc,
     unsigned int modulus);
+#endif
+
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+extern "C" int rns8_ck_gemm_rns_device_on_stream(int,const void*,const void*,void*,void*,unsigned long long,long long,long long,long long,long long,long long,long long,unsigned,void*);
+extern "C" int rns8_ck_gemm_finite_u8_device_on_stream(int,const void*,const void*,void*,void*,unsigned long long,long long,long long,long long,long long,long long,long long,unsigned,void*);
 #endif
 
 namespace rns8::detail {
@@ -315,4 +321,18 @@ rns8_status ck_gemm_finite_u8_device(
 #endif
 }
 
+
+rns8_status ck_enqueue_dense(int device,const void* a,const void* b,void* c,void* workspace,std::size_t bytes,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t value,bool finite,void* stream) {
+  if(!stream || !a || !b || !c || !workspace || !value || (!finite && value>20) ||
+      (finite && !finite_u8::static_byte_modulus_supported(value)))return RNS8_INVALID_ARGUMENT;
+  if(!qualified_i32_gemm_address(m,n,k,lda,ldb,ldc,finite?1:value))return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+  const auto code=finite?rns8_ck_gemm_finite_u8_device_on_stream(device,a,b,c,workspace,bytes,m,n,k,lda,ldb,ldc,value,stream):
+      rns8_ck_gemm_rns_device_on_stream(device,a,b,c,workspace,bytes,m,n,k,lda,ldb,ldc,value,stream);
+  return status_from_device_code(code);
+#else
+  (void)device;(void)bytes;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 }  // namespace rns8::detail

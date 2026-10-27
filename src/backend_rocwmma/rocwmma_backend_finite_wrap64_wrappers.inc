@@ -1,4 +1,4 @@
-extern "C" int rns8_rocwmma_gemm_finite_u8_device(
+static int rns8_rocwmma_gemm_finite_u8_device_impl(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -11,7 +11,8 @@ extern "C" int rns8_rocwmma_gemm_finite_u8_device(
     long long lda,
     long long ldb,
     long long ldc,
-    unsigned int modulus) {
+    unsigned int modulus,void* raw_stream) {
+  auto stream=static_cast<hipStream_t>(raw_stream);
   if (hipSetDevice(device_id) != hipSuccess) {
     return rocwmma_backend_failure;
   }
@@ -50,12 +51,46 @@ extern "C" int rns8_rocwmma_gemm_finite_u8_device(
       static_cast<int>(modulus),
       modulus_reciprocal_u32(static_cast<uint16_t>(modulus)),
       safe_k_block,
-      -1);
+      -1,nullptr,stream);
   if (status != rocwmma_success) {
     return status;
   }
-  return hipDeviceSynchronize() == hipSuccess ? rocwmma_success : rocwmma_backend_failure;
+  return stream || hipDeviceSynchronize()==hipSuccess?rocwmma_success:rocwmma_backend_failure;
 }
+extern "C" int rns8_rocwmma_gemm_finite_u8_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int modulus) {
+  return rns8_rocwmma_gemm_finite_u8_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,modulus,nullptr);
+}
+extern "C" int rns8_rocwmma_gemm_finite_u8_device_on_stream(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int modulus,void* raw_stream) {
+  if(!raw_stream)return rocwmma_invalid_argument;
+  return rns8_rocwmma_gemm_finite_u8_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,modulus,raw_stream);
+}
+
 
 extern "C" int rns8_rocwmma_wrap64_gemm_byte_limbs_candidate_device(
     int device_id,

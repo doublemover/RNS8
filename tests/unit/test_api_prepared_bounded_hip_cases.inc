@@ -3,12 +3,14 @@ TEST_CASE("prepared bounded HIP preserves declared ranges and checked exports", 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
+  for(auto backend:{RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_CK,RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_HIPBLASLT})
   for(bool signed_values:{false,true}) for(bool small_bound:{false,true}) {
     const auto semantics=signed_values?RNS8_BOUNDED_I64:RNS8_BOUNDED_U64;
     rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
-    options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
-    rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(0,&options,&ctx)==RNS8_SUCCESS);
-    auto desc=bounded_gemm_desc(semantics,2,2,2);desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    options.requested_backend=backend;
+    rns8_context* ctx=nullptr;const auto created=rns8_create_context(0,&options,&ctx);
+    if(created==RNS8_UNSUPPORTED_BACKEND || created==RNS8_UNSUPPORTED_ARCH)continue;REQUIRE(created==RNS8_SUCCESS);
+    auto desc=bounded_gemm_desc(semantics,2,2,2);desc.requested_backend=backend;
     desc.bound=small_bound?31:(signed_values?uint64_t(INT64_MAX):UINT64_MAX);
     rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
     rns8_workspace* workspace=nullptr;REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);

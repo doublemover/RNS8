@@ -17,7 +17,7 @@ rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
   const auto provider=plan_operation_preflight(*e.ctx,*e.plan,e.d?RNS8_OP_EXACT_EPILOGUE:RNS8_OP_GEMM,
       RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH);
   if(provider!=RNS8_SUCCESS)return provider;
-  if (!direct_hip_compiled() || e.plan->backend != RNS8_BACKEND_HIP_DIRECT ||
+  if (!direct_hip_compiled() || (e.plan->backend != RNS8_BACKEND_HIP_DIRECT && e.plan->backend != RNS8_BACKEND_AMDGPU_BUILTINS && e.plan->backend != RNS8_BACKEND_CK && e.plan->backend != RNS8_BACKEND_ROCWMMA && e.plan->backend != RNS8_BACKEND_HIPBLASLT) ||
       (!rns8::detail::exact_wide_semantics(e.plan->desc.semantics) &&
        !uses_finite_storage(e.plan->desc.semantics) &&
        e.plan->desc.semantics!=RNS8_BOUNDED_I64 &&
@@ -146,6 +146,10 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
       return RNS8_BACKEND_FAILURE;
     if (!e->completion_event && e->completion_event.create() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
+    if(e->plan && e->plan->backend==RNS8_BACKEND_HIPBLASLT && !e->hipblaslt_async){
+      const auto prepared=rns8::detail::hipblaslt_prepare_async(e->ctx,e->plan,e->workspace,&e->hipblaslt_async);
+      if(prepared!=RNS8_SUCCESS)return prepared;
+    }
     e->hip_submission_prepared = true;
     return RNS8_SUCCESS;
 #else
@@ -231,7 +235,8 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
                                              void *stream,
                                              rns8_completion_token *token,
                                              bool graph,
-                                             PreparedHipProof &proof) {
+                                             PreparedHipProof &proof,
+                                             void* caller_executable=nullptr) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_scoped_device device(e->ctx->device_id);
   if (device.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
@@ -273,7 +278,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   }
   if(status==RNS8_SUCCESS && e->transfer)status=e->transfer->before_enqueue(stream);
   if (status==RNS8_SUCCESS && graph) {
-    launch_error = hipGraphLaunch(e->graph_executable, static_cast<hipStream_t>(stream));
+    launch_error = hipGraphLaunch(caller_executable?static_cast<hipGraphExec_t>(caller_executable):e->graph_executable, static_cast<hipStream_t>(stream));
     status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   } else if(status==RNS8_SUCCESS) {
     status = enqueue_prepared(*e, stream);
@@ -511,5 +516,6 @@ rns8_status rns8_get_prepared_hip_support(const rns8_prepared_execution* e,
   if (!e || !info || !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
     return RNS8_INVALID_ARGUMENT;
   *info = async_support_info(prepared_hip_support_status(*e), e->ctx->device_id);
+  info->supports_caller_graph_binding=info->support_status==RNS8_SUCCESS;
   return RNS8_SUCCESS;
 }

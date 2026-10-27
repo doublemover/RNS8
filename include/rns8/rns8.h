@@ -230,6 +230,7 @@ typedef struct rns8_async_support_info {
   uint32_t supports_owned_graph;
   uint32_t supports_cooperative_discard;
   uint32_t supports_timed_observation;
+  uint32_t supports_caller_graph_binding;
 } rns8_async_support_info;
 RNS8_API rns8_status rns8_get_prepared_hip_support(
     const rns8_prepared_execution* execution, rns8_async_support_info* info);
@@ -411,6 +412,25 @@ RNS8_API rns8_status rns8_wait_resident_graph_hip_for(rns8_resident_graph* graph
  * submission. Replay shares stream reservations and query/wait publication.
  * Shape/layout/basis or address changes require new preparation/capture. */
 RNS8_API rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution* execution);
+/* Embed an already submission-prepared body in an active caller capture.
+ * Finalize after EndCapture with that exact graph. RNS8 owns a separately
+ * instantiated executable and retains the prepared owner; it never ends or
+ * destroys the caller capture/graph. Submit only through this binding so
+ * generation/range checks, reservations and completion publication still run.
+ * Keep all other captured pointers/host endpoints alive and immutable as their
+ * operations require. Do not alter/remove RNS8 nodes or independently launch
+ * a graph containing them. Caller nodes must not consume unpublished results
+ * or violate retained input/lease contracts. One RNS8 prepared body per caller capture is allowed;
+ * multiple RNS8 operations use the retained resident DAG contract. Shared
+ * handles require external serialization.
+ * Failed body capture can return a nonnull cleanup-only binding: first discard
+ * the caller graph/capture, then destroy that binding. No payload executes at
+ * capture and no completion token is issued until a real submission. */
+typedef struct rns8_caller_hip_graph rns8_caller_hip_graph;
+RNS8_API rns8_status rns8_capture_prepared_in_caller_hip_graph(rns8_prepared_execution*,void* capturing_stream,rns8_caller_hip_graph**);
+RNS8_API rns8_status rns8_finalize_caller_hip_graph(rns8_caller_hip_graph*,void* captured_graph);
+RNS8_API rns8_status rns8_submit_caller_hip_graph(rns8_caller_hip_graph*,void* stream,rns8_completion_token*);
+RNS8_API rns8_status rns8_destroy_caller_hip_graph(rns8_caller_hip_graph*);
 RNS8_API rns8_status rns8_submit_prepared_hip_graph(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
 /* Owned graph replay with the same token-qualified pending-input proof/waits. */
 RNS8_API rns8_status rns8_submit_prepared_hip_graph_pipeline(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);

@@ -97,6 +97,12 @@ inline bool hipblaslt_baseline_workspace_requirements(
 }
 
 bool hipblaslt_compiled();
+// Retained full/tail descriptors and selected algorithms. Preparation may warm
+// the library using zeroed private workspace; enqueue never runs heuristics,
+// constructs descriptors, allocates payload or observes completion.
+rns8_status hipblaslt_prepare_async(rns8_context*,const rns8_plan*,rns8_workspace*,void**);
+rns8_status hipblaslt_enqueue_async(void*,const void*,const void*,void*,int64_t,int64_t,int64_t,void* stream);
+rns8_status hipblaslt_destroy_async(void*);
 rns8_status hipblaslt_create_context(int device_id, rns8_device_info& out, void** handle, std::string& version);
 rns8_status hipblaslt_destroy_context(int device_id, void* handle);
 rns8_status hipblaslt_gemm_rns_device(

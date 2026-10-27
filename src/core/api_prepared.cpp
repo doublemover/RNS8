@@ -1,8 +1,10 @@
 #include "backend_common/locality_schedule.hpp"
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "core/api_internal.hpp"
 #include <atomic>
 #include <array>
 #include <memory>
+#include <mutex>
 #include <unordered_set>
 #include <unordered_map>
 #include "core/hip_resources.hpp"
@@ -35,6 +37,7 @@ struct rns8_prepared_execution {
   bool cancel_requested = false;
   uint64_t group_references = 0;
   uint64_t dependent_references = 0;
+  uint64_t caller_graph_references = 0;
   struct Dependency {rns8_prepared_execution* producer=nullptr;rns8_completion_token token{};};
   std::array<Dependency,3> producers{};
   uint32_t producer_count=0;
@@ -42,6 +45,7 @@ struct rns8_prepared_execution {
   uint32_t event_dependency_depth = 0;
   bool hip_submission_prepared = false;
   void* pending_stream = nullptr;
+  void* hipblaslt_async = nullptr;
   boost::multiprecision::cpp_int pending_bound;
   rns8_exact_matrix_ranges pending_ranges;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -221,6 +225,20 @@ static rns8_status prepared_range(const rns8_prepared_execution& e,
 }
 static rns8_status enqueue_prepared(const rns8_prepared_execution& e, void* stream) {
   if(e.transfer)return e.transfer->enqueue(stream);
+  if(e.plan->backend==RNS8_BACKEND_HIPBLASLT)
+    return rns8::detail::hipblaslt_enqueue_async(e.hipblaslt_async,e.a->hip_residues,e.b->hip_residues,e.c->hip_residues,
+        e.a->desc.cols,e.b->desc.cols,e.c->desc.cols,stream);
+  if(e.plan->backend==RNS8_BACKEND_CK || e.plan->backend==RNS8_BACKEND_ROCWMMA) {
+    const auto fn=e.plan->backend==RNS8_BACKEND_CK?rns8::detail::ck_enqueue_dense:rns8::detail::rocwmma_enqueue_dense;
+    return fn(e.ctx->device_id,e.a->hip_residues,e.b->hip_residues,e.c->hip_residues,
+        e.workspace->accelerator_workspace,e.workspace->accelerator_workspace_bytes,
+        e.plan->desc.m,e.plan->desc.n,e.plan->desc.k,e.a->desc.cols,e.b->desc.cols,e.c->desc.cols,
+        uses_finite_storage(e.plan->desc.semantics)?e.plan->desc.finite_modulus:e.plan->prefix,uses_finite_storage(e.plan->desc.semantics),stream);
+  }
+  if(e.plan->backend==RNS8_BACKEND_AMDGPU_BUILTINS)
+    return rns8::detail::amdgpu_builtins_enqueue_dense(e.ctx->device_id,e.a->hip_residues,e.b->hip_residues,e.c->hip_residues,
+        e.plan->desc.m,e.plan->desc.n,e.plan->desc.k,e.a->desc.cols,e.b->desc.cols,e.c->desc.cols,
+        uses_finite_storage(e.plan->desc.semantics)?e.plan->desc.finite_modulus:e.plan->prefix,uses_finite_storage(e.plan->desc.semantics),stream);
   if(e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)
     return rns8::detail::wrap64_hip_enqueue_byte_limbs(
         e.a->hip_byte_limbs,e.b->hip_byte_limbs,e.c->hip_byte_limbs,
@@ -379,8 +397,10 @@ rns8_status rns8_get_prepared_completion(
 }
 rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
   if (!e) return RNS8_SUCCESS;
-  if (e->running || e->group_references || e->dependent_references) return RNS8_BUSY;
+  if (e->running || e->group_references || e->dependent_references || e->caller_graph_references) return RNS8_BUSY;
   e->closing=true;
+  if(e->hipblaslt_async){const auto closed=rns8::detail::hipblaslt_destroy_async(e->hipblaslt_async);
+    if(closed!=RNS8_SUCCESS)return closed;e->hipblaslt_async=nullptr;}
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if(e->graph_executable || e->graph || e->completion_event.get()) {
     rns8::detail::hip_scoped_device selected(e->ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
@@ -401,6 +421,7 @@ rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
 }
 
 #include "api_prepared_hip.inc"
+#include "api_prepared_caller_graph.inc"
 #include "api_prepared_native_group.inc"
 
 rns8_status rns8_create_prepared_group(

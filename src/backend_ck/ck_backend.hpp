@@ -8,6 +8,8 @@
 
 namespace rns8::detail {
 
+rns8_status ck_enqueue_dense(int,const void*,const void*,void*,void*,std::size_t,
+    int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,bool,void* stream);
 bool ck_compiled();
 rns8_status ck_probe(int device_id, rns8_device_info& out);
 bool ck_workspace_requirements(

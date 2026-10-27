@@ -3,13 +3,17 @@
 TEST_CASE("prepared finite HIP streams and graphs publish explicit ring results", "[api][async][finite]") {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   using namespace rns8::detail;
+  for(auto backend:{RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_CK,RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_HIPBLASLT}) {
   rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
-  options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
-  rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(0,&options,&ctx)==RNS8_SUCCESS);
+  options.requested_backend=backend;
+  rns8_context* ctx=nullptr;const auto created=rns8_create_context(0,&options,&ctx);
+  if(created==RNS8_UNSUPPORTED_BACKEND || created==RNS8_UNSUPPORTED_ARCH)continue;REQUIRE(created==RNS8_SUCCESS);
   for(uint16_t modulus:{2,250,251,256}) for(int k:{17,65537}) {
+    if((backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_AMDGPU_BUILTINS) && modulus!=251 && modulus!=256)continue;
+    if(backend==RNS8_BACKEND_AMDGPU_BUILTINS && k>65536)continue;
     const auto semantics=modulus==251?RNS8_FINITE_FIELD_U8:RNS8_FINITE_RING_U8;
     const int m=k==17?3:1,n=k==17?5:2;
-    auto desc=finite_gemm_desc(semantics,m,n,k,modulus);desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    auto desc=finite_gemm_desc(semantics,m,n,k,modulus);desc.requested_backend=backend;
     rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
     rns8_matrix *a=nullptr,*b=nullptr;std::array<rns8_matrix*,2> c{};
     auto md=finite_matrix_desc(m,k,semantics);REQUIRE(rns8_create_matrix(ctx,&md,&a)==RNS8_SUCCESS);
@@ -67,7 +71,8 @@ TEST_CASE("prepared finite HIP streams and graphs publish explicit ring results"
     }
     REQUIRE(rns8_destroy_prepared_group(group)==RNS8_SUCCESS);
     const auto generation=c[0]->content_generation;
-    const uint16_t other=modulus==2?3:2;
+    const bool limited=backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_AMDGPU_BUILTINS;
+    const uint16_t other=limited?(modulus==251?256:251):(modulus==2?3:2);
     std::vector<uint8_t> zeros(m*(k+1),0);
     REQUIRE(rns8_pack_finite_u8(ctx,a,other,zeros.data(),k+1,0)==RNS8_SUCCESS);
     CHECK(rns8_refresh_prepared_inputs(prepared[0])==RNS8_INVALID_ARGUMENT);
@@ -91,6 +96,7 @@ TEST_CASE("prepared finite HIP streams and graphs publish explicit ring results"
     REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
 #else
   SKIP("HIP support is not compiled");
 #endif

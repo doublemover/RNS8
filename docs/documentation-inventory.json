@@ -3841,6 +3841,7 @@
         "prepared-exact-conversion-variant",
         "prepared-exact-epilogues",
         "prepared-execution-and-completion-ownership",
+        "stream-providers-and-explicit-caller-graphs",
         "strict-wrap64-resident-edges",
         "token-qualified-producer-binding-authored-validation-pending"
       ]

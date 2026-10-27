@@ -1,4 +1,4 @@
-extern "C" int rns8_rocwmma_gemm_rns_device(
+static int rns8_rocwmma_gemm_rns_device_impl(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -11,7 +11,8 @@ extern "C" int rns8_rocwmma_gemm_rns_device(
     long long lda,
     long long ldb,
     long long ldc,
-    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats) {
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats,void* raw_stream) {
+  auto stream=static_cast<hipStream_t>(raw_stream);
   if(packing_policy>3)return rocwmma_invalid_argument;
   RocwmmaPackingState packing{packing_policy,packing_stats};
   if (hipSetDevice(device_id) != hipSuccess) {
@@ -35,8 +36,42 @@ extern "C" int rns8_rocwmma_gemm_rns_device(
       static_cast<int>(lda),
       static_cast<int>(ldb),
       static_cast<int>(ldc),
-      prefix,&packing);
+      prefix,&packing,stream);
 }
+extern "C" int rns8_rocwmma_gemm_rns_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats) {
+  return rns8_rocwmma_gemm_rns_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,prefix,packing_policy,packing_stats,nullptr);
+}
+extern "C" int rns8_rocwmma_gemm_rns_device_on_stream(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats,void* raw_stream) {
+  if(!raw_stream)return rocwmma_invalid_argument;
+  return rns8_rocwmma_gemm_rns_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,prefix,packing_policy,packing_stats,raw_stream);
+}
+
 
 extern "C" int rns8_rocwmma_prepack_b_rns_device(
     int device_id,

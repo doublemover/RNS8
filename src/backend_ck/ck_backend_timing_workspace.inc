@@ -108,8 +108,8 @@ void record_synchronized_host_timing(
 }
 
 template <typename Fn>
-hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
-  if (!rns8::detail::hip_direct_timing_enabled()) {
+hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn,hipStream_t stream=nullptr) {
+  if (stream || !rns8::detail::hip_direct_timing_enabled()) {
     return fn();
   }
   const auto host_start = std::chrono::steady_clock::now();
@@ -158,8 +158,8 @@ hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
 }
 
 template <typename Fn>
-int timed_ck_operation(const char* label, const char* alias, Fn&& fn) {
-  if (!rns8::detail::hip_direct_timing_enabled()) {
+int timed_ck_operation(const char* label, const char* alias, Fn&& fn,hipStream_t stream=nullptr) {
+  if (stream || !rns8::detail::hip_direct_timing_enabled()) {
     return fn();
   }
   const auto host_start = std::chrono::steady_clock::now();

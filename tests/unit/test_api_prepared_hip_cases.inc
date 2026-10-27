@@ -5,17 +5,20 @@ TEST_CASE(
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
+  for(auto backend:{RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_CK,RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_HIPBLASLT})
   for (bool signed_values : {false, true}) {
     rns8_context_options options{};
     options.struct_size = sizeof(options);
     options.abi_version = RNS8_ABI_VERSION;
-    options.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+    options.requested_backend = backend;
     rns8_context *ctx = nullptr;
-    REQUIRE(rns8_create_context(0, &options, &ctx) == RNS8_SUCCESS);
+    const auto created=rns8_create_context(0,&options,&ctx);
+    if(created==RNS8_UNSUPPORTED_BACKEND || created==RNS8_UNSUPPORTED_ARCH)continue;
+    REQUIRE(created==RNS8_SUCCESS);
     const auto semantics =
         signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
     auto desc = exact_desc(semantics, 2, 2, 2);
-    desc.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+    desc.requested_backend = backend;
     auto md = exact_matrix_desc(2, 2, semantics);
     rns8_plan *plan = nullptr;
     rns8_workspace *workspace = nullptr;
@@ -47,8 +50,20 @@ TEST_CASE(
     hipGraph_t external_graph = nullptr;
     REQUIRE(hipStreamEndCapture(stream.get(), &external_graph) == hipSuccess);
     REQUIRE(hipGraphDestroy(external_graph) == hipSuccess);
-    for (bool graph : {false, true}) {
-      REQUIRE((graph ? rns8_submit_prepared_hip_graph(execution, stream.get(),
+    rns8_caller_hip_graph* caller=nullptr;
+    const auto old_generation=c->content_generation;
+    hip_direct_device_buffer marker;REQUIRE(marker.allocate(0,4)==RNS8_SUCCESS);
+    REQUIRE(hipStreamBeginCapture(stream.get(),hipStreamCaptureModeThreadLocal)==hipSuccess);
+    REQUIRE(rns8_capture_prepared_in_caller_hip_graph(execution,stream.get(),&caller)==RNS8_SUCCESS);
+    REQUIRE(hipMemsetAsync(marker.get(),0x5a,4,stream.get())==hipSuccess);
+    CHECK(c->content_generation==old_generation);CHECK_FALSE(a->in_flight_readers);
+    CHECK(rns8_finalize_caller_hip_graph(caller,nullptr)==RNS8_INVALID_ARGUMENT);
+    REQUIRE(hipStreamEndCapture(stream.get(),&external_graph)==hipSuccess);
+    REQUIRE(rns8_finalize_caller_hip_graph(caller,external_graph)==RNS8_SUCCESS);
+    REQUIRE(hipGraphDestroy(external_graph)==hipSuccess);
+    CHECK(rns8_destroy_prepared_execution(execution)==RNS8_BUSY);
+    for (unsigned mode : {0u,1u,2u}) {
+      REQUIRE((mode==2?rns8_submit_caller_hip_graph(caller,stream.get(),&token):mode==1 ? rns8_submit_prepared_hip_graph(execution, stream.get(),
                                                       &token)
                      : rns8_submit_prepared_hip(execution, stream.get(),
                                                 &token)) == RNS8_SUCCESS);
@@ -61,6 +76,7 @@ TEST_CASE(
       REQUIRE(info.operation_status == RNS8_SUCCESS);
       REQUIRE(info.output_is_current);
       REQUIRE(a->in_flight_readers == 0);
+      if(mode==2){unsigned value=0;REQUIRE(hipMemcpy(&value,marker.get(),4,hipMemcpyDeviceToHost)==hipSuccess);CHECK(value==0x5a5a5a5a);}
       uint64_t limbs[12]{};
       REQUIRE((signed_values ? rns8_export_exact_wide_signed_limbs(ctx, plan, c,
                                                                    limbs, 2, 3)
@@ -114,6 +130,8 @@ TEST_CASE(
     REQUIRE(rns8_wait_prepared_hip(execution, token, &canceled) == RNS8_SUCCESS);
     CHECK(canceled.operation_status == RNS8_SUCCESS);
     CHECK(canceled.output_is_current == 1);
+    REQUIRE(rns8_destroy_caller_hip_graph(caller)==RNS8_SUCCESS);
+    REQUIRE(marker.reset()==RNS8_SUCCESS);
     REQUIRE(rns8_destroy_prepared_execution(execution) == RNS8_SUCCESS);
     REQUIRE(a->prepared_references == 0);
     REQUIRE(rns8_destroy_matrix(a) == RNS8_SUCCESS);

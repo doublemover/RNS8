@@ -58,7 +58,8 @@ addresses. These paths share the cancellation, reader reservation, generation,
 and grouped-submission contracts.
 `rns8_submit_prepared_hip` takes a caller-owned non-default HIP stream and checks
 its device and capture state. Keep that stream alive until completion is observed.
-Stream capture is explicitly unsupported; there is no synchronous fallback.
+Ordinary submit rejects an already capturing stream. Use the explicit caller-graph
+binding below to embed a body; no synchronous fallback is selected.
 
 Submission checks input generations and computes the complete exact range proof
 before changing the output or epoch. Host proof work can allocate; device event
@@ -393,8 +394,10 @@ bindings without waiting for host publication. Prepare each owner's HIP event
 before producers start, bind up to three producer tokens, then submit the consumer
 on a non-default stream. Pending producer events become `hipStreamWaitEvent`
 dependencies. Successful submission performs no host wait or device-wide drain.
-The current envelope is direct-HIP bounded i64/u64 or exact-wide GEMM and exact
-axpby, with fixed prefixes; finite/wrap and external capture are unsupported here.
+The current envelope is fixed-prefix bounded i64/u64 or exact-wide GEMM on the
+prepared direct-HIP/builtins/CK/rocWMMA/hipBLASLt providers, and direct-HIP exact
+axpby. Finite/wrap pending-token consumers and caller-graph pipeline submission
+are not admitted by this particular entrypoint.
 
 Before issuing work, preflight checks each producer's identity, latest epoch,
 semantic contract, written prefix, failure state and pending proof. Only inputs
@@ -448,7 +451,8 @@ retained pinned status and status-gated device commit. It composes with existing
 pending-value dependencies and independent groups; no whole-device wait is
 hidden in submission. Counted token-ordered writers keep a producer→lift chain
 reserved until its last actual writer finishes. Ordinary arithmetic defaults
-are unchanged, and caller-owned stream capture remains unsupported.
+are unchanged. The explicit caller-graph binding can capture one prepared lift
+body under the same retained owner.
 
 Destroy first retires graph/event identities with checked HIP status, then
 releases transfer scratch. A failed destroy preserves the handle for cleanup
@@ -570,3 +574,58 @@ and preserves p50/p95/sustained regressions. Its gains table contains only modes
 that improve all three observed metrics over the matched ordinary control.
 These sources await the consolidated validation pass; they establish no measured
 speedup or hardware qualification by themselves.
+
+## Stream providers and explicit caller graphs
+
+Prepared dense GEMM now has enqueue-only builtins, CK, rocWMMA and hipBLASLt
+adapters alongside direct HIP. Each keeps its ordinary semantic, modulus, shape,
+address and target admission. Builtins retain their65536 K ceiling. CK and
+rocWMMA pass the supplied stream through packing, every matrix product and
+modular carry. Their stream path bypasses timing-event setup and synchronization;
+CK explicitly disables invoker timing. Existing synchronous controls still drain.
+The rocWMMA prepared stream route uses its named baseline packing policy.
+
+hipBLASLt preparation retains descriptors and selected algorithms for the full
+and tail K geometries, and warms both with zero private pack buffers outside
+capture. Replays pack current operands, issue INT8→INT32 matmul on the supplied
+stream, then reduce with integer carries. No heuristic, transient descriptor,
+prepack-cache rebuild or timing event occurs in enqueue. Retained workspace and
+context references last through completion; an undrained preparation keeps its
+cleanup owner and workspace reservation and poisons the context. Opaque library
+setup remains additional to the known payload lower bound.
+
+These are source capabilities. Existing Windows direct-HIP receipts do not
+qualify these new adapters or Linux/CDNA. The authored fixtures exercise signed
+and unsigned full-width outputs, bounded exports, finite composite/prime rings,
+K tails, independent groups, shared readers and repeated graphs against the
+independent exact references. Their execution awaits the combined validation.
+
+Caller embedding is a separate four-step interface:
+
+1. Call `rns8_prepare_hip_submission` before capture to create completion and
+   backend resources.
+2. Begin capture on a borrowed nondefault same-device stream, then call
+   `rns8_capture_prepared_in_caller_hip_graph`. This records one RNS8 body and
+   retains its prepared owner; it does not execute, publish, or allocate an epoch.
+3. End capture yourself and pass that exact graph to
+   `rns8_finalize_caller_hip_graph`. RNS8 instantiates and owns a separate
+   executable. The original graph can then be destroyed by the caller.
+4. Launch through `rns8_submit_caller_hip_graph`, then observe its ordinary
+   prepared token. Destroy the binding after completion and before destroying
+   the prepared execution.
+
+Only one RNS8 body per caller capture is admitted. A capture-ID registry rejects
+additional bodies, because independently reserving one owner cannot protect the
+other bodies. Multi-operation RNS8 composition continues to use resident DAGs.
+Other caller nodes must preserve RNS8's input/lease contracts and may not read
+unpublished results: a later node is not a substitute for host-observed exactness
+status. Their own external pointers must remain alive through execution. Do not
+mutate/remove captured RNS8 nodes, independently instantiate/launch the original
+graph, or recycle its addresses behind the binding.
+
+Finalization preserves an existing executable on replacement failure. Submission
+rechecks stable addresses, generations, ranges and stream state before reserving
+storage and issuing its epoch. Cancellation, deadlines, failure diagnostics and
+quarantine use the existing prepared state machine. A partial capture failure
+can return a cleanup-only binding; discard the caller capture/graph before
+releasing it. The caller stream and graph are never destroyed by RNS8.

@@ -141,7 +141,7 @@ int launch_pack_and_gemm(
     int modulus,
     uint32_t reciprocal,
     int safe_k_block,
-    int prefix_index,RocwmmaPackingState* packing=nullptr) {
+    int prefix_index,RocwmmaPackingState* packing=nullptr,hipStream_t stream=nullptr) {
   char pack_a_label[72];
   char pack_b_label[72];
   char matmul_label[72];
@@ -200,9 +200,9 @@ int launch_pack_and_gemm(
       // never survives the wrapper call or aliases a different workspace.
       if(packing)packing->a={};
       err=timed_hip_launch(pack_a_timing_label,pack_a_alias,[&]() {
-        pack_a_rowmajor_kernel<<<pack_a_grid,pack_block>>>(a,a_pack,rows,padded_rows,valid_k_block,gemm_k_block,lda,k_offset);
+        pack_a_rowmajor_kernel<<<pack_a_grid,pack_block,0,stream>>>(a,a_pack,rows,padded_rows,valid_k_block,gemm_k_block,lda,k_offset);
         return hipGetLastError();
-      });
+      },stream);
       if(err!=hipSuccess)return rocwmma_backend_failure;
       if(packing){packing->a=a_key;if(packing->stats)++packing->stats->a_pack_launches;}
     }
@@ -211,9 +211,9 @@ int launch_pack_and_gemm(
     } else {
       if(packing)packing->b={};
       err=timed_hip_launch(pack_b_timing_label,pack_b_alias,[&]() {
-        pack_b_colmajor_kernel<<<pack_b_grid,pack_block>>>(b,b_pack,valid_k_block,gemm_k_block,cols,padded_cols,ldb,k_offset);
+        pack_b_colmajor_kernel<<<pack_b_grid,pack_block,0,stream>>>(b,b_pack,valid_k_block,gemm_k_block,cols,padded_cols,ldb,k_offset);
         return hipGetLastError();
-      });
+      },stream);
       if(err!=hipSuccess)return rocwmma_backend_failure;
       if(packing){packing->b=b_key;if(packing->stats)++packing->stats->b_pack_launches;}
     }
@@ -222,7 +222,7 @@ int launch_pack_and_gemm(
         static_cast<unsigned int>(padded_rows / kRns8WmmaTileM),
         1);
     err = timed_hip_launch(matmul_timing_label, matmul_alias, [&]() {
-      rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
+      rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads,0,stream>>>(
           direct?a+k_offset:a_pack,
           b_pack,
           c,
@@ -237,7 +237,7 @@ int launch_pack_and_gemm(
           reciprocal,
           accumulate);
       return hipGetLastError();
-    });
+    },stream);
     if (err != hipSuccess) {
       return rocwmma_backend_failure;
     }
@@ -259,7 +259,7 @@ int run_rns_prefix(
     int lda,
     int ldb,
     int ldc,
-    uint32_t prefix,RocwmmaPackingState* packing=nullptr) {
+    uint32_t prefix,RocwmmaPackingState* packing=nullptr,hipStream_t stream=nullptr) {
   if (prefix == 0 || prefix > kRns8MaxSupportedPrefix) {
     return rocwmma_invalid_argument;
   }
@@ -294,12 +294,12 @@ int run_rns_prefix(
         static_cast<int>(modulus),
         modulus_reciprocal_u32(modulus),
         safe_k_block,
-        static_cast<int>(modulus_index),packing);
+        static_cast<int>(modulus_index),packing,stream);
     if (status != rocwmma_success) {
       return status;
     }
   }
-  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? rocwmma_success
+  return (stream || (hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess)) ? rocwmma_success
                                                                                        : rocwmma_backend_failure;
 }
 

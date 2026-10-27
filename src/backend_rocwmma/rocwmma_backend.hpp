@@ -14,6 +14,8 @@ rns8_status rocwmma_exact_axpby_device(
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldd, int64_t ldc,
     uint32_t prefix, int64_t alpha, int64_t beta);
 
+rns8_status rocwmma_enqueue_dense(int,const void*,const void*,void*,void*,std::size_t,
+    int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,bool,void* stream);
 bool rocwmma_compiled();
 rns8_status rocwmma_probe(int device_id, rns8_device_info& out);
 bool rocwmma_workspace_requirements(

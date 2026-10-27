@@ -63,3 +63,4 @@ using hipblaslt_metadata_state::prepack_counters;
 #include "hipblaslt_context.inc"
 #include "hipblaslt_rns_gemm.inc"
 #include "hipblaslt_finite_gemm.inc"
+#include "hipblaslt_async.inc"
