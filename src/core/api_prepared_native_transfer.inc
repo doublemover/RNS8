@@ -8,7 +8,7 @@ class PreparedNativeTransfer final:public PreparedTransfer {
   std::shared_ptr<const ExperimentalBasis> basis;
   BasisMagnitude basis_bound{};
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  hip_pinned_host_buffer host_status;hipStream_t owned_stream=nullptr;
+  hip_pinned_host_buffer host_status;hip_unique_stream owned_stream;
 #endif
   ~PreparedNativeTransfer() override {(void)close();}
   bool writes_matrix() const noexcept override{return importing;}
@@ -19,7 +19,7 @@ class PreparedNativeTransfer final:public PreparedTransfer {
   ExternalAccess external_access() const noexcept override{return lease?ExternalAccess{lease->view,lease->snapshot?lease->resources.compact_native_bytes:lease->resources.view_span_bytes,!importing,lease}:ExternalAccess{};}
   void* sync_stream() const noexcept override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    return owned_stream;
+    return owned_stream.get();
 #else
     return nullptr;
 #endif
@@ -109,7 +109,7 @@ class PreparedNativeTransfer final:public PreparedTransfer {
   }
   rns8_status close() override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if(owned_stream){hip_scoped_device selected(ctx->device_id);if(selected.status()!=hipSuccess || hipStreamDestroy(owned_stream)!=hipSuccess)return RNS8_BACKEND_FAILURE;owned_stream=nullptr;}
+    if(owned_stream.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     if(host_status.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
 #endif
     const auto status=scratch.reset();if(status!=RNS8_SUCCESS)return status;
@@ -189,7 +189,7 @@ rns8_status rns8_prepare_native_transfer_hip(rns8_context* ctx,rns8_matrix* matr
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     hip_scoped_device selected(ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     status=owner->scratch.allocate(ctx->device_id,scratch);if(status!=RNS8_SUCCESS)return status;
-    if(owner->host_status.ensure(ctx->device_id,4)!=hipSuccess || hipStreamCreateWithFlags(&owner->owned_stream,hipStreamNonBlocking)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(owner->host_status.ensure(ctx->device_id,4)!=hipSuccess || owner->owned_stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     ++lease->prepared_references;owner->retained_lease=true;
     return create_transfer_prepared(std::move(owner),out);
 #else
@@ -209,7 +209,10 @@ rns8_status rns8_end_native_device_write_hip(rns8_native_device_lease* lease,uin
     if(stream==hipStreamLegacy || stream==hipStreamPerThread || hipStreamGetDevice(stream,&device)!=hipSuccess || device!=lease->ctx->device_id)return RNS8_INVALID_ARGUMENT;
     if(hipStreamIsCapturing(stream,&capture)!=hipSuccess)return RNS8_BACKEND_FAILURE;
     if(capture!=hipStreamCaptureStatusNone)return RNS8_UNSUPPORTED_BACKEND;
-    if(!lease->readiness_event && hipEventCreateWithFlags(&lease->readiness_event,hipEventDisableTiming)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(!lease->readiness_event) {
+      const auto created=lease->readiness_owner.create(hipEventDisableTiming);lease->readiness_event=lease->readiness_owner.get();
+      if(created!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    }
     const auto code=hipEventRecord(lease->readiness_event,stream);
     lease->write_window=false;lease->producer_stream=producer_stream;
     if(code!=hipSuccess){lease->quarantined=true;lease->ctx->hip_failure_poisoned=true;return RNS8_BACKEND_FAILURE;}

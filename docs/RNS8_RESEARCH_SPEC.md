@@ -2126,6 +2126,14 @@ owner, including construction failures after stream acquisition. These source
 contracts have authored host failure fixtures; the current frontload pass has
 not yet executed their validation batch.
 
+Retained prepared, native-group, caller-composed and resident graph captures
+keep typed graph/executable owners after capture publication; raw handles are
+dispatch aliases. Failed replacement preserves the old owner and retires an
+unsuccessfully released replacement through the same queue. Integrity streams,
+native readiness events and experimental-basis transfer streams follow that
+ownership policy as well. Caller-owned source graphs and borrowed submission
+streams remain borrowed.
+
 
 ## Research group-CRT bridge
 

@@ -471,7 +471,7 @@ class PreparedBasisGemm final:public PreparedTransfer {
   std::shared_ptr<const ExperimentalBasis> basis;
   uint64_t published_generation=0;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  hipStream_t stream=nullptr;
+  hip_unique_stream stream;
 #endif
   const rns8_matrix* input_a() const noexcept override{return a;}
   const rns8_matrix* input_b() const noexcept override{return b;}
@@ -482,7 +482,7 @@ class PreparedBasisGemm final:public PreparedTransfer {
   const char* operation_name() const noexcept override{return "ordered_basis_gemm";}
   void* sync_stream() const noexcept override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    return stream;
+    return stream.get();
 #else
     return nullptr;
 #endif
@@ -534,7 +534,7 @@ class PreparedBasisGemm final:public PreparedTransfer {
   }
   rns8_status close() override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if(stream){hip_scoped_device selected(ctx->device_id);if(selected.status()!=hipSuccess || hipStreamDestroy(stream)!=hipSuccess)return RNS8_BACKEND_FAILURE;stream=nullptr;}
+    if(stream.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
 #endif
     return RNS8_SUCCESS;
   }
@@ -554,7 +554,7 @@ rns8_status rns8_prepare_basis_gemm_hip(rns8_basis_plan* plan,const rns8_matrix*
     cpp_int bound;const auto valid=owner->validate(nullptr,0,bound);if(valid!=RNS8_SUCCESS)return valid;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     hip_scoped_device selected(plan->ctx->device_id);
-    if(selected.status()!=hipSuccess || hipStreamCreateWithFlags(&owner->stream,hipStreamNonBlocking)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(selected.status()!=hipSuccess || owner->stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
 #endif
     return create_transfer_prepared(std::move(owner),out);
   });

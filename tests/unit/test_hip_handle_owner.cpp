@@ -57,6 +57,7 @@ struct LibraryHandles:Handles {
 };
 using LibraryOwner=rns8::detail::basic_hip_handle<LibraryHandles>;
 struct TransferStreamHandles:Handles {static constexpr auto kind=rns8::detail::hip_deferred_allocation_kind::stream;};
+template<rns8::detail::hip_deferred_allocation_kind Kind>struct CapturedHandles:Handles {static constexpr auto kind=Kind;};
 void* handle(uintptr_t value) { return reinterpret_cast<void*>(value); }
 }  // namespace
 
@@ -158,7 +159,7 @@ TEST_CASE("partially created library descriptor sets close independently without
 }
 
 TEST_CASE("prepared transfer stream acquisition survives post acquisition construction failure") {
-  for(const auto* transfer:{"exact_lift","basis_conversion","pinned_host"}) {
+  for(const auto* transfer:{"exact_lift","basis_conversion","pinned_host","native_device","experimental_basis_gemm"}) {
     INFO(transfer);HandleEnvironment environment;
     try {
       rns8::detail::basic_hip_handle<TransferStreamHandles> stream;
@@ -171,6 +172,27 @@ TEST_CASE("prepared transfer stream acquisition survives post acquisition constr
     Handles::fail=false;CHECK(Handles::destroy(record->device_id,record->pointer)==RNS8_SUCCESS);
     CHECK(Handles::destroyed_device==7);
   }
+}
+
+namespace {
+template<rns8::detail::hip_deferred_allocation_kind Kind>void failed_capture_replacement() {
+  HandleEnvironment environment;
+  try {
+    rns8::detail::basic_hip_handle<CapturedHandles<Kind>> retained,replacement;
+    REQUIRE(retained.create([](void** out) noexcept {*out=handle(12);return RNS8_SUCCESS;})==RNS8_SUCCESS);
+    REQUIRE(replacement.create([](void** out) noexcept {*out=handle(13);return RNS8_SUCCESS;})==RNS8_SUCCESS);
+    Handles::fail=true;CHECK(retained.reset()==RNS8_BACKEND_FAILURE);CHECK(retained.get()==handle(12));
+    throw std::bad_alloc{};
+  }catch(const std::bad_alloc&){}
+  REQUIRE(Handles::count==2);CHECK(Handles::deferred[0]->pointer==handle(13));CHECK(Handles::deferred[1]->pointer==handle(12));
+  Handles::fail=false;
+  for(unsigned index=0;index<2;++index){const auto* record=Handles::deferred[index];CHECK(record->kind==Kind);
+    CHECK(Handles::destroy(record->device_id,record->pointer)==RNS8_SUCCESS);}
+}
+}
+TEST_CASE("retained capture and executable replacements retire both failed owners on unwind") {
+  failed_capture_replacement<rns8::detail::hip_deferred_allocation_kind::graph>();
+  failed_capture_replacement<rns8::detail::hip_deferred_allocation_kind::graph_exec>();
 }
 
 TEST_CASE(

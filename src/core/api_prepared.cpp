@@ -59,14 +59,12 @@ struct rns8_prepared_execution {
   const void* graph_b = nullptr;
   const void* graph_c = nullptr;
   const void* graph_d = nullptr;
-  ~rns8_prepared_execution() {
-    if (!graph_executable && !graph && !completion_event.get() && !integrity_stream) return;
-    rns8::detail::hip_scoped_device device(ctx ? ctx->device_id : 0);
-    if (graph_executable) (void)hipGraphExecDestroy(graph_executable);
-    if (graph) (void)hipGraphDestroy(graph);
-    completion_event.reset();
-    if(integrity_stream)(void)hipStreamDestroy(integrity_stream);
-  }
+  // Raw fields above are dispatch aliases; typed members retain ownership on
+  // construction unwind and unsuccessful explicit close.
+  rns8::detail::hip_unique_stream integrity_stream_owner;
+  rns8::detail::hip_unique_graph graph_owner;
+  rns8::detail::hip_unique_graph_exec graph_executable_owner;
+
 #endif
 };
 
@@ -89,6 +87,9 @@ struct rns8_prepared_group {
   hipStream_t native_stream=nullptr;
   hipGraph_t native_graph=nullptr;
   hipGraphExec_t native_executable=nullptr;
+  rns8::detail::hip_unique_stream native_stream_owner;
+  rns8::detail::hip_unique_graph native_graph_owner;
+  rns8::detail::hip_unique_graph_exec native_executable_owner;
 #endif
 };
 
@@ -410,9 +411,9 @@ rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if(e->graph_executable || e->graph || e->completion_event.get()) {
     rns8::detail::hip_scoped_device selected(e->ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    if(e->graph_executable){if(hipGraphExecDestroy(e->graph_executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;e->graph_executable=nullptr;}
-    if(e->graph){if(hipGraphDestroy(e->graph)!=hipSuccess)return RNS8_BACKEND_FAILURE;e->graph=nullptr;}
-    if(e->completion_event.get()){if(hipEventDestroy(e->completion_event.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;(void)e->completion_event.release();}
+    if(e->graph_executable){if(e->graph_executable_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;e->graph_executable=nullptr;}
+    if(e->graph){if(e->graph_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;e->graph=nullptr;}
+    if(e->completion_event.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   }
 #endif
   if(e->transfer){const auto closed=e->transfer->close();if(closed!=RNS8_SUCCESS)return closed;}

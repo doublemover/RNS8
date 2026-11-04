@@ -373,14 +373,15 @@ rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
     // Retain each old handle until its own checked destruction succeeds.
     // A failed second destruction leaves capture unavailable but cleanup retryable.
     if(e->graph_executable) {
-      if(hipGraphExecDestroy(e->graph_executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+      if(e->graph_executable_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
       e->graph_executable=nullptr;
     }
     if(e->graph) {
-      if(hipGraphDestroy(e->graph)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+      if(e->graph_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
       e->graph=nullptr;
     }
-    e->graph=graph.release();e->graph_executable=executable.release();
+    e->graph_owner=std::move(graph);e->graph_executable_owner=std::move(executable);
+    e->graph=e->graph_owner.get();e->graph_executable=e->graph_executable_owner.get();
     e->graph_a = prepared_device_storage(*e->a);
     e->graph_b = prepared_device_storage(*e->b);
     e->graph_c = prepared_device_storage(*e->c);

@@ -29,7 +29,7 @@ static rns8_status close_prepared_integrity(rns8_prepared_execution& e) {
   rns8::detail::hip_scoped_device device(e.ctx->device_id);
   if(device.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   if(e.integrity_stream) {
-    if(hipStreamDestroy(e.integrity_stream)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(e.integrity_stream_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     e.integrity_stream=nullptr;
   }
   if(e.integrity_host_flag.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
@@ -59,8 +59,10 @@ rns8_status rns8_set_prepared_native_integrity(rns8_prepared_execution* e,
     if(device.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     if(!e->integrity_flag){status=e->integrity_flag.allocate(e->ctx->device_id,4);if(status!=RNS8_SUCCESS)return status;}
     if(e->integrity_host_flag.ensure(e->ctx->device_id,4)!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    if(!e->integrity_stream && hipStreamCreateWithFlags(&e->integrity_stream,hipStreamNonBlocking)!=hipSuccess)
-      return RNS8_BACKEND_FAILURE;
+    if(!e->integrity_stream) {
+      const auto created=e->integrity_stream_owner.create_non_blocking();e->integrity_stream=e->integrity_stream_owner.get();
+      if(created!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    }
     e->native_integrity_enabled=true;return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;

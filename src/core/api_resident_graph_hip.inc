@@ -488,7 +488,8 @@ rns8_status rns8_capture_resident_graph_hip(rns8_resident_graph *graph) {
     if(body!=RNS8_SUCCESS || ended!=hipSuccess)return body!=RNS8_SUCCESS?body:RNS8_BACKEND_FAILURE;
     rns8::detail::hip_unique_graph_exec executable;
     if(executable.instantiate(captured.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    graph->captured_graph=captured.release();graph->captured_executable=executable.release();
+    graph->captured_graph_owner=std::move(captured);graph->captured_executable_owner=std::move(executable);
+    graph->captured_graph=graph->captured_graph_owner.get();graph->captured_executable=graph->captured_executable_owner.get();
     graph->captured_addresses.swap(addresses);
     return RNS8_SUCCESS;
 #else

@@ -298,7 +298,10 @@
         "Resident and direct-native one-shot calls explicitly close resources, preserve original operation status, and retire failed whole matrix/workspace/plan owners to intrusive context lists without allocating",
         "Native one-shot output reservations and pending temporary inputs survive simulated failed preparation/submission and late drain; normal completion releases the writer before export",
         "All six public export formats retain read leases through exceptions/uncertain completion without invalidating resident publication; host mock coverage authored",
-        "Every aggregate release position, construction unwind, public failed-import retirement, native HIP checkpoint and context cleanup retry has authored coverage; CPU and enabled-HIP syntax checks passed, runtime execution deferred"
+        "Every aggregate release position, construction unwind, public failed-import retirement, native HIP checkpoint and context cleanup retry has authored coverage; CPU and enabled-HIP syntax checks passed, runtime execution deferred",
+        "Retained prepared/native-group/resident captures and caller-composed executables retain typed graph owners after capture publication; raw handles are non-owning dispatch aliases",
+        "Integrity/native-group streams, native-device transfer and experimental-basis GEMM streams, and native producer-readiness events use the shared retry owners; explicit closes preserve aliases on failure",
+        "Shared host capture replacement/unwind cases and five prepared transfer stream rows authored; enabled HIP graph/native/process-owner syntax checked without runtime execution"
       ],
       "remaining_source_items": [
         "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"

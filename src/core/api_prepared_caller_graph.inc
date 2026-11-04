@@ -13,6 +13,7 @@ struct rns8_caller_hip_graph {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   hipGraph_t source=nullptr;
   hipGraphExec_t executable=nullptr;
+  rns8::detail::hip_unique_graph_exec executable_owner;
 #endif
 };
 namespace {
@@ -94,8 +95,8 @@ rns8_status rns8_finalize_caller_hip_graph(rns8_caller_hip_graph* owner,void* gr
     if(state!=hipStreamCaptureStatusNone)return RNS8_BUSY;
     rns8::detail::hip_unique_graph_exec replacement;
     if(replacement.instantiate(static_cast<hipGraph_t>(graph))!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    if(owner->executable && hipGraphExecDestroy(owner->executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    owner->executable=replacement.release();return RNS8_SUCCESS;
+    if(owner->executable && owner->executable_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    owner->executable_owner=std::move(replacement);owner->executable=owner->executable_owner.get();return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
 #endif
@@ -170,7 +171,7 @@ rns8_status rns8_destroy_caller_hip_graph(rns8_caller_hip_graph* owner) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_scoped_device selected(e->ctx->device_id);
   if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
-  if(owner->executable && hipGraphExecDestroy(owner->executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  if(owner->executable && owner->executable_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   owner->executable=nullptr;
 #endif
   {auto& registry=caller_capture_registry();std::lock_guard<std::mutex> lock(registry.mutex);

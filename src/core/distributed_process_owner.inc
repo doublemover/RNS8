@@ -174,8 +174,8 @@ Admission ProcessSession::close() {
   p.progress.output_current=false;
   for(auto* buffer:{&p.a,&p.b,&p.packed,&p.local_output,&p.gather,&p.partials,&p.result,&p.directory,&p.status,&p.receive}){buffer->mark_completed();if(buffer->reset()!=RNS8_SUCCESS)return reject(RNS8_BACKEND_FAILURE,"process_failed_free_retained");}
   if(p.payload.reset()!=hipSuccess || p.host_status.reset()!=hipSuccess)return reject(RNS8_BACKEND_FAILURE,"process_pinned_free_retained");
-  if(p.ready){if(hipEventDestroy(p.ready.get())!=hipSuccess)return reject(RNS8_BACKEND_FAILURE,"process_event_free_retained");(void)p.ready.release();}
-  if(p.stream){if(hipStreamDestroy(p.stream.get())!=hipSuccess)return reject(RNS8_BACKEND_FAILURE,"process_stream_free_retained");(void)p.stream.release();}
+  if(p.ready.reset()!=hipSuccess)return reject(RNS8_BACKEND_FAILURE,"process_event_free_retained");
+  if(p.stream.reset()!=hipSuccess)return reject(RNS8_BACKEND_FAILURE,"process_stream_free_retained");
   if(p.comm!=MPI_COMM_NULL && MPI_Comm_free(&p.comm)!=MPI_SUCCESS)return reject(RNS8_BACKEND_FAILURE,"process_collective_comm_free");
 #if defined(RNS8_ENABLE_ROCSHMEM) && RNS8_ENABLE_ROCSHMEM
   if(p.arena_retained){if(rns8_rocshmem_arena_release_lease(p.binding.symmetric_arena)!=0)return reject(RNS8_BACKEND_FAILURE,"rocshmem_arena_lease_release");p.arena_retained=false;}

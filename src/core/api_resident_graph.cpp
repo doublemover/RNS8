@@ -56,13 +56,9 @@ struct rns8_resident_graph {
   hipGraph_t captured_graph = nullptr;
   hipGraphExec_t captured_executable = nullptr;
   std::vector<std::array<const void*, 12>> captured_addresses;
-  ~rns8_resident_graph() {
-    if (!captured_executable && !captured_graph && !completion_event.get()) return;
-    rns8::detail::hip_scoped_device device(ctx ? ctx->device_id : 0);
-    if (captured_executable) (void)hipGraphExecDestroy(captured_executable);
-    if (captured_graph) (void)hipGraphDestroy(captured_graph);
-    completion_event.reset();
-  }
+  rns8::detail::hip_unique_graph captured_graph_owner;
+  rns8::detail::hip_unique_graph_exec captured_executable_owner;
+
 #endif
 };
 
@@ -496,20 +492,18 @@ rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph) {
   rns8::detail::hip_scoped_device device(graph->ctx->device_id);
   if(device.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   if(graph->captured_executable) {
-    if(hipGraphExecDestroy(graph->captured_executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(graph->captured_executable_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     graph->captured_executable=nullptr;
   }
   if(graph->captured_graph) {
-    if(hipGraphDestroy(graph->captured_graph)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(graph->captured_graph_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     graph->captured_graph=nullptr;
   }
   if(graph->completion_event.get()) {
-    if(hipEventDestroy(graph->completion_event.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    (void)graph->completion_event.release();
+    if(graph->completion_event.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   }
   if(graph->synchronous_stream.get()) {
-    if(hipStreamDestroy(graph->synchronous_stream.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    (void)graph->synchronous_stream.release();
+    if(graph->synchronous_stream.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   }
   if(graph->complex_storage.reset()!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
   for(auto& transfer:graph->transfers)if(transfer.host.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;

@@ -13,6 +13,7 @@ struct rns8_native_device_lease {
   void* producer_stream=nullptr;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   hipEvent_t readiness_event=nullptr;
+  hip_unique_event readiness_owner;
 #endif
   rns8_native_device_lease* active_next=nullptr;
   rns8_native_device_lease* registered_next=nullptr;
@@ -191,7 +192,7 @@ rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease* lease) {
       unlink_native_active(*lease);lease->quarantined=false;lease->readiness_pending=false;lease->producer_stream=nullptr;release_native_matrix(*lease);
     }
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if(lease->readiness_event){hip_scoped_device selected(lease->ctx->device_id);if(selected.status()!=hipSuccess || hipEventDestroy(lease->readiness_event)!=hipSuccess)return RNS8_BACKEND_FAILURE;lease->readiness_event=nullptr;}
+    if(lease->readiness_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;lease->readiness_event=nullptr;
 #endif
     if(lease->scratch) {
       const auto status=hip_direct_free(lease->ctx->device_id,lease->scratch);

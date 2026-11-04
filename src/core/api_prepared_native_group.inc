@@ -9,11 +9,11 @@ bool native_group_busy(const rns8_prepared_group& group) {
 rns8_status close_native_group_graph(rns8_prepared_group& group) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if(group.native_executable) {
-    if(hipGraphExecDestroy(group.native_executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(group.native_executable_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     group.native_executable=nullptr;
   }
   if(group.native_graph) {
-    if(hipGraphDestroy(group.native_graph)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(group.native_graph_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     group.native_graph=nullptr;
   }
 #else
@@ -35,7 +35,7 @@ rns8_status close_native_group(rns8_prepared_group& group) {
   if(group.native_queue) {status=group.native_queue->close();if(status!=RNS8_SUCCESS)return status;}
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if(group.native_stream) {
-    if(hipStreamDestroy(group.native_stream)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(group.native_stream_owner.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     group.native_stream=nullptr;
   }
 #endif
@@ -147,8 +147,10 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
     for(auto* e:group->executions) {
       if(!e->completion_event && e->completion_event.create()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     }
-    if(!group->native_stream && hipStreamCreateWithFlags(&group->native_stream,hipStreamNonBlocking)!=hipSuccess)
-      return RNS8_BACKEND_FAILURE;
+    if(!group->native_stream) {
+      const auto created=group->native_stream_owner.create_non_blocking();group->native_stream=group->native_stream_owner.get();
+      if(created!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    }
     status=close_native_group_graph(*group);if(status!=RNS8_SUCCESS)return status;
 #endif
     if(group->native_queue) {status=group->native_queue->close();if(status!=RNS8_SUCCESS)return status;}
@@ -272,7 +274,8 @@ rns8_status rns8_capture_native_group_hip_graph(rns8_prepared_group* group) {
     if(executable.instantiate(replacement.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
     status=close_native_group_graph(*group);
     if(status!=RNS8_SUCCESS)return status;
-    group->native_graph=replacement.release();group->native_executable=executable.release();return RNS8_SUCCESS;
+    group->native_graph_owner=std::move(replacement);group->native_executable_owner=std::move(executable);
+    group->native_graph=group->native_graph_owner.get();group->native_executable=group->native_executable_owner.get();return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
 #endif
