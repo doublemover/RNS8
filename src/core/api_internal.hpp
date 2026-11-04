@@ -56,6 +56,36 @@ inline bool quarter_crt_backend_supported(rns8_backend_kind backend) {
 rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
 rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&,bool input_writers=false);
 bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;
+rns8_status invalidate_synchronous_output(rns8_context&, size_t token) noexcept;
+
+// Own the reservation through publication and through exception unwinding.
+// Uncertain device failures retain the context's existing failed-work record.
+class SynchronousLease {
+ public:
+  SynchronousLease(rns8_context& ctx, size_t token) : ctx_(&ctx), token_(token) {}
+  SynchronousLease(const SynchronousLease&) = delete;
+  SynchronousLease& operator=(const SynchronousLease&) = delete;
+  SynchronousLease(SynchronousLease&& other) noexcept
+      : ctx_(other.ctx_), token_(other.token_), status_(other.status_), written_(other.written_) {
+    other.ctx_ = nullptr;
+  }
+  ~SynchronousLease() { if (ctx_) finish_synchronous_lease(*ctx_, token_, status_, written_); }
+  rns8_status begin_write() noexcept {
+    const auto status = invalidate_synchronous_output(*ctx_, token_);
+    if (status == RNS8_SUCCESS) written_ = true;
+    return status;
+  }
+  rns8_status finish(rns8_status status) noexcept {
+    status_ = status;
+    if (ctx_) { finish_synchronous_lease(*ctx_, token_, status_, written_); ctx_ = nullptr; }
+    return status;
+  }
+ private:
+  rns8_context* ctx_;
+  size_t token_;
+  rns8_status status_ = RNS8_INTERNAL_ERROR;
+  bool written_ = false;
+};
 rns8_status begin_synchronous_matrix_lease(rns8_context&,rns8_matrix&,rns8_workspace&,size_t&,bool write);
 rns8_status plan_operation_preflight(const rns8_context&,const rns8_plan&,uint32_t operation,uint32_t modes,uint32_t proof_flags=0);
 

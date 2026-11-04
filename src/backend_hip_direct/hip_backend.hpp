@@ -27,6 +27,7 @@
 #include "backend_common/native_narrow.hpp"
 #include "backend_common/native_tdm.hpp"
 #include "backend_common/host_upload.hpp"
+#include "core/hip_device_buffer.hpp"
 
 namespace rns8::detail {
 rns8_status hip_direct_gram_five_product(int,const void*,void*,const GramFiveResources&,void*,uint64_t,bool,bool&);
@@ -381,6 +382,10 @@ struct hip_direct_grouped_device_buffer {
 
  private:
   void move_from(hip_direct_grouped_device_buffer& other) noexcept;
+  hip_direct_device_buffer owner_;
+ public:
+  void mark_pending() noexcept { owner_.mark_pending(); }
+  void mark_completed() noexcept { owner_.mark_completed(); }
 };
 
 struct hip_direct_grouped_device_resources {
@@ -403,6 +408,8 @@ struct hip_direct_grouped_device_resources {
   hip_direct_grouped_device_resources& operator=(hip_direct_grouped_device_resources&&) noexcept = default;
 
   rns8_status reset() noexcept;
+  void mark_pending() noexcept;
+  void mark_completed() noexcept;
 };
 
 // Preallocated cleanup record for private scratch whose device completion is

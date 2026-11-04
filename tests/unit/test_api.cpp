@@ -186,3 +186,42 @@ TEST_CASE("CPU materialized recipes consume and refresh differently tiled ragged
 }
 
 #include "test_api_prepared_concurrency_cases.inc"
+
+TEST_CASE("reserved CPU publication preserves exclusivity metadata and one generation advance", "[api][lifetime]") {
+  using namespace rns8::detail::api;
+  for(bool existing:{false,true})for(bool finite:{false,true}) {
+    auto* ctx=create_cpu_context();rns8_matrix a{},b{},c{};rns8_workspace work{};
+    rns8_plan plan{};plan.prefix=9;plan.desc.semantics=finite?RNS8_FINITE_RING_U8:RNS8_EXACT_WIDE_SIGNED;
+    c.prefix=finite?0:9;c.residues={1,2};c.host_residues_current=existing;
+    const auto generation=c.content_generation;
+    size_t token=0;REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
+    {
+      SynchronousLease lease(*ctx,token);
+      const std::vector<int8_t> staged{3,4};
+      boost::multiprecision::cpp_int bound=7;rns8_exact_matrix_ranges ranges;
+      ranges.rows.resize(1);ranges.cols.resize(2);ranges.rows[0].max_magnitude=7; // fallible metadata prepared before commit
+      REQUIRE_THROWS_AS(require_matrix_writable(c),ResourceBusy);
+      REQUIRE(lease.begin_write()==RNS8_SUCCESS);
+      CHECK(c.in_flight_writer);CHECK_FALSE(c.host_residues_current);
+      REQUIRE_THROWS_AS(require_matrix_writable(c),ResourceBusy);
+      std::copy(staged.begin(),staged.end(),c.residues.begin());
+      mark_output_host_residues_current(c,&plan);
+      if(finite)c.finite_modulus=255;
+      else rns8::detail::commit_exact_range(c,plan,bound,&ranges);
+      CHECK(c.in_flight_writer);CHECK(c.host_residues_current);
+      CHECK(c.content_generation==generation+1);
+      if(finite)CHECK(c.finite_modulus==255);
+      else {CHECK(c.exact_max_magnitude==7);CHECK(c.exact_range_prefix==9);CHECK(c.exact_axis_ranges.rows.size()==1);}
+      REQUIRE(lease.finish(RNS8_SUCCESS)==RNS8_SUCCESS);
+    }
+    CHECK_FALSE(c.in_flight_writer);CHECK(a.in_flight_readers==0);CHECK_FALSE(work.in_flight);
+    const auto committed=c.content_generation;
+    REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
+    try {SynchronousLease lease(*ctx,token);throw std::bad_alloc{};}catch(const std::bad_alloc&){}
+    CHECK(c.host_residues_current);CHECK(c.content_generation==committed);CHECK(c.residues==std::vector<int8_t>{3,4});
+    REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
+    {SynchronousLease lease(*ctx,token);REQUIRE(lease.begin_write()==RNS8_SUCCESS);c.residues[0]=5;lease.finish(RNS8_RANGE_ERROR);}
+    CHECK_FALSE(c.host_residues_current);CHECK_FALSE(c.in_flight_writer);CHECK(ctx->failed_work_leases.empty());
+    REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
+}

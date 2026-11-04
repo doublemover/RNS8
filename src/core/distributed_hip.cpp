@@ -37,7 +37,8 @@ struct HipExecution::Impl {
   std::shared_ptr<const Inputs> inputs;
   HipProgress progress;
   uint64_t readers = 0, deadline = 0;
-  bool issued = false, final_queued = false, closed = false;
+  bool issued = false, final_queued = false, closing = false, closed = false;
+  uint64_t cleanup_steps = 0, cleanup_fail_after = UINT64_MAX, submissions = 0;
   bool initialization_pending = false;
   bool drain_markers_queued = false;
   std::vector<std::string> certificates;
@@ -425,16 +426,28 @@ struct HipExecution::Impl {
     }
     return {};
   }
+  bool cleanup_checkpoint() noexcept {
+    if (cleanup_steps == cleanup_fail_after) {
+      cleanup_fail_after = UINT64_MAX;
+      return false;
+    }
+    ++cleanup_steps;
+    return true;
+  }
   Admission cleanup() {
     if (issued || readers) return reject(RNS8_BUSY, "distributed_readers_or_work_retained");
+    // Irreversible after BUSY prechecks: failed teardown may only be retried.
+    closing = true;
     progress.output_current = false; // a partial cleanup cannot leave a borrowable freed result
     // Destroy under each owning device and retain failed handles for retry.
-    const auto event = [](hip_unique_event& value) {
+    const auto event = [&](hip_unique_event& value) {
       if (!value) return hipSuccess;
+      if (!cleanup_checkpoint()) return hipErrorUnknown;
       return value.reset();
     };
-    const auto stream = [](hip_unique_stream& value) {
+    const auto stream = [&](hip_unique_stream& value) {
       if (!value) return hipSuccess;
+      if (!cleanup_checkpoint()) return hipErrorUnknown;
       return value.reset();
     };
     for (auto& device : devices) {
@@ -447,11 +460,11 @@ struct HipExecution::Impl {
       for (auto& slot : device.slots) {
         if (event(slot.ready) != hipSuccess || stream(slot.stream) != hipSuccess)
           return reject(RNS8_BACKEND_FAILURE, "cleanup_rank_event_stream");
-        if (slot.packed.reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_packed_storage");
+        if ((slot.packed && !cleanup_checkpoint()) || slot.packed.reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_packed_storage");
       }
       if (event(device.staged) != hipSuccess) return reject(RNS8_BACKEND_FAILURE, "cleanup_staging_event");
       for (auto* buffer : {&device.a, &device.b, &device.output})
-        if (buffer->reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_rank_storage");
+        if ((*buffer && !cleanup_checkpoint()) || buffer->reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_rank_storage");
     }
     if (!gather && !partials && !result && !directory && !status && !uniform && !uniform_pending &&
         !gather_stream && !completion && !stage_arrived && !staging.get() && !host_status.get()) {
@@ -461,14 +474,22 @@ struct HipExecution::Impl {
     if (selected.status() != hipSuccess) return reject(RNS8_BACKEND_FAILURE, "cleanup_owner_device");
     if (event(completion) != hipSuccess || event(stage_arrived) != hipSuccess || stream(gather_stream) != hipSuccess)
       return reject(RNS8_BACKEND_FAILURE, "cleanup_owner_event_stream");
-    if (staging.reset() != hipSuccess || host_status.reset() != hipSuccess)
+    if ((staging.get() && !cleanup_checkpoint()) || staging.reset() != hipSuccess ||
+        (host_status.get() && !cleanup_checkpoint()) || host_status.reset() != hipSuccess)
       return reject(RNS8_BACKEND_FAILURE, "cleanup_host_storage");
     for (auto* buffer : {&gather, &partials, &result, &directory, &status, &uniform, &uniform_pending})
-      if (buffer->reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_owner_storage");
+      if ((*buffer && !cleanup_checkpoint()) || buffer->reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_owner_storage");
     closed = true; return {};
   }
 #endif
 };
+
+void HipExecutionTestAccess::fail_cleanup_after(HipExecution& value, uint64_t steps) {
+  value.impl_->cleanup_steps = 0; value.impl_->cleanup_fail_after = steps;
+}
+uint64_t HipExecutionTestAccess::cleanup_steps(const HipExecution& value) { return value.impl_->cleanup_steps; }
+uint64_t HipExecutionTestAccess::submissions(const HipExecution& value) { return value.impl_->submissions; }
+HipProgress HipExecutionTestAccess::progress(const HipExecution& value) { return value.impl_->progress; }
 
 bool HipExecution::compiled() noexcept {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -543,12 +564,13 @@ Admission HipExecution::create(std::shared_ptr<const Plan> plan, std::shared_ptr
 }
 Admission HipExecution::submit(uint64_t epoch, uint64_t timeout_ns) {
   auto& p = *impl_;
-  if (p.closed || !epoch || epoch == UINT64_MAX || epoch <= p.progress.epoch || !timeout_ns)
+  if (p.closing || p.closed || !epoch || epoch == UINT64_MAX || epoch <= p.progress.epoch || !timeout_ns)
     return reject(RNS8_INVALID_ARGUMENT, "fresh_epoch_and_deadline_required");
   if (p.issued || p.readers || p.progress.state == State::quarantined) return reject(RNS8_BUSY, "previous_epoch_retained");
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   const auto& r = p.plan->request(); hip_scoped_device selected(int(r.ranks[r.owner].ordinal));
   if (selected.status() != hipSuccess) return reject(RNS8_BACKEND_FAILURE, "submit_owner_preflight");
+  ++p.submissions;
   p.progress = {}; p.progress.epoch = epoch; p.progress.expected = p.plan->work().size();
   p.progress.integrity_requested=r.native_integrity;
   p.progress.state = State::pending; p.deadline = deadline_after(timeout_ns);
@@ -573,7 +595,7 @@ Admission HipExecution::submit(uint64_t epoch, uint64_t timeout_ns) {
 }
 Admission HipExecution::query(uint64_t epoch, HipProgress& output) {
   auto& p = *impl_;
-  if (p.closed || !epoch || epoch != p.progress.epoch) return reject(RNS8_INVALID_ARGUMENT, "foreign_or_stale_epoch");
+  if (p.closing || p.closed || !epoch || epoch != p.progress.epoch) return reject(RNS8_INVALID_ARGUMENT, "foreign_or_stale_epoch");
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   const auto polled = p.poll(); if (!polled) return polled;
 #endif
@@ -598,7 +620,7 @@ Admission HipExecution::cancel(uint64_t epoch) {
 }
 Admission HipExecution::retain(uint64_t epoch) {
   auto& p = *impl_;
-  if (p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || p.readers == UINT64_MAX)
+  if (p.closing || p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || p.readers == UINT64_MAX)
     return reject(RNS8_INVALID_ARGUMENT, "published_epoch_required");
   ++p.readers; return {};
 }
@@ -609,7 +631,7 @@ Admission HipExecution::release(uint64_t epoch) {
 }
 Admission HipExecution::resident_limbs(uint64_t epoch, int& device, const void*& pointer) const {
   const auto& p = *impl_;
-  if (p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || !p.readers)
+  if (p.closing || p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || !p.readers)
     return reject(RNS8_BUSY, "retained_published_result_required");
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   device = int(p.plan->request().ranks[p.plan->request().owner].ordinal); pointer = p.result.get(); return {};
@@ -625,7 +647,7 @@ Admission HipExecution::export_limbs(uint64_t epoch, uint64_t* destination, uint
   if (!nonoverlapping_byte_ranges(destination, span.byte_extent, p.inputs->lhs().data(), p.inputs->lhs().size() * 8) ||
       !nonoverlapping_byte_ranges(destination, span.byte_extent, p.inputs->rhs().data(), p.inputs->rhs().size() * 8))
     return reject(RNS8_INVALID_ARGUMENT, "destination_aliases_native_snapshot");
-  if (p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current)
+  if (p.closing || p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current)
     return reject(RNS8_BUSY, "complete_published_result_required");
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   hip_scoped_device selected(int(r.ranks[r.owner].ordinal));
@@ -641,7 +663,7 @@ Admission HipExecution::export_limbs(uint64_t epoch, uint64_t* destination, uint
 }
 Admission HipExecution::materialize(uint64_t epoch, uint32_t prefix, uint64_t max_bytes) {
   auto& p = *impl_; const auto& r = p.plan->request();
-  if (p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || p.readers)
+  if (p.closing || p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || p.readers)
     return reject(RNS8_BUSY, "unborrowed_published_result_required");
   if (!prefix || prefix > p.plan->basis_packet().count) return reject(RNS8_INVALID_ARGUMENT, "materialization_prefix");
   try {
@@ -677,7 +699,7 @@ Admission HipExecution::materialize(uint64_t epoch, uint32_t prefix, uint64_t ma
 }
 Admission HipExecution::resident_residues(uint64_t epoch, int& device, const void*& pointer, uint32_t& prefix,const BasisPacket*& basis) const {
   const auto& p = *impl_;
-  if (p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || !p.readers)
+  if (p.closing || p.closed || !epoch || epoch != p.progress.published_epoch || !p.progress.output_current || !p.readers)
     return reject(RNS8_BUSY, "retained_published_result_required");
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!p.uniform_prefix) return reject(RNS8_INVALID_ARGUMENT, "uniform_materialization_required");

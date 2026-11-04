@@ -47,8 +47,17 @@ class HipExecution {
   Admission close(); // BUSY while work/readers survive; failed frees retain ownership
   static void reap_quarantined() noexcept;
  private:
+  friend struct HipExecutionTestAccess;
   struct Impl;
   explicit HipExecution(std::unique_ptr<Impl>);
   std::unique_ptr<Impl> impl_;
+};
+// Private test seam: stop cleanup before an operation, never induce a device
+// fault or change arithmetic admission. Not part of the installed API.
+struct HipExecutionTestAccess {
+  static void fail_cleanup_after(HipExecution&, uint64_t completed_steps);
+  static uint64_t cleanup_steps(const HipExecution&);
+  static uint64_t submissions(const HipExecution&);
+  static HipProgress progress(const HipExecution&);
 };
 } // namespace rns8::detail::distributed

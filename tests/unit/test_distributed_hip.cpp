@@ -215,3 +215,41 @@ TEST_CASE("real HIP explicit output and contraction distributions retain complet
 TEST_CASE("real HIP distributed ordered bases retain small composite and reordered channel identities", "[distributed][hip]") {
   for(auto axis:{d::Axis::modulus,d::Axis::rows,d::Axis::columns,d::Axis::hybrid,d::Axis::contraction})check_real_modulus_shards(65,axis,true);
 }
+
+TEST_CASE("distributed destructive close retires every partial cleanup stage", "[distributed][hip][lifetime]") {
+  rns8_device_info info{};
+  if(!d::HipExecution::compiled() || rns8::detail::hip_direct_probe(0,info)!=RNS8_SUCCESS)SKIP("HIP device required");
+  auto r=live_request();REQUIRE(d::HipExecution::discover({0},r.ranks,r.edges));r.transport=d::Transport::local;
+  auto plan=make_plan(r);auto inputs=make_inputs(r);
+  for(bool published:{false,true}) {
+    auto create=[&]() {
+      std::unique_ptr<d::HipExecution> owner;REQUIRE(d::HipExecution::create(plan,inputs,owner));
+      if(published) {
+        REQUIRE(owner->submit(1,UINT64_C(30000000000)));d::HipProgress progress;
+        REQUIRE(owner->wait(1,UINT64_C(30000000000),progress));REQUIRE(progress.operation);
+        REQUIRE(owner->materialize(1,20,r.m*r.n*20));
+      }
+      return owner;
+    };
+    auto control=create();REQUIRE(control->close());const auto steps=d::HipExecutionTestAccess::cleanup_steps(*control);
+    REQUIRE(steps>1);
+    for(uint64_t fail=0;fail<steps;++fail) {
+      auto owner=create();const auto before=d::HipExecutionTestAccess::progress(*owner);
+      const auto submitted=d::HipExecutionTestAccess::submissions(*owner);
+      if(published) {
+        REQUIRE(owner->retain(1));CHECK(owner->close().status==RNS8_BUSY);REQUIRE(owner->release(1));
+        REQUIRE(owner->retain(1));REQUIRE(owner->release(1)); // BUSY close did not retire it
+      }
+      d::HipExecutionTestAccess::fail_cleanup_after(*owner,fail);
+      CHECK(owner->close().status==RNS8_BACKEND_FAILURE);
+      CHECK(owner->submit(2,UINT64_C(30000000000)).status==RNS8_INVALID_ARGUMENT);
+      CHECK_FALSE(owner->retain(1));CHECK_FALSE(owner->materialize(1,20,r.m*r.n*20));
+      const auto after=d::HipExecutionTestAccess::progress(*owner);
+      CHECK_FALSE(after.output_current);CHECK(after.epoch==before.epoch);CHECK(after.operation.status==before.operation.status);
+      CHECK(d::HipExecutionTestAccess::submissions(*owner)==submitted);
+      REQUIRE(owner->close());REQUIRE(owner->close());
+    }
+    auto quarantined=create();d::HipExecutionTestAccess::fail_cleanup_after(*quarantined,1);
+    quarantined.reset();d::HipExecution::reap_quarantined();
+  }
+}

@@ -116,9 +116,8 @@ rns8_status rns8_execute_cpu_i8mm(rns8_prepared_cpu_i8mm* o) {
     if(!o)return RNS8_INVALID_ARGUMENT;std::unique_lock<std::mutex> lock(o->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
     rns8_cpu_i8mm_info support{};if(!admitted(support))return RNS8_UNSUPPORTED_BACKEND;
     cpp_int bound;rns8_exact_matrix_ranges ranges;auto status=validate(*o,false,bound,ranges);if(status!=RNS8_SUCCESS)return status;
-    bool written=false;size_t token=0;status=begin_synchronous_lease(*o->ctx,*o->a,*o->b,*o->c,*o->workspace,token);if(status!=RNS8_SUCCESS)return status;
-    struct Lease {rns8_prepared_cpu_i8mm& o;size_t token;bool& written;rns8_status operation=RNS8_INTERNAL_ERROR;
-      ~Lease(){finish_synchronous_lease(*o.ctx,token,operation,written);}} lease{*o,token,written};
+    size_t token=0;status=begin_synchronous_lease(*o->ctx,*o->a,*o->b,*o->c,*o->workspace,token);if(status!=RNS8_SUCCESS)return status;
+    SynchronousLease lease(*o->ctx,token);
     const auto& d=o->plan->desc;uint32_t threads=1;
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
     if(!omp_in_parallel() && cpu_parallel_should_use(cpu_parallel_saturating_mul3(d.m,d.n,d.k)))
@@ -147,11 +146,12 @@ rns8_status rns8_execute_cpu_i8mm(rns8_prepared_cpu_i8mm* o) {
     (void)d;(void)threads;return RNS8_UNSUPPORTED_BACKEND;
 #endif
     if(o->reuses!=UINT64_MAX)++o->reuses;
-    written=true;invalidate_output_currentness(*o->c);std::copy(o->output.begin(),o->output.end(),o->c->residues.begin());
+    status=lease.begin_write();if(status!=RNS8_SUCCESS)return lease.finish(status);
+    std::copy(o->output.begin(),o->output.end(),o->c->residues.begin());
     mark_output_host_residues_current(*o->c,o->plan);
     if(uses_finite_storage(d.semantics))o->c->finite_modulus=uint16_t(d.finite_modulus);
     else commit_exact_range(*o->c,*o->plan,bound,&ranges);
-    lease.operation=RNS8_SUCCESS;return RNS8_SUCCESS;
+    return lease.finish(RNS8_SUCCESS);
   });
 }
 rns8_status rns8_get_cpu_i8mm_info(const rns8_prepared_cpu_i8mm* o,rns8_cpu_i8mm_info* out) {

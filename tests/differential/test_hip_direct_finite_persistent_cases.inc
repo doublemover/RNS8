@@ -214,9 +214,23 @@ TEST_CASE("direct HIP finite u8 public grouped GEMM matches CPU") {
     REQUIRE(rns8_export_finite_u8(hip, hip_plan, modulus, hip_c[task], hip_out[task].data(), n) == RNS8_SUCCESS);
     CHECK(hip_out[task] == cpu_out[task]);
   }
+  const uint64_t generations[]{hip_c[0]->content_generation,hip_c[1]->content_generation};
+  auto preserved=[&]() {
+    for(unsigned task=0;task<2;++task) {
+      CHECK(hip_c[task]->content_generation==generations[task]);CHECK(hip_c[task]->device_residues_current);
+      REQUIRE(rns8_export_finite_u8(hip,hip_plan,modulus,hip_c[task],hip_out[task].data(),n)==RNS8_SUCCESS);
+      CHECK(hip_out[task]==cpu_out[task]);
+    }
+  };
   rns8::test::set_device_residues_current(*hip_a[1], false);
   CHECK(rns8_gemm_finite_u8_grouped(hip, hip_plan, modulus, tasks, 2) == RNS8_INVALID_ARGUMENT);
-  rns8::test::set_device_residues_current(*hip_a[1], true);
+  rns8::test::set_device_residues_current(*hip_a[1], true);preserved();
+  hip_a[1]->finite_modulus=251;
+  CHECK(rns8_gemm_finite_u8_grouped(hip,hip_plan,modulus,tasks,2)==RNS8_INVALID_ARGUMENT);
+  hip_a[1]->finite_modulus=modulus;preserved();
+  ++hip_c[1]->in_flight_readers;
+  CHECK(rns8_gemm_finite_u8_grouped(hip,hip_plan,modulus,tasks,2)==RNS8_BUSY);
+  --hip_c[1]->in_flight_readers;preserved();
 
   for (int task = 1; task >= 0; --task) {
     rns8_destroy_matrix(hip_c[task]);

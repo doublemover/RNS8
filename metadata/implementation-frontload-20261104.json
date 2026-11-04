@@ -93,8 +93,11 @@
       "url": "https://github.com/doublemover/RNS8/issues/18",
       "requirements_sha256": "831033f53b32d94a5041a2c569d8e2977b267ed267bcac5f029a3826054a384b",
       "comments_reviewed": 3,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Finite grouped operands and batch reservations preflight before invalidation; preparation rejection preserves old values",
+        "Shared reservation-aware output invalidation and exception-safe synchronous lease authored"
+      ],
       "remaining_source_items": []
     },
     {
@@ -267,9 +270,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/43",
       "requirements_sha256": "22265adfdc80afc083f548ae554d36cdac07e4d9b7c0b17f82cbb99d6d7d0c4a",
       "comments_reviewed": 5,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Grouped pointer-table/slab ownership migrated to shared retryable device-buffer owner with pending-work retirement",
+        "Synchronous grouped dispatcher retains operand/output/workspace leases through failures"
+      ],
+      "remaining_source_items": [
+        "Integrate other ordinary/specialized synchronous writers and read-only verifier; hipBLASLt resource handles; public-dispatch injected completion regressions"
+      ]
     },
     {
       "issue": 45,
@@ -327,8 +335,11 @@
       "url": "https://github.com/doublemover/RNS8/issues/50",
       "requirements_sha256": "c341adb006b836e78edc932a383d8d5c0df22ec3b380cb0f510592990d5f2a56",
       "comments_reviewed": 1,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "written_pending_batch_validation",
+      "completed_slices": [
+        "Irreversible closing lifecycle before destructive cleanup; submit/borrow/materialization reject retired owners",
+        "Actual-owner per-stage safe cleanup-failure seam and idle/published/BUSY/quarantine regressions authored"
+      ],
       "remaining_source_items": []
     },
     {
@@ -367,8 +378,11 @@
       "url": "https://github.com/doublemover/RNS8/issues/54",
       "requirements_sha256": "cc7352bd12a8d7b6e17a5fea941434ffeddde1e5031734b0bdc82ad8f0dd61ad",
       "comments_reviewed": 2,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "I8MM publication now uses its owned reservation rather than generic writability checks; host commit/exception/metadata regression authored",
+        "Unavailable positive AMX hardware tests now skip rather than report passes"
+      ],
       "remaining_source_items": []
     },
     {

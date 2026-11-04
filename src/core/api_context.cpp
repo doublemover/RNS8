@@ -26,10 +26,21 @@ rns8_status begin_synchronous_matrix_lease(rns8_context& ctx,rns8_matrix& matrix
   if(write)matrix.in_flight_writer=true;else ++matrix.in_flight_readers;
   workspace.in_flight=true;return RNS8_SUCCESS;
 }
+rns8_status invalidate_synchronous_output(rns8_context& ctx,size_t token) noexcept {
+  if (token >= ctx.failed_work_leases.size()) return RNS8_INVALID_ARGUMENT;
+  const auto& lease = ctx.failed_work_leases[token];
+  if (!lease.a || !lease.c || !lease.c->in_flight_writer || lease.c->in_flight_readers ||
+      !lease.workspace || !lease.workspace->in_flight) return RNS8_INVALID_ARGUMENT;
+  // The token owns this writer. Keep it reserved while clearing publication.
+  clear_residue_current(*lease.c);
+  clear_byte_limb_current(*lease.c);
+  clear_native_current(*lease.c);
+  return RNS8_SUCCESS;
+}
 bool finish_synchronous_lease(rns8_context& ctx,size_t token,rns8_status status,bool written) noexcept {
   if(token>=ctx.failed_work_leases.size() || !ctx.failed_work_leases[token].a)return true;
   auto& lease=ctx.failed_work_leases[token];
-  if(status!=RNS8_SUCCESS && written && lease.c){lease.c->in_flight_writer=false;invalidate_output_currentness(*lease.c);lease.c->in_flight_writer=true;}
+  if(status!=RNS8_SUCCESS && written && lease.c)(void)invalidate_synchronous_output(ctx,token);
   if(ctx.device_id>=0 && (status==RNS8_BACKEND_FAILURE || status==RNS8_INTERNAL_ERROR) && rns8::detail::hip_direct_synchronize(ctx.device_id)!=RNS8_SUCCESS){ctx.hip_failure_poisoned=true;return false;}
   if(lease.unary){if(lease.read_only)--lease.a->in_flight_readers;}
   else if(lease.input_writers){const_cast<rns8_matrix*>(lease.a)->in_flight_writer=false;const_cast<rns8_matrix*>(lease.b)->in_flight_writer=false;}

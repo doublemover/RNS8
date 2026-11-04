@@ -379,15 +379,12 @@ hip_direct_grouped_device_buffer::hip_direct_grouped_device_buffer(
 hip_direct_grouped_device_buffer& hip_direct_grouped_device_buffer::operator=(
     hip_direct_grouped_device_buffer&& other) noexcept {
   if (this != &other) {
-    (void)reset();
     move_from(other);
   }
   return *this;
 }
 
-hip_direct_grouped_device_buffer::~hip_direct_grouped_device_buffer() {
-  (void)reset();
-}
+hip_direct_grouped_device_buffer::~hip_direct_grouped_device_buffer() = default;
 
 rns8_status hip_direct_grouped_device_buffer::allocate(
     int requested_device_id,
@@ -404,22 +401,19 @@ rns8_status hip_direct_grouped_device_buffer::allocate(
   if (requested_bytes == 0) {
     return RNS8_SUCCESS;
   }
-  void* allocated = nullptr;
-  status = hip_direct_allocate(requested_device_id, requested_bytes, &allocated);
+  status = owner_.allocate(requested_device_id, requested_bytes);
   if (status != RNS8_SUCCESS) {
     device_id = -1;
     bytes = 0;
     return status;
   }
-  ptr = allocated;
+  ptr = owner_.get();
   return RNS8_SUCCESS;
 }
 
 rns8_status hip_direct_grouped_device_buffer::reset() noexcept {
-  rns8_status status = RNS8_SUCCESS;
-  if (ptr) {
-    status = hip_direct_free(device_id, ptr);
-  }
+  const auto status = owner_.reset();
+  if (status != RNS8_SUCCESS) return status;
   device_id = -1;
   ptr = nullptr;
   bytes = 0;
@@ -428,12 +422,22 @@ rns8_status hip_direct_grouped_device_buffer::reset() noexcept {
 
 void hip_direct_grouped_device_buffer::move_from(
     hip_direct_grouped_device_buffer& other) noexcept {
+  owner_ = std::move(other.owner_);
   device_id = other.device_id;
   ptr = other.ptr;
   bytes = other.bytes;
   other.device_id = -1;
   other.ptr = nullptr;
   other.bytes = 0;
+}
+
+void hip_direct_grouped_device_resources::mark_pending() noexcept {
+  for (auto* buffer : {&a_slab,&b_slab,&c_slab,&status,&a_residue_ptrs,&b_residue_ptrs,&c_residue_ptrs})
+    buffer->mark_pending();
+}
+void hip_direct_grouped_device_resources::mark_completed() noexcept {
+  for (auto* buffer : {&a_slab,&b_slab,&c_slab,&status,&a_residue_ptrs,&b_residue_ptrs,&c_residue_ptrs})
+    buffer->mark_completed();
 }
 
 rns8_status hip_direct_grouped_device_resources::reset() noexcept {
@@ -448,7 +452,7 @@ rns8_status hip_direct_grouped_device_resources::reset() noexcept {
   c_matrices.clear();
   b_matrices.clear();
   a_matrices.clear();
-  device_id = -1;
+  if (first_status == RNS8_SUCCESS) device_id = -1;
   return first_status;
 }
 

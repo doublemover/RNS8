@@ -301,3 +301,14 @@ validate destination width at the complete root. Their retained generation-bound
 range envelope, transactional output publication and rebind contract are defined
 in [the CRT guide](balanced-crt.md#prepared-checked-integer-exports). This authored
 extension has syntax checking; source-bound execution evidence is pending.
+
+Prepared I8MM publication uses the synchronous reservation token to clear and
+publish C while retaining its exclusive writer reservation. Computation and
+fallible proof preparation precede that commit boundary. Ordinary grouped GEMM
+validates finite operands and acquires the whole batch before invalidating any
+output; pointer-table preparation rejection preserves old results. Grouped
+scratch uses the shared retryable device-buffer owner, retaining failed frees.
+Distributed HIP owners become irreversibly retired when destructive close starts;
+a failed close may retry teardown but cannot submit or materialize a new epoch.
+A BUSY close caused by work or readers remains non-destructive. The November
+source pass has authored regression coverage; runtime qualification is pending.

@@ -66,7 +66,7 @@ TEST_CASE("AMX k4-interleaved B layout has independent scalar dot semantics", "[
 }
 TEST_CASE("AMX exhaustive byte products agree with independent scalar and Boost", "[cpu-amx][hardware]") {
   for(uint16_t q:{2,16,167,253,254,255,256}){
-    CpuOwner o;if(!o.create(RNS8_BACKEND_CPU_AMX,256,256,1,RNS8_FINITE_RING_U8,1,q)){SUCCEED("AMX target or OS permission unavailable");return;}
+    CpuOwner o;if(!o.create(RNS8_BACKEND_CPU_AMX,256,256,1,RNS8_FINITE_RING_U8,1,q)){SKIP("AMX target or OS permission unavailable");}
     std::vector<uint8_t> a(1+256*4),b(1+261);for(int i=0;i<256;++i){a[1+i*4]=i;b[1+i]=i;}
     compare_finite(o,256,256,1,q,a,b);
   }
@@ -77,7 +77,7 @@ TEST_CASE("AMX tails K segmentation centering thread counts and cache generation
   for(uint32_t threads:{1,2,4})for(int64_t k:{63,64,65,65535,65536,65537,131071,131072,131073}){
     rns8::detail::configure_cpu_parallel(threads,0,false);CpuOwner o;
     const int64_t m=k>1000?1:17,n=k>1000?3:19;const uint16_t q=k%2?255:256;
-    if(!o.create(RNS8_BACKEND_CPU_AMX,m,n,k,RNS8_FINITE_RING_U8,1,q)){SUCCEED("AMX unavailable");return;}
+    if(!o.create(RNS8_BACKEND_CPU_AMX,m,n,k,RNS8_FINITE_RING_U8,1,q)){SKIP("AMX target or OS permission unavailable");}
     std::vector<uint8_t>a(1+size_t(m)*(k+3),128),b(1+size_t(k)*(n+5),128);
     compare_finite(o,m,n,k,q,a,b);
     auto first=abi<rns8_cpu_amx_workspace_info>();REQUIRE(rns8_get_cpu_amx_workspace_info(o.work,&first)==RNS8_SUCCESS);
@@ -95,7 +95,7 @@ TEST_CASE("AMX tails K segmentation centering thread counts and cache generation
 TEST_CASE("AMX exact wide public CRT and prepared generations remain independent", "[cpu-amx][hardware]") {
   for(bool u:{false,true})for(int64_t n:{1,15,16,17,31}){
     CpuOwner o;const int64_t m=17,k=1;
-    if(!o.create(RNS8_BACKEND_CPU_AMX,m,n,k,u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED,20)){SUCCEED("AMX unavailable");return;}
+    if(!o.create(RNS8_BACKEND_CPU_AMX,m,n,k,u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED,20)){SKIP("AMX target or OS permission unavailable");}
     std::vector<uint64_t>a(m*4),b(n+5);for(int64_t r=0;r<m;++r)a[r*4]=u?UINT64_MAX:(r%2?uint64_t(INT64_MAX):uint64_t(INT64_MIN));
     for(int64_t c=0;c<n;++c)b[c]=u?UINT64_MAX:(c%2?uint64_t(INT64_MAX):uint64_t(INT64_MIN));
     auto pack=[&](){if(u){REQUIRE(rns8_pack_u64(o.ctx,o.a,a.data(),4,0)==RNS8_SUCCESS);REQUIRE(rns8_pack_u64(o.ctx,o.b,b.data(),n+5,0)==RNS8_SUCCESS);}
@@ -113,7 +113,7 @@ TEST_CASE("AMX exact wide public CRT and prepared generations remain independent
 }
 TEST_CASE("AMX bounded adaptive tiles preserve active-prefix and zero contracts", "[cpu-amx][hardware]") {
   auto options=abi<rns8_context_options>();options.requested_backend=RNS8_BACKEND_CPU_AMX;CpuOwner o;
-  const auto status=rns8_create_context(-1,&options,&o.ctx);if(status==RNS8_UNSUPPORTED_BACKEND){SUCCEED("AMX unavailable");return;}REQUIRE(status==RNS8_SUCCESS);
+  const auto status=rns8_create_context(-1,&options,&o.ctx);if(status==RNS8_UNSUPPORTED_BACKEND){SKIP("AMX target or OS permission unavailable");}REQUIRE(status==RNS8_SUCCESS);
   constexpr int64_t m=65,n=67,k=17;const uint64_t bounds[]{0,0,0,17};
   auto d=abi<rns8_gemm_desc>();d.requested_backend=RNS8_BACKEND_CPU_AMX;d.semantics=RNS8_BOUNDED_I64;d.bound_kind=RNS8_BOUND_PER_TILE_MAX_ABS;
   d.m=m;d.n=n;d.k=k;d.max_prefix=9;d.tile_m=d.tile_n=64;d.tile_bounds=bounds;d.tile_bounds_count=4;d.flags=RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;

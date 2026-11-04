@@ -248,6 +248,10 @@ rns8_status build_public_grouped_gemm_descriptor(
     if (uses_rns_storage(plan.desc.semantics)) {
       const auto operand_status = validate_rns_gemm_operands(ctx, plan, *task.a, *task.b, *task.c);
       if (operand_status != RNS8_SUCCESS) return operand_status;
+    } else if (uses_finite_storage(plan.desc.semantics)) {
+      const auto operand_status = validate_finite_gemm_operands(
+          ctx, plan, uint16_t(plan.desc.finite_modulus), *task.a, *task.b, *task.c);
+      if (operand_status != RNS8_SUCCESS) return operand_status;
     }
     internal_tasks.push_back(
         {const_cast<rns8_matrix*>(task.a), const_cast<rns8_matrix*>(task.b), task.c, task.workspace});
@@ -298,7 +302,7 @@ rns8_status build_public_grouped_gemm_descriptor(
 }
 
 rns8_status execute_public_grouped_gemm(
-    const rns8_context& ctx,
+    rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_grouped_gemm_task* tasks,
     uint32_t task_count,
@@ -334,15 +338,30 @@ rns8_status execute_public_grouped_gemm(
     }
   }
 
+  std::vector<SynchronousLease> leases;
+  leases.reserve(task_count);
+  for (uint32_t i = 0; i < task_count; ++i) {
+    size_t token = 0;
+    status = begin_synchronous_lease(ctx, *tasks[i].a, *tasks[i].b, *tasks[i].c, *tasks[i].workspace, token);
+    if (status != RNS8_SUCCESS) {
+      for (auto& lease : leases) lease.finish(status);
+      return status;
+    }
+    leases.emplace_back(ctx, token);
+  }
   rns8::detail::hip_direct_grouped_device_resources resources;
   status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(*descriptor, 0, 0, 0, 0, &resources);
   if (status != RNS8_SUCCESS) {
     return status;
   }
+  resources.mark_pending();
   status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(*descriptor, resources);
   if (status == RNS8_SUCCESS) {
-    for (uint32_t i = 0; i < task_count; ++i) invalidate_output_currentness(*tasks[i].c);
-    status = finite_u8 ? rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
+    for (auto& lease : leases) {
+      status = lease.begin_write();
+      if (status != RNS8_SUCCESS) break;
+    }
+    if (status == RNS8_SUCCESS) status = finite_u8 ? rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
                              *descriptor,
                              resources,
                              modulus)
@@ -357,11 +376,9 @@ rns8_status execute_public_grouped_gemm(
       if (!exact_bounds.empty()) rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i], &exact_ranges[i]);
     }
   }
-  if (status != RNS8_SUCCESS) {
-    for (uint32_t i = 0; i < task_count; ++i) {
-      invalidate_output_currentness(*tasks[i].c);
-    }
-  }
+  if (status == RNS8_SUCCESS || rns8::detail::hip_direct_synchronize(ctx.device_id) == RNS8_SUCCESS)
+    resources.mark_completed();
+  for (auto& lease : leases) lease.finish(status);
   const rns8_status reset_status = resources.reset();
   return status != RNS8_SUCCESS ? status : reset_status;
 }
