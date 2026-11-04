@@ -1,10 +1,13 @@
 #pragma once
 #include "address_domain.hpp"
+#include "garner_constants.hpp"
+#include "indexed_modulus_planes.hpp"
 #include "rns8/status.h"
 namespace rns8::detail {
 // A status-bearing query: failure is never a valid zero-byte workspace.
 // Regions are byte-aligned INT8 storage, disjoint for their complete lifetimes.
 struct BilinearResources {
+  IndexedModulusPlanes planes;
   rns8_status status = RNS8_INVALID_ARGUMENT;
   uint64_t block_m = 0, block_n = 0, block_k = 0;
   uint64_t a_bytes = 0, b_bytes = 0, product_bytes = 0, output_bytes = 0;
@@ -20,6 +23,9 @@ query_bilinear_resources(int64_t m, int64_t n, int64_t k, int64_t lda,
   if (m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || !prefix ||
       prefix > 20 || (blocks != 2 && blocks != 3 && blocks != 4))
     return result;
+  if(!partition_modulus_planes(prefix,garner::kConstants.moduli,
+      [blocks](uint32_t q,uint32_t){return blocks!=4 || (q&1)!=0;},result.planes))return result;
+  if(!result.planes.eligible_count){result.status=RNS8_UNSUPPORTED_BACKEND;return result;}
   // Original transforms/commit compute (plane*rows+row)*ld in int64. Their
   // scalar dimensions and one-plane grid domains are still qualified as i32.
   if (!qualified_i32_matrix_address(m, k, lda) ||
@@ -40,15 +46,15 @@ query_bilinear_resources(int64_t m, int64_t n, int64_t k, int64_t lda,
   // The actual sub-GEMM retains the stricter full-stack i32 contract.
   if (!qualified_i32_gemm_address(result.block_m, result.block_n,
                                   result.block_k, result.block_k,
-                                  result.block_n, result.block_n, prefix)) {
+                                  result.block_n, result.block_n, result.planes.eligible_count)) {
     result.status = RNS8_UNSUPPORTED_BACKEND;
     return result;
   }
   // Above address proofs bound each product by INT32_MAX before multiplying
   // by at most 20 planes. Accumulate scratch with an explicit size_t check.
-  result.a_bytes = result.block_m * result.block_k * prefix;
-  result.b_bytes = result.block_k * result.block_n * prefix;
-  result.product_bytes = result.block_m * result.block_n * prefix;
+  result.a_bytes = result.block_m * result.block_k * result.planes.eligible_count;
+  result.b_bytes = result.block_k * result.block_n * result.planes.eligible_count;
+  result.product_bytes = result.block_m * result.block_n * result.planes.eligible_count;
   result.output_bytes = uint64_t(m) * n * prefix;
   uint64_t total = 0;
   const uint64_t sizes[]{result.a_bytes, result.b_bytes, result.product_bytes,

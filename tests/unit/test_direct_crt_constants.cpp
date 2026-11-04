@@ -20,15 +20,18 @@ TEST_CASE("bilinear resource queries separate full-stack offsets from sub-GEMM i
     for (int64_t size : {int64_t{1}, int64_t{17}, int64_t{16384}}) {
       const auto plan = query_bilinear_resources(size, size + 1, size + 2,
           size + 3, size + 4, size + 5, prefix, blocks, UINT64_MAX);
+      if(blocks==4 && prefix==1){CHECK(plan.status==RNS8_UNSUPPORTED_BACKEND);CHECK(plan.planes.eligible_count==0);continue;}
       REQUIRE(plan.status == RNS8_SUCCESS);
+      const uint32_t executed=blocks==4?prefix-1:prefix;
+      CHECK(plan.planes.eligible_count==executed);CHECK(plan.planes.fallback_count==prefix-executed);
       const cpp_int hm = (size + blocks - 1) / blocks;
       const cpp_int hn = (size + 1 + blocks - 1) / blocks;
       const cpp_int hk = (size + 2 + blocks - 1) / blocks;
-      REQUIRE(cpp_int(plan.a_bytes) == hm * hk * prefix);
-      REQUIRE(cpp_int(plan.b_bytes) == hk * hn * prefix);
-      REQUIRE(cpp_int(plan.product_bytes) == hm * hn * prefix);
+      REQUIRE(cpp_int(plan.a_bytes) == hm * hk * executed);
+      REQUIRE(cpp_int(plan.b_bytes) == hk * hn * executed);
+      REQUIRE(cpp_int(plan.product_bytes) == hm * hn * executed);
       REQUIRE(cpp_int(plan.output_bytes) == cpp_int(size) * (size + 1) * prefix);
-      REQUIRE(cpp_int(plan.total_bytes) == (hm * hk + hk * hn + hm * hn + cpp_int(size) * (size + 1)) * prefix);
+      REQUIRE(cpp_int(plan.total_bytes) == (hm * hk + hk * hn + hm * hn) * executed + cpp_int(size) * (size + 1) * prefix);
       REQUIRE(plan.b_offset == plan.a_bytes);
       REQUIRE(plan.product_offset == plan.a_bytes + plan.b_bytes);
       REQUIRE(plan.output_offset + plan.output_bytes == plan.total_bytes);

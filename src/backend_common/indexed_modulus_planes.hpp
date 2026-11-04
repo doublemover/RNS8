@@ -24,14 +24,14 @@ inline bool partition_modulus_planes(uint32_t count,const Modulus* moduli,Eligib
   }
   output=result;return true;
 }
-inline bool valid_indexed_modulus_planes(const IndexedModulusPlanes& planes) noexcept {
+inline bool valid_indexed_modulus_planes(const IndexedModulusPlanes& planes,bool require_odd=false) noexcept {
   if(!planes.logical_count || planes.logical_count>20 || planes.eligible_count>planes.logical_count ||
       planes.fallback_count!=planes.logical_count-planes.eligible_count)return false;
   uint32_t seen=0;
   for(uint32_t compact=0;compact<planes.eligible_count;++compact) {
     const auto logical=planes.eligible[compact];
     if(logical>=planes.logical_count || (seen&(1u<<logical)) || planes.compact_index[logical]!=compact ||
-        planes.moduli[compact]<2 || planes.moduli[compact]>256)return false;
+        planes.moduli[compact]<2 || planes.moduli[compact]>256 || (require_odd && !(planes.moduli[compact]&1)))return false;
     seen|=1u<<logical;
   }
   for(uint32_t index=0;index<planes.fallback_count;++index) {

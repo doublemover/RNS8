@@ -1703,8 +1703,9 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
     }
     bool commit_started=false;size_t lease_token=0;
     status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token);if(status!=RNS8_SUCCESS)return status;
-    struct LeaseGuard {rns8_context& ctx;size_t token;bool& written;bool active=true;
-      ~LeaseGuard(){if(active)finish_synchronous_lease(ctx,token,RNS8_INTERNAL_ERROR,written);}} lease{*ctx,lease_token,commit_started};
+    SynchronousLease lease(*ctx,lease_token);lease.track_write(commit_started);
+    return lease.finish([&]() -> rns8_status {
+    status=synchronous_dispatch_checkpoint(*ctx,"bilinear",&commit_started);if(status!=RNS8_SUCCESS)return status;
     const auto multiply=algorithm==6?(selected.recompute?hip_direct_gemm_rank48_slp_recompute_device:hip_direct_gemm_rank48_slp_device):
         algorithm==5?hip_direct_gemm_rank48_device:algorithm==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
         algorithm==RNS8_BILINEAR_RANK23_COEFFICIENTS?hip_direct_gemm_rank23_device:
@@ -1714,17 +1715,15 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
         C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
         A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, max_scratch_bytes, commit_started,
         workspace->bilinear_scratch_owner.get(),workspace->bilinear_scratch_owner.bytes(),matrix_subproducts);
-    finish_synchronous_lease(*ctx,lease_token,status,commit_started);lease.active=false;
     if (status != RNS8_SUCCESS) return status;
-    struct PublishGuard {rns8_matrix& c;bool done=false;~PublishGuard(){if(!done)invalidate_output_currentness(c);}} publication{*C};
     mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C, *plan, bound, &ranges);
     // Additional transient storage relative to the resident A+B+C residue bytes.
     const long double resident = static_cast<long double>(resources.source_a.byte_extent) +
         resources.source_b.byte_extent + resources.destination.byte_extent;
     *out_memory_overhead_ratio = static_cast<double>(resources.total_bytes / resident);
-    publication.done=true;
     return RNS8_SUCCESS;
+    }());
   });
 }
 

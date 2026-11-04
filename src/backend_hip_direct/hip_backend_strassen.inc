@@ -1,11 +1,21 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_strassen_transform(const int8_t *, int8_t *, int, int,
-                                           int, int, int, int, int, bool, int);
+                                           int, int, int, int, int, bool, int,IndexedModulusPlanes);
 extern "C" int rns8_hip_strassen_combine(const int8_t *, int8_t *, int, int,
-                                         int, int, int, int, int);
+                                         int, int, int, int, int,IndexedModulusPlanes);
 extern "C" int rns8_hip_strassen_commit(const int8_t *, int8_t *, int, int, int,
                                         int);
 #endif
+static rns8_status indexed_bilinear_products(int device,const int8_t* a,const int8_t* b,int8_t* c,
+    int64_t m,int64_t n,int64_t k,const IndexedModulusPlanes& planes,uint32_t batches,bool matrix) {
+  if(matrix)return amdgpu_builtins_gemm_indexed_batch_device(device,a,b,c,m,n,k,k,n,n,planes,batches);
+  for(uint32_t batch=0;batch<batches;++batch) {
+    const auto status=hip_direct_basis_gemm(device,a+uint64_t(batch)*planes.eligible_count*m*k,
+      b+uint64_t(batch)*planes.eligible_count*k*n,c+uint64_t(batch)*planes.eligible_count*m*n,m,n,k,planes.moduli,planes.eligible_count);
+    if(status!=RNS8_SUCCESS)return status;
+  }
+  return RNS8_SUCCESS;
+}
 static rns8_status hip_direct_gemm_bilinear_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
@@ -49,20 +59,20 @@ static rns8_status hip_direct_gemm_bilinear_device(
           auto launch = static_cast<hipError_t>(rns8_hip_strassen_transform(
               static_cast<const int8_t *>(a), ta, static_cast<int>(m),
               static_cast<int>(k), static_cast<int>(lda), static_cast<int>(hm),
-              static_cast<int>(hk), prefix, term, true, int(blocks)));
+              static_cast<int>(hk), prefix, term, true, int(blocks),resources.planes));
           if (launch != hipSuccess)
             return launch;
           launch = static_cast<hipError_t>(rns8_hip_strassen_transform(
               static_cast<const int8_t *>(b), tb, static_cast<int>(k),
               static_cast<int>(n), static_cast<int>(ldb), static_cast<int>(hk),
-              static_cast<int>(hn), prefix, term, false, int(blocks)));
+              static_cast<int>(hn), prefix, term, false, int(blocks),resources.planes));
           // The first transform may still own scratch if the second launch fails.
           const auto completion=hipDeviceSynchronize();
           return launch == hipSuccess ? completion : launch;
         });
     if (error != hipSuccess)
       return RNS8_BACKEND_FAILURE;
-    status = matrix_subproducts?amdgpu_builtins_gemm_rns_device(device_id,ta,tb,product,hm,hn,hk,hk,hn,hn,prefix):
+    status = rank48?indexed_bilinear_products(device_id,ta,tb,product,hm,hn,hk,resources.planes,1,matrix_subproducts):matrix_subproducts?amdgpu_builtins_gemm_rns_device(device_id,ta,tb,product,hm,hn,hk,hk,hn,hn,prefix):
         hip_direct_gemm_rns_device(device_id,ta,tb,product,hm,hn,hk,hk,hn,hn,prefix);
     if (status != RNS8_SUCCESS)
       return status;
@@ -71,7 +81,7 @@ static rns8_status hip_direct_gemm_bilinear_device(
           const auto launch = static_cast<hipError_t>(rns8_hip_strassen_combine(
               product, stage, static_cast<int>(m), static_cast<int>(n),
               static_cast<int>(hm), static_cast<int>(hn), prefix, term,
-              int(blocks)));
+              int(blocks),resources.planes));
           return launch == hipSuccess ? hipDeviceSynchronize() : launch;
         });
     if (error != hipSuccess)

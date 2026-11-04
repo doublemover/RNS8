@@ -5,7 +5,7 @@ TEST_CASE(
   using boost::multiprecision::cpp_int;
   if (!hip_available())
     SKIP("no HIP device for Strassen");
-  for (int route : {0,1,2,3,4,5}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
+  for (int route : {0,1,2,3,4,5}) for (uint32_t prefix : {1u, 2u, 3u, 9u, 20u})
     for (int k : {1, 2, 3, 17, route>=3?262145:route ? 196609 : 131073}) {
       const bool rank23 = route==1 || route==2;
       const auto multiply = route==5?hip_direct_gemm_rank48_slp_recompute_device:route==4?hip_direct_gemm_rank48_slp_device:
@@ -48,6 +48,17 @@ TEST_CASE(
       REQUIRE(hip_direct_copy_host_to_device(0, dc, observed.data(),
                                              observed.size()) == RNS8_SUCCESS);
       bool committed = true;
+      if(route>=3 && prefix==1) {
+        REQUIRE(multiply(0,da,db,dc,m,n,k,lda,ldb,ldc,prefix,UINT64_MAX,
+                         committed,nullptr,0,false)==RNS8_UNSUPPORTED_BACKEND);
+        REQUIRE_FALSE(committed);
+        REQUIRE(hip_direct_copy_device_to_host(0,observed.data(),dc,observed.size())==RNS8_SUCCESS);
+        REQUIRE(std::all_of(observed.begin(),observed.end(),[](int8_t v){return v==77;}));
+        CHECK(hip_direct_free(0,dc)==RNS8_SUCCESS);
+        CHECK(hip_direct_free(0,db)==RNS8_SUCCESS);
+        CHECK(hip_direct_free(0,da)==RNS8_SUCCESS);
+        continue;
+      }
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
                                               ldc, prefix, 0, committed,nullptr,0,false) ==
               RNS8_WORKSPACE_TOO_SMALL);
@@ -202,5 +213,61 @@ TEST_CASE("bounded bilinear public owners retain ordinary signed and unsigned ra
     for(int r=0;r<3;++r){for(int col=0;col<3;++col)REQUIRE(out[r*4+col]==18);REQUIRE(out[r*4+3]==0);}
     REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);
     REQUIRE(rns8_destroy_workspace(work)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
+}
+
+TEST_CASE("compact rank48 public routes preserve logical planes and final exact exports") {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  if(!hip_available())SKIP("no HIP device for compact rank48");
+  rns8_device_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+  const bool matrix_available=amdgpu_builtins_probe(0,info)==RNS8_SUCCESS;
+  for(uint32_t method=10;method<=15;++method)for(uint32_t prefix:{1u,2u,3u,9u,20u}) {
+    if((method&1) && !matrix_available)continue;
+    CAPTURE(method,prefix);
+    auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+    rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
+    d.m=3;d.n=5;d.k=7;d.semantics=RNS8_BOUNDED_I64;
+    d.bound_kind=RNS8_BOUND_GLOBAL_MAX_ABS;d.bound=28;d.max_prefix=prefix;
+    d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;d.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    rns8_plan* plan=nullptr;rns8_workspace* workspace=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&d,&plan)==RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
+    auto ad=matrix_desc(3,7,d.semantics,d.bound_kind);ad.max_prefix=prefix;
+    auto bd=matrix_desc(7,5,d.semantics,d.bound_kind);bd.max_prefix=prefix;
+    auto cd=matrix_desc(3,5,d.semantics,d.bound_kind);cd.max_prefix=prefix;
+    rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+    REQUIRE(rns8_create_matrix(ctx,&ad,&a)==RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx,&bd,&b)==RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx,&cd,&c)==RNS8_SUCCESS);
+    int64_t av[21],bv[35],seed[15],out[18];
+    for(int i=0;i<21;++i)av[i]=(i*3+1)%5-2;
+    for(int i=0;i<35;++i)bv[i]=(i*2+3)%5-2;
+    std::fill_n(seed,15,1);std::fill_n(out,18,INT64_C(91));
+    REQUIRE(rns8_pack_i64(ctx,a,av,7,prefix)==RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx,b,bv,5,prefix)==RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx,c,seed,5,prefix)==RNS8_SUCCESS);
+    const auto generation=c->content_generation;double ratio=-1;
+    const auto status=rns8_gemm_bilinear_exact(ctx,plan,a,b,c,
+      static_cast<rns8_bilinear_method>(method),UINT64_MAX,workspace,&ratio);
+    if(prefix==1) {
+      REQUIRE(status==RNS8_UNSUPPORTED_BACKEND);CHECK(c->content_generation==generation);CHECK(ratio==-1);
+    } else {REQUIRE(status==RNS8_SUCCESS);CHECK(c->content_generation>generation);CHECK(ratio>0);}
+    REQUIRE(rns8_export_i64(ctx,plan,c,out,6)==RNS8_SUCCESS);
+    std::vector<int8_t> residues(prefix*15);
+    REQUIRE(hip_direct_copy_device_to_host(0,residues.data(),c->hip_residues,residues.size())==RNS8_SUCCESS);
+    for(int r=0;r<3;++r) {
+      for(int col=0;col<5;++col) {
+        cpp_int expected=prefix==1?1:0;
+        if(prefix!=1)for(int q=0;q<7;++q)expected+=cpp_int(av[r*7+q])*bv[q*5+col];
+        REQUIRE(cpp_int(out[r*6+col])==expected);
+        for(uint32_t plane=0;plane<prefix;++plane)
+          REQUIRE(residues[plane*15+r*5+col]==centered_residue(expected,kDefaultModuli[plane]));
+      }
+      CHECK(out[r*6+5]==91);
+    }
+    REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
   }
 }

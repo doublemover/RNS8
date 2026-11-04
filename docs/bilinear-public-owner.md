@@ -46,12 +46,21 @@ odd composite rings. Even channels, including256, execute their original
 classical product into the same private stage. The full original basis and
 integer uniqueness proof are retained.
 
+The current implementation packs only odd channels into transformed panels and
+products, using the shared indexed-plane packet to carry each original plane ID
+and its actual modulus. Recombination scatters into the full original output
+basis. Prefix1 has no odd channel and rejects as unsupported before preparing or
+launching rank48 work; it does not report a classical product as rank48 execution.
+
 One A transform, B transform and product buffer are reused across 48 products;
 the complete C stage publishes only after both algebraic and classical channel
 work succeeds. Existing retained-workspace, budget, address, lifetime and failed
 commit rules apply. Matrix subproducts keep their own K cap and target probe.
 The collector accepts `rank48-dyadic` and charges four-block padding, all 48
 transform evaluations, even-channel work, reconstruction and final output.
+Current `rns8_bilinear_microcase_v2` captures bind the eligible/fallback plane IDs,
+actual algebraic moduli and product-plane work. Historical v1 captures retain
+their full-prefix allocation contract and cannot be pooled with compact captures.
 The coefficient implementation remains a separate control. CPU tensor/Boost, altered-coefficient, ring, resource and public HIP
 full-width/tail fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json), including
 actual direct and matrix subproducts on gfx1100. Broader-target execution and
@@ -76,5 +85,7 @@ one pair and48 products; its repeated transforms are counted in captures.
 Both reserve their full output stage, original integer range proof and explicit
 payload budget. The204-operation count describes the canonical logical program;
 recomputation and modular reduction add actual work. CPU and gfx1100 HIP fixtures and collector controls pass the
-[current consolidated batch](../metadata/remaining-code-validation-20261027.json).
+[October27 consolidated batch](../metadata/remaining-code-validation-20261027.json)
+for the earlier full-prefix schedule. Compact-channel fixtures are authored;
+their execution is deferred to the final development validation batch.
 Measured large-shape benefit and broader targets remain unqualified.

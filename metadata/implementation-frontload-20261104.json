@@ -170,7 +170,9 @@
       "requirements_sha256": "4b3a3bbc4ead78ad20d4b0eebc945b3c15cfccaee0214a48b9a8943fc7e2ba7a",
       "comments_reviewed": 8,
       "implementation_status": "pending",
-      "completed_slices": [],
+      "completed_slices": [
+        "Bilinear capture ABI2 binds physical eligible/fallback planes, actual moduli, compact scratch, and product-plane GEMMs; reject mixed physical implementation versions."
+      ],
       "remaining_source_items": []
     },
     {
@@ -304,7 +306,8 @@
         "Retained prepared/native-group/resident captures and caller-composed executables retain typed graph owners after capture publication; raw handles are non-owning dispatch aliases",
         "Integrity/native-group streams, native-device transfer and experimental-basis GEMM streams, and native producer-readiness events use the shared retry owners; explicit closes preserve aliases on failure",
         "Shared host capture replacement/unwind cases and five prepared transfer stream rows authored; enabled HIP graph/native/process-owner syntax checked without runtime execution",
-        "Prepared Gram arena uses typed pending device ownership and retained five-product stream; cleanup becomes irreversible and construction unwind can retire resources safely"
+        "Prepared Gram arena uses typed pending device ownership and retained five-product stream; cleanup becomes irreversible and construction unwind can retire resources safely",
+        "Bilinear public GEMM uses shared synchronous lease through exact-proof publication; failed dispatch preserves or invalidates C according to actual commit state."
       ],
       "remaining_source_items": [
         "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
@@ -354,9 +357,12 @@
       "implementation_status": "in_progress",
       "completed_slices": [
         "Shared compact indexed-plane adapter authored and integrated in prime-channel Gram; odd-channel rank48 resource/kernel integration remains next",
-        "Shared explicit-basis AMDGPU matrix batch provider preserves compact plane moduli and up to64 batches; synchronous and pure-enqueue forms retain existing checked batch spans and K cap; Gram uses five matrix launches instead of per-plane dispatch"
+        "Shared explicit-basis AMDGPU matrix batch provider preserves compact plane moduli and up to64 batches; synchronous and pure-enqueue forms retain existing checked batch spans and K cap; Gram uses five matrix launches instead of per-plane dispatch",
+        "Compact rank48 coefficient/SLP transforms and products onto explicit odd logical planes; preserve classical even fallback and full output transaction; ABI2 physical-work captures distinguish historical full-prefix schedules."
       ],
-      "remaining_source_items": []
+      "remaining_source_items": [
+        "Compile selected-product transitive closures before liveness allocation, preserve full-DAG recompute control, and bind pruned schedules to execution identities."
+      ]
     },
     {
       "issue": 49,

@@ -46,6 +46,7 @@ TEST_CASE("indexed matrix batches reject malformed identities before device work
   using namespace rns8::detail;const uint16_t moduli[]{251,256,239,255,253,233};IndexedModulusPlanes planes;
   REQUIRE(partition_modulus_planes(6,moduli,[](uint32_t q,uint32_t){return gram_five_prime(q);},planes));
   REQUIRE(valid_indexed_modulus_planes(planes));int8_t a[64]{},b[64]{},c[64]{};
+  auto even=planes;even.moduli[0]=256;CHECK(valid_indexed_modulus_planes(even));CHECK_FALSE(valid_indexed_modulus_planes(even,true));
   auto invalid=planes;invalid.eligible[1]=invalid.eligible[0];CHECK_FALSE(valid_indexed_modulus_planes(invalid));
   CHECK(amdgpu_builtins_gemm_indexed_batch_device(0,a,b,c,1,1,1,1,1,1,invalid,1)==RNS8_INVALID_ARGUMENT);
   invalid=planes;invalid.moduli[0]=0;CHECK_FALSE(valid_indexed_modulus_planes(invalid));

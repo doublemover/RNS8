@@ -227,6 +227,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if(query.operation==RNS8_OP_NARROW_NATIVE){const auto support=rns8::detail::query_narrow_rns_support(d.m,d.n,d.k,lda,ldb,prefix,bool(query.algorithm&1),UINT64_MAX,query.algorithm>=2);
     if(support.status!=RNS8_SUCCESS)return reject(support.status,RNS8_SUPPORT_ADDRESS,"narrow_resources","shared narrow provider rejected complete shape/address domain");scratch=support.scratch_bytes;}
   if(query.operation==RNS8_OP_STRASSEN){const auto resources=rns8::detail::query_bilinear_method_resources(query.algorithm,d.m,d.n,d.k,lda,ldb,ldc,prefix,UINT64_MAX);
+    if(resources.planes.logical_count && !resources.planes.eligible_count)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_MODULUS,"bilinear_channels","rank48 has no eligible odd modulus channel");
     if(resources.status!=RNS8_SUCCESS)return reject(resources.status,RNS8_SUPPORT_ADDRESS,"bilinear_resources","shared bilinear provider rejected shape/address/resource domain");scratch=resources.total_bytes;}
   if(query.operation==RNS8_OP_BASE_EXTEND && hip && query.source_prefix){if(d.m>INT64_MAX/d.n)return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_ADDRESS,"cells","lift cell count overflow");
     if(query.source_prefix!=prefix){const auto resources=rns8::detail::query_exact_lift_support(d.m*d.n,query.source_prefix,prefix,UINT64_MAX);

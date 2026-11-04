@@ -3,8 +3,8 @@ extern "C" int rns8_hip_rank23_slp_transform(const int8_t*,int8_t*,int,int,int,i
 extern "C" int rns8_hip_rank23_slp_combine(const int8_t*,int8_t*,int,int,int,int,int);
 extern "C" int rns8_hip_rank23_oct55_transform(const int8_t*,int8_t*,int,int,int,int,int,int,bool,int);
 extern "C" int rns8_hip_rank23_oct55_combine(const int8_t*,int8_t*,int,int,int,int,int);
-extern "C" int rns8_hip_rank48_slp_transform(const int8_t*,int8_t*,int,int,int,int,int,int,bool,int);
-extern "C" int rns8_hip_rank48_slp_combine(const int8_t*,int8_t*,int,int,int,int,int);
+extern "C" int rns8_hip_rank48_slp_transform(const int8_t*,int8_t*,int,int,int,int,int,int,bool,int,IndexedModulusPlanes);
+extern "C" int rns8_hip_rank48_slp_combine(const int8_t*,int8_t*,int,int,int,int,int,IndexedModulusPlanes);
 #endif
 static rns8_status hip_direct_gemm_rank23_dag_device(
     int device_id,const void *a,const void *b,void *c,int64_t m,int64_t n,int64_t k,
@@ -34,12 +34,12 @@ static rns8_status hip_direct_gemm_rank23_dag_device(
             hk = static_cast<int>(resources.block_k);
   auto transform=[&](int selected) {return timed_hip_operation(rank48?"rank48_slp_transform_pair":october?"rank23_oct55_transform_pair":"rank23_slp_basis_transform_pair",[&]() {
     auto launch = static_cast<hipError_t>(rank48?rns8_hip_rank48_slp_transform(
-        static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,prefix,true,selected):october?rns8_hip_rank23_oct55_transform(
+        static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,prefix,true,selected,resources.planes):october?rns8_hip_rank23_oct55_transform(
         static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,prefix,true,selected):
         rns8_hip_rank23_slp_transform(static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,prefix,true));
     if (launch == hipSuccess) {
       launch = static_cast<hipError_t>(rank48?rns8_hip_rank48_slp_transform(
-          static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,prefix,false,selected):october?rns8_hip_rank23_oct55_transform(
+          static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,prefix,false,selected,resources.planes):october?rns8_hip_rank23_oct55_transform(
           static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,prefix,false,selected):
           rns8_hip_rank23_slp_transform(static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,prefix,false));
     }
@@ -52,7 +52,8 @@ static rns8_status hip_direct_gemm_rank23_dag_device(
   if(!recompute)error=transform(-1);
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
   if(matrix_subproducts && !recompute) {
-    status=amdgpu_builtins_gemm_rns_batch_device(device_id,left,right,products,hm,hn,hk,hk,hn,hn,prefix,product_count);
+    status=rank48?indexed_bilinear_products(device_id,left,right,products,hm,hn,hk,resources.planes,product_count,true):
+      amdgpu_builtins_gemm_rns_batch_device(device_id,left,right,products,hm,hn,hk,hk,hn,hn,prefix,product_count);
     if(status!=RNS8_SUCCESS)return status;
   }
   for (int term = 0; term < int(matrix_subproducts && !recompute?0:product_count); ++term) {
@@ -60,13 +61,13 @@ static rns8_status hip_direct_gemm_rank23_dag_device(
     const auto* ta=left+uint64_t(recompute?0:term)*resources.a_bytes;
     const auto* tb=right+uint64_t(recompute?0:term)*resources.b_bytes;
     auto* output=products+uint64_t(term)*resources.product_bytes;
-    status=matrix_subproducts?amdgpu_builtins_gemm_rns_device(device_id,ta,tb,output,hm,hn,hk,hk,hn,hn,prefix):
+    status=rank48?indexed_bilinear_products(device_id,ta,tb,output,hm,hn,hk,resources.planes,1,matrix_subproducts):matrix_subproducts?amdgpu_builtins_gemm_rns_device(device_id,ta,tb,output,hm,hn,hk,hk,hn,hn,prefix):
         hip_direct_gemm_rns_device(device_id,ta,tb,output,hm,hn,hk,hk,hn,hn,prefix);
     if (status != RNS8_SUCCESS) return status;
   }
   error = timed_hip_operation(rank48?"rank48_slp_recombine":october?"rank23_oct55_recombine":"rank23_slp_recombine_output_basis",[&]() {
     const auto launch = static_cast<hipError_t>(rank48?rns8_hip_rank48_slp_combine(
-        products,stage,int(m),int(n),hm,hn,prefix):october?rns8_hip_rank23_oct55_combine(
+        products,stage,int(m),int(n),hm,hn,prefix,resources.planes):october?rns8_hip_rank23_oct55_combine(
         products,stage,int(m),int(n),hm,hn,prefix):rns8_hip_rank23_slp_combine(products,stage,int(m),int(n),hm,hn,prefix));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });

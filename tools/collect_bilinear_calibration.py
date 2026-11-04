@@ -13,20 +13,21 @@ from benchmark_sweep_lib.execution import run_command
 MODES=('classical','strassen','coefficient-rank23','september-slp','october55-retained','october55-recompute','rank48-dyadic','rank48-slp-retained','rank48-slp-recompute')
 
 
-def resources(c):
+def resources(c, *, compact=True):
     m,n,k,p=c['m'],c['n'],c['k'],c['prefix'];mode=c['mode']
     residue=p*(m*k+k*n+m*n)
     host=8*(m*(k+1)+k*(n+2)+m*n)+24*m*(n+3)+residue+p*m*n
     if mode=='classical':return 0,residue,host
     blocks=2 if mode=='strassen' else 4 if mode.startswith('rank48') else 3;hm,hn,hk=((x+blocks-1)//blocks for x in (m,n,k))
-    a,b,product=hm*hk*p,hk*hn*p,hm*hn*p
+    executed=sum(q%2 for q in DEFAULT_MODULI[:p]) if compact and mode.startswith('rank48') else p
+    a,b,product=hm*hk*executed,hk*hn*executed,hm*hn*executed
     retained=mode in ('september-slp','october55-retained','rank48-slp-retained')
     products=48 if mode.startswith('rank48-slp') else 23 if mode in ('september-slp','october55-retained','october55-recompute') else 1
     scratch=(products if retained else 1)*(a+b)+products*product+p*m*n
     return scratch,residue,host
 
 
-def validate_case(c):
+def validate_case(c, *, compact=True):
     fields={'schema','m','n','k','prefix','unsigned_inputs','mode','subproduct_backend','residency','instrumented','repeats','warmups','seed','max_scratch_bytes','max_host_bytes','matrix_variant'}
     if not isinstance(c,dict) or set(c)!=fields or c['schema']!='bilinear_case_v1':raise ValueError('case ABI')
     for key,lo,hi in [('matrix_variant',0,2),('m',1,32768),('n',1,32768),('k',1,262149),('prefix',1,20),('repeats',3,100),('warmups',1,100),('seed',0,2**32-1),('max_scratch_bytes',1,2**40),('max_host_bytes',1,2**40)]:
@@ -36,7 +37,8 @@ def validate_case(c):
     if math.prod(DEFAULT_MODULI[:c['prefix']])<=c['k']*49*(1 if c['unsigned_inputs'] else 2):raise ValueError('strict CRT capacity')
     blocks=1 if c['mode']=='classical' else 2 if c['mode']=='strassen' else 4 if c['mode'].startswith('rank48') else 3
     if c['subproduct_backend']=='matrix' and (c['k']+blocks-1)//blocks>65536:raise ValueError('matrix K cap')
-    scratch,_,host=resources(c)
+    if compact and c['mode'].startswith('rank48') and not any(q%2 for q in DEFAULT_MODULI[:c['prefix']]):raise ValueError('rank48 requires an eligible odd channel')
+    scratch,_,host=resources(c,compact=compact)
     if scratch>c['max_scratch_bytes'] or host>c['max_host_bytes']:raise ValueError('declared payload budget')
     # Complete stack qualification of the actual subproduct, not the padded
     # output staging buffer whose indices are independently widened.
@@ -46,8 +48,10 @@ def validate_case(c):
 
 
 def validate_capture(c,entry):
-    case=validate_case(entry['case']);scratch,residue,host=resources(case);mode=case['mode'];diagnostic=case['instrumented']
-    expected=dict(schema='rns8_bilinear_microcase_v1',case=case,run_id=entry['run_id'],dataset='period15_native_small_v1',
+    schema=c.get('schema');compact=schema=='rns8_bilinear_microcase_v2'
+    if schema not in ('rns8_bilinear_microcase_v1','rns8_bilinear_microcase_v2'):raise ValueError('capture ABI')
+    case=validate_case(entry['case'],compact=compact);scratch,residue,host=resources(case,compact=compact);mode=case['mode'];diagnostic=case['instrumented']
+    expected=dict(schema=schema,case=case,run_id=entry['run_id'],dataset='period15_native_small_v1',
         selected_prefix=case['prefix'],algorithm=mode,subproduct_backend=case['subproduct_backend'],
         matrix_family_override=('auto','cdna3_16x16x32_or_target_wmma','cdna3_32x32x16_or_target_wmma')[case['matrix_variant']] if case['subproduct_backend']=='matrix' else 'not_applicable',
         subproduct_launch_schedule='batched48' if case['subproduct_backend']=='matrix' and mode=='rank48-slp-retained' else 'batched23' if case['subproduct_backend']=='matrix' and mode in ('september-slp','october55-retained') else 'serial',
@@ -60,7 +64,19 @@ def validate_capture(c,entry):
         exact_reference_passed=True,all_residue_planes_audited=True,residue_audit_scope='post_timing_public_product',oracle_inside_production_interval=False,promotion_eligible=False,native_useful_products=case['m']*case['n']*case['k'])
     for key,value in expected.items():
         if type(c.get(key)) is not type(value) or c[key]!=value:raise ValueError('capture '+key)
-    if mode.startswith('rank48') and c.get('dyadic_channel_policy')!='odd_rank48_even_classical':raise ValueError('rank48 complete-basis channel policy')
+    if mode.startswith('rank48') and c.get('dyadic_channel_policy')!=('odd_rank48_even_classical_compact_v2' if compact else 'odd_rank48_even_classical'):
+        raise ValueError('rank48 complete-basis channel policy')
+    if compact:
+        eligible=[] if mode=='classical' else [i for i,q in enumerate(DEFAULT_MODULI[:case['prefix']]) if not mode.startswith('rank48') or q%2]
+        fallback=[i for i in range(case['prefix']) if i not in eligible]
+        products=0 if mode=='classical' else 48 if mode.startswith('rank48') else 7 if mode=='strassen' else 23
+        work=dict(channel_contract_version='indexed_modulus_planes_v1',algebraic_plane_ids=eligible,classical_plane_ids=fallback,
+            algebraic_moduli=[DEFAULT_MODULI[i] for i in eligible],algebraic_product_plane_gemms=products*len(eligible))
+        for key,value in work.items():
+            if type(c.get(key)) is not type(value) or c[key]!=value:raise ValueError('physical channel work '+key)
+            if isinstance(value,list) and any(type(item) is not int for item in c[key]):raise ValueError('physical channel identity type '+key)
+    elif any(key in c for key in ('channel_contract_version','algebraic_plane_ids','classical_plane_ids','algebraic_moduli','algebraic_product_plane_gemms')):
+        raise ValueError('indexed channel work requires capture ABI2')
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id'):raise ValueError('compiled/process provenance')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:raise ValueError('artifact binding')
@@ -85,6 +101,7 @@ def validate_capture(c,entry):
 
 def summarize(rows):
     if len({r['execution_id'] for r in rows})!=len(rows):raise ValueError('duplicate process')
+    if len({r.get('capture_schema','legacy-unversioned') for r in rows})>1:raise ValueError('mixed physical implementation versions')
     medians={};diagnostics={}
     for mode in MODES:
         selected=[r for r in rows if r['mode']==mode and not r['instrumented']]
@@ -114,9 +131,9 @@ def main():
         path=Path(entry['output'])
         if path.exists() or not run_command(entry['command'],path,a.timeout_seconds):raise RuntimeError('capture exists or process failed: '+str(path))
         c=validate_capture(strict_json(path.read_text()),entry)
-        identity=dict(case={k:v for k,v in entry['case'].items() if k not in ('mode','instrumented')},target=c.get('target'),device=c.get('device'),runtime=c.get('runtime_version'),
+        identity=dict(capture_schema=c['schema'],case={k:v for k,v in entry['case'].items() if k not in ('mode','instrumented')},target=c.get('target'),device=c.get('device'),runtime=c.get('runtime_version'),
             build=c['build_manifest'],artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
-        cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(mode=entry['case']['mode'],instrumented=entry['case']['instrumented'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=str(path),median_us=statistics.median(s['total_us'] for s in c['samples']),peak_bytes=c['known_peak_device_payload_bytes']))
+        cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(capture_schema=c['schema'],mode=entry['case']['mode'],instrumented=entry['case']['instrumented'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=str(path),median_us=statistics.median(s['total_us'] for s in c['samples']),peak_bytes=c['known_peak_device_payload_bytes']))
     result=[dict(identity=json.loads(identity),**summarize(rows)) for identity,rows in cohorts.items()]
     (a.output/'summary.json').write_text(json.dumps(dict(schema='bilinear_summary_v1',cohorts=result,promotion_eligible=False),indent=2)+'\n');return 0
 

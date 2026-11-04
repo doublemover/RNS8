@@ -76,11 +76,19 @@ int main(int argc,char** argv){try{
   if(!owner){owner=create();hip_direct_timing_set_enabled(false);product(*owner);}std::vector<int8_t> residues(size_t(prefix)*m*n);checked(hip_direct_copy_device_to_host(0,residues.data(),owner->c->hip_residues,residues.size()));
   for(uint32_t p=0;p<prefix;++p)for(size_t cell=0;cell<size_t(m)*n;++cell){const int modulus=rns8_default_modulus(p);int64_t expected=reference[cell]%modulus;if(expected<0)expected+=modulus;if(expected>=(modulus+1)/2)expected-=modulus;if(residues[size_t(p)*m*n+cell]!=expected)throw std::runtime_error("all-plane residue audit mismatch");}
   checked(owner->close());const uint64_t export_stage=uint64_t(m)*n*24,known_peak=residue_payload+ordinary_workspace+resources.total_bytes+export_stage;
-  std::cout<<json({{"schema","rns8_bilinear_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
+  std::vector<uint32_t> algebraic_planes,classical_planes,algebraic_moduli;
+  if(algorithm>=0) {
+    for(uint32_t compact=0;compact<resources.planes.eligible_count;++compact){algebraic_planes.push_back(resources.planes.eligible[compact]);algebraic_moduli.push_back(resources.planes.moduli[compact]);}
+    for(uint32_t index=0;index<resources.planes.fallback_count;++index)classical_planes.push_back(resources.planes.fallback[index]);
+  } else for(uint32_t plane=0;plane<prefix;++plane)classical_planes.push_back(plane);
+  const uint32_t algebraic_products=algorithm<0?0:algorithm>=5?48:algorithm==0?7:23;
+  std::cout<<json({{"schema","rns8_bilinear_microcase_v2"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"dataset","period15_native_small_v1"},{"selected_prefix",prefix},{"algorithm",mode},{"subproduct_backend",backend},{"matrix_family_override",matrix?(matrix_variant==0?"auto":matrix_variant==1?"cdna3_16x16x32_or_target_wmma":"cdna3_32x32x16_or_target_wmma"):"not_applicable"},{"subproduct_launch_schedule",matrix && algorithm==6?"batched48":matrix && (algorithm==2 || algorithm==3)?"batched23":"serial"},{"ordinary_plan_kernel",plan_kernel},
     {"required_bilinear_scratch_bytes",resources.total_bytes},{"resident_residue_payload_bytes",residue_payload},{"ordinary_workspace_bytes",ordinary_workspace},{"known_peak_device_payload_bytes",known_peak},{"host_payload_envelope_bytes",host_payload},
     {"memory_scope","logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead"},{"transform_binary_nodes",algorithm>=6?200:algorithm==2?56:algorithm==3 || algorithm==4?55:0},{"transform_halving_nodes",algorithm>=6?4:0},{"input_transform_evaluations_per_cell",algorithm==5 || algorithm==7?48:algorithm==4?23:1},
-    {"dyadic_channel_policy",algorithm>=5?"odd_rank48_even_classical":"not_applicable"},
+    {"dyadic_channel_policy",algorithm>=5?"odd_rank48_even_classical_compact_v2":"not_applicable"},
+    {"channel_contract_version","indexed_modulus_planes_v1"},{"algebraic_plane_ids",algebraic_planes},{"classical_plane_ids",classical_planes},
+    {"algebraic_moduli",algebraic_moduli},{"algebraic_product_plane_gemms",uint64_t(algebraic_products)*algebraic_planes.size()},
     {"output_boundary","complete_public_product_and_padded_three_limb_export"},{"host_instrumentation_state",instrumented?"diagnostic_hooks_enabled":"hooks_disabled"},{"diagnostic_events",events},{"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},
     {"exact_reference_passed",true},{"all_residue_planes_audited",true},{"residue_audit_scope","post_timing_public_product"},{"oracle_inside_production_interval",false},{"promotion_eligible",false},{"native_useful_products",uint64_t(m)*n*k}}).dump(2)<<'\n';return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
