@@ -63,9 +63,15 @@ its device and capture state. Keep that stream alive until completion is observe
 Ordinary submit rejects an already capturing stream. Use the explicit caller-graph
 binding below to embed a body; no synchronous fallback is selected.
 
-Submission checks input generations and computes the complete exact range proof
-before changing the output or epoch. Host proof work can allocate; device event
-storage is prepared ahead of submission. It then reserves input readers, the
+Submission checks input generations and admits the complete exact range proof
+before changing the output or epoch. Mathematical proofs are retained immutably
+for the same plan contract, prefix/product, policy, epilogue coefficients and
+input object/instance/generation identities. A changed identity rebuilds the
+proof; stale bindings still require refresh. Eager propagated axis metadata is
+preserved. Structural/currentness, reservation, device/stream, capture and address
+admission still run on each submission. Pending producer proofs use their
+separate dependency path. Host proof construction and publication staging can
+allocate; device event storage is prepared ahead of submission. It then reserves input readers, the
 output writer and workspace, invalidates C through the existing lifecycle owner,
 enqueues the existing GEMM kernel path without publication, and records an event.
 Returning success means accepted work. No global synchronization occurs on the

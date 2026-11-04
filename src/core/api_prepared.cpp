@@ -22,6 +22,8 @@ struct rns8_prepared_execution {
   const rns8_matrix* a = nullptr;
   const rns8_matrix* b = nullptr;
   const rns8_matrix* d = nullptr;
+  mutable std::shared_ptr<const rns8::detail::ExactOperationProof> math_proof;
+  mutable uint64_t math_proof_builds=0,math_proof_reuses=0;
   int64_t alpha = 0, beta = 0;
   uint64_t d_instance = 0, d_generation = 0;
   rns8_matrix* c = nullptr;
@@ -103,6 +105,15 @@ struct rns8_prepared_group {
 };
 
 namespace {
+static rns8_status prepare_math_proof(const rns8_prepared_execution& e) {
+  if(e.math_proof && e.math_proof->matches(*e.plan,*e.a,*e.b,e.d,e.alpha,e.beta)) {
+    if(e.math_proof_reuses!=UINT64_MAX)++e.math_proof_reuses;
+    return RNS8_SUCCESS;
+  }
+  const auto status=rns8::detail::ExactOperationProof::create(*e.plan,*e.a,*e.b,e.d,e.alpha,e.beta,e.math_proof);
+  if(status==RNS8_SUCCESS && e.math_proof_builds!=UINT64_MAX)++e.math_proof_builds;
+  return status;
+}
 uint64_t next_prepared_id() {
   static std::atomic<uint64_t> next{1};
   auto value = next.load(std::memory_order_relaxed);
@@ -110,7 +121,7 @@ uint64_t next_prepared_id() {
     if (next.compare_exchange_weak(value, value + 1, std::memory_order_relaxed)) return value;
   return 0;
 }
-rns8_status validate_prepared(const rns8_prepared_execution& e) {
+rns8_status validate_prepared(const rns8_prepared_execution& e,bool check_value_bounds=true) {
   if(e.closing)return RNS8_INVALID_ARGUMENT;
   if(e.pool_owned && !e.pool_dispatch)return RNS8_BUSY;
   if(e.transfer){boost::multiprecision::cpp_int bound;return e.transfer->validate(nullptr,0,bound);}
@@ -122,9 +133,8 @@ rns8_status validate_prepared(const rns8_prepared_execution& e) {
     if (e.d->generation_exhausted) return RNS8_RANGE_ERROR;
     status = validate_exact_axpby_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.d, *e.c, e.alpha, e.beta);
     if (status != RNS8_SUCCESS) return status;
-    if (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND) {
-      boost::multiprecision::cpp_int bound;
-      return rns8::detail::exact_axpby_range(*e.plan, *e.a, *e.b, *e.d, e.alpha, e.beta, bound);
+    if (check_value_bounds && (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND)) {
+      return prepare_math_proof(e);
     }
     return RNS8_SUCCESS;
   }
@@ -137,9 +147,8 @@ rns8_status validate_prepared(const rns8_prepared_execution& e) {
     default:
       status = validate_rns_gemm_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.c);
       if (status != RNS8_SUCCESS) return status;
-      if (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND) {
-        boost::multiprecision::cpp_int bound;
-        return rns8::detail::exact_gemm_range(*e.plan, *e.a, *e.b, bound);
+      if (check_value_bounds && (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND)) {
+        return prepare_math_proof(e);
       }
       return RNS8_SUCCESS;
   }
@@ -208,6 +217,12 @@ static rns8_status prepare_operation(
     return RNS8_SUCCESS;
   });
 }
+rns8::detail::api::PreparedProofObservations rns8::detail::api::prepared_proof_observations(const rns8_prepared_execution* e) noexcept {
+  if(!e)return {};
+  PreparedProofObservations out{e->math_proof_builds,e->math_proof_reuses};
+  if(e->math_proof){out.retained_object_bytes=e->math_proof->retained_object_bytes();out.logical_limb_bytes=e->math_proof->logical_limb_bytes();}
+  return out;
+}
 rns8_status rns8_prepare_gemm(
     rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* a, const rns8_matrix* b,
     rns8_matrix* c, rns8_workspace* workspace, rns8_prepared_execution** out) {
@@ -232,8 +247,8 @@ static rns8_status prepared_range(const rns8_prepared_execution& e,
      e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
     bound=0;ranges={};return RNS8_SUCCESS; // ring semantics need no integer range lift
   }
-  return e.d ? rns8::detail::exact_axpby_range(*e.plan, *e.a, *e.b, *e.d, e.alpha, e.beta, bound)
-             : rns8::detail::exact_gemm_range(*e.plan, *e.a, *e.b, bound, &ranges);
+  const auto status=prepare_math_proof(e);if(status!=RNS8_SUCCESS)return status;
+  e.math_proof->stage(bound,&ranges);return RNS8_SUCCESS;
 }
 static rns8_status enqueue_prepared(const rns8_prepared_execution& e, void* stream) {
   if(e.transfer)return e.transfer->enqueue(stream);
@@ -363,13 +378,16 @@ rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_to
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
+    if(!uses_finite_storage(e->plan->desc.semantics) && e->plan->desc.semantics!=RNS8_WRAP_U64_MOD_2_64) {
+      const auto proved=prepare_math_proof(*e);if(proved!=RNS8_SUCCESS)return proved;
+    }
     e->async_failure = {};
     e->cancel_requested = false;
     e->running = true;
     ++e->epoch;
     rns8_status operation = RNS8_INTERNAL_ERROR;
-    if (e->d) operation = rns8_gemm_exact_axpby(e->ctx, e->plan, e->a, e->b, e->d,
-                                               e->c, e->alpha, e->beta, e->workspace);
+    if (e->d) operation = gemm_axpby_with_proof(e->ctx,e->plan,e->a,e->b,e->d,
+                                               e->c,e->alpha,e->beta,e->workspace,e->math_proof.get());
     else switch (e->plan->desc.semantics) {
       case RNS8_FINITE_RING_U8:
       case RNS8_FINITE_FIELD_U8:
@@ -380,7 +398,7 @@ rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_to
         operation = rns8_gemm_wrap_u64(e->ctx, e->plan, e->a, e->b, e->c, e->workspace);
         break;
       default:
-        operation = rns8_gemm_rns(e->ctx, e->plan, e->a, e->b, e->c, e->workspace);
+        operation = gemm_rns_with_proof(e->ctx,e->plan,e->a,e->b,e->c,e->workspace,e->math_proof.get());
     }
     e->completion = {};
     e->completion.operation_status = operation;

@@ -223,6 +223,11 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
                                   const rns8_matrix *D, rns8_matrix *C,
                                   int64_t alpha, int64_t beta,
                                   rns8_workspace *workspace) {
+  return rns8::detail::api::gemm_axpby_with_proof(ctx,plan,A,B,D,C,alpha,beta,workspace,nullptr);
+}
+rns8_status rns8::detail::api::gemm_axpby_with_proof(rns8_context *ctx,const rns8_plan *plan,
+    const rns8_matrix *A,const rns8_matrix *B,const rns8_matrix *D,rns8_matrix *C,
+    int64_t alpha,int64_t beta,rns8_workspace *workspace,const ExactOperationProof* proof) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if (!ctx || !plan || !A || !B || !D || !C || !workspace || A == C ||
@@ -236,7 +241,8 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
     if (status != RNS8_SUCCESS)
       return status;
     cpp_int bound;
-    status = exact_axpby_range(*plan, *A, *B, *D, alpha, beta, bound);
+    if(proof && !proof->matches(*plan,*A,*B,D,alpha,beta))return RNS8_INVALID_ARGUMENT;
+    status=proof?(proof->stage(bound),RNS8_SUCCESS):exact_axpby_range(*plan,*A,*B,*D,alpha,beta,bound);
     if (status != RNS8_SUCCESS)
       return status;
     // All allocation-prone proof work finishes before entering the write

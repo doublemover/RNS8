@@ -920,13 +920,17 @@ rns8_status rns8_invalidate_result_cache(rns8_result_cache* cache) {
   });
 }
 
-rns8_status rns8_gemm_rns(
+rns8_status rns8_gemm_rns(rns8_context* ctx,const rns8_plan* plan,const rns8_matrix* a,
+    const rns8_matrix* b,rns8_matrix* c,rns8_workspace* workspace) {
+  return rns8::detail::api::gemm_rns_with_proof(ctx,plan,a,b,c,workspace,nullptr);
+}
+rns8_status rns8::detail::api::gemm_rns_with_proof(
     rns8_context* ctx,
     const rns8_plan* plan,
     const rns8_matrix* A,
     const rns8_matrix* B,
     rns8_matrix* C,
-    rns8_workspace* workspace) {
+    rns8_workspace* workspace,const ExactOperationProof* proof) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
@@ -955,7 +959,9 @@ rns8_status rns8_gemm_rns(
     }
     boost::multiprecision::cpp_int exact_bound;
     rns8_exact_matrix_ranges exact_ranges;
-    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
+    if(proof && !proof->matches(*plan,*A,*B))return RNS8_INVALID_ARGUMENT;
+    const auto range_status = proof?(proof->stage(exact_bound,&exact_ranges),RNS8_SUCCESS):
+      rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS) return range_status;
     size_t token=0;
     const auto reserved=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,token);

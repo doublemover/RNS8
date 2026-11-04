@@ -107,9 +107,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/20",
       "requirements_sha256": "25568917ae5999aadcf3ab84425b46a60a0b61880021bcb38bdd78e64483310a",
       "comments_reviewed": 2,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Prepared GEMM/Axpby cache an immutable ExactOperationProof keyed by the actual plan contract, prefix/product/policy, coefficients and input object/instance/generation. Fixed-value admission and submission share one eager proof; synchronous dispatch carries an explicit checked certificate into ordinary storage/lease execution. Per-call structural and stream checks and pending-producer proofs remain separate. Private counters account constructions/reuse and retained metadata; signed/unsigned/scalar/eager/epilogue/mutation/range/BUSY/fidelity fixtures authored."
+      ],
+      "remaining_source_items": [
+        "Eliminate duplicate prepared resident-DAG propagation and retain a generation-bound immutable graph proof plan with dynamic per-launch admission and reusable publication metadata."
+      ]
     },
     {
       "issue": 24,

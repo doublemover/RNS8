@@ -3,6 +3,7 @@
 
 #include "core/internal.hpp"
 #include "core/exact_range.hpp"
+#include "core/exact_operation_proof.hpp"
 #include "backend_common/bilinear_selection.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -33,6 +34,14 @@
 #include "core/backend_common.hpp"
 
 namespace rns8::detail::api {
+
+struct PreparedProofObservations {uint64_t builds=0,reuses=0,retained_object_bytes=0,logical_limb_bytes=0;};
+PreparedProofObservations prepared_proof_observations(const rns8_prepared_execution*) noexcept;
+
+rns8_status gemm_rns_with_proof(rns8_context*,const rns8_plan*,const rns8_matrix*,const rns8_matrix*,
+    rns8_matrix*,rns8_workspace*,const ExactOperationProof*);
+rns8_status gemm_axpby_with_proof(rns8_context*,const rns8_plan*,const rns8_matrix*,const rns8_matrix*,
+    const rns8_matrix*,rns8_matrix*,int64_t,int64_t,rns8_workspace*,const ExactOperationProof*);
 // Preparation-only envelope: runtime publication still requires the actual
 // producer token and its checked pending range. No fictitious matrix currentness.
 rns8_status prepare_bound_host_export_hip(rns8_context*,rns8_matrix*,rns8_pinned_host_buffer*,
