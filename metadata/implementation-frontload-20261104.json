@@ -320,11 +320,11 @@
         "Shared host capture replacement/unwind cases and five prepared transfer stream rows authored; enabled HIP graph/native/process-owner syntax checked without runtime execution",
         "Prepared Gram arena uses typed pending device ownership and retained five-product stream; cleanup becomes irreversible and construction unwind can retire resources safely",
         "Bilinear public GEMM uses shared synchronous lease through exact-proof publication; failed dispatch preserves or invalidates C according to actual commit state.",
-        "Bilinear completion guard drains all early exits and host unwinding, retaining local scratch after uncertain completion; workspace stream uses typed retryable ownership and public lease covers publication."
+        "Bilinear completion guard drains all early exits and host unwinding, retaining local scratch after uncertain completion; workspace stream uses typed retryable ownership and public lease covers publication.",
+        "Narrow, adaptive and exact-auto writers now retain shared leases through publication. Context lease records retain workspace-buffer objects and clear pending state only on proven completion, including delayed drain recovery. Narrow scan/product temporaries defer cleanup after uncertain completion. Prepared Gram compute/read-only export use safe fault checkpoints and shared drain admission; host early/late/unwind/quarantine and optional narrow GPU dispatch fixtures authored."
       ],
       "remaining_source_items": [
-        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory",
-        "Finish specialized synchronous writer publication ownership, including the narrow native-to-RNS entrypoint discovered still releasing its custom lease before proof publication."
+        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
       ]
     },
     {
@@ -430,7 +430,9 @@
       "requirements_sha256": "16bcb7d2a10281b34287a4362b7aaaff5ca7752a966773ff9472cb272c4ac99b",
       "comments_reviewed": 5,
       "implementation_status": "pending",
-      "completed_slices": [],
+      "completed_slices": [
+        "Narrow fused/native owners and adaptive/auto publication retain authority through proof publication; local bound-scan/product temporaries now track uncertain completion. This slice does not yet remove repeated native admission scans or allocations."
+      ],
       "remaining_source_items": []
     },
     {

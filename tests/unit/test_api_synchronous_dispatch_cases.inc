@@ -4,14 +4,14 @@ struct SynchronousDispatchFixture {
   std::vector<const rns8_matrix*> writers;
   const rns8_workspace* workspace=nullptr;
   unsigned calls=0,drains=0;
-  bool fail=false,throw_after_issue=false,drain_fails=false,reservations_observed=false;
+  bool fail=false,throw_after_issue=false,drain_fails=false,reservations_observed=false,write_started_on_failure=true;
   static rns8_status dispatch(void* opaque,const char*,bool* started) {
     auto& s=*static_cast<SynchronousDispatchFixture*>(opaque);++s.calls;
     s.reservations_observed=true;
     for(auto* matrix:s.readers)s.reservations_observed&=matrix->in_flight_readers>0;
     for(auto* matrix:s.writers)s.reservations_observed&=matrix->in_flight_writer;
     if(s.workspace)s.reservations_observed&=s.workspace->in_flight;
-    if(s.fail && started)*started=true; // simulated issue; no faulty device work
+    if(s.fail && started && s.write_started_on_failure)*started=true; // simulated issue; no faulty device work
     if(s.throw_after_issue)throw std::bad_alloc{};
     return s.fail?RNS8_BACKEND_FAILURE:RNS8_SUCCESS;
   }
@@ -20,6 +20,36 @@ struct SynchronousDispatchFixture {
     return s.drain_fails?RNS8_BACKEND_FAILURE:RNS8_SUCCESS;
   }
 };
+}
+TEST_CASE("prepared Gram preserves read-only publication and retains uncertain owner reservations", "[api][gram][lifetime]") {
+  for(bool read_only:{false,true})for(bool late:{false,true})for(bool throws:{false,true})for(bool uncertain:{false,true}) {
+    CAPTURE(read_only,late,throws,uncertain);
+    auto* ctx=create_cpu_context();auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);
+    rns8_matrix *x=nullptr,*c=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&x)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&md,&c)==RNS8_SUCCESS);
+    const int64_t value=7;REQUIRE(rns8_pack_i64(ctx,x,&value,1,0)==RNS8_SUCCESS);
+    rns8_prepared_gram* owner=nullptr;
+    REQUIRE(rns8_prepare_gram_ex(ctx,x,c,RNS8_GRAM_TRANSPOSE_TIMES_SELF,RNS8_GRAM_SCALAR,
+      RNS8_GRAM_RESIDENT_RESIDUES,1,UINT64_MAX,&owner)==RNS8_SUCCESS);
+    REQUIRE(rns8_execute_prepared_gram(owner)==RNS8_SUCCESS);
+    const auto generation=c->content_generation;const auto residues=c->residues;uint64_t output=91;
+    SynchronousDispatchFixture state;state.readers={x};state.writers={c};state.fail=true;
+    state.write_started_on_failure=late;state.throw_after_issue=throws;state.drain_fails=uncertain;
+    const rns8_synchronous_test_hooks hooks{&state,&SynchronousDispatchFixture::dispatch,&SynchronousDispatchFixture::drain};
+    ctx->synchronous_test_hooks=&hooks;
+    CHECK((read_only?rns8_export_prepared_gram_limbs(owner,&output,1):rns8_execute_prepared_gram(owner))==
+      (throws?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE));
+    CHECK(state.reservations_observed);CHECK(c->content_generation==generation);CHECK(output==91);CHECK(c->residues==residues);
+    CHECK(c->host_residues_current==(read_only || !late));
+    if(uncertain) {
+      CHECK(ctx->hip_failure_poisoned);CHECK(x->in_flight_readers==1);CHECK(c->in_flight_writer);
+      CHECK(rns8_destroy_prepared_gram(owner)==RNS8_BACKEND_FAILURE);
+      CHECK(rns8_destroy_matrix(c)==RNS8_BUSY);state.drain_fails=false;
+    } else {CHECK(x->in_flight_readers==0);CHECK_FALSE(c->in_flight_writer);}
+    REQUIRE(rns8_destroy_prepared_gram(owner)==RNS8_SUCCESS);
+    CHECK(x->in_flight_readers==0);CHECK_FALSE(c->in_flight_writer);
+    ctx->synchronous_test_hooks=nullptr;
+    REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(x)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
 }
 
 TEST_CASE("public exports retain read ownership without invalidating resident values", "[api][export][lifetime]") {
@@ -133,16 +163,23 @@ TEST_CASE("failed synchronous work retains private owner counters until one succ
   const rns8_synchronous_test_hooks hooks{&state,nullptr,&SynchronousDispatchFixture::drain};
   ctx->synchronous_test_hooks=&hooks;
   uint64_t first=0,second=0;size_t token=0;
+  rns8::detail::hip_direct_device_buffer first_buffer,second_buffer,extra_buffer;
   REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
   SynchronousLease lease(*ctx,token);
   REQUIRE(add_synchronous_owner_hold(*ctx,token,first)==RNS8_SUCCESS);
   REQUIRE(add_synchronous_owner_hold(*ctx,token,first)==RNS8_SUCCESS);
   REQUIRE(add_synchronous_owner_hold(*ctx,token,second)==RNS8_SUCCESS);
+  REQUIRE(lease.hold_buffer(first_buffer)==RNS8_SUCCESS);
+  REQUIRE(lease.hold_buffer(first_buffer)==RNS8_SUCCESS);
+  REQUIRE(lease.hold_buffer(second_buffer)==RNS8_SUCCESS);
+  CHECK(lease.hold_buffer(extra_buffer)==RNS8_INTERNAL_ERROR);
   CHECK(first==1);CHECK(second==1);
   CHECK(lease.finish(RNS8_BACKEND_FAILURE)==RNS8_BACKEND_FAILURE);
   CHECK(first==1);CHECK(second==1);CHECK(ctx->hip_failure_poisoned);
+  CHECK(first_buffer.pending());CHECK(second_buffer.pending());CHECK_FALSE(extra_buffer.pending());
   state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
   CHECK(first==0);CHECK(second==0);CHECK(ctx->failed_work_leases.empty());
+  CHECK_FALSE(first_buffer.pending());CHECK_FALSE(second_buffer.pending());
   REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);CHECK(first==0);CHECK(second==0);
   ctx->synchronous_test_hooks=nullptr;REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

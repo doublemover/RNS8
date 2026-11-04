@@ -59,7 +59,11 @@ rns8_status rns8_gemm_exact_wide_hip_auto(rns8_context* ctx,const rns8_plan* pla
     if(owner.bytes()<layout.total || owner.bytes()>budget){status=owner.allocate(ctx->device_id,size_t(layout.total));if(status!=RNS8_SUCCESS)return status;}
     size_t lease_token=0;status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token,true);if(status!=RNS8_SUCCESS)return status;
     bool c_written=false;
-    struct Guard{rns8_context& ctx;size_t token;bool& written;bool active=true;~Guard(){if(active)finish_synchronous_lease(ctx,token,RNS8_INTERNAL_ERROR,written);}} guard{*ctx,lease_token,c_written};
+    SynchronousLease lease(*ctx,lease_token);lease.track_write(c_written);
+    status=lease.hold_buffer(owner);if(status!=RNS8_SUCCESS)return lease.finish(status);
+    owner.mark_pending();
+    return lease.finish([&]() -> rns8_status {
+    status=synchronous_dispatch_checkpoint(*ctx,"exact_auto_prepare",&c_written);if(status!=RNS8_SUCCESS)return status;
     auto* arena=static_cast<int8_t*>(owner.get());auto* a=layout.lift_a?arena+layout.a_offset:static_cast<int8_t*>(A->hip_residues);
     auto* b=A==B?a:layout.lift_b?arena+layout.b_offset:static_cast<int8_t*>(B->hip_residues);auto* c=arena+layout.c_offset;
     const auto stage=[&](rns8_matrix& matrix,int8_t* target,uint64_t cells,bool needed,const uint64_t* words)->rns8_status {
@@ -79,12 +83,12 @@ rns8_status rns8_gemm_exact_wide_hip_auto(rns8_context* ctx,const rns8_plan* pla
     if(status==RNS8_SUCCESS && A!=B)status=copy_suffix(*B,b,layout.b_cells,layout.lift_b);
     if(status==RNS8_SUCCESS){clear_residue_current(*C);clear_native_current(*C);clear_byte_limb_current(*C);c_written=true;
       status=hip_direct_copy_device_to_device(ctx->device_id,C->hip_residues,c,size_t(layout.c_cells*selected));}
-    const bool drained=finish_synchronous_lease(*ctx,lease_token,status,c_written);guard.active=false;
-    if(status!=RNS8_SUCCESS)return status;if(!drained)return RNS8_BACKEND_FAILURE;
+    if(status!=RNS8_SUCCESS)return status;
     // No allocation or throwing arithmetic follows the all-copy success point.
     if(layout.lift_a){A->exact_range_prefix=selected;A->materialized_rns_prefix=std::max(A->materialized_rns_prefix,selected);A->host_residues_current=false;}
     if(layout.lift_b){B->exact_range_prefix=selected;B->materialized_rns_prefix=std::max(B->materialized_rns_prefix,selected);B->host_residues_current=false;}
     mark_output_device_residues_current(*C);C->exact_max_magnitude.swap(output_bound);C->exact_axis_ranges.rows.swap(output_ranges.rows);C->exact_axis_ranges.cols.swap(output_ranges.cols);
     C->exact_range_prefix=selected;C->materialized_rns_prefix=selected;*selected_out=selected;return RNS8_SUCCESS;
+    }());
   });
 }

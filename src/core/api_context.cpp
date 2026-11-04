@@ -51,6 +51,13 @@ rns8_status add_synchronous_owner_hold(rns8_context& ctx,size_t token,uint64_t& 
   for(auto*& hold:holds)if(!hold){hold=&counter;++counter;return RNS8_SUCCESS;}
   return RNS8_INTERNAL_ERROR;
 }
+rns8_status add_synchronous_buffer_hold(rns8_context& ctx,size_t token,hip_direct_device_buffer& buffer) noexcept {
+  if(token>=ctx.failed_work_leases.size() || !ctx.failed_work_leases[token].a)return RNS8_INVALID_ARGUMENT;
+  auto& holds=ctx.failed_work_leases[token].buffer_holds;
+  for(auto* hold:holds)if(hold==&buffer)return RNS8_SUCCESS;
+  for(auto*& hold:holds)if(!hold){hold=&buffer;return RNS8_SUCCESS;}
+  return RNS8_INTERNAL_ERROR;
+}
 rns8_status invalidate_synchronous_output(rns8_context& ctx,size_t token) noexcept {
   if (token >= ctx.failed_work_leases.size()) return RNS8_INVALID_ARGUMENT;
   const auto& lease = ctx.failed_work_leases[token];
@@ -75,7 +82,11 @@ bool finish_synchronous_lease(rns8_context& ctx,size_t token,rns8_status status,
   if(token>=ctx.failed_work_leases.size() || !ctx.failed_work_leases[token].a)return true;
   auto& lease=ctx.failed_work_leases[token];
   if(status!=RNS8_SUCCESS && written && lease.c)(void)invalidate_synchronous_output(ctx,token);
-  if((status==RNS8_BACKEND_FAILURE || status==RNS8_INTERNAL_ERROR) && drain_synchronous_context(ctx)!=RNS8_SUCCESS){ctx.hip_failure_poisoned=true;return false;}
+  if(status==RNS8_BACKEND_FAILURE || status==RNS8_INTERNAL_ERROR) {
+    for(auto* buffer:lease.buffer_holds)if(buffer)buffer->mark_pending();
+    if(drain_synchronous_context(ctx)!=RNS8_SUCCESS){ctx.hip_failure_poisoned=true;return false;}
+  }
+  for(auto* buffer:lease.buffer_holds)if(buffer)buffer->mark_completed();
   if(lease.unary){if(lease.read_only)--lease.a->in_flight_readers;}
   else if(lease.input_writers){const_cast<rns8_matrix*>(lease.a)->in_flight_writer=false;const_cast<rns8_matrix*>(lease.b)->in_flight_writer=false;}
   else{--lease.a->in_flight_readers;if(lease.a!=lease.b)--lease.b->in_flight_readers;}

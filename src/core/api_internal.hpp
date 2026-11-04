@@ -74,6 +74,9 @@ rns8_status begin_synchronous_read_lease(rns8_context&,const rns8_matrix&,size_t
 rns8_status begin_synchronous_output_lease(rns8_context&,rns8_matrix&,size_t&);
 // Counter belongs to an owner whose destruction/replacement rejects nonzero holds.
 rns8_status add_synchronous_owner_hold(rns8_context&,size_t,uint64_t& counter);
+// Buffer object belongs to a matrix/workspace/owner retained by this lease.
+// Registration permits preparation/replacement before work is submitted.
+rns8_status add_synchronous_buffer_hold(rns8_context&,size_t,hip_direct_device_buffer&) noexcept;
 bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;
 rns8_status invalidate_synchronous_output(rns8_context&, size_t token) noexcept;
 rns8_status synchronous_dispatch_checkpoint(rns8_context&,const char*,bool* write_started=nullptr);
@@ -97,6 +100,9 @@ class SynchronousLease {
     return status;
   }
   void track_write(const bool& started) noexcept { write_started_ = &started; }
+  rns8_status hold_buffer(hip_direct_device_buffer& buffer) noexcept {
+    return ctx_?add_synchronous_buffer_hold(*ctx_,token_,buffer):RNS8_INVALID_ARGUMENT;
+  }
   rns8_status finish(rns8_status status) noexcept {
     status_ = status;
     if (ctx_) { finish_synchronous_lease(*ctx_, token_, status_, may_have_written()); ctx_ = nullptr; }

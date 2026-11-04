@@ -39,7 +39,7 @@ struct GramReservation {
   rns8_prepared_gram& owner;bool completed=false;
   ~GramReservation() noexcept {
     if(completed)return;invalidate_gram_commit(owner);
-    if(owner.x->backend==RNS8_BACKEND_HIP_DIRECT){try{if(hip_direct_synchronize(owner.ctx->device_id)!=RNS8_SUCCESS){owner.quarantined=true;owner.ctx->hip_failure_poisoned=true;return;}}
+    if(owner.x->backend==RNS8_BACKEND_HIP_DIRECT || owner.ctx->synchronous_test_hooks){try{if(drain_synchronous_context(*owner.ctx)!=RNS8_SUCCESS){owner.quarantined=true;owner.ctx->hip_failure_poisoned=true;return;}}
       catch(...){owner.quarantined=true;owner.ctx->hip_failure_poisoned=true;return;}}
     release_gram_reservation(owner);
   }
@@ -159,6 +159,7 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner){
     auto status=gram_ready(*owner);if(status!=RNS8_SUCCESS)return status;
     const auto* x=owner->x;auto* c=owner->c;const bool hip=x->backend==RNS8_BACKEND_HIP_DIRECT;cpp_int bound=owner->bound;
     ++x->in_flight_readers;c->in_flight_writer=true;owner->active=true;owner->arena_owner.mark_pending();owner->commit_started=false;GramReservation reservation{*owner};
+    status=synchronous_dispatch_checkpoint(*owner->ctx,"prepared_gram",&owner->commit_started);if(status!=RNS8_SUCCESS)return status;
     GramProblem p=owner->problem;const void* source=hip?x->hip_residues:x->residues.data();
     if(owner->input_policy==RNS8_GRAM_RETAINED_TRANSPOSE){
       if(!owner->adapter_ready){if(hip){status=hip_direct_gram_transpose(owner->ctx->device_id,source,owner->device_adapter,p);if(status!=RNS8_SUCCESS)return status;}
@@ -204,6 +205,7 @@ rns8_status rns8_export_prepared_gram_limbs(rns8_prepared_gram* owner,uint64_t* 
        !disjoint(owner->jobs.data(),owner->jobs.size()*sizeof(GramTile)) || !disjoint(owner->x->residues.data(),owner->x->residues.size()) ||
        !disjoint(owner->x->native_i64.data(),owner->x->native_i64.size()*8))return RNS8_INVALID_ARGUMENT;
     ++owner->x->in_flight_readers;c.in_flight_writer=true;owner->active=true;owner->arena_owner.mark_pending();owner->commit_started=false;GramReservation reservation{*owner};
+    status=synchronous_dispatch_checkpoint(*owner->ctx,"prepared_gram_export");if(status!=RNS8_SUCCESS)return status;
     if(c.backend==RNS8_BACKEND_HIP_DIRECT){status=hip_direct_gram_export_once(owner->ctx->device_id,source,owner->device_export,owner->device_export_status,owner->device_jobs,n,c.prefix,limbs,owner->jobs.size());
       if(status!=RNS8_SUCCESS)return status;
       status=hip_direct_copy_device_to_host(owner->ctx->device_id,&owner->export_status,owner->device_export_status,4);if(status!=RNS8_SUCCESS)return status;
@@ -236,7 +238,7 @@ rns8_status rns8_destroy_prepared_gram(rns8_prepared_gram* owner){
   return guard_api([&]() -> rns8_status{
     if(!owner)return RNS8_SUCCESS;std::unique_lock<std::mutex> lock(owner->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
     owner->closing=true;
-    if(owner->quarantined || owner->active){if(owner->x->backend==RNS8_BACKEND_HIP_DIRECT && hip_direct_synchronize(owner->ctx->device_id)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+    if(owner->quarantined || owner->active){if(drain_synchronous_context(*owner->ctx)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
       invalidate_gram_commit(*owner);release_gram_reservation(*owner);owner->quarantined=false;}
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     if(owner->five_stream.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;

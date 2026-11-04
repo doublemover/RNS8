@@ -116,6 +116,19 @@ template<class T> void check_public_narrow_owner(rns8_narrow_product_method meth
   c->in_flight_readers=0;
   CHECK(c->content_generation==generation);
   CHECK(rns8_gemm_narrow_exact(ctx,plan,a,b,a,method,UINT64_MAX,ws)==RNS8_INVALID_ARGUMENT);
+  struct LeaseState {rns8_matrix *a,*b,*c;rns8_workspace* workspace;bool observed=false;} lease_state{a,b,c,ws};
+  rns8_synchronous_test_hooks hooks{};hooks.state=&lease_state;
+  hooks.dispatch=[](void* opaque,const char*,bool* started)->rns8_status {
+    auto& state=*static_cast<LeaseState*>(opaque);
+    state.observed=state.a->in_flight_readers==1 && state.b->in_flight_readers==1 && state.c->in_flight_writer &&
+      state.workspace->in_flight && started && !*started;
+    return RNS8_BACKEND_FAILURE;
+  };
+  hooks.drain=[](void*) noexcept{return RNS8_SUCCESS;};ctx->synchronous_test_hooks=&hooks;
+  const auto injected=run();ctx->synchronous_test_hooks=nullptr;
+  REQUIRE(injected==RNS8_BACKEND_FAILURE);CHECK(lease_state.observed);
+  CHECK(c->content_generation==generation);CHECK(c->device_native_current);CHECK_FALSE(c->in_flight_writer);
+  CHECK(a->in_flight_readers==0);CHECK(b->in_flight_readers==0);CHECK_FALSE(ws->in_flight);
   for(int mutation=0;mutation<2;++mutation) {
     if(mutation) { av[0]=3; REQUIRE(pack(a,av)==RNS8_SUCCESS); }
     const auto status=run();

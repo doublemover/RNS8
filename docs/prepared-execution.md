@@ -24,6 +24,15 @@ and value publication use the existing GEMM write guard and generation owner;
 there is no second matrix-validity state. A preflight range failure can preserve
 an old value while the new operation's completion still reports failure.
 
+Synchronous specialized writers retain their input/output/workspace authority
+through range and currentness publication. Workspace buffers registered with a
+lease remain pending after an uncertain drain; the context's retained record
+clears that pending state only after a later successful drain. Narrow bound-scan
+and intermediate product buffers likewise defer reclamation after uncertain
+completion. Prepared Gram uses its retained owner reservation for compute and
+read-only export; host fault seams cover early/late failure, unwinding and
+retryable quarantine cleanup without launching faulty device work.
+
 Each token contains a unique prepared-instance identity and a nonwrapping epoch.
 `rns8_get_prepared_completion` accepts only the latest epoch of that instance.
 It reports the exact input generations, output generation and operation status.

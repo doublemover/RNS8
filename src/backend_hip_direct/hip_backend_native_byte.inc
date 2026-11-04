@@ -32,6 +32,7 @@ rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
   status = scratch.allocate(device_id, 4 * sizeof(uint64_t));
   if (status != RNS8_SUCCESS)
     return status;
+  scratch.mark_pending();
   if (hipMemset(scratch.get(), 0, 4 * sizeof(uint64_t)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   auto *words = static_cast<uint64_t *>(scratch.get());
@@ -55,6 +56,7 @@ rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
       hip_direct_copy_device_to_host(device_id, proof, words, sizeof(proof));
   if (status != RNS8_SUCCESS)
     return status;
+  scratch.mark_completed();
   if (!proof[3])
     return RNS8_UNSUPPORTED_BACKEND;
   uint64_t bound = 0;

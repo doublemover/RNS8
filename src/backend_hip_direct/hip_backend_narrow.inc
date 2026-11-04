@@ -23,6 +23,7 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(
   hip_direct_device_buffer maxima;
   status = maxima.allocate(device_id, 2 * sizeof(uint64_t));
   if (status != RNS8_SUCCESS) return status;
+  maxima.mark_pending();
   if (hipMemset(maxima.get(), 0, 2 * sizeof(uint64_t)) != hipSuccess) return RNS8_BACKEND_FAILURE;
   auto* device_maxima = static_cast<uint64_t*>(maxima.get());
   const auto scan = timed_hip_operation("narrow_native_bound_scan", [&]() {
@@ -37,6 +38,7 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(
   uint64_t bounds[2]{};
   status = hip_direct_copy_device_to_host(device_id, bounds, device_maxima, sizeof(bounds));
   if (status != RNS8_SUCCESS) return status;
+  maxima.mark_completed();
   constexpr uint64_t limit = INT64_MAX;
   uint64_t sum_bound = 0;
   if (!native_partial_sum_bound(bounds[0], bounds[1], static_cast<uint64_t>(k), limit, sum_bound))
@@ -79,6 +81,7 @@ rns8_status hip_direct_gemm_narrow_rns_device(
   auto status=product.allocate(device_id,static_cast<size_t>(support.payload_bytes));
   if (status!=RNS8_SUCCESS) return status;
   uint64_t bound=0;
+  product.mark_pending();
   if (byte_wmma)
     status=hip_direct_gemm_native_byte_wmma_checked_device(device_id,a,b,product.get(),
         m,n,k,lda,ldb,n,unsigned_inputs,&bound);
@@ -86,7 +89,12 @@ rns8_status hip_direct_gemm_narrow_rns_device(
     status=hip_direct_gemm_i64_narrow_checked_device(device_id,
         static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),
         static_cast<int64_t*>(product.get()),m,n,k,lda,ldb,n,&bound);
-  if (status!=RNS8_SUCCESS) return status;
+  if(status!=RNS8_SUCCESS) {
+    // Admission/range rejection has completed the synchronous scan and never
+    // submitted product work. Device/host failures retain uncertain storage.
+    if(status!=RNS8_BACKEND_FAILURE && status!=RNS8_INTERNAL_ERROR)product.mark_completed();
+    return status;
+  }
   // The owner's independent complete-expression proof admits the CRT capacity.
   // The device scan above separately admits every native accumulation partial.
   commit_started=true;
@@ -98,6 +106,7 @@ rns8_status hip_direct_gemm_narrow_rns_device(
             static_cast<int8_t*>(c),int(m),int(n),int(n),int(prefix));
     return code==int(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
   });
+  if(error==hipSuccess)product.mark_completed();
   return error==hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
