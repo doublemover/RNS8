@@ -366,8 +366,11 @@
       "url": "https://github.com/doublemover/RNS8/issues/52",
       "requirements_sha256": "1948e684314a66a0500c15f602dbb11196fb7404ae2e3b7332e0f87e2bcebe22",
       "comments_reviewed": 1,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Positive TDM fixture uses shared complete descriptor factory with width-derived pitches and resource admission before host allocation/fill",
+        "Host enumeration covers K/slab tails, signedness, groups, compute and cluster axes; differential oracle checks every logical column and owned padding"
+      ],
       "remaining_source_items": []
     },
     {

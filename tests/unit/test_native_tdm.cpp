@@ -56,3 +56,30 @@ TEST_CASE("neighbor multicast padding preserves complete cell ownership", "[tdm]
     CHECK(cells.size()==prefix*17*19);
   }
 }
+
+#include "../support/native_tdm_fixture.hpp"
+TEST_CASE("positive TDM fixture descriptors admit all logical cells and padding before allocation", "[tdm][cpu]") {
+  for(uint64_t k:{31u,32u,33u,63u,64u,65u,65537u})for(unsigned group:{1u,2u,4u})
+    for(bool sign:{false,true})for(unsigned compute:{0u,1u})for(unsigned axis:{0u,1u})for(unsigned cluster:{1u,2u,4u}) {
+      if((group!=4 && k!=33) || (axis && cluster==1))continue;
+      rns8::test::NativeTdmFixtureCase fixture;
+      REQUIRE(rns8::test::native_tdm_fixture_case(k,group,sign,compute,axis,cluster,fixture));
+      const auto& p=fixture.problem;
+      CHECK(p.lda>=p.k);CHECK(p.ldb>=p.n);CHECK(p.ldc>=p.n);
+      CHECK(fixture.resources.status==RNS8_SUCCESS);
+      // Index functions are monotone on the rectangular loop domains. Their
+      // last logical and padding indices bound every fill/oracle iteration.
+      CHECK((p.m-1)*p.lda+p.k-1<fixture.a_elements);
+      CHECK((p.k-1)*p.ldb+p.n-1<fixture.b_elements);
+      CHECK((p.prefix*p.m-1)*p.ldc+p.n-1<fixture.c_elements);
+      CHECK(p.m*p.lda==fixture.a_elements);CHECK(p.k*p.ldb==fixture.b_elements);
+      CHECK(p.prefix*p.m*p.ldc==fixture.c_elements);
+      CHECK(fixture.resources.native_a_bytes<=fixture.a_elements*8);
+      CHECK(fixture.resources.native_b_bytes<=fixture.b_elements*8);
+      CHECK(fixture.resources.output_bytes<=fixture.c_elements);
+      auto invalid=p;invalid.ldb=p.n-1;
+      CHECK(rns8::detail::query_native_tdm(invalid).status==RNS8_INVALID_ARGUMENT);
+      invalid=p;invalid.ldc=p.n-1;
+      CHECK(rns8::detail::query_native_tdm(invalid).status==RNS8_INVALID_ARGUMENT);
+    }
+}
