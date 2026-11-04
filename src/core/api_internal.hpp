@@ -457,7 +457,6 @@ bool prepare_auto_candidate_backend(rns8_context& ctx, rns8_backend_kind backend
 
 void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan);
 
-std::vector<int8_t> gather_cell_residues(const rns8_matrix& matrix, int64_t row, int64_t col, uint32_t prefix);
 
 uint64_t tile_index_for_cell(const rns8_plan& plan, int64_t row, int64_t col);
 

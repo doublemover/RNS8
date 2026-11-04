@@ -581,8 +581,12 @@
       "url": "https://github.com/doublemover/RNS8/issues/81",
       "requirements_sha256": "7a238a3ad202dbe00d7bf50b6192a00fa99ae01880637c12b1ae4314a2120de4",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "written_pending_batch_validation",
+      "completed_slices": [
+        "Immutable complete-ladder products/centering thresholds shared with modulus_product and checked reconstruction contracts prepared once per uniform/tile region",
+        "All four public host integer exporters use one strided traversal with per-worker scratch and deterministic same-worker exception handling; removed per-cell residue vectors/status storage",
+        "Independent all-prefix/sign/limb-width and fresh-table fixtures plus real public OpenMP worker-failure/no-publication/warm-retry regressions authored"
+      ],
       "remaining_source_items": []
     },
     {

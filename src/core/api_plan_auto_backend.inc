@@ -161,14 +161,6 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
   plan.auto_trace=trace;plan.auto_decisions=std::move(decisions);
 }
 
-std::vector<int8_t> gather_cell_residues(const rns8_matrix& matrix, int64_t row, int64_t col, uint32_t prefix) {
-  std::vector<int8_t> residues(prefix);
-  for (uint32_t p = 0; p < prefix; ++p) {
-    residues[p] = matrix.residues[rns8::detail::residue_index(matrix, p, row, col)];
-  }
-  return residues;
-}
-
 uint64_t tile_index_for_cell(const rns8_plan& plan, int64_t row, int64_t col) {
   const auto tile_row = static_cast<uint64_t>(row) / static_cast<uint64_t>(plan.desc.tile_m);
   const auto tile_col = static_cast<uint64_t>(col) / static_cast<uint64_t>(plan.desc.tile_n);

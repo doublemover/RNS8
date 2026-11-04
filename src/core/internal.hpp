@@ -31,8 +31,13 @@ struct rns8_synchronous_test_hooks {
   rns8_status (*dispatch)(void*,const char*,bool*)=nullptr;
   rns8_status (*drain)(void*) noexcept=nullptr;
 };
+struct rns8_cpu_export_test_hooks {
+  void* state=nullptr;
+  void (*cell)(void*,int64_t,uint32_t)=nullptr;
+};
 struct rns8_context {
   const rns8_synchronous_test_hooks* synchronous_test_hooks=nullptr;
+  const rns8_cpu_export_test_hooks* cpu_export_test_hooks=nullptr;
   std::vector<rns8_synchronous_lease> failed_work_leases;
   // Intrusive ownership requires no allocation while recovering construction failure.
   rns8_matrix* failed_matrix_cleanup = nullptr;

@@ -1,4 +1,5 @@
 #include "core/internal.hpp"
+#include "reconstruct/reconstruction.hpp"
 
 #include <algorithm>
 #include <boost/multiprecision/integer.hpp>
@@ -162,11 +163,7 @@ bool default_moduli_pairwise_coprime() {
 }
 
 cpp_int modulus_product(uint32_t prefix) {
-  cpp_int product = 1;
-  for (uint32_t i = 0; i < prefix; ++i) {
-    product *= kDefaultModuli[i];
-  }
-  return product;
+  return reconstruction_product(prefix);
 }
 
 uint32_t bit_length(const cpp_int& value) {

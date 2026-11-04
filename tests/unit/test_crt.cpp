@@ -387,3 +387,45 @@ TEST_CASE("signed pack calibration shares unchanged public crossover selector") 
           (cells < 256 ? SignedPackKernel::small : cells <= 4096 ? SignedPackKernel::four_wide : SignedPackKernel::eight_wide));
   }
 }
+
+#include "reconstruct/reconstruction.hpp"
+TEST_CASE("CRT immutable tables initialize before worker use and match the complete ladder", "[crt-first-use]") {
+  using namespace rns8::detail;cpp_int independent=1;
+  REQUIRE(reconstruction_product(0)==independent);
+  for(uint32_t prefix=1;prefix<=RNS8_DEFAULT_MODULUS_COUNT;++prefix) {
+    independent*=rns8_default_modulus(prefix-1);
+    CHECK(reconstruction_product(prefix)==independent);
+    CHECK(modulus_product(prefix)==independent);
+  }
+  CHECK(default_moduli_pairwise_coprime());
+}
+TEST_CASE("strided reconstruction contracts cover every prefix sign and output limb width", "[crt][strided]") {
+  using namespace rns8::detail;
+  cpp_int product=1;
+  for(uint32_t prefix=1;prefix<=RNS8_MAX_SUPPORTED_PREFIX;++prefix) {
+    product*=rns8_default_modulus(prefix-1);
+    for(bool sign:{false,true})for(uint32_t limbs=1;limbs<=32;++limbs) {
+      ReconstructionContract contract;
+      REQUIRE(prepare_reconstruction_contract(sign?IntegerExportKind::wide_signed:IntegerExportKind::wide_unsigned,prefix,0,limbs,contract)==RNS8_SUCCESS);
+      const std::vector<cpp_int> canonical{cpp_int(0),cpp_int(1),cpp_int((product+1)/2-1),cpp_int((product+1)/2),cpp_int(product-1)};
+      for(const auto& value:canonical) {
+        std::vector<int8_t> residues(size_t(prefix)*3,99);
+        for(uint32_t p=0;p<prefix;++p) {
+          const int q=rns8_default_modulus(p);int r=static_cast<int>(value%q);
+          if(r>=(q+1)/2)r-=q;residues[size_t(p)*3+1]=static_cast<int8_t>(r);
+        }
+        cpp_int expected=value;if(sign && expected>=(product+1)/2)expected-=product;
+        const cpp_int ring=cpp_int(1)<<(64*limbs),minimum=sign?cpp_int(-(ring>>1)):cpp_int(0);
+        const cpp_int maximum=sign?cpp_int((ring>>1)-1):cpp_int(ring-1);
+        cpp_int decoded;const auto status=reconstruct_strided(residues.data()+1,3,contract,decoded);
+        CHECK(status==((expected<minimum || expected>maximum)?RNS8_RANGE_ERROR:RNS8_SUCCESS));
+        if(status==RNS8_SUCCESS) {
+          CHECK(decoded==expected);std::vector<uint64_t> out(size_t(limbs)+2,99);
+          store_reconstructed_limbs(decoded,contract,out.data()+1);CHECK(out.front()==99);CHECK(out.back()==99);
+          if(expected<0)expected+=ring;
+          for(uint32_t l=0;l<limbs;++l)CHECK(out[l+1]==static_cast<uint64_t>((expected>>(64*l))&UINT64_MAX));
+        }
+      }
+    }
+  }
+}

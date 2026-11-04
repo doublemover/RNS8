@@ -333,3 +333,14 @@ releases memory without reviving that authority. Successful backend completion
 is reused without an additional device-wide wait. Authored public-dispatch
 host mocks exercise these state transitions without inducing device faults;
 execution and remaining accelerator-handle qualification are deferred.
+
+CPU integer export shares immutable prefix products/centering thresholds and one
+strided reconstruction traversal for bounded signed/unsigned and exact-wide
+signed/unsigned output. Uniform or per-tile contracts and worker scratch are
+prepared before OpenMP. No per-cell residue vector or status array is allocated;
+remaining multiprecision exceptions are caught by the originating worker and
+resolved in deterministic cell order before any caller bytes are published.
+Per-value range/width checks, zero-tile proofs, limb widths and row padding remain
+part of the contract. Source changes and authored cold-table/all-prefix/limb and
+public worker-failure regressions await the deferred validation batch; allocation
+and timing improvements have not yet been measured.
