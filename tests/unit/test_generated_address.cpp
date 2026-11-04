@@ -58,3 +58,42 @@ TEST_CASE("export geometry admits signed32 endpoints with wide ceil and checked 
   CHECK_FALSE(checked_export_schedule(4,out,blocks));CHECK(blocks==6);
   CHECK_FALSE(checked_export_schedule(UINT64_MAX,out,blocks));CHECK(blocks==6);
 }
+
+#include "backend_common/host_upload.hpp"
+#include <cstring>
+#include <vector>
+
+TEST_CASE("host uploads describe only accessible logical rows and compact device storage") {
+  using namespace rns8::detail;
+  for(std::size_t element_bytes:{1u,8u})for(int64_t rows:{1,2,5})for(int64_t ld:{3,8,4096}) {
+    HostUploadPlan plan;
+    REQUIRE(make_host_upload_plan(rows,3,ld,element_bytes,plan));
+    CHECK(plan.source_span_bytes==((rows-1)*ld+3)*element_bytes);
+    CHECK(plan.device_bytes==rows*3*element_bytes);
+    CHECK(plan.device_ld==3);
+    std::vector<unsigned char> src(plan.source_span_bytes,0xa5),dst(plan.device_bytes,0);
+    // Model the actual 1D/2D boundary; reject oversized requests before reading.
+    auto copy=[&](std::size_t span) {
+      if(plan.source_span_bytes>span)return false;
+      for(std::size_t row=0;row<plan.rows;++row) {
+        const auto offset=row*plan.source_pitch_bytes;
+        if(offset>span || plan.row_bytes>span-offset)return false;
+        std::memcpy(dst.data()+row*plan.row_bytes,src.data()+offset,plan.row_bytes);
+      }
+      return true;
+    };
+    CHECK_FALSE(copy(src.size()-1));
+    REQUIRE(copy(src.size()));
+    CHECK(dst==std::vector<unsigned char>(plan.device_bytes,0xa5));
+  }
+  HostUploadPlan out;
+  REQUIRE(make_host_upload_plan(1,1,INT64_MAX,8,out));
+  CHECK(out.contiguous());CHECK(out.source_pitch_bytes==8);CHECK(out.device_bytes==8);
+  const auto before=out;
+  CHECK_FALSE(make_host_upload_plan(2,1,INT64_MAX,8,out));
+  CHECK_FALSE(make_host_upload_plan(INT64_MAX,INT64_MAX,INT64_MAX,8,out));
+  CHECK_FALSE(make_host_upload_plan(2,3,2,8,out));
+  CHECK_FALSE(make_host_upload_plan(0,1,1,8,out));
+  CHECK_FALSE(make_host_upload_plan(1,1,1,0,out));
+  CHECK(out.device_bytes==before.device_bytes);
+}

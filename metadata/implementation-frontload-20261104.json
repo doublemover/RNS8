@@ -560,8 +560,12 @@
       "url": "https://github.com/doublemover/RNS8/issues/82",
       "requirements_sha256": "825ca61a134f8965a42d2d8de04538a7fabdfad4c0b8305caff12ca39074db77",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "written_pending_batch_validation",
+      "completed_slices": [
+        "Shared checked logical host-row transfer plan with compact device strides and tracked contiguous/2D copies",
+        "Signed, unsigned, finite, wrap64, retained-native and direct native one-shot consumers migrated; removed trailing-pitch reads and retained-native host staging",
+        "Host boundary/overflow/trace tests and minimal-allocation HIP differential/one-shot cases authored; syntax checks passed, execution deferred"
+      ],
       "remaining_source_items": []
     },
     {

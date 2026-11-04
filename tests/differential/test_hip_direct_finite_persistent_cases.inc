@@ -674,3 +674,66 @@ TEST_CASE("finite exports cover scalar quad and block tails with logical padding
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("minimal host allocations pack logical cells for every integer storage contract") {
+  if(!hip_available())SKIP("HIP device required for compact host uploads");
+  auto* gpu=create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto* cpu=create_context(RNS8_BACKEND_CPU_REFERENCE);
+  for(int64_t rows:{1,2})for(bool retain:{false,true}) {
+    constexpr int64_t cols=3,ld=8;
+    std::vector<uint64_t> source(static_cast<size_t>((rows-1)*ld+cols),17);
+    for(int64_t r=0;r<rows;++r)for(int64_t c=0;c<cols;++c)source[size_t(r*ld+c)]=uint64_t(r*11+c+1);
+    for(auto semantics:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
+      const bool signed_values=semantics==RNS8_BOUNDED_I64 || semantics==RNS8_EXACT_WIDE_SIGNED;
+      auto md=matrix_desc(rows,cols,semantics,signed_values?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+      rns8_matrix *a=nullptr,*reference=nullptr;
+      REQUIRE(rns8_create_matrix(cpu,&md,&reference)==RNS8_SUCCESS);
+      md.flags=retain?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;
+      REQUIRE(rns8_create_matrix(gpu,&md,&a)==RNS8_SUCCESS);
+      const auto* signed_source=reinterpret_cast<const int64_t*>(source.data());
+      REQUIRE((signed_values?rns8_pack_i64(cpu,reference,signed_source,ld,0):rns8_pack_u64(cpu,reference,source.data(),ld,0))==RNS8_SUCCESS);
+      rns8::detail::hip_direct_allocation_counters_reset();
+      REQUIRE((signed_values?rns8_pack_i64(gpu,a,signed_source,ld,0):rns8_pack_u64(gpu,a,source.data(),ld,0))==RNS8_SUCCESS);
+      CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().h2d_bytes==rows*cols*8);
+      std::vector<int8_t> actual(reference->residues.size());
+      REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,actual.data(),a->hip_residues,actual.size())==RNS8_SUCCESS);
+      CHECK(actual==reference->residues);
+      CHECK(a->source_version==0);
+      REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(reference)==RNS8_SUCCESS);
+    }
+    for(uint16_t q:{251,255,256}) {
+      auto md=matrix_desc(rows,cols,RNS8_FINITE_RING_U8,RNS8_BOUND_NONE);
+      rns8_matrix* a=nullptr;REQUIRE(rns8_create_matrix(gpu,&md,&a)==RNS8_SUCCESS);
+      std::vector<uint8_t> bytes(static_cast<size_t>((rows-1)*ld+cols),255),actual(size_t(rows*cols));
+      REQUIRE(rns8_pack_finite_u8(gpu,a,q,bytes.data(),ld,0)==RNS8_SUCCESS);
+      REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,actual.data(),a->hip_residues,actual.size())==RNS8_SUCCESS);
+      const int value=255%q;const int centered=value>int(q/2)?value-int(q):value;
+      for(auto byte:actual)CHECK(byte==uint8_t(centered));
+      REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);
+    }
+    auto md=matrix_desc(rows,cols,RNS8_WRAP_U64_MOD_2_64,RNS8_BOUND_NONE);
+    rns8_matrix* wrap=nullptr;REQUIRE(rns8_create_matrix(gpu,&md,&wrap)==RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(gpu,wrap,source.data(),ld,0)==RNS8_SUCCESS);
+    std::vector<uint8_t> limbs(size_t(rows*cols*8));
+    REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,limbs.data(),wrap->hip_byte_limbs,limbs.size())==RNS8_SUCCESS);
+    for(int64_t r=0;r<rows;++r)for(int64_t c=0;c<cols;++c)for(int byte=0;byte<8;++byte)
+      CHECK(limbs[size_t((r*cols+c)*8+byte)]==uint8_t(source[size_t(r*ld+c)]>>(8*byte)));
+    REQUIRE(rns8_destroy_matrix(wrap)==RNS8_SUCCESS);
+  }
+  // Native one-shots must pass compact device strides after the 2D upload.
+  std::vector<int64_t> a(11,1),b(18,2),out(10,99);
+  auto d=signed_desc(2,2,3,6,RNS8_BACKEND_HIP_DIRECT);d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;
+  REQUIRE(rns8_gemm_i64_oneshot(gpu,&d,a.data(),8,b.data(),8,out.data(),8)==RNS8_SUCCESS);
+  CHECK(out[0]==6);CHECK(out[1]==6);CHECK(out[8]==6);CHECK(out[9]==6);CHECK(out[2]==99);
+  std::vector<uint64_t> ua(11,1),ub(18,2),uo(10,99);
+  d=unsigned_desc(2,2,3,6,RNS8_BACKEND_HIP_DIRECT);d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;
+  REQUIRE(rns8_gemm_u64_oneshot(gpu,&d,ua.data(),8,ub.data(),8,uo.data(),8)==RNS8_SUCCESS);
+  CHECK(uo[0]==6);CHECK(uo[1]==6);CHECK(uo[8]==6);CHECK(uo[9]==6);CHECK(uo[2]==99);
+  for(uint16_t q:{251,255,256}) {
+    std::vector<uint8_t> fa(11,1),fb(18,2),fo(10,99);
+    auto fd=finite_desc(2,2,3,RNS8_FINITE_RING_U8,RNS8_BACKEND_HIP_DIRECT,q);
+    REQUIRE(rns8_gemm_finite_ring_u8_oneshot(gpu,&fd,q,fa.data(),8,fb.data(),8,fo.data(),8)==RNS8_SUCCESS);
+    CHECK(fo[0]==6);CHECK(fo[1]==6);CHECK(fo[8]==6);CHECK(fo[9]==6);CHECK(fo[2]==99);
+  }
+  REQUIRE(rns8_destroy_context(cpu)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(gpu)==RNS8_SUCCESS);
+}

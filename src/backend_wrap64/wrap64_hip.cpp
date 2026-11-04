@@ -97,18 +97,6 @@ bool checked_matrix_elements_i32(int64_t rows, int64_t cols) {
          static_cast<uint64_t>(std::numeric_limits<int>::max()) / static_cast<uint64_t>(cols);
 }
 
-bool checked_u64_row_pitch_bytes(int64_t rows, int64_t ld, std::size_t* bytes) {
-  if (!bytes || rows <= 0 || ld <= 0) {
-    return false;
-  }
-  const uint64_t max_items = static_cast<uint64_t>(std::numeric_limits<std::size_t>::max() / sizeof(uint64_t));
-  if (static_cast<uint64_t>(rows) > max_items / static_cast<uint64_t>(ld)) {
-    return false;
-  }
-  *bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(ld) * sizeof(uint64_t);
-  return true;
-}
-
 bool checked_u64_compact_bytes(int64_t rows, int64_t cols, std::size_t* bytes) {
   if (!bytes || rows <= 0 || cols <= 0) {
     return false;
@@ -193,9 +181,9 @@ rns8_status wrap64_hip_pack_u64_device(
   if (!src || !upload_buffer || !upload_bytes || !device_byte_limbs || ld < cols) {
     return RNS8_INVALID_ARGUMENT;
   }
-  std::size_t source_bytes = 0;
+  HostUploadPlan upload;
   Wrap64CompactLayout compact_layout;
-  if (!checked_matrix_elements_i32(rows, cols) || !checked_u64_row_pitch_bytes(rows, ld, &source_bytes) ||
+  if (!checked_matrix_elements_i32(rows, cols) || !make_host_upload_plan(rows, cols, ld, sizeof(uint64_t), upload) ||
       !checked_compact_byte_limb_layout(rows, cols, &compact_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -204,23 +192,20 @@ rns8_status wrap64_hip_pack_u64_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = hip_direct_ensure_upload_buffer(device_id, source_bytes, upload_buffer, upload_bytes);
+  status = hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  hipError_t err = timed_hip_operation("pack_h2d", [&]() {
-    return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  err = timed_hip_operation("pack_kernel", [&]() {
+  status = hip_direct_upload_host_matrix(device_id, "pack_h2d", *upload_buffer,
+      *upload_bytes, src, upload);
+  if (status != RNS8_SUCCESS) return status;
+  hipError_t err = timed_hip_operation("pack_kernel", [&]() {
     const int code = rns8_wrap64_hip_pack_u64_device(
         static_cast<const uint64_t*>(*upload_buffer),
         static_cast<uint8_t*>(device_byte_limbs),
         rows,
         cols,
-        ld);
+        upload.device_ld);
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -235,7 +220,7 @@ rns8_status wrap64_hip_pack_u64_device(
   (void)upload_buffer;
   (void)upload_bytes;
   (void)device_byte_limbs;
-  (void)source_bytes;
+  (void)upload;
   (void)compact_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
@@ -313,10 +298,10 @@ rns8_status wrap64_hip_export_u64_device(
     return RNS8_INVALID_ARGUMENT;
   }
   std::size_t output_bytes = 0;
-  std::size_t destination_bytes = 0;
+  AddressDomain destination;
   Wrap64CompactLayout compact_layout;
   if (!checked_u64_compact_bytes(rows, cols, &output_bytes) ||
-      !checked_u64_row_pitch_bytes(rows, ld, &destination_bytes) ||
+      !checked_host_plane_address(rows, cols, ld, 1, sizeof(*dst), destination) ||
       !checked_compact_byte_limb_layout(rows, cols, &compact_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -348,7 +333,7 @@ rns8_status wrap64_hip_export_u64_device(
   (void)export_buffer;
   (void)export_bytes;
   (void)output_bytes;
-  (void)destination_bytes;
+  (void)destination;
   (void)compact_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 

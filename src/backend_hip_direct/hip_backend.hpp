@@ -26,6 +26,7 @@
 #include "backend_common/integrity_identity.hpp"
 #include "backend_common/native_narrow.hpp"
 #include "backend_common/native_tdm.hpp"
+#include "backend_common/host_upload.hpp"
 
 namespace rns8::detail {
 rns8_status hip_direct_gram_five_product(int,const void*,void*,const GramFiveResources&,void*,uint64_t,bool,bool&);
@@ -439,6 +440,8 @@ rns8_status hip_direct_copy_host_to_device_labeled(
     void* dst,
     const void* src,
     std::size_t bytes);
+rns8_status hip_direct_upload_host_matrix(int device_id, const char* timing_label,
+    void* dst, std::size_t capacity, const void* src, const HostUploadPlan& plan);
 rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const void* src, std::size_t bytes);
 rns8_status hip_direct_ensure_upload_buffer(int device_id, std::size_t bytes, void** buffer, std::size_t* capacity);
 rns8_status hip_direct_copy_compact_matrix_device_to_host(

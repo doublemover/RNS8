@@ -28,6 +28,14 @@ beyond their admitted domain. Resource queries and launch preparation use the
 same result. Direct-HIP integer exporters derive scalar/quad/scheduled grids
 with wide checked arithmetic and the selected device's grid limits.
 
+Host matrix uploads distinguish the accessed source span from its row pitch.
+They allocate compact device storage, transfer only logical row widths, and use
+the compact device stride in conversion and compute. The final host row needs
+no trailing padding, and an unused single-row pitch does not enlarge the copy.
+Signed/unsigned, finite, byte-limb, retained-native and native one-shot paths
+share this checked transfer plan. These are source-level transfer bounds;
+performance comparisons remain pending measurement.
+
 | Backend / benchmark name | State and enablement | Arithmetic / constraints | Evidence or implementation owner |
 |---|---|---|---|
 | `cpu-reference` | Available public path | Bounded, exact-wide, finite; independent Boost reference, optional OpenMP | [Correctness](correctness.md), [developer checks](../CONTRIBUTING.md) |

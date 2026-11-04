@@ -139,20 +139,6 @@ rns8_status create_resident_oneshot_state(
   return status;
 }
 
-bool checked_native_input_bytes(int64_t rows, int64_t ld, std::size_t element_size, std::size_t& bytes) {
-  bytes = 0;
-  if (rows <= 0 || ld <= 0 || element_size == 0) {
-    return false;
-  }
-  const auto max_size = std::numeric_limits<std::size_t>::max();
-  if (static_cast<uint64_t>(rows) >
-      static_cast<uint64_t>(max_size / element_size / static_cast<std::size_t>(ld))) {
-    return false;
-  }
-  bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(ld) * element_size;
-  return true;
-}
-
 bool direct_hip_native_prefix9_oneshot_eligible(
     const rns8_context& ctx,
     const rns8_gemm_desc& desc,
@@ -245,21 +231,22 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  std::size_t a_bytes = 0;
-  std::size_t b_bytes = 0;
-  if (!checked_native_input_bytes(desc.m, lda, sizeof(int64_t), a_bytes) ||
-      !checked_native_input_bytes(desc.k, ldb, sizeof(int64_t), b_bytes)) {
+  rns8::detail::HostUploadPlan a_upload, b_upload;
+  if (!rns8::detail::make_host_upload_plan(desc.m, desc.k, lda, sizeof(int64_t), a_upload) ||
+      !rns8::detail::make_host_upload_plan(desc.k, desc.n, ldb, sizeof(int64_t), b_upload)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  status = state.device_a.allocate(ctx->device_id, a_bytes);
+  status = state.device_a.allocate(ctx->device_id, a_upload.device_bytes);
   if (status == RNS8_SUCCESS) {
-    status = state.device_b.allocate(ctx->device_id, b_bytes);
+    status = state.device_b.allocate(ctx->device_id, b_upload.device_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_a.get(), A, a_bytes);
+    status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
+        state.device_a.get(), a_upload.device_bytes, A, a_upload);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b.get(), B, b_bytes);
+    status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
+        state.device_b.get(), b_upload.device_bytes, B, b_upload);
   }
   if (status == RNS8_SUCCESS) {
     if (large_native_prefix9_colpair_shape(desc)) {
@@ -271,8 +258,8 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
           desc.m,
           desc.n,
           desc.k,
-          lda,
-          ldb,
+          a_upload.device_ld,
+          b_upload.device_ld,
           state.C->desc.logical_ld);
     } else {
       status = rns8::detail::hip_direct_gemm_i64_native_prefix9_device(
@@ -283,8 +270,8 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
           desc.m,
           desc.n,
           desc.k,
-          lda,
-          ldb,
+          a_upload.device_ld,
+          b_upload.device_ld,
           state.C->desc.logical_ld);
     }
   }
@@ -311,21 +298,22 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  std::size_t a_bytes = 0;
-  std::size_t b_bytes = 0;
-  if (!checked_native_input_bytes(desc.m, lda, sizeof(uint64_t), a_bytes) ||
-      !checked_native_input_bytes(desc.k, ldb, sizeof(uint64_t), b_bytes)) {
+  rns8::detail::HostUploadPlan a_upload, b_upload;
+  if (!rns8::detail::make_host_upload_plan(desc.m, desc.k, lda, sizeof(uint64_t), a_upload) ||
+      !rns8::detail::make_host_upload_plan(desc.k, desc.n, ldb, sizeof(uint64_t), b_upload)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  status = state.device_a.allocate(ctx->device_id, a_bytes);
+  status = state.device_a.allocate(ctx->device_id, a_upload.device_bytes);
   if (status == RNS8_SUCCESS) {
-    status = state.device_b.allocate(ctx->device_id, b_bytes);
+    status = state.device_b.allocate(ctx->device_id, b_upload.device_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_a.get(), A, a_bytes);
+    status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
+        state.device_a.get(), a_upload.device_bytes, A, a_upload);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b.get(), B, b_bytes);
+    status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
+        state.device_b.get(), b_upload.device_bytes, B, b_upload);
   }
   if (status == RNS8_SUCCESS) {
     if (large_native_prefix9_colpair_shape(desc)) {
@@ -337,8 +325,8 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
           desc.m,
           desc.n,
           desc.k,
-          lda,
-          ldb,
+          a_upload.device_ld,
+          b_upload.device_ld,
           state.C->desc.logical_ld);
     } else {
       status = rns8::detail::hip_direct_gemm_u64_native_prefix9_device(
@@ -349,8 +337,8 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
           desc.m,
           desc.n,
           desc.k,
-          lda,
-          ldb,
+          a_upload.device_ld,
+          b_upload.device_ld,
           state.C->desc.logical_ld);
     }
   }
@@ -377,21 +365,22 @@ rns8_status direct_hip_finite_u8_native_oneshot(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  std::size_t a_bytes = 0;
-  std::size_t b_bytes = 0;
-  if (!checked_native_input_bytes(desc.m, lda, sizeof(uint8_t), a_bytes) ||
-      !checked_native_input_bytes(desc.k, ldb, sizeof(uint8_t), b_bytes)) {
+  rns8::detail::HostUploadPlan a_upload, b_upload;
+  if (!rns8::detail::make_host_upload_plan(desc.m, desc.k, lda, sizeof(uint8_t), a_upload) ||
+      !rns8::detail::make_host_upload_plan(desc.k, desc.n, ldb, sizeof(uint8_t), b_upload)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  status = state.device_a.allocate(ctx->device_id, a_bytes);
+  status = state.device_a.allocate(ctx->device_id, a_upload.device_bytes);
   if (status == RNS8_SUCCESS) {
-    status = state.device_b.allocate(ctx->device_id, b_bytes);
+    status = state.device_b.allocate(ctx->device_id, b_upload.device_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_a.get(), A, a_bytes);
+    status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
+        state.device_a.get(), a_upload.device_bytes, A, a_upload);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b.get(), B, b_bytes);
+    status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
+        state.device_b.get(), b_upload.device_bytes, B, b_upload);
   }
   if (status == RNS8_SUCCESS) {
     status = rns8::detail::hip_direct_gemm_finite_u8_native_device(
@@ -402,8 +391,8 @@ rns8_status direct_hip_finite_u8_native_oneshot(
         desc.m,
         desc.n,
         desc.k,
-        lda,
-        ldb,
+        a_upload.device_ld,
+        b_upload.device_ld,
         state.C->desc.logical_ld,
         modulus);
   }
