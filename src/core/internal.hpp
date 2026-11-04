@@ -35,12 +35,19 @@ struct rns8_cpu_export_test_hooks {
   void* state=nullptr;
   void (*cell)(void*,int64_t,uint32_t)=nullptr;
 };
+struct rns8_cleanup_test_hooks {
+  void* state=nullptr;
+  rns8_status (*release)(void*,const char*,const void*) noexcept=nullptr;
+};
 struct rns8_context {
+  const rns8_cleanup_test_hooks* cleanup_test_hooks=nullptr;
   const rns8_synchronous_test_hooks* synchronous_test_hooks=nullptr;
   const rns8_cpu_export_test_hooks* cpu_export_test_hooks=nullptr;
   std::vector<rns8_synchronous_lease> failed_work_leases;
   // Intrusive ownership requires no allocation while recovering construction failure.
   rns8_matrix* failed_matrix_cleanup = nullptr;
+  rns8_workspace* failed_workspace_cleanup = nullptr;
+  rns8_plan* failed_plan_cleanup = nullptr;
   rns8_ragged_materialization* failed_ragged_cleanup = nullptr;
   rns8_native_device_lease* active_native_operations = nullptr;
   rns8_native_device_lease* native_leases = nullptr;
@@ -74,6 +81,7 @@ struct rns8_validated_plan_contract {
 };
 
 struct rns8_plan {
+  rns8_plan* failed_cleanup_next=nullptr;
   uint32_t cpu_amx_prepared_threads = 1;
   rns8_auto_trace_info auto_trace{};
   std::vector<rns8_auto_decision> auto_decisions;
@@ -245,6 +253,7 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
+  rns8_workspace* failed_cleanup_next=nullptr;
   std::shared_ptr<rns8::detail::CpuAmxWorkspace> cpu_amx;
   rns8::detail::hip_direct_device_buffer arena_owner;
   rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;

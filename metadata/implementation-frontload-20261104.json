@@ -293,12 +293,15 @@
         "Host native/finite/wrap/wide-limb imports use the shared failure-retaining write guard; canonical wrap64 export retains readers; seven actual public CPU import failure/drain mock rows authored",
         "Complex paired operations and finite verifier retain fixed-size stack lease sets rather than fresh heap lease vectors",
         "hipBLASLt context, operation/layout/preference resources use reserve-before-acquire typed owners with library callbacks in the existing deferred queue; context creation is exception scoped",
-        "Ordinary and prepared descriptor close share retry-preserving release; ordinary success reports cleanup failure while compute failure retains its original status; throwing publication and mixed release host mocks authored"
+        "Ordinary and prepared descriptor close share retry-preserving release; ordinary success reports cleanup failure while compute failure retains its original status; throwing publication and mixed release host mocks authored",
+        "Prepared exact-lift, ordered-basis conversion and pinned-host transfer streams use typed reserve-before-acquire owners and retry retirement; post-acquisition host unwind fixtures authored",
+        "Resident and direct-native one-shot calls explicitly close resources, preserve original operation status, and retire failed whole matrix/workspace/plan owners to intrusive context lists without allocating",
+        "Native one-shot output reservations and pending temporary inputs survive simulated failed preparation/submission and late drain; normal completion releases the writer before export",
+        "All six public export formats retain read leases through exceptions/uncertain completion without invalidating resident publication; host mock coverage authored",
+        "Every aggregate release position, construction unwind, public failed-import retirement, native HIP checkpoint and context cleanup retry has authored coverage; CPU and enabled-HIP syntax checks passed, runtime execution deferred"
       ],
       "remaining_source_items": [
-        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory",
-        "Convert prepared exact-lift, basis-conversion and pinned-host streams to typed retirement owners",
-        "Add status-bearing one-shot aggregate close and context-owned retirement for retained matrix/workspace owners"
+        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
       ]
     },
     {

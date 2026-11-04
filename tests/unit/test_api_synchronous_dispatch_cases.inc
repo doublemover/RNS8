@@ -22,6 +22,42 @@ struct SynchronousDispatchFixture {
 };
 }
 
+TEST_CASE("public exports retain read ownership without invalidating resident values", "[api][export][lifetime]") {
+  for(const auto semantics:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED,RNS8_FINITE_RING_U8,RNS8_WRAP_U64_MOD_2_64})
+    for(unsigned failure=0;failure<4;++failure) {
+      CAPTURE(semantics,failure);
+      const bool wrap=semantics==RNS8_WRAP_U64_MOD_2_64,finite=semantics==RNS8_FINITE_RING_U8;
+      const bool bounded=semantics==RNS8_BOUNDED_I64 || semantics==RNS8_BOUNDED_U64;
+      const bool sign=semantics==RNS8_BOUNDED_I64 || semantics==RNS8_EXACT_WIDE_SIGNED;
+      auto* ctx=wrap?create_wrap_context():create_cpu_context();
+      auto desc=wrap?wrap_gemm_desc(1,1,1):finite?finite_gemm_desc(semantics,1,1,1,251):bounded?bounded_gemm_desc(semantics,1,1,1):exact_desc(semantics,1,1,1);
+      auto md=wrap?wrap_matrix_desc(1,1):finite?finite_matrix_desc(1,1,semantics):bounded?bounded_matrix_desc(1,1,semantics):exact_matrix_desc(1,1,semantics);
+      rns8_plan* plan=nullptr;rns8_matrix* matrix=nullptr;
+      REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+      const int64_t one=1;const uint64_t uone=1;const uint8_t byte=1;
+      REQUIRE((finite?rns8_pack_finite_u8(ctx,matrix,251,&byte,1,1):sign?rns8_pack_i64(ctx,matrix,&one,1,1):rns8_pack_u64(ctx,matrix,&uone,1,1))==RNS8_SUCCESS);
+      const auto generation=matrix->content_generation;const auto residues=matrix->residues;
+      std::array<int64_t,5> signed_output;std::array<uint64_t,5> unsigned_output;std::array<uint8_t,5> byte_output;
+      signed_output.fill(77);unsigned_output.fill(77);byte_output.fill(77);
+      SynchronousDispatchFixture fixture;fixture.readers={matrix};fixture.fail=failure==0 || failure==2;
+      fixture.throw_after_issue=failure==1;fixture.drain_fails=failure<2;
+      const rns8_synchronous_test_hooks hooks{&fixture,&SynchronousDispatchFixture::dispatch,&SynchronousDispatchFixture::drain};
+      ctx->synchronous_test_hooks=&hooks;
+      const auto status=finite?rns8_export_finite_u8(ctx,plan,251,matrix,byte_output.data(),3):wrap?rns8_export_wrap_u64(ctx,plan,matrix,unsigned_output.data(),3):
+        bounded?(sign?rns8_export_i64(ctx,plan,matrix,signed_output.data(),3):rns8_export_u64(ctx,plan,matrix,unsigned_output.data(),3)):
+        sign?rns8_export_exact_wide_signed_limbs(ctx,plan,matrix,unsigned_output.data(),3,3):rns8_export_exact_wide_unsigned_limbs(ctx,plan,matrix,unsigned_output.data(),3,3);
+      CHECK(status==(failure==3?RNS8_SUCCESS:failure==1?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE));
+      CHECK(fixture.calls==1);CHECK(fixture.reservations_observed);CHECK(matrix->content_generation==generation);CHECK(matrix->residues==residues);
+      CHECK_FALSE(matrix->in_flight_writer);CHECK(signed_output[4]==77);CHECK(unsigned_output[4]==77);CHECK(byte_output[4]==77);
+      if(failure!=3){CHECK(signed_output[0]==77);CHECK(unsigned_output[0]==77);CHECK(byte_output[0]==77);}
+      if(failure<2){CHECK(matrix->in_flight_readers==1);CHECK(rns8_destroy_matrix(matrix)==RNS8_BUSY);
+        fixture.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);CHECK(ctx->hip_failure_poisoned);}
+      CHECK(matrix->in_flight_readers==0);CHECK(ctx->failed_work_leases.empty());
+      ctx->synchronous_test_hooks=nullptr;REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+    }
+}
+
 TEST_CASE("public synchronous dispatch retains every dependency after uncertain completion", "[api][lifetime]") {
   for(const std::string operation:{"rns","finite","wrap64","gram","axpby","complex","verify"})
     for(unsigned failure=0;failure<5;++failure) {

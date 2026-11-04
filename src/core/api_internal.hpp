@@ -212,17 +212,23 @@ rns8_status run_timed_api_status(const char* label, Fn&& fn) {
 }
 
 struct resident_oneshot_state {
+  rns8_context* ctx=nullptr;
   rns8_plan* plan = nullptr;
   rns8_matrix* A = nullptr;
   rns8_matrix* B = nullptr;
   rns8_matrix* C = nullptr;
   rns8_workspace* workspace = nullptr;
 
-  resident_oneshot_state() = default;
+  explicit resident_oneshot_state(rns8_context* owner=nullptr):ctx(owner){}
   resident_oneshot_state(const resident_oneshot_state&) = delete;
   resident_oneshot_state& operator=(const resident_oneshot_state&) = delete;
   ~resident_oneshot_state();
+  rns8_status cleanup_status=RNS8_SUCCESS;
+  rns8_status finish(rns8_status operation=RNS8_SUCCESS) noexcept;
 };
+rns8_status close_owned_matrix(rns8_context&,rns8_matrix*&) noexcept;
+rns8_status close_owned_workspace(rns8_context&,rns8_workspace*&) noexcept;
+rns8_status close_owned_plan(rns8_context&,rns8_plan*&) noexcept;
 
 rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_kind default_backend);
 

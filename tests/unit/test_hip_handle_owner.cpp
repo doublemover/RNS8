@@ -56,6 +56,7 @@ struct LibraryHandles:Handles {
   }
 };
 using LibraryOwner=rns8::detail::basic_hip_handle<LibraryHandles>;
+struct TransferStreamHandles:Handles {static constexpr auto kind=rns8::detail::hip_deferred_allocation_kind::stream;};
 void* handle(uintptr_t value) { return reinterpret_cast<void*>(value); }
 }  // namespace
 
@@ -154,6 +155,22 @@ TEST_CASE("partially created library descriptor sets close independently without
     REQUIRE(record->release_library_handle);CHECK(record->release_library_handle(record->device_id,record->pointer));
   }
   for(unsigned id=1;id<=6;++id)CHECK(LibraryHandles::released[id]==1);
+}
+
+TEST_CASE("prepared transfer stream acquisition survives post acquisition construction failure") {
+  for(const auto* transfer:{"exact_lift","basis_conversion","pinned_host"}) {
+    INFO(transfer);HandleEnvironment environment;
+    try {
+      rns8::detail::basic_hip_handle<TransferStreamHandles> stream;
+      REQUIRE(stream.create([](void** out) noexcept {*out=handle(11);return RNS8_SUCCESS;})==RNS8_SUCCESS);
+      Handles::fail=true;throw std::bad_alloc{};
+    }catch(const std::bad_alloc&){}
+    REQUIRE(Handles::count==1);auto* record=Handles::deferred[0];
+    CHECK(record->pointer==handle(11));CHECK(record->device_id==7);CHECK(record->kind==TransferStreamHandles::kind);
+    CHECK(Handles::destroy(record->device_id,record->pointer)==RNS8_BACKEND_FAILURE);
+    Handles::fail=false;CHECK(Handles::destroy(record->device_id,record->pointer)==RNS8_SUCCESS);
+    CHECK(Handles::destroyed_device==7);
+  }
 }
 
 TEST_CASE(

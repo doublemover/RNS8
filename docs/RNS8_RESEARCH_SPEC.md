@@ -2111,6 +2111,21 @@ uncertain device completion retains reservations and scratch for cleanup retry.
 See [split-K ownership](native-split-k.md). This does not promote split-K into
 AUTO or imply that the private native matrix-engine route shares this owner.
 
+Synchronous exports retain read reservations for all public output formats.
+An uncertain failure preserves the resident value and its generation while
+retaining its storage until a successful drain. One-shot native calls also
+reserve their output and mark temporary input buffers pending before transfer;
+the owned writer is released before export only after native computation
+completes. Normal one-shot returns explicitly close owned resources and report
+cleanup failure. Original operation errors retain precedence over cleanup
+errors. Failed matrix/workspace/plan closes transfer whole owners to intrusive
+context cleanup lists without allocating during unwinding; context destruction
+drains outstanding leases before retrying those owners. Exact-lift,
+basis-conversion and pinned-host prepared transfers use the common typed stream
+owner, including construction failures after stream acquisition. These source
+contracts have authored host failure fixtures; the current frontload pass has
+not yet executed their validation batch.
+
 
 ## Research group-CRT bridge
 

@@ -327,6 +327,12 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
+    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_i64");
+    if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (native_vector_backend(plan->backend)) {
       return export_native_i64(*ctx, *plan, *C, dst, ld);
     }
@@ -376,6 +382,7 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
           ld);
     }
     return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::bounded_signed,1);
+    }());
   });
 }
 
@@ -394,6 +401,12 @@ rns8_status rns8_export_u64(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
+    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_u64");
+    if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (native_vector_backend(plan->backend)) {
       return export_native_u64(*ctx, *plan, *C, dst, ld);
     }
@@ -443,6 +456,7 @@ rns8_status rns8_export_u64(
           ld);
     }
     return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::bounded_unsigned,1);
+    }());
   });
 }
 
@@ -461,6 +475,12 @@ rns8_status rns8_export_wrap_u64(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
+    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"wrap64_export");
+    if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (!wrap_matrix_storage_matches(*C, plan->backend, plan->desc.m, plan->desc.n)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -490,12 +510,6 @@ rns8_status rns8_export_wrap_u64(
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
-      if(reserved!=RNS8_SUCCESS)return reserved;
-      SynchronousLease lease(*ctx,token);
-      return lease.finish([&]() -> rns8_status {
-      const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"wrap64_export");
-      if(dispatched!=RNS8_SUCCESS)return dispatched;
       return rns8::detail::wrap64_hip_export_u64_device(
           ctx->device_id,
           C->hip_byte_limbs,
@@ -503,9 +517,9 @@ rns8_status rns8_export_wrap_u64(
           plan->desc.n,
           dst,
           ld);
-      }());
     }
     return RNS8_UNSUPPORTED_BACKEND;
+    }());
   });
 }
 
@@ -524,6 +538,12 @@ rns8_status rns8_export_finite_u8(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
+    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_finite_u8");
+    if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (hip_resident_rns_backend(plan->backend)) {
       const export_reconstruction_plan export_plan = make_export_plan(*plan, plan->desc.semantics);
       rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
@@ -543,6 +563,7 @@ rns8_status rns8_export_finite_u8(
       return RNS8_SUCCESS;
     }
     return RNS8_UNSUPPORTED_BACKEND;
+    }());
   });
 }
 
@@ -562,6 +583,12 @@ rns8_status rns8_export_exact_wide_signed_limbs(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
+    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_wide_signed");
+    if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (hip_resident_rns_backend(plan->backend)) {
       if (!C->device_residues_current) {
         return RNS8_INVALID_ARGUMENT;
@@ -584,6 +611,7 @@ rns8_status rns8_export_exact_wide_signed_limbs(
           limb_count);
     }
     return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::wide_signed,limb_count);
+    }());
   });
 }
 
@@ -603,6 +631,12 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
+    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_wide_unsigned");
+    if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (hip_resident_rns_backend(plan->backend)) {
       if (!C->device_residues_current) {
         return RNS8_INVALID_ARGUMENT;
@@ -625,6 +659,7 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
           limb_count);
     }
     return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::wide_unsigned,limb_count);
+    }());
   });
 }
 

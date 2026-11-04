@@ -5,7 +5,7 @@ class PreparedExactLift final:public PreparedTransfer {
   void* allocation=nullptr;uint64_t bytes=0;boost::multiprecision::cpp_int envelope;
   uint64_t bound_limbs[3]{};rns8::detail::hip_direct_device_buffer scratch;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  rns8::detail::hip_pinned_host_buffer host_status;hipStream_t owned_stream=nullptr;
+  rns8::detail::hip_pinned_host_buffer host_status;rns8::detail::hip_unique_stream owned_stream;
 #endif
   ~PreparedExactLift() override {(void)close();}
   bool writes_matrix() const noexcept override{return true;}
@@ -15,7 +15,7 @@ class PreparedExactLift final:public PreparedTransfer {
   const char* operation_name() const noexcept override{return "exact_base_extension";}
   void* sync_stream() const noexcept override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    return owned_stream;
+    return owned_stream.get();
 #else
     return nullptr;
 #endif
@@ -74,8 +74,7 @@ class PreparedExactLift final:public PreparedTransfer {
   }
   rns8_status close() override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if(owned_stream){rns8::detail::hip_scoped_device selected(ctx->device_id);
-      if(selected.status()!=hipSuccess || hipStreamDestroy(owned_stream)!=hipSuccess)return RNS8_BACKEND_FAILURE;owned_stream=nullptr;}
+    if(owned_stream.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     if(host_status.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
 #endif
     return scratch.reset();
@@ -114,7 +113,7 @@ rns8_status rns8_prepare_exact_lift_hip(rns8_context* ctx,rns8_matrix* matrix,
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     hip_scoped_device selected(ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     if(needed){const auto status=owner->scratch.allocate(ctx->device_id,static_cast<size_t>(needed));if(status!=RNS8_SUCCESS)return status;}
-    if(owner->host_status.ensure(ctx->device_id,4)!=hipSuccess || hipStreamCreateWithFlags(&owner->owned_stream,hipStreamNonBlocking)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(owner->host_status.ensure(ctx->device_id,4)!=hipSuccess || owner->owned_stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     return create_transfer_prepared(std::move(owner),out);
 #else
     return RNS8_UNSUPPORTED_BACKEND;

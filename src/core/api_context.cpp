@@ -303,10 +303,20 @@ rns8_status rns8_destroy_context(rns8_context* ctx) {
   }
   while (ctx && ctx->failed_matrix_cleanup) {
     auto* matrix = ctx->failed_matrix_cleanup;
-    const auto status = free_hip_matrix_storage(*matrix);
+    auto* next=matrix->failed_cleanup_next;
+    const auto status = close_owned_matrix(*ctx,matrix);
     if (status != RNS8_SUCCESS) return status;
-    ctx->failed_matrix_cleanup = matrix->failed_cleanup_next;
-    delete matrix;
+    ctx->failed_matrix_cleanup = next;
+  }
+  while(ctx && ctx->failed_workspace_cleanup) {
+    auto* workspace=ctx->failed_workspace_cleanup;auto* next=workspace->failed_cleanup_next;
+    const auto status=close_owned_workspace(*ctx,workspace);if(status!=RNS8_SUCCESS)return status;
+    ctx->failed_workspace_cleanup=next;
+  }
+  while(ctx && ctx->failed_plan_cleanup) {
+    auto* plan=ctx->failed_plan_cleanup;auto* next=plan->failed_cleanup_next;
+    const auto status=close_owned_plan(*ctx,plan);if(status!=RNS8_SUCCESS)return status;
+    ctx->failed_plan_cleanup=next;
   }
   if (ctx && ctx->device_id>=0) {
     const auto status=rns8::detail::hip_direct_collect_deferred_buffers(ctx->device_id);

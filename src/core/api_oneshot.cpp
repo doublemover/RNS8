@@ -3,28 +3,91 @@
 
 namespace rns8::detail::api {
 
+namespace {
+rns8_status cleanup_checkpoint(rns8_context& ctx,const char* kind,const void* pointer) noexcept {
+  const auto* hook=ctx.cleanup_test_hooks;
+  return hook && hook->release?hook->release(hook->state,kind,pointer):RNS8_SUCCESS;
+}
+template<class Owner> void retire_owned(rns8_context& ctx,Owner*& owner,Owner*& head) noexcept {
+  if(!owner)return;
+  owner->failed_cleanup_next=head;head=owner;owner=nullptr;ctx.hip_failure_poisoned=true;
+}
+void retain_first_cleanup(rns8_status& result,rns8_status next) noexcept {if(result==RNS8_SUCCESS)result=next;}
+}
+rns8_status close_owned_matrix(rns8_context& ctx,rns8_matrix*& matrix) noexcept {
+  if(!matrix)return RNS8_SUCCESS;
+  auto status=cleanup_checkpoint(ctx,"matrix",matrix);
+  if(status==RNS8_SUCCESS)status=rns8_destroy_matrix(matrix);
+  if(status==RNS8_SUCCESS)matrix=nullptr;
+  return status;
+}
+rns8_status close_owned_workspace(rns8_context& ctx,rns8_workspace*& workspace) noexcept {
+  if(!workspace)return RNS8_SUCCESS;
+  auto status=cleanup_checkpoint(ctx,"workspace",workspace);
+  if(status==RNS8_SUCCESS)status=rns8_destroy_workspace(workspace);
+  if(status==RNS8_SUCCESS)workspace=nullptr;
+  return status;
+}
+rns8_status close_owned_plan(rns8_context& ctx,rns8_plan*& plan) noexcept {
+  if(!plan)return RNS8_SUCCESS;
+  auto status=cleanup_checkpoint(ctx,"plan",plan);
+  if(status==RNS8_SUCCESS)status=rns8_destroy_plan(plan);
+  if(status==RNS8_SUCCESS)plan=nullptr;
+  return status;
+}
+rns8_status resident_oneshot_state::finish(rns8_status operation) noexcept {
+  if(!ctx)return operation;
+  cleanup_status=RNS8_SUCCESS;
+  retain_first_cleanup(cleanup_status,close_owned_workspace(*ctx,workspace));
+  retain_first_cleanup(cleanup_status,close_owned_matrix(*ctx,C));
+  retain_first_cleanup(cleanup_status,close_owned_matrix(*ctx,B));
+  retain_first_cleanup(cleanup_status,close_owned_matrix(*ctx,A));
+  if(!workspace && !C && !B && !A)retain_first_cleanup(cleanup_status,close_owned_plan(*ctx,plan));
+  return operation==RNS8_SUCCESS?cleanup_status:operation;
+}
 resident_oneshot_state::~resident_oneshot_state() {
-  rns8_destroy_workspace(workspace);
-  rns8_destroy_matrix(C);
-  rns8_destroy_matrix(B);
-  rns8_destroy_matrix(A);
-  rns8_destroy_plan(plan);
+  (void)finish();
+  if(!ctx)return;
+  retire_owned(*ctx,workspace,ctx->failed_workspace_cleanup);
+  for(auto** matrix:{&C,&B,&A})retire_owned(*ctx,*matrix,ctx->failed_matrix_cleanup);
+  retire_owned(*ctx,plan,ctx->failed_plan_cleanup);
 }
 
 struct direct_hip_native_oneshot_state {
+  explicit direct_hip_native_oneshot_state(rns8_context* owner):ctx(owner){}
+  rns8_context* ctx;
   rns8_plan* plan = nullptr;
   rns8_plan** retained_plan = nullptr;
   rns8_matrix* C = nullptr;
-  rns8::detail::hip_direct_device_buffer device_a;
-  rns8::detail::hip_direct_device_buffer device_b;
-
-  direct_hip_native_oneshot_state() = default;
+  rns8::detail::hip_direct_device_buffer device_a,device_b;
+  std::optional<SynchronousLease> lease;
   direct_hip_native_oneshot_state(const direct_hip_native_oneshot_state&) = delete;
   direct_hip_native_oneshot_state& operator=(const direct_hip_native_oneshot_state&) = delete;
+  rns8_status reserve_native() {
+    size_t token=0;const auto status=begin_synchronous_output_lease(*ctx,*C,token);
+    if(status!=RNS8_SUCCESS)return status;
+    lease.emplace(*ctx,token);const auto invalidated=lease->begin_write();
+    return invalidated==RNS8_SUCCESS?synchronous_dispatch_checkpoint(*ctx,"native_oneshot_prepare"):invalidated;
+  }
+  rns8_status complete_native(rns8_status operation) noexcept {
+    if(lease){lease->finish(operation);lease.reset();}
+    if(C && !C->in_flight_writer){device_a.mark_completed();device_b.mark_completed();}
+    return operation;
+  }
+  rns8_status finish(rns8_status operation) noexcept {
+    complete_native(operation);
+    auto cleanup=close_owned_matrix(*ctx,C);
+    retain_first_cleanup(cleanup,device_b.reset());retain_first_cleanup(cleanup,device_a.reset());
+    if(!C && !device_a && !device_b){
+      if(retained_plan && !*retained_plan){*retained_plan=plan;plan=nullptr;}
+      retain_first_cleanup(cleanup,close_owned_plan(*ctx,plan));
+    }
+    return operation==RNS8_SUCCESS?cleanup:operation;
+  }
   ~direct_hip_native_oneshot_state() {
-    rns8_destroy_matrix(C);
-    if(retained_plan && !*retained_plan){*retained_plan=plan;plan=nullptr;}
-    rns8_destroy_plan(plan);
+    (void)finish(RNS8_INTERNAL_ERROR);
+    retire_owned(*ctx,C,ctx->failed_matrix_cleanup);retire_owned(*ctx,plan,ctx->failed_plan_cleanup);
+    // Pending input buffers retire through their preallocated device-drain nodes.
   }
 };
 
@@ -115,6 +178,7 @@ rns8_status create_resident_oneshot_state(
     rns8_context* ctx,
     const rns8_gemm_desc& desc,
     resident_oneshot_state& state) {
+  state.ctx=ctx;
   rns8_status status = state.plan ? RNS8_SUCCESS : rns8_create_plan(ctx, &desc, &state.plan);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -183,6 +247,7 @@ rns8_status create_direct_hip_native_oneshot_state(
     const rns8_gemm_desc& desc,
     rns8_semantics semantics,
     direct_hip_native_oneshot_state& state) {
+  state.ctx=ctx;
   rns8_status status = state.plan ? RNS8_SUCCESS : rns8_create_plan(ctx, &desc, &state.plan);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -193,7 +258,8 @@ rns8_status create_direct_hip_native_oneshot_state(
   const rns8_matrix_desc c_desc =
       make_matrix_desc(desc.m, desc.n, desc.semantics, storage_bound_kind_for_plan(*state.plan), state.plan->prefix,
                        state.plan->desc.tile_m, state.plan->desc.tile_n);
-  return rns8_create_matrix(ctx, &c_desc, &state.C);
+  status=rns8_create_matrix(ctx,&c_desc,&state.C);
+  return status==RNS8_SUCCESS?state.reserve_native():status;
 }
 
 rns8_status create_direct_hip_finite_native_oneshot_state(
@@ -202,6 +268,7 @@ rns8_status create_direct_hip_finite_native_oneshot_state(
     rns8_semantics semantics,
     uint16_t modulus,
     direct_hip_native_oneshot_state& state) {
+  state.ctx=ctx;
   rns8_status status = state.plan ? RNS8_SUCCESS : rns8_create_plan(ctx, &desc, &state.plan);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -212,7 +279,8 @@ rns8_status create_direct_hip_finite_native_oneshot_state(
   const rns8_matrix_desc c_desc =
       make_matrix_desc(desc.m, desc.n, desc.semantics, desc.bound_kind, 0,
                        state.plan->desc.tile_m, state.plan->desc.tile_n);
-  return rns8_create_matrix(ctx, &c_desc, &state.C);
+  status=rns8_create_matrix(ctx,&c_desc,&state.C);
+  return status==RNS8_SUCCESS?state.reserve_native():status;
 }
 
 rns8_status direct_hip_i64_native_prefix9_oneshot(
@@ -225,11 +293,11 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     int64_t* C,
     int64_t ldc,
     rns8_plan** retained_plan) {
-  direct_hip_native_oneshot_state state;state.retained_plan=retained_plan;
+  direct_hip_native_oneshot_state state(ctx);state.retained_plan=retained_plan;
   if(retained_plan){state.plan=*retained_plan;*retained_plan=nullptr;}
   rns8_status status = create_direct_hip_native_oneshot_state(ctx, desc, RNS8_BOUNDED_I64, state);
   if (status != RNS8_SUCCESS) {
-    return status;
+    return state.finish(status);
   }
   rns8::detail::HostUploadPlan a_upload, b_upload;
   if (!rns8::detail::make_host_upload_plan(desc.m, desc.k, lda, sizeof(int64_t), a_upload) ||
@@ -241,13 +309,16 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     status = state.device_b.allocate(ctx->device_id, b_upload.device_bytes);
   }
   if (status == RNS8_SUCCESS) {
+    state.device_a.mark_pending();state.device_b.mark_pending();
     status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
         state.device_a.get(), a_upload.device_bytes, A, a_upload);
   }
   if (status == RNS8_SUCCESS) {
+    state.device_a.mark_pending();state.device_b.mark_pending();
     status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
         state.device_b.get(), b_upload.device_bytes, B, b_upload);
   }
+  if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(*ctx,"native_oneshot_compute");
   if (status == RNS8_SUCCESS) {
     if (large_native_prefix9_colpair_shape(desc)) {
       status = rns8::detail::hip_direct_gemm_i64_native_prefix9_colpair_device(
@@ -276,10 +347,11 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
+    state.complete_native(RNS8_SUCCESS);
     mark_output_device_residues_current(*state.C, state.plan);
     status = rns8_export_i64(ctx, state.plan, state.C, C, ldc);
   }
-  return status;
+  return state.finish(status);
 }
 
 rns8_status direct_hip_u64_native_prefix9_oneshot(
@@ -292,11 +364,11 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     uint64_t* C,
     int64_t ldc,
     rns8_plan** retained_plan) {
-  direct_hip_native_oneshot_state state;state.retained_plan=retained_plan;
+  direct_hip_native_oneshot_state state(ctx);state.retained_plan=retained_plan;
   if(retained_plan){state.plan=*retained_plan;*retained_plan=nullptr;}
   rns8_status status = create_direct_hip_native_oneshot_state(ctx, desc, RNS8_BOUNDED_U64, state);
   if (status != RNS8_SUCCESS) {
-    return status;
+    return state.finish(status);
   }
   rns8::detail::HostUploadPlan a_upload, b_upload;
   if (!rns8::detail::make_host_upload_plan(desc.m, desc.k, lda, sizeof(uint64_t), a_upload) ||
@@ -308,13 +380,16 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     status = state.device_b.allocate(ctx->device_id, b_upload.device_bytes);
   }
   if (status == RNS8_SUCCESS) {
+    state.device_a.mark_pending();state.device_b.mark_pending();
     status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
         state.device_a.get(), a_upload.device_bytes, A, a_upload);
   }
   if (status == RNS8_SUCCESS) {
+    state.device_a.mark_pending();state.device_b.mark_pending();
     status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
         state.device_b.get(), b_upload.device_bytes, B, b_upload);
   }
+  if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(*ctx,"native_oneshot_compute");
   if (status == RNS8_SUCCESS) {
     if (large_native_prefix9_colpair_shape(desc)) {
       status = rns8::detail::hip_direct_gemm_u64_native_prefix9_colpair_device(
@@ -343,10 +418,11 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
+    state.complete_native(RNS8_SUCCESS);
     mark_output_device_residues_current(*state.C, state.plan);
     status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
   }
-  return status;
+  return state.finish(status);
 }
 
 rns8_status direct_hip_finite_u8_native_oneshot(
@@ -360,10 +436,10 @@ rns8_status direct_hip_finite_u8_native_oneshot(
     int64_t ldb,
     uint8_t* C,
     int64_t ldc) {
-  direct_hip_native_oneshot_state state;
+  direct_hip_native_oneshot_state state(ctx);
   rns8_status status = create_direct_hip_finite_native_oneshot_state(ctx, desc, semantics, modulus, state);
   if (status != RNS8_SUCCESS) {
-    return status;
+    return state.finish(status);
   }
   rns8::detail::HostUploadPlan a_upload, b_upload;
   if (!rns8::detail::make_host_upload_plan(desc.m, desc.k, lda, sizeof(uint8_t), a_upload) ||
@@ -375,13 +451,16 @@ rns8_status direct_hip_finite_u8_native_oneshot(
     status = state.device_b.allocate(ctx->device_id, b_upload.device_bytes);
   }
   if (status == RNS8_SUCCESS) {
+    state.device_a.mark_pending();state.device_b.mark_pending();
     status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
         state.device_a.get(), a_upload.device_bytes, A, a_upload);
   }
   if (status == RNS8_SUCCESS) {
+    state.device_a.mark_pending();state.device_b.mark_pending();
     status = rns8::detail::hip_direct_upload_host_matrix(ctx->device_id, "residue_h2d_sync",
         state.device_b.get(), b_upload.device_bytes, B, b_upload);
   }
+  if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(*ctx,"native_oneshot_compute");
   if (status == RNS8_SUCCESS) {
     status = rns8::detail::hip_direct_gemm_finite_u8_native_device(
         ctx->device_id,
@@ -397,11 +476,12 @@ rns8_status direct_hip_finite_u8_native_oneshot(
         modulus);
   }
   if (status == RNS8_SUCCESS) {
+    state.complete_native(RNS8_SUCCESS);
     mark_output_device_residues_current(*state.C, state.plan);
     state.C->finite_modulus = modulus;
     status = rns8_export_finite_u8(ctx, state.plan, modulus, state.C, C, ldc);
   }
-  return status;
+  return state.finish(status);
 }
 
 rns8_status finite_u8_oneshot_resident(
@@ -414,7 +494,7 @@ rns8_status finite_u8_oneshot_resident(
     int64_t ldb,
     uint8_t* C,
     int64_t ldc) {
-  resident_oneshot_state state;
+  resident_oneshot_state state(ctx);
   rns8_status status = create_resident_oneshot_state(ctx, desc, state);
   if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, state.A, modulus, A, lda, 1);
   if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, state.B, modulus, B, ldb, 2);
@@ -422,7 +502,7 @@ rns8_status finite_u8_oneshot_resident(
     status = rns8_gemm_finite_u8(ctx, state.plan, modulus, state.A, state.B, state.C, state.workspace);
   }
   if (status == RNS8_SUCCESS) status = rns8_export_finite_u8(ctx, state.plan, modulus, state.C, C, ldc);
-  return status;
+  return state.finish(status);
 }
 
 bool valid_limb_export_access(int64_t rows, int64_t cols, int64_t ld, uint32_t limb_count) {
@@ -523,14 +603,14 @@ rns8_status rns8_gemm_i64_oneshot(
       return preflight;
     }
 
-    resident_oneshot_state state;
+    resident_oneshot_state state(ctx);
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT &&
         (desc->bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ||
          desc->bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) &&
         (desc->max_prefix == 0 || desc->max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX)) {
       const rns8_status status = direct_hip_i64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc, &state.plan);
       if (status != RNS8_UNSUPPORTED_BACKEND) {
-        return status;
+        return state.finish(status);
       }
     }
 
@@ -539,7 +619,7 @@ rns8_status rns8_gemm_i64_oneshot(
     if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, state.B, B, ldb, 1);
     if (status == RNS8_SUCCESS) status = rns8_gemm_rns(ctx, state.plan, state.A, state.B, state.C, state.workspace);
     if (status == RNS8_SUCCESS) status = rns8_export_i64(ctx, state.plan, state.C, C, ldc);
-    return status;
+    return state.finish(status);
   });
 }
 
@@ -562,14 +642,14 @@ rns8_status rns8_gemm_u64_oneshot(
       return preflight;
     }
 
-    resident_oneshot_state state;
+    resident_oneshot_state state(ctx);
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT &&
         (desc->bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
          desc->bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) &&
         (desc->max_prefix == 0 || desc->max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX)) {
       const rns8_status status = direct_hip_u64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc, &state.plan);
       if (status != RNS8_UNSUPPORTED_BACKEND) {
-        return status;
+        return state.finish(status);
       }
     }
 
@@ -578,7 +658,7 @@ rns8_status rns8_gemm_u64_oneshot(
     if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.B, B, ldb, 1);
     if (status == RNS8_SUCCESS) status = rns8_gemm_rns(ctx, state.plan, state.A, state.B, state.C, state.workspace);
     if (status == RNS8_SUCCESS) status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
-    return status;
+    return state.finish(status);
   });
 }
 
@@ -601,7 +681,7 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
       return preflight;
     }
 
-    resident_oneshot_state state;
+    resident_oneshot_state state(ctx);
     rns8_status status = create_resident_oneshot_state(ctx, *desc, state);
     if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.A, A, lda, 1);
     if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.B, B, ldb, 1);
@@ -609,7 +689,7 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
       status = rns8_gemm_wrap_u64(ctx, state.plan, state.A, state.B, state.C, state.workspace);
     }
     if (status == RNS8_SUCCESS) status = rns8_export_wrap_u64(ctx, state.plan, state.C, C, ldc);
-    return status;
+    return state.finish(status);
   });
 }
 

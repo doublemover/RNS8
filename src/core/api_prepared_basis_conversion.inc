@@ -8,7 +8,7 @@ class PreparedBasisConversion final:public PreparedTransfer {
   const void* input_allocation=nullptr;void* output_allocation=nullptr;
   cpp_int envelope;BasisMagnitude magnitude{};hip_direct_device_buffer scratch;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  hip_pinned_host_buffer host_status;hipStream_t stream=nullptr;
+  hip_pinned_host_buffer host_status;hip_unique_stream stream;
 #endif
   ~PreparedBasisConversion() override {(void)close();}
   const rns8_matrix* input_a() const noexcept override{return source;}
@@ -20,7 +20,7 @@ class PreparedBasisConversion final:public PreparedTransfer {
   const char* operation_name() const noexcept override{return "ordered_basis_integer_conversion";}
   void* sync_stream() const noexcept override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    return stream;
+    return stream.get();
 #else
     return nullptr;
 #endif
@@ -87,7 +87,7 @@ class PreparedBasisConversion final:public PreparedTransfer {
   }
   rns8_status close() override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if(stream){hip_scoped_device selected(ctx->device_id);if(selected.status()!=hipSuccess || hipStreamDestroy(stream)!=hipSuccess)return RNS8_BACKEND_FAILURE;stream=nullptr;}
+    if(stream.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     if(host_status.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
 #endif
     return scratch.reset();
@@ -118,7 +118,7 @@ rns8_status rns8_prepare_basis_conversion_hip(rns8_basis_plan* plan,const rns8_m
     hip_scoped_device selected(plan->ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     status=owner->scratch.allocate(plan->ctx->device_id,device_bytes);if(status!=RNS8_SUCCESS)return status;
     if(owner->host_status.ensure(plan->ctx->device_id,4)!=hipSuccess ||
-        hipStreamCreateWithFlags(&owner->stream,hipStreamNonBlocking)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+        owner->stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
 #endif
     return create_transfer_prepared(std::move(owner),output);
   });
