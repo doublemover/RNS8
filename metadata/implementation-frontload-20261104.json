@@ -558,8 +558,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/79",
       "requirements_sha256": "a35bdf1940514c297baeb71a3e0d93d2b1da4984c0038bfc55abcaf9918d47db",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "written_pending_batch_validation",
+      "completed_slices": [
+        "Descriptor GPU kernel reduces once per certified 65536-term slab/tail using shared centered reducer and host-prepared ordered-basis reciprocal packet",
+        "Packed and unpacked CPU recipes share one blocked descriptor GEMM with contiguous B-row fast path, explicit tiled adapters and bounded stack accumulators",
+        "Versioned arithmetic/timing/graph/build/cost-model identities reject stale prices; analytical work charges a slab reduction separately",
+        "Shared Boost differential fixtures cover K through 131073, worst positive accumulation, all prefixes, reordered q2/q16 bases, tiled A/output and non-power-of-two packed B; reciprocal tests authored"
+      ],
       "remaining_source_items": []
     },
     {

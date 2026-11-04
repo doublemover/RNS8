@@ -81,21 +81,21 @@ int main(int argc,char** argv){try {
     std::vector<uint32_t> prefixes(nodes.size());check(rns8_get_product_recipe_prefixes(ragged_recipe,prefixes.data(),prefixes.size()));selected=prefixes;
   }
   else if(recipe){ProductCostProfile costs;ProductMaterializationProfile layouts;const ProductCostProfile* chosen=nullptr;const ProductMaterializationProfile* layout_prices=nullptr;
-    if(mode=="recipe-cost-model" || materialized){costs.backend=ctx->backend;costs.semantics=semantics;costs.target=ctx->device_info.gcn_arch;costs.provenance="explicit-unqualified-analytical-work-model-v2";costs.graph_key=product_graph_key({{side,side},{side,side}},nodes,prefix);costs.nodes.resize(nodes.size());
-      for(auto& row:costs.nodes)for(unsigned p=1;p<=prefix;++p){row.gemm[p]=model_launch+cells*side*p;for(unsigned q=p;q<=prefix;++q)row.lift[p*21+q]=q==p?0:3*uint64_t(model_launch)+cells*(uint64_t(p)*p+(q-p)*p);}
-      chosen=&costs;cost_model={{"kind",costs.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_modular_multiply"},{"qualified",false}};}
+    if(mode=="recipe-cost-model" || materialized){costs.backend=ctx->backend;costs.semantics=semantics;costs.target=ctx->device_info.gcn_arch;costs.provenance="explicit-unqualified-analytical-work-model-v3-blocked-k65536";costs.graph_key=product_graph_key({{side,side},{side,side}},nodes,prefix);costs.nodes.resize(nodes.size());
+      for(auto& row:costs.nodes)for(unsigned p=1;p<=prefix;++p){row.gemm[p]=model_launch+cells*(side+(side+65535)/65536)*p;for(unsigned q=p;q<=prefix;++q)row.lift[p*21+q]=q==p?0:3*uint64_t(model_launch)+cells*(uint64_t(p)*p+(q-p)*p);}
+      chosen=&costs;cost_model={{"kind",costs.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_integer_multiply"},{"reduction_units","one_ns_per_safe_k_slab"},{"arithmetic_policy",kResidueLayoutGemmPolicy},{"qualified",false}};}
     if(materialized) {
-      layouts.uniform=costs;layouts.replay=replay_policy;layouts.uniform.provenance="explicit-unqualified-layout-work-model-v2";layouts.packed.resize(nodes.size());
+      layouts.uniform=costs;layouts.replay=replay_policy;layouts.uniform.provenance="explicit-unqualified-layout-work-model-v3-blocked-k65536";layouts.packed.resize(nodes.size());
       for(size_t i=0;i<nodes.size();++i)for(unsigned p=1;p<=20;++p) {
         for(unsigned capacity=p;capacity<=20;++capacity) {
-          layouts.packed[i].gemm[ProductPackedCosts::gemm_index(capacity,p)]=model_launch+cells*((side+3)/4)*p;
+          layouts.packed[i].gemm[ProductPackedCosts::gemm_index(capacity,p)]=model_launch+cells*(((side+3)/4)+(side+65535)/65536)*p;
           for(unsigned old=0;old<p;++old)
             layouts.packed[i].pack[ProductPackedCosts::pack_index(capacity,old,p)]=model_launch+2*cells*(p-old);
         }
         if(mode!="recipe-layout-model" && !measured)layouts.uniform.nodes[i].gemm[p]=UINT64_MAX;
       }
       chosen=nullptr;layout_prices=&layouts;
-      cost_model={{"kind",layouts.uniform.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_modular_multiply"},
+      cost_model={{"kind",layouts.uniform.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_integer_multiply"},{"reduction_units","one_ns_per_safe_k_slab"},{"arithmetic_policy",kResidueLayoutGemmPolicy},
           {"packed_gemm_units","one_ns_per_four_term_group"},{"pack_units","one_ns_per_logical_byte_read_or_write"},
           {"cost_schema_version",layouts.cost_schema_version},{"packed_cost_capacity","physical_shared_b_prefix"},{"qualified",false}};
       if(measured) {
@@ -110,7 +110,7 @@ int main(int argc,char** argv){try {
           {"node_count",identity.node_count},{"minimum_prefixes",minimum}};
         const auto document=rns8::bench::read_product_stage_prices(argv[3]);rns8::bench::apply_product_stage_prices(document,identity,prefix,ctx->device_info.name,ctx->device_info.hip_runtime_version,layouts,rns8::bench::product_dataset_identity(c));
         stage_price_identity=rns8::bench::product_stage_price_identity(document);stage_price_training_charge_ns=document.at("training_charge_ns").get<uint64_t>();
-        cost_model={{"kind","measured-stage-prices-unqualified"},{"cost_schema_version",3},{"price_sha256",stage_price_identity},{"qualified",false}};
+        cost_model={{"kind","measured-stage-prices-unqualified"},{"arithmetic_policy",kResidueLayoutGemmPolicy},{"cost_schema_version",3},{"price_sha256",stage_price_identity},{"qualified",false}};
       }
     }
     check(RuntimeProductRecipe::create(ctx,inputs,nodes,budget-known_payload,owner,

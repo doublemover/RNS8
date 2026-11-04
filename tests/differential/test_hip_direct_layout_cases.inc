@@ -2,8 +2,8 @@
 TEST_CASE("HIP layout-aware products consume shared-prefix packed B without reading poison planes") {
   if(!hip_available())SKIP("no HIP device for layout-aware residue product");
   using namespace rns8::detail;
-  for(const auto [k,prefix]:rns8::test::layout_gemm_cases()) {
-    rns8::test::LayoutGemmFixture f(k,prefix,k%2!=0,k<32);
+  for(const auto& test:rns8::test::layout_gemm_cases()) {
+    const auto prefix=test.prefix;rns8::test::LayoutGemmFixture f(test);
     hip_direct_device_buffer da,db,dp,dc;
     REQUIRE(da.allocate(0,f.a.bytes)==RNS8_SUCCESS);
     REQUIRE(db.allocate(0,f.b.bytes)==RNS8_SUCCESS);

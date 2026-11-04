@@ -41,9 +41,8 @@ rns8_status hip_direct_gemm_residue_layout(int device_id,const void* a,const Res
       (al.rows+15)/16>65535 || (bl.cols+15)/16>INT32_MAX)return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   const auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS)return status;
-  ResidueLayoutModuli moduli;
-  std::copy_n(al.basis.moduli.data(),20,moduli.values);
-  const auto error=timed_hip_operation("residue_layout_gemm_kernel",[&]() {
+  const auto moduli=residue_layout_moduli(al.basis);
+  const auto error=timed_hip_operation("residue_layout_gemm_blocked_k65536_v2",[&]() {
     const auto issued=static_cast<hipError_t>(rns8_hip_gemm_residue_layout(
         static_cast<const int8_t*>(a),al,static_cast<const int8_t*>(b),bl,static_cast<int8_t*>(c),cl,prefix,moduli));
     return issued==hipSuccess?hipDeviceSynchronize():issued;

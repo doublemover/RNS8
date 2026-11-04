@@ -2,7 +2,7 @@ namespace {
 struct ProductInputProjection {const rns8_matrix* source=nullptr;boost::multiprecision::cpp_int bound=0;};
 bool materialization_text(const char* text,size_t size){return std::memchr(text,0,size)!=nullptr;}
 std::string product_materialization_build() {
-  std::string value="rns8-product-materialization-v2;";
+  std::string value="rns8-product-materialization-v3;centered-byte-blocked-k65536-v2;";
 #ifdef RNS8_BUILD_MANIFEST_JSON
   value+=RNS8_BUILD_MANIFEST_JSON;
 #else
@@ -25,7 +25,7 @@ rns8_status product_materialization_identity(rns8_context* ctx,const rns8_produc
   if(!desc->inputs[0])return RNS8_INVALID_ARGUMENT;
   const auto* first=desc->inputs[0];const auto basis=recipe_basis(*first);
   const auto ordered=ordered_basis_identity(basis->packet);const auto prefix=first->prefix;
-  std::string key="rns8-product-graph-v2;";
+  std::string key="rns8-product-graph-v3;centered-byte-blocked-k65536-v2;";
   const auto add=[&](const std::string& text){key+=std::to_string(text.size())+":"+text;};
   add(std::to_string(ctx->backend));add(std::to_string(first->desc.semantics));add(std::to_string(prefix));
   add(std::to_string(desc->prefix_policy));add(std::to_string(ordered.representation));add(std::to_string(ordered.count));

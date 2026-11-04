@@ -36,6 +36,13 @@ Signed/unsigned, finite, byte-limb, retained-native and native one-shot paths
 share this checked transfer plan. These are source-level transfer bounds;
 performance comparisons remain pending measurement.
 
+Layout-aware products and CPU recipe products share the centered-byte
+65,536-term accumulation policy. Physical LDS/layout tiles do not introduce
+extra reduction boundaries. Host-prepared reciprocals cover the complete ordered
+byte basis. The arithmetic identity is `centered-byte-blocked-k65536-v2`;
+materialization graph/build identities invalidate earlier prices. New latency
+and ISA evidence must be collected for this implementation.
+
 | Backend / benchmark name | State and enablement | Arithmetic / constraints | Evidence or implementation owner |
 |---|---|---|---|
 | `cpu-reference` | Available public path | Bounded, exact-wide, finite; independent Boost reference, optional OpenMP | [Correctness](correctness.md), [developer checks](../CONTRIBUTING.md) |

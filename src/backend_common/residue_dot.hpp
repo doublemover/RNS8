@@ -82,6 +82,10 @@ RNS8_RESIDUE_DOT_INLINE int32_t accumulate_residue_tile(
 // Callers validate pointers, strides, K and modulus before dispatch.
 constexpr int64_t kResidueDotKBlock = 65536;
 static_assert(kResidueDotKBlock * 128 * 128 + 128 <= std::numeric_limits<int32_t>::max());
+RNS8_RESIDUE_DOT_INLINE int8_t reduce_residue_slab(int32_t sum,int8_t carry,uint32_t modulus,uint32_t reciprocal) {
+  return finite_u8::reduce_to_centered_i32(sum+int32_t(carry),modulus,reciprocal);
+}
+
 
 RNS8_RESIDUE_DOT_INLINE int8_t centered_residue_dot(
     const int8_t* a, const int8_t* b, int64_t k, int64_t b_stride, uint32_t modulus, bool packed = kResidueDot4Enabled) {
@@ -93,8 +97,7 @@ RNS8_RESIDUE_DOT_INLINE int8_t centered_residue_dot(
     const int64_t block = remaining < kResidueDotKBlock ? remaining : kResidueDotKBlock;
     const int32_t accumulator = accumulate_residue_tile(
         a + offset, b + offset * b_stride, b_stride, block, 0, packed);
-    reduced = finite_u8::reduce_to_centered_i32(
-        accumulator + static_cast<int32_t>(reduced), modulus, reciprocal);
+    reduced = reduce_residue_slab(accumulator,reduced,modulus,reciprocal);
     offset += block;
   }
   return reduced;

@@ -106,7 +106,7 @@ def validate_capture(c,entry):
     for i,selected_prefix in enumerate(selected):
         if type(selected_prefix) is not int or not 1<=selected_prefix<=p or math.prod(MODULI[:selected_prefix])<=bounds(case)[i+2]*factor:raise ValueError('independent selected range')
     model=c.get('cost_model')
-    expected_model=dict(kind='explicit-unqualified-analytical-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',qualified=False) if mode=='recipe-cost-model' else None
+    expected_model=dict(kind='explicit-unqualified-analytical-work-model-v3-blocked-k65536',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_integer_multiply',reduction_units='one_ns_per_safe_k_slab',arithmetic_policy='centered-byte-blocked-k65536-v2',qualified=False) if mode=='recipe-cost-model' else None
     prices=None
     if mode=='recipe-measured':
         document=entry.get('stage_price_document');prices=price_cells(document);identity=price_identity(document)
@@ -116,10 +116,10 @@ def validate_capture(c,entry):
         if type(actual) is not dict or actual!=document['identity'] or any(type(actual.get(k)) is not type(v) for k,v in document['identity'].items()) or any(type(q) is not int for q in actual['minimum_prefixes']) or document['identity']['minimum_prefixes']!=minimum:
             raise ValueError('actual measured graph/build/range identity')
         if type(c.get('stage_price_training_charge_ns')) is not int or c['stage_price_training_charge_ns']!=document['training_charge_ns']:raise ValueError('stage training charge receipt')
-        expected_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=3,price_sha256=identity,qualified=False)
+        expected_model=dict(kind='measured-stage-prices-unqualified',arithmetic_policy='centered-byte-blocked-k65536-v2',cost_schema_version=3,price_sha256=identity,qualified=False)
         if document['dataset']!=dataset_identity(case):raise ValueError('measured dataset identity')
         if document['identity']['target']!=c['target'] or document['identity']['node_count']!=nodes or document['device']!=c['device'] or document['runtime_version']!=c['runtime_version']:raise ValueError('measured graph/target/device/runtime')
-    elif mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=3,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
+    elif mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v3-blocked-k65536',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_integer_multiply',reduction_units='one_ns_per_safe_k_slab',arithmetic_policy='centered-byte-blocked-k65536-v2',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=3,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
     if mode!='recipe-measured' and (c.get('stage_price_identity',False) is not None or c.get('stage_price_graph_identity',False) is not None or type(c.get('stage_price_training_charge_ns')) is not int or c['stage_price_training_charge_ns']!=0):raise ValueError('unrequested stage prices')
     validate_materializations(c,case,selected,prices)
     if type(model) is not type(expected_model) or model!=expected_model or (expected_model is not None and any(type(model[k]) is not type(v) for k,v in expected_model.items())):raise ValueError('unqualified cost model identity')
@@ -172,11 +172,11 @@ def validate_materializations(c,case,selected,prices=None):
     for i,((_,b),p,flag) in enumerate(zip(nodes,selected,flags)):
         demand(nodes[i][0],p)
         if not flag:
-            demand(b,p);cost+=stage(i,'uniform_gemm',0,0,p,launch+cells*case['side']*p);raw[i+2]=p;continue
+            demand(b,p);cost+=stage(i,'uniform_gemm',0,0,p,launch+cells*(case['side']+(case['side']+65535)//65536)*p);raw[i+2]=p;continue
         if current.get(b,0)<p:
             demand(b,p);packing_cost=stage(i,'pack',capacities[b],current.get(b,0),p,launch+2*cells*(p-current.get(b,0)));cost+=packing_cost
             if b<2:cold_external_cost+=packing_cost;external_calls+=1
-        cost+=stage(i,'packed_gemm',capacities[b],0,p,launch+cells*((case['side']+3)//4)*p);raw[i+2]=p
+        cost+=stage(i,'packed_gemm',capacities[b],0,p,launch+cells*(((case['side']+3)//4)+(case['side']+65535)//65536)*p);raw[i+2]=p
         if b not in expected:expected[b]=dict(value_id=b,capacity_prefix=p,first_reader=i,last_reader=i)
         expected[b]['capacity_prefix']=max(expected[b]['capacity_prefix'],p);expected[b]['last_reader']=i
         if current.get(b,0)<p:current[b]=p;calls+=1

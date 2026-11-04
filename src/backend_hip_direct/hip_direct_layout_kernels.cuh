@@ -10,16 +10,19 @@ __global__ void rns8_convert_residue_layout_kernel(
 }
 
 // Coalesced descriptor-aware staging into 16x32 and 32x16 LDS tiles. The
-// accumulator is reduced every 32 terms: 32*128*128+255 fits signed INT32.
+// LDS tiles do not set reduction cadence: each certified 65536-term slab plus
+// its centered carry fits INT32. The reciprocal is prepared once on the host.
 // This is a packed-byte/vector consumer, not a matrix-instruction claim.
 __global__ __launch_bounds__(256) void rns8_gemm_residue_layout_kernel(
     const int8_t* a,rns8::detail::ResidueLayout al,const int8_t* b,rns8::detail::ResidueLayout bl,
     int8_t* c,rns8::detail::ResidueLayout cl,uint32_t prefix,rns8::detail::ResidueLayoutModuli moduli) {
+  static_assert((rns8::detail::kResidueDotKBlock&(rns8::detail::kResidueDotKBlock-1))==0 &&
+                rns8::detail::kResidueDotKBlock%32==0);
   __shared__ int8_t sa[16][32],sb[32][16];
   const uint32_t plane=blockIdx.z,lane=threadIdx.y*16+threadIdx.x;
   const uint64_t row0=uint64_t(blockIdx.y)*16,col0=uint64_t(blockIdx.x)*16;
   const uint64_t row=row0+threadIdx.y,col=col0+threadIdx.x;
-  const int modulus=moduli.values[plane];int sum=0;
+  const uint32_t modulus=moduli.values[plane],reciprocal=moduli.reciprocals[plane];int sum=0;
   for(uint64_t base=0;base<al.cols;base+=32) {
     for(unsigned i=lane;i<512;i+=256) {
       const uint64_t ar=row0+i/32,aq=base+i%32,bq=base+i/16,bc=col0+i%16;
@@ -43,11 +46,11 @@ __global__ __launch_bounds__(256) void rns8_gemm_residue_layout_kernel(
         sum=rns8::detail::signed_byte_dot4(av,bv,sum);
       }
     }
-    sum%=modulus;
+    if(((base+32)&(rns8::detail::kResidueDotKBlock-1))==0 || al.cols-base<=32)
+      sum=rns8::detail::reduce_residue_slab(sum,0,modulus,reciprocal);
     __syncthreads();
   }
   if(row<cl.rows && col<cl.cols && plane<prefix) {
-    if(sum<0)sum+=modulus;if(sum>=(modulus+1)/2)sum-=modulus;
     c[cl.offset(plane,row,col)]=static_cast<int8_t>(sum);
   }
 }

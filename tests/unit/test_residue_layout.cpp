@@ -11,8 +11,8 @@
 
 TEST_CASE("layout-aware residue products preserve exact planes tails and full native boundaries") {
   using namespace rns8::detail;
-  for(const auto [k,prefix]:rns8::test::layout_gemm_cases()) {
-    rns8::test::LayoutGemmFixture f(k,prefix,k%2!=0,k<32);
+  for(const auto& test:rns8::test::layout_gemm_cases()) {
+    const auto prefix=test.prefix;rns8::test::LayoutGemmFixture f(test);
     std::vector<int8_t> packed(f.packed.bytes,99),actual(f.c.bytes,77);
     REQUIRE(convert_residue_planes_host(f.bv.data(),f.b,packed.data(),f.packed,0,prefix));
     REQUIRE(packed==f.packed_expected);
@@ -261,4 +261,16 @@ TEST_CASE("layout conversion binds complete ordered experimental bases") {
   short_basis.moduli[1]=short_basis.moduli[0];
   short_basis.fingerprint=ordered_basis_fingerprint(short_basis.moduli.data(),short_basis.count);
   CHECK_FALSE(valid_ordered_basis(short_basis));
+}
+
+TEST_CASE("layout packets prepare exact reciprocals for every admitted byte modulus") {
+  using namespace rns8::detail;
+  for(uint16_t q=2;q<=256;++q) {
+    OrderedBasisIdentity basis;basis.count=1;basis.moduli.fill(0);basis.moduli[0]=q;
+    basis.fingerprint=ordered_basis_fingerprint(basis.moduli.data(),basis.count);
+    REQUIRE(valid_ordered_basis(basis));
+    const auto packet=residue_layout_moduli(basis);
+    CHECK(packet.values[0]==q);CHECK(packet.reciprocals[0]==(UINT64_C(1)<<32)/q);
+    for(unsigned p=1;p<20;++p){CHECK(packet.values[p]==0);CHECK(packet.reciprocals[p]==0);}
+  }
 }

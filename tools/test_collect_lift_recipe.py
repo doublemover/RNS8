@@ -45,15 +45,15 @@ class LiftRecipeContracts(unittest.TestCase):
     @patch('collect_lift_recipe.manifest_provenance_complete',return_value=True)
     def test_packed_trace_replays_growth_lifetimes_costs_and_budget(self,_manifest):
         c=self.capture();c['case']['mode']='recipe-packed-minimum';c['recipe_arena_bytes']=65536
-        c['cost_model']=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=5000,
-            gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',
+        c['cost_model']=dict(kind='explicit-unqualified-layout-work-model-v3-blocked-k65536',launch_ns=5000,
+            gemm_units='one_ns_per_scalar_integer_multiply',reduction_units='one_ns_per_safe_k_slab',arithmetic_policy='centered-byte-blocked-k65536-v2',packed_gemm_units='one_ns_per_four_term_group',
             pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=3,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
         view=dict(value_id=1,capacity_prefix=3,first_reader=0,last_reader=2,bytes=3072,arena_offset=0)
         c['materialization_plan']=dict(packed_b=[1,1,1],packed_values=[view],evaluated=4096,exhaustive=False,
-            chain_dynamic_programming=True,cost_optimal=False,estimated_ns=199928,completed_packing_calls=3)
+            chain_dynamic_programming=True,cost_optimal=False,estimated_ns=206072,completed_packing_calls=3)
         replay_receipt(c)
         e=dict(case=c['case'],run_id='fixture');self.assertEqual(validate_capture(c,e),c)
-        for key,value in [('completed_packing_calls',1),('estimated_ns',199927),('packed_b',[1,0,1]),('evaluated',True)]:
+        for key,value in [('completed_packing_calls',1),('estimated_ns',206071),('packed_b',[1,0,1]),('evaluated',True)]:
             bad=copy.deepcopy(c);bad['materialization_plan'][key]=value
             with self.assertRaises(ValueError):validate_capture(bad,e)
         for key,value in [('last_reader',1),('bytes',3071),('arena_offset',1),('capacity_prefix',2)]:
@@ -62,7 +62,7 @@ class LiftRecipeContracts(unittest.TestCase):
         bad=copy.deepcopy(c);bad['materialization_plan']['packed_values'].append(copy.deepcopy(view))
         with self.assertRaises(ValueError):validate_capture(bad,e)
         full=copy.deepcopy(c);full['case']['mode']='recipe-packed-full';full['selected_compute_prefixes']=[20]*3
-        full['materialization_plan'].update(estimated_ns=552480,completed_packing_calls=1)
+        full['materialization_plan'].update(estimated_ns=613920,completed_packing_calls=1)
         full['materialization_plan']['packed_values'][0].update(capacity_prefix=20,bytes=20480)
         replay_receipt(full)
         self.assertEqual(validate_capture(full,dict(case=full['case'],run_id='fixture')),full)

@@ -33,7 +33,7 @@ inline uint64_t product_graph_key(const std::vector<ProductShape>& inputs,
     const std::vector<uint32_t>& outputs = {}) {
   uint64_t hash=UINT64_C(14695981039346656037);
   const auto add=[&](uint64_t value) { for(unsigned i=0;i<8;++i) { hash^=(value>>(8*i))&255; hash*=UINT64_C(1099511628211); } };
-  add(2);add(prefix);add(inputs.size());add(nodes.size());
+  add(3);add(prefix);add(inputs.size());add(nodes.size());
   for(const auto& input:inputs) {add(uint64_t(input.rows));add(uint64_t(input.cols));}
   for(const auto& node:nodes) {add(node.a);add(node.b);}
   add(outputs.empty()?1:outputs.size());

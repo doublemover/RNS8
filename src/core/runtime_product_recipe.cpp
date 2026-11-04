@@ -494,18 +494,10 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
             : hip_direct_gemm_rns_device(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,prefix);
         if(status!=RNS8_SUCCESS) return status;
       } else {
-        for(uint32_t p=0;p<prefix;++p) {
-          const int64_t modulus=state.basis->packet.moduli[p];
-          for(int64_t row=0;row<a.rows;++row) for(int64_t col=0;col<b.cols;++col) {
-            int64_t sum=0;
-            for(int64_t q=0;q<a.cols;++q)
-              sum=(sum+int64_t(av[(int64_t(p)*a.rows+row)*a.cols+q])*
-                  bv[(int64_t(p)*b.rows+q)*b.cols+col])%modulus;
-            if(sum<0) sum+=modulus;
-            if(sum>=(modulus+1)/2) sum-=modulus;
-            c[(int64_t(p)*a.rows+row)*b.cols+col]=static_cast<int8_t>(sum);
-          }
-        }
+        ResidueLayout al,bl,cl;
+        if(!layout(node.a,al) || !layout(node.b,bl) ||
+            !layout(static_cast<uint32_t>(state.inputs.size()+i),cl) ||
+            !residue_layout_gemm_host(av,al,bv,bl,c,cl,prefix))return RNS8_INTERNAL_ERROR;
       }
       current[state.inputs.size()+i]=prefix;
     }

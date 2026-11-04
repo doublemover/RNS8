@@ -1,5 +1,8 @@
 #pragma once
 #include "residue_layout.hpp"
+#include "residue_dot.hpp"
+#include <algorithm>
+#include <array>
 
 namespace rns8::detail {
 // This consumer operates on explicitly described centered byte residues. Its
@@ -15,19 +18,46 @@ inline bool residue_layout_gemm_host(const int8_t* a,const ResidueLayout& al,
   if(!compatible_layout_gemm(al,bl,cl,prefix) ||
       !nonoverlapping_byte_ranges(a,al.bytes,c,cl.bytes) ||
       !nonoverlapping_byte_ranges(b,bl.bytes,c,cl.bytes))return false;
+  static constexpr finite_u8::ByteModulusReciprocals reciprocals;
   for(uint32_t p=0;p<prefix;++p) {
-    const int64_t modulus=al.basis.moduli[p];
-    for(uint64_t row=0;row<al.rows;++row)for(uint64_t col=0;col<bl.cols;++col) {
-      int64_t sum=0;
-      for(uint64_t q=0;q<al.cols;++q)
-        sum=(sum+int64_t(a[al.offset(p,row,q)])*b[bl.offset(p,q,col)])%modulus;
-      if(sum<0)sum+=modulus;
-      if(sum>=(modulus+1)/2)sum-=modulus;
-      c[cl.offset(p,row,col)]=static_cast<int8_t>(sum);
+    const uint32_t modulus=al.basis.moduli[p],reciprocal=reciprocals.values[modulus];
+    for(uint64_t row=0;row<al.rows;++row)for(uint64_t col=0;col<bl.cols;col+=16) {
+      const auto width=static_cast<unsigned>(std::min(uint64_t(16),bl.cols-col));
+      std::array<int8_t,16> carry{};
+      const bool contiguous_a=al.kind==ResidueLayoutKind::modulus_major;
+      const bool contiguous_b=bl.kind==ResidueLayoutKind::modulus_major ||
+          col/bl.tile_cols==(col+width-1)/bl.tile_cols;
+      const auto* arow=contiguous_a?a+al.offset(p,row,0):nullptr;
+      for(uint64_t begin=0;begin<al.cols;) {
+        const uint64_t extent=std::min(uint64_t(kResidueDotKBlock),al.cols-begin);
+        std::array<int32_t,16> sums{};
+        for(uint64_t inner=begin;inner<begin+extent;++inner) {
+          const int32_t av=contiguous_a?arow[inner]:a[al.offset(p,row,inner)];
+          if(contiguous_b) {
+            const auto* brow=b+bl.offset(p,inner,col);
+            for(unsigned lane=0;lane<width;++lane)sums[lane]+=av*int32_t(brow[lane]);
+          } else {
+            for(unsigned lane=0;lane<width;++lane)sums[lane]+=av*int32_t(b[bl.offset(p,inner,col+lane)]);
+          }
+        }
+        for(unsigned lane=0;lane<width;++lane)
+          carry[lane]=reduce_residue_slab(sums[lane],carry[lane],modulus,reciprocal);
+        begin+=extent;
+      }
+      for(unsigned lane=0;lane<width;++lane)c[cl.offset(p,row,col+lane)]=carry[lane];
     }
   }
   return true;
 }
 // Flat kernel argument: no standard-library host member calls in device code.
-struct ResidueLayoutModuli {uint16_t values[20]{};};
+inline constexpr const char* kResidueLayoutGemmPolicy="centered-byte-blocked-k65536-v2";
+struct ResidueLayoutModuli {uint16_t values[20]{};uint32_t reciprocals[20]{};};
+inline ResidueLayoutModuli residue_layout_moduli(const OrderedBasisIdentity& basis) {
+  static constexpr finite_u8::ByteModulusReciprocals table;
+  ResidueLayoutModuli result;
+  for(uint32_t p=0;p<basis.count;++p) {
+    result.values[p]=basis.moduli[p];result.reciprocals[p]=table.values[basis.moduli[p]];
+  }
+  return result;
+}
 } // namespace rns8::detail
