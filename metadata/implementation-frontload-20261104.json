@@ -313,8 +313,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/45",
       "requirements_sha256": "9b6b0bc93acf47afd5d7c6b22ec3dcc14300cba20760c0207abd33e3d43ac136",
       "comments_reviewed": 2,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "written_pending_batch_validation",
+      "completed_slices": [
+        "Reconciled existing fixed/dynamic/mixed floating candidate owners and integer split/merge implementation against the October 29 credit; unavailable target qualification remains separate",
+        "Oracle v2 compiles the actual pairwise carry-forward tree to one validated postorder program, uses it in both evaluators and derives the largest proper-subtree guard from that program",
+        "Program/guard topology identity is versioned and bound to report hashes; original fallback and separate rewrite/finite recovery/target verdicts preserved",
+        "Authored K5 concrete witness, K9/17/33 cancellation boundaries, power-of-two controls, independent subtree counts and long-fold nonrecursive fixture; Python AST syntax passed, oracle/runtime validation deferred"
+      ],
       "remaining_source_items": []
     },
     {

@@ -9,7 +9,7 @@ import json
 import math
 import struct
 
-VERSION = "rns8-floating-rewrite-v1"
+VERSION = "rns8-floating-rewrite-v2"
 ALPHABET = tuple(Fraction(x, 2) for x in (0,1,2,3,4,6,8,12))
 INF = 0x7f800000
 NAN = 0x7fc00000
@@ -119,27 +119,63 @@ def reduction_tree(k, topology):
     raise ValueError("unsupported reduction topology")
 
 
-def _reduce(values, tree, operation):
-    # Iterative postorder avoids recursion limits for long left folds.
-    stack, results, leaves = [(tree, False)], [], []
+def compile_reduction_tree(tree, count):
+    """Validate and lower the actual tree once, preserving pairwise odd carries."""
+    if type(count) is not int or not 1 <= count <= 65536:
+        raise ValueError("bounded nonempty block required")
+    stack, program, leaves = [(tree, False)], [], bytearray(count)
     while stack:
         node, visited = stack.pop()
         if type(node) is int:
-            if not 0 <= node < len(values):
+            if not 0 <= node < count or leaves[node]:
                 raise ValueError("invalid leaf")
-            leaves.append(node)
-            results.append(values[node])
+            leaves[node] = 1
+            program.append(node)
         elif type(node) is tuple and len(node) == 2:
             if visited:
-                right, left = results.pop(), results.pop()
-                results.append(operation("add", left, right))
+                program.append(-1)
             else:
                 stack.extend(((node, True), (node[1], False), (node[0], False)))
         else:
             raise ValueError("malformed reduction tree")
-    if sorted(leaves) != list(range(len(values))):
+    if not all(leaves):
         raise ValueError("tree must contain each input exactly once")
+    return tuple(program)
+
+
+def _reduce_program(values, program, operation):
+    results = []
+    for node in program:
+        if node >= 0:
+            results.append(values[node])
+        else:
+            right, left = results.pop(), results.pop()
+            results.append(operation("add", left, right))
     return results[0]
+
+
+def _reduce(values, tree, operation):
+    return _reduce_program(values, compile_reduction_tree(tree, len(values)), operation)
+
+
+def reduction_contract(program, count):
+    sizes, largest = [], 0
+    for node in program:
+        if node >= 0:
+            size = 1
+        else:
+            size = sizes.pop() + sizes.pop()
+        sizes.append(size)
+        if size < count:
+            largest = max(largest, size)
+    # K=1 still needs the single-product guard although it has no proper subtree.
+    subtree = max(1, largest)
+    digest = hashlib.sha256(b"rns8-reduction-postorder-v1")
+    for node in program:
+        digest.update(struct.pack("<i", node))
+    return {"guard_version": "actual-proper-subtree-v2", "program_sha256": digest.hexdigest(),
+            "largest_proper_subtree_leaves": largest, "guard_subtree_leaves": subtree,
+            "upper_scale_exponent": 130 - (144 * subtree).bit_length()}
 
 
 def evaluate(lhs, rhs, scale_a, scale_b, topology="balanced", denominator=1, destination_bits=64):
@@ -150,20 +186,22 @@ def evaluate(lhs, rhs, scale_a, scale_b, topology="balanced", denominator=1, des
     a, b = list(map(decode_element, lhs)), list(map(decode_element, rhs))
     sa, sb = decode_scale(scale_a), decode_scale(scale_b)
     tree = reduction_tree(len(a), topology)
+    program = compile_reduction_tree(tree, len(a))
+    topology_contract = reduction_contract(program, len(a))
     t = scale_a + scale_b - 254  # widened integers, never byte addition
     outputs = {}
     for name, operation in (("rational", _soft), ("host", _host)):
         direct = [operation("mul", operation("mul", round_binary32(x), round_binary32(sa)),
                             operation("mul", round_binary32(y), round_binary32(sb))) for x,y in zip(a,b)]
         raw = [operation("mul", round_binary32(x), round_binary32(y)) for x,y in zip(a,b)]
-        root = _reduce(raw, tree, operation)
+        root = _reduce_program(raw, program, operation)
         if name == "rational":
             value = rational(root)
             hoisted = root if value is None else round_binary32(value * pow2(t))
         else:
             value = struct.unpack("<f", struct.pack("<I", root))[0]
             hoisted = _host_bits(math.ldexp(value, t))
-        outputs[name] = {"direct": _reduce(direct, tree, operation), "hoisted": hoisted}
+        outputs[name] = {"direct": _reduce_program(direct, program, operation), "hoisted": hoisted}
     exact = sum((x*y for x,y in zip(a,b)), Fraction()) * sa * sb
     observed = outputs["rational"]
     recovered = exact / denominator
@@ -174,13 +212,13 @@ def evaluate(lhs, rhs, scale_a, scale_b, topology="balanced", denominator=1, des
                else "proven" if observed["direct"] == observed["hoisted"] else "refuted")
     # Sufficient guard uses the largest proper subtree for this topology.
     k = len(a)
-    subtree = max(1, k-1 if topology == "fold" else (k+1)//2)
-    upper = 129 - (144*subtree).bit_length() + 1
+    upper = topology_contract["upper_scale_exponent"]
     guards = {"integer_product_domain": 144*k <= 1 << 24,
               "rewrite_band": -147 <= t <= upper,
               "finite_root": Fraction(144*k)*pow2(t-2) < pow2(128)}
     identity = {"version": VERSION, "lhs": list(lhs), "rhs": list(rhs),
                 "scale_codes": [scale_a,scale_b], "topology": topology,
+                "topology_contract": topology_contract,
                 "rounding": "binary32-RNE-separate", "denormals": "gradual",
                 "zero_policy": "canonical-positive", "nan_policy": "canonical-unknown-equivalence",
                 "denominator": denominator, "destination_bits": destination_bits,

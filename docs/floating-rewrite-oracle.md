@@ -24,8 +24,18 @@ not authorize runtime dispatch or prove the behavior of AMD instructions. A fail
 guard does not select a different semantic program. The original computation must
 remain the fallback when this model is eventually connected to a runtime owner.
 
+Oracle v2 validates and compiles the actual tree into a flat postorder program,
+which both evaluators execute. The guard derives its largest proper subtree from
+that program rather than assuming recursive half splits. Pairwise odd-node
+carry-forward is preserved: K=5 has a four-leaf proper subtree, and K=9/17/33
+have eight/sixteen/thirty-two. A single-leaf program has no proper subtree and
+uses a one-product conservative guard. The report binds the program digest,
+subtree sizes, upper scale exponent and guard version into its identity.
+The flat representation also handles long folds without Python recursion.
+
 Authored fixtures cover the supplied overflow/topology and underflow counterexamples,
 all decoded element pairs, scale boundaries, malformed trees, k=1/2/31/32/33/64,
+non-power-of-two upper-bound cancellation witnesses and power-of-two controls,
 RNE ties and signed-zero normalization. Codes 253..255 are rejected. Execution is
 pending the consolidated campaign. Existing integer certificate/composition reports
 now carry distinct verdicts and versioned identities; layout nodes now require explicit injective source/destination logical address maps;
