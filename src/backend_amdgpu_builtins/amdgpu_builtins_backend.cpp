@@ -1,5 +1,6 @@
 #include "rns8/generated/metadata_registry.hpp"
 #include "backend_common/address_domain.hpp"
+#include "backend_common/matrix_target.hpp"
 #include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 
 #include "backend_common/finite_u8_reducer.hpp"
@@ -17,6 +18,7 @@
 #  include <hip/hip_runtime_api.h>
 
 
+extern "C" int rns8_amdgpu_builtin_dense_available(int);
 extern "C" int rns8_amdgpu_builtin_enqueue_dense(int,const void*,const void*,void*,int,int,int,int,int,int,unsigned,bool,void*);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,int,int,int);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
@@ -91,9 +93,7 @@ rns8_status amdgpu_builtins_sparse_a_contract(
       !qualified_i32_matrix_address(k, n, ldb, planes) ||
       !qualified_i32_matrix_address(m, n, ldc, planes))
     return RNS8_UNSUPPORTED_BACKEND;
-  const std::string_view name = target ? target : "";
-  const auto arch = name.substr(0, name.find(':'));
-  return arch == "gfx942" || arch == "gfx1200" || arch == "gfx1201"
+  return builtin_sparse_target(target ? target : "")
       ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
 }
 
@@ -137,15 +137,15 @@ bool valid_sparse_shape(
 }
 
 bool amdgpu_target_is_cdna3(const char* target) {
-  return target && std::strncmp(target, "gfx942", 6) == 0;
+  return target && builtin_arch(target)==BuiltinArch::cdna3;
 }
 
 bool amdgpu_target_is_rdna3(const char* target) {
-  return target && std::strncmp(target, "gfx110", 6) == 0;
+  return target && builtin_arch(target)==BuiltinArch::rdna3;
 }
 
 bool amdgpu_target_is_rdna4(const char* target) {
-  return target && (std::strncmp(target, "gfx1200", 7) == 0 || std::strncmp(target, "gfx1201", 7) == 0);
+  return target && builtin_arch(target)==BuiltinArch::rdna4;
 }
 
 bool use_cdna3_mfma_32x32x16_for_override(int64_t m, int64_t n, int64_t k) {
@@ -255,12 +255,13 @@ rns8_status amdgpu_builtins_probe(int device_id, rns8_device_info& out) {
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  const bool supported = std::strncmp(out.gcn_arch, "gfx942", 6) == 0 ||
-                         std::strncmp(out.gcn_arch, "gfx110", 6) == 0 ||
-                         std::strncmp(out.gcn_arch, "gfx1200", 7) == 0 ||
-                         std::strncmp(out.gcn_arch, "gfx1201", 7) == 0;
+  const bool supported = builtin_arch(out.gcn_arch)!=BuiltinArch::unsupported;
   if (!supported) {
-    copy_c_string(out.detail, sizeof(out.detail), "AMDGPU builtin kernels require gfx942, gfx110x, gfx1200, or gfx1201");
+    copy_c_string(out.detail, sizeof(out.detail), "AMDGPU builtin kernels require gfx942, gfx1100/1101/1102, gfx1200, or gfx1201");
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  if(rns8_amdgpu_builtin_dense_available(device_id)!=0) {
+    copy_c_string(out.detail,sizeof(out.detail),"No matching compiled builtin arithmetic body for this device");
     return RNS8_UNSUPPORTED_BACKEND;
   }
   out.backend = RNS8_BACKEND_AMDGPU_BUILTINS;

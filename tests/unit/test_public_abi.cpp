@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <type_traits>
 #include "rns8/rns8.h"
+#include "rns8/pipeline_recipe.h"
 static_assert(sizeof(rns8_allocation_domain_observation)==56);
 static_assert(sizeof(rns8_allocation_observation)==136);
 static_assert(std::is_standard_layout_v<rns8_allocation_observation>);
@@ -9,23 +10,45 @@ static_assert(std::is_standard_layout_v<rns8_allocation_observation>);
 #define CHECK_ENUM_ABI(type) \
   static_assert(sizeof(type) == sizeof(uint32_t)); \
   static_assert(std::is_same_v<std::underlying_type_t<type>, uint32_t>)
-CHECK_ENUM_ABI(rns8_status);
-CHECK_ENUM_ABI(rns8_semantics);
-CHECK_ENUM_ABI(rns8_layout);
-CHECK_ENUM_ABI(rns8_backend_kind);
-CHECK_ENUM_ABI(rns8_bound_kind);
-CHECK_ENUM_ABI(rns8_sparse_contract);
-CHECK_ENUM_ABI(rns8_sparse_operand);
-CHECK_ENUM_ABI(rns8_sparse_index_layout);
-CHECK_ENUM_ABI(rns8_sparse_value_signedness);
-CHECK_ENUM_ABI(rns8_output_domain);
-CHECK_ENUM_ABI(rns8_next_op_flags);
-CHECK_ENUM_ABI(rns8_resident_matrix_role);
-CHECK_ENUM_ABI(rns8_operand_role);
-CHECK_ENUM_ABI(rns8_resident_node_kind);
-CHECK_ENUM_ABI(rns8_complex_product_method);
+CHECK_ENUM_ABI(rns8_adaptive_bound_method);
 CHECK_ENUM_ABI(rns8_async_failure_stage);
+CHECK_ENUM_ABI(rns8_auto_reason);
+CHECK_ENUM_ABI(rns8_backend_kind);
+CHECK_ENUM_ABI(rns8_bilinear_method);
+CHECK_ENUM_ABI(rns8_block_sparse_method);
+CHECK_ENUM_ABI(rns8_block_sparse_role);
+CHECK_ENUM_ABI(rns8_bound_kind);
+CHECK_ENUM_ABI(rns8_complex_product_method);
+CHECK_ENUM_ABI(rns8_crt_algorithm);
+CHECK_ENUM_ABI(rns8_execution_mode_flags);
+CHECK_ENUM_ABI(rns8_gram_input_policy);
+CHECK_ENUM_ABI(rns8_gram_method);
+CHECK_ENUM_ABI(rns8_gram_orientation);
 CHECK_ENUM_ABI(rns8_integer_split_format);
+CHECK_ENUM_ABI(rns8_layout);
+CHECK_ENUM_ABI(rns8_locality_order);
+CHECK_ENUM_ABI(rns8_narrow_product_method);
+CHECK_ENUM_ABI(rns8_native_device_access);
+CHECK_ENUM_ABI(rns8_native_device_policy);
+CHECK_ENUM_ABI(rns8_native_device_type);
+CHECK_ENUM_ABI(rns8_next_op_flags);
+CHECK_ENUM_ABI(rns8_operand_role);
+CHECK_ENUM_ABI(rns8_operation_kind);
+CHECK_ENUM_ABI(rns8_output_domain);
+CHECK_ENUM_ABI(rns8_pipeline_reconstruction_kind);
+CHECK_ENUM_ABI(rns8_pipeline_route_kind);
+CHECK_ENUM_ABI(rns8_product_prefix_policy);
+CHECK_ENUM_ABI(rns8_proof_verdict);
+CHECK_ENUM_ABI(rns8_resident_matrix_role);
+CHECK_ENUM_ABI(rns8_resident_node_kind);
+CHECK_ENUM_ABI(rns8_semantics);
+CHECK_ENUM_ABI(rns8_sparse_contract);
+CHECK_ENUM_ABI(rns8_sparse_index_layout);
+CHECK_ENUM_ABI(rns8_sparse_operand);
+CHECK_ENUM_ABI(rns8_sparse_value_signedness);
+CHECK_ENUM_ABI(rns8_status);
+CHECK_ENUM_ABI(rns8_stream_gemm_schedule);
+CHECK_ENUM_ABI(rns8_support_reason);
 #undef CHECK_ENUM_ABI
 static_assert(sizeof(rns8_integer_split_i64_desc) == 56);
 static_assert(sizeof(rns8_integer_split_i64_info) == 72);

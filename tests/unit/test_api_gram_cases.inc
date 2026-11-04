@@ -1,3 +1,4 @@
+#include <cstring>
 TEST_CASE("single-source Gram CPU products preserve full signed and finite semantics") {
   check_public_gram(RNS8_BACKEND_CPU_REFERENCE);
 }
@@ -119,4 +120,28 @@ TEST_CASE("Gram prepared payload aligns limb staging after odd transpose extents
     CHECK(query_gram_prepared_storage(p,true,wmma,2,3,r.host_bytes+r.device_bytes-1).status==RNS8_WORKSPACE_TOO_SMALL);
     CHECK(query_gram_prepared_storage(p,true,wmma,3,3,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
   }
+}
+
+TEST_CASE("raw Gram enum values reject through real descriptors without changing output") {
+  auto* ctx=create_cpu_context();auto md=bounded_matrix_desc(1,1,RNS8_BOUNDED_I64);
+  rns8_matrix *x=nullptr,*c=nullptr;
+  REQUIRE(rns8_create_matrix(ctx,&md,&x)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&md,&c)==RNS8_SUCCESS);
+  int64_t input=3,old=11;
+  REQUIRE(rns8_pack_i64(ctx,x,&input,1,0)==RNS8_SUCCESS);REQUIRE(rns8_pack_i64(ctx,c,&old,1,0)==RNS8_SUCCESS);
+  const auto residues=c->residues;const auto generation=c->content_generation;
+  for(uint32_t raw:{UINT32_MAX,UINT32_C(0x80000000),4u}) {
+    rns8_gram_method method;std::memcpy(&method,&raw,sizeof(raw));
+    CHECK(rns8_gram_residues(ctx,x,c,RNS8_GRAM_TRANSPOSE_TIMES_SELF,method,UINT64_MAX)==RNS8_INVALID_ARGUMENT);
+  }
+  for(uint32_t raw:{UINT32_MAX,UINT32_C(0x80000000),2u}) {
+    rns8_gram_orientation orientation;std::memcpy(&orientation,&raw,sizeof(raw));
+    CHECK(rns8_gram_residues(ctx,x,c,orientation,RNS8_GRAM_SCALAR,UINT64_MAX)==RNS8_INVALID_ARGUMENT);
+  }
+  for(uint32_t raw:{UINT32_MAX,UINT32_C(0x80000000),3u}) {
+    rns8_gram_input_policy policy;std::memcpy(&policy,&raw,sizeof(raw));rns8_prepared_gram* owner=nullptr;
+    CHECK(rns8_prepare_gram_ex(ctx,x,c,RNS8_GRAM_TRANSPOSE_TIMES_SELF,RNS8_GRAM_SCALAR,policy,0,UINT64_MAX,&owner)==RNS8_INVALID_ARGUMENT);
+    CHECK(owner==nullptr);
+  }
+  CHECK(c->residues==residues);CHECK(c->content_generation==generation);
+  REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(x)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

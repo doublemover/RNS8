@@ -1,4 +1,5 @@
 #include <hip/hip_runtime.h>
+#include "../backend_common/matrix_target.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -30,12 +31,7 @@ __device__ __constant__ int rns8_amdgpu_default_moduli[kRns8DefaultModulusCount]
 // including arbitrary byte channels admitted by the explicit-basis owner.
 __device__ __constant__ rns8::detail::finite_u8::ByteModulusReciprocals rns8_amdgpu_reciprocals{};
 
-enum class rns8_amdgpu_arch_kind {
-  unsupported,
-  cdna3,
-  rdna3,
-  rdna4,
-};
+using rns8_amdgpu_arch_kind = rns8::detail::BuiltinArch;
 
 __device__ __forceinline__ uint32_t pack_byte(uint8_t value, int byte_index) {
   return static_cast<uint32_t>(value) << static_cast<uint32_t>(byte_index * 8);
@@ -199,7 +195,7 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
     int ldb,
     int ldc,
     int plane_count_or_modulus) {
-#if defined(__gfx942__)
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
   const int lane_col = lane & 15;
@@ -267,7 +263,7 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
     int ldb,
     int ldc,
     int plane_count_or_modulus) {
-#if defined(__gfx942__)
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 31;
   const int lane_col = lane & 31;
@@ -334,7 +330,7 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
     int ldb,
     int ldc,
     int plane_count_or_modulus) {
-#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)
+#if RNS8_BUILTIN_BODY_RDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
   const int lane_col = lane & 15;
@@ -398,7 +394,7 @@ __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
     int ldb,
     int ldc,
     int plane_count_or_modulus) {
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if RNS8_BUILTIN_BODY_RDNA4
   const int lane = static_cast<int>(threadIdx.x);
   const int half = lane >> 4;
   const int lane_row = lane & 15;
@@ -459,7 +455,7 @@ __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_kernel(
     int ldb,
     int ldc,
     int plane_count_or_modulus) {
-#if defined(__gfx942__)
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
   const int lane_col = lane & 15;
@@ -529,7 +525,7 @@ __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_32x32x32_kernel(
     int ldb,
     int ldc,
     int plane_count_or_modulus) {
-#if defined(__gfx942__)
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 31;
   const int lane_col = lane & 31;
@@ -598,7 +594,7 @@ __global__ __launch_bounds__(32) void rdna4_sparse_swmmac_kernel(
     int ldb,
     int ldc,
     int plane_count_or_modulus) {
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if RNS8_BUILTIN_BODY_RDNA4
   const int lane = static_cast<int>(threadIdx.x);
   const int half = lane >> 4;
   const int lane_row = lane & 15;
@@ -656,19 +652,7 @@ __global__ __launch_bounds__(32) void rdna4_sparse_swmmac_kernel(
 }
 
 rns8_amdgpu_arch_kind detect_arch_kind(const char* arch) {
-  if (!arch) {
-    return rns8_amdgpu_arch_kind::unsupported;
-  }
-  if (std::strncmp(arch, "gfx942", 6) == 0) {
-    return rns8_amdgpu_arch_kind::cdna3;
-  }
-  if (std::strncmp(arch, "gfx110", 6) == 0) {
-    return rns8_amdgpu_arch_kind::rdna3;
-  }
-  if (std::strncmp(arch, "gfx1200", 7) == 0 || std::strncmp(arch, "gfx1201", 7) == 0) {
-    return rns8_amdgpu_arch_kind::rdna4;
-  }
-  return rns8_amdgpu_arch_kind::unsupported;
+  return rns8::detail::builtin_arch(arch ? arch : "");
 }
 
 int active_device_arch_kind(int device_id, rns8_amdgpu_arch_kind& kind) {
@@ -1080,4 +1064,21 @@ extern "C" int rns8_amdgpu_builtin_enqueue_dense(int device_id,const void* a,con
       (finite?(value<2 || value>256):value<1 || value>20))return 1;
   return finite?launch_dense<true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true):
       launch_dense<false>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true);
+}
+
+// Query the selected symbol before creating a public arithmetic owner. This
+// rejects missing code objects without launching a write or trusting a family label.
+extern "C" int rns8_amdgpu_builtin_dense_available(int device_id) {
+  rns8_amdgpu_arch_kind kind;
+  const int status=active_device_arch_kind(device_id,kind);
+  if(status)return status;
+  hipFuncAttributes attributes{};
+  hipError_t error=hipErrorInvalidDeviceFunction;
+  switch(kind) {
+    case rns8_amdgpu_arch_kind::cdna3:error=hipFuncGetAttributes(&attributes,reinterpret_cast<const void*>(&cdna3_dense_mfma_kernel<false,false>));break;
+    case rns8_amdgpu_arch_kind::rdna3:error=hipFuncGetAttributes(&attributes,reinterpret_cast<const void*>(&rdna3_dense_wmma_kernel<false,false>));break;
+    case rns8_amdgpu_arch_kind::rdna4:error=hipFuncGetAttributes(&attributes,reinterpret_cast<const void*>(&rdna4_dense_wmma_kernel<false,false>));break;
+    default:return 2;
+  }
+  return error==hipSuccess?0:2;
 }

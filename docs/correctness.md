@@ -1,5 +1,11 @@
 # Exactness contract and tests
 
+All named public enums use explicit 32-bit C++ backing through `RNS8_ENUM_BASE`.
+This makes arbitrary C/FFI bit patterns representable before validation; unknown
+values still reject through the actual descriptor/operation checks. C consumers
+must retain the normal 32-bit enum ABI and supported packing. Fixed backing does
+not authorize new enum values or change the documented public struct layout.
+
 ## CRT range and trusted bounds
 
 Let `P` be the product of the selected pairwise-coprime default moduli.

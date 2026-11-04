@@ -8,13 +8,20 @@ preserves earlier work without duplicating current status.
 
 ## Current implementation pass
 
-The [full implementation audit](../metadata/full-implementation-audit-20261027.json)
-reconciles all 40 open issues and their comments. All concrete source work is
-written, including the explicit native-integer split/merge that replaces the
-last reserved decomposition stub. The [post-source validation](../metadata/full-implementation-validation-20261027.json)
-records clean compiled revision `3b6bc72`, full CPU-ASan/gfx1100 suites and fresh
-native/DLPack/C17 installed consumers. Source was committed before tests began;
-no new benchmark campaign or routing promotion follows.
+The [November 4 reevaluation](../metadata/implementation-frontload-20261104.json)
+records all **70 open issues**, including the newer #79–#105 findings and reopened
+address/proof/evidence work. Development is being frontloaded: admission,
+ownership and publication repairs first, then shared arithmetic/planning,
+benchmark evidence and development workflows. Runtime validation follows the
+completed source pass; source readiness and hardware/performance acceptance
+remain distinct.
+
+The October 27 [implementation audit](../metadata/full-implementation-audit-20261027.json)
+and [branch code audit](branch-code-audit-20261027.md) retain their dated source
+and validation credit. Their earlier empty implementation backlog is superseded
+by the November inventory, not a statement about the newly filed work.
+
+The following table records the prior completed implementation envelopes:
 
 | Issue | Implemented extension | Remaining qualification |
 |---|---|---|
@@ -153,7 +160,7 @@ rehearsals remain under #57/#58/#60/#61. The selected Git candidate remains
 uninstalled. Explicit gfx950 FP4/FP6/FP8 fixed/dynamic/mixed-format kernels are
 implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
-paths, with physical cluster/memory-ordering/failure qualification pending. There are 40 open issues;
+paths, with physical cluster/memory-ordering/failure qualification pending. There are 70 open issues;
 child acceptance gates remain the roadmap's retirement criterion. The full audit
 records no known remaining implementation in the requested backlog. The current
 receipt distinguishes applicable local passes, unchanged carried evidence,

@@ -132,26 +132,27 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     return "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2";
   }
   if (plan.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    if(builtin_arch(plan.backend_target_id)==BuiltinArch::unsupported)return "not_implemented";
     if (uses_finite_storage(plan.desc.semantics)) {
-      if (plan.backend_target_id.rfind("gfx110", 0) == 0) {
+      if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna3) {
         return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
       }
-      if (plan.backend_target_id == "gfx1200" || plan.backend_target_id == "gfx1201") {
+      if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna4) {
         return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
       }
-      if (plan.backend_target_id.rfind("gfx942", 0) == 0 &&
+      if (builtin_arch(plan.backend_target_id)==BuiltinArch::cdna3 &&
           rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(plan.desc.m, plan.desc.n, plan.desc.k)) {
         return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1";
       }
       return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
     }
-    if (plan.backend_target_id.rfind("gfx110", 0) == 0) {
+    if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna3) {
       return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
     }
-    if (plan.backend_target_id == "gfx1200" || plan.backend_target_id == "gfx1201") {
+    if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna4) {
       return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
     }
-    if (plan.backend_target_id.rfind("gfx942", 0) == 0 &&
+    if (builtin_arch(plan.backend_target_id)==BuiltinArch::cdna3 &&
         rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(plan.desc.m, plan.desc.n, plan.desc.k)) {
       return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
     }

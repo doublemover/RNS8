@@ -8,7 +8,7 @@ extern "C" {
  * promotes a profile. Enumeration is host-only and does not probe/allocate on
  * a device. It binds current inputs and reports dynamic preparation separately.
  * Source/target eligibility is shared with the existing operation provider. */
-typedef enum rns8_pipeline_route_kind {
+typedef enum rns8_pipeline_route_kind RNS8_ENUM_BASE {
   RNS8_ROUTE_UNIFORM=0,RNS8_ROUTE_ENCODED_NATIVE_B=1,RNS8_ROUTE_SPLIT_K=2,
   RNS8_ROUTE_NARROW=3,RNS8_ROUTE_NATIVE_QUEUE=4
 } rns8_pipeline_route_kind;

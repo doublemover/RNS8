@@ -1,4 +1,5 @@
 #include "backend_common/direct_rns_route.hpp"
+#include "backend_common/matrix_target.hpp"
 #include "core/api_internal.hpp"
 #include "backend_common/garner_constants.hpp"
 #include <cmath>

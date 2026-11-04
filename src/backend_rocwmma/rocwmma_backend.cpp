@@ -10,6 +10,7 @@
 #include <limits>
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+extern "C" int rns8_rocwmma_runtime_wave_contract(int);
 extern "C" int rns8_rocwmma_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
@@ -153,6 +154,10 @@ rns8_status rocwmma_probe(int device_id, rns8_device_info& out) {
   rns8_status status = hip_direct_probe(device_id, out);
   if (status != RNS8_SUCCESS) {
     return status;
+  }
+  if(rns8_rocwmma_runtime_wave_contract(device_id)!=0) {
+    copy_c_string(out.detail,sizeof(out.detail),"rocWMMA runtime wave size differs from the compiled host launch contract");
+    return RNS8_UNSUPPORTED_BACKEND;
   }
   out.backend = RNS8_BACKEND_ROCWMMA;
   copy_c_string(out.detail, sizeof(out.detail), "rocWMMA accelerator backend detected through HIP runtime");

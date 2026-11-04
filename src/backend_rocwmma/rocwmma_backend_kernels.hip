@@ -47,3 +47,9 @@ void hip_direct_timing_record_failure(const char* label, const char* phase, int 
 #include "rocwmma_backend_wrap64_kernel.inc"
 #include "rocwmma_backend_rns_wrappers.inc"
 #include "rocwmma_backend_finite_wrap64_wrappers.inc"
+
+extern "C" int rns8_rocwmma_runtime_wave_contract(int device_id) {
+  hipDeviceProp_t prop{};
+  if(hipGetDeviceProperties(&prop,device_id)!=hipSuccess)return 3;
+  return prop.warpSize==kRns8WmmaWaveThreads?0:2;
+}

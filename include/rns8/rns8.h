@@ -1223,7 +1223,7 @@ typedef struct rns8_matrix_storage_info {
 } rns8_matrix_storage_info;
 
 typedef struct rns8_stream_gemm_plan rns8_stream_gemm_plan;
-typedef enum rns8_stream_gemm_schedule {
+typedef enum rns8_stream_gemm_schedule RNS8_ENUM_BASE {
   RNS8_STREAM_GEMM_SERIAL=0,
   RNS8_STREAM_GEMM_OVERLAPPED=1
 } rns8_stream_gemm_schedule;
@@ -1322,11 +1322,11 @@ RNS8_API rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,
  * after device recovery. Context remains poisoned and cannot execute new work. */
 RNS8_API rns8_status rns8_destroy_stream_gemm(rns8_stream_gemm_plan* plan);
 
-typedef enum rns8_gram_orientation {
+typedef enum rns8_gram_orientation RNS8_ENUM_BASE {
   RNS8_GRAM_TRANSPOSE_TIMES_SELF = 0,
   RNS8_GRAM_SELF_TIMES_TRANSPOSE = 1
 } rns8_gram_orientation;
-typedef enum rns8_gram_method {
+typedef enum rns8_gram_method RNS8_ENUM_BASE {
   RNS8_GRAM_SCALAR = 0,
   RNS8_GRAM_WMMA = 1,
   RNS8_GRAM_SCALAR_SEPARATE_MIRROR = 2,
@@ -1666,7 +1666,7 @@ RNS8_API rns8_status rns8_get_grouped_dispatch_contract_info(
  * target_id: 0=actual supported target, 942/950=Instinct experiment, 1100=control.
  * Unknown/mismatched targets retain ordinary order and report applied=0.
  * cache_domains/concurrent_groups/cache_bytes are hypothetical model inputs. */
-typedef enum rns8_locality_order {
+typedef enum rns8_locality_order RNS8_ENUM_BASE {
   RNS8_LOCALITY_ORDINARY=0,
   RNS8_LOCALITY_OUTPUT_NEIGHBOR=1,
   RNS8_LOCALITY_MODULUS=2,
@@ -2068,7 +2068,7 @@ RNS8_API rns8_status rns8_prepare_gram(rns8_context* ctx,const rns8_matrix* x,rn
 /* Independent Gram input ablations. A transpose adapter is generation-bound;
  * native input requires retained current signed i64 on direct HIP exact-wide
  * matrices, never a finite-u8 cast. CPU native retention is unsupported. */
-typedef enum rns8_gram_input_policy {
+typedef enum rns8_gram_input_policy RNS8_ENUM_BASE {
   RNS8_GRAM_RESIDENT_RESIDUES=0,
   RNS8_GRAM_RETAINED_NATIVE_I64=1,
   RNS8_GRAM_RETAINED_TRANSPOSE=2
@@ -3019,14 +3019,14 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
  * COPY_OWNED read snapshots release external ownership after completed creation. Owner
  * callbacks run on the calling host thread, never a HIP runtime callback. */
 
-typedef enum rns8_native_device_type {
+typedef enum rns8_native_device_type RNS8_ENUM_BASE {
   RNS8_NATIVE_DEVICE_I64=1, RNS8_NATIVE_DEVICE_U64=2,
   RNS8_NATIVE_DEVICE_SIGNED_LIMBS=3, RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS=4
 } rns8_native_device_type;
-typedef enum rns8_native_device_access {
+typedef enum rns8_native_device_access RNS8_ENUM_BASE {
   RNS8_NATIVE_DEVICE_READ=1, RNS8_NATIVE_DEVICE_WRITE=2
 } rns8_native_device_access;
-typedef enum rns8_native_device_policy {
+typedef enum rns8_native_device_policy RNS8_ENUM_BASE {
   RNS8_NATIVE_DEVICE_BORROW=1,
   /* Read-only compact D2D snapshot; external lease ends after completed copy. */
   RNS8_NATIVE_DEVICE_COPY_OWNED=2

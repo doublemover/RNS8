@@ -8,6 +8,19 @@ and actual device validation.
 
 ## Public paths
 
+Builtin dense admission uses exact implemented targets: `gfx942`,
+`gfx1100`/`gfx1101`/`gfx1102`, and `gfx1200`/`gfx1201`, with validated feature
+suffixes. A family prefix such as `gfx110` does not admit `gfx1103` or an unknown
+future target. Context creation also checks that its selected arithmetic symbol
+has a matching compiled code object before any output can be written.
+
+The current rocWMMA package has one host launch width. Configure rejects mixed
+wave32/wave64 target lists in either order and probes every admitted target.
+Same-wave lists remain eligible for the installed SDK's compile checks; runtime
+admission verifies the compiled launch width. Build separate rocWMMA packages
+for incompatible classes, or disable that optional backend in a mixed direct-HIP
+package. These source checks do not establish qualification on absent devices.
+
 | Backend / benchmark name | State and enablement | Arithmetic / constraints | Evidence or implementation owner |
 |---|---|---|---|
 | `cpu-reference` | Available public path | Bounded, exact-wide, finite; independent Boost reference, optional OpenMP | [Correctness](correctness.md), [developer checks](../CONTRIBUTING.md) |

@@ -21,6 +21,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   if(NOT _rns8_cases_status EQUAL 0)
     message(FATAL_ERROR "Benchmark case expansion failed: ${_rns8_cases_error}")
   endif()
+  add_test(NAME matrix_target_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_matrix_targets.py")
+  set_tests_properties(matrix_target_contracts PROPERTIES LABELS "tools;admission" TIMEOUT 60)
   add_test(NAME benchmark_catalog_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_cases.py")
   add_test(NAME research_evidence_archive_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_research_evidence.py")
   add_test(NAME rank48_mathematical_certificate COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank48_certificate.py")
@@ -1058,6 +1060,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set(
     RNS8_TEST_SOURCES
     tests/unit/test_public_abi.cpp
+    tests/unit/test_matrix_target.cpp
     tests/unit/test_integer_split.cpp
     tests/unit/test_hip_handle_owner.cpp
     tests/unit/test_moduli.cpp

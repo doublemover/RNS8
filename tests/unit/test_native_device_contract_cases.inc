@@ -1,3 +1,4 @@
+#include <cstring>
 #include "../support/native_device_fixture.hpp"
 TEST_CASE("native device query checks view spans without touching device or owner") {
   using namespace native_device_fixture;
@@ -68,4 +69,21 @@ TEST_CASE("native limb descriptors bind integer widths and reject unsupported ow
       }
     }
   CHECK(owner.acquired==0); CHECK(owner.released==0);
+}
+
+TEST_CASE("raw C enum representations are rejected before native owner acquisition") {
+  using namespace native_device_fixture;
+  uint64_t words[32]{};Owner owner;
+  const auto valid=descriptor(words,sizeof(words),owner);
+  for(unsigned field=0;field<3;++field)for(uint32_t raw:{UINT32_MAX,UINT32_C(0x80000000),field==0?5u:3u}) {
+    auto d=valid;
+    if(field==0)std::memcpy(&d.element_type,&raw,sizeof(raw));
+    else if(field==1)std::memcpy(&d.access,&raw,sizeof(raw));
+    else std::memcpy(&d.policy,&raw,sizeof(raw));
+    rns8_native_device_resources out{};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;out.snapshot_bytes=171;
+    const auto before=out;
+    CHECK(rns8_query_native_device(&d,&out)==RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&out,&before,sizeof(out))==0);
+  }
+  CHECK(owner.acquired==0);CHECK(owner.released==0);
 }
