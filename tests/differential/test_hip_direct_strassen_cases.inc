@@ -50,7 +50,7 @@ TEST_CASE(
       bool committed = true;
       if(route>=3 && prefix==1) {
         REQUIRE(multiply(0,da,db,dc,m,n,k,lda,ldb,ldc,prefix,UINT64_MAX,
-                         committed,nullptr,0,false)==RNS8_UNSUPPORTED_BACKEND);
+                         committed,nullptr,0,false,nullptr)==RNS8_UNSUPPORTED_BACKEND);
         REQUIRE_FALSE(committed);
         REQUIRE(hip_direct_copy_device_to_host(0,observed.data(),dc,observed.size())==RNS8_SUCCESS);
         REQUIRE(std::all_of(observed.begin(),observed.end(),[](int8_t v){return v==77;}));
@@ -60,7 +60,7 @@ TEST_CASE(
         continue;
       }
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
-                                              ldc, prefix, 0, committed,nullptr,0,false) ==
+                                              ldc, prefix, 0, committed,nullptr,0,false,nullptr) ==
               RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE_FALSE(committed);
       REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), dc,
@@ -71,15 +71,15 @@ TEST_CASE(
         const auto resources=query_rank23_slp_resources(m,n,k,lda,ldb,ldc,prefix,UINT64_MAX);
         REQUIRE(resources.status==RNS8_SUCCESS);
         REQUIRE(multiply(0,da,db,dc,m,n,k,lda,ldb,ldc,prefix,resources.total_bytes-1,
-                         committed,nullptr,0,false)==RNS8_WORKSPACE_TOO_SMALL);
+                         committed,nullptr,0,false,nullptr)==RNS8_WORKSPACE_TOO_SMALL);
         REQUIRE_FALSE(committed);
         REQUIRE(multiply(0,da,db,da,m,n,k,lda,ldb,ldc,prefix,UINT64_MAX,
-                         committed,nullptr,0,false)==RNS8_INVALID_ARGUMENT);
+                         committed,nullptr,0,false,nullptr)==RNS8_INVALID_ARGUMENT);
         REQUIRE_FALSE(committed);
       }
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
                                               ldc, prefix, UINT64_MAX,
-                                              committed,nullptr,0,false) == RNS8_SUCCESS);
+                                              committed,nullptr,0,false,nullptr) == RNS8_SUCCESS);
       REQUIRE(committed);
       REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), dc,
                                              observed.size()) == RNS8_SUCCESS);
@@ -142,6 +142,22 @@ template<class T> void check_public_strassen_owner(rns8_bilinear_method method=R
   CHECK(overhead==-1);
   REQUIRE(rns8_prepare_bilinear_workspace(ctx,plan,method,UINT64_MAX,workspace)==RNS8_SUCCESS);
   auto* retained=workspace->bilinear_scratch_owner.get();REQUIRE(retained!=nullptr);
+  struct LeaseObservation {rns8_matrix *a,*b,*c;rns8_workspace* work;bool observed=false;};
+  LeaseObservation observation{a,b,c,workspace};rns8_synchronous_test_hooks hooks{};hooks.state=&observation;
+  hooks.dispatch=[](void* state,const char*,bool* written)->rns8_status {
+    auto& o=*static_cast<LeaseObservation*>(state);
+    o.observed=o.a->in_flight_readers==1 && o.b->in_flight_readers==1 && o.c->in_flight_writer &&
+      o.work->in_flight && written && !*written;
+    return RNS8_BACKEND_FAILURE;
+  };
+  hooks.drain=[](void*) noexcept{return RNS8_SUCCESS;};ctx->synchronous_test_hooks=&hooks;
+  const auto rejected=run(1);ctx->synchronous_test_hooks=nullptr;
+  REQUIRE(rejected==RNS8_BACKEND_FAILURE);CHECK(observation.observed);
+  CHECK(c->content_generation==initial_generation);CHECK_FALSE(c->in_flight_writer);
+  CHECK(a->in_flight_readers==0);CHECK(b->in_flight_readers==0);CHECK_FALSE(workspace->in_flight);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto retained_stream=workspace->bilinear_stream.get();REQUIRE(retained_stream!=nullptr);
+#endif
   for (int mutation=0; mutation<2; ++mutation) {
     if (mutation) {
       av[0] = std::numeric_limits<T>::max();
@@ -151,6 +167,9 @@ template<class T> void check_public_strassen_owner(rns8_bilinear_method method=R
       rns8::detail::hip_direct_allocation_counters_reset();
       REQUIRE(run(1)==RNS8_SUCCESS);
       CHECK(workspace->bilinear_scratch_owner.get()==retained);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      CHECK(workspace->bilinear_stream.get()==retained_stream);
+#endif
       CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
       CHECK(overhead>0);
       std::vector<uint64_t> limbs(17*17*3);

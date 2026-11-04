@@ -78,30 +78,30 @@ rns8_status hip_direct_enqueue_native_product_integrity(
 // invalidation after a failed final commit; earlier failures preserve C.
 rns8_status hip_direct_gemm_strassen_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false,void* stream=nullptr);
 rns8_status hip_direct_gemm_rank23_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false,void* stream=nullptr);
 rns8_status hip_direct_gemm_rank48_device(
-    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false);
+    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false,void* =nullptr);
 rns8_status hip_direct_gemm_rank48_slp_device(
-    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false);
+    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false,void* =nullptr);
 rns8_status hip_direct_gemm_rank48_slp_recompute_device(
-    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false);
+    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false,void* =nullptr);
 // Exact pinned alternative-basis SLP, separate from the coefficient control.
 // Full 23-operand/product materialization is included in the scratch budget.
 rns8_status hip_direct_gemm_rank23_slp_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false,void* stream=nullptr);
 // October 23-product/55-addition DAG, retained inputs or explicitly recomputed inputs.
 rns8_status hip_direct_gemm_rank23_oct55_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool& commit_started,
-    void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
+    void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false,void* stream=nullptr);
 rns8_status hip_direct_gemm_rank23_oct55_recompute_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool& commit_started,
-    void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
+    void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false,void* stream=nullptr);
 // Private modular block-sparse producer; its public materialization owner or
 // another caller supplies bounded/exact admission and output transaction ownership.
 rns8_status hip_direct_gemm_block_sparse_device(

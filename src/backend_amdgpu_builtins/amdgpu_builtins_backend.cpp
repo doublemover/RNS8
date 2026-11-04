@@ -20,7 +20,7 @@
 
 extern "C" int rns8_amdgpu_builtin_dense_available(int);
 extern "C" int rns8_amdgpu_builtin_enqueue_dense(int,const void*,const void*,void*,int,int,int,int,int,int,unsigned,bool,void*);
-extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,int,int,int);
+extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,int,int,int,void*);
 extern "C" int rns8_amdgpu_builtin_gemm_indexed_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,rns8::detail::IndexedModulusPlanes,int,int,void*);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
     int device_id,
@@ -360,16 +360,18 @@ static rns8_status validate_dense_batch(const void* a,const void* b,void* c,int6
 }
 
 rns8_status amdgpu_builtins_gemm_rns_batch_device(int device_id,const void* a,const void* b,void* c,
-    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t batches) {
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t batches,void* stream) {
   const auto valid=validate_dense_batch(a,b,c,m,n,k,lda,ldb,ldc,prefix,batches);
   if(valid!=RNS8_SUCCESS)return valid;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+  const auto launch=[&](){return rns8_amdgpu_builtin_gemm_rns_batch_device(
+      device_id,a,b,c,int(m),int(n),int(k),int(lda),int(ldb),int(ldc),int(prefix),int(batches),int(g_dense_kernel_variant_override),stream);};
+  if(stream && !hip_direct_timing_enabled())return status_from_device_code(launch());
   const std::string label=std::string(amdgpu_builtins_dense_event_label(device_id,false,m,n,k))+"_batched";
-  const int code=run_timed_device_code(label.c_str(),[&](){return rns8_amdgpu_builtin_gemm_rns_batch_device(
-      device_id,a,b,c,int(m),int(n),int(k),int(lda),int(ldb),int(ldc),int(prefix),int(batches),int(g_dense_kernel_variant_override));});
+  const int code=run_timed_device_code(label.c_str(),launch,stream);
   return status_from_device_code(code);
 #else
-  (void)device_id;return RNS8_UNSUPPORTED_BACKEND;
+  (void)device_id;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 
@@ -382,9 +384,9 @@ rns8_status amdgpu_builtins_gemm_indexed_batch_device(int device,const void* a,c
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
   const auto launch=[&](){return rns8_amdgpu_builtin_gemm_indexed_batch_device(device,a,b,c,int(m),int(n),int(k),
     int(lda),int(ldb),int(ldc),planes,int(batches),int(g_dense_kernel_variant_override),stream);};
-  if(stream)return status_from_device_code(launch()); // Caller owns ordered completion and stage events.
+  if(stream && !hip_direct_timing_enabled())return status_from_device_code(launch());
   const std::string label=std::string(amdgpu_builtins_dense_event_label(device,false,m,n,k))+"_indexed_batched_v2";
-  return status_from_device_code(run_timed_device_code(label.c_str(),launch));
+  return status_from_device_code(run_timed_device_code(label.c_str(),launch,stream));
 #else
   (void)device;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
 #endif

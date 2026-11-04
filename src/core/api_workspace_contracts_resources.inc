@@ -220,6 +220,9 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
   }
   reset_workspace_active_schedule_contract(workspace);
   keep_first_error(workspace.bilinear_scratch_owner.reset());
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(workspace.bilinear_stream.reset()!=hipSuccess)keep_first_error(RNS8_BACKEND_FAILURE);
+#endif
   keep_first_error(workspace.exact_auto_scratch_owner.reset());
   keep_first_error(workspace.adaptive_summary_owner.reset());
   workspace.adaptive_summary_identity[0] = {};

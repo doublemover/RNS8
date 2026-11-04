@@ -40,6 +40,10 @@ class BilinearCollection(unittest.TestCase):
         scratch,residue,host=resources(case);c.update(required_bilinear_scratch_bytes=scratch,resident_residue_payload_bytes=residue,
             host_payload_envelope_bytes=host,known_peak_device_payload_bytes=residue+scratch+case['m']*case['n']*24)
         self.assertEqual(validate_capture(c,e),c)
+        ordered=copy.deepcopy(c);ordered.update(schema='rns8_bilinear_microcase_v3',completion_contract='ordered_nondefault_single_terminal_v1')
+        self.assertEqual(validate_capture(ordered,e),ordered)
+        ordered['completion_contract']='device_wide_per_stage'
+        with self.assertRaises(ValueError):validate_capture(ordered,e)
         for field,value in [('algebraic_plane_ids',[0,1]),('classical_plane_ids',[1]),('algebraic_moduli',[256,255]),
                 ('algebraic_product_plane_gemms',144),('dyadic_channel_policy','odd_rank48_even_classical')]:
             bad=copy.deepcopy(c);bad[field]=value

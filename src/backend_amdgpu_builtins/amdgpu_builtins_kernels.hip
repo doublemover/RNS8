@@ -1117,9 +1117,9 @@ extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
 }
 
 extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int device_id,const void* a,const void* b,void* c,
-    int m,int n,int k,int lda,int ldb,int ldc,int prefix,int batches,int dense_kernel_variant) {
+    int m,int n,int k,int lda,int ldb,int ldc,int prefix,int batches,int dense_kernel_variant,void* stream) {
   if(!common_dense_args_valid(a,b,c,m,n,k,lda,ldb,ldc) || prefix<1 || prefix>20 || batches<1 || batches>64)return 1;
-  return launch_dense<false,true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,dense_kernel_variant,batches);
+  return launch_dense<false,true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,dense_kernel_variant,batches,static_cast<hipStream_t>(stream),stream!=nullptr);
 }
 
 extern "C" int rns8_amdgpu_builtin_gemm_indexed_batch_device(int device_id,const void* a,const void* b,void* c,

@@ -1645,6 +1645,16 @@ rns8_status rns8_gemm_wrap_u64(
 
 // Research entrypoints with explicit per-operation support.
 
+static rns8_status prepare_bilinear_stream(rns8_context& ctx,rns8_workspace& workspace,void*& stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8::detail::hip_scoped_device selected(ctx.device_id);
+  if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  if(!workspace.bilinear_stream && workspace.bilinear_stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  stream=workspace.bilinear_stream.get();return RNS8_SUCCESS;
+#else
+  (void)ctx;(void)workspace;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 RNS8_API rns8_status rns8_prepare_bilinear_workspace(rns8_context* ctx,const rns8_plan* plan,
     rns8_bilinear_method method,uint64_t budget,rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
@@ -1654,8 +1664,11 @@ RNS8_API rns8_status rns8_prepare_bilinear_workspace(rns8_context* ctx,const rns
     query.operation=RNS8_OP_STRASSEN;query.execution_modes=RNS8_EXEC_SYNC;query.problem=plan->desc;query.algorithm=method;query.scratch_budget=budget;
     const auto support=operation_support(*ctx,query,plan->backend);if(support.status!=RNS8_SUCCESS)return support.status;
     if(workspace->bilinear_scratch_owner.bytes()>budget)return RNS8_WORKSPACE_TOO_SMALL;
-    if(workspace->bilinear_scratch_owner.bytes()>=support.required_device_bytes)return RNS8_SUCCESS;
-    return workspace->bilinear_scratch_owner.allocate(ctx->device_id,support.required_device_bytes);
+    if(workspace->bilinear_scratch_owner.bytes()<support.required_device_bytes) {
+      status=workspace->bilinear_scratch_owner.allocate(ctx->device_id,support.required_device_bytes);
+      if(status!=RNS8_SUCCESS)return status;
+    }
+    void* stream=nullptr;return prepare_bilinear_stream(*ctx,*workspace,stream);
   });
 }
 
@@ -1701,6 +1714,8 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
       status=workspace->bilinear_scratch_owner.allocate(ctx->device_id,resources.total_bytes);
       if(status!=RNS8_SUCCESS)return status;
     }
+    void* stream=nullptr;status=prepare_bilinear_stream(*ctx,*workspace,stream);
+    if(status!=RNS8_SUCCESS)return status;
     bool commit_started=false;size_t lease_token=0;
     status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token);if(status!=RNS8_SUCCESS)return status;
     SynchronousLease lease(*ctx,lease_token);lease.track_write(commit_started);
@@ -1714,7 +1729,7 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
     status = multiply(ctx->device_id, A->hip_residues, B->hip_residues,
         C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
         A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, max_scratch_bytes, commit_started,
-        workspace->bilinear_scratch_owner.get(),workspace->bilinear_scratch_owner.bytes(),matrix_subproducts);
+        workspace->bilinear_scratch_owner.get(),workspace->bilinear_scratch_owner.bytes(),matrix_subproducts,stream);
     if (status != RNS8_SUCCESS) return status;
     mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C, *plan, bound, &ranges);

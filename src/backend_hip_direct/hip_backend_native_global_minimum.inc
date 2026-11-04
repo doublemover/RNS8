@@ -61,7 +61,7 @@ rns8_status hip_direct_gemm_global_minimum_native_device(int device_id,const voi
   receipt.completion_ns=elapsed(completion_start);
   const auto commit_start=Timer::now();commit_started=true;stage.mark_pending();
   const auto committed=timed_hip_operation("native_global_completed_commit",[&] {
-    const auto launched=static_cast<hipError_t>(rns8_hip_strassen_commit(static_cast<const int8_t*>(stage.get()),c,int(m),int(n),int(ldc),capacity));
+    const auto launched=static_cast<hipError_t>(rns8_hip_strassen_commit(static_cast<const int8_t*>(stage.get()),c,int(m),int(n),int(ldc),capacity,nullptr));
     return launched==hipSuccess?hipDeviceSynchronize():launched;
   });
   if(committed!=hipSuccess)return RNS8_BACKEND_FAILURE;stage.mark_completed();receipt.commit_ns=elapsed(commit_start);

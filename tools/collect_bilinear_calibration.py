@@ -48,8 +48,8 @@ def validate_case(c, *, compact=True):
 
 
 def validate_capture(c,entry):
-    schema=c.get('schema');compact=schema=='rns8_bilinear_microcase_v2'
-    if schema not in ('rns8_bilinear_microcase_v1','rns8_bilinear_microcase_v2'):raise ValueError('capture ABI')
+    schema=c.get('schema');compact=schema in ('rns8_bilinear_microcase_v2','rns8_bilinear_microcase_v3')
+    if schema not in ('rns8_bilinear_microcase_v1','rns8_bilinear_microcase_v2','rns8_bilinear_microcase_v3'):raise ValueError('capture ABI')
     case=validate_case(entry['case'],compact=compact);scratch,residue,host=resources(case,compact=compact);mode=case['mode'];diagnostic=case['instrumented']
     expected=dict(schema=schema,case=case,run_id=entry['run_id'],dataset='period15_native_small_v1',
         selected_prefix=case['prefix'],algorithm=mode,subproduct_backend=case['subproduct_backend'],
@@ -77,6 +77,7 @@ def validate_capture(c,entry):
             if isinstance(value,list) and any(type(item) is not int for item in c[key]):raise ValueError('physical channel identity type '+key)
     elif any(key in c for key in ('channel_contract_version','algebraic_plane_ids','classical_plane_ids','algebraic_moduli','algebraic_product_plane_gemms')):
         raise ValueError('indexed channel work requires capture ABI2')
+    if schema=='rns8_bilinear_microcase_v3' and c.get('completion_contract')!=('ordinary_public_gemm_v1' if mode=='classical' else 'ordered_nondefault_single_terminal_v1'):raise ValueError('completion contract')
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id'):raise ValueError('compiled/process provenance')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:raise ValueError('artifact binding')

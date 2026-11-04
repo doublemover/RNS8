@@ -36,14 +36,14 @@ bool round_up_aligned_u64(uint64_t value, uint64_t alignment, uint64_t& out) {
   return true;
 }
 
-int run_timed_device_code(const char* label, const std::function<int()>& fn) {
+int run_timed_device_code(const char* label, const std::function<int()>& fn,void* stream) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!hip_direct_timing_enabled() || !label) {
     return fn();
   }
 
   hip_unique_event_pair events;
-  hipError_t event_status = events.create_and_record_start();
+  hipError_t event_status = events.create_and_record_start(static_cast<hipStream_t>(stream));
   if (event_status != hipSuccess) {
     hip_direct_timing_record_failure(label,"create_or_record_start",static_cast<int>(event_status));
     return fn();
@@ -51,7 +51,7 @@ int run_timed_device_code(const char* label, const std::function<int()>& fn) {
 
   const int code = fn();
   if (code == 0) {
-    event_status = events.record_stop();
+    event_status = events.record_stop(static_cast<hipStream_t>(stream));
     if (event_status == hipSuccess) {
       hip_direct_timing_record_pending_event(label, std::move(events));
       return code;
@@ -60,7 +60,7 @@ int run_timed_device_code(const char* label, const std::function<int()>& fn) {
   }
   return code;
 #else
-  (void)label;
+  (void)label;(void)stream;
   return fn();
 #endif
 }

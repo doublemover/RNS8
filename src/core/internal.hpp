@@ -257,6 +257,9 @@ struct rns8_workspace {
   std::shared_ptr<rns8::detail::CpuAmxWorkspace> cpu_amx;
   rns8::detail::hip_direct_device_buffer arena_owner;
   rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8::detail::hip_unique_stream bilinear_stream;
+#endif
   rns8::detail::hip_direct_device_buffer exact_auto_scratch_owner;
   rns8::detail::hip_direct_device_buffer adaptive_summary_owner;
   rns8::detail::NativeSummaryIdentity adaptive_summary_identity[2];

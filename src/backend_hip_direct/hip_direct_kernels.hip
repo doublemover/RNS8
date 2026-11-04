@@ -189,91 +189,91 @@ extern "C" int rns8_hip_split_k_canonicalize(uint8_t* values, int64_t cells, int
 }
 
 extern "C" int rns8_hip_rank23_slp_transform(const int8_t* source,int8_t* output,
-    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs) {
+    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs,void* stream) {
   const dim3 grid((uint64_t(hr)*hc+255)/256,prefix);
   if(lhs) {
-    hipLaunchKernelGGL((rns8_rank23_slp_transform_kernel<true>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_rank23_slp_transform_kernel<true>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         source,output,rows,cols,ld,hr,hc,prefix);
   } else {
-    hipLaunchKernelGGL((rns8_rank23_slp_transform_kernel<false>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_rank23_slp_transform_kernel<false>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         source,output,rows,cols,ld,hr,hc,prefix);
   }
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_rank23_slp_combine(const int8_t* products,int8_t* stage,
-    int m,int n,int hm,int hn,int prefix) {
+    int m,int n,int hm,int hn,int prefix,void* stream) {
   hipLaunchKernelGGL(rns8_rank23_slp_combine_kernel,
-      dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,nullptr,
+      dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,static_cast<hipStream_t>(stream),
       products,stage,m,n,hm,hn,prefix);
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_rank23_oct55_transform(const int8_t* source,int8_t* output,
-    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs,int selected_product) {
+    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs,int selected_product,void* stream) {
   const dim3 grid((uint64_t(hr)*hc+255)/256,prefix);
-  if(lhs)hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<true>),grid,dim3(256),0,nullptr,
+  if(lhs)hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<true>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
       source,output,rows,cols,ld,hr,hc,prefix,selected_product);
-  else hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<false>),grid,dim3(256),0,nullptr,
+  else hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<false>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
       source,output,rows,cols,ld,hr,hc,prefix,selected_product);
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_rank23_oct55_combine(const int8_t* products,int8_t* stage,
-    int m,int n,int hm,int hn,int prefix) {
-  hipLaunchKernelGGL(rns8_rank23_oct55_combine_kernel,dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,nullptr,
+    int m,int n,int hm,int hn,int prefix,void* stream) {
+  hipLaunchKernelGGL(rns8_rank23_oct55_combine_kernel,dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,static_cast<hipStream_t>(stream),
       products,stage,m,n,hm,hn,prefix);
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_rank48_slp_transform(const int8_t* source,int8_t* output,
-    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs,int selected_product,rns8::detail::IndexedModulusPlanes planes) {
+    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs,int selected_product,rns8::detail::IndexedModulusPlanes planes,void* stream) {
   if(!rns8::detail::valid_indexed_modulus_planes(planes,true) || !planes.eligible_count || planes.logical_count!=uint32_t(prefix))return int(hipErrorInvalidValue);
   const dim3 grid((uint64_t(hr)*hc+255)/256,planes.eligible_count);
-  if(lhs)hipLaunchKernelGGL((rns8_rank48_slp_transform_kernel<true>),grid,dim3(256),0,nullptr,
+  if(lhs)hipLaunchKernelGGL((rns8_rank48_slp_transform_kernel<true>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
       source,output,rows,cols,ld,hr,hc,prefix,selected_product,planes);
-  else hipLaunchKernelGGL((rns8_rank48_slp_transform_kernel<false>),grid,dim3(256),0,nullptr,
+  else hipLaunchKernelGGL((rns8_rank48_slp_transform_kernel<false>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
       source,output,rows,cols,ld,hr,hc,prefix,selected_product,planes);
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_rank48_slp_combine(const int8_t* products,int8_t* stage,
-    int m,int n,int hm,int hn,int prefix,rns8::detail::IndexedModulusPlanes planes) {
+    int m,int n,int hm,int hn,int prefix,rns8::detail::IndexedModulusPlanes planes,void* stream) {
   if(!rns8::detail::valid_indexed_modulus_planes(planes,true) || !planes.eligible_count || planes.logical_count!=uint32_t(prefix))return int(hipErrorInvalidValue);
-  hipLaunchKernelGGL(rns8_rank48_slp_combine_kernel,dim3((uint64_t(hm)*hn+255)/256,planes.eligible_count),dim3(256),0,nullptr,
+  hipLaunchKernelGGL(rns8_rank48_slp_combine_kernel,dim3((uint64_t(hm)*hn+255)/256,planes.eligible_count),dim3(256),0,static_cast<hipStream_t>(stream),
       products,stage,m,n,hm,hn,prefix,planes);
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
-    int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs,int blocks,rns8::detail::IndexedModulusPlanes planes) {
+    int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs,int blocks,rns8::detail::IndexedModulusPlanes planes,void* stream) {
   if(blocks<2 || blocks>4)return int(hipErrorInvalidValue);
   if(!rns8::detail::valid_indexed_modulus_planes(planes,blocks==4) || !planes.eligible_count || planes.logical_count!=uint32_t(prefix))return int(hipErrorInvalidValue);
   const dim3 grid((static_cast<uint64_t>(hr)*hc+255)/256,planes.eligible_count);
   if(blocks==4) {
-    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<4>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<4>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         source,output,rows,cols,ld,hr,hc,product,lhs,planes);
   } else if (blocks==3) {
-    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<3>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<3>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         source,output,rows,cols,ld,hr,hc,product,lhs,planes);
   } else {
-    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<2>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<2>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         source,output,rows,cols,ld,hr,hc,product,lhs,planes);
   }
   return static_cast<int>(hipGetLastError());
 }
-extern "C" int rns8_hip_strassen_combine(const int8_t* product,int8_t* stage,int m,int n,int hm,int hn,int prefix,int index,int blocks,rns8::detail::IndexedModulusPlanes planes) {
+extern "C" int rns8_hip_strassen_combine(const int8_t* product,int8_t* stage,int m,int n,int hm,int hn,int prefix,int index,int blocks,rns8::detail::IndexedModulusPlanes planes,void* stream) {
   if(blocks<2 || blocks>4)return int(hipErrorInvalidValue);
   if(!rns8::detail::valid_indexed_modulus_planes(planes,blocks==4) || !planes.eligible_count || planes.logical_count!=uint32_t(prefix))return int(hipErrorInvalidValue);
   const dim3 grid((static_cast<uint64_t>(m)*n+255)/256,planes.eligible_count);
   if(blocks==4) {
-    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<4>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<4>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         product,stage,m,n,hm,hn,index,planes);
   } else if (blocks==3) {
-    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<3>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<3>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         product,stage,m,n,hm,hn,index,planes);
   } else {
-    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<2>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<2>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         product,stage,m,n,hm,hn,index,planes);
   }
   return static_cast<int>(hipGetLastError());
 }
-extern "C" int rns8_hip_strassen_commit(const int8_t* stage,int8_t* output,int m,int n,int ldc,int prefix) {
-  hipLaunchKernelGGL(rns8_strassen_commit_kernel,dim3((static_cast<uint64_t>(m)*n+255)/256,prefix),dim3(256),0,nullptr,
+extern "C" int rns8_hip_strassen_commit(const int8_t* stage,int8_t* output,int m,int n,int ldc,int prefix,void* stream) {
+  hipLaunchKernelGGL(rns8_strassen_commit_kernel,dim3((static_cast<uint64_t>(m)*n+255)/256,prefix),dim3(256),0,static_cast<hipStream_t>(stream),
       stage,output,m,n,ldc);
   return static_cast<int>(hipGetLastError());
 }

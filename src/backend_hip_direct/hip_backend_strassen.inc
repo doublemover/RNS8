@@ -1,25 +1,70 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_strassen_transform(const int8_t *, int8_t *, int, int,
-                                           int, int, int, int, int, bool, int,IndexedModulusPlanes);
-extern "C" int rns8_hip_strassen_combine(const int8_t *, int8_t *, int, int,
-                                         int, int, int, int, int,IndexedModulusPlanes);
-extern "C" int rns8_hip_strassen_commit(const int8_t *, int8_t *, int, int, int,
-                                        int);
+extern "C" int rns8_hip_strassen_transform(const int8_t*,int8_t*,int,int,int,int,int,int,int,bool,int,IndexedModulusPlanes,void*);
+extern "C" int rns8_hip_strassen_combine(const int8_t*,int8_t*,int,int,int,int,int,int,int,IndexedModulusPlanes,void*);
+extern "C" int rns8_hip_strassen_commit(const int8_t*,int8_t*,int,int,int,int,void*);
+// One terminal observation also covers exceptions from diagnostic hooks. Local
+// scratch remains pending if completion cannot be established; the shared drain
+// queue owns its eventual reclamation. Borrowed arenas stay under the API lease.
+class BilinearCompletion {
+ public:
+  BilinearCompletion(hipStream_t stream,hip_direct_device_buffer& local) noexcept:stream_(stream),local_(local) {local_.mark_pending();}
+  ~BilinearCompletion(){if(active_)(void)finish(RNS8_INTERNAL_ERROR);}
+  rns8_status finish(rns8_status operation) noexcept {
+    if(!active_)return operation;
+    active_=false;const auto completion=hipStreamSynchronize(stream_);
+    if(completion==hipSuccess)local_.mark_completed();
+    return operation!=RNS8_SUCCESS?operation:completion==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+  }
+ private:
+  hipStream_t stream_;hip_direct_device_buffer& local_;bool active_=true;
+};
 #endif
 static rns8_status indexed_bilinear_products(int device,const int8_t* a,const int8_t* b,int8_t* c,
-    int64_t m,int64_t n,int64_t k,const IndexedModulusPlanes& planes,uint32_t batches,bool matrix) {
-  if(matrix)return amdgpu_builtins_gemm_indexed_batch_device(device,a,b,c,m,n,k,k,n,n,planes,batches);
+    int64_t m,int64_t n,int64_t k,const IndexedModulusPlanes& planes,uint32_t batches,bool matrix,void* stream) {
+  if(matrix)return amdgpu_builtins_gemm_indexed_batch_device(device,a,b,c,m,n,k,k,n,n,planes,batches,stream);
   for(uint32_t batch=0;batch<batches;++batch) {
-    const auto status=hip_direct_basis_gemm(device,a+uint64_t(batch)*planes.eligible_count*m*k,
-      b+uint64_t(batch)*planes.eligible_count*k*n,c+uint64_t(batch)*planes.eligible_count*m*n,m,n,k,planes.moduli,planes.eligible_count);
+    const auto status=hip_direct_enqueue_basis_gemm(device,a+uint64_t(batch)*planes.eligible_count*m*k,
+      b+uint64_t(batch)*planes.eligible_count*k*n,c+uint64_t(batch)*planes.eligible_count*m*n,m,n,k,planes.moduli,planes.eligible_count,stream);
     if(status!=RNS8_SUCCESS)return status;
   }
   return RNS8_SUCCESS;
 }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+static rns8_status bilinear_products(int device,const int8_t* a,const int8_t* b,int8_t* c,
+    int64_t m,int64_t n,int64_t k,const IndexedModulusPlanes& planes,uint32_t batches,bool matrix,bool indexed,hipStream_t stream) {
+  if(matrix)return indexed?amdgpu_builtins_gemm_indexed_batch_device(device,a,b,c,m,n,k,k,n,n,planes,batches,stream):
+    amdgpu_builtins_gemm_rns_batch_device(device,a,b,c,m,n,k,k,n,n,planes.logical_count,batches,stream);
+  rns8_status status=RNS8_SUCCESS;
+  const auto error=timed_hip_operation("bilinear_ordered_products_v3",[&]() {
+    if(indexed)status=indexed_bilinear_products(device,a,b,c,m,n,k,planes,batches,matrix,stream);
+    else for(uint32_t batch=0;batch<batches;++batch) {
+      const auto launch=launch_direct_rns_gemm_no_sync(a+uint64_t(batch)*planes.logical_count*m*k,
+        b+uint64_t(batch)*planes.logical_count*k*n,c+uint64_t(batch)*planes.logical_count*m*n,m,n,k,k,n,n,planes.logical_count,stream);
+      if(launch!=hipSuccess)return launch;
+    }
+    return status==RNS8_SUCCESS?hipSuccess:hipErrorUnknown;
+  },stream);
+  return status!=RNS8_SUCCESS?status:error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+}
+static rns8_status bilinear_classical_fallback(const void* a,const void* b,int8_t* stage,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,const IndexedModulusPlanes& planes,hipStream_t stream) {
+  const auto error=timed_hip_operation("bilinear_ordered_classical_fallback_v3",[&]() {
+    for(uint32_t index=0;index<planes.fallback_count;++index) {
+      const auto plane=planes.fallback[index];const auto q=kDefaultModuli[plane];
+      const auto launch=static_cast<hipError_t>(rns8_hip_direct_finite_ring_gemm_i8_device_on_stream(
+        static_cast<const int8_t*>(a)+uint64_t(plane)*m*lda,static_cast<const int8_t*>(b)+uint64_t(plane)*k*ldb,
+        stage+uint64_t(plane)*m*n,int(m),int(n),int(k),int(lda),int(ldb),int(n),q,modulus_reciprocal_u32(q),RNS8_SAFE_INT32_K_BLOCK,stream));
+      if(launch!=hipSuccess)return launch;
+    }
+    return hipSuccess;
+  },stream);
+  return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+}
+#endif
 static rns8_status hip_direct_gemm_bilinear_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started, uint32_t blocks, void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
+    uint64_t max_scratch_bytes, bool &commit_started, uint32_t blocks, void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts,void* stream) {
   const bool rank23=blocks==3,rank48=blocks==4;
   commit_started = false;
   if (!a || !b || !c)
@@ -50,30 +95,29 @@ static rns8_status hip_direct_gemm_bilinear_device(
   auto *tb = ta + resources.b_offset;
   auto *product = ta + resources.product_offset;
   auto *stage = ta + resources.output_offset;
-  status = hip_direct_zero(device_id, stage, cb);
-  if (status != RNS8_SUCCESS)
-    return status;
+  hip_unique_stream local_stream;
+  if(!stream){if(local_stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;stream=local_stream.get();}
+  const auto ordered=static_cast<hipStream_t>(stream);BilinearCompletion completion(ordered,scratch);
+  return completion.finish([&]() -> rns8_status {
+  if(hipMemsetAsync(stage,0,size_t(cb),ordered)!=hipSuccess)return RNS8_BACKEND_FAILURE;
   for (int term = 0; term < (rank48?48:rank23?23:7); ++term) {
     auto error = timed_hip_operation(
         rank48?"rank48_dyadic_transform_pair":rank23 ? "rank23_transform_pair" : "strassen_transform_pair", [&]() {
           auto launch = static_cast<hipError_t>(rns8_hip_strassen_transform(
               static_cast<const int8_t *>(a), ta, static_cast<int>(m),
               static_cast<int>(k), static_cast<int>(lda), static_cast<int>(hm),
-              static_cast<int>(hk), prefix, term, true, int(blocks),resources.planes));
+              static_cast<int>(hk), prefix, term, true, int(blocks),resources.planes,stream));
           if (launch != hipSuccess)
             return launch;
           launch = static_cast<hipError_t>(rns8_hip_strassen_transform(
               static_cast<const int8_t *>(b), tb, static_cast<int>(k),
               static_cast<int>(n), static_cast<int>(ldb), static_cast<int>(hk),
-              static_cast<int>(hn), prefix, term, false, int(blocks),resources.planes));
-          // The first transform may still own scratch if the second launch fails.
-          const auto completion=hipDeviceSynchronize();
-          return launch == hipSuccess ? completion : launch;
-        });
+              static_cast<int>(hn), prefix, term, false, int(blocks),resources.planes,stream));
+          return launch;
+        },ordered);
     if (error != hipSuccess)
       return RNS8_BACKEND_FAILURE;
-    status = rank48?indexed_bilinear_products(device_id,ta,tb,product,hm,hn,hk,resources.planes,1,matrix_subproducts):matrix_subproducts?amdgpu_builtins_gemm_rns_device(device_id,ta,tb,product,hm,hn,hk,hk,hn,hn,prefix):
-        hip_direct_gemm_rns_device(device_id,ta,tb,product,hm,hn,hk,hk,hn,hn,prefix);
+    status=bilinear_products(device_id,ta,tb,product,hm,hn,hk,resources.planes,1,matrix_subproducts,rank48,ordered);
     if (status != RNS8_SUCCESS)
       return status;
     error = timed_hip_operation(
@@ -81,53 +125,48 @@ static rns8_status hip_direct_gemm_bilinear_device(
           const auto launch = static_cast<hipError_t>(rns8_hip_strassen_combine(
               product, stage, static_cast<int>(m), static_cast<int>(n),
               static_cast<int>(hm), static_cast<int>(hn), prefix, term,
-              int(blocks),resources.planes));
-          return launch == hipSuccess ? hipDeviceSynchronize() : launch;
-        });
+              int(blocks),resources.planes,stream));
+          return launch;
+        },ordered);
     if (error != hipSuccess)
       return RNS8_BACKEND_FAILURE;
   }
   // Inverse2 is not defined in even channels. Execute those original planes
   // classically into the same private output stage before publishing anything.
-  if(rank48)for(uint32_t plane=0;plane<prefix;++plane)if(!(kDefaultModuli[plane]&1)) {
-    status=hip_direct_gemm_finite_u8_resident_device(device_id,
-        static_cast<const int8_t*>(a)+uint64_t(plane)*m*lda,
-        static_cast<const int8_t*>(b)+uint64_t(plane)*k*ldb,
-        stage+uint64_t(plane)*m*n,m,n,k,lda,ldb,n,kDefaultModuli[plane]);
-    if(status!=RNS8_SUCCESS)return status;
-  }
+  if(rank48){status=bilinear_classical_fallback(a,b,stage,m,n,k,lda,ldb,resources.planes,ordered);if(status!=RNS8_SUCCESS)return status;}
   commit_started = true;
   const auto error =
       timed_hip_operation(rank48?"rank48_mixed_basis_commit":rank23 ? "rank23_commit" : "strassen_commit", [&]() {
         const auto launch = static_cast<hipError_t>(rns8_hip_strassen_commit(
             stage, static_cast<int8_t *>(c), static_cast<int>(m),
-            static_cast<int>(n), static_cast<int>(ldc), prefix));
-        return launch == hipSuccess ? hipDeviceSynchronize() : launch;
-      });
+            static_cast<int>(n), static_cast<int>(ldc), prefix,stream));
+        return launch;
+      },ordered);
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  }());
 #else
-  (void)device_id;(void)rank23;(void)rank48;
+  (void)device_id;(void)rank23;(void)rank48;(void)stream;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 rns8_status hip_direct_gemm_strassen_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
+    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts,void* stream) {
   return hip_direct_gemm_bilinear_device(device_id, a, b, c, m, n, k, lda, ldb,
                                          ldc, prefix, max_scratch_bytes,
-                                         commit_started, 2,retained_scratch,retained_bytes,matrix_subproducts);
+                                         commit_started, 2,retained_scratch,retained_bytes,matrix_subproducts,stream);
 }
 rns8_status hip_direct_gemm_rank23_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
+    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts,void* stream) {
   return hip_direct_gemm_bilinear_device(device_id, a, b, c, m, n, k, lda, ldb,
                                          ldc, prefix, max_scratch_bytes,
-                                         commit_started, 3,retained_scratch,retained_bytes,matrix_subproducts);
+                                         commit_started, 3,retained_scratch,retained_bytes,matrix_subproducts,stream);
 }
 rns8_status hip_direct_gemm_rank48_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,
-    uint32_t prefix,uint64_t budget,bool& commit_started,void* scratch,uint64_t bytes,bool matrix_subproducts) {
-  return hip_direct_gemm_bilinear_device(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,commit_started,4,scratch,bytes,matrix_subproducts);
+    uint32_t prefix,uint64_t budget,bool& commit_started,void* scratch,uint64_t bytes,bool matrix_subproducts,void* stream) {
+  return hip_direct_gemm_bilinear_device(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,commit_started,4,scratch,bytes,matrix_subproducts,stream);
 }

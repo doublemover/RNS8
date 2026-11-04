@@ -56,11 +56,17 @@ One A transform, B transform and product buffer are reused across 48 products;
 the complete C stage publishes only after both algebraic and classical channel
 work succeeds. Existing retained-workspace, budget, address, lifetime and failed
 commit rules apply. Matrix subproducts keep their own K cap and target probe.
+All bilinear methods enqueue transforms, products, fallback, recombination and
+commit on one ordered nondefault stream, then observe one terminal completion.
+Workspace preparation retains that stream alongside its scratch arena for reuse.
+Diagnostic events use the actual stream and remain outside production timing.
 The collector accepts `rank48-dyadic` and charges four-block padding, all 48
 transform evaluations, even-channel work, reconstruction and final output.
-Current `rns8_bilinear_microcase_v2` captures bind the eligible/fallback plane IDs,
+Compact `rns8_bilinear_microcase_v2` captures bind the eligible/fallback plane IDs,
 actual algebraic moduli and product-plane work. Historical v1 captures retain
 their full-prefix allocation contract and cannot be pooled with compact captures.
+Current v3 captures additionally bind the single-terminal-completion schedule;
+they remain a separate cohort from v2 device-wide-per-stage captures.
 The coefficient implementation remains a separate control. CPU tensor/Boost, altered-coefficient, ring, resource and public HIP
 full-width/tail fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json), including
 actual direct and matrix subproducts on gfx1100. Broader-target execution and

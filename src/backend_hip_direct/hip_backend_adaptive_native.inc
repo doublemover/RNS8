@@ -62,7 +62,7 @@ rns8_status hip_direct_gemm_adaptive_native_device(
   if (flag) return RNS8_RANGE_ERROR;
   commit_started = true;
   return run("adaptive_native_commit", [&]() {
-    return rns8_hip_strassen_commit(output, c, static_cast<int>(m), static_cast<int>(n), static_cast<int>(ldc), capacity);
+    return rns8_hip_strassen_commit(output, c, static_cast<int>(m), static_cast<int>(n), static_cast<int>(ldc), capacity,nullptr);
   }) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id; (void)unsigned_inputs;

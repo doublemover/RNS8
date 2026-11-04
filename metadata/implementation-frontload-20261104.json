@@ -171,7 +171,8 @@
       "comments_reviewed": 8,
       "implementation_status": "pending",
       "completed_slices": [
-        "Bilinear capture ABI2 binds physical eligible/fallback planes, actual moduli, compact scratch, and product-plane GEMMs; reject mixed physical implementation versions."
+        "Bilinear capture ABI2 binds physical eligible/fallback planes, actual moduli, compact scratch, and product-plane GEMMs; reject mixed physical implementation versions.",
+        "Bilinear capture ABI3 binds the ordered single-terminal schedule independently of historical per-stage completion captures; actual-stream diagnostic matrix events are preserved."
       ],
       "remaining_source_items": []
     },
@@ -276,7 +277,8 @@
       "comments_reviewed": 3,
       "implementation_status": "in_progress",
       "completed_slices": [
-        "Prime-channel five-product Gram transforms, explicit-basis or matrix products, maintained classical bucket, recombine and final commit share one retained stream with terminal completion; timing helper accepts actual stream"
+        "Prime-channel five-product Gram transforms, explicit-basis or matrix products, maintained classical bucket, recombine and final commit share one retained stream with terminal completion; timing helper accepts actual stream",
+        "Bilinear coefficient and retained/recompute DAG routes now compose transforms, default/indexed matrix batches, classical fallback, recombination and commit on one retained nondefault stream with one terminal observation; general pipeline recipes remain separate source work."
       ],
       "remaining_source_items": []
     },
@@ -307,7 +309,8 @@
         "Integrity/native-group streams, native-device transfer and experimental-basis GEMM streams, and native producer-readiness events use the shared retry owners; explicit closes preserve aliases on failure",
         "Shared host capture replacement/unwind cases and five prepared transfer stream rows authored; enabled HIP graph/native/process-owner syntax checked without runtime execution",
         "Prepared Gram arena uses typed pending device ownership and retained five-product stream; cleanup becomes irreversible and construction unwind can retire resources safely",
-        "Bilinear public GEMM uses shared synchronous lease through exact-proof publication; failed dispatch preserves or invalidates C according to actual commit state."
+        "Bilinear public GEMM uses shared synchronous lease through exact-proof publication; failed dispatch preserves or invalidates C according to actual commit state.",
+        "Bilinear completion guard drains all early exits and host unwinding, retaining local scratch after uncertain completion; workspace stream uses typed retryable ownership and public lease covers publication."
       ],
       "remaining_source_items": [
         "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
