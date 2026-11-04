@@ -222,6 +222,18 @@ TEST_CASE("direct HIP finite u8 public grouped GEMM matches CPU") {
       CHECK(hip_out[task]==cpu_out[task]);
     }
   };
+  struct PreparationFailure {
+    unsigned compute_calls=0;
+    static rns8_status dispatch(void* opaque,const char* stage,bool*) {
+      auto& state=*static_cast<PreparationFailure*>(opaque);
+      if(std::string(stage)=="grouped_prepare")return RNS8_INVALID_ARGUMENT;
+      ++state.compute_calls;return RNS8_SUCCESS;
+    }
+  } injected;
+  const rns8_synchronous_test_hooks hooks{&injected,&PreparationFailure::dispatch,nullptr};
+  hip->synchronous_test_hooks=&hooks;
+  CHECK(rns8_gemm_finite_u8_grouped(hip,hip_plan,modulus,tasks,2)==RNS8_INVALID_ARGUMENT);
+  hip->synchronous_test_hooks=nullptr;CHECK(injected.compute_calls==0);preserved();
   rns8::test::set_device_residues_current(*hip_a[1], false);
   CHECK(rns8_gemm_finite_u8_grouped(hip, hip_plan, modulus, tasks, 2) == RNS8_INVALID_ARGUMENT);
   rns8::test::set_device_residues_current(*hip_a[1], true);preserved();

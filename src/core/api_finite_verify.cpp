@@ -55,6 +55,14 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
         gpu,options->max_workspace_bytes);
     if(support.status!=RNS8_SUCCESS) return support.status;
     completed.workspace_bytes=support.scratch_bytes;
+    std::vector<SynchronousLease> leases;leases.reserve(3);
+    for(const auto* matrix:matrices) {
+      size_t token=0;const auto status=begin_synchronous_read_lease(*ctx,*matrix,token);
+      if(status!=RNS8_SUCCESS){for(auto& lease:leases)lease.finish(status);return status;}
+      leases.emplace_back(*ctx,token);
+    }
+    const auto status=[&]() -> rns8_status {
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"finite_verify");if(dispatched!=RNS8_SUCCESS)return dispatched;
     std::vector<uint8_t> challenge(static_cast<size_t>(n));
     std::vector<uint32_t> projection;
     hip_direct_device_buffer dr, dbr, flag;
@@ -71,11 +79,13 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
       for (auto& bit : challenge) bit = finite_verify::next_bit(state);
       uint32_t flags = 0;
       if (gpu) {
+        dr.mark_pending();dbr.mark_pending();flag.mark_pending();
         auto status = hip_direct_copy_host_to_device(ctx->device_id, dr.get(), challenge.data(), challenge.size());
         if (status != RNS8_SUCCESS) return status;
         status = hip_finite_verify_trial(ctx->device_id, A->hip_residues, B->hip_residues,
             C->hip_residues, m, n, k, q, dr.get(), dbr.get(), flag.get(), flags);
         if (status != RNS8_SUCCESS) return status;
+        dr.mark_completed();dbr.mark_completed();flag.mark_completed();
       } else flags = finite_verify::cpu_trial(A->residues.data(), B->residues.data(), C->residues.data(),
           m,n,k,q,challenge.data(),projection.data());
       if (flags & 2) return RNS8_INVALID_ARGUMENT;
@@ -87,5 +97,8 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
     completed.passed = 1;
     *report = completed;
     return RNS8_SUCCESS;
+    }();
+    for(auto& lease:leases)lease.finish(status);
+    return status;
   });
 }

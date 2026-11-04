@@ -3,28 +3,27 @@ namespace {
 // Synchronous API calls require external host-thread exclusion, as elsewhere in
 // this API. Reservations also exclude outstanding asynchronous owners.
 struct ComplexWriteReservation {
-  std::array<const rns8_matrix *, 4> inputs;
-  rns8_matrix &real;
-  rns8_matrix &imag;
-  rns8_workspace &workspace;
-  bool commit_started = false, published = false;
-  ComplexWriteReservation(std::array<const rns8_matrix *, 4> values, rns8_matrix &r, rns8_matrix &i,
-                          rns8_workspace &w)
-      : inputs(values), real(r), imag(i), workspace(w) {
-    for (std::size_t n = 0; n < inputs.size(); ++n)
-      if (std::find(inputs.begin(), inputs.begin() + n, inputs[n]) == inputs.begin() + n)
-        ++inputs[n]->in_flight_readers;
-    real.in_flight_writer = imag.in_flight_writer = workspace.in_flight = true;
-  }
-  ~ComplexWriteReservation() {
-    for (std::size_t n = 0; n < inputs.size(); ++n)
-      if (std::find(inputs.begin(), inputs.begin() + n, inputs[n]) == inputs.begin() + n)
-        --inputs[n]->in_flight_readers;
-    real.in_flight_writer = imag.in_flight_writer = workspace.in_flight = false;
-    if (commit_started && !published) {
-      invalidate_output_currentness(real);
-      invalidate_output_currentness(imag);
+  bool commit_started = false;
+  std::vector<SynchronousLease> leases;
+  ComplexWriteReservation() { leases.reserve(6); }
+  rns8_status acquire(rns8_context& ctx,std::array<const rns8_matrix*,4> inputs,
+                     rns8_matrix& real,rns8_matrix& imag,rns8_workspace& workspace) {
+    size_t token=0;
+    auto status=begin_synchronous_lease(ctx,*inputs[0],*inputs[1],real,workspace,token);
+    if(status!=RNS8_SUCCESS)return status;
+    leases.emplace_back(ctx,token);leases.back().track_write(commit_started);
+    status=begin_synchronous_output_lease(ctx,imag,token);if(status!=RNS8_SUCCESS)return finish(status);
+    leases.emplace_back(ctx,token);leases.back().track_write(commit_started);
+    for(size_t i=2;i<inputs.size();++i) {
+      status=begin_synchronous_read_lease(ctx,*inputs[i],token);
+      if(status!=RNS8_SUCCESS)return finish(status);
+      leases.emplace_back(ctx,token);
     }
+    return RNS8_SUCCESS;
+  }
+  rns8_status finish(rns8_status status) noexcept {
+    for(auto& lease:leases)lease.finish(status);
+    return status;
   }
 };
 
@@ -124,7 +123,10 @@ rns8_status complex_exact_signed_gemm(rns8_context *ctx, const rns8_plan *plan,
     std::vector<int8_t> stage;
     if (!hip)
       stage.resize(static_cast<std::size_t>(admitted.product_bytes * 2));
-    ComplexWriteReservation write(inputs, *c.real, *c.imag, *workspace);
+    ComplexWriteReservation write;
+    status=write.acquire(*ctx,inputs,*c.real,*c.imag,*workspace);if(status!=RNS8_SUCCESS)return status;
+    return write.finish([&]() -> rns8_status {
+    status=synchronous_dispatch_checkpoint(*ctx,"complex",&write.commit_started);if(status!=RNS8_SUCCESS)return status;
     if (hip) {
       status = hip_direct_gemm_complex_residues(ctx->device_id, av, bv, cv, bounds, method,
                                                 max_scratch_bytes, write.commit_started);
@@ -149,8 +151,8 @@ rns8_status complex_exact_signed_gemm(rns8_context *ctx, const rns8_plan *plan,
     }
     commit_exact_range(*c.real, *plan, admitted.real_bound);
     commit_exact_range(*c.imag, *plan, admitted.imag_bound);
-    write.published = true;
     return RNS8_SUCCESS;
+    }());
   });
 }
 } // namespace rns8::detail::api

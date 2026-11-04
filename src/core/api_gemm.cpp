@@ -355,12 +355,14 @@ rns8_status execute_public_grouped_gemm(
     return status;
   }
   resources.mark_pending();
-  status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(*descriptor, resources);
+  status = synchronous_dispatch_checkpoint(ctx,"grouped_prepare");
+  if(status==RNS8_SUCCESS)status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(*descriptor, resources);
   if (status == RNS8_SUCCESS) {
     for (auto& lease : leases) {
       status = lease.begin_write();
       if (status != RNS8_SUCCESS) break;
     }
+    if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(ctx,"grouped_compute");
     if (status == RNS8_SUCCESS) status = finite_u8 ? rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
                              *descriptor,
                              resources,
@@ -376,7 +378,7 @@ rns8_status execute_public_grouped_gemm(
       if (!exact_bounds.empty()) rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i], &exact_ranges[i]);
     }
   }
-  if (status == RNS8_SUCCESS || rns8::detail::hip_direct_synchronize(ctx.device_id) == RNS8_SUCCESS)
+  if (status == RNS8_SUCCESS || drain_synchronous_context(ctx) == RNS8_SUCCESS)
     resources.mark_completed();
   for (auto& lease : leases) lease.finish(status);
   const rns8_status reset_status = resources.reset();
@@ -475,7 +477,8 @@ rns8_status ensure_result_cache_snapshot(rns8_context& ctx, rns8_result_cache& c
   return RNS8_SUCCESS;
 }
 
-rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C) {
+rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C,bool already_reserved) {
+  auto copy=[&]() -> rns8_status {
   // Allocation or an in-place copy may fail after destroying the previous
   // snapshot. Only bind_result_cache_after_compute can publish a new hit.
   cache.initialized = false;
@@ -485,14 +488,30 @@ rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cac
   }
   return rns8::detail::hip_direct_copy_device_to_device(
       ctx.device_id, cache.hip_snapshot_residues, C.hip_residues, C.hip_residue_bytes);
+  };
+  if(already_reserved)return copy();
+  size_t token=0;auto reserved=begin_synchronous_read_lease(ctx,C,token);
+  if(reserved!=RNS8_SUCCESS)return reserved;
+  SynchronousLease lease(ctx,token);
+  reserved=add_synchronous_owner_hold(ctx,token,cache.in_flight_uses);
+  if(reserved!=RNS8_SUCCESS)return lease.finish(reserved);
+  return lease.finish(copy());
 }
 
-rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C) {
+rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C,SynchronousLease* lease) {
   if (!cache.initialized || !cache.hip_snapshot_residues || cache.hip_snapshot_residue_bytes != C.hip_residue_bytes) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if(!lease) {
+    size_t token=0;auto status=begin_synchronous_output_lease(ctx,C,token);
+    if(status!=RNS8_SUCCESS)return status;
+    SynchronousLease reservation(ctx,token);
+    status=add_synchronous_owner_hold(ctx,token,cache.in_flight_uses);
+    if(status!=RNS8_SUCCESS)return reservation.finish(status);
+    return reservation.finish(restore_result_cache_to_output(ctx,cache,C,&reservation));
+  }
   // A failed device copy may have partially changed C for any contract.
-  invalidate_output_currentness(C);
+  const auto writing=lease->begin_write();if(writing!=RNS8_SUCCESS)return writing;
   const rns8_status status = rns8::detail::hip_direct_copy_device_to_device(
       ctx.device_id, C.hip_residues, cache.hip_snapshot_residues, C.hip_residue_bytes);
   if (status == RNS8_SUCCESS) {
@@ -622,7 +641,14 @@ rns8_status execute_incremental_region_recompute(
     const rns8_dirty_region* dirty_regions,
     uint32_t dirty_region_count,
     bool finite) {
-  rns8_status status = restore_result_cache_to_output(ctx, cache, C);
+  size_t token=0;auto status=begin_synchronous_lease(ctx,A,B,C,workspace,token);
+  if(status!=RNS8_SUCCESS)return status;
+  SynchronousLease lease(ctx,token);
+  status=add_synchronous_owner_hold(ctx,token,cache.in_flight_uses);
+  if(status!=RNS8_SUCCESS)return lease.finish(status);
+  return lease.finish([&]() -> rns8_status {
+  status=synchronous_dispatch_checkpoint(ctx,"incremental_region");if(status!=RNS8_SUCCESS)return status;
+  status = restore_result_cache_to_output(ctx, cache, C,&lease);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -669,13 +695,14 @@ rns8_status execute_incremental_region_recompute(
   if (finite) {
     C.finite_modulus = modulus;
   }
-  status = snapshot_result_cache_from_output(ctx, cache, C);
+  status = snapshot_result_cache_from_output(ctx, cache, C,true);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   cache.last_recomputed_region_count = dirty_region_count;
   bind_result_cache_after_compute(cache, A, B, C, workspace);
   return RNS8_SUCCESS;
+  }());
 }
 
 rns8_status execute_incremental_gemm(
@@ -690,6 +717,7 @@ rns8_status execute_incremental_gemm(
     const rns8_dirty_region* dirty_regions,
     uint32_t dirty_region_count,
     bool finite) {
+  if(cache.in_flight_uses)return RNS8_BUSY;
   reset_result_cache_last_call(cache);
   cache.last_dirty_region_count = dirty_region_count;
   const rns8_status cache_status = validate_result_cache_for_call(ctx, plan, workspace, cache, modulus, finite);
@@ -718,7 +746,13 @@ rns8_status execute_incremental_gemm(
     return reject_stale_result_cache(cache, "source_version_mismatch_without_dirty_regions");
   }
   if (dirty_region_count == 0) {
-    status = restore_result_cache_to_output(ctx, cache, C);
+    size_t token=0;status=begin_synchronous_lease(ctx,A,B,C,workspace,token);
+    if(status!=RNS8_SUCCESS)return status;
+    SynchronousLease lease(ctx,token);
+    status=add_synchronous_owner_hold(ctx,token,cache.in_flight_uses);
+    if(status!=RNS8_SUCCESS)return lease.finish(status);
+    return lease.finish([&]() -> rns8_status {
+    status = restore_result_cache_to_output(ctx, cache, C,&lease);
     if (status != RNS8_SUCCESS) {
       return status;
     }
@@ -729,6 +763,7 @@ rns8_status execute_incremental_gemm(
     cache.last_cache_hit = true;
     cache.detail = "restored_cached_output";
     return RNS8_SUCCESS;
+    }());
   }
   if (full_output_dirty) {
     return execute_incremental_full_recompute(
@@ -797,6 +832,7 @@ rns8_status rns8_create_result_cache(
 
 rns8_status rns8_destroy_result_cache(rns8_result_cache* cache) {
   if (cache) {
+    if(cache->in_flight_uses)return RNS8_BUSY;
     const rns8_status status = free_result_cache_snapshot(*cache);
     if (status != RNS8_SUCCESS) return status;
     delete cache;
@@ -869,6 +905,7 @@ rns8_status rns8_invalidate_result_cache(rns8_result_cache* cache) {
     if (!cache) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if(cache->in_flight_uses)return RNS8_BUSY;
     reset_result_cache_last_call(*cache);
     cache->initialized = false;
     cache->workspace_fingerprint = 0;
@@ -920,7 +957,13 @@ rns8_status rns8_gemm_rns(
     rns8_exact_matrix_ranges exact_ranges;
     const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS) return range_status;
-    invalidate_output_currentness(*C);
+    size_t token=0;
+    const auto reserved=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"gemm_rns");if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (plan->backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       auto* mutable_c = C;
       rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
@@ -1186,6 +1229,7 @@ rns8_status rns8_gemm_rns(
 #endif
     }
     return RNS8_UNSUPPORTED_BACKEND;
+    }());
   });
 }
 
@@ -1287,7 +1331,15 @@ rns8_status rns8_gemm_rns_prepacked_b(
       if (!rns8::detail::exact_range_fits(plan->desc.semantics, exact_bound, plan->modulus_product))
         return RNS8_RANGE_ERROR;
     }
-    invalidate_output_currentness(*C);
+    size_t token=0;
+    auto reserved=begin_synchronous_lease(*ctx,*A,*A,*C,*workspace,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    reserved=add_synchronous_owner_hold(*ctx,token,B->in_flight_readers);
+    if(reserved!=RNS8_SUCCESS)return lease.finish(reserved);
+    return lease.finish([&]() -> rns8_status {
+    auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
+    writing=synchronous_dispatch_checkpoint(*ctx,"gemm_prepacked_b");if(writing!=RNS8_SUCCESS)return writing;
     const rns8_status status = rns8::detail::rocwmma_gemm_rns_prepacked_b_device(
         ctx->device_id,
         A->hip_residues,
@@ -1307,6 +1359,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
     mark_output_device_residues_current(*C, plan);
     rns8::detail::commit_exact_range(*C, *plan, exact_bound);
     return RNS8_SUCCESS;
+    }());
   });
 }
 
@@ -1344,7 +1397,13 @@ rns8_status rns8_gemm_finite_u8(
     if (operand_status != RNS8_SUCCESS) {
       return operand_status;
     }
-    invalidate_output_currentness(*C);
+    size_t token=0;
+    const auto reserved=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"gemm_finite");if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (host_rns_backend(plan->backend)) {
       const rns8_status status = plan->backend==RNS8_BACKEND_CPU_AMX
           ? (workspace->cpu_amx?rns8::detail::cpu_amx_gemm(*plan,*A,*B,*C,*workspace->cpu_amx):RNS8_INVALID_ARGUMENT)
@@ -1488,6 +1547,7 @@ rns8_status rns8_gemm_finite_u8(
 #endif
     }
     return RNS8_UNSUPPORTED_BACKEND;
+    }());
   });
 }
 
@@ -1548,7 +1608,13 @@ rns8_status rns8_gemm_wrap_u64(
     if (operand_status != RNS8_SUCCESS) {
       return operand_status;
     }
-    invalidate_output_currentness(*C);
+    size_t token=0;
+    const auto reserved=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,token);
+    if(reserved!=RNS8_SUCCESS)return reserved;
+    SynchronousLease lease(*ctx,token);
+    return lease.finish([&]() -> rns8_status {
+    const auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
+    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"gemm_wrap64");if(dispatched!=RNS8_SUCCESS)return dispatched;
     if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       const rns8_status status = rns8::detail::cpu_gemm_wrap_u64(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
@@ -1572,6 +1638,7 @@ rns8_status rns8_gemm_wrap_u64(
       return RNS8_SUCCESS;
     }
     return RNS8_UNSUPPORTED_BACKEND;
+    }());
   });
 }
 

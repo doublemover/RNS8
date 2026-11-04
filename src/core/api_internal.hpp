@@ -54,9 +54,19 @@ inline bool quarter_crt_backend_supported(rns8_backend_kind backend) {
       backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_AMDGPU_BUILTINS;
 }
 rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
-rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&,bool input_writers=false);
+rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace*,size_t&,bool input_writers=false);
+inline rns8_status begin_synchronous_lease(rns8_context& ctx,const rns8_matrix& a,const rns8_matrix& b,
+    rns8_matrix& c,rns8_workspace& workspace,size_t& token,bool input_writers=false) {
+  return begin_synchronous_lease(ctx,a,b,c,&workspace,token,input_writers);
+}
+rns8_status begin_synchronous_read_lease(rns8_context&,const rns8_matrix&,size_t&);
+rns8_status begin_synchronous_output_lease(rns8_context&,rns8_matrix&,size_t&);
+// Counter belongs to an owner whose destruction/replacement rejects nonzero holds.
+rns8_status add_synchronous_owner_hold(rns8_context&,size_t,uint64_t& counter);
 bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;
 rns8_status invalidate_synchronous_output(rns8_context&, size_t token) noexcept;
+rns8_status synchronous_dispatch_checkpoint(rns8_context&,const char*,bool* write_started=nullptr);
+rns8_status drain_synchronous_context(rns8_context&) noexcept;
 
 // Own the reservation through publication and through exception unwinding.
 // Uncertain device failures retain the context's existing failed-work record.
@@ -66,18 +76,19 @@ class SynchronousLease {
   SynchronousLease(const SynchronousLease&) = delete;
   SynchronousLease& operator=(const SynchronousLease&) = delete;
   SynchronousLease(SynchronousLease&& other) noexcept
-      : ctx_(other.ctx_), token_(other.token_), status_(other.status_), written_(other.written_) {
+      : ctx_(other.ctx_), token_(other.token_), status_(other.status_), written_(other.written_), write_started_(other.write_started_) {
     other.ctx_ = nullptr;
   }
-  ~SynchronousLease() { if (ctx_) finish_synchronous_lease(*ctx_, token_, status_, written_); }
+  ~SynchronousLease() { if (ctx_) finish_synchronous_lease(*ctx_, token_, status_, may_have_written()); }
   rns8_status begin_write() noexcept {
     const auto status = invalidate_synchronous_output(*ctx_, token_);
     if (status == RNS8_SUCCESS) written_ = true;
     return status;
   }
+  void track_write(const bool& started) noexcept { write_started_ = &started; }
   rns8_status finish(rns8_status status) noexcept {
     status_ = status;
-    if (ctx_) { finish_synchronous_lease(*ctx_, token_, status_, written_); ctx_ = nullptr; }
+    if (ctx_) { finish_synchronous_lease(*ctx_, token_, status_, may_have_written()); ctx_ = nullptr; }
     return status;
   }
  private:
@@ -85,6 +96,8 @@ class SynchronousLease {
   size_t token_;
   rns8_status status_ = RNS8_INTERNAL_ERROR;
   bool written_ = false;
+  const bool* write_started_ = nullptr;
+  bool may_have_written() const noexcept { return written_ || (write_started_ && *write_started_); }
 };
 rns8_status begin_synchronous_matrix_lease(rns8_context&,rns8_matrix&,rns8_workspace&,size_t&,bool write);
 rns8_status plan_operation_preflight(const rns8_context&,const rns8_plan&,uint32_t operation,uint32_t modes,uint32_t proof_flags=0);
@@ -533,8 +546,8 @@ void invalidate_output_currentness(rns8_matrix& matrix);
 // Internal resident-cache state transitions; success is published by the
 // incremental dispatcher only after the snapshot and binding are complete.
 rns8_status free_result_cache_snapshot(rns8_result_cache& cache);
-rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C);
-rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C);
+rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C,bool already_reserved=false);
+rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C,SynchronousLease* lease=nullptr);
 
 bool bounded_residue_semantics(rns8_semantics semantics);
 bool materialized_rns_prefix_covers(const rns8_matrix& matrix, uint32_t prefix);

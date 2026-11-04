@@ -43,6 +43,7 @@ rns8_status hip_direct_gemm_block_sparse_device(
   status = metadata.allocate(device_id, words * sizeof(uint32_t));
   if (status != RNS8_SUCCESS)
     return status;
+  metadata.mark_pending();
   auto *ao = static_cast<uint32_t *>(metadata.get());
   auto *ai = ao + lhs.offsets.size();
   auto *bo = ai + lhs.k_blocks.size();
@@ -66,7 +67,7 @@ rns8_status hip_direct_gemm_block_sparse_device(
     int supported=0;
     status=hip_direct_copy_device_to_host(device_id,&supported,capability,sizeof(supported));
     if(status!=RNS8_SUCCESS) return status;
-    if(!supported) return RNS8_UNSUPPORTED_BACKEND;
+    if(!supported) {metadata.mark_completed();return RNS8_UNSUPPORTED_BACKEND;}
   }
   const auto error =
       timed_hip_operation("block_sparse_intersection_gemm_kernel", [&]() {
@@ -78,6 +79,7 @@ rns8_status hip_direct_gemm_block_sparse_device(
             static_cast<int>(lhs.cols), static_cast<int>(ldc), lhs.prefix,static_cast<int>(method),scalar_intersection_limit));
         return launch == hipSuccess ? hipDeviceSynchronize() : launch;
       });
+  if(error==hipSuccess)metadata.mark_completed();
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

@@ -225,3 +225,5 @@ TEST_CASE("reserved CPU publication preserves exclusivity metadata and one gener
     REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
   }
 }
+
+#include "test_api_synchronous_dispatch_cases.inc"

@@ -241,7 +241,15 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
       return status;
     // All allocation-prone proof work finishes before entering the write
     // region.
-    MatrixWriteGuard write(*C);
+    size_t token=0;status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,token);
+    if(status!=RNS8_SUCCESS)return status;
+    SynchronousLease write(*ctx,token);
+    size_t addend_token=0;status=begin_synchronous_read_lease(*ctx,*D,addend_token);
+    if(status!=RNS8_SUCCESS)return write.finish(status);
+    SynchronousLease addend(*ctx,addend_token);
+    return addend.finish(write.finish([&]() -> rns8_status {
+    status=write.begin_write();if(status!=RNS8_SUCCESS)return status;
+    status=synchronous_dispatch_checkpoint(*ctx,"exact_axpby");if(status!=RNS8_SUCCESS)return status;
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
       status = hip_direct_gemm_rns_axpby_device(
           ctx->device_id, A->hip_residues, B->hip_residues, D->hip_residues,
@@ -272,7 +280,7 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
       mark_output_host_residues_current(*C, plan);
     }
     commit_exact_range(*C, *plan, bound);
-    write.committed = true;
     return RNS8_SUCCESS;
+    }()));
   });
 }

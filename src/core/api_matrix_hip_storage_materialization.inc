@@ -177,8 +177,15 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
       !bounded_native_state_current(matrix) || matrix.source_version == 0) {
     return RNS8_INVALID_ARGUMENT;
   }
+  size_t token=0;
+  const auto reserved=begin_synchronous_output_lease(ctx,matrix,token);
+  if(reserved!=RNS8_SUCCESS)return reserved;
+  SynchronousLease lease(ctx,token);
+  // Physical cache writes do not replace the logical native value/generation.
+  return lease.finish([&]() -> rns8_status {
   const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
-  rns8_status status = RNS8_SUCCESS;
+  rns8_status status=synchronous_dispatch_checkpoint(ctx,"native_to_rns");
+  if(status!=RNS8_SUCCESS)return status;
   if (plan.desc.semantics == RNS8_BOUNDED_I64) {
     status = rns8::detail::hip_direct_native_i64_to_rns_device(
         ctx.device_id,
@@ -202,6 +209,7 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
   }
   mark_device_residues_current(matrix, storage_prefix);
   return RNS8_SUCCESS;
+  }());
 }
 
 }  // namespace rns8::detail::api

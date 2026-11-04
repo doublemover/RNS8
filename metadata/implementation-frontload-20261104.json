@@ -96,7 +96,8 @@
       "implementation_status": "in_progress",
       "completed_slices": [
         "Finite grouped operands and batch reservations preflight before invalidation; preparation rejection preserves old values",
-        "Shared reservation-aware output invalidation and exception-safe synchronous lease authored"
+        "Shared reservation-aware output invalidation and exception-safe synchronous lease authored",
+        "Injected grouped pointer-table preparation rejection fixture preserves prior output generations/currentness and exportability"
       ],
       "remaining_source_items": []
     },
@@ -281,10 +282,15 @@
       "implementation_status": "in_progress",
       "completed_slices": [
         "Grouped pointer-table/slab ownership migrated to shared retryable device-buffer owner with pending-work retirement",
-        "Synchronous grouped dispatcher retains operand/output/workspace leases through failures"
+        "Synchronous grouped dispatcher retains operand/output/workspace leases through failures",
+        "Ordinary RNS/finite/wrap, exact AXPBY including D, Gram, complex paired outputs and three-reader finite verifier use common completion/publication leases",
+        "Private sparse payload owners, prepacked B and result-cache snapshots/restore/partial recompute now retain owner counters; new work/destruction blocked after uncertain completion",
+        "Implicit native-to-RNS materialization retains the physical cache writer without replacing the logical native value or generation; private complex/sparse/verifier scratch marks pending",
+        "Actual public-dispatch host completion/exception/drain mocks authored for seven operation rows; grouped preparation rejection and exactly-once private owner counter release fixtures authored"
       ],
       "remaining_source_items": [
-        "Integrate other ordinary/specialized synchronous writers and read-only verifier; hipBLASLt resource handles; public-dispatch injected completion regressions"
+        "Replace remaining hipBLASLt resource handles with failure-retaining ownership",
+        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
       ]
     },
     {

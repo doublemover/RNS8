@@ -419,6 +419,7 @@ rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache) {
   if (!cache) {
     return RNS8_SUCCESS;
   }
+  if(cache->in_flight_readers)return RNS8_BUSY;
   rns8_status status = RNS8_SUCCESS;
   if (cache->device_data) {
     status = cache->data_owner.reset_alias(cache->device_data, cache->device_bytes);

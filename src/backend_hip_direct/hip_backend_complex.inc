@@ -25,6 +25,7 @@ rns8_status hip_direct_gemm_complex_residues(int device_id,
   status = storage.allocate(device_id, static_cast<std::size_t>(plan.scratch_bytes));
   if (status != RNS8_SUCCESS)
     return status;
+  storage.mark_pending();
   auto *sum_a = static_cast<int8_t *>(storage.get());
   auto *sum_b = sum_a + plan.sum_a_bytes;
   auto *products = sum_b + plan.sum_b_bytes;
@@ -83,6 +84,7 @@ rns8_status hip_direct_gemm_complex_residues(int device_id,
         basis.prefix, nullptr));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
+  if(error==hipSuccess)storage.mark_completed();
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

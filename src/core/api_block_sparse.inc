@@ -3,6 +3,7 @@
 #include <type_traits>
 
 struct rns8_block_sparse_operand {
+  mutable uint64_t in_flight_readers=0;
   rns8_context* ctx=nullptr;
   const rns8_matrix* source=nullptr;
   rns8::detail::BlockSparseOperand layout;
@@ -70,6 +71,7 @@ rns8_status rns8_prepare_block_sparse_operand(
 }
 rns8_status rns8_destroy_block_sparse_operand(rns8_block_sparse_operand* operand) {
   if (!operand) return RNS8_SUCCESS;
+  if (operand->in_flight_readers) return RNS8_BUSY;
   // Synchronous handle use/destruction requires external thread exclusion.
   const auto status=operand->payload.reset();
   --operand->source->prepared_references;
@@ -107,10 +109,14 @@ rns8_status rns8_gemm_block_sparse_exact_with_method(
     status=exact_gemm_range(*plan,*a->source,*b->source,bound,&ranges);
     if (status!=RNS8_SUCCESS) return status;
     bool commit_started=false;
-    struct CommitGuard {
-      rns8_matrix& output; bool& started; bool published=false;
-      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
-    } write{*c,commit_started};
+    size_t token=0;status=begin_synchronous_lease(*ctx,*a->source,*b->source,*c,*workspace,token);
+    if(status!=RNS8_SUCCESS)return status;
+    SynchronousLease write(*ctx,token);write.track_write(commit_started);
+    status=add_synchronous_owner_hold(*ctx,token,a->in_flight_readers);
+    if(status==RNS8_SUCCESS)status=add_synchronous_owner_hold(*ctx,token,b->in_flight_readers);
+    if(status!=RNS8_SUCCESS)return write.finish(status);
+    return write.finish([&]() -> rns8_status {
+    status=synchronous_dispatch_checkpoint(*ctx,"block_sparse",&commit_started);if(status!=RNS8_SUCCESS)return status;
     status=hip_direct_gemm_block_sparse_device(ctx->device_id,a->payload.get(),a->layout,
         a->source->matrix_instance_id,a->source->content_generation,b->payload.get(),b->layout,
         b->source->matrix_instance_id,b->source->content_generation,c->hip_residues,c->desc.cols,
@@ -118,8 +124,8 @@ rns8_status rns8_gemm_block_sparse_exact_with_method(
     if (status!=RNS8_SUCCESS) return status;
     mark_output_device_residues_current(*c);
     commit_exact_range(*c,*plan,bound,&ranges);
-    write.published=true;
     return RNS8_SUCCESS;
+    }());
   });
 }
 

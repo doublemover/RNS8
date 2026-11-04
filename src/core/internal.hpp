@@ -22,8 +22,17 @@ struct rns8_synchronous_lease {
   const rns8_matrix* a=nullptr;const rns8_matrix* b=nullptr;rns8_matrix* c=nullptr;rns8_workspace* workspace=nullptr;
   bool input_writers=false;
   bool unary=false,read_only=false;
+  uint64_t* owner_holds[2]{};
+};
+// Private deterministic completion seam for host state-machine tests. Null in
+// ordinary contexts; it never changes target admission or executes faulty HIP.
+struct rns8_synchronous_test_hooks {
+  void* state=nullptr;
+  rns8_status (*dispatch)(void*,const char*,bool*)=nullptr;
+  rns8_status (*drain)(void*) noexcept=nullptr;
 };
 struct rns8_context {
+  const rns8_synchronous_test_hooks* synchronous_test_hooks=nullptr;
   std::vector<rns8_synchronous_lease> failed_work_leases;
   // Intrusive ownership requires no allocation while recovering construction failure.
   rns8_matrix* failed_matrix_cleanup = nullptr;
@@ -341,6 +350,7 @@ struct rns8_workspace {
 };
 
 struct rns8_prepack_cache {
+  mutable uint64_t in_flight_readers=0;
   rns8::detail::hip_direct_device_buffer data_owner;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
@@ -374,6 +384,7 @@ struct rns8_prepack_cache {
 };
 
 struct rns8_result_cache {
+  uint64_t in_flight_uses=0;
   rns8::detail::hip_direct_device_buffer snapshot_owner;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;

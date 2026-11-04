@@ -321,3 +321,15 @@ receipts do not automatically certify the stronger obligation. ISA, layout and
 measured target qualification remain separate verdicts. Modulus-search schema
 v3 is read and written through a shared strict-product validator; v1/v2 files
 remain readable as legacy, nonqualifying semantic-range evidence.
+
+Ordinary synchronous RNS/finite/wrap GEMM, exact AXPBY, Gram, paired complex
+products, sparse execution, prepacked B, incremental result-cache copies and
+the finite-product verifier now retain their borrowed owners through shared
+completion leases. The verifier holds readers without inventing an output
+writer. Sparse/prepacked/cache objects reject destruction while retained;
+private scratch retires through the existing deferred-buffer queue. Failed
+cleanup drains keep reservations and poison execution authority; a later drain
+releases memory without reviving that authority. Successful backend completion
+is reused without an additional device-wide wait. Authored public-dispatch
+host mocks exercise these state transitions without inducing device faults;
+execution and remaining accelerator-handle qualification are deferred.
