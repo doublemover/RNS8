@@ -60,7 +60,7 @@ rns8_status prove_pipeline_inputs(rns8_prepared_execution& e,
       if(!info.completed || !info.output_is_current) return RNS8_INVALID_ARGUMENT;
     }
   }
-  std::array<rns8_matrix,3> proof_inputs;
+  std::array<rns8::detail::ExactRangeValue,3> proof_inputs;
   const std::array<const rns8_matrix*,3> inputs{e.a,e.b,e.d};
   const std::array<uint64_t,3> instances{e.a_instance,e.b_instance,e.d_instance};
   const std::array<uint64_t,3> generations{e.a_generation,e.b_generation,e.d_generation};

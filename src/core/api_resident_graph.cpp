@@ -22,6 +22,21 @@ struct rns8_resident_graph {
     const rns8_matrix* matrix;
     uint64_t instance, generation;
   };
+  struct ProofValue:rns8::detail::ExactRangeValue {
+    uint32_t materialized_rns_prefix=0;uint16_t finite_modulus=0;
+    uint64_t expected_instance=0,expected_generation=0;
+  };
+  struct MathProofPlan {
+    struct PlanKey {
+      const rns8_plan* plan=nullptr;
+      std::shared_ptr<const rns8_validated_plan_contract> contract;
+      uint32_t prefix=0,flags=0;
+      boost::multiprecision::cpp_int product;
+    };
+    std::vector<Input> inputs;
+    std::vector<PlanKey> plans;
+    std::vector<OutputProof> outputs;
+  };
   rns8_context* ctx = nullptr;
   std::vector<rns8_resident_node> nodes;
   std::vector<std::unique_ptr<rns8::detail::api::ResidentNativeImport>> native_imports;
@@ -38,6 +53,24 @@ struct rns8_resident_graph {
   std::vector<rns8_workspace*> hip_workspaces;
   std::vector<rns8_matrix*> hip_outputs;
   std::vector<OutputProof> pending_proofs;
+  mutable std::vector<OutputProof> proof_staging;
+  mutable std::unordered_map<const rns8_matrix*,ProofValue> proof_metadata;
+  std::shared_ptr<const MathProofPlan> math_proof;
+  mutable std::shared_ptr<const MathProofPlan> staged_math_proof;
+  uint64_t math_proof_builds=0,math_proof_reuses=0;
+  rns8_status execute_proven_exact_node(uint32_t index) {
+    return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if(!running || !math_proof || index>=nodes.size() || index>=math_proof->outputs.size())return RNS8_INTERNAL_ERROR;
+    const auto& node=nodes[index];
+    const bool epilogue=node.kind==RNS8_RESIDENT_EXACT_AXPBY;
+    rns8::detail::ExactOperationProof proof(*node.plan,*node.a,*node.b,epilogue?node.d:nullptr,
+      epilogue?node.alpha:0,epilogue?node.beta:0);
+    proof.bound_view_=&math_proof->outputs[index].bound;proof.ranges_view_=&math_proof->outputs[index].ranges;
+    return epilogue?rns8::detail::api::gemm_axpby_with_proof(ctx,node.plan,node.a,node.b,node.d,node.c,
+      node.alpha,node.beta,node.workspace,&proof):
+      rns8::detail::api::gemm_rns_with_proof(ctx,node.plan,node.a,node.b,node.c,node.workspace,&proof);
+    });
+  }
   rns8_graph_execution_info completion{};
   rns8_async_failure_info async_failure{};
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -62,7 +95,75 @@ struct rns8_resident_graph {
 #endif
 };
 
+static rns8_status submit_resident_graph_hip(rns8_resident_graph*,void*,rns8_graph_completion_token*,bool,
+    uint32_t* failed_preflight=nullptr);
+
+rns8::detail::api::PreparedProofObservations rns8::detail::api::resident_graph_proof_observations(const rns8_resident_graph* graph) noexcept {
+  if(!graph)return {};
+  PreparedProofObservations out{graph->math_proof_builds,graph->math_proof_reuses};
+  if(!graph->math_proof)return out;
+  const auto& proof=*graph->math_proof;
+  out.retained_object_bytes=sizeof(proof)+proof.inputs.capacity()*sizeof(rns8_resident_graph::Input)+
+    proof.plans.capacity()*sizeof(rns8_resident_graph::MathProofPlan::PlanKey)+
+    proof.outputs.capacity()*sizeof(rns8_resident_graph::OutputProof);
+  using rns8::detail::exact_proof_limb_bytes;using rns8::detail::exact_proof_range_memory;
+  for(const auto& key:proof.plans)out.logical_limb_bytes+=exact_proof_limb_bytes(key.product);
+  const auto count_output=[&](const auto& output) {
+    out.logical_limb_bytes+=exact_proof_limb_bytes(output.bound)+exact_proof_limb_bytes(output.imag_bound);
+    exact_proof_range_memory(output.ranges,out.retained_object_bytes,out.logical_limb_bytes);
+  };
+  for(const auto& output:proof.outputs)count_output(output);
+  // Retained staging/map nodes are metadata only, never matrix payloads.
+  out.retained_object_bytes+=graph->proof_staging.capacity()*sizeof(rns8_resident_graph::OutputProof)+
+    graph->pending_proofs.capacity()*sizeof(rns8_resident_graph::OutputProof)+
+    graph->proof_metadata.size()*sizeof(decltype(graph->proof_metadata)::value_type)+
+    graph->proof_metadata.bucket_count()*sizeof(void*);
+  for(const auto& output:graph->proof_staging)count_output(output);
+  for(const auto& output:graph->pending_proofs)count_output(output);
+  for(const auto& entry:graph->proof_metadata) {
+    out.logical_limb_bytes+=exact_proof_limb_bytes(entry.second.exact_max_magnitude);
+    exact_proof_range_memory(entry.second.exact_axis_ranges,out.retained_object_bytes,out.logical_limb_bytes);
+  }
+  return out;
+}
+
 namespace {
+struct GraphMathStaging {
+  rns8_resident_graph& graph;
+  ~GraphMathStaging(){graph.staged_math_proof.reset();}
+};
+bool graph_math_proof_matches(const rns8_resident_graph& graph) {
+  const auto& proof=graph.math_proof;
+  if(!proof || proof->inputs.size()!=graph.inputs.size() || proof->plans.size()!=graph.nodes.size() ||
+      proof->outputs.size()!=graph.nodes.size())return false;
+  for(size_t i=0;i<graph.inputs.size();++i) {
+    const auto& input=proof->inputs[i];const auto& matrix=*graph.inputs[i].matrix;
+    if(input.matrix!=&matrix || input.instance!=matrix.matrix_instance_id || input.generation!=matrix.content_generation)return false;
+  }
+  for(size_t i=0;i<graph.nodes.size();++i) {
+    const auto* plan=graph.nodes[i].plan;const auto& key=proof->plans[i];
+    if(key.plan!=plan || (plan && (key.contract!=plan->validated_contract || key.prefix!=plan->prefix ||
+        key.flags!=plan->desc.flags || key.product!=plan->modulus_product)))return false;
+  }
+  return true;
+}
+void stage_graph_math_proof(const rns8_resident_graph& graph,const std::vector<rns8_resident_graph::OutputProof>& outputs) {
+  auto proof=std::make_shared<rns8_resident_graph::MathProofPlan>();
+  proof->inputs.reserve(graph.inputs.size());proof->plans.reserve(graph.nodes.size());
+  for(const auto& input:graph.inputs)proof->inputs.push_back({input.matrix,input.matrix->matrix_instance_id,input.matrix->content_generation});
+  for(const auto& node:graph.nodes) {
+    rns8_resident_graph::MathProofPlan::PlanKey key;key.plan=node.plan;
+    if(node.plan){key.contract=node.plan->validated_contract;key.prefix=node.plan->prefix;key.flags=node.plan->desc.flags;key.product=node.plan->modulus_product;}
+    proof->plans.push_back(std::move(key));
+  }
+  proof->outputs=outputs;graph.staged_math_proof=std::move(proof);
+}
+void commit_graph_math_proof(rns8_resident_graph& graph) noexcept {
+  if(graph.staged_math_proof) {
+    graph.math_proof.swap(graph.staged_math_proof);graph.staged_math_proof.reset();
+    if(graph.math_proof_builds!=UINT64_MAX)++graph.math_proof_builds;
+  } else if(graph.math_proof_reuses!=UINT64_MAX)++graph.math_proof_reuses;
+}
 rns8_status validate_resident_transfer_envelopes(const rns8_resident_graph& graph,
     const std::vector<rns8_resident_graph::OutputProof>& proofs);
 bool bounded_graph_semantics(rns8_semantics semantics) {
@@ -82,6 +183,27 @@ std::array<const rns8_matrix*, 4> node_inputs(const rns8_resident_node& node) {
     return {node.c, nullptr, nullptr, nullptr};
   return {node.a, node.b, node.d, nullptr};
 }
+rns8_status cpu_graph_node_inputs_current(const rns8_resident_graph& graph,const rns8_resident_node& node) {
+  const auto current=[&](const rns8_matrix* matrix)->rns8_status {
+    if(!matrix)return RNS8_SUCCESS;
+    if(matrix->generation_exhausted)return RNS8_RANGE_ERROR;
+    const auto found=graph.proof_metadata.find(matrix);
+    return found!=graph.proof_metadata.end() && found->second.expected_instance==matrix->matrix_instance_id &&
+      found->second.expected_generation==matrix->content_generation?RNS8_SUCCESS:RNS8_INVALID_ARGUMENT;
+  };
+  if(node.kind==RNS8_RESIDENT_BASE_EXTEND || node.kind==RNS8_RESIDENT_EXPORT_LIMBS)return current(node.c);
+  for(const auto* input:node_inputs(node)){const auto status=current(input);if(status!=RNS8_SUCCESS)return status;}
+  return RNS8_SUCCESS;
+}
+void bind_cpu_graph_node_outputs(rns8_resident_graph& graph,const rns8_resident_node& node) noexcept {
+  if(node.kind==RNS8_RESIDENT_EXPORT_LIMBS)return;
+  for(const auto* output:{node.c,node.c_imag})if(output) {
+    const auto found=graph.proof_metadata.find(output);
+    if(found!=graph.proof_metadata.end()) {
+      found->second.expected_instance=output->matrix_instance_id;found->second.expected_generation=output->content_generation;
+    }
+  }
+}
 
 rns8_status export_span(const rns8_resident_node& node, uint64_t& bytes) {
   if (!node.export_limbs || !node.plan ||
@@ -95,7 +217,7 @@ rns8_status export_span(const rns8_resident_node& node, uint64_t& bytes) {
   return RNS8_SUCCESS;
 }
 
-rns8_status prove_export(const rns8_context& ctx, const rns8_resident_node& node, const rns8_matrix& proof) {
+rns8_status prove_export(const rns8_context& ctx, const rns8_resident_node& node, const rns8_resident_graph::ProofValue& proof) {
   if (node.c->in_flight_writer) return RNS8_BUSY;
   const auto status = validate_export_matrix(ctx, *node.plan, *node.c,
       node.plan->desc.semantics, RNS8_BOUND_NONE, node.plan->prefix, false);
@@ -111,7 +233,7 @@ rns8_status prove_export(const rns8_context& ctx, const rns8_resident_node& node
   return RNS8_SUCCESS;
 }
 
-rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& node, rns8_matrix& proof) {
+rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& node, rns8_resident_graph::ProofValue& proof) {
   const auto& matrix = *node.c;
   if (matrix.in_flight_writer || matrix.in_flight_readers) return RNS8_BUSY;
   if (matrix.backend != ctx.backend || !rns8::detail::exact_wide_semantics(matrix.desc.semantics) ||
@@ -137,9 +259,13 @@ rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& n
 rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node, bool check_bindings,
                        std::vector<rns8_resident_graph::OutputProof>* pending = nullptr) {
   if(graph.retiring)return RNS8_BUSY;
-  if (pending) { pending->clear(); pending->resize(graph.nodes.size()); }
-  std::unordered_map<const rns8_matrix*, rns8_matrix> proofs;
-  proofs.reserve(graph.inputs.size() + graph.nodes.size());
+  graph.staged_math_proof.reset();
+  const bool reuse=check_bindings && graph_math_proof_matches(graph);
+  if(!pending)pending=&graph.proof_staging;
+  if(reuse)*pending=graph.math_proof->outputs;
+  else pending->resize(graph.nodes.size());
+  auto& proofs=graph.proof_metadata;
+  proofs.reserve(graph.inputs.size()+2*graph.nodes.size());
   for (const auto& input : graph.inputs) {
     const auto& m = *input.matrix;
     if (m.in_flight_writer) return RNS8_BUSY;
@@ -148,35 +274,36 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
             : rns_residue_state_current_for_backend(m, graph.ctx->backend)) ||
         (check_bindings && (m.matrix_instance_id != input.instance || m.content_generation != input.generation)))
       return RNS8_INVALID_ARGUMENT;
+    auto& proof=proofs.try_emplace(input.matrix).first->second;
+    proof.expected_instance=m.matrix_instance_id;proof.expected_generation=m.content_generation;
     if(m.desc.semantics==RNS8_WRAP_U64_MOD_2_64 || bounded_graph_semantics(m.desc.semantics)) {
-      proofs.try_emplace(input.matrix).first->second.materialized_rns_prefix=m.materialized_rns_prefix;
+      proof.materialized_rns_prefix=m.materialized_rns_prefix;
       continue;
     }
     if(uses_finite_storage(m.desc.semantics)) {
       if(!rns8::detail::valid_finite_modulus_for_semantics(m.desc.semantics,m.finite_modulus))
         return RNS8_INVALID_ARGUMENT;
-      proofs.try_emplace(input.matrix).first->second.finite_modulus=m.finite_modulus;
+      proof.finite_modulus=m.finite_modulus;
       continue;
     }
     if (!m.exact_range_prefix || m.exact_range_prefix > m.prefix ||
         !rns8::detail::exact_range_fits(m.desc.semantics, m.exact_max_magnitude,
                                       rns8::detail::modulus_product(m.exact_range_prefix)))
       return RNS8_RANGE_ERROR;
-    auto& proof = proofs.try_emplace(input.matrix).first->second;
     proof.exact_max_magnitude = m.exact_max_magnitude;
-    proof.exact_axis_ranges = m.exact_axis_ranges;
+    if(!reuse)proof.exact_axis_ranges = m.exact_axis_ranges;
     proof.exact_range_prefix = m.exact_range_prefix;
   }
   for (uint32_t index = 0; index < graph.nodes.size(); ++index) {
     failed_node = index;
     const auto& node = graph.nodes[index];
     if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS) {
-      rns8_matrix output;
+      rns8_resident_graph::ProofValue output;
       const auto status=graph.native_imports[index]->validate(check_bindings,output.exact_max_magnitude);
       if(status!=RNS8_SUCCESS)return status;
       output.exact_range_prefix=node.target_prefix;
       if(pending) {auto& value=(*pending)[index];value.bound=output.exact_max_magnitude;value.target_prefix=node.target_prefix;}
-      proofs.emplace(node.c,std::move(output));continue;
+      proofs.insert_or_assign(node.c,std::move(output));continue;
     }
     if (node.kind == RNS8_RESIDENT_EXPORT_LIMBS) {
       const auto input = proofs.find(node.c);
@@ -258,15 +385,23 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
       if (admitted.status != RNS8_SUCCESS) return admitted.status;
       if (pending) (*pending)[index]={admitted.real_bound, {}, admitted.imag_bound,
           static_cast<const ComplexResidueScratch&>(admitted)};
-      rns8_matrix real, imag;
+      rns8_resident_graph::ProofValue real, imag;
       real.exact_range_prefix = imag.exact_range_prefix = node.plan->prefix;
       real.exact_max_magnitude.swap(admitted.real_bound);
       imag.exact_max_magnitude.swap(admitted.imag_bound);
-      proofs.emplace(node.c, std::move(real));
-      proofs.emplace(node.c_imag, std::move(imag));
+      proofs.insert_or_assign(node.c, std::move(real));
+      proofs.insert_or_assign(node.c_imag, std::move(imag));
       continue;
     }
-    rns8_matrix output;
+    if(reuse) {
+      if(node.kind==RNS8_RESIDENT_EXACT_AXPBY && proofs.find(node.d)==proofs.end())return RNS8_INVALID_ARGUMENT;
+      if(ai->second.exact_range_prefix<node.plan->prefix || bi->second.exact_range_prefix<node.plan->prefix)return RNS8_RANGE_ERROR;
+      if(node.kind==RNS8_RESIDENT_EXACT_AXPBY && proofs.at(node.d).exact_range_prefix<node.plan->prefix)return RNS8_RANGE_ERROR;
+      auto& output=proofs.at(node.c);output.exact_range_prefix=node.plan->prefix;
+      output.exact_max_magnitude=graph.math_proof->outputs[index].bound;
+      continue;
+    }
+    rns8_resident_graph::ProofValue output;
     if (node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
       const auto di = proofs.find(node.d);
       if (di == proofs.end()) return RNS8_INVALID_ARGUMENT;
@@ -279,9 +414,10 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     if (status != RNS8_SUCCESS) return status;
     output.exact_range_prefix = node.plan->prefix;
     if (pending) (*pending)[index]={output.exact_max_magnitude, output.exact_axis_ranges};
-    proofs.emplace(node.c, std::move(output));
+    proofs.insert_or_assign(node.c, std::move(output));
   }
   failed_node = UINT32_MAX;
+  if(!reuse)stage_graph_math_proof(graph,*pending);
   return RNS8_SUCCESS;
 }
 void bind_graph_inputs(rns8_resident_graph& graph) {
@@ -301,6 +437,7 @@ rns8_status rns8_create_resident_graph(
     if (!ctx || !nodes || !count || count > 4096) return RNS8_INVALID_ARGUMENT;
     if (!resident_graph_backend_supported(ctx->backend)) return RNS8_UNSUPPORTED_BACKEND;
     auto graph = std::make_unique<rns8_resident_graph>();
+    GraphMathStaging math_staging{*graph};
     graph->ctx = ctx;
     graph->nodes.assign(nodes, nodes + count);graph->native_imports.resize(count);
     std::unordered_map<const rns8_matrix*, uint32_t> producers;
@@ -394,6 +531,7 @@ rns8_status rns8_create_resident_graph(
     uint32_t failed = UINT32_MAX;
     const auto status = prove_graph(*graph, failed, true);
     if (status != RNS8_SUCCESS) return status;
+    commit_graph_math_proof(*graph);
     graph->id = next_graph_id();
     if (!graph->id) return RNS8_RANGE_ERROR;
     for (auto* hold : graph->holds) ++*hold;
@@ -405,15 +543,17 @@ rns8_status rns8_refresh_resident_graph_inputs(rns8_resident_graph* graph) {
   return guard_api([&]() -> rns8_status {
     if (!graph) return RNS8_INVALID_ARGUMENT;
     if (graph->running) return RNS8_BUSY;
+    GraphMathStaging math_staging{*graph};
     uint32_t failed = UINT32_MAX;
-    std::vector<rns8_resident_graph::OutputProof> proofs;
-    auto status = prove_graph(*graph, failed, false,graph->hip_prepared?&proofs:nullptr);
+    auto& proofs=graph->proof_staging;
+    auto status = prove_graph(*graph, failed, false,&proofs);
     if (status != RNS8_SUCCESS) return status;
     if(graph->hip_prepared) {
       status=validate_resident_transfer_envelopes(*graph,proofs);
       if(status!=RNS8_SUCCESS)return status;
     }
     bind_graph_inputs(*graph);
+    commit_graph_math_proof(*graph);
     return RNS8_SUCCESS;
   });
 }
@@ -422,19 +562,18 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
     if (!graph || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
       return RNS8_INVALID_ARGUMENT;
     if (graph->running) return RNS8_BUSY;
+    GraphMathStaging math_staging{*graph};
     if (graph->epoch == UINT64_MAX) return RNS8_RANGE_ERROR;
     if(!graph->native_readers.empty() && !graph->hip_prepared) {
       const auto status=rns8_prepare_resident_graph_hip(graph);if(status!=RNS8_SUCCESS)return status;
     }
     out->completed_nodes = 0; out->failed_node = UINT32_MAX; out->epoch = graph->epoch;
-    out->operation_status = prove_graph(*graph, out->failed_node, true);
-    if (out->operation_status != RNS8_SUCCESS) return out->operation_status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     // Prepared complex graphs reuse their bounded scratch and owned stream.
     // Keep a failed drain attached to the graph exactly as for borrowed streams.
     if (graph->hip_prepared) {
       rns8_graph_completion_token token{};
-      auto status = rns8_submit_resident_graph_hip(graph, graph->synchronous_stream.get(), &token);
+      auto status = submit_resident_graph_hip(graph,graph->synchronous_stream.get(),&token,false,&out->failed_node);
       if (status != RNS8_SUCCESS) {
         out->operation_status = status; out->epoch = graph->epoch;
         return status;
@@ -444,13 +583,21 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
       return status == RNS8_SUCCESS ? out->operation_status : status;
     }
 #endif
+    out->operation_status = prove_graph(*graph,out->failed_node,true);
+    if(out->operation_status!=RNS8_SUCCESS)return out->operation_status;
+    commit_graph_math_proof(*graph);
     out->epoch = ++graph->epoch;
     graph->async_failure = {};
     graph->cancel_requested = false;
     graph->running = true;
     for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
       const auto& node = graph->nodes[i];
-      if (node.kind == RNS8_RESIDENT_MATMUL)
+      const auto input_status=cpu_graph_node_inputs_current(*graph,node);
+      if(input_status!=RNS8_SUCCESS)out->operation_status=input_status;
+      else if((node.kind==RNS8_RESIDENT_MATMUL || node.kind==RNS8_RESIDENT_EXACT_AXPBY) &&
+          rns8::detail::exact_wide_semantics(node.plan->desc.semantics))
+        out->operation_status=graph->execute_proven_exact_node(i);
+      else if (node.kind == RNS8_RESIDENT_MATMUL)
         out->operation_status = node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64
             ? rns8_gemm_wrap_u64(graph->ctx,node.plan,node.a,node.b,node.c,node.workspace)
             : uses_finite_storage(node.plan->desc.semantics)
@@ -475,6 +622,7 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
       if (out->operation_status != RNS8_SUCCESS) {
         out->failed_node = i; graph->running = false; return out->operation_status;
       }
+      bind_cpu_graph_node_outputs(*graph,node);
       ++out->completed_nodes;
     }
     graph->running = false;

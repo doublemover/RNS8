@@ -121,7 +121,7 @@ uint64_t next_prepared_id() {
     if (next.compare_exchange_weak(value, value + 1, std::memory_order_relaxed)) return value;
   return 0;
 }
-rns8_status validate_prepared(const rns8_prepared_execution& e,bool check_value_bounds=true) {
+rns8_status validate_prepared(const rns8_prepared_execution& e) {
   if(e.closing)return RNS8_INVALID_ARGUMENT;
   if(e.pool_owned && !e.pool_dispatch)return RNS8_BUSY;
   if(e.transfer){boost::multiprecision::cpp_int bound;return e.transfer->validate(nullptr,0,bound);}
@@ -133,7 +133,7 @@ rns8_status validate_prepared(const rns8_prepared_execution& e,bool check_value_
     if (e.d->generation_exhausted) return RNS8_RANGE_ERROR;
     status = validate_exact_axpby_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.d, *e.c, e.alpha, e.beta);
     if (status != RNS8_SUCCESS) return status;
-    if (check_value_bounds && (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND)) {
+    if (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND) {
       return prepare_math_proof(e);
     }
     return RNS8_SUCCESS;
@@ -147,7 +147,7 @@ rns8_status validate_prepared(const rns8_prepared_execution& e,bool check_value_
     default:
       status = validate_rns_gemm_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.c);
       if (status != RNS8_SUCCESS) return status;
-      if (check_value_bounds && (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND)) {
+      if (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND) {
         return prepare_math_proof(e);
       }
       return RNS8_SUCCESS;

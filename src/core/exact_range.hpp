@@ -12,6 +12,14 @@ namespace rns8::detail {
 
 using boost::multiprecision::cpp_int;
 
+// Mathematical metadata only. DAG/pending-producer propagation must not retain
+// matrix payload vectors, device allocation owners or unrelated cache state.
+struct ExactRangeValue {
+  cpp_int exact_max_magnitude=0;
+  rns8_exact_matrix_ranges exact_axis_ranges;
+  uint32_t exact_range_prefix=0;
+};
+
 inline bool exact_wide_semantics(rns8_semantics semantics) {
   return semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED;
 }
@@ -232,7 +240,8 @@ inline rns8_exact_axis_range uniform_exact_axis(const cpp_int& maximum, int64_t 
 
 // Pure bound construction shared by ordinary admission and the explicit CPU
 // selection route. It does not authorize using any unwritten residue plane.
-inline void exact_gemm_bound(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B,
+template<class Left,class Right>
+inline void exact_gemm_bound(const rns8_plan& plan, const Left& A, const Right& B,
                              cpp_int& output_bound, rns8_exact_matrix_ranges* output_ranges = nullptr) {
   const bool a_rows = A.exact_axis_ranges.rows.size() == static_cast<std::size_t>(plan.desc.m);
   const bool b_cols = B.exact_axis_ranges.cols.size() == static_cast<std::size_t>(plan.desc.n);
@@ -274,7 +283,8 @@ inline void exact_gemm_bound(const rns8_plan& plan, const rns8_matrix& A, const 
   }
 }
 
-inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B,
+template<class Left,class Right>
+inline rns8_status exact_gemm_range(const rns8_plan& plan, const Left& A, const Right& B,
                                     cpp_int& output_bound,
                                     rns8_exact_matrix_ranges* output_ranges = nullptr) {
   if (!exact_wide_semantics(plan.desc.semantics)) return RNS8_SUCCESS;
@@ -292,8 +302,9 @@ inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A,
 }
 
 // Admit the complete expression, without requiring the unpublished AB to fit.
-inline rns8_status exact_axpby_range(const rns8_plan& plan, const rns8_matrix& A,
-                                    const rns8_matrix& B, const rns8_matrix& D,
+template<class Left,class Right,class Addend>
+inline rns8_status exact_axpby_range(const rns8_plan& plan, const Left& A,
+                                    const Right& B, const Addend& D,
                                     int64_t alpha, int64_t beta, cpp_int& bound) {
   if (!exact_wide_semantics(plan.desc.semantics) ||
       (plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED && (alpha < 0 || beta < 0)))

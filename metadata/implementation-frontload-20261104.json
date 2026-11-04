@@ -109,10 +109,11 @@
       "comments_reviewed": 2,
       "implementation_status": "in_progress",
       "completed_slices": [
-        "Prepared GEMM/Axpby cache an immutable ExactOperationProof keyed by the actual plan contract, prefix/product/policy, coefficients and input object/instance/generation. Fixed-value admission and submission share one eager proof; synchronous dispatch carries an explicit checked certificate into ordinary storage/lease execution. Per-call structural and stream checks and pending-producer proofs remain separate. Private counters account constructions/reuse and retained metadata; signed/unsigned/scalar/eager/epilogue/mutation/range/BUSY/fidelity fixtures authored."
+        "Prepared GEMM/Axpby cache an immutable ExactOperationProof keyed by the actual plan contract, prefix/product/policy, coefficients and input object/instance/generation. Fixed-value admission and submission share one eager proof; synchronous dispatch carries an explicit checked certificate into ordinary storage/lease execution. Per-call structural and stream checks and pending-producer proofs remain separate. Private counters account constructions/reuse and retained metadata; signed/unsigned/scalar/eager/epilogue/mutation/range/BUSY/fidelity fixtures authored.",
+        "Resident DAGs retain immutable generation/plan-bound mathematical output certificates, reusable metadata maps and publication staging. Warm per-node structural/currentness/coverage/transfer checks skip dense exact traversal; refresh replaces proofs only after full admission. Prepared synchronous HIP uses one submission proof pass, and CPU exact nodes borrow admitted certificates with per-edge generation validation. Shared metadata-only values replace matrix owners in DAG and pending-producer proof propagation; counters, memory accounting and mutation/reuse fixtures authored."
       ],
       "remaining_source_items": [
-        "Eliminate duplicate prepared resident-DAG propagation and retain a generation-bound immutable graph proof plan with dynamic per-launch admission and reusable publication metadata."
+        "Integrate construction/reuse and retained proof metadata observations into matched prepared/DAG benchmark captures with the shared host-phase timing repair."
       ]
     },
     {
@@ -322,7 +323,8 @@
         "Bilinear completion guard drains all early exits and host unwinding, retaining local scratch after uncertain completion; workspace stream uses typed retryable ownership and public lease covers publication."
       ],
       "remaining_source_items": [
-        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
+        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory",
+        "Finish specialized synchronous writer publication ownership, including the narrow native-to-RNS entrypoint discovered still releasing its custom lease before proof publication."
       ]
     },
     {
@@ -453,7 +455,8 @@
       "implementation_status": "in_progress",
       "completed_slices": [
         "Default and indexed dense matrix entry points share architecture-specific inlined bodies and common store/batch admission helpers; default kernel signatures and arithmetic are preserved",
-        "Authored malformed-packet preflight controls and exact GPU differential controls for reordered moduli, 48 batches, padding, K65536 and both submission modes; HIP host/gfx1100 device syntax passed, runtime deferred"
+        "Authored malformed-packet preflight controls and exact GPU differential controls for reordered moduli, 48 batches, padding, K65536 and both submission modes; HIP host/gfx1100 device syntax passed, runtime deferred",
+        "Share exact-range algorithms across real matrices and compact metadata-only proof values; reuse the same axis/limb memory accounting for prepared and graph certificates rather than copying matrix resource owners into proof propagation."
       ],
       "remaining_source_items": []
     },

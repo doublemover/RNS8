@@ -1,5 +1,38 @@
 #include "test_api_resident_export_cases.inc"
 #include "test_api_resident_async_support.inc"
+TEST_CASE("cached CPU graph certificates reject a changed future input at its consuming node", "[api][graph][proof]") {
+  auto* ctx=create_cpu_context();auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,2,2,2);
+  rns8_plan* plan=nullptr;rns8_workspace* workspace=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
+  auto md=exact_matrix_desc(2,2,RNS8_EXACT_WIDE_SIGNED);rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr,*d=nullptr;
+  for(auto** matrix:{&a,&b,&c,&d})REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+  const int64_t av[4]{1,2,3,4},identity[4]{1,0,0,1};
+  REQUIRE(rns8_pack_i64(ctx,a,av,2,0)==RNS8_SUCCESS);REQUIRE(rns8_pack_i64(ctx,b,identity,2,0)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,d,identity,2,0)==RNS8_SUCCESS);const auto dg=d->content_generation;
+  rns8_resident_node nodes[2]{};
+  for(auto& node:nodes){node.struct_size=sizeof(node);node.abi_version=RNS8_ABI_VERSION;node.plan=plan;node.workspace=workspace;}
+  nodes[0].a=a;nodes[0].b=a;nodes[0].c=c;nodes[1].a=c;nodes[1].b=b;nodes[1].c=d;
+  rns8_resident_graph* graph=nullptr;REQUIRE(rns8_create_resident_graph(ctx,nodes,2,&graph)==RNS8_SUCCESS);
+  struct Mutation {rns8_context* ctx;rns8_matrix* b;bool changed=false;} mutation{ctx,b};
+  rns8_synchronous_test_hooks hooks{};hooks.state=&mutation;
+  hooks.dispatch=[](void* state,const char* label,bool*)->rns8_status {
+    auto& value=*static_cast<Mutation*>(state);
+    if(!value.changed && std::string(label)=="gemm_rns") {
+      value.changed=true;const int64_t replacement[4]{2,0,0,2};return rns8_pack_i64(value.ctx,value.b,replacement,2,0);
+    }
+    return RNS8_SUCCESS;
+  };
+  ctx->synchronous_test_hooks=&hooks;rns8_graph_execution_info info{sizeof(info),RNS8_ABI_VERSION};
+  const auto status=rns8_execute_resident_graph(graph,&info);ctx->synchronous_test_hooks=nullptr;
+  REQUIRE(status==RNS8_INVALID_ARGUMENT);CHECK(mutation.changed);CHECK(info.completed_nodes==1);CHECK(info.failed_node==1);
+  CHECK(d->content_generation==dg);CHECK(rns8::detail::api::resident_graph_proof_observations(graph).builds==1);
+  REQUIRE(rns8_refresh_resident_graph_inputs(graph)==RNS8_SUCCESS);REQUIRE(rns8_execute_resident_graph(graph,&info)==RNS8_SUCCESS);
+  uint64_t result[4]{};REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,d,result,2,1)==RNS8_SUCCESS);
+  CHECK(std::vector<uint64_t>(result,result+4)==std::vector<uint64_t>{14,20,30,44});
+  REQUIRE(rns8_destroy_resident_graph(graph)==RNS8_SUCCESS);
+  for(auto* matrix:{d,c,b,a})REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
 TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings before writes", "[api][graph]") {
   using boost::multiprecision::cpp_int;
   for (bool hip : {false,true}) {
@@ -39,6 +72,7 @@ TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings befo
       rns8_resident_node nodes[] = {node(a,b,c), node(c,a,d), node(c,b,e)};
       rns8_resident_graph* graph = nullptr;
       REQUIRE(rns8_create_resident_graph(ctx, nodes, 3, &graph) == RNS8_SUCCESS);
+      CHECK(rns8::detail::api::resident_graph_proof_observations(graph).builds==1);
       REQUIRE(rns8_destroy_matrix(c) == RNS8_BUSY);
       REQUIRE(rns8_destroy_plan(plan) == RNS8_BUSY);
       auto multiply = [](const std::vector<cpp_int>& lhs, const std::vector<cpp_int>& rhs) {
@@ -65,7 +99,14 @@ TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings befo
           REQUIRE(c->content_generation == generation);
           REQUIRE(rns8_refresh_resident_graph_inputs(graph) == RNS8_SUCCESS);
         }
-        REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+        for(int reuse=0;reuse<2;++reuse) {
+          const auto before=rns8::detail::api::resident_graph_proof_observations(graph);
+          REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+          const auto after=rns8::detail::api::resident_graph_proof_observations(graph);
+          CHECK(after.builds==uint64_t(round+1));CHECK(after.builds==before.builds);CHECK(after.reuses==before.reuses+1);
+          CHECK(after.retained_object_bytes>0);CHECK(after.logical_limb_bytes>0);
+          REQUIRE(c->exact_axis_ranges.rows.size()==2);REQUIRE(c->exact_axis_ranges.cols.size()==2);
+        }
         REQUIRE(info.completed_nodes == 3);
         REQUIRE(info.failed_node == UINT32_MAX);
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -85,7 +126,9 @@ TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings befo
       av.assign(4, INT64_MAX);
       REQUIRE(pack(a,av) == RNS8_SUCCESS);
       REQUIRE(pack(b,av) == RNS8_SUCCESS);
+      const auto retained_builds=rns8::detail::api::resident_graph_proof_observations(graph).builds;
       REQUIRE(rns8_refresh_resident_graph_inputs(graph) == RNS8_RANGE_ERROR);
+      CHECK(rns8::detail::api::resident_graph_proof_observations(graph).builds==retained_builds);
       REQUIRE(rns8_create_resident_graph(ctx, nodes, 3, &bad) == RNS8_RANGE_ERROR);
       REQUIRE(bad == nullptr);
       REQUIRE(c->content_generation == generation);

@@ -20,10 +20,13 @@ materialization of the same logical value, so it does not create a second writer
 or change content generation. Its position must follow the value's producer and
 precede any consumer needing the additional planes.
 
-Creation and execution propagate exact-wide bounds through the existing
+Creation and refresh propagate exact-wide bounds through the existing
 axis/moment/scalar proof implementation and finite moduli through each finite
-edge before arithmetic begins. Proof metadata
-is copied once per external input; matrix payloads are never copied for planning.
+edge before arithmetic begins. An immutable proof plan retains those bounds and
+eager axis summaries for the bound input object/instance/generations and actual
+plan contract, prefix/product and proof policy. Warm execution validates every
+node and binding without repeating the dense mathematical traversal. Metadata
+maps and publication staging retain their capacity; planning never copies matrix payloads.
 This catches downstream range exhaustion and insufficient extension capacity or
 staging budget before earlier nodes overwrite outputs. Proof propagation updates
 available prefixes only after an explicit BaseExtend node; omitted lifts fail
@@ -34,7 +37,18 @@ the standalone API: `abs(alpha)*bound(AB) + abs(beta)*bound(D)` must fit the roo
 basis. The unpublished AB need not fit independently (for example, alpha zero).
 All three inputs still require materialized planes even with zero coefficients.
 Its output carries a conservative scalar bound into downstream consumers.
-Execution uses existing synchronous GEMM, exact epilogue and CPU/HIP lift publication guards.
+CPU execution binds each already-proven exact node to its newly published
+intermediate generations and uses the ordinary storage/lease/publication path.
+Each consuming node checks the expected external or produced instance/generation;
+a change after admission cannot be stamped into an old mathematical certificate.
+Prepared HIP synchronous execution shares one admission pass with submission.
+Refresh publishes a replacement proof only after transfer-envelope admission;
+failed replacement preserves the previous immutable plan. Dynamic currentness,
+reservations, coverage, address/capture state, native leases, transfer envelopes
+and epoch limits remain per-call checks. Retained proof-object capacity and
+logical integer-limb payload are available through private diagnostics; these
+are separate quantities, with allocator overhead excluded.
+Execution retains the existing exact epilogue and CPU/HIP lift publication guards.
 Each intermediate remains resident and can feed multiple later nodes.
 
 `EXPORT_LIMBS` nodes explicitly read the matrix in `c` through `plan` into a
@@ -98,7 +112,7 @@ applicable execution is covered by the [dated validation](local-all-features-202
 
 `rns8_prepare_resident_graph_hip` prepares a completion event for a dense graph
 of fixed-prefix exact-wide MatMul/ExactAxpby or finite ring/field MatMul nodes. `rns8_submit_resident_graph_hip` preflights every
-binding and propagates every intermediate proof, then enqueues the ordered DAG
+binding and admits the retained intermediate proofs, then enqueues the ordered DAG
 on one caller-owned nondefault stream. Internal dependencies follow stream
 order. BaseExtend and ExportLimbs nodes retain explicit transfer staging;
 adaptive tile schedules reject as unsupported before launch. Owned capture

@@ -3,6 +3,17 @@
 #include <memory>
 
 namespace rns8::detail {
+inline uint64_t exact_proof_limb_bytes(const cpp_int& value) noexcept {
+  return uint64_t(value.backend().size())*sizeof(boost::multiprecision::limb_type);
+}
+inline void exact_proof_range_memory(const rns8_exact_matrix_ranges& ranges,uint64_t& objects,uint64_t& limbs) noexcept {
+  for(const auto* axes:{&ranges.rows,&ranges.cols}) {
+    objects+=axes->capacity()*sizeof(rns8_exact_axis_range);
+    for(const auto& axis:*axes)limbs+=exact_proof_limb_bytes(axis.max_magnitude)+exact_proof_limb_bytes(axis.absolute_sum)+
+      exact_proof_limb_bytes(axis.sum)+exact_proof_limb_bytes(axis.minimum)+exact_proof_limb_bytes(axis.maximum)+
+      exact_proof_limb_bytes(axis.deviation_sum)+exact_proof_limb_bytes(axis.squared_sum);
+  }
+}
 // An immutable mathematical certificate, separate from per-call storage,
 // reservations, transfer envelopes, pending producers and stream admission.
 class ExactOperationProof {
@@ -28,20 +39,21 @@ class ExactOperationProof {
       (d?inputs_[2].matches(*d):!inputs_[2].matrix);
   }
   void stage(cpp_int& bound,rns8_exact_matrix_ranges* ranges=nullptr) const {
-    bound=bound_;if(ranges)*ranges=ranges_;
+    bound=bound_view_?*bound_view_:bound_;
+    if(ranges)*ranges=ranges_view_?*ranges_view_:ranges_;
   }
   uint64_t retained_object_bytes() const noexcept {
-    return sizeof(*this)+(ranges_.rows.capacity()+ranges_.cols.capacity())*sizeof(rns8_exact_axis_range);
+    uint64_t objects=sizeof(*this),limbs=0;exact_proof_range_memory(ranges_,objects,limbs);return objects;
   }
   uint64_t logical_limb_bytes() const noexcept {
-    const auto bytes=[](const cpp_int& value){return uint64_t(value.backend().size())*sizeof(boost::multiprecision::limb_type);};
-    uint64_t result=bytes(product_)+bytes(bound_);
-    for(const auto* axes:{&ranges_.rows,&ranges_.cols})for(const auto& axis:*axes)
-      result+=bytes(axis.max_magnitude)+bytes(axis.absolute_sum)+bytes(axis.sum)+bytes(axis.minimum)+
-        bytes(axis.maximum)+bytes(axis.deviation_sum)+bytes(axis.squared_sum);
+    uint64_t objects=0,result=exact_proof_limb_bytes(product_)+exact_proof_limb_bytes(bound_);
+    exact_proof_range_memory(ranges_,objects,result);
     return result;
   }
  private:
+  // The graph owner may bind its already-admitted node certificate to current
+  // intermediate generations only while executing that ordered proven DAG.
+  friend struct ::rns8_resident_graph;
   struct Input {
     const rns8_matrix* matrix=nullptr;uint64_t instance=0,generation=0;
     bool matches(const rns8_matrix& value) const noexcept {
@@ -59,6 +71,10 @@ class ExactOperationProof {
   uint32_t prefix_;
   cpp_int product_,bound_;
   rns8_exact_matrix_ranges ranges_;
+  // A stack-scoped graph binding borrows its immutable output certificate;
+  // the running graph retains that plan through synchronous publication.
+  const cpp_int* bound_view_=nullptr;
+  const rns8_exact_matrix_ranges* ranges_view_=nullptr;
   int64_t alpha_,beta_;
   Input inputs_[3];
 };

@@ -37,6 +37,7 @@ namespace rns8::detail::api {
 
 struct PreparedProofObservations {uint64_t builds=0,reuses=0,retained_object_bytes=0,logical_limb_bytes=0;};
 PreparedProofObservations prepared_proof_observations(const rns8_prepared_execution*) noexcept;
+PreparedProofObservations resident_graph_proof_observations(const rns8_resident_graph*) noexcept;
 
 rns8_status gemm_rns_with_proof(rns8_context*,const rns8_plan*,const rns8_matrix*,const rns8_matrix*,
     rns8_matrix*,rns8_workspace*,const ExactOperationProof*);

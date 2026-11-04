@@ -258,6 +258,7 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
       return RNS8_INVALID_ARGUMENT;
     if (graph->running)
       return RNS8_BUSY;
+    GraphMathStaging math_staging{*graph};
     const auto support = resident_graph_hip_support_status(*graph);
     if (support != RNS8_SUCCESS) return support;
     std::unordered_set<rns8_workspace *> seen;
@@ -268,7 +269,7 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
         workspaces.push_back(node.workspace);
     }
     uint32_t failed = UINT32_MAX;
-    std::vector<rns8_resident_graph::OutputProof> proofs;
+    auto& proofs=graph->proof_staging;
     const auto status = prove_graph(*graph, failed, true, &proofs);
     if (status != RNS8_SUCCESS)
       return status;
@@ -332,6 +333,7 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
     }
     graph->hip_workspaces.swap(workspaces);
     graph->hip_prepared = true;
+    commit_graph_math_proof(*graph);
     return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
@@ -342,12 +344,13 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
 static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
                                              void *stream,
                                              rns8_graph_completion_token *token,
-                                             bool replay) {
+                                             bool replay,uint32_t* failed_preflight) {
   return guard_api([&]() -> rns8_status {
     if (!graph || !stream || !token)
       return RNS8_INVALID_ARGUMENT;
     if (graph->running)
       return RNS8_BUSY;
+    GraphMathStaging math_staging{*graph};
     if (!graph->hip_prepared)
       return RNS8_UNSUPPORTED_BACKEND;
     if (graph->epoch == UINT64_MAX)
@@ -356,8 +359,9 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
       if (input.matrix->in_flight_readers == UINT64_MAX)
         return RNS8_RANGE_ERROR;
     uint32_t failed = UINT32_MAX;
-    std::vector<rns8_resident_graph::OutputProof> proofs;
+    auto& proofs=graph->proof_staging;
     auto status = prove_graph(*graph, failed, true, &proofs);
+    if(failed_preflight)*failed_preflight=failed;
     if (status != RNS8_SUCCESS)
       return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -387,6 +391,7 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
       return RNS8_BACKEND_FAILURE;
     if (capture != hipStreamCaptureStatusNone)
       return RNS8_UNSUPPORTED_BACKEND;
+    commit_graph_math_proof(*graph);
     graph->pending_proofs.swap(proofs);
     for (const auto &input : graph->inputs)
       ++input.matrix->in_flight_readers;
