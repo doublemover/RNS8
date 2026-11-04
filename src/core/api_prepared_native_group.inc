@@ -114,6 +114,8 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
     const auto config=*desc;
     std::vector<rns8_native_group_binding> retained(bindings,bindings+count);
     std::vector<rns8_prepared_group::NativeBinding> values(count);
+    std::vector<PreparedHipProof> proofs(count);
+    std::vector<const rns8_matrix*> readers;readers.reserve(size_t(count)*2);
     std::vector<NativeWmmaTask> tasks;tasks.reserve(count);
     std::unordered_set<const rns8_workspace*> workspaces;
     std::unordered_map<const rns8_encoded_b*,uint64_t> cache_refs;
@@ -123,8 +125,10 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
       if(e.ctx!=ctx || !workspaces.insert(e.workspace).second)return RNS8_INVALID_ARGUMENT;
       const auto status=admit_native_group_child(e,retained[i],values[i]);if(status!=RNS8_SUCCESS)return status;
       tasks.push_back(values[i].task);
+      readers.push_back(e.a);if(e.a!=e.b)readers.push_back(e.b);
       if(retained[i].encoded_b)++cache_refs[retained[i].encoded_b];
     }
+    auto reader_counts=compile_reader_multiplicities(std::move(readers));
     std::string proof_identity="native-queue-schedule-v1;mode="+std::to_string(config.schedule_mode)+
         ";chunk="+std::to_string(config.claim_chunk)+";workers="+std::to_string(config.workers)+
         ";ordinary="+std::to_string(config.ordinary_grid_control);
@@ -158,6 +162,7 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
     for(const auto& binding:group->native_bindings)if(binding.encoded_b)--binding.encoded_b->prepared_references;
     group->native_peak_device_bytes=old_bytes+queue->preparation_peak_device_metadata_bytes();
     group->native_queue=std::move(queue);group->native_values=std::move(values);
+    group->native_proofs.swap(proofs);group->native_readers.swap(reader_counts);
     group->native_bindings=std::move(retained);group->native_desc=config;group->native_locality=locality?*locality:rns8_locality_desc{};
     group->native_certificate_sha256=proof_hash;
     for(auto* e:group->executions) {bind_inputs(*e);e->hip_submission_prepared=true;}
@@ -183,7 +188,9 @@ rns8_status rns8_get_native_group_info(const rns8_prepared_group* group,rns8_nat
   info->retained_device_metadata_bytes=group->native_queue->device_metadata_bytes();
   info->retained_host_metadata_bytes=group->native_queue->retained_host_metadata_bytes()+
       group->native_values.capacity()*sizeof(rns8_prepared_group::NativeBinding)+
-      group->native_bindings.capacity()*sizeof(rns8_native_group_binding);
+      group->native_bindings.capacity()*sizeof(rns8_native_group_binding)+
+      group->native_proofs.capacity()*sizeof(PreparedHipProof)+
+      group->native_readers.capacity()*sizeof(decltype(group->native_readers)::value_type);
   info->preparation_peak_device_metadata_bytes=group->native_peak_device_bytes;
   std::copy(group->native_certificate_sha256.begin(),group->native_certificate_sha256.end(),info->arithmetic_certificate_sha256);
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -198,14 +205,14 @@ static rns8_status submit_native_group(rns8_prepared_group* group,void* stream,
     *out_submitted=0;
     if(native_group_busy(*group))return RNS8_BUSY;
     auto status=native_group_values_current(*group);if(status!=RNS8_SUCCESS)return status;
-    std::vector<PreparedHipProof> proofs(group->executions.size());
-    std::unordered_map<const rns8_matrix*,uint64_t> readers;
+    if(group->native_proofs.size()!=group->executions.size() || group->native_readers.empty())return RNS8_INVALID_ARGUMENT;
+    auto& proofs=group->native_proofs;rns8::detail::BorrowedStreamAdmission stream_admission;
     for(size_t i=0;i<group->executions.size();++i) {
       auto* e=group->executions[i];
-      status=prove_prepared_submission(e,stream,false,proofs[i]);if(status!=RNS8_SUCCESS)return status;
-      ++readers[e->a];if(e->a!=e->b)++readers[e->b];
+      proofs[i].pipeline=false;
+      status=prove_prepared_submission(e,stream,false,proofs[i],&stream_admission);if(status!=RNS8_SUCCESS)return status;
     }
-    for(const auto& [matrix,count]:readers)if(matrix->in_flight_readers>UINT64_MAX-count)return RNS8_RANGE_ERROR;
+    if(!rns8::detail::reader_multiplicities_fit(group->native_readers))return RNS8_RANGE_ERROR;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     if(graph && !group->native_executable)return RNS8_UNSUPPORTED_BACKEND;
     auto* ctx=group->executions.front()->ctx;

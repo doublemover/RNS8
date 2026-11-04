@@ -159,15 +159,10 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
 #endif
   });
 }
-struct PreparedHipProof {
-  boost::multiprecision::cpp_int bound;
-  rns8_exact_matrix_ranges ranges;
-  bool pipeline=false;
-  uint64_t integrity_bound[3]{};
-};
 static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
                                              void *stream, bool graph,
-                                             PreparedHipProof &proof) {
+                                             PreparedHipProof &proof,
+                                             rns8::detail::BorrowedStreamAdmission* group_stream=nullptr) {
   if (!e || !stream || e->closing)
     return RNS8_INVALID_ARGUMENT;
   if (e->running || e->dependent_references || (e->pool_owned && !e->pool_dispatch))
@@ -210,6 +205,7 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
        e->graph_b != prepared_device_storage(*e->b) || e->graph_c != prepared_device_storage(*e->c) ||
        (e->d && e->graph_d != prepared_device_storage(*e->d))))
     return RNS8_UNSUPPORTED_BACKEND;
+  const auto admit_stream=[&]() -> rns8_status {
   rns8::detail::hip_scoped_device device(e->ctx->device_id);
   if (device.status() != hipSuccess)
     return RNS8_BACKEND_FAILURE;
@@ -228,8 +224,10 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
   if (capture != hipStreamCaptureStatusNone)
     return RNS8_UNSUPPORTED_BACKEND;
   return RNS8_SUCCESS;
+  };
+  return group_stream?group_stream->admit(e->ctx,stream,admit_stream):admit_stream();
 #else
-  (void)graph;
+  (void)graph;(void)group_stream;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

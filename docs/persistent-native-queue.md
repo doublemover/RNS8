@@ -213,6 +213,17 @@ host proof evaluation remains inside the public call. Resource cleanup is checke
 failed descriptor frees preserve the owner, and encoded-B destruction no longer
 releases source/context references when its device free fails.
 
+The current source pass also retains a proof-array shell and a compact table of
+unique input readers/multiplicities at native preparation or refresh. Warm
+submission does not rebuild that topology map. It checks the actual borrowed
+stream's device and capture status once per batch, then performs each child's
+mutable generation, proof, reservation, epoch and graph-envelope checks. Stream
+admission authority exists only for that submission. Child completion events and
+independent tokens remain unchanged. The metadata query charges the retained
+proof and reader-table objects; multiprecision/range payloads remain dynamic.
+These host-control changes have authored mock coverage and await the deferred
+combined runtime validation; no new latency or allocation claim is qualified.
+
 Written regressions cover signed/unsigned tails, shared B, both representations,
 all three schedules, ordinary/persistent controls, owned graph replay, cancellation,
 reverse completion, no warm HIP allocation, stale cache/rebind, budget failure and

@@ -1,10 +1,45 @@
 #include "core/internal.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
+#include "backend_common/submission_topology.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <set>
 #include <tuple>
 
 using namespace rns8::detail;
+
+TEST_CASE("one batch admits its borrowed stream once and never retains that authority across batches") {
+  int context=0,other_context=0,stream=0,other_stream=0;unsigned queries=0;
+  const auto check=[&](){++queries;return RNS8_SUCCESS;};
+  BorrowedStreamAdmission batch;
+  for(unsigned child=0;child<64;++child)REQUIRE(batch.admit(&context,&stream,check)==RNS8_SUCCESS);
+  CHECK(queries==1);
+  CHECK(batch.admit(&other_context,&stream,check)==RNS8_INVALID_ARGUMENT);
+  CHECK(batch.admit(&context,&other_stream,check)==RNS8_INVALID_ARGUMENT);CHECK(queries==1);
+  BorrowedStreamAdmission next;REQUIRE(next.admit(&context,&stream,check)==RNS8_SUCCESS);CHECK(queries==2);
+  BorrowedStreamAdmission failed;
+  CHECK(failed.admit(&context,&stream,[&](){++queries;return RNS8_UNSUPPORTED_BACKEND;})==RNS8_UNSUPPORTED_BACKEND);
+  REQUIRE(failed.admit(&context,&stream,check)==RNS8_SUCCESS);CHECK(queries==4);
+  BorrowedStreamAdmission exceptional;
+  CHECK_THROWS(exceptional.admit(&context,&stream,[]()->rns8_status{throw 1;}));
+  REQUIRE(exceptional.admit(&context,&stream,check)==RNS8_SUCCESS);CHECK(queries==5);
+  BorrowedStreamAdmission empty;
+  CHECK(empty.admit(nullptr,&stream,check)==RNS8_INVALID_ARGUMENT);
+  CHECK(empty.admit(&context,nullptr,check)==RNS8_INVALID_ARGUMENT);CHECK(queries==5);
+}
+TEST_CASE("compiled group reader multiplicities retain exact shared-reader overflow admission") {
+  struct Reader {uint64_t in_flight_readers=0;};
+  Reader a[64],shared;std::vector<Reader*> bindings;
+  for(auto& reader:a){bindings.push_back(&reader);bindings.push_back(&shared);}
+  const auto counts=compile_reader_multiplicities(std::move(bindings));REQUIRE(counts.size()==65);
+  uint64_t total=0;for(const auto& entry:counts){total+=entry.second;CHECK(entry.second==(entry.first==&shared?64:1));}
+  CHECK(total==128);CHECK(reader_multiplicities_fit(counts));
+  shared.in_flight_readers=UINT64_MAX-64;CHECK(reader_multiplicities_fit(counts));
+  ++shared.in_flight_readers;CHECK_FALSE(reader_multiplicities_fit(counts));
+  shared.in_flight_readers=0;a[17].in_flight_readers=UINT64_MAX;CHECK_FALSE(reader_multiplicities_fit(counts));
+  const auto single=compile_reader_multiplicities(std::vector<Reader*>{&shared});
+  REQUIRE(single.size()==1);CHECK(single[0].second==1); // A==B is reserved only once by each child.
+  CHECK_FALSE(reader_multiplicities_fit(compile_reader_multiplicities(std::vector<Reader*>{nullptr})));
+}
 
 TEST_CASE("native queue specialization requires uniform groups and signedness") {
   CHECK(native_wmma_uniform_group({}) == 0);

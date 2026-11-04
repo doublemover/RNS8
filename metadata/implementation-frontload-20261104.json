@@ -236,9 +236,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/38",
       "requirements_sha256": "988c661b3aed0aea0e1d69bb8c4d9fdcf8d0e643e9eb5cdc1ca60959ba2b0428",
       "comments_reviewed": 3,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Prepare native unique-reader/multiplicity tables and retained proof-array shells before replacement publication. A stack-scoped admission capability validates each actual borrowed stream once per batch while preserving per-child mutable proof/epoch/reservation checks and existing events. Metadata charges retained table/proof objects; host mock overflow, shared-reader and stream-admission fixtures authored."
+      ],
+      "remaining_source_items": [
+        "Review compact rank/select device directory rescans and finish grouped host-control diagnostic counters in the existing public queue calibrator; preserve separate child event controls."
+      ]
     },
     {
       "issue": 39,

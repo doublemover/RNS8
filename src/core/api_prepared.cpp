@@ -1,4 +1,5 @@
 #include "backend_common/locality_schedule.hpp"
+#include "backend_common/submission_topology.hpp"
 #include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "core/api_internal.hpp"
 #include <atomic>
@@ -68,6 +69,12 @@ struct rns8_prepared_execution {
 #endif
 };
 
+struct PreparedHipProof {
+  boost::multiprecision::cpp_int bound;
+  rns8_exact_matrix_ranges ranges;
+  bool pipeline=false;
+  uint64_t integrity_bound[3]{};
+};
 struct rns8_prepared_group {
   std::vector<rns8_prepared_execution*> executions;
   bool running = false;
@@ -79,6 +86,8 @@ struct rns8_prepared_group {
   std::unique_ptr<rns8::detail::NativeWmmaPreparedQueue> native_queue;
   std::vector<NativeBinding> native_values;
   std::vector<rns8_native_group_binding> native_bindings;
+  std::vector<PreparedHipProof> native_proofs;
+  std::vector<std::pair<const rns8_matrix*,uint64_t>> native_readers;
   rns8_native_group_desc native_desc{};
   rns8_locality_desc native_locality{};
   uint64_t native_peak_device_bytes=0;
