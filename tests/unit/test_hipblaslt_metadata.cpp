@@ -1,4 +1,7 @@
 #include <algorithm>
+#include <atomic>
+#include <thread>
+#include "backend_common/bounded_algorithm_directory.hpp"
 #include "backend_hipblaslt/matmul_metadata_plan.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include <catch2/catch_test_macros.hpp>
@@ -41,6 +44,36 @@ TEST_CASE("hipBLASLt immutable call directory shares padded geometry across ever
     const unsigned geometries=(k>65536 && k%65536!=0)?2:1;
     CHECK(builds==geometries);CHECK(hits+builds==blocks);CHECK(builds<=2);
   }
+}
+
+TEST_CASE("bounded algorithm directory copies selections and isolates library device configurations") {
+  using Directory=BoundedAlgorithmDirectory<HipblasLtMetadataKey,uint64_t,HipblasLtMetadataKeyHash,2,2>;
+  Directory directory;HipblasLtMetadataKey key{0,16,32,64,32,4096};
+  key.library_version=100100;key.runtime_version=100100;key.driver_version=101;
+  key.context_configuration=1;key.target_identity=1100;
+  directory.remember(key,77);uint64_t selected=0;REQUIRE(directory.find(key,selected));CHECK(selected==77);
+  for(unsigned field=0;field<5;++field){auto other=key;
+    switch(field){case 0:++other.library_version;break;case 1:++other.runtime_version;break;case 2:++other.driver_version;break;
+      case 3:++other.context_configuration;break;case 4:++other.target_identity;break;}
+    CHECK_FALSE(directory.find(other,selected));
+  }
+  for(unsigned index=0;index<1000;++index){auto other=key;other.m=16*int(index+1);directory.remember(other,index);CHECK(directory.size()<=Directory::capacity);}
+  CHECK(selected==77);directory.reset();CHECK(directory.size()==0);CHECK_FALSE(directory.find(key,selected));CHECK(selected==77);
+  directory.remember(key,88);REQUIRE(directory.find(key,selected));CHECK(selected==88);
+}
+
+TEST_CASE("bounded algorithm directory supports independent concurrent callers and reset") {
+  BoundedAlgorithmDirectory<HipblasLtMetadataKey,uint64_t,HipblasLtMetadataKeyHash> directory;
+  std::atomic<bool> valid{true};std::array<std::thread,4> workers;
+  for(unsigned worker=0;worker<workers.size();++worker)workers[worker]=std::thread([&,worker]{
+    for(unsigned index=0;index<1000;++index){HipblasLtMetadataKey key{int(worker),16,32,16*int(index%31+1),32,4096};
+      key.context_configuration=worker+1;const uint64_t value=uint64_t(worker)*1000+index%31;
+      directory.remember(key,value);uint64_t selected=0;
+      if(directory.find(key,selected) && selected!=value)valid=false;
+      if(index%127==0)directory.reset();
+    }
+  });
+  for(auto& worker:workers)worker.join();CHECK(valid);CHECK(directory.size()<=256);
 }
 TEST_CASE("hipBLASLt metadata identity includes all layout operation device and workspace attributes") {
   HipblasLtMetadataKey key{0,16,32,65536,32,4096};HipblasLtCallMetadataDirectory d;

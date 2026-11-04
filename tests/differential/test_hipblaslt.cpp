@@ -725,7 +725,7 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
   struct RestoreRetention {HipblasLtPrepackPolicy value=hipblaslt_prepack_policy();~RestoreRetention(){(void)hipblaslt_prepack_set_policy(value);}} restore_retention;
   auto* ctx=create_backend_context(RNS8_BACKEND_HIPBLASLT);
   auto* cpu=create_backend_context(RNS8_BACKEND_CPU_REFERENCE);
-  for(int64_t k:{17,65535,65536,65537})for(auto semantic:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
+  for(int64_t k:{17,65535,65536,65537,131073})for(auto semantic:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
     const bool sign=semantic==RNS8_BOUNDED_I64||semantic==RNS8_EXACT_WIDE_SIGNED;
     const bool wide=semantic==RNS8_EXACT_WIDE_SIGNED||semantic==RNS8_EXACT_WIDE_UNSIGNED;
     constexpr int64_t m=2,n=3,ld=5;constexpr uint32_t limbs=3;constexpr uint64_t sentinel=0xabcdef1122334455ull;
@@ -761,7 +761,9 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
         const auto counts=hipblaslt_metadata_counters_snapshot();
         if(backend==RNS8_BACKEND_HIPBLASLT){
           const uint64_t blocks=uint64_t(plan->prefix)*((k+65535)/65536),geometries=k>65536?2:1;
-          CHECK(counts.matmul_block_calls==blocks);CHECK(counts.heuristic_calls==0);CHECK(counts.algorithm_cache_hits==blocks);
+          const auto selections=policy==HipblasLtMetadataPolicy::per_call?geometries:blocks;
+          CHECK(counts.matmul_block_calls==blocks);CHECK(counts.heuristic_calls==0);CHECK(counts.algorithm_cache_hits==selections);
+          CHECK(counts.algorithm_directory_lookups==selections);CHECK(counts.call_local_algorithm_hits==blocks-selections);
           CHECK(counts.descriptor_sets_created==(policy==HipblasLtMetadataPolicy::per_call?geometries:blocks));
           CHECK(counts.descriptor_create_calls==5*counts.descriptor_sets_created);CHECK(counts.descriptor_destroy_calls==counts.descriptor_create_calls);
           CHECK(counts.attribute_set_calls==2*counts.descriptor_sets_created);
@@ -803,13 +805,17 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
       }
     }
   }
-  for(int64_t k:{65535,65536,65537})for(uint16_t modulus:{251,255,256}){
+  for(int64_t k:{65535,65536,65537,131073})for(uint16_t modulus:{251,255,256}){
     auto desc=finite_desc(2,3,k,RNS8_FINITE_RING_U8,RNS8_BACKEND_HIPBLASLT,modulus);
     std::vector<uint8_t>a(2*k,253),b(k*3,249),control(10,77),reused(10,77),expected(10,77);
     hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy::per_block_control);
     REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ctx,&desc,modulus,a.data(),k,b.data(),3,control.data(),5)==RNS8_SUCCESS);
     hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy::per_call);
+    hipblaslt_metadata_counters_reset();
     REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ctx,&desc,modulus,a.data(),k,b.data(),3,reused.data(),5)==RNS8_SUCCESS);
+    const auto counts=hipblaslt_metadata_counters_snapshot();const uint64_t blocks=(k+65535)/65536,geometries=k>65536?2:1;
+    CHECK(counts.matmul_block_calls==blocks);CHECK(counts.algorithm_directory_lookups==geometries);
+    CHECK(counts.call_local_algorithm_hits==blocks-geometries);
     desc.requested_backend=RNS8_BACKEND_CPU_REFERENCE;
     REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu,&desc,modulus,a.data(),k,b.data(),3,expected.data(),5)==RNS8_SUCCESS);
     CHECK(reused==expected);CHECK(control==expected);

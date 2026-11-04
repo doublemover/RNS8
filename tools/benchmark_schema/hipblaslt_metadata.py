@@ -3,6 +3,7 @@ FIELDS=('descriptor_create_calls','descriptor_destroy_calls','attribute_set_call
         'preference_create_calls','preference_destroy_calls','preference_attribute_calls',
         'heuristic_calls','algorithm_cache_hits','descriptor_set_hits','descriptor_sets_created',
         'matmul_block_calls','maximum_live_sets')
+DIRECTORY_FIELDS=('algorithm_directory_lookups','call_local_algorithm_hits')
 PREPACK_FIELDS=('a_retained_builds','b_retained_builds','a_retained_hits','b_retained_hits',
     'a_retained_planes_packed','b_retained_planes_packed','a_transient_planes_packed','b_transient_planes_packed')
 
@@ -35,7 +36,9 @@ def validate_hipblaslt_metadata(capture):
     if meta is None:return []  # historical captures remain readable
     if not isinstance(meta,dict):return ['hipblaslt_metadata must be an object']
     errors=[]
-    if meta.get('abi_version')!=1:errors.append('unknown hipBLASLt metadata ABI')
+    version=meta.get('abi_version')
+    if type(version) is not int or version not in (1,2):errors.append('unknown hipBLASLt metadata ABI')
+    fields=FIELDS+DIRECTORY_FIELDS if version==2 else FIELDS
     policy=meta.get('policy')
     if policy not in ('per_block_control','per_call_distinct_geometry'):errors.append('unknown hipBLASLt metadata policy')
     if meta.get('scope')!='calling_thread_library_API_attempt_counts_not_allocator_bytes_or_device_work':errors.append('incorrect hipBLASLt counter scope')
@@ -43,15 +46,23 @@ def validate_hipblaslt_metadata(capture):
     previous=None
     for label in ('after_warmups','after_measured_repeats'):
         snapshot=meta.get(label)
-        if not isinstance(snapshot,dict) or any(type(snapshot.get(k)) is not int or snapshot[k]<0 for k in FIELDS):
+        if not isinstance(snapshot,dict) or any(type(snapshot.get(k)) is not int or snapshot[k]<0 for k in fields):
             errors.append('invalid hipBLASLt metadata counter snapshot');continue
-        if previous and any(snapshot[k]<previous[k] for k in FIELDS):errors.append('hipBLASLt counters decreased inside one process')
+        if previous and any(snapshot[k]<previous[k] for k in fields):errors.append('hipBLASLt counters decreased inside one process')
         previous=snapshot
         # Completed successful capture: no partial construction or live descriptors.
         if snapshot['descriptor_create_calls']!=5*snapshot['descriptor_sets_created'] or snapshot['descriptor_destroy_calls']!=snapshot['descriptor_create_calls']:errors.append('hipBLASLt descriptor lifecycle accounting mismatch')
         if snapshot['attribute_set_calls']!=2*snapshot['descriptor_sets_created']:errors.append('hipBLASLt layout attribute accounting mismatch')
         if snapshot['preference_create_calls']!=snapshot['preference_destroy_calls'] or snapshot['preference_attribute_calls']!=snapshot['preference_create_calls']:errors.append('hipBLASLt preference lifecycle accounting mismatch')
-        if snapshot['algorithm_cache_hits']+snapshot['heuristic_calls']!=snapshot['matmul_block_calls']:errors.append('hipBLASLt algorithm lookup accounting mismatch')
+        selections=snapshot['algorithm_cache_hits']+snapshot['heuristic_calls']
+        if version==2:
+            if selections!=snapshot['algorithm_directory_lookups'] or selections+snapshot['call_local_algorithm_hits']!=snapshot['matmul_block_calls']:
+                errors.append('hipBLASLt algorithm directory/local lookup accounting mismatch')
+            if policy=='per_call_distinct_geometry' and (selections!=snapshot['descriptor_sets_created'] or snapshot['call_local_algorithm_hits']!=snapshot['descriptor_set_hits']):
+                errors.append('hipBLASLt algorithms were not retained once per distinct geometry')
+            if policy=='per_block_control' and snapshot['call_local_algorithm_hits']:
+                errors.append('hipBLASLt per-block control unexpectedly retained local algorithms')
+        elif selections!=snapshot['matmul_block_calls']:errors.append('hipBLASLt algorithm lookup accounting mismatch')
         if policy=='per_call_distinct_geometry':
             if snapshot['maximum_live_sets']>2:errors.append('hipBLASLt call metadata exceeded full/tail bound')
             if snapshot['preference_create_calls']!=snapshot['heuristic_calls']:errors.append('preference constructed without heuristic miss')
@@ -67,14 +78,20 @@ def validate_hipblaslt_algorithms(capture):
     if inventory is None:
         return []  # Earlier captures have no selected-algorithm evidence.
     error = "invalid hipBLASLt selected-algorithm observations"
-    if (not isinstance(inventory, dict) or type(inventory.get("abi_version")) is not int or inventory.get("abi_version") != 1 or
-            inventory.get("scope") != "library_build_device_padded_geometry_algorithm_index" or
+    if not isinstance(inventory, dict):
+        return [error]
+    version=inventory.get("abi_version")
+    scope="library_context_device_padded_geometry_algorithm_index" if version==2 else "library_build_device_padded_geometry_algorithm_index"
+    if (type(version) is not int or version not in (1,2) or
+            inventory.get("scope") != scope or
             inventory.get("query_policy") != "opt_in_once_per_cached_algorithm"):
         return [error]
     counters = capture.get("hipblaslt_metadata")
     if not isinstance(counters, dict):
         return [error]
     geometry_fields = ("device_id", "m", "n", "k", "scratch_ld", "workspace_bytes", "attribute_abi")
+    if version==2:
+        geometry_fields+=("library_version","runtime_version","driver_version","context_configuration","target_identity")
     previous = None
     previous_queries = 0
     previous_available = None
@@ -96,6 +113,9 @@ def validate_hipblaslt_algorithms(capture):
             return [error]
         observed = {}
         for entry in entries:
+            if version==2 and isinstance(entry,dict) and any(type(entry.get(field)) is not int or not 0<entry[field]<=18446744073709551615
+                    for field in ("library_version","runtime_version","driver_version","context_configuration","target_identity")):
+                return [error]
             if (not isinstance(entry, dict) or set(entry) != set(geometry_fields) | {"algorithm_index", "matmul_calls"} or
                     any(type(entry.get(key)) is not int for key in geometry_fields) or
                     not 0 <= entry["device_id"] <= 2147483647 or not 0 <= entry["workspace_bytes"] <= 18446744073709551615 or entry["attribute_abi"] != 1 or
@@ -148,4 +168,8 @@ def hipblaslt_algorithm_signature(capture):
     if any(type(value) is not int or value < (0 if i == 0 else 1) for i, value in enumerate(numeric)):
         return None
     fields = ("device_id", "m", "n", "k", "scratch_ld", "workspace_bytes", "attribute_abi", "algorithm_index", "matmul_calls")
+    if owner.get("abi_version")==2:
+        # The context nonce separates directory ownership inside one process;
+        # equivalent independently created contexts can still be compared.
+        fields+=("library_version","runtime_version","driver_version","target_identity")
     return scope + numeric + (tuple(sorted(tuple(entry[key] for key in fields) for entry in inventory["entries"])),)

@@ -17,17 +17,14 @@ hipblasStatus_t async_matmul(HipblasLtAsync& owner,unsigned slot,void* stream) {
   auto* library=b+uint64_t(shape.n)*shape.k;
   const auto library_bytes=w.hipblaslt_workspace_bytes-(uint64_t(shape.m)+shape.n)*shape.k;
   const int32_t alpha=1,beta=0;
-  return hipblasLtMatmul(static_cast<hipblasLtHandle_t>(owner.ctx->hipblaslt_handle),d.op,&alpha,b,d.a,a,d.b,
+  return hipblasLtMatmul(static_cast<HipblasLtContext*>(owner.ctx->hipblaslt_handle)->handle.get(),d.op,&alpha,b,d.a,a,d.b,
       &beta,w.hipblaslt_int32_scratch,d.c,w.hipblaslt_int32_scratch,d.d,&owner.algorithms[slot],
       library,library_bytes,static_cast<hipStream_t>(stream));
 }
 rns8_status close_async_descriptors(HipblasLtAsync& owner) {
-  for(auto& d:owner.descriptors){
-    if(d.preference){if(hipblasLtMatmulPreferenceDestroy(d.preference)!=HIPBLAS_STATUS_SUCCESS)return RNS8_BACKEND_FAILURE;d.preference=nullptr;}
-    for(auto* layout:{&d.d,&d.c,&d.b,&d.a})if(*layout){if(hipblasLtMatrixLayoutDestroy(*layout)!=HIPBLAS_STATUS_SUCCESS)return RNS8_BACKEND_FAILURE;*layout=nullptr;}
-    if(d.op){if(hipblasLtMatmulDescDestroy(d.op)!=HIPBLAS_STATUS_SUCCESS)return RNS8_BACKEND_FAILURE;d.op=nullptr;}
-  }
-  return RNS8_SUCCESS;
+  rns8_status result=RNS8_SUCCESS;
+  for(auto& d:owner.descriptors){const auto status=status_from_hipblas(d.close());if(result==RNS8_SUCCESS)result=status;}
+  return result;
 }
 }
 #endif
@@ -62,13 +59,13 @@ rns8_status hipblaslt_prepare_async(rns8_context* ctx,const rns8_plan* plan,rns8
     const uint64_t packed=(uint64_t(shape.m)+shape.n)*shape.k;
     if(packed>workspace->hipblaslt_workspace_bytes)return RNS8_WORKSPACE_TOO_SMALL;
     const uint64_t library_bytes=workspace->hipblaslt_workspace_bytes-packed;
-    if(status==HIPBLAS_STATUS_SUCCESS)status=create_matmul_preference(size_t(library_bytes),d);
-    hipblasLtMatmulHeuristicResult_t heuristic{};int count=0;
-    if(status==HIPBLAS_STATUS_SUCCESS)status=hipblasLtMatmulAlgoGetHeuristic(static_cast<hipblasLtHandle_t>(ctx->hipblaslt_handle),
-        d.op,d.a,d.b,d.c,d.d,d.preference,1,&heuristic,&count);
     if(status!=HIPBLAS_STATUS_SUCCESS)return status_from_hipblas(status);
-    if(count!=1 || heuristic.state!=HIPBLAS_STATUS_SUCCESS || heuristic.workspaceSize>library_bytes)return RNS8_UNSUPPORTED_BACKEND;
-    owner->algorithms[slot]=heuristic.algo;
+    auto& library=*static_cast<HipblasLtContext*>(ctx->hipblaslt_handle);
+    if(library.environment.device_id!=ctx->device_id)return RNS8_INVALID_ARGUMENT;
+    matmul_algorithm_selection selection;
+    status=select_matmul_algorithm(library,matmul_key(library,shape,size_t(library_bytes)),d,selection);
+    if(status!=HIPBLAS_STATUS_SUCCESS)return status_from_hipblas(status);
+    owner->algorithms[slot]=selection.algo;
   }
   // Warm both geometries outside capture. Only owned pack/scratch storage is
   // touched; actual user operands and result currentness remain unchanged.

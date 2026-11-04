@@ -12,10 +12,13 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <atomic>
+#include "backend_common/bounded_algorithm_directory.hpp"
 
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
 #  include <hip/hip_runtime_api.h>
 #  include "backend_hipblaslt/hipblaslt_headers.hpp"
+#  include "backend_hipblaslt/hipblaslt_handle_owner.hpp"
 #  if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
 extern "C" int rns8_hipblaslt_algorithm_index(const hipblasLtMatmulAlgo_t*);
 #  endif
@@ -57,6 +60,13 @@ using hipblaslt_metadata_state::metadata_policy;
 using hipblaslt_metadata_state::metadata_counters;
 using hipblaslt_metadata_state::prepack_counters;
 
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+struct HipblasLtContext {
+  hipblaslt_unique_context handle;
+  HipblasLtMetadataKey environment;
+};
+#endif
+
 #include "hipblaslt_timing_matmul_cache.inc"
 #include "hipblaslt_prepack_cache.inc"
 #include "hipblaslt_gemm_plane.inc"
@@ -64,3 +74,13 @@ using hipblaslt_metadata_state::prepack_counters;
 #include "hipblaslt_rns_gemm.inc"
 #include "hipblaslt_finite_gemm.inc"
 #include "hipblaslt_async.inc"
+
+namespace rns8::detail {
+rns8_status hipblaslt_algorithm_directory_reset() {
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+  matmul_algorithm_directory().reset();return RNS8_SUCCESS;
+#else
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+}

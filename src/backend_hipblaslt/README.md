@@ -42,6 +42,36 @@ It applies to bounded and exact-wide fixed-prefix RNS calls. Split-K remains
 transient regardless of the requested retention policy; finite-u8 does not accept
 this explicit CLI control.
 
+Ordinary calls retain descriptors **and selected algorithm values** in at most
+two full/tail slots. Only the first use of each geometry consults the persistent
+directory; every residue/slab still submits its matmul and appears in the
+algorithm inventory. The prepared asynchronous path uses the same selector
+during preparation and retains its no-heuristic enqueue path.
+
+The directory holds at most 256 copied algorithm records in 64 four-way sets,
+with round-robin eviction inside each set. Keys include physical geometry,
+workspace allowance, fixed operation/type ABI, library/runtime/driver versions,
+device target and a non-reused context configuration identity. Independent
+contexts select independently; configuration changes require a new context.
+No raw descriptors are retained across calls. Lookup/reset only locks around
+bounded value copies; heuristics, index queries, submission and synchronization
+run outside that lock. Concurrent identical misses may duplicate selection.
+Eviction or the private directory reset cannot invalidate retained call/async
+values. This bounds host work and storage; throughput benefit is unmeasured.
+
+Contexts and descriptor members reserve typed retry nodes before acquisition.
+Partial construction, throwing metadata publication and failed release preserve
+the original handle and device through the shared deferred-resource queue.
+Ordinary successful calls explicitly close metadata and report cleanup failure;
+operation failures retain their original status. Prepared close uses the same
+member cleanup implementation. Destructor retirement performs no allocation.
+
+`hipblaslt_metadata` ABI2 distinguishes directory lookups/cache hits from local
+algorithm reuse and actual matmul calls. `hipblaslt_algorithms` ABI2 includes
+library, runtime, driver, context and target identities. Historical ABI1
+captures remain readable. Context nonces separate ownership within a process
+and do not prevent matched physical-algorithm comparisons across processes.
+
 The `hipblaslt_operand_prepack` receipt records successful retained builds,
 generation/identity matches, and retained/transient plane-pack submissions for
 both operands at the warmup and measured-repeat boundaries. These are source

@@ -47,6 +47,10 @@ class basic_hip_handle {
       return selected;
     }
     record->kind = Operations::kind;
+    if constexpr(Operations::kind==hip_deferred_allocation_kind::library_handle)
+      record->release_library_handle=[](int device,void* pointer) noexcept {
+        return Operations::destroy(device,static_cast<handle_type>(pointer))==Operations::success;
+      };
     record_ = record;
     return Operations::success;
   }

@@ -43,6 +43,19 @@ struct HandleEnvironment {
   }
 };
 using Owner = rns8::detail::basic_hip_handle<Handles>;
+struct LibraryHandles:Handles {
+  static constexpr auto kind=rns8::detail::hip_deferred_allocation_kind::library_handle;
+  inline static bool device_selection_fails=false;
+  inline static std::array<bool,16> release_fails{};
+  inline static std::array<unsigned,16> released{};
+  static rns8_status destroy(int source,void* pointer) noexcept {
+    if(device_selection_fails)return RNS8_BACKEND_FAILURE;
+    const auto id=reinterpret_cast<uintptr_t>(pointer);
+    if(id>=released.size() || release_fails[id])return RNS8_BACKEND_FAILURE;
+    ++released[id];return Handles::destroy(source,pointer);
+  }
+};
+using LibraryOwner=rns8::detail::basic_hip_handle<LibraryHandles>;
 void* handle(uintptr_t value) { return reinterpret_cast<void*>(value); }
 }  // namespace
 
@@ -99,6 +112,48 @@ TEST_CASE("runtime handle partial acquisition remains owned through failed clean
   Handles::fail = false;
   CHECK(Handles::destroy(Handles::deferred[0]->device_id, Handles::deferred[0]->pointer) ==
         RNS8_SUCCESS);
+}
+
+TEST_CASE("library handle publication exceptions preserve retry ownership and device affinity") {
+  HandleEnvironment environment;LibraryHandles::release_fails={};LibraryHandles::released={};
+  LibraryHandles::device_selection_fails=false;
+  try {
+    LibraryOwner context;
+    REQUIRE(context.create([](void** out) noexcept {*out=handle(4);return RNS8_SUCCESS;})==RNS8_SUCCESS);
+    LibraryHandles::release_fails[4]=true;
+    throw std::runtime_error("version query or metadata publication failed");
+  }catch(const std::runtime_error&){}
+  REQUIRE(Handles::count==1);auto* record=Handles::deferred[0];
+  REQUIRE(record->release_library_handle);CHECK(record->pointer==handle(4));CHECK(record->device_id==7);
+  CHECK(record->kind==LibraryHandles::kind);CHECK(LibraryHandles::released[4]==0);
+  CHECK_FALSE(record->release_library_handle(record->device_id,record->pointer));
+  LibraryHandles::release_fails[4]=false;LibraryHandles::device_selection_fails=true;
+  CHECK_FALSE(record->release_library_handle(record->device_id,record->pointer));CHECK(LibraryHandles::released[4]==0);
+  LibraryHandles::device_selection_fails=false;Handles::device=9;
+  CHECK(record->release_library_handle(record->device_id,record->pointer));CHECK(LibraryHandles::released[4]==1);
+  CHECK(Handles::destroyed_device==7);
+}
+
+TEST_CASE("partially created library descriptor sets close independently without losing failed members") {
+  HandleEnvironment environment;LibraryHandles::release_fails={};LibraryHandles::released={};
+  LibraryHandles::device_selection_fails=false;
+  {
+    std::array<LibraryOwner,6> descriptors;
+    for(unsigned index=0;index<descriptors.size();++index)
+      REQUIRE(descriptors[index].create([index](void** out) noexcept {*out=handle(index+1);return RNS8_SUCCESS;})==RNS8_SUCCESS);
+    LibraryHandles::release_fails[2]=LibraryHandles::release_fails[5]=true;
+    for(unsigned index=0;index<descriptors.size();++index){
+      const bool failed=index==1 || index==4;
+      CHECK(descriptors[index].reset()==(failed?RNS8_BACKEND_FAILURE:RNS8_SUCCESS));
+      CHECK(bool(descriptors[index])==failed);
+    }
+  }
+  REQUIRE(Handles::count==2);
+  for(unsigned index=0;index<Handles::count;++index){auto* record=Handles::deferred[index];
+    LibraryHandles::release_fails[reinterpret_cast<uintptr_t>(record->pointer)]=false;
+    REQUIRE(record->release_library_handle);CHECK(record->release_library_handle(record->device_id,record->pointer));
+  }
+  for(unsigned id=1;id<=6;++id)CHECK(LibraryHandles::released[id]==1);
 }
 
 TEST_CASE(

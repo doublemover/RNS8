@@ -113,7 +113,8 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       requested = requested_auto ? RNS8_BACKEND_AUTO : options->requested_backend;
     }
 
-    auto* ctx = new (std::nothrow) rns8_context();
+    std::unique_ptr<rns8_context> ctx_owner(new (std::nothrow) rns8_context());
+    auto* ctx=ctx_owner.get();
     if (!ctx) {
       return RNS8_INTERNAL_ERROR;
     }
@@ -127,7 +128,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status hip_status = rns8::detail::hip_direct_probe(ctx->device_id, ctx->device_info);
       if (hip_status == RNS8_SUCCESS) {
-        *out = ctx;
+        *out = ctx_owner.release();
         return RNS8_SUCCESS;
       }
 #endif
@@ -136,21 +137,21 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       rns8::detail::fill_cpu_device_info(ctx->device_info);
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
     }
 
     if (requested == RNS8_BACKEND_CPU_AMX) {
       rns8_cpu_amx_info admission{};
       const auto status=rns8::detail::cpu_amx_probe(true,admission);
-      if(status!=RNS8_SUCCESS){delete ctx;return status;}
+      if(status!=RNS8_SUCCESS){ctx_owner.reset();return status;}
       ctx->backend=RNS8_BACKEND_CPU_AMX;ctx->device_id=-1;
       ctx->device_info.struct_size=sizeof(ctx->device_info);ctx->device_info.abi_version=RNS8_ABI_VERSION;
       rns8::detail::fill_cpu_device_info(ctx->device_info);ctx->device_info.backend=RNS8_BACKEND_CPU_AMX;
       set_text(ctx->device_info.name,sizeof(ctx->device_info.name),admission.cpu_model);
       set_text(ctx->device_info.gcn_arch,sizeof(ctx->device_info.gcn_arch),"cpu-amx-int8");
       set_text(ctx->device_info.detail,sizeof(ctx->device_info.detail),"Optional AMX-INT8; process xstate admitted, every executing worker rechecks; not hardware-qualified.");
-      *out=ctx;return RNS8_SUCCESS;
+      *out=ctx_owner.release();return RNS8_SUCCESS;
     }
     if (requested == RNS8_BACKEND_CPU_REFERENCE) {
       ctx->backend = RNS8_BACKEND_CPU_REFERENCE;
@@ -158,7 +159,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       rns8::detail::fill_cpu_device_info(ctx->device_info);
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
     }
 
@@ -169,10 +170,10 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::hip_direct_probe(ctx->device_id, ctx->device_info);
       if (status != RNS8_SUCCESS) {
-        delete ctx;
+        ctx_owner.reset();
         return status;
       }
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
     }
 
@@ -184,14 +185,14 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::vector_alu_probe(ctx->device_id, ctx->device_info);
       if (status != RNS8_SUCCESS) {
-        delete ctx;
+        ctx_owner.reset();
         return status;
       }
       ctx->device_info.backend = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
 #else
-      delete ctx;
+      ctx_owner.reset();
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
@@ -205,13 +206,13 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       const rns8_status status = rns8::detail::hipblaslt_create_context(
           ctx->device_id, ctx->device_info, &ctx->hipblaslt_handle, ctx->hipblaslt_library_version);
       if (status != RNS8_SUCCESS) {
-        delete ctx;
+        ctx_owner.reset();
         return status;
       }
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
 #else
-      delete ctx;
+      ctx_owner.reset();
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
@@ -224,13 +225,13 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::ck_probe(ctx->device_id, ctx->device_info);
       if (status != RNS8_SUCCESS) {
-        delete ctx;
+        ctx_owner.reset();
         return status;
       }
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
 #else
-      delete ctx;
+      ctx_owner.reset();
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
@@ -243,13 +244,13 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::rocwmma_probe(ctx->device_id, ctx->device_info);
       if (status != RNS8_SUCCESS) {
-        delete ctx;
+        ctx_owner.reset();
         return status;
       }
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
 #else
-      delete ctx;
+      ctx_owner.reset();
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
@@ -263,13 +264,13 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::amdgpu_builtins_probe(ctx->device_id, ctx->device_info);
       if (status != RNS8_SUCCESS) {
-        delete ctx;
+        ctx_owner.reset();
         return status;
       }
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
 #else
-      delete ctx;
+      ctx_owner.reset();
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
@@ -280,11 +281,11 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       rns8::detail::fill_wrap64_device_info(ctx->device_info);
-      *out = ctx;
+      *out = ctx_owner.release();
       return RNS8_SUCCESS;
     }
 
-    delete ctx;
+    ctx_owner.reset();
     return RNS8_UNSUPPORTED_BACKEND;
   });
 }

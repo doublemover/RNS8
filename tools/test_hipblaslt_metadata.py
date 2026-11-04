@@ -99,6 +99,39 @@ class MetadataContracts(unittest.TestCase):
             return dict(available=True,complete=True,index_queries=2,entries=[dict(device_id=0,m=16,n=32,k=k,scratch_ld=32,workspace_bytes=4096,attribute_abi=1,algorithm_index=index,matmul_calls=20*calls) for k,index in ((65536,7),(16,8))])
         result['hipblaslt_algorithms']=dict(abi_version=1,scope='library_build_device_padded_geometry_algorithm_index',query_policy='opt_in_once_per_cached_algorithm',after_warmups=observation(3),after_measured_repeats=observation(12))
         return result
+    def test_call_local_algorithm_accounting_and_legacy_reports(self):
+        result=self.fixture();self.assertEqual(validate_hipblaslt_metadata(result),[])
+        result['hipblaslt_metadata']['abi_version']=2
+        for phase in ('after_warmups','after_measured_repeats'):
+            snapshot=result['hipblaslt_metadata'][phase]
+            snapshot['algorithm_directory_lookups']=snapshot['descriptor_sets_created']
+            snapshot['algorithm_cache_hits']=snapshot['descriptor_sets_created']
+            snapshot['call_local_algorithm_hits']=snapshot['descriptor_set_hits']
+        self.assertEqual(validate_hipblaslt_metadata(result),[])
+        for field in ('algorithm_directory_lookups','call_local_algorithm_hits','algorithm_cache_hits'):
+            bad=copy.deepcopy(result);bad['hipblaslt_metadata']['after_measured_repeats'][field]+=1
+            self.assertTrue(validate_hipblaslt_metadata(bad))
+
+    def test_context_scoped_inventory_keeps_cross_process_algorithm_comparisons(self):
+        result=self.algorithm_fixture();owner=result['hipblaslt_algorithms'];owner['abi_version']=2
+        owner['scope']='library_context_device_padded_geometry_algorithm_index'
+        result.update(build_manifest=dict(source_digest='a'*64,dependency_digest='b'*64,configuration='one-build'),
+            backend_metadata=dict(accelerator_version='one-library'),device=dict(device_id=0,hip_runtime_version=7,
+            hip_driver_version=8,target_cache_key='one-target',target_instance_id='one-device'))
+        for phase in ('after_warmups','after_measured_repeats'):
+            for entry in owner[phase]['entries']:
+                entry.update(library_version=100100,runtime_version=7,driver_version=8,context_configuration=1,target_identity=1100)
+        self.assertEqual(validate_hipblaslt_algorithms(result),[])
+        signature=hipblaslt_algorithm_signature(result);self.assertIsNotNone(signature)
+        changed=copy.deepcopy(result)
+        for phase in ('after_warmups','after_measured_repeats'):
+            for entry in changed['hipblaslt_algorithms'][phase]['entries']:entry['context_configuration']=2
+        self.assertEqual(hipblaslt_algorithm_signature(changed),signature)
+        for field in ('library_version','runtime_version','driver_version','target_identity'):
+            changed=copy.deepcopy(result)
+            for phase in ('after_warmups','after_measured_repeats'):
+                for entry in changed['hipblaslt_algorithms'][phase]['entries']:entry[field]+=1
+            self.assertNotEqual(hipblaslt_algorithm_signature(changed),signature)
     def test_selected_algorithm_identity_and_unknown_are_distinct(self):
         result=self.algorithm_fixture();self.assertEqual(validate_hipblaslt_algorithms(result),[])
         for phase in ('after_warmups','after_measured_repeats'):

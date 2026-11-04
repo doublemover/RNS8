@@ -291,11 +291,14 @@
         "Implicit native-to-RNS materialization retains the physical cache writer without replacing the logical native value or generation; private complex/sparse/verifier scratch marks pending",
         "Actual public-dispatch host completion/exception/drain mocks authored for seven operation rows; grouped preparation rejection and exactly-once private owner counter release fixtures authored",
         "Host native/finite/wrap/wide-limb imports use the shared failure-retaining write guard; canonical wrap64 export retains readers; seven actual public CPU import failure/drain mock rows authored",
-        "Complex paired operations and finite verifier retain fixed-size stack lease sets rather than fresh heap lease vectors"
+        "Complex paired operations and finite verifier retain fixed-size stack lease sets rather than fresh heap lease vectors",
+        "hipBLASLt context, operation/layout/preference resources use reserve-before-acquire typed owners with library callbacks in the existing deferred queue; context creation is exception scoped",
+        "Ordinary and prepared descriptor close share retry-preserving release; ordinary success reports cleanup failure while compute failure retains its original status; throwing publication and mixed release host mocks authored"
       ],
       "remaining_source_items": [
-        "Replace remaining hipBLASLt resource handles with failure-retaining ownership",
-        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
+        "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory",
+        "Convert prepared exact-lift, basis-conversion and pinned-host streams to typed retirement owners",
+        "Add status-bearing one-shot aggregate close and context-owned retirement for retained matrix/workspace owners"
       ]
     },
     {
@@ -717,8 +720,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/92",
       "requirements_sha256": "59f65609b9ff4cf6cc6d239022cd3aa394d69a6a857a494d52789e8199649a60",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "written_pending_batch_validation",
+      "completed_slices": [
+        "Ordinary full/tail call slots retain immutable algorithms and observation indices; global directory consulted only for newly prepared geometry",
+        "Shared sync/async selector uses a fixed-capacity 256-value four-way directory with complete geometry/workspace/library/runtime/driver/device/context configuration keys; no callbacks or heuristics under its mutex",
+        "Descriptor and selection publication are atomic at the call-slot level; failed preparation cannot create a reusable entry; copied selections survive eviction/reset",
+        "ABI2 diagnostics separately count directory selection, call-local reuse and actual matmul blocks, with context-scoped algorithm inventory and historical ABI1 readers",
+        "Authored host concurrent capacity/identity/reset and GPU differential count/output/slab-edge fixtures; enabled host and benchmark syntax checked, all runtime validation deferred"
+      ],
       "remaining_source_items": []
     },
     {

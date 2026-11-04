@@ -651,6 +651,8 @@ rns8_status release_completed_buffers(int device_id,hip_deferred_buffer_cleanup*
     else {
       auto status=RNS8_UNSUPPORTED_BACKEND;
       if(node->kind==hip_deferred_allocation_kind::device) status=hip_direct_free(device_id,node->pointer);
+      else if(node->kind==hip_deferred_allocation_kind::library_handle)
+        status=node->release_library_handle && node->release_library_handle(device_id,node->pointer)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
       else if(node->kind==hip_deferred_allocation_kind::pinned_host) {
         AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));

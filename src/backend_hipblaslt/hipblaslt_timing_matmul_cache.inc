@@ -201,51 +201,31 @@ struct matmul_descriptors {
   matmul_descriptors(const matmul_descriptors&) = delete;
   matmul_descriptors& operator=(const matmul_descriptors&) = delete;
 
-  ~matmul_descriptors() {
-    if (preference) {
-      ++metadata_counters.preference_destroy_calls;
-      (void)hipblasLtMatmulPreferenceDestroy(preference);
-    }
-    if (d) {
-      ++metadata_counters.descriptor_destroy_calls;
-      (void)hipblasLtMatrixLayoutDestroy(d);
-    }
-    if (c) {
-      ++metadata_counters.descriptor_destroy_calls;
-      (void)hipblasLtMatrixLayoutDestroy(c);
-    }
-    if (b) {
-      ++metadata_counters.descriptor_destroy_calls;
-      (void)hipblasLtMatrixLayoutDestroy(b);
-    }
-    if (a) {
-      ++metadata_counters.descriptor_destroy_calls;
-      (void)hipblasLtMatrixLayoutDestroy(a);
-    }
-    if (op) {
-      ++metadata_counters.descriptor_destroy_calls;
-      (void)hipblasLtMatmulDescDestroy(op);
-    }
+  hipblaslt_unique_operation op_owner;
+  hipblaslt_unique_layout a_owner,b_owner,c_owner,d_owner;
+  hipblaslt_unique_preference preference_owner;
+  hipblasStatus_t close() noexcept {
+    auto status=HIPBLAS_STATUS_SUCCESS;
+    const auto retain=[&](hipblasStatus_t next){if(status==HIPBLAS_STATUS_SUCCESS)status=next;};
+    retain(preference_owner.reset());preference=preference_owner.get();
+    retain(d_owner.reset());d=d_owner.get();retain(c_owner.reset());c=c_owner.get();
+    retain(b_owner.reset());b=b_owner.get();retain(a_owner.reset());a=a_owner.get();
+    retain(op_owner.reset());op=op_owner.get();return status;
   }
+
 };
 
 using matmul_algorithm_cache_key=HipblasLtMetadataKey;
 
-struct matmul_algorithm_cache_entry {
-  matmul_algorithm_cache_key key{};
+struct matmul_algorithm_selection {
   hipblasLtMatmulAlgo_t algo{};
   int algorithm_index=-1;
   bool identity_attempted=false;
 };
-
-std::mutex& matmul_algorithm_cache_mutex() {
-  static std::mutex mutex;
-  return mutex;
-}
-
-std::vector<matmul_algorithm_cache_entry>& matmul_algorithm_cache_entries() {
-  static std::vector<matmul_algorithm_cache_entry> entries;
-  return entries;
+using MatmulAlgorithmDirectory=BoundedAlgorithmDirectory<matmul_algorithm_cache_key,matmul_algorithm_selection,HipblasLtMetadataKeyHash>;
+MatmulAlgorithmDirectory& matmul_algorithm_directory() {
+  static MatmulAlgorithmDirectory directory;
+  return directory;
 }
 
 int observe_algorithm_index(const hipblasLtMatmulAlgo_t& algo) {
@@ -259,40 +239,15 @@ int observe_algorithm_index(const hipblasLtMatmulAlgo_t& algo) {
 #endif
 }
 
-bool find_cached_matmul_algorithm(const matmul_algorithm_cache_key& key, hipblasLtMatmulAlgo_t& algo,int& index) {
-  std::lock_guard<std::mutex> lock(matmul_algorithm_cache_mutex());
-  auto& entries = matmul_algorithm_cache_entries();
-  const auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry.key == key; });
-  if (it == entries.end()) {
-    return false;
-  }
-  algo = it->algo;
-  if(hipblaslt_metadata_state::algorithm_observations_enabled && !it->identity_attempted) {
-    it->algorithm_index=observe_algorithm_index(it->algo);
-    it->identity_attempted=true;
-  }
-  index=it->algorithm_index;
-  return true;
-}
-
-void remember_matmul_algorithm(const matmul_algorithm_cache_key& key, const hipblasLtMatmulAlgo_t& algo,int index,bool attempted) {
-  std::lock_guard<std::mutex> lock(matmul_algorithm_cache_mutex());
-  auto& entries = matmul_algorithm_cache_entries();
-  const auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry.key == key; });
-  if (it != entries.end()) {
-    it->algo = algo;
-    it->algorithm_index=index;it->identity_attempted=attempted;
-    return;
-  }
-  entries.push_back(matmul_algorithm_cache_entry{key, algo,index,attempted});
-}
-
 hipblasStatus_t create_matmul_descriptors(
     const padded_block_shape& shape,
     int64_t scratch_ld,
     matmul_descriptors& descriptors) {
   ++metadata_counters.descriptor_create_calls;
-  hipblasStatus_t status = hipblasLtMatmulDescCreate(&descriptors.op, HIPBLAS_COMPUTE_32I, HIP_R_32I);
+  hipblasStatus_t status = descriptors.op_owner.create([](hipblasLtMatmulDesc_t* out) noexcept {
+    return hipblasLtMatmulDescCreate(out,HIPBLAS_COMPUTE_32I,HIP_R_32I);
+  });
+  descriptors.op=descriptors.op_owner.get();
   if (status != HIPBLAS_STATUS_SUCCESS) {
     return status;
   }
@@ -308,26 +263,34 @@ hipblasStatus_t create_matmul_descriptors(
     return status;
   }
   ++metadata_counters.descriptor_create_calls;
-  status = hipblasLtMatrixLayoutCreate(
-      &descriptors.a, HIP_R_8I, static_cast<uint64_t>(shape.n), static_cast<uint64_t>(shape.k), shape.n);
+  status=descriptors.a_owner.create([&](hipblasLtMatrixLayout_t* out) noexcept {
+    return hipblasLtMatrixLayoutCreate(out,HIP_R_8I, static_cast<uint64_t>(shape.n), static_cast<uint64_t>(shape.k), shape.n);
+  });
+  descriptors.a=descriptors.a_owner.get();
   if (status != HIPBLAS_STATUS_SUCCESS) {
     return status;
   }
   ++metadata_counters.descriptor_create_calls;
-  status = hipblasLtMatrixLayoutCreate(
-      &descriptors.b, HIP_R_8I, static_cast<uint64_t>(shape.k), static_cast<uint64_t>(shape.m), shape.k);
+  status=descriptors.b_owner.create([&](hipblasLtMatrixLayout_t* out) noexcept {
+    return hipblasLtMatrixLayoutCreate(out,HIP_R_8I, static_cast<uint64_t>(shape.k), static_cast<uint64_t>(shape.m), shape.k);
+  });
+  descriptors.b=descriptors.b_owner.get();
   if (status != HIPBLAS_STATUS_SUCCESS) {
     return status;
   }
   ++metadata_counters.descriptor_create_calls;
-  status = hipblasLtMatrixLayoutCreate(
-      &descriptors.c, HIP_R_32I, static_cast<uint64_t>(shape.n), static_cast<uint64_t>(shape.m), scratch_ld);
+  status=descriptors.c_owner.create([&](hipblasLtMatrixLayout_t* out) noexcept {
+    return hipblasLtMatrixLayoutCreate(out,HIP_R_32I, static_cast<uint64_t>(shape.n), static_cast<uint64_t>(shape.m), scratch_ld);
+  });
+  descriptors.c=descriptors.c_owner.get();
   if (status != HIPBLAS_STATUS_SUCCESS) {
     return status;
   }
   ++metadata_counters.descriptor_create_calls;
-  status = hipblasLtMatrixLayoutCreate(
-      &descriptors.d, HIP_R_32I, static_cast<uint64_t>(shape.n), static_cast<uint64_t>(shape.m), scratch_ld);
+  status=descriptors.d_owner.create([&](hipblasLtMatrixLayout_t* out) noexcept {
+    return hipblasLtMatrixLayoutCreate(out,HIP_R_32I, static_cast<uint64_t>(shape.n), static_cast<uint64_t>(shape.m), scratch_ld);
+  });
+  descriptors.d=descriptors.d_owner.get();
   if (status != HIPBLAS_STATUS_SUCCESS) {
     return status;
   }
@@ -338,20 +301,58 @@ hipblasStatus_t create_matmul_descriptors(
 hipblasStatus_t create_matmul_preference(std::size_t workspace_bytes,matmul_descriptors& descriptors) {
   if(descriptors.preference)return HIPBLAS_STATUS_SUCCESS;
   ++metadata_counters.preference_create_calls;
-  auto status=hipblasLtMatmulPreferenceCreate(&descriptors.preference);
+  auto status=descriptors.preference_owner.create([](hipblasLtMatmulPreference_t* out) noexcept {return hipblasLtMatmulPreferenceCreate(out);});
+  descriptors.preference=descriptors.preference_owner.get();
   if(status!=HIPBLAS_STATUS_SUCCESS)return status;
   const uint64_t max_workspace=workspace_bytes;
   ++metadata_counters.preference_attribute_calls;
   return hipblasLtMatmulPreferenceSetAttribute(descriptors.preference,HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,&max_workspace,sizeof(max_workspace));
 }
 
+matmul_algorithm_cache_key matmul_key(const HipblasLtContext& library,const padded_block_shape& shape,std::size_t workspace_bytes) {
+  auto key=library.environment;key.m=shape.m;key.n=shape.n;key.k=shape.k;key.scratch_ld=shape.n;key.workspace_bytes=workspace_bytes;
+  return key;
+}
+hipblasStatus_t select_matmul_algorithm(HipblasLtContext& library,const matmul_algorithm_cache_key& key,
+                                      matmul_descriptors& descriptors,matmul_algorithm_selection& selection) {
+  ++metadata_counters.algorithm_directory_lookups;
+  const bool found=matmul_algorithm_directory().find(key,selection);
+  bool publish=!found;
+  if(found)++metadata_counters.algorithm_cache_hits;
+  else {
+    selection={};
+    auto status=create_matmul_preference(key.workspace_bytes,descriptors);
+    if(status!=HIPBLAS_STATUS_SUCCESS)return status;
+    hipblasLtMatmulHeuristicResult_t heuristic{};int count=0;++metadata_counters.heuristic_calls;
+    status=hipblasLtMatmulAlgoGetHeuristic(library.handle.get(),descriptors.op,descriptors.a,descriptors.b,
+      descriptors.c,descriptors.d,descriptors.preference,1,&heuristic,&count);
+    if(status==HIPBLAS_STATUS_SUCCESS || status==HIPBLAS_STATUS_NOT_SUPPORTED) {
+      if(status!=HIPBLAS_STATUS_SUCCESS || count!=1 || heuristic.state!=HIPBLAS_STATUS_SUCCESS ||
+          heuristic.workspaceSize>key.workspace_bytes)return HIPBLAS_STATUS_NOT_SUPPORTED;
+    } else return status;
+    selection.algo=heuristic.algo;
+  }
+  if(hipblaslt_metadata_state::algorithm_observations_enabled && !selection.identity_attempted) {
+    selection.algorithm_index=observe_algorithm_index(selection.algo);selection.identity_attempted=true;
+    publish=true;
+  }
+  if(publish)matmul_algorithm_directory().remember(key,selection);
+  return HIPBLAS_STATUS_SUCCESS;
+}
 struct matmul_call_metadata {
+  explicit matmul_call_metadata(HipblasLtContext& context):library(context){}
+  HipblasLtContext& library;
   HipblasLtCallMetadataDirectory directory;
   std::array<matmul_descriptors,2> descriptors;
+  std::array<matmul_algorithm_selection,2> algorithms{};
   bool submitted=false,drained=false;
-  // Error paths may have already enqueued earlier planes. Keep their metadata
-  // alive through a drain before member destruction; ordinary success uses the
-  // existing one final synchronization, not another per-plane synchronization.
+  hipblasStatus_t close() noexcept {
+    auto result=HIPBLAS_STATUS_SUCCESS;
+    for(auto& descriptor:descriptors){const auto status=descriptor.close();if(result==HIPBLAS_STATUS_SUCCESS)result=status;}
+    return result;
+  }
+  // Ordinary success uses the existing final synchronization. Error unwind
+  // attempts completion before typed members close or retire failed releases.
   ~matmul_call_metadata(){if(submitted&&!drained)(void)hipDeviceSynchronize();}
 };
 
@@ -368,68 +369,45 @@ hipblasStatus_t run_matmul_block(
   ++metadata_counters.matmul_block_calls;
   matmul_descriptors per_block;
   const int64_t scratch_ld=shape.n;
-  const matmul_algorithm_cache_key cache_key{device_id,shape.m,shape.n,shape.k,int(scratch_ld),workspace_bytes};
+  const auto cache_key=matmul_key(call.library,shape,workspace_bytes);
+  if(device_id!=cache_key.device_id || handle!=call.library.handle.get())return HIPBLAS_STATUS_INVALID_VALUE;
   matmul_descriptors* selected=&per_block;
+  matmul_algorithm_selection per_block_algorithm;
+  matmul_algorithm_selection* algorithm=&per_block_algorithm;
   hipblasStatus_t status=HIPBLAS_STATUS_SUCCESS;
   if(metadata_policy==HipblasLtMetadataPolicy::per_call) {
     int slot=call.directory.find(cache_key);
-    if(slot>=0)++metadata_counters.descriptor_set_hits;
+    if(slot>=0){++metadata_counters.descriptor_set_hits;++metadata_counters.call_local_algorithm_hits;}
     else {
       slot=call.directory.free_slot();
-      if(slot<0)return HIPBLAS_STATUS_INTERNAL_ERROR; // proven full/tail geometry cap
+      if(slot<0)return HIPBLAS_STATUS_INTERNAL_ERROR;
       status=create_matmul_descriptors(shape,scratch_ld,call.descriptors[slot]);
       if(status!=HIPBLAS_STATUS_SUCCESS)return status;
+      status=select_matmul_algorithm(call.library,cache_key,call.descriptors[slot],call.algorithms[slot]);
+      if(status!=HIPBLAS_STATUS_SUCCESS)return status;
+      // Neither a partial descriptor nor failed selection becomes reusable.
       if(!call.directory.publish(unsigned(slot),cache_key))return HIPBLAS_STATUS_INTERNAL_ERROR;
       const uint64_t live=uint64_t(call.directory.ready[0])+uint64_t(call.directory.ready[1]);
       metadata_counters.maximum_live_sets=std::max(metadata_counters.maximum_live_sets,live);
     }
-    selected=&call.descriptors[slot];
+    selected=&call.descriptors[slot];algorithm=&call.algorithms[slot];
   } else {
     status=create_matmul_descriptors(shape,scratch_ld,per_block);
     if(status!=HIPBLAS_STATUS_SUCCESS)return status;
-    // Exact old-path control includes the otherwise unnecessary preference.
     status=create_matmul_preference(workspace_bytes,per_block);
+    if(status!=HIPBLAS_STATUS_SUCCESS)return status;
+    status=select_matmul_algorithm(call.library,cache_key,per_block,*algorithm);
     if(status!=HIPBLAS_STATUS_SUCCESS)return status;
     metadata_counters.maximum_live_sets=std::max(metadata_counters.maximum_live_sets,uint64_t{1});
   }
   auto& descriptors=*selected;
-  hipblasLtMatmulAlgo_t algo{};
-  int algorithm_index=-1;
-  if (!find_cached_matmul_algorithm(cache_key, algo,algorithm_index)) {
-    status=create_matmul_preference(workspace_bytes,descriptors);
-    if(status!=HIPBLAS_STATUS_SUCCESS)return status;
-    hipblasLtMatmulHeuristicResult_t heuristic{};
-    int heuristic_count = 0;
-    ++metadata_counters.heuristic_calls;
-    status = hipblasLtMatmulAlgoGetHeuristic(
-        handle,
-        descriptors.op,
-        descriptors.a,
-        descriptors.b,
-        descriptors.c,
-        descriptors.d,
-        descriptors.preference,
-        1,
-        &heuristic,
-        &heuristic_count);
-    if (status == HIPBLAS_STATUS_SUCCESS && heuristic_count > 0 && heuristic.state == HIPBLAS_STATUS_SUCCESS) {
-      algo = heuristic.algo;
-      const bool observe=hipblaslt_metadata_state::algorithm_observations_enabled;
-      if(observe)algorithm_index=observe_algorithm_index(algo);
-      remember_matmul_algorithm(cache_key, algo,algorithm_index,observe);
-    } else if (status == HIPBLAS_STATUS_SUCCESS || status == HIPBLAS_STATUS_NOT_SUPPORTED) {
-      return HIPBLAS_STATUS_NOT_SUPPORTED;
-    } else {
-      return status;
-    }
-  } else ++metadata_counters.algorithm_cache_hits;
   if(hipblaslt_metadata_state::algorithm_observations_enabled)
-    hipblaslt_metadata_state::algorithm_inventory.record(cache_key,algorithm_index);
+    hipblaslt_metadata_state::algorithm_inventory.record(cache_key,algorithm->algorithm_index);
 
   const int32_t alpha = 1;
   const int32_t beta = 0;
   call.submitted=true;
-  return timed_hipblaslt_operation("hipblaslt_int8_i32_matmul", [&]() {
+  const auto operation=timed_hipblaslt_operation("hipblaslt_int8_i32_matmul", [&]() {
     return hipblasLtMatmul(
         handle,
         descriptors.op,
@@ -443,11 +421,13 @@ hipblasStatus_t run_matmul_block(
         descriptors.c,
         scratch,
         descriptors.d,
-        &algo,
+        &algorithm->algo,
         workspace,
         workspace_bytes,
         nullptr);
   });
+  const auto cleanup=per_block.close();
+  return operation==HIPBLAS_STATUS_SUCCESS?cleanup:operation;
 }
 
 #endif

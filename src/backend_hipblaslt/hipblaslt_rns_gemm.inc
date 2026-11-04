@@ -40,7 +40,7 @@ rns8_status hipblaslt_gemm_rns_device(
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
   auto* scratch = static_cast<int32_t*>(int32_scratch);
-  const auto typed_handle = static_cast<hipblasLtHandle_t>(handle);
+  const auto typed_handle = static_cast<HipblasLtContext*>(handle)->handle.get();
   const int8_t* cached_a_base = nullptr;
   std::size_t cached_a_plane_bytes = 0;
   const int8_t* cached_b_base = nullptr;
@@ -64,7 +64,9 @@ rns8_status hipblaslt_gemm_rns_device(
       cached_b_base=static_cast<const int8_t*>(workspace_state->hipblaslt_b_prepack_cache);
     }
   }
-  matmul_call_metadata metadata;
+  auto& library=*static_cast<HipblasLtContext*>(handle);
+  if(library.environment.device_id!=device_id)return RNS8_INVALID_ARGUMENT;
+  matmul_call_metadata metadata(library);
   for (uint32_t p = 0; p < prefix; ++p) {
     const std::size_t a_offset =
         static_cast<std::size_t>(p) * static_cast<std::size_t>(m) * static_cast<std::size_t>(lda);
@@ -100,7 +102,7 @@ rns8_status hipblaslt_gemm_rns_device(
   }
   const hipError_t sync_status = hipDeviceSynchronize();
   metadata.drained=sync_status==hipSuccess;
-  return sync_status == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  return sync_status == hipSuccess ? status_from_hipblas(metadata.close()) : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   (void)handle;

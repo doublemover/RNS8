@@ -153,7 +153,7 @@
   print_auto_selector_json(args, info, result, selected_backend);
   print_device_allocation_json(args, result);
   std::cout << "  \"hipblaslt_metadata\": {\n";
-  std::cout << "    \"abi_version\": 1, \"policy\": \"" << (args.hipblaslt_metadata_per_block_control ? "per_block_control" : "per_call_distinct_geometry") << "\",\n";
+  std::cout << "    \"abi_version\": 2, \"policy\": \"" << (args.hipblaslt_metadata_per_block_control ? "per_block_control" : "per_call_distinct_geometry") << "\",\n";
   std::cout << "    \"scope\": \"calling_thread_library_API_attempt_counts_not_allocator_bytes_or_device_work\",\n";
   std::cout << "    \"cross_call_raw_descriptor_retention\": false,\n";
   auto print_metadata_counters=[](const rns8::detail::HipblasLtMetadataCounters& v) {
@@ -169,6 +169,8 @@
     std::cout << "\"descriptor_set_hits\":" << v.descriptor_set_hits << ",";
     std::cout << "\"descriptor_sets_created\":" << v.descriptor_sets_created << ",";
     std::cout << "\"matmul_block_calls\":" << v.matmul_block_calls << ",";
+    std::cout << "\"algorithm_directory_lookups\":" << v.algorithm_directory_lookups << ",";
+    std::cout << "\"call_local_algorithm_hits\":" << v.call_local_algorithm_hits << ",";
     std::cout << "\"maximum_live_sets\":" << v.maximum_live_sets << "}";
   };
   std::cout << "    \"after_warmups\": "; print_metadata_counters(result.metadata_after_warmups); std::cout << ",\n";
@@ -183,14 +185,16 @@
       std::cout << "{\"device_id\":" << key.device_id << ",\"m\":" << key.m << ",\"n\":" << key.n
                 << ",\"k\":" << key.k << ",\"scratch_ld\":" << key.scratch_ld
                 << ",\"workspace_bytes\":" << key.workspace_bytes << ",\"attribute_abi\":" << key.attribute_abi
-                << ",\"algorithm_index\":";
+                << ",\"library_version\":" << key.library_version << ",\"runtime_version\":" << key.runtime_version
+                << ",\"driver_version\":" << key.driver_version << ",\"context_configuration\":" << key.context_configuration
+                << ",\"target_identity\":" << key.target_identity << ",\"algorithm_index\":";
       if(entry.algorithm_index<0)std::cout << "null";else std::cout << entry.algorithm_index;
       std::cout << ",\"matmul_calls\":" << entry.calls << '}';
     }
     std::cout << "]}";
   };
-  std::cout << "  \"hipblaslt_algorithms\": {\"abi_version\":1,"
-            << "\"scope\":\"library_build_device_padded_geometry_algorithm_index\","
+  std::cout << "  \"hipblaslt_algorithms\": {\"abi_version\":2,"
+            << "\"scope\":\"library_context_device_padded_geometry_algorithm_index\","
             << "\"query_policy\":\"opt_in_once_per_cached_algorithm\",\"after_warmups\":";
   print_algorithms(result.algorithms_after_warmups);
   std::cout << ",\"after_measured_repeats\":";print_algorithms(result.algorithms_after_repeats);

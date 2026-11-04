@@ -27,6 +27,8 @@ void hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy policy);
 HipblasLtMetadataPolicy hipblaslt_metadata_policy();
 void hipblaslt_metadata_counters_reset();
 HipblasLtMetadataCounters hipblaslt_metadata_counters_snapshot();
+// Drops copied algorithm values only; live call/async selections remain valid.
+rns8_status hipblaslt_algorithm_directory_reset();
 void hipblaslt_algorithm_observations_set_enabled(bool enabled);
 HipblasLtAlgorithmInventory hipblaslt_algorithm_observations_snapshot();
 // Independent retained operand controls. A disabled side uses the existing

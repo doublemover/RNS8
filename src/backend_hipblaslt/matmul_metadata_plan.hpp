@@ -11,9 +11,24 @@ struct HipblasLtMetadataKey {
   int device_id=-1,m=0,n=0,k=0,scratch_ld=0;
   std::size_t workspace_bytes=0;
   uint32_t attribute_abi=1;
+  uint32_t library_version=0,runtime_version=0,driver_version=0;
+  uint64_t context_configuration=0,target_identity=0;
   bool operator==(const HipblasLtMetadataKey& other) const {
     return device_id==other.device_id && m==other.m && n==other.n && k==other.k &&
-        scratch_ld==other.scratch_ld && workspace_bytes==other.workspace_bytes && attribute_abi==other.attribute_abi;
+        scratch_ld==other.scratch_ld && workspace_bytes==other.workspace_bytes && attribute_abi==other.attribute_abi &&
+        library_version==other.library_version && runtime_version==other.runtime_version && driver_version==other.driver_version &&
+        context_configuration==other.context_configuration && target_identity==other.target_identity;
+  }
+};
+struct HipblasLtMetadataKeyHash {
+  std::size_t operator()(const HipblasLtMetadataKey& key) const noexcept {
+    uint64_t hash=14695981039346656037ull;
+    for(uint64_t value:{uint64_t(key.device_id),uint64_t(key.m),uint64_t(key.n),uint64_t(key.k),uint64_t(key.scratch_ld),
+        uint64_t(key.workspace_bytes),uint64_t(key.attribute_abi),uint64_t(key.library_version),uint64_t(key.runtime_version),
+        uint64_t(key.driver_version),key.context_configuration,key.target_identity}) {
+      for(unsigned byte=0;byte<8;++byte){hash^=(value>>(8*byte))&255;hash*=1099511628211ull;}
+    }
+    return static_cast<std::size_t>(hash);
   }
 };
 // A fixed-M/N whole GEMM has at most full-slab and tail padded geometries.
@@ -52,6 +67,7 @@ struct HipblasLtMetadataCounters {
   uint64_t preference_create_calls=0,preference_destroy_calls=0,preference_attribute_calls=0;
   uint64_t heuristic_calls=0,algorithm_cache_hits=0,descriptor_set_hits=0,descriptor_sets_created=0;
   uint64_t matmul_block_calls=0,maximum_live_sets=0;
+  uint64_t algorithm_directory_lookups=0,call_local_algorithm_hits=0;
 };
 
 struct HipblasLtAlgorithmObservation {
