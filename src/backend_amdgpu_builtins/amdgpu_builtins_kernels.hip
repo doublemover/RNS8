@@ -1,5 +1,6 @@
 #include <hip/hip_runtime.h>
 #include "../backend_common/matrix_target.hpp"
+#include "../backend_common/indexed_modulus_planes.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -183,8 +184,16 @@ __device__ __forceinline__ void store_accumulator(
   }
 }
 
-template <bool Finite, bool Batched = false>
-__global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
+template<bool Finite,class Basis>
+__device__ __forceinline__ void store_dense_accumulator(int32_t acc,int8_t* c,int plane,int modulus,
+    int m,int n,int ldc,int row,int col,const Basis& basis) {
+  if constexpr(Basis::indexed)
+    store_finite_accumulator(acc,c+int64_t(plane)*m*ldc,basis.moduli[plane],m,n,ldc,row,col);
+  else store_accumulator<Finite>(acc,c,plane,modulus,m,n,ldc,row,col);
+}
+
+template <bool Finite, bool Batched,class Basis>
+__device__ __forceinline__ void cdna3_dense_mfma_body(
     const int8_t* a,
     const int8_t* b,
     int8_t* c,
@@ -194,7 +203,7 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
     int lda,
     int ldb,
     int ldc,
-    int plane_count_or_modulus) {
+    int plane_count_or_modulus,Basis basis) {
 #if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
@@ -233,10 +242,10 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
   }
   const int row_base = tile_row + (lane >> 4) * 4;
   const int col = tile_col + lane_col;
-  store_accumulator<Finite>(acc[0], c, plane, modulus, m, n, ldc, row_base + 0, col);
-  store_accumulator<Finite>(acc[1], c, plane, modulus, m, n, ldc, row_base + 1, col);
-  store_accumulator<Finite>(acc[2], c, plane, modulus, m, n, ldc, row_base + 2, col);
-  store_accumulator<Finite>(acc[3], c, plane, modulus, m, n, ldc, row_base + 3, col);
+  store_dense_accumulator<Finite>(acc[0], c, plane, modulus, m, n, ldc, row_base + 0, col,basis);
+  store_dense_accumulator<Finite>(acc[1], c, plane, modulus, m, n, ldc, row_base + 1, col,basis);
+  store_dense_accumulator<Finite>(acc[2], c, plane, modulus, m, n, ldc, row_base + 2, col,basis);
+  store_dense_accumulator<Finite>(acc[3], c, plane, modulus, m, n, ldc, row_base + 3, col,basis);
 #else
   (void)a;
   (void)b;
@@ -247,12 +256,25 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
   (void)lda;
   (void)ldb;
   (void)ldc;
-  (void)plane_count_or_modulus;
+  (void)plane_count_or_modulus;(void)basis;
 #endif
 }
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template<bool Finite,bool Batched=false>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus) {
+  cdna3_dense_mfma_body<Finite,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,rns8::detail::DefaultDenseModuli{});
+}
+template<bool Batched=true>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel_indexed(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus,rns8::detail::IndexedDenseModuli basis) {
+  cdna3_dense_mfma_body<false,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,basis);
+}
 
-template <bool Finite, bool Batched = false>
-__global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
+
+template <bool Finite, bool Batched,class Basis>
+__device__ __forceinline__ void cdna3_dense_mfma_32x32x16_body(
     const int8_t* a,
     const int8_t* b,
     int8_t* c,
@@ -262,7 +284,7 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
     int lda,
     int ldb,
     int ldc,
-    int plane_count_or_modulus) {
+    int plane_count_or_modulus,Basis basis) {
 #if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 31;
@@ -302,7 +324,7 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
   const int col = tile_col + lane_col;
   for (int reg = 0; reg < 16; ++reg) {
     const int row = tile_row + 8 * (reg >> 2) + 4 * lane_half + (reg & 3);
-    store_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col);
+    store_dense_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col,basis);
   }
 #else
   (void)a;
@@ -314,12 +336,25 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
   (void)lda;
   (void)ldb;
   (void)ldc;
-  (void)plane_count_or_modulus;
+  (void)plane_count_or_modulus;(void)basis;
 #endif
 }
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template<bool Finite,bool Batched=false>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus) {
+  cdna3_dense_mfma_32x32x16_body<Finite,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,rns8::detail::DefaultDenseModuli{});
+}
+template<bool Batched=true>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel_indexed(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus,rns8::detail::IndexedDenseModuli basis) {
+  cdna3_dense_mfma_32x32x16_body<false,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,basis);
+}
 
-template <bool Finite, bool Batched = false>
-__global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
+
+template <bool Finite, bool Batched,class Basis>
+__device__ __forceinline__ void rdna3_dense_wmma_body(
     const int8_t* a,
     const int8_t* b,
     int8_t* c,
@@ -329,7 +364,7 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
     int lda,
     int ldb,
     int ldc,
-    int plane_count_or_modulus) {
+    int plane_count_or_modulus,Basis basis) {
 #if RNS8_BUILTIN_BODY_RDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
@@ -366,7 +401,7 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
   const int col = tile_col + lane_col;
   for (int reg = 0; reg < 8; ++reg) {
     const int row = tile_row + reg * 2 + half;
-    store_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col);
+    store_dense_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col,basis);
   }
 #else
   (void)a;
@@ -378,12 +413,25 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
   (void)lda;
   (void)ldb;
   (void)ldc;
-  (void)plane_count_or_modulus;
+  (void)plane_count_or_modulus;(void)basis;
 #endif
 }
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template<bool Finite,bool Batched=false>
+__global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus) {
+  rdna3_dense_wmma_body<Finite,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,rns8::detail::DefaultDenseModuli{});
+}
+template<bool Batched=true>
+__global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel_indexed(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus,rns8::detail::IndexedDenseModuli basis) {
+  rdna3_dense_wmma_body<false,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,basis);
+}
 
-template <bool Finite, bool Batched = false>
-__global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
+
+template <bool Finite, bool Batched,class Basis>
+__device__ __forceinline__ void rdna4_dense_wmma_body(
     const int8_t* a,
     const int8_t* b,
     int8_t* c,
@@ -393,7 +441,7 @@ __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
     int lda,
     int ldb,
     int ldc,
-    int plane_count_or_modulus) {
+    int plane_count_or_modulus,Basis basis) {
 #if RNS8_BUILTIN_BODY_RDNA4
   const int lane = static_cast<int>(threadIdx.x);
   const int half = lane >> 4;
@@ -427,7 +475,7 @@ __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
   const int row_base = tile_row + half * 8;
   const int col = tile_col + lane_col;
   for (int reg = 0; reg < 8; ++reg) {
-    store_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row_base + reg, col);
+    store_dense_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row_base + reg, col,basis);
   }
 #else
   (void)a;
@@ -439,9 +487,22 @@ __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
   (void)lda;
   (void)ldb;
   (void)ldc;
-  (void)plane_count_or_modulus;
+  (void)plane_count_or_modulus;(void)basis;
 #endif
 }
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template<bool Finite,bool Batched=false>
+__global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus) {
+  rdna4_dense_wmma_body<Finite,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,rns8::detail::DefaultDenseModuli{});
+}
+template<bool Batched=true>
+__global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel_indexed(const int8_t* a,const int8_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int plane_count_or_modulus,rns8::detail::IndexedDenseModuli basis) {
+  rdna4_dense_wmma_body<false,Batched>(a,b,c,m,n,k,lda,ldb,ldc,plane_count_or_modulus,basis);
+}
+
 
 template <bool Finite>
 __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_kernel(
@@ -688,7 +749,7 @@ bool use_cdna3_smfmac_32x32x32(int m, int n, int k) {
   return m >= 128 && n >= 128 && k >= 128;
 }
 
-template <bool Finite, bool Batched = false>
+template <bool Finite, bool Batched = false,class Basis=rns8::detail::DefaultDenseModuli>
 int launch_dense(
     int device_id,
     const void* device_a_residues,
@@ -701,7 +762,8 @@ int launch_dense(
     int ldb,
     int ldc,
     int plane_count_or_modulus,
-    int dense_kernel_variant,int batches=1,hipStream_t stream=nullptr,bool asynchronous=false) {
+    int dense_kernel_variant,int batches=1,hipStream_t stream=nullptr,bool asynchronous=false,Basis basis={}) {
+  static_assert(!Finite || !Basis::indexed,"indexed operands are centered RNS bytes");
   rns8_amdgpu_arch_kind kind{};
   const int arch_status = active_device_arch_kind(device_id, kind);
   if (arch_status != 0) {
@@ -715,6 +777,24 @@ int launch_dense(
             (static_cast<unsigned>(n) + 31u) / 32u,
             (static_cast<unsigned>(m) + 31u) / 32u,
             Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
+      if constexpr(Basis::indexed) {
+        hipLaunchKernelGGL(
+            (cdna3_dense_mfma_32x32x16_kernel_indexed<Batched>),
+            grid,
+            dim3(64),
+            0,
+            stream,
+            static_cast<const int8_t*>(device_a_residues),
+            static_cast<const int8_t*>(device_b_residues),
+            static_cast<int8_t*>(device_c_residues),
+            m,
+            n,
+            k,
+            lda,
+            ldb,
+            ldc,
+            plane_count_or_modulus,basis);
+      } else {
         hipLaunchKernelGGL(
             (cdna3_dense_mfma_32x32x16_kernel<Finite,Batched>),
             grid,
@@ -731,11 +811,30 @@ int launch_dense(
             ldb,
             ldc,
             plane_count_or_modulus);
+      }
       } else {
         const dim3 grid(
             (static_cast<unsigned>(n) + 15u) / 16u,
             (static_cast<unsigned>(m) + 15u) / 16u,
             Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
+      if constexpr(Basis::indexed) {
+        hipLaunchKernelGGL(
+            (cdna3_dense_mfma_kernel_indexed<Batched>),
+            grid,
+            dim3(64),
+            0,
+            stream,
+            static_cast<const int8_t*>(device_a_residues),
+            static_cast<const int8_t*>(device_b_residues),
+            static_cast<int8_t*>(device_c_residues),
+            m,
+            n,
+            k,
+            lda,
+            ldb,
+            ldc,
+            plane_count_or_modulus,basis);
+      } else {
         hipLaunchKernelGGL(
             (cdna3_dense_mfma_kernel<Finite,Batched>),
             grid,
@@ -753,6 +852,7 @@ int launch_dense(
             ldc,
             plane_count_or_modulus);
       }
+      }
       break;
     case rns8_amdgpu_arch_kind::rdna3:
     {
@@ -763,6 +863,24 @@ int launch_dense(
           (static_cast<unsigned>(n) + 15u) / 16u,
           (static_cast<unsigned>(m) + 15u) / 16u,
           Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
+      if constexpr(Basis::indexed) {
+      hipLaunchKernelGGL(
+          (rdna3_dense_wmma_kernel_indexed<Batched>),
+          grid,
+          dim3(32),
+          0,
+          stream,
+          static_cast<const int8_t*>(device_a_residues),
+          static_cast<const int8_t*>(device_b_residues),
+          static_cast<int8_t*>(device_c_residues),
+          m,
+          n,
+          k,
+          lda,
+          ldb,
+          ldc,
+          plane_count_or_modulus,basis);
+      } else {
       hipLaunchKernelGGL(
           (rdna3_dense_wmma_kernel<Finite,Batched>),
           grid,
@@ -779,6 +897,7 @@ int launch_dense(
           ldb,
           ldc,
           plane_count_or_modulus);
+      }
       break;
     }
     case rns8_amdgpu_arch_kind::rdna4:
@@ -787,6 +906,24 @@ int launch_dense(
           (static_cast<unsigned>(n) + 15u) / 16u,
           (static_cast<unsigned>(m) + 15u) / 16u,
           Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
+      if constexpr(Basis::indexed) {
+      hipLaunchKernelGGL(
+          (rdna4_dense_wmma_kernel_indexed<Batched>),
+          grid,
+          dim3(32),
+          0,
+          stream,
+          static_cast<const int8_t*>(device_a_residues),
+          static_cast<const int8_t*>(device_b_residues),
+          static_cast<int8_t*>(device_c_residues),
+          m,
+          n,
+          k,
+          lda,
+          ldb,
+          ldc,
+          plane_count_or_modulus,basis);
+      } else {
       hipLaunchKernelGGL(
           (rdna4_dense_wmma_kernel<Finite,Batched>),
           grid,
@@ -803,6 +940,7 @@ int launch_dense(
           ldb,
           ldc,
           plane_count_or_modulus);
+      }
       break;
     }
     case rns8_amdgpu_arch_kind::unsupported:
@@ -982,6 +1120,16 @@ extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int device_id,const voi
     int m,int n,int k,int lda,int ldb,int ldc,int prefix,int batches,int dense_kernel_variant) {
   if(!common_dense_args_valid(a,b,c,m,n,k,lda,ldb,ldc) || prefix<1 || prefix>20 || batches<1 || batches>64)return 1;
   return launch_dense<false,true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,dense_kernel_variant,batches);
+}
+
+extern "C" int rns8_amdgpu_builtin_gemm_indexed_batch_device(int device_id,const void* a,const void* b,void* c,
+    int m,int n,int k,int lda,int ldb,int ldc,rns8::detail::IndexedModulusPlanes planes,int batches,int variant,void* stream) {
+  if(!common_dense_args_valid(a,b,c,m,n,k,lda,ldb,ldc) || k>65536 || batches<1 || batches>64 ||
+      !rns8::detail::valid_indexed_modulus_planes(planes) || !planes.eligible_count)return 1;
+  rns8::detail::IndexedDenseModuli basis;
+  for(uint32_t compact=0;compact<planes.eligible_count;++compact)basis.moduli[compact]=planes.moduli[compact];
+  return launch_dense<false,true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(planes.eligible_count),variant,batches,
+    static_cast<hipStream_t>(stream),stream!=nullptr,basis);
 }
 
 extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(

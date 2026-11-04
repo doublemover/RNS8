@@ -73,6 +73,21 @@ establish execution for an entire family. Sparse-A is an explicit public
 structured-sparsity contract with target restrictions; dense GEMM does not infer
 sparsity. Private block-sparse research is a separate path.
 
+Compact experimental consumers can submit indexed matrix batches with an
+explicit physical modulus list. Logical plane IDs, compact positions and
+moduli are validated together before launch; they are never interpreted as a
+shifted default prefix. Indexed entry points share each architecture's inlined
+INT8 matrix body and select only the epilogue modulus. Default-basis kernel
+signatures and arithmetic bodies remain unchanged. Both routes share checked
+batch/address/overlap admission and the existing 65536-element K cap. A borrowed
+nondefault stream selects pure enqueue; its owner retains storage and observes
+completion. Default-stream calls retain synchronous completion.
+
+The authored indexed differential controls include reordered prime channels,
+48 batches, padded matrices, K=65536 and both submission modes. Syntax checks
+do not qualify their emitted instructions or device execution; the current
+frontload pass defers those checks to the final validation batch.
+
 Sparse-A source preflight is shared with raw-device dispatch: current kernels
 admit `gfx942`, `gfx1200` and `gfx1201`, K divisible by4 up to65536, supported
 static byte moduli or default-basis prefix1..20, and complete packed/input/output

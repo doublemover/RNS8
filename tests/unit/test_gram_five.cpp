@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "backend_common/gram_five_product.hpp"
 #include "backend_common/finite_u8_reducer.hpp"
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <array>
 #include <vector>
@@ -39,6 +40,19 @@ TEST_CASE("five product compact storage omits composite planes and preserves reo
     cpp_int expected=0;for(unsigned inner=0;inner<5;++inner)expected+=cpp_int(source[plane*15+inner*3+row])*source[plane*15+inner*3+col];
     CHECK(scratch[size_t(16+r.output_offset+plane*9+row*3+col)]==centered_residue(expected,basis[plane]));
   }
+}
+
+TEST_CASE("indexed matrix batches reject malformed identities before device work", "[indexed][admission]") {
+  using namespace rns8::detail;const uint16_t moduli[]{251,256,239,255,253,233};IndexedModulusPlanes planes;
+  REQUIRE(partition_modulus_planes(6,moduli,[](uint32_t q,uint32_t){return gram_five_prime(q);},planes));
+  REQUIRE(valid_indexed_modulus_planes(planes));int8_t a[64]{},b[64]{},c[64]{};
+  auto invalid=planes;invalid.eligible[1]=invalid.eligible[0];CHECK_FALSE(valid_indexed_modulus_planes(invalid));
+  CHECK(amdgpu_builtins_gemm_indexed_batch_device(0,a,b,c,1,1,1,1,1,1,invalid,1)==RNS8_INVALID_ARGUMENT);
+  invalid=planes;invalid.moduli[0]=0;CHECK_FALSE(valid_indexed_modulus_planes(invalid));
+  CHECK(amdgpu_builtins_gemm_indexed_batch_device(0,a,b,c,1,1,1,1,1,1,invalid,1)==RNS8_INVALID_ARGUMENT);
+  CHECK(amdgpu_builtins_gemm_indexed_batch_device(0,a,b,c,1,1,1,1,1,1,planes,65)==RNS8_INVALID_ARGUMENT);
+  CHECK(amdgpu_builtins_gemm_indexed_batch_device(0,a,b,c,1,1,65537,65537,1,1,planes,1)==RNS8_RANGE_ERROR);
+  CHECK(amdgpu_builtins_gemm_indexed_batch_device(0,a,b,a,1,1,1,1,1,1,planes,1)==RNS8_INVALID_ARGUMENT);
 }
 TEST_CASE("five-product Gram verifies skew matrices and independent prime-field products") {
   using namespace rns8::detail;using boost::multiprecision::cpp_int;

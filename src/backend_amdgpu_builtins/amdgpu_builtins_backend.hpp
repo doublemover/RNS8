@@ -3,10 +3,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "backend_common/indexed_modulus_planes.hpp"
 
 #include "rns8/rns8.h"
 
 namespace rns8::detail {
+rns8_status amdgpu_builtins_gemm_indexed_batch_device(int,const void*,const void*,void*,
+    int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,const IndexedModulusPlanes&,uint32_t,void* stream=nullptr);
 
 bool amdgpu_builtins_compiled();
 // Pure enqueue; the prepared owner retains storage and observes completion.

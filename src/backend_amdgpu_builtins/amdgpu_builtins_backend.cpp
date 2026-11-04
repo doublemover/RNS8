@@ -21,6 +21,7 @@
 extern "C" int rns8_amdgpu_builtin_dense_available(int);
 extern "C" int rns8_amdgpu_builtin_enqueue_dense(int,const void*,const void*,void*,int,int,int,int,int,int,unsigned,bool,void*);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,int,int,int);
+extern "C" int rns8_amdgpu_builtin_gemm_indexed_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,rns8::detail::IndexedModulusPlanes,int,int,void*);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
@@ -346,8 +347,8 @@ rns8_status amdgpu_builtins_gemm_rns_device(
 #endif
 }
 
-rns8_status amdgpu_builtins_gemm_rns_batch_device(int device_id,const void* a,const void* b,void* c,
-    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t batches) {
+static rns8_status validate_dense_batch(const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t batches) {
   if(!a || !b || !c || !prefix || prefix>20 || !batches || batches>64)return RNS8_INVALID_ARGUMENT;
   if(k>RNS8_SAFE_INT32_K_BLOCK)return RNS8_RANGE_ERROR;
   if(!qualified_i32_gemm_address(m,n,k,lda,ldb,ldc,prefix))return RNS8_UNSUPPORTED_BACKEND;
@@ -355,6 +356,13 @@ rns8_status amdgpu_builtins_gemm_rns_batch_device(int device_id,const void* a,co
   if(!checked_host_plane_address(m,k,lda,prefix*batches,1,ad) || !checked_host_plane_address(k,n,ldb,prefix*batches,1,bd) ||
       !checked_host_plane_address(m,n,ldc,prefix*batches,1,cd))return RNS8_RANGE_ERROR;
   if(!nonoverlapping_byte_ranges(c,cd.byte_extent,a,ad.byte_extent) || !nonoverlapping_byte_ranges(c,cd.byte_extent,b,bd.byte_extent))return RNS8_INVALID_ARGUMENT;
+  return RNS8_SUCCESS;
+}
+
+rns8_status amdgpu_builtins_gemm_rns_batch_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t batches) {
+  const auto valid=validate_dense_batch(a,b,c,m,n,k,lda,ldb,ldc,prefix,batches);
+  if(valid!=RNS8_SUCCESS)return valid;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
   const std::string label=std::string(amdgpu_builtins_dense_event_label(device_id,false,m,n,k))+"_batched";
   const int code=run_timed_device_code(label.c_str(),[&](){return rns8_amdgpu_builtin_gemm_rns_batch_device(
@@ -362,6 +370,23 @@ rns8_status amdgpu_builtins_gemm_rns_batch_device(int device_id,const void* a,co
   return status_from_device_code(code);
 #else
   (void)device_id;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status amdgpu_builtins_gemm_indexed_batch_device(int device,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,
+    const IndexedModulusPlanes& planes,uint32_t batches,void* stream) {
+  if(!valid_indexed_modulus_planes(planes) || !planes.eligible_count)return RNS8_INVALID_ARGUMENT;
+  const auto valid=validate_dense_batch(a,b,c,m,n,k,lda,ldb,ldc,planes.eligible_count,batches);
+  if(valid!=RNS8_SUCCESS)return valid;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+  const auto launch=[&](){return rns8_amdgpu_builtin_gemm_indexed_batch_device(device,a,b,c,int(m),int(n),int(k),
+    int(lda),int(ldb),int(ldc),planes,int(batches),int(g_dense_kernel_variant_override),stream);};
+  if(stream)return status_from_device_code(launch()); // Caller owns ordered completion and stage events.
+  const std::string label=std::string(amdgpu_builtins_dense_event_label(device,false,m,n,k))+"_indexed_batched_v2";
+  return status_from_device_code(run_timed_device_code(label.c_str(),launch));
+#else
+  (void)device;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 

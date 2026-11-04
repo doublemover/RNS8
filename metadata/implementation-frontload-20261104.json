@@ -353,7 +353,8 @@
       "comments_reviewed": 3,
       "implementation_status": "in_progress",
       "completed_slices": [
-        "Shared compact indexed-plane adapter authored and integrated in prime-channel Gram; odd-channel rank48 resource/kernel integration remains next"
+        "Shared compact indexed-plane adapter authored and integrated in prime-channel Gram; odd-channel rank48 resource/kernel integration remains next",
+        "Shared explicit-basis AMDGPU matrix batch provider preserves compact plane moduli and up to64 batches; synchronous and pure-enqueue forms retain existing checked batch spans and K cap; Gram uses five matrix launches instead of per-plane dispatch"
       ],
       "remaining_source_items": []
     },
@@ -432,8 +433,11 @@
       "url": "https://github.com/doublemover/RNS8/issues/55",
       "requirements_sha256": "9c8ecc5f578e6e37fe561f5a2b9a395d9ceb683da5b0be7052a33ee8338268ce",
       "comments_reviewed": 2,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Default and indexed dense matrix entry points share architecture-specific inlined bodies and common store/batch admission helpers; default kernel signatures and arithmetic are preserved",
+        "Authored malformed-packet preflight controls and exact GPU differential controls for reordered moduli, 48 batches, padding, K65536 and both submission modes; HIP host/gfx1100 device syntax passed, runtime deferred"
+      ],
       "remaining_source_items": []
     },
     {
@@ -508,7 +512,8 @@
         "CPU and HIP composite buckets reuse maintained tiled triangular Gram/mirror producers; empty eligible sets reject before algebraic allocation",
         "Prepared HIP five-product stages and commit use one retained stream, stream-correct timing events and terminal completion; hard payload budget includes host/device tile jobs and actual compact capacities",
         "Prepared Gram arena/stream ownership is retry-safe through failed preparation, active work and irreversible cleanup; matrix candidates probe real target/body support before owner publication",
-        "Authored prefixes1-20, prefix4 single-prime, reordered basis, omitted-storage canaries, exact Boost and region-count controls; CPU/MSVC HIP-host/gfx1100 device syntax passed, runtime deferred"
+        "Authored prefixes1-20, prefix4 single-prime, reordered basis, omitted-storage canaries, exact Boost and region-count controls; CPU/MSVC HIP-host/gfx1100 device syntax passed, runtime deferred",
+        "Shared explicit-basis AMDGPU matrix batch provider preserves compact plane moduli and up to64 batches; synchronous and pure-enqueue forms retain existing checked batch spans and K cap; Gram uses five matrix launches instead of per-plane dispatch"
       ],
       "remaining_source_items": [
         "Reconcile and integrate compact five-product candidates with existing workload/Gram calibration controls and physical work reporting"

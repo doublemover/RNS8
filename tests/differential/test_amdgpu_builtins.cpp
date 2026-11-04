@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "core/internal.hpp"
 #include "rns8/rns8.h"
 
@@ -1037,6 +1038,42 @@ TEST_CASE("AMDGPU builtin explicit sparse-A exact-wide backend matches dense bac
 
   rns8_destroy_context(amdgpu);
   rns8_destroy_context(cpu);
+}
+
+
+TEST_CASE("indexed matrix batches preserve explicit compact moduli batch strides and padding", "[hip][indexed][differential]") {
+  if(!amdgpu_builtins_available())SKIP("compiled matrix target required");
+  using namespace rns8::detail;using boost::multiprecision::cpp_int;
+  std::unique_ptr<rns8_context,decltype(&rns8_destroy_context)> ctx(require_context(RNS8_BACKEND_AMDGPU_BUILTINS),&rns8_destroy_context);
+  const uint16_t moduli[]{251,256,239,255,253,233};IndexedModulusPlanes planes;
+  REQUIRE(partition_modulus_planes(6,moduli,[](uint32_t q,uint32_t){return q==251 || q==239 || q==233;},planes));
+  for(bool asynchronous:{false,true})for(bool long_k:{false,true}) {
+    const int64_t m=long_k?1:3,n=long_k?1:5,k=long_k?65536:17,lda=k+2,ldb=n+3,ldc=n+2;
+    const uint32_t batches=long_k?2:48;const uint64_t count=uint64_t(batches)*planes.eligible_count;
+    std::vector<int8_t> a(size_t(count*m*lda),85),b(size_t(count*k*ldb),85),expected(size_t(count*m*ldc),77);
+    for(uint64_t matrix=0;matrix<count;++matrix) {
+      const int q=planes.moduli[matrix%planes.eligible_count];
+      const auto center=[&](int64_t value){value%=q;return int8_t(value>=(q+1)/2?value-q:value);};
+      for(int64_t row=0;row<m;++row)for(int64_t inner=0;inner<k;++inner)a[size_t((matrix*m+row)*lda+inner)]=center(int64_t(matrix)*19+row*7+inner*13);
+      for(int64_t inner=0;inner<k;++inner)for(int64_t col=0;col<n;++col)b[size_t((matrix*k+inner)*ldb+col)]=center(int64_t(matrix)*17+inner*11+col*23);
+      for(int64_t row=0;row<m;++row)for(int64_t col=0;col<n;++col){cpp_int value=0;
+        for(int64_t inner=0;inner<k;++inner)value+=cpp_int(a[size_t((matrix*m+row)*lda+inner)])*b[size_t((matrix*k+inner)*ldb+col)];
+        value%=q;if(value<0)value+=q;int result=value.convert_to<int>();if(result>=(q+1)/2)result-=q;
+        expected[size_t((matrix*m+row)*ldc+col)]=int8_t(result);
+      }
+    }
+    hip_unique_stream stream;if(asynchronous)REQUIRE(stream.create_non_blocking()==hipSuccess);
+    hip_direct_device_buffer da,db,dc;const int device=ctx->device_id;
+    REQUIRE(da.allocate(device,a.size())==RNS8_SUCCESS);REQUIRE(db.allocate(device,b.size())==RNS8_SUCCESS);REQUIRE(dc.allocate(device,expected.size())==RNS8_SUCCESS);
+    da.mark_pending();db.mark_pending();dc.mark_pending();
+    REQUIRE(hip_direct_copy_host_to_device(device,da.get(),a.data(),a.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(device,db.get(),b.data(),b.size())==RNS8_SUCCESS);
+    const std::vector<int8_t> initial(expected.size(),77);REQUIRE(hip_direct_copy_host_to_device(device,dc.get(),initial.data(),initial.size())==RNS8_SUCCESS);
+    REQUIRE(amdgpu_builtins_gemm_indexed_batch_device(device,da.get(),db.get(),dc.get(),m,n,k,lda,ldb,ldc,planes,batches,stream.get())==RNS8_SUCCESS);
+    if(asynchronous)REQUIRE(hipStreamSynchronize(stream.get())==hipSuccess);
+    da.mark_completed();db.mark_completed();dc.mark_completed();std::vector<int8_t> actual(expected.size());
+    REQUIRE(hip_direct_copy_device_to_host(device,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);CHECK(actual==expected);
+  }
 }
 
 #endif

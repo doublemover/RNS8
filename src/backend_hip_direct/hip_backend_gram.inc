@@ -148,11 +148,7 @@ rns8_status hip_direct_gram_five_product(int device,const void* source,void* out
     auto* destination=products+uint64_t(term)*r.product;
     const auto product=timed_hip_operation("gram_five_compact_products_v2",[&]() {
       if(!matrix)status=hip_direct_enqueue_basis_gemm(device,left,right,destination,p.h,p.h,p.hk,p.planes.moduli,p.planes.eligible_count,stream);
-      else for(uint32_t compact=0;compact<p.planes.eligible_count;++compact) {
-        status=amdgpu_builtins_enqueue_dense(device,left+uint64_t(compact)*p.h*p.hk,right+uint64_t(compact)*p.hk*p.h,
-          destination+uint64_t(compact)*p.h*p.h,p.h,p.h,p.hk,p.hk,p.h,p.h,p.planes.moduli[compact],true,stream);
-        if(status!=RNS8_SUCCESS)break;
-      }
+      else status=amdgpu_builtins_gemm_indexed_batch_device(device,left,right,destination,p.h,p.h,p.hk,p.hk,p.h,p.h,p.planes,1,stream);
       return status==RNS8_SUCCESS?hipSuccess:hipErrorUnknown;
     },ordered);
     if(product!=hipSuccess)return finish(status==RNS8_SUCCESS?RNS8_BACKEND_FAILURE:status);

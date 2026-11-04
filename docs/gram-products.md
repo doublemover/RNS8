@@ -104,8 +104,10 @@ without a scalar substitution. The owner retains one transformed operand pair,
 five compact product buffers and a full-basis output stage under its hard payload
 budget. The budget includes retained host tile jobs and, on HIP, their aligned
 device copy. The info record reports actual regions and executed channel counts.
-Direct-HIP products consume the compact explicit basis in five batched calls;
-matrix products dispatch each admitted prime plane with its actual modulus.
+Direct-HIP and matrix products consume the compact explicit basis in five
+batched calls. Matrix batches share the maintained architecture-specific INT8
+body and receive each compact plane's actual modulus in a separate indexed
+entry point; the default-basis kernel signatures remain unchanged.
 Algebraic product count is five per eligible plane, distinct from launch count.
 
 HIP transforms, products, classical buckets, recombination and final commit use
