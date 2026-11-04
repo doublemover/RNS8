@@ -1061,6 +1061,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     RNS8_TEST_SOURCES
     tests/unit/test_public_abi.cpp
     tests/unit/test_matrix_target.cpp
+    tests/unit/test_generated_address.cpp
     tests/unit/test_integer_split.cpp
     tests/unit/test_hip_handle_owner.cpp
     tests/unit/test_moduli.cpp

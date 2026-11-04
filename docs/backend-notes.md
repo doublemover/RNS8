@@ -21,6 +21,13 @@ admission verifies the compiled launch width. Build separate rocWMMA packages
 for incompatible classes, or disable that optional backend in a mixed direct-HIP
 package. These source checks do not establish qualification on absent devices.
 
+CK and rocWMMA additionally qualify their generated padded pack/output domains
+through shared checked layout derivation. A valid logical matrix can still be
+unsupported by these signed32 adapters when padding expands a physical index
+beyond their admitted domain. Resource queries and launch preparation use the
+same result. Direct-HIP integer exporters derive scalar/quad/scheduled grids
+with wide checked arithmetic and the selected device's grid limits.
+
 | Backend / benchmark name | State and enablement | Arithmetic / constraints | Evidence or implementation owner |
 |---|---|---|---|
 | `cpu-reference` | Available public path | Bounded, exact-wide, finite; independent Boost reference, optional OpenMP | [Correctness](correctness.md), [developer checks](../CONTRIBUTING.md) |

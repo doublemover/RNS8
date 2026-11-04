@@ -113,8 +113,12 @@
       "url": "https://github.com/doublemover/RNS8/issues/24",
       "requirements_sha256": "95fc85acb8fef1185d56eb26d287ddefeeb9e126d5b7e650c86a9dd7b1c60f36",
       "comments_reviewed": 6,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "written_pending_batch_validation",
+      "completed_slices": [
+        "Shared CK and rocWMMA generated pack/output address admission in public resources, provider queries and all ordinary/prepacked/tiled/async layout derivation",
+        "Overflow-free direct-HIP scalar/quad/grouped/scheduled export launch geometry using observed device grid limits",
+        "Allocation-free arbitrary-precision boundary tests and finite export tail/canary smoke authored"
+      ],
       "remaining_source_items": []
     },
     {
@@ -535,7 +539,8 @@
       "comments_reviewed": 0,
       "implementation_status": "written_pending_batch_validation",
       "completed_slices": [
-        "Exact builtin target/body/code-object admission"
+        "Exact builtin target/body/code-object admission",
+        "Operation query rejects unsupported exact target bodies through the same pure predicate"
       ],
       "remaining_source_items": []
     },

@@ -1,3 +1,4 @@
+#include "backend_common/packed_gemm_layout.hpp"
 #include "backend_common/address_domain.hpp"
 #include "backend_common/finite_u8_reducer.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
@@ -176,40 +177,12 @@ bool rocwmma_workspace_requirements(
     std::size_t& a_pack_bytes,
     std::size_t& b_pack_bytes,
     std::size_t& total_bytes) {
-  a_pack_bytes = 0;
-  b_pack_bytes = 0;
-  total_bytes = 0;
-  if (max_m <= 0 || max_n <= 0 || k <= 0) {
-    return false;
-  }
-  constexpr uint64_t kSignedSafeKBlock = 65536;
-  uint64_t k_block = static_cast<uint64_t>(k) < kSignedSafeKBlock ? static_cast<uint64_t>(k) : kSignedSafeKBlock;
-  if (k_block < 16) {
-    k_block = 16;
-  }
-  if (!round_up_aligned_u64(k_block, 16, k_block)) {
-    return false;
-  }
-  uint64_t padded_m = 0;
-  uint64_t padded_n = 0;
-  if (!round_up_aligned_u64(static_cast<uint64_t>(max_m), 16, padded_m) ||
-      !round_up_aligned_u64(static_cast<uint64_t>(max_n), 16, padded_n)) {
-    return false;
-  }
-  uint64_t a_bytes = 0;
-  uint64_t b_bytes = 0;
-  if (!checked_mul_u64(padded_m, k_block, a_bytes) || !checked_mul_u64(k_block, padded_n, b_bytes)) {
-    return false;
-  }
-  if (a_bytes > std::numeric_limits<std::size_t>::max() ||
-      b_bytes > std::numeric_limits<std::size_t>::max() ||
-      a_bytes > std::numeric_limits<uint64_t>::max() - b_bytes ||
-      a_bytes + b_bytes > std::numeric_limits<std::size_t>::max()) {
-    return false;
-  }
-  a_pack_bytes = static_cast<std::size_t>(a_bytes);
-  b_pack_bytes = static_cast<std::size_t>(b_bytes);
-  total_bytes = static_cast<std::size_t>(a_bytes + b_bytes);
+  a_pack_bytes=b_pack_bytes=total_bytes=0;
+  PackedGemmLayout layout;
+  if(max_m<=0 || max_n<=0 || k<=0 || !rocwmma_packed_gemm_layout(max_m,max_n,k,layout))return false;
+  a_pack_bytes=static_cast<std::size_t>(layout.a_bytes);
+  b_pack_bytes=static_cast<std::size_t>(layout.b_bytes);
+  total_bytes=static_cast<std::size_t>(layout.total_bytes);
   return true;
 }
 

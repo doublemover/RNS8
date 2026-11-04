@@ -284,29 +284,9 @@ bool checked_i32_shape(int64_t value) {
   return value > 0 && value <= static_cast<int64_t>(INT32_MAX);
 }
 
-bool checked_mul_u64(uint64_t a, uint64_t b, uint64_t* out) {
-  if (a != 0 && b > UINT64_MAX / a) {
-    return false;
-  }
-  *out = a * b;
-  return true;
-}
 
-bool round_up_aligned_i64(int64_t value, int64_t alignment, int64_t* out) {
-  if (value <= 0 || alignment <= 0) {
-    return false;
-  }
-  const int64_t remainder = value % alignment;
-  if (remainder == 0) {
-    *out = value;
-    return true;
-  }
-  if (value > INT64_MAX - (alignment - remainder)) {
-    return false;
-  }
-  *out = value + (alignment - remainder);
-  return true;
-}
+
+
 
 bool ck_workspace_requirements_u64(
     int64_t max_m,
@@ -315,29 +295,11 @@ bool ck_workspace_requirements_u64(
     uint64_t* a_bytes,
     uint64_t* b_bytes,
     uint64_t* temp_bytes) {
-  if (!checked_i32_shape(max_m) || !checked_i32_shape(max_n) || !checked_i32_shape(k)) {
-    return false;
-  }
-  const uint64_t k_block = static_cast<uint64_t>(k) < static_cast<uint64_t>(kRns8CanonicalSafeInt32KBlock)
-                               ? static_cast<uint64_t>(k)
-                               : static_cast<uint64_t>(kRns8CanonicalSafeInt32KBlock);
-  const uint64_t padded_k_block = k_block < 64 ? 64 : k_block;
-  int64_t padded_m = 0;
-  int64_t padded_n = 0;
-  if (!round_up_aligned_i64(max_m, kRns8CkShapeAlignment, &padded_m) ||
-      !round_up_aligned_i64(max_n, kRns8CkShapeAlignment, &padded_n)) {
-    return false;
-  }
-  if (!checked_mul_u64(static_cast<uint64_t>(padded_m), padded_k_block, a_bytes)) {
-    return false;
-  }
-  if (!checked_mul_u64(padded_k_block, static_cast<uint64_t>(padded_n), b_bytes)) {
-    return false;
-  }
-  if (!checked_mul_u64(static_cast<uint64_t>(padded_m), static_cast<uint64_t>(padded_n), temp_bytes)) {
-    return false;
-  }
-  return *a_bytes <= UINT64_MAX - *b_bytes && *a_bytes + *b_bytes <= UINT64_MAX - *temp_bytes;
+  rns8::detail::PackedGemmLayout layout;
+  if(!a_bytes || !b_bytes || !temp_bytes || max_m<=0 || max_n<=0 || k<=0 || !rns8::detail::ck_packed_gemm_layout(max_m,max_n,k,kRns8CkShapeAlignment,layout))return false;
+  *a_bytes=layout.a_bytes;*b_bytes=layout.b_bytes;
+  *temp_bytes=layout.c_bytes;
+  return true;
 }
 
 __device__ int8_t center_i32_device(int32_t value, int modulus, uint32_t reciprocal) {

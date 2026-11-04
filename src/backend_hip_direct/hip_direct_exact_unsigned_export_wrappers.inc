@@ -347,10 +347,10 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
     int prefix,
     int limb_count,
     int* d_status) {
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (prefix == kRns8ExactWideUnsignedExportPrefix18) {
     return launch_rns8_exact_wide_unsigned_fixed_prefix<kRns8ExactWideUnsignedExportPrefix18>(
         d_residues, d_dst, rows, cols, limb_count, d_status, blocks, quad_blocks, threads);
@@ -367,8 +367,10 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
 extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device_on_stream(
     const int8_t* source,uint64_t* destination,int rows,int cols,int prefix,int limbs,int* status,void* stream) {
   if(!source || !destination || !status || rows<=0 || cols<=0 || prefix<1 || prefix>20 || limbs<1 || limbs>32 ||
-      uint64_t(rows)*cols>uint64_t(INT32_MAX-256))return int(hipErrorInvalidValue);
-  const int elements=rows*cols,threads=256,blocks=(elements+255)/256,quads=((elements+3)/4+255)/256;
+      uint64_t(rows)*cols>uint64_t(INT32_MAX))return int(hipErrorInvalidValue);
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch);if(geometry!=hipSuccess)return int(geometry);
+  const int elements=launch.elements,threads=launch.threads,blocks=launch.blocks,quads=launch.quad_blocks;
   const auto st=static_cast<hipStream_t>(stream);
   if(prefix==kRns8ExactWideUnsignedExportPrefix18)return launch_rns8_exact_wide_unsigned_fixed_prefix<kRns8ExactWideUnsignedExportPrefix18>(
       source,destination,rows,cols,limbs,status,blocks,quads,threads,st);
@@ -386,10 +388,10 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
     int prefix,
     int limb_count,
     int* d_status) {
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (prefix == kRns8ExactWideUnsignedExportPrefix18) {
     return launch_rns8_exact_wide_unsigned_tree_crt_fixed_prefix<kRns8ExactWideUnsignedExportPrefix18>(
         d_residues, d_dst, rows, cols, limb_count, d_status, blocks, quad_blocks, threads);
@@ -413,10 +415,10 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_grouped_limbs_device(
       prefix <= 0 || prefix > kRns8MaxSupportedPrefix || limb_count <= 0 || limb_count > 32) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch,task_count);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (prefix == kRns8ExactWideUnsignedExportPrefix18) {
     return launch_rns8_exact_wide_unsigned_grouped_fixed_prefix<kRns8ExactWideUnsignedExportPrefix18>(
         d_residue_ptrs, d_dst, task_count, rows, cols, limb_count, blocks, quad_blocks, threads);

@@ -59,6 +59,10 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_MODULUS,"finite_modulus","selected provider accepts only its exact finite modulus allow-list");
   if(backend==RNS8_BACKEND_HIPBLASLT && adaptive)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SHAPE,"bound_kind","hipBLASLt provider has no adaptive tile lowering");
   const std::string arch=std::string(ctx.device_info.gcn_arch).substr(0,std::string(ctx.device_info.gcn_arch).find(':'));
+  if(backend==RNS8_BACKEND_AMDGPU_BUILTINS &&
+      rns8::detail::builtin_arch(ctx.device_info.gcn_arch)==rns8::detail::BuiltinArch::unsupported)
+    return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"target",
+        "no implemented builtin arithmetic body for this exact target");
   const bool rdna3=arch=="gfx1100" || arch=="gfx1101" || arch=="gfx1102";
   switch(query.operation) {
     case RNS8_OP_GEMM:case RNS8_OP_PREPARED_GROUP:
@@ -170,6 +174,14 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_ADDRESS,"strides","complete padded host address domain overflows");
   if(!checked_export && query.operation!=RNS8_OP_GRAM && query.operation!=RNS8_OP_STRASSEN && !cpu && !amx && !host_transfer && backend!=RNS8_BACKEND_WRAP64_BYTE_LIMB && !rns8::detail::qualified_i32_gemm_address(d.m,d.n,d.k,lda,ldb,ldc,planes))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_ADDRESS,"strides","complete padded device span exceeds this provider's signed32 index domain");
+  if(backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA) {
+    rns8::detail::PackedGemmLayout generated;
+    const bool fits=backend==RNS8_BACKEND_CK
+        ? rns8::detail::ck_packed_gemm_layout(d.m,d.n,d.k,RNS8_CK_SHAPE_ALIGNMENT,generated)
+        : rns8::detail::rocwmma_packed_gemm_layout(d.m,d.n,d.k,generated);
+    if(!fits)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_ADDRESS,"generated_layout",
+        "backend padded pack/output domains exceed the compiled signed32 lowering");
+  }
   if(checked_export && (query.ldb || lda!=d.n || !valid_matrix_access(d.m,d.n,lda,1) ||
       !valid_limb_export_access(d.m,d.n,ldc,query.output_limbs?query.output_limbs:3)))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_ADDRESS,"matrix_export_layout","checked CRT requires tight resident source planes, no B stride, and a valid padded limb destination");

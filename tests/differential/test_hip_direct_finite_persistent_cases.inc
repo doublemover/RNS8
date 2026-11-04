@@ -654,3 +654,23 @@ TEST_CASE("public skinny RNS metadata agrees with launch family across minimal a
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("finite exports cover scalar quad and block tails with logical padding canaries") {
+  if(!hip_available())SKIP("HIP device required for export geometry");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(uint16_t q:{251,255,256})for(int64_t cols:{1,3,4,255,256,257,258}) {
+    auto desc=finite_desc(1,cols,1,RNS8_FINITE_RING_U8,RNS8_BACKEND_HIP_DIRECT,q);
+    rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+    auto md=matrix_desc(1,cols,RNS8_FINITE_RING_U8,RNS8_BOUND_NONE);
+    rns8_matrix* c=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&c)==RNS8_SUCCESS);
+    std::vector<uint8_t> input(static_cast<std::size_t>(cols));
+    std::vector<uint8_t> out(static_cast<std::size_t>(cols+3),0xa5);
+    for(int64_t col=0;col<cols;++col)input[size_t(col)]=uint8_t(37*col+255);
+    REQUIRE(rns8_pack_finite_u8(ctx,c,q,input.data(),cols,0)==RNS8_SUCCESS);
+    REQUIRE(rns8_export_finite_u8(ctx,plan,q,c,out.data(),cols+3)==RNS8_SUCCESS);
+    for(int64_t col=0;col<cols;++col)CHECK(out[size_t(col)]==uint32_t(input[size_t(col)])%q);
+    for(int64_t col=cols;col<cols+3;++col)CHECK(out[size_t(col)]==0xa5);
+    REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

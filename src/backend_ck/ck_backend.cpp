@@ -1,3 +1,4 @@
+#include "backend_common/packed_gemm_layout.hpp"
 #include "backend_common/address_domain.hpp"
 #include "backend_common/finite_u8_reducer.hpp"
 #include "backend_ck/ck_backend.hpp"
@@ -104,52 +105,14 @@ bool ck_workspace_requirements(
     std::size_t& b_pack_bytes,
     std::size_t& temp_c_bytes,
     std::size_t& total_bytes) {
-  a_pack_bytes = 0;
-  b_pack_bytes = 0;
-  temp_c_bytes = 0;
-  total_bytes = 0;
-  if (max_m <= 0 || max_n <= 0 || k <= 0) {
-    return false;
-  }
-  constexpr uint64_t kCanonicalSafeKBlock = 32768;
-  uint64_t k_block = static_cast<uint64_t>(k) < kCanonicalSafeKBlock
-                         ? static_cast<uint64_t>(k)
-                         : kCanonicalSafeKBlock;
-  if (k_block < 64) {
-    k_block = 64;
-  }
-  uint64_t padded_m = 0;
-  uint64_t padded_n = 0;
-  if (!round_up_aligned_u64(static_cast<uint64_t>(max_m), kCkShapeAlignment, padded_m) ||
-      !round_up_aligned_u64(static_cast<uint64_t>(max_n), kCkShapeAlignment, padded_n)) {
-    return false;
-  }
-  uint64_t a_bytes = 0;
-  if (!checked_mul_u64(padded_m, k_block, a_bytes)) {
-    return false;
-  }
-  uint64_t b_bytes = 0;
-  if (!checked_mul_u64(k_block, padded_n, b_bytes)) {
-    return false;
-  }
-  uint64_t c_elements = 0;
-  uint64_t c_bytes = 0;
-  if (!checked_mul_u64(padded_m, padded_n, c_elements)) {
-    return false;
-  }
-  c_bytes = c_elements;
-  if (a_bytes > std::numeric_limits<std::size_t>::max() ||
-      b_bytes > std::numeric_limits<std::size_t>::max() ||
-      c_bytes > std::numeric_limits<std::size_t>::max() ||
-      a_bytes > std::numeric_limits<uint64_t>::max() - b_bytes ||
-      a_bytes + b_bytes > std::numeric_limits<uint64_t>::max() - c_bytes ||
-      a_bytes + b_bytes + c_bytes > std::numeric_limits<std::size_t>::max()) {
-    return false;
-  }
-  a_pack_bytes = static_cast<std::size_t>(a_bytes);
-  b_pack_bytes = static_cast<std::size_t>(b_bytes);
-  temp_c_bytes = static_cast<std::size_t>(c_bytes);
-  total_bytes = static_cast<std::size_t>(a_bytes + b_bytes + c_bytes);
+  a_pack_bytes=b_pack_bytes=total_bytes=0;
+  temp_c_bytes=0;
+  PackedGemmLayout layout;
+  if(max_m<=0 || max_n<=0 || k<=0 || !ck_packed_gemm_layout(max_m,max_n,k,kCkShapeAlignment,layout))return false;
+  a_pack_bytes=static_cast<std::size_t>(layout.a_bytes);
+  b_pack_bytes=static_cast<std::size_t>(layout.b_bytes);
+  temp_c_bytes=static_cast<std::size_t>(layout.c_bytes);
+  total_bytes=static_cast<std::size_t>(layout.total_bytes);
   return true;
 }
 

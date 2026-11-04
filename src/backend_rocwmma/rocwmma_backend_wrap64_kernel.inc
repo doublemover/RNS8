@@ -157,25 +157,15 @@ int launch_pack_and_gemm(
   const char* pack_a_alias = have_prefix_label ? "rocwmma_pack_a_kernel" : nullptr;
   const char* pack_b_alias = have_prefix_label ? "rocwmma_pack_b_kernel" : nullptr;
   const char* matmul_alias = have_prefix_label ? "rocwmma_matmul_kernel" : nullptr;
-  int64_t padded_rows64 = 0;
-  int64_t padded_cols64 = 0;
-  if (!round_up_aligned_i64(rows, kRns8WmmaTileM, &padded_rows64) ||
-      !round_up_aligned_i64(cols, kRns8WmmaTileN, &padded_cols64)) {
-    return rocwmma_range_error;
-  }
-  const int padded_rows = static_cast<int>(padded_rows64);
-  const int padded_cols = static_cast<int>(padded_cols64);
+  rns8::detail::PackedGemmLayout layout;
+  if(!rns8::detail::rocwmma_packed_gemm_layout(rows,cols,k,layout))return rocwmma_range_error;
+  const int padded_rows=static_cast<int>(layout.rows),padded_cols=static_cast<int>(layout.cols);
   int accumulate = 0;
   for (int k_offset = 0; k_offset < k; k_offset += safe_k_block) {
     int valid_k_block = k - k_offset < safe_k_block ? k - k_offset : safe_k_block;
-    int64_t gemm_k_block64 = valid_k_block;
-    if (gemm_k_block64 < kRns8WmmaTileK) {
-      gemm_k_block64 = kRns8WmmaTileK;
-    }
-    if (!round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
-      return rocwmma_range_error;
-    }
-    const int gemm_k_block = static_cast<int>(gemm_k_block64);
+    rns8::detail::PackedGemmLayout slab;
+    if(!rns8::detail::rocwmma_packed_gemm_layout(rows,cols,valid_k_block,slab))return rocwmma_range_error;
+    const int gemm_k_block=static_cast<int>(slab.k);
     const dim3 pack_block(16, 16, 1);
     const dim3 pack_a_grid(
         static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
@@ -326,14 +316,9 @@ int prepack_b_rns_prefix(
   if (!b_prepack || b_prepack_bytes < static_cast<uint64_t>(prefix) * b_bytes) {
     return rocwmma_invalid_argument;
   }
-  int64_t padded_n64 = 0;
-  int64_t gemm_k_block64 = k < kRns8WmmaTileK ? kRns8WmmaTileK : k;
-  if (!round_up_aligned_i64(n, kRns8WmmaTileN, &padded_n64) ||
-      !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
-    return rocwmma_range_error;
-  }
-  const int padded_n = static_cast<int>(padded_n64);
-  const int gemm_k_block = static_cast<int>(gemm_k_block64);
+  rns8::detail::PackedGemmLayout layout;
+  if(!rns8::detail::rocwmma_packed_gemm_layout(16,n,k,layout))return rocwmma_range_error;
+  const int padded_n=static_cast<int>(layout.cols),gemm_k_block=static_cast<int>(layout.k);
   const dim3 pack_block(16, 16, 1);
   const dim3 pack_b_grid(
       static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
@@ -372,14 +357,9 @@ int prepack_b_native_rns_prefix(
   if (!b || !b_prepack || b_prepack_bytes < static_cast<uint64_t>(prefix) * b_bytes) {
     return rocwmma_invalid_argument;
   }
-  int64_t padded_n64 = 0;
-  int64_t gemm_k_block64 = k < kRns8WmmaTileK ? kRns8WmmaTileK : k;
-  if (!round_up_aligned_i64(n, kRns8WmmaTileN, &padded_n64) ||
-      !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
-    return rocwmma_range_error;
-  }
-  const int padded_n = static_cast<int>(padded_n64);
-  const int gemm_k_block = static_cast<int>(gemm_k_block64);
+  rns8::detail::PackedGemmLayout layout;
+  if(!rns8::detail::rocwmma_packed_gemm_layout(16,n,k,layout))return rocwmma_range_error;
+  const int padded_n=static_cast<int>(layout.cols),gemm_k_block=static_cast<int>(layout.k);
   const dim3 pack_block(16, 16, 1);
   const dim3 pack_b_grid(
       static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
@@ -423,17 +403,9 @@ int launch_pack_a_and_gemm_prepacked_b(
   if (k <= 0 || k > kRns8SignedSafeInt32KBlock) {
     return rocwmma_invalid_argument;
   }
-  int64_t padded_rows64 = 0;
-  int64_t padded_cols64 = 0;
-  int64_t gemm_k_block64 = k < kRns8WmmaTileK ? kRns8WmmaTileK : k;
-  if (!round_up_aligned_i64(rows, kRns8WmmaTileM, &padded_rows64) ||
-      !round_up_aligned_i64(cols, kRns8WmmaTileN, &padded_cols64) ||
-      !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
-    return rocwmma_range_error;
-  }
-  const int padded_rows = static_cast<int>(padded_rows64);
-  const int padded_cols = static_cast<int>(padded_cols64);
-  const int gemm_k_block = static_cast<int>(gemm_k_block64);
+  rns8::detail::PackedGemmLayout layout;
+  if(!rns8::detail::rocwmma_packed_gemm_layout(rows,cols,k,layout))return rocwmma_range_error;
+  const int padded_rows=static_cast<int>(layout.rows),padded_cols=static_cast<int>(layout.cols),gemm_k_block=static_cast<int>(layout.k);
   const dim3 pack_block(16, 16, 1);
   const dim3 pack_a_grid(
       static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),

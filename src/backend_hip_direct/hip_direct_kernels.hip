@@ -5,6 +5,7 @@
 #include "rns8/rns8.h"
 
 #include <cstdint>
+#include "../backend_common/export_launch.hpp"
 #include <type_traits>
 #include "../backend_common/garner_constants.hpp"
 #include "../backend_common/basis_word_arithmetic.hpp"
@@ -38,6 +39,23 @@
 #include "../backend_common/distributed_device.hpp"
 
 namespace {
+
+hipError_t prepare_export_launch(int rows,int cols,rns8::detail::ExportLaunch& out,int groups=1) {
+  if(rows<=0 || cols<=0 || groups<=0)return hipErrorInvalidValue;
+  int device=-1;
+  auto error=hipGetDevice(&device);if(error!=hipSuccess)return error;
+  struct Geometry {int device=-1;uint64_t max_x=0,max_y=0;};
+  static thread_local Geometry geometry;
+  if(geometry.device!=device) {
+    hipDeviceProp_t prop{};error=hipGetDeviceProperties(&prop,device);
+    if(error!=hipSuccess)return error;
+    if(prop.maxGridSize[0]<=0 || prop.maxGridSize[1]<=0 || prop.maxThreadsPerBlock<256 || prop.maxThreadsDim[0]<256)return hipErrorInvalidConfiguration;
+    geometry={device,uint64_t(prop.maxGridSize[0]),uint64_t(prop.maxGridSize[1])};
+  }
+  if(uint64_t(groups)>geometry.max_y)return hipErrorInvalidConfiguration;
+  return rns8::detail::checked_export_launch(rows,cols,geometry.max_x,out)?hipSuccess:hipErrorInvalidValue;
+}
+
 
 
 

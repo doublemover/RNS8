@@ -10,10 +10,10 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device_on_stream(
     return static_cast<int>(hipErrorInvalidValue);
   }
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (modulus == 256) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<256>),
@@ -92,10 +92,10 @@ extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
   if (!d_residue_ptrs || !d_dst || task_count <= 0 || rows <= 0 || cols <= 0 || modulus < 2 || modulus > 256) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const int blocks = static_cast<int>((total + threads - 1) / threads);
-  const int quad_blocks = static_cast<int>(((total + 3) / 4 + threads - 1) / threads);
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch,task_count);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (modulus == 256) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<256>),
@@ -163,10 +163,10 @@ extern "C" int rns8_hip_direct_export_i64_device_on_stream(
     int* d_status,
     void* stream) {
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
@@ -236,10 +236,10 @@ extern "C" int rns8_hip_direct_export_i64_grouped_device(
       prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch,task_count);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
@@ -303,12 +303,12 @@ extern "C" int rns8_hip_direct_export_i64_scheduled_device(
       max_tile_elements <= 0 || rows <= 0 || cols <= 0) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int blocks = (max_tile_elements + threads - 1) / threads;
-  if (entry_count > kRns8MaxInt / blocks) {
-    return static_cast<int>(hipErrorInvalidValue);
-  }
-  const int total_blocks = entry_count * blocks;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(1,max_tile_elements,launch);
+  if(geometry!=hipSuccess || uint64_t(rows)*uint64_t(cols)>uint64_t(INT32_MAX))return int(hipErrorInvalidValue);
+  const int threads=launch.threads,blocks=launch.blocks;
+  int total_blocks=0;
+  if(!rns8::detail::checked_export_schedule(entry_count,launch,total_blocks))return int(hipErrorInvalidValue);
   hipLaunchKernelGGL(
       rns8_export_i64_scheduled_kernel,
       dim3(total_blocks),
@@ -339,10 +339,10 @@ extern "C" int rns8_hip_direct_export_u64_device_on_stream(
     int* d_status,
     void* stream) {
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
@@ -412,10 +412,10 @@ extern "C" int rns8_hip_direct_export_u64_grouped_device(
       prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(rows,cols,launch,task_count);
+  if(geometry!=hipSuccess)return static_cast<int>(geometry);
+  const int threads=launch.threads,elements=launch.elements,blocks=launch.blocks,quad_blocks=launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
@@ -479,12 +479,12 @@ extern "C" int rns8_hip_direct_export_u64_scheduled_device(
       max_tile_elements <= 0 || rows <= 0 || cols <= 0) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int blocks = (max_tile_elements + threads - 1) / threads;
-  if (entry_count > kRns8MaxInt / blocks) {
-    return static_cast<int>(hipErrorInvalidValue);
-  }
-  const int total_blocks = entry_count * blocks;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry=prepare_export_launch(1,max_tile_elements,launch);
+  if(geometry!=hipSuccess || uint64_t(rows)*uint64_t(cols)>uint64_t(INT32_MAX))return int(hipErrorInvalidValue);
+  const int threads=launch.threads,blocks=launch.blocks;
+  int total_blocks=0;
+  if(!rns8::detail::checked_export_schedule(entry_count,launch,total_blocks))return int(hipErrorInvalidValue);
   hipLaunchKernelGGL(
       rns8_export_u64_scheduled_kernel,
       dim3(total_blocks),

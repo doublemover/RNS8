@@ -1,3 +1,4 @@
+#include "../backend_common/packed_gemm_layout.hpp"
 #include "../core/hip_runtime_handles.hpp"
 
 #include <chrono>

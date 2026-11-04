@@ -216,15 +216,9 @@ int run_ck_tile_modulus_impl(
   const char* copy_alias = have_prefix_label ? "ck_copy_centered_kernel" : nullptr;
   const char* add_alias = have_prefix_label ? "ck_add_centered_kernel" : nullptr;
   bool have_accumulated = false;
-  int64_t padded_m_i64 = 0;
-  int64_t padded_n_i64 = 0;
-  if (!round_up_aligned_i64(m, kRns8CkShapeAlignment, &padded_m_i64) ||
-      !round_up_aligned_i64(n, kRns8CkShapeAlignment, &padded_n_i64) ||
-      !checked_i32_shape(padded_m_i64) || !checked_i32_shape(padded_n_i64) || !temp_c) {
-    return ck_invalid_argument;
-  }
-  const int gemm_m = static_cast<int>(padded_m_i64);
-  const int gemm_n = static_cast<int>(padded_n_i64);
+  rns8::detail::PackedGemmLayout layout;
+  if(!temp_c || !rns8::detail::ck_packed_gemm_layout(m,n,k,kRns8CkShapeAlignment,layout))return ck_range_error;
+  const int gemm_m=static_cast<int>(layout.rows),gemm_n=static_cast<int>(layout.cols);
   const bool padded_output = gemm_m != m || gemm_n != n;
   for (int64_t k_offset = 0; k_offset < k; k_offset += kRns8CanonicalSafeInt32KBlock) {
     const int valid_k_block = static_cast<int>(
@@ -232,20 +226,6 @@ int run_ck_tile_modulus_impl(
             ? (static_cast<int64_t>(k) - k_offset)
             : kRns8CanonicalSafeInt32KBlock);
     const int gemm_k_block = valid_k_block < 64 ? 64 : valid_k_block;
-    hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
-      return launch_pack_a(
-          a, a_workspace, m, gemm_m, valid_k_block, gemm_k_block, lda, static_cast<int>(k_offset), modulus,stream);
-    },stream);
-    if (err != hipSuccess) {
-      return ck_backend_failure;
-    }
-    err = timed_hip_launch(pack_b_timing_label, pack_b_alias, [&]() {
-      return launch_pack_b(
-          b, b_workspace, valid_k_block, gemm_k_block, n, gemm_n, ldb, static_cast<int>(k_offset), modulus,stream);
-    },stream);
-    if (err != hipSuccess) {
-      return ck_backend_failure;
-    }
     const bool write_workspace_output = padded_output || have_accumulated;
     int8_t* output = write_workspace_output ? temp_c : c;
     const int output_ld = write_workspace_output ? gemm_n : ldc;
@@ -265,6 +245,20 @@ int run_ck_tile_modulus_impl(
         epilogue);
     if (!GemmInstance::IsSupportedArgument(arg)) {
       return ck_unsupported_backend;
+    }
+    hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
+      return launch_pack_a(
+          a, a_workspace, m, gemm_m, valid_k_block, gemm_k_block, lda, static_cast<int>(k_offset), modulus,stream);
+    },stream);
+    if (err != hipSuccess) {
+      return ck_backend_failure;
+    }
+    err = timed_hip_launch(pack_b_timing_label, pack_b_alias, [&]() {
+      return launch_pack_b(
+          b, b_workspace, valid_k_block, gemm_k_block, n, gemm_n, ldb, static_cast<int>(k_offset), modulus,stream);
+    },stream);
+    if (err != hipSuccess) {
+      return ck_backend_failure;
     }
     const int matmul_status = timed_ck_operation(matmul_timing_label, matmul_alias, [&]() {
       try {
