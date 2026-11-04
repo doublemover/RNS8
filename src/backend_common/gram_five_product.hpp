@@ -1,5 +1,6 @@
 #pragma once
 #include "gram_plan.hpp"
+#include "indexed_modulus_planes.hpp"
 #include <algorithm>
 #if defined(__HIPCC__)
 #define RNS8_GRAM5_HD __host__ __device__
@@ -13,12 +14,14 @@ constexpr bool gram_five_prime(uint32_t q) {
   return true;
 }
 struct GramFivePacket {
+  IndexedModulusPlanes planes;
   uint32_t prefix=0;uint16_t moduli[20]{},a[20]{},b[20]{};uint8_t certified[20]{};
   int64_t n=0,k=0,h=0,hk=0,rows=0,ld=0;bool transpose=false;
 };
 struct GramFiveResources {
   rns8_status status=RNS8_INVALID_ARGUMENT;GramFivePacket packet;
   uint64_t panel=0,product=0,output=0,products_offset=0,output_offset=0,total=0;
+  uint64_t jobs_offset=0,job_bytes=0,host_job_bytes=0,retained_bytes=0;
 };
 inline GramFiveResources query_gram_five_product(const GramProblem& p,const uint16_t* basis,uint64_t budget,bool gpu,bool matrix) {
   GramFiveResources r;const auto support=query_gram_support(p,UINT64_MAX,gpu,false);
@@ -39,16 +42,27 @@ inline GramFiveResources query_gram_five_product(const GramProblem& p,const uint
     if(!found)return r;
   }
   if(!count || (matrix && (!gpu || (p.modulus && p.modulus!=251)))){r.status=RNS8_UNSUPPORTED_BACKEND;return r;}
+  if(!partition_modulus_planes(p.prefix,v.moduli,[&](uint32_t,uint32_t plane){return v.certified[plane]!=0;},v.planes))return r;
   AddressDomain panel,product,output;
-  if(!checked_host_plane_address(v.h,v.hk,v.hk,p.prefix,1,panel) ||
-      !checked_host_plane_address(v.h,v.h,v.h,p.prefix,1,product) ||
+  if(!checked_host_plane_address(v.h,v.hk,v.hk,v.planes.eligible_count,1,panel) ||
+      !checked_host_plane_address(v.h,v.h,v.h,v.planes.eligible_count,1,product) ||
       !checked_host_plane_address(v.n,v.n,v.n,p.prefix,1,output)){r.status=RNS8_RANGE_ERROR;return r;}
-  if(gpu && (!qualified_i32_gemm_address(v.h,v.h,v.hk,v.hk,v.h,v.h,p.prefix) ||
+  if(gpu && (!qualified_i32_gemm_address(v.h,v.h,v.hk,v.hk,v.h,v.h,v.planes.eligible_count) ||
       (matrix && v.hk>65536))){r.status=RNS8_UNSUPPORTED_BACKEND;return r;}
   const auto limit=uint64_t(PTRDIFF_MAX);r.panel=panel.byte_extent;r.product=product.byte_extent;r.output=output.byte_extent;
   if(r.panel>limit/2 || r.product>(limit-2*r.panel)/5 || r.output>limit-2*r.panel-5*r.product){r.status=RNS8_RANGE_ERROR;return r;}
   r.products_offset=2*r.panel;r.output_offset=2*r.panel+5*r.product;r.total=r.output_offset+r.output;
-  r.status=r.total>budget?RNS8_WORKSPACE_TOO_SMALL:RNS8_SUCCESS;return r;
+  if(v.planes.fallback_count) {
+    r.host_job_bytes=support.job_bytes;
+    if(gpu) {
+      const uint64_t padding=(alignof(GramTile)-r.total%alignof(GramTile))%alignof(GramTile);
+      if(padding>limit-r.total || support.job_bytes>limit-r.total-padding){r.status=RNS8_RANGE_ERROR;return r;}
+      r.jobs_offset=r.total+padding;r.job_bytes=support.job_bytes;r.total=r.jobs_offset+r.job_bytes;
+    }
+  }
+  if(r.host_job_bytes>limit-r.total){r.status=RNS8_RANGE_ERROR;return r;}
+  r.retained_bytes=r.total+r.host_job_bytes;
+  r.status=r.retained_bytes>budget?RNS8_WORKSPACE_TOO_SMALL:RNS8_SUCCESS;return r;
 }
 RNS8_GRAM5_HD inline int gram_five_center(int value,int q) {
   value%=q;if(value<0)value+=q;return value>=(q+1)/2?value-q:value;
@@ -76,7 +90,7 @@ RNS8_GRAM5_HD inline int8_t gram_five_transform_value(const int8_t* x,const Gram
   return int8_t(term==2?(left?a22:gram_five_center(s3+a12,q)):term==3?(left?s1:s2):s3);
 }
 RNS8_GRAM5_HD inline int gram_five_product_at(const int8_t* products,const GramFivePacket& p,uint32_t plane,int term,int64_t row,int64_t col) {
-  return products[(int64_t(term)*p.prefix+plane)*p.h*p.h+row*p.h+col];
+  return products[(int64_t(term)*p.planes.eligible_count+p.planes.compact_index[plane])*p.h*p.h+row*p.h+col];
 }
 RNS8_GRAM5_HD inline int8_t gram_five_combine_value(const int8_t* products,const GramFivePacket& p,uint32_t plane,int64_t row,int64_t col) {
   const bool top=row<p.h,left=col<p.h;
@@ -90,25 +104,30 @@ RNS8_GRAM5_HD inline int8_t gram_five_combine_value(const int8_t* products,const
   }
   return int8_t(gram_five_center(result,p.moduli[plane]));
 }
-inline void gram_five_product_cpu(const int8_t* source,int8_t* scratch,const GramFiveResources& r) {
+inline void gram_five_product_cpu(const int8_t* source,int8_t* scratch,const GramFiveResources& r,const std::vector<GramTile>& jobs) {
   const auto& p=r.packet;auto* left=scratch;auto* right=scratch+r.panel;
   auto* products=scratch+r.products_offset;auto* stage=scratch+r.output_offset;
   for(int term=0;term<5;++term) {
-    for(uint32_t plane=0;plane<p.prefix;++plane)for(int64_t row=0;row<p.h;++row)for(int64_t col=0;col<p.hk;++col) {
-      left[(int64_t(plane)*p.h+row)*p.hk+col]=gram_five_transform_value(source,p,plane,term,true,row,col);
-      right[(int64_t(plane)*p.hk+col)*p.h+row]=gram_five_transform_value(source,p,plane,term,false,row,col);
+    for(uint32_t compact=0;compact<p.planes.eligible_count;++compact)for(int64_t row=0;row<p.h;++row)for(int64_t col=0;col<p.hk;++col) {
+      const auto plane=p.planes.eligible[compact];
+      left[(int64_t(compact)*p.h+row)*p.hk+col]=gram_five_transform_value(source,p,plane,term,true,row,col);
+      right[(int64_t(compact)*p.hk+col)*p.h+row]=gram_five_transform_value(source,p,plane,term,false,row,col);
     }
-    for(uint32_t plane=0;plane<p.prefix;++plane)for(int64_t row=0;row<p.h;++row)for(int64_t col=0;col<p.h;++col) {
-      int sum=0;for(int64_t k=0;k<p.hk;++k)sum=(sum+int(left[(int64_t(plane)*p.h+row)*p.hk+k])*right[(int64_t(plane)*p.hk+k)*p.h+col])%p.moduli[plane];
-      products[(int64_t(term)*p.prefix+plane)*p.h*p.h+row*p.h+col]=int8_t(gram_five_center(sum,p.moduli[plane]));
+    for(uint32_t compact=0;compact<p.planes.eligible_count;++compact)for(int64_t row=0;row<p.h;++row)for(int64_t col=0;col<p.h;++col) {
+      const int modulus=p.planes.moduli[compact];
+      int sum=0;for(int64_t k=0;k<p.hk;++k)sum=(sum+int(left[(int64_t(compact)*p.h+row)*p.hk+k])*right[(int64_t(compact)*p.hk+k)*p.h+col])%modulus;
+      products[(int64_t(term)*p.planes.eligible_count+compact)*p.h*p.h+row*p.h+col]=int8_t(gram_five_center(sum,modulus));
     }
   }
   for(uint32_t plane=0;plane<p.prefix;++plane)for(int64_t row=0;row<p.n;++row)for(int64_t col=0;col<p.n;++col) {
     if(p.certified[plane])stage[(int64_t(plane)*p.n+row)*p.n+col]=gram_five_combine_value(products,p,plane,row,col);
-    else if(row<=col) {
-      int sum=0;for(int64_t k=0;k<p.k;++k)sum=(sum+gram_five_load(source,p,plane,row,k)*gram_five_load(source,p,plane,col,k))%p.moduli[plane];
-      const auto value=int8_t(gram_five_center(sum,p.moduli[plane]));stage[(int64_t(plane)*p.n+row)*p.n+col]=value;stage[(int64_t(plane)*p.n+col)*p.n+row]=value;
-    }
+  }
+  GramProblem classical;classical.rows=p.rows;classical.cols=p.transpose?p.n:p.k;classical.source_ld=p.ld;classical.output_ld=p.n;
+  classical.orientation=p.transpose?GramOrientation::transpose_times_self:GramOrientation::self_times_transpose;
+  classical.semantics=RNS8_FINITE_RING_U8;classical.prefix=1;
+  for(uint32_t index=0;index<p.planes.fallback_count;++index) {
+    const auto plane=p.planes.fallback[index];classical.modulus=p.moduli[plane];
+    gram_residues_cpu(source+int64_t(plane)*p.rows*p.ld,stage+int64_t(plane)*p.n*p.n,classical,jobs,p.moduli);
   }
 }
 }

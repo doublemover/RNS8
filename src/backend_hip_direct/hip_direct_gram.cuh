@@ -60,16 +60,26 @@ __global__ void rns8_gram_kernel(const int8_t* x,int8_t* c,const rns8::detail::G
 #endif
   }
 }
-extern "C" int rns8_hip_gram(const int8_t* x,int8_t* c,const rns8::detail::GramTile* jobs,
-    int count,int rows,int cols,int ld,int ldc,int prefix,int modulus,int transposed,int wmma,int separate_mirror) {
+static int rns8_launch_gram(const int8_t* x,int8_t* c,const rns8::detail::GramTile* jobs,
+    int count,int rows,int cols,int ld,int ldc,int prefix,int modulus,int transposed,int wmma,int separate_mirror,hipStream_t stream) {
   const dim3 grid(count,prefix);
-  if(wmma) hipLaunchKernelGGL((rns8_gram_kernel<true>),grid,dim3(32),0,nullptr,
+  if(wmma) hipLaunchKernelGGL((rns8_gram_kernel<true>),grid,dim3(32),0,stream,
       x,c,jobs,rows,cols,ld,ldc,modulus,transposed!=0,separate_mirror!=0);
-  else hipLaunchKernelGGL((rns8_gram_kernel<false>),grid,dim3(256),0,nullptr,
+  else hipLaunchKernelGGL((rns8_gram_kernel<false>),grid,dim3(256),0,stream,
       x,c,jobs,rows,cols,ld,ldc,modulus,transposed!=0,separate_mirror!=0);
-  auto status=hipGetLastError();if(status==hipSuccess && separate_mirror){hipLaunchKernelGGL(rns8_gram_mirror_kernel,grid,dim3(256),0,nullptr,c,jobs,transposed?cols:rows,ldc);status=hipGetLastError();}
+  auto status=hipGetLastError();if(status==hipSuccess && separate_mirror){hipLaunchKernelGGL(rns8_gram_mirror_kernel,grid,dim3(256),0,stream,c,jobs,transposed?cols:rows,ldc);status=hipGetLastError();}
   return int(status);
 }
+extern "C" int rns8_hip_gram(const int8_t* x,int8_t* c,const rns8::detail::GramTile* jobs,
+    int count,int rows,int cols,int ld,int ldc,int prefix,int modulus,int transposed,int wmma,int separate_mirror) {
+  return rns8_launch_gram(x,c,jobs,count,rows,cols,ld,ldc,prefix,modulus,transposed,wmma,separate_mirror,nullptr);
+}
+extern "C" int rns8_hip_gram_on_stream(const int8_t* x,int8_t* c,const rns8::detail::GramTile* jobs,
+    int count,int rows,int cols,int ld,int ldc,int prefix,int modulus,int transposed,int wmma,int separate_mirror,void* stream) {
+  if(!stream)return int(hipErrorInvalidValue);
+  return rns8_launch_gram(x,c,jobs,count,rows,cols,ld,ldc,prefix,modulus,transposed,wmma,separate_mirror,static_cast<hipStream_t>(stream));
+}
+
 
 #if (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)) && __has_builtin(__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32)
 #define RNS8_GRAM_NATIVE_WMMA 1

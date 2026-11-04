@@ -272,8 +272,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/42",
       "requirements_sha256": "ad4cab3e1eaa6166c408560a237ae0290fa6637b103a120304d7ee1cb5fda88f",
       "comments_reviewed": 3,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Prime-channel five-product Gram transforms, explicit-basis or matrix products, maintained classical bucket, recombine and final commit share one retained stream with terminal completion; timing helper accepts actual stream"
+      ],
       "remaining_source_items": []
     },
     {
@@ -301,7 +303,8 @@
         "Every aggregate release position, construction unwind, public failed-import retirement, native HIP checkpoint and context cleanup retry has authored coverage; CPU and enabled-HIP syntax checks passed, runtime execution deferred",
         "Retained prepared/native-group/resident captures and caller-composed executables retain typed graph owners after capture publication; raw handles are non-owning dispatch aliases",
         "Integrity/native-group streams, native-device transfer and experimental-basis GEMM streams, and native producer-readiness events use the shared retry owners; explicit closes preserve aliases on failure",
-        "Shared host capture replacement/unwind cases and five prepared transfer stream rows authored; enabled HIP graph/native/process-owner syntax checked without runtime execution"
+        "Shared host capture replacement/unwind cases and five prepared transfer stream rows authored; enabled HIP graph/native/process-owner syntax checked without runtime execution",
+        "Prepared Gram arena uses typed pending device ownership and retained five-product stream; cleanup becomes irreversible and construction unwind can retire resources safely"
       ],
       "remaining_source_items": [
         "Finish public-dispatch fault-seam coverage for GPU-only sparse/prepacked/incremental paths and audit remaining specialized synchronous writer inventory"
@@ -348,8 +351,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/48",
       "requirements_sha256": "9d0373055680c30ae51f2910ef842f7f900a00b71791a10d5a539929584db01a",
       "comments_reviewed": 3,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Shared compact indexed-plane adapter authored and integrated in prime-channel Gram; odd-channel rank48 resource/kernel integration remains next"
+      ],
       "remaining_source_items": []
     },
     {
@@ -497,9 +502,17 @@
       "url": "https://github.com/doublemover/RNS8/issues/63",
       "requirements_sha256": "d4241680c3a47755cad29223a602315ec7c42a54828f3080589d98b737cbae64",
       "comments_reviewed": 1,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Shared indexed channel partition binds compact positions to original logical plane IDs and actual moduli; Gram panels/products exclude all composite channels",
+        "CPU and HIP composite buckets reuse maintained tiled triangular Gram/mirror producers; empty eligible sets reject before algebraic allocation",
+        "Prepared HIP five-product stages and commit use one retained stream, stream-correct timing events and terminal completion; hard payload budget includes host/device tile jobs and actual compact capacities",
+        "Prepared Gram arena/stream ownership is retry-safe through failed preparation, active work and irreversible cleanup; matrix candidates probe real target/body support before owner publication",
+        "Authored prefixes1-20, prefix4 single-prime, reordered basis, omitted-storage canaries, exact Boost and region-count controls; CPU/MSVC HIP-host/gfx1100 device syntax passed, runtime deferred"
+      ],
+      "remaining_source_items": [
+        "Reconcile and integrate compact five-product candidates with existing workload/Gram calibration controls and physical work reporting"
+      ]
     },
     {
       "issue": 64,

@@ -111,16 +111,17 @@ rns8_status hip_direct_gram_export_once(int device_id,const void* residues,void*
 #endif
 }
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_gram_five_transform(const int8_t*,int8_t*,int8_t*,GramFivePacket,int);
-extern "C" int rns8_hip_gram_five_finish(const int8_t*,const int8_t*,int8_t*,GramFivePacket);
+extern "C" int rns8_hip_gram_five_transform(const int8_t*,int8_t*,int8_t*,GramFivePacket,int,void*);
+extern "C" int rns8_hip_gram_five_finish(const int8_t*,int8_t*,GramFivePacket,void*);
+extern "C" int rns8_hip_gram_on_stream(const int8_t*,int8_t*,const GramTile*,int,int,int,int,int,int,int,int,int,int,void*);
 #endif
 rns8_status hip_direct_gram_five_product(int device,const void* source,void* output,const GramFiveResources& r,
-    void* scratch,uint64_t bytes,bool matrix,bool& commit_started) {
+    void* scratch,uint64_t bytes,bool matrix,bool& commit_started,const GramTile* host_jobs,bool& jobs_ready,void* stream) {
   commit_started=false;
   if(r.status!=RNS8_SUCCESS)return r.status;
   const auto& packet=r.packet;
   const uint64_t source_bytes=uint64_t(packet.rows)*packet.ld*packet.prefix;
-  if(!source || !output || !scratch || bytes<r.total ||
+  if(!source || !output || !scratch || !stream || bytes<r.total || (r.job_bytes && !host_jobs) ||
       !nonoverlapping_byte_ranges(source,source_bytes,output,r.output) ||
       !nonoverlapping_byte_ranges(source,source_bytes,scratch,r.total) ||
       !nonoverlapping_byte_ranges(output,r.output,scratch,r.total))return RNS8_INVALID_ARGUMENT;
@@ -129,25 +130,56 @@ rns8_status hip_direct_gram_five_product(int device,const void* source,void* out
   if(matrix && !amdgpu_builtins_compiled())return RNS8_UNSUPPORTED_BACKEND;
   const auto& p=r.packet;auto* left=static_cast<int8_t*>(scratch);auto* right=left+r.panel;
   auto* products=left+r.products_offset;auto* stage=left+r.output_offset;
-  for(int term=0;term<5;++term) {
-    const auto transform=timed_hip_operation("gram_five_skew_transform",[&]() {
-      const auto issued=static_cast<hipError_t>(rns8_hip_gram_five_transform(static_cast<const int8_t*>(source),left,right,p,term));
-      const auto drained=hipDeviceSynchronize();return issued==hipSuccess?drained:issued;
-    });
-    if(transform!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    auto* destination=products+uint64_t(term)*r.product;
-    status=matrix?(p.prefix==1?amdgpu_builtins_gemm_finite_u8_device(device,left,right,destination,p.h,p.h,p.hk,p.hk,p.h,p.h,p.moduli[0]):
-        amdgpu_builtins_gemm_rns_device(device,left,right,destination,p.h,p.h,p.hk,p.hk,p.h,p.h,p.prefix)):
-        hip_direct_basis_gemm(device,left,right,destination,p.h,p.h,p.hk,p.moduli,p.prefix);
-    if(status!=RNS8_SUCCESS)return status;
+  auto* device_jobs=reinterpret_cast<GramTile*>(left+r.jobs_offset);
+  if(r.job_bytes && !jobs_ready) {
+    status=hip_direct_copy_host_to_device(device,device_jobs,host_jobs,size_t(r.job_bytes));
+    if(status!=RNS8_SUCCESS)return status;jobs_ready=true;
   }
-  const auto finish=timed_hip_operation("gram_five_recombine_and_classical_channels",[&]() {
-    const auto issued=static_cast<hipError_t>(rns8_hip_gram_five_finish(static_cast<const int8_t*>(source),products,stage,p));
-    const auto drained=hipDeviceSynchronize();return issued==hipSuccess?drained:issued;
-  });
-  if(finish!=hipSuccess)return RNS8_BACKEND_FAILURE;
-  commit_started=true;return hip_direct_copy_device_to_device(device,output,stage,r.output);
+  const auto ordered=static_cast<hipStream_t>(stream);
+  const auto finish=[&](rns8_status operation) {
+    const auto completed=hipStreamSynchronize(ordered);
+    return operation!=RNS8_SUCCESS?operation:completed==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+  };
+  for(int term=0;term<5;++term) {
+    const auto transform=timed_hip_operation("gram_five_compact_transform_v2",[&]() {
+      return static_cast<hipError_t>(rns8_hip_gram_five_transform(static_cast<const int8_t*>(source),left,right,p,term,stream));
+    },ordered);
+    if(transform!=hipSuccess)return finish(RNS8_BACKEND_FAILURE);
+    auto* destination=products+uint64_t(term)*r.product;
+    const auto product=timed_hip_operation("gram_five_compact_products_v2",[&]() {
+      if(!matrix)status=hip_direct_enqueue_basis_gemm(device,left,right,destination,p.h,p.h,p.hk,p.planes.moduli,p.planes.eligible_count,stream);
+      else for(uint32_t compact=0;compact<p.planes.eligible_count;++compact) {
+        status=amdgpu_builtins_enqueue_dense(device,left+uint64_t(compact)*p.h*p.hk,right+uint64_t(compact)*p.hk*p.h,
+          destination+uint64_t(compact)*p.h*p.h,p.h,p.h,p.hk,p.hk,p.h,p.h,p.planes.moduli[compact],true,stream);
+        if(status!=RNS8_SUCCESS)break;
+      }
+      return status==RNS8_SUCCESS?hipSuccess:hipErrorUnknown;
+    },ordered);
+    if(product!=hipSuccess)return finish(status==RNS8_SUCCESS?RNS8_BACKEND_FAILURE:status);
+  }
+  if(p.planes.fallback_count) {
+    const auto classical=timed_hip_operation("gram_five_classical_triangular_bucket_v2",[&]() {
+      for(uint32_t index=0;index<p.planes.fallback_count;++index) {
+        const auto plane=p.planes.fallback[index];
+        const auto issued=static_cast<hipError_t>(rns8_hip_gram_on_stream(static_cast<const int8_t*>(source)+uint64_t(plane)*p.rows*p.ld,
+          stage+uint64_t(plane)*p.n*p.n,device_jobs,int(r.job_bytes/sizeof(GramTile)),int(p.rows),int(p.transpose?p.n:p.k),
+          int(p.ld),int(p.n),1,int(p.moduli[plane]),p.transpose,0,0,stream));
+        if(issued!=hipSuccess)return issued;
+      }
+      return hipSuccess;
+    },ordered);
+    if(classical!=hipSuccess)return finish(RNS8_BACKEND_FAILURE);
+  }
+  const auto recombine=timed_hip_operation("gram_five_compact_recombine_v2",[&]() {
+    return static_cast<hipError_t>(rns8_hip_gram_five_finish(products,stage,p,stream));
+  },ordered);
+  if(recombine!=hipSuccess)return finish(RNS8_BACKEND_FAILURE);
+  commit_started=true;
+  const auto commit=timed_hip_operation("gram_five_ordered_commit_v2",[&]() {
+    return hipMemcpyAsync(output,stage,size_t(r.output),hipMemcpyDeviceToDevice,ordered);
+  },ordered);
+  return finish(commit==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE);
 #else
-  (void)device;(void)matrix;return RNS8_UNSUPPORTED_BACKEND;
+  (void)device;(void)matrix;(void)host_jobs;(void)jobs_ready;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

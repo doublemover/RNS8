@@ -2,13 +2,13 @@ namespace {
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 template <typename Fn>
-hipError_t timed_hip_operation(const char* label, Fn&& fn) {
+hipError_t timed_hip_operation(const char* label, Fn&& fn,hipStream_t stream=nullptr) {
   if (!hip_direct_timing_enabled()) {
     return fn();
   }
 
   hip_unique_event_pair events;
-  hipError_t event_status = events.create_and_record_start();
+  hipError_t event_status = events.create_and_record_start(stream);
   if (event_status != hipSuccess) {
     hip_direct_timing_record_failure(label,"create_or_record_start",static_cast<int>(event_status));
     return fn();
@@ -16,7 +16,7 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
 
   const hipError_t op_status = fn();
   if (op_status == hipSuccess) {
-    event_status = events.record_stop();
+    event_status = events.record_stop(stream);
     if (event_status == hipSuccess) {
       hip_direct_timing_record_pending_event(label, std::move(events));
       return op_status;

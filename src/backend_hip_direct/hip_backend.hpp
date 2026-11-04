@@ -30,7 +30,7 @@
 #include "core/hip_device_buffer.hpp"
 
 namespace rns8::detail {
-rns8_status hip_direct_gram_five_product(int,const void*,void*,const GramFiveResources&,void*,uint64_t,bool,bool&);
+rns8_status hip_direct_gram_five_product(int,const void*,void*,const GramFiveResources&,void*,uint64_t,bool,bool&,const GramTile*,bool&,void*);
 rns8_status hip_direct_enqueue_basis_gemm(int,const void*,const void*,void*,int64_t,int64_t,int64_t,const uint16_t*,uint32_t,void*);
 rns8_status hip_direct_enqueue_basis_conversion(int,const void*,void*,uint64_t,const BasisPacket&,const BasisPacket&,uint32_t,uint32_t,bool,BasisMagnitude,void*,uint64_t,void*,void*);
 namespace checked_crt {struct Decode;}

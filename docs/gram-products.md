@@ -91,13 +91,29 @@ even for odd logical K. Transforms recenter every intermediate before INT8
 products. Original-input range proofs still govern the complete integer output.
 
 Five block products and their explicit recombination execute on the CPU or
-direct HIP; composite channels use the original classical triangular product.
+direct HIP. The compact v2 schedule allocates panels/products only for certified
+prime channels and preserves their original logical plane IDs and moduli through
+the shared indexed-plane partition. Composite channels receive no algebraic
+transforms or products; they use the maintained tiled triangular producer and
+its mirror stores. A basis with no certified channel rejects the experimental
+recipe before allocating its algebraic arena.
 No prime-field identity is applied to those channels. Matrix subproducts require
 the actual compiled AMDGPU provider, its target/K admission and either the
 default RNS basis or finite modulus251. An unavailable matrix provider rejects
 without a scalar substitution. The owner retains one transformed operand pair,
-five product buffers and a whole-output stage under its hard payload budget.
-The info record reports each region and algebraic/classical channel counts.
+five compact product buffers and a full-basis output stage under its hard payload
+budget. The budget includes retained host tile jobs and, on HIP, their aligned
+device copy. The info record reports actual regions and executed channel counts.
+Direct-HIP products consume the compact explicit basis in five batched calls;
+matrix products dispatch each admitted prime plane with its actual modulus.
+Algebraic product count is five per eligible plane, distinct from launch count.
+
+HIP transforms, products, classical buckets, recombination and final commit use
+one retained nondefault stream and one terminal stream completion. Stage events
+are recorded on that stream. A rejected launch drains prior work before release;
+an undrainable failure retains the prepared owner and reservations. The device
+arena and stream have typed retry owners, including failed preparation. Once
+cleanup starts, the owner accepts cleanup retries and rejects new execution.
 Replays allocate no algebraic payload; changed inputs require ordinary generation
 refresh. Publication, undrainable failure and cleanup use the existing Gram
 owner rules. Native/transpose input adapters, reconstruction-once export and
@@ -106,9 +122,12 @@ async capture are not implicitly attached to this new explicit recipe.
 Independent CPU/Boost fixtures cover every admitted prime, skew certificates,
 both orientations, padded inputs, odd dimensions and original full-width values.
 HIP fixtures cover mixed prime/composite bases, real matrix subproducts, K-slab
-tails, retained lifetimes, budgets and stale-generation rejection. Host and
-gfx1100 HIP builds and direct/matrix execution fixtures pass the
-[October27 implementation validation](../metadata/implementation-closeout-20261027.json). Broader targets and performance gates remain deferred.
+tails, retained lifetimes, budgets and stale-generation rejection. The
+[October27 validation](../metadata/implementation-closeout-20261027.json)
+qualifies the earlier implementation. New compact-schedule fixtures cover every
+prefix1–20, the prefix4 single-prime bucket, reordered modulus identities,
+omitted-storage canaries and exact region sizes. Current runtime validation and
+performance measurements remain deferred during source frontloading.
 
 ## Independent prepared input and output ablations
 

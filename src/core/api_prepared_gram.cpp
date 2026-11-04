@@ -8,17 +8,29 @@ struct rns8_prepared_gram {
   rns8_context* ctx=nullptr;const rns8_matrix* x=nullptr;rns8_matrix* c=nullptr;
   GramProblem problem;cpp_int bound;std::vector<GramTile> jobs;
   std::vector<int8_t> host_adapter,export_residues;std::vector<uint64_t> host_export;
+  hip_direct_device_buffer arena_owner;
   void* device_jobs=nullptr;void* device_adapter=nullptr;void* device_export=nullptr;int* device_export_status=nullptr;
   uint64_t device_job_bytes=0,device_total_bytes=0,adapter_bytes=0,export_bytes=0,owned_bytes=0,output_generation=0;
   rns8_gram_input_policy input_policy=RNS8_GRAM_RESIDENT_RESIDUES;uint32_t export_limbs=0;
   int export_status=0;
   bool separate_mirror=false,wmma=false,jobs_ready=false,adapter_ready=false,active=false,commit_started=false,quarantined=false;
   bool five_product=false,five_matrix=false;GramFiveResources five_resources;std::vector<int8_t> five_host;
+  bool closing=false;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hip_unique_stream five_stream;
+#endif
+  void* five_stream_pointer() const noexcept {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    return five_stream.get();
+#else
+    return nullptr;
+#endif
+  }
   mutable std::mutex mutex;
 };
 namespace {
 void release_gram_reservation(rns8_prepared_gram& owner) noexcept {
-  if(!owner.active)return;--owner.x->in_flight_readers;owner.c->in_flight_writer=false;owner.active=false;
+  if(!owner.active)return;owner.arena_owner.mark_completed();--owner.x->in_flight_readers;owner.c->in_flight_writer=false;owner.active=false;
 }
 void invalidate_gram_commit(rns8_prepared_gram& owner) noexcept {
   if(owner.active && owner.commit_started){clear_residue_current(*owner.c);clear_byte_limb_current(*owner.c);clear_native_current(*owner.c);owner.output_generation=0;}
@@ -65,7 +77,7 @@ rns8_status prepare_gram_impl(rns8_context* ctx,const rns8_matrix* x,rns8_matrix
   owner->device_total_bytes=storage.device_bytes;
   if(host_capacity>budget || owner->device_total_bytes>budget-host_capacity)return RNS8_WORKSPACE_TOO_SMALL;
   owner->owned_bytes=host_capacity+owner->device_total_bytes;
-  if(hip){const auto allocated=hip_direct_allocate(ctx->device_id,static_cast<size_t>(owner->device_total_bytes),&owner->device_jobs);if(allocated!=RNS8_SUCCESS)return allocated;
+  if(hip){const auto allocated=owner->arena_owner.allocate_alias(ctx->device_id,static_cast<size_t>(owner->device_total_bytes),owner->device_jobs);if(allocated!=RNS8_SUCCESS)return allocated;
     auto* base=static_cast<uint8_t*>(owner->device_jobs);owner->device_adapter=adapter?base+storage.adapter_offset:nullptr;
     // Align the limb staging after byte-oriented adapter padding.
     owner->device_export=exported?base+storage.export_offset:nullptr;
@@ -74,6 +86,7 @@ rns8_status prepare_gram_impl(rns8_context* ctx,const rns8_matrix* x,rns8_matrix
   ++ctx->prepared_references;++x->prepared_references;++c->prepared_references;*out=owner.release();return RNS8_SUCCESS;
 }
 rns8_status gram_ready(rns8_prepared_gram& owner){
+  if(owner.closing)return RNS8_INVALID_ARGUMENT;
   if(owner.quarantined || owner.ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
   const auto& x=*owner.x;const auto& c=*owner.c;
   if(x.in_flight_writer || c.in_flight_writer || c.in_flight_readers)return RNS8_BUSY;
@@ -97,21 +110,40 @@ rns8_status rns8_prepare_gram_five_product(rns8_context* ctx,const rns8_matrix* 
     auto status=validate_gram_contract(ctx,x,c,orientation,RNS8_GRAM_SCALAR,owner->problem,owner->bound);
     if(status!=RNS8_SUCCESS)return status;
     const bool hip=x->backend==RNS8_BACKEND_HIP_DIRECT;
-    if(matrix && !amdgpu_builtins_compiled())return RNS8_UNSUPPORTED_BACKEND;
+    if(matrix) {
+      if(!hip || !amdgpu_builtins_compiled())return RNS8_UNSUPPORTED_BACKEND;
+      rns8_device_info provider{};status=amdgpu_builtins_probe(ctx->device_id,provider);
+      if(status!=RNS8_SUCCESS)return status;
+    }
     owner->five_resources=query_gram_five_product(owner->problem,kDefaultModuli,budget,hip,matrix!=0);
     if(owner->five_resources.status!=RNS8_SUCCESS)return owner->five_resources.status;
     if(ctx->prepared_references==UINT64_MAX || x->prepared_references==UINT64_MAX || c->prepared_references==UINT64_MAX || c->content_generation==UINT64_MAX)return RNS8_RANGE_ERROR;
     owner->ctx=ctx;owner->x=x;owner->c=c;owner->five_product=true;owner->five_matrix=matrix!=0;
-    owner->owned_bytes=owner->five_resources.total;
-    if(hip){status=hip_direct_allocate(ctx->device_id,size_t(owner->owned_bytes),&owner->device_jobs);if(status!=RNS8_SUCCESS)return status;
-      owner->device_total_bytes=owner->owned_bytes;}
-    else {owner->five_host.resize(size_t(owner->owned_bytes));if(owner->five_host.capacity()>budget)return RNS8_WORKSPACE_TOO_SMALL;owner->owned_bytes=owner->five_host.capacity();}
+    const auto& resources=owner->five_resources;
+    if(resources.host_job_bytes)owner->jobs=gram_tiles(query_gram_support(owner->problem,UINT64_MAX,hip,false));
+    const uint64_t host_jobs=owner->jobs.capacity()*sizeof(GramTile);
+    if(host_jobs>budget || resources.total>budget-host_jobs)return RNS8_WORKSPACE_TOO_SMALL;
+    owner->owned_bytes=resources.total+host_jobs;owner->device_job_bytes=resources.job_bytes;
+    if(hip){
+      status=owner->arena_owner.allocate_alias(ctx->device_id,size_t(resources.total),owner->device_jobs);if(status!=RNS8_SUCCESS)return status;
+      owner->device_total_bytes=resources.total;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      if(owner->five_stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    } else {
+      owner->five_host.resize(size_t(resources.total));
+      if(owner->five_host.capacity()>budget-host_jobs)return RNS8_WORKSPACE_TOO_SMALL;
+      owner->owned_bytes=owner->five_host.capacity()+host_jobs;
+    }
     ++ctx->prepared_references;++x->prepared_references;++c->prepared_references;*out=owner.release();return RNS8_SUCCESS;
   });
 }
 rns8_status rns8_refresh_prepared_gram(rns8_prepared_gram* owner){
   return guard_api([&]() -> rns8_status{
     if(!owner)return RNS8_INVALID_ARGUMENT;std::unique_lock<std::mutex> lock(owner->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
+    if(owner->closing)return RNS8_INVALID_ARGUMENT;
     if(owner->quarantined || owner->ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
     GramProblem replacement;cpp_int bound;
     auto status=validate_gram_contract(owner->ctx,owner->x,owner->c,static_cast<rns8_gram_orientation>(owner->problem.orientation),static_cast<rns8_gram_method>(uint32_t(owner->wmma)+2*uint32_t(owner->separate_mirror)),replacement,bound);
@@ -126,7 +158,7 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner){
     if(!owner)return RNS8_INVALID_ARGUMENT;std::unique_lock<std::mutex> lock(owner->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
     auto status=gram_ready(*owner);if(status!=RNS8_SUCCESS)return status;
     const auto* x=owner->x;auto* c=owner->c;const bool hip=x->backend==RNS8_BACKEND_HIP_DIRECT;cpp_int bound=owner->bound;
-    ++x->in_flight_readers;c->in_flight_writer=true;owner->active=true;owner->commit_started=false;GramReservation reservation{*owner};
+    ++x->in_flight_readers;c->in_flight_writer=true;owner->active=true;owner->arena_owner.mark_pending();owner->commit_started=false;GramReservation reservation{*owner};
     GramProblem p=owner->problem;const void* source=hip?x->hip_residues:x->residues.data();
     if(owner->input_policy==RNS8_GRAM_RETAINED_TRANSPOSE){
       if(!owner->adapter_ready){if(hip){status=hip_direct_gram_transpose(owner->ctx->device_id,source,owner->device_adapter,p);if(status!=RNS8_SUCCESS)return status;}
@@ -140,8 +172,8 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner){
     if(native)source=hip?x->hip_native_i64:x->native_i64.data();
     if(owner->five_product) {
       if(hip){status=hip_direct_gram_five_product(owner->ctx->device_id,source,c->hip_residues,owner->five_resources,
-          owner->device_jobs,owner->device_total_bytes,owner->five_matrix,owner->commit_started);if(status!=RNS8_SUCCESS)return status;mark_output_device_residues_current(*c);}
-      else {gram_five_product_cpu(static_cast<const int8_t*>(source),owner->five_host.data(),owner->five_resources);
+          owner->device_jobs,owner->device_total_bytes,owner->five_matrix,owner->commit_started,owner->jobs.data(),owner->jobs_ready,owner->five_stream_pointer());if(status!=RNS8_SUCCESS)return status;mark_output_device_residues_current(*c);}
+      else {gram_five_product_cpu(static_cast<const int8_t*>(source),owner->five_host.data(),owner->five_resources,owner->jobs);
         owner->commit_started=true;std::copy_n(owner->five_host.data()+owner->five_resources.output_offset,
             size_t(owner->five_resources.output),c->residues.data());mark_output_host_residues_current(*c);}
     }
@@ -171,7 +203,7 @@ rns8_status rns8_export_prepared_gram_limbs(rns8_prepared_gram* owner,uint64_t* 
        !disjoint(owner->host_adapter.data(),owner->host_adapter.size()) || !disjoint(owner->export_residues.data(),owner->export_residues.size()) ||
        !disjoint(owner->jobs.data(),owner->jobs.size()*sizeof(GramTile)) || !disjoint(owner->x->residues.data(),owner->x->residues.size()) ||
        !disjoint(owner->x->native_i64.data(),owner->x->native_i64.size()*8))return RNS8_INVALID_ARGUMENT;
-    ++owner->x->in_flight_readers;c.in_flight_writer=true;owner->active=true;owner->commit_started=false;GramReservation reservation{*owner};
+    ++owner->x->in_flight_readers;c.in_flight_writer=true;owner->active=true;owner->arena_owner.mark_pending();owner->commit_started=false;GramReservation reservation{*owner};
     if(c.backend==RNS8_BACKEND_HIP_DIRECT){status=hip_direct_gram_export_once(owner->ctx->device_id,source,owner->device_export,owner->device_export_status,owner->device_jobs,n,c.prefix,limbs,owner->jobs.size());
       if(status!=RNS8_SUCCESS)return status;
       status=hip_direct_copy_device_to_host(owner->ctx->device_id,&owner->export_status,owner->device_export_status,4);if(status!=RNS8_SUCCESS)return status;
@@ -203,9 +235,13 @@ rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,rns8_pre
 rns8_status rns8_destroy_prepared_gram(rns8_prepared_gram* owner){
   return guard_api([&]() -> rns8_status{
     if(!owner)return RNS8_SUCCESS;std::unique_lock<std::mutex> lock(owner->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
+    owner->closing=true;
     if(owner->quarantined || owner->active){if(owner->x->backend==RNS8_BACKEND_HIP_DIRECT && hip_direct_synchronize(owner->ctx->device_id)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
       invalidate_gram_commit(*owner);release_gram_reservation(*owner);owner->quarantined=false;}
-    if(owner->device_jobs){const auto status=hip_direct_free(owner->ctx->device_id,owner->device_jobs);if(status!=RNS8_SUCCESS)return status;owner->device_jobs=nullptr;}
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(owner->five_stream.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+#endif
+    if(owner->device_jobs){const auto status=owner->arena_owner.reset();if(status!=RNS8_SUCCESS)return status;owner->device_jobs=nullptr;}
     --owner->ctx->prepared_references;--owner->x->prepared_references;--owner->c->prepared_references;lock.unlock();delete owner;return RNS8_SUCCESS;
   });
 }
