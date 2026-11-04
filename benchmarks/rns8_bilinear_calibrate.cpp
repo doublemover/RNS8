@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include "backend_common/rank23_slp_resources.hpp"
+#include "backend_common/bilinear_selected_identity.hpp"
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -27,10 +28,11 @@ int main(int argc,char** argv){try{
   const uint64_t budget=number(c,"max_scratch_bytes",1,UINT64_C(1)<<40),host_budget=number(c,"max_host_bytes",1,UINT64_C(1)<<40);
   const uint32_t matrix_variant=number(c,"matrix_variant",0,2);
   const bool u=c.at("unsigned_inputs"),instrumented=c.at("instrumented");const std::string mode=c.at("mode"),backend=c.at("subproduct_backend"),residency=c.at("residency");
-  const std::vector<std::string> modes{"classical","strassen","coefficient-rank23","september-slp","october55-retained","october55-recompute","rank48-dyadic","rank48-slp-retained","rank48-slp-recompute"};
+  const std::vector<std::string> modes{"classical","strassen","coefficient-rank23","september-slp","october55-retained","october55-recompute","rank48-dyadic","rank48-slp-retained","rank48-slp-recompute","october55-pruned","rank48-slp-pruned"};
   const auto found=std::find(modes.begin(),modes.end(),mode);if(found==modes.end() || (backend!="direct" && backend!="matrix") || (residency!="cold" && residency!="resident" && residency!="repack"))throw std::invalid_argument("route");
   const int algorithm=int(found-modes.begin())-1;const bool matrix=backend=="matrix";if(!matrix && matrix_variant)throw std::invalid_argument("matrix variant on direct route");
   const auto method=static_cast<rns8_bilinear_method>(algorithm>=6?12+2*(algorithm-6)+int(matrix):algorithm==5?10+int(matrix):algorithm+(matrix?5:0));
+  const auto selected=bilinear_selection(uint32_t(method));const bool rank48=algorithm>=0 && selected.blocks==4;
   cpp_int capacity=1;for(uint32_t p=0;p<prefix;++p)capacity*=rns8_default_modulus(p);
   if(capacity<=uint64_t(k)*49*(u?1:2))throw std::invalid_argument("strict CRT capacity");
   BilinearResources resources{};
@@ -81,13 +83,19 @@ int main(int argc,char** argv){try{
     for(uint32_t compact=0;compact<resources.planes.eligible_count;++compact){algebraic_planes.push_back(resources.planes.eligible[compact]);algebraic_moduli.push_back(resources.planes.moduli[compact]);}
     for(uint32_t index=0;index<resources.planes.fallback_count;++index)classical_planes.push_back(resources.planes.fallback[index]);
   } else for(uint32_t plane=0;plane<prefix;++plane)classical_planes.push_back(plane);
-  const uint32_t algebraic_products=algorithm<0?0:algorithm>=5?48:algorithm==0?7:23;
+  const uint32_t algebraic_products=algorithm<0?0:rank48?48:algorithm==0?7:23;
+  json pruned_schedule=nullptr;
+  if(selected.pruned) {
+    const auto work=selected_bilinear_work(rank48);
+    pruned_schedule={{"lowering","immutable_closure_before_slots_v1"},{"sha256",selected_bilinear_schedule_sha256(rank48)},
+      {"binary",{work.binary[0],work.binary[1]}},{"halving",{work.halving[0],work.halving[1]}},{"input_loads",{work.input_loads[0],work.input_loads[1]}}};
+  }
   std::cout<<json({{"schema","rns8_bilinear_microcase_v3"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"completion_contract",algorithm<0?"ordinary_public_gemm_v1":"ordered_nondefault_single_terminal_v1"},{"dataset","period15_native_small_v1"},{"selected_prefix",prefix},{"algorithm",mode},{"subproduct_backend",backend},{"matrix_family_override",matrix?(matrix_variant==0?"auto":matrix_variant==1?"cdna3_16x16x32_or_target_wmma":"cdna3_32x32x16_or_target_wmma"):"not_applicable"},{"subproduct_launch_schedule",matrix && algorithm==6?"batched48":matrix && (algorithm==2 || algorithm==3)?"batched23":"serial"},{"ordinary_plan_kernel",plan_kernel},
     {"required_bilinear_scratch_bytes",resources.total_bytes},{"resident_residue_payload_bytes",residue_payload},{"ordinary_workspace_bytes",ordinary_workspace},{"known_peak_device_payload_bytes",known_peak},{"host_payload_envelope_bytes",host_payload},
-    {"memory_scope","logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead"},{"transform_binary_nodes",algorithm>=6?200:algorithm==2?56:algorithm==3 || algorithm==4?55:0},{"transform_halving_nodes",algorithm>=6?4:0},{"input_transform_evaluations_per_cell",algorithm==5 || algorithm==7?48:algorithm==4?23:1},
-    {"dyadic_channel_policy",algorithm>=5?"odd_rank48_even_classical_compact_v2":"not_applicable"},
-    {"channel_contract_version","indexed_modulus_planes_v1"},{"algebraic_plane_ids",algebraic_planes},{"classical_plane_ids",classical_planes},
+    {"memory_scope","logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead"},{"transform_binary_nodes",rank48 && selected.slp?200:algorithm==2?56:algorithm==3 || algorithm==4 || algorithm==8?55:0},{"transform_halving_nodes",rank48 && selected.slp?4:0},{"input_transform_evaluations_per_cell",algorithm==5 || (rank48 && selected.recompute)?48:algorithm==4 || algorithm==8?23:1},
+    {"dyadic_channel_policy",rank48?"odd_rank48_even_classical_compact_v2":"not_applicable"},
+    {"pruned_transform_schedule",pruned_schedule},{"channel_contract_version","indexed_modulus_planes_v1"},{"algebraic_plane_ids",algebraic_planes},{"classical_plane_ids",classical_planes},
     {"algebraic_moduli",algebraic_moduli},{"algebraic_product_plane_gemms",uint64_t(algebraic_products)*algebraic_planes.size()},
     {"output_boundary","complete_public_product_and_padded_three_limb_export"},{"host_instrumentation_state",instrumented?"diagnostic_hooks_enabled":"hooks_disabled"},{"diagnostic_events",events},{"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},
     {"exact_reference_passed",true},{"all_residue_planes_audited",true},{"residue_audit_scope","post_timing_public_product"},{"oracle_inside_production_interval",false},{"promotion_eligible",false},{"native_useful_products",uint64_t(m)*n*k}}).dump(2)<<'\n';return 0;

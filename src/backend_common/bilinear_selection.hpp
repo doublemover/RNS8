@@ -4,9 +4,11 @@ namespace rns8::detail {
 struct BilinearSelection {
   bool valid=false,matrix=false,slp=false,recompute=false;
   uint32_t algorithm=0,blocks=0;
+  bool pruned=false;
 };
 inline BilinearSelection bilinear_selection(uint32_t method) {
-  if(method>15)return {};
+  if(method>19)return {};
+  if(method>=16)return {true,bool(method&1),true,true,method>=18?6u:4u,method>=18?4u:3u,true};
   if(method>=12)return {true,bool(method&1),true,method>=14,6,4};
   if(method>=10)return {true,method==11,false,false,5,4};
   const auto algorithm=method%5;

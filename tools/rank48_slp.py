@@ -9,7 +9,7 @@ import re
 from rank48_certificate import DATA, ROOT, load
 
 
-def compile_stage(text, inputs, outputs):
+def compile_stage(text, inputs, outputs, *, include_dag=False):
     names = {f'i{i}': i for i in range(inputs)}
     vectors = [[Fraction(i == j) for j in range(inputs)] for i in range(inputs)]
     nodes = []
@@ -58,11 +58,13 @@ def compile_stage(text, inputs, outputs):
         if target == slots:slots += 1
         locations[inputs + index] = target
         steps.append((target, a, b, op))
-    return dict(inputs=inputs, outputs=outputs, slots=slots, steps=steps,
-                results=[locations[node] for node in results], matrix=[vectors[node] for node in results])
+    stage = dict(inputs=inputs, outputs=outputs, slots=slots, steps=steps,
+                 results=[locations[node] for node in results], matrix=[vectors[node] for node in results])
+    if include_dag:stage['immutable_dag'] = dict(nodes=nodes, results=results)
+    return stage
 
 
-def programs():
+def programs(*, include_dag=False):
     manifest = json.loads((DATA/'provenance.json').read_text(encoding='utf-8'))
     left, right, output = load()
     result = []
@@ -70,7 +72,7 @@ def programs():
         name = f'4x4x4_48_204_{suffix}.slp';data = (DATA/name).read_bytes()
         if hashlib.sha256(data).hexdigest() != manifest['files'][name]['sha256']:
             raise ValueError('SLP artifact digest changed')
-        stage = compile_stage(data.decode('ascii'), inputs, outputs)
+        stage = compile_stage(data.decode('ascii'), inputs, outputs, include_dag=include_dag)
         if stage['matrix'] != expected:raise ValueError('SLP differs from certified coefficient map')
         result.append(stage)
     count = sum(len(p['steps']) for p in result)

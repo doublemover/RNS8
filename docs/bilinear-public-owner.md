@@ -95,3 +95,20 @@ recomputation and modular reduction add actual work. CPU and gfx1100 HIP fixture
 for the earlier full-prefix schedule. Compact-channel fixtures are authored;
 their execution is deferred to the final development validation batch.
 Measured large-shape benefit and broader targets remain unqualified.
+
+Methods16/17 (October55) and18/19 (rank48) add explicit dependency-pruned
+recompute routes with direct/matrix subproducts. They select each output's
+transitive closure in an immutable DAG before allocating fresh live slots.
+Rank48 recovers immutable definition versions from every canonical assignment,
+so reused physical slots cannot hide earlier dependencies. Each selected product
+has a static kernel specialization, loading only required source blocks and
+preserving ordered products, node-wise modular reduction and odd-ring halving.
+The original full-DAG recompute methods4/9 and14/15 remain separate controls.
+
+The `october55-pruned` and `rank48-slp-pruned` calibration modes record a SHA-256
+of every lowered input map and step, plus per-side binary operations, halvings
+and source-block loads. The collector independently lowers the pinned immutable
+programs and checks that identity. Scratch stays equal to the corresponding
+full-DAG recompute route. Static source work does not establish register use,
+spills, compile cost or end-to-end benefit; these await the deferred validation
+and target-specific measurement batch.

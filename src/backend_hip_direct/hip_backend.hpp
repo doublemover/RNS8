@@ -88,6 +88,10 @@ rns8_status hip_direct_gemm_rank48_slp_device(
     int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false,void* =nullptr);
 rns8_status hip_direct_gemm_rank48_slp_recompute_device(
     int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false,void* =nullptr);
+rns8_status hip_direct_gemm_rank48_slp_pruned_device(
+    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false,void* =nullptr);
+rns8_status hip_direct_gemm_rank23_oct55_pruned_device(
+    int,const void*,const void*,void*,int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,uint64_t,bool&,void* =nullptr,uint64_t=0,bool=false,void* =nullptr);
 // Exact pinned alternative-basis SLP, separate from the coefficient control.
 // Full 23-operand/product materialization is included in the scratch budget.
 rns8_status hip_direct_gemm_rank23_slp_device(

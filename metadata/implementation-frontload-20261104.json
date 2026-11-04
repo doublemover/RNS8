@@ -172,7 +172,8 @@
       "implementation_status": "pending",
       "completed_slices": [
         "Bilinear capture ABI2 binds physical eligible/fallback planes, actual moduli, compact scratch, and product-plane GEMMs; reject mixed physical implementation versions.",
-        "Bilinear capture ABI3 binds the ordered single-terminal schedule independently of historical per-stage completion captures; actual-stream diagnostic matrix events are preserved."
+        "Bilinear capture ABI3 binds the ordered single-terminal schedule independently of historical per-stage completion captures; actual-stream diagnostic matrix events are preserved.",
+        "Pruned bilinear captures include actual per-side binary/halving/input-block work and lowered schedule SHA-256, independently checked against pinned expression DAGs; retained/full/pruned controls remain separate modes."
       ],
       "remaining_source_items": []
     },
@@ -357,15 +358,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/48",
       "requirements_sha256": "9d0373055680c30ae51f2910ef842f7f900a00b71791a10d5a539929584db01a",
       "comments_reviewed": 3,
-      "implementation_status": "in_progress",
+      "implementation_status": "written_pending_batch_validation",
       "completed_slices": [
         "Shared compact indexed-plane adapter authored and integrated in prime-channel Gram; odd-channel rank48 resource/kernel integration remains next",
         "Shared explicit-basis AMDGPU matrix batch provider preserves compact plane moduli and up to64 batches; synchronous and pure-enqueue forms retain existing checked batch spans and K cap; Gram uses five matrix launches instead of per-plane dispatch",
-        "Compact rank48 coefficient/SLP transforms and products onto explicit odd logical planes; preserve classical even fallback and full output transaction; ABI2 physical-work captures distinguish historical full-prefix schedules."
+        "Compact rank48 coefficient/SLP transforms and products onto explicit odd logical planes; preserve classical even fallback and full output transaction; ABI2 physical-work captures distinguish historical full-prefix schedules.",
+        "Add explicit October55/rank48 dependency-pruned recompute methods16-19, selecting immutable transitive closures before fresh liveness allocation; static product kernels preserve full-DAG controls. Canonical SHA-256 serializes every physical input/step; independent Python lowering checks captures and authored rational-map/ring/public-export fixtures cover each route."
       ],
-      "remaining_source_items": [
-        "Compile selected-product transitive closures before liveness allocation, preserve full-DAG recompute control, and bind pruned schedules to execution identities."
-      ]
+      "remaining_source_items": []
     },
     {
       "issue": 49,

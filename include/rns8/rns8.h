@@ -2896,7 +2896,13 @@ typedef enum rns8_bilinear_method RNS8_ENUM_BASE {
   RNS8_BILINEAR_RANK48_SLP = 12,
   RNS8_BILINEAR_RANK48_SLP_MATRIX = 13,
   RNS8_BILINEAR_RANK48_SLP_RECOMPUTE = 14,
-  RNS8_BILINEAR_RANK48_SLP_RECOMPUTE_MATRIX = 15
+  RNS8_BILINEAR_RANK48_SLP_RECOMPUTE_MATRIX = 15,
+  /* Recompute only the selected product's immutable input-DAG closure. The
+   * original full-DAG recompute methods above remain separate controls. */
+  RNS8_BILINEAR_RANK23_OCTOBER55_PRUNED = 16,
+  RNS8_BILINEAR_RANK23_OCTOBER55_PRUNED_MATRIX = 17,
+  RNS8_BILINEAR_RANK48_SLP_PRUNED = 18,
+  RNS8_BILINEAR_RANK48_SLP_PRUNED_MATRIX = 19
 } rns8_bilinear_method;
 /* Opt-in direct-HIP bounded/exact-wide signed/unsigned product. One bilinear level,
  * complete prefix, staged publication, explicit scratch budget and original

@@ -1721,7 +1721,7 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
     SynchronousLease lease(*ctx,lease_token);lease.track_write(commit_started);
     return lease.finish([&]() -> rns8_status {
     status=synchronous_dispatch_checkpoint(*ctx,"bilinear",&commit_started);if(status!=RNS8_SUCCESS)return status;
-    const auto multiply=algorithm==6?(selected.recompute?hip_direct_gemm_rank48_slp_recompute_device:hip_direct_gemm_rank48_slp_device):
+    const auto multiply=selected.pruned?(algorithm==6?hip_direct_gemm_rank48_slp_pruned_device:hip_direct_gemm_rank23_oct55_pruned_device):algorithm==6?(selected.recompute?hip_direct_gemm_rank48_slp_recompute_device:hip_direct_gemm_rank48_slp_device):
         algorithm==5?hip_direct_gemm_rank48_device:algorithm==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
         algorithm==RNS8_BILINEAR_RANK23_COEFFICIENTS?hip_direct_gemm_rank23_device:
         algorithm==RNS8_BILINEAR_RANK23_SLP?hip_direct_gemm_rank23_slp_device:

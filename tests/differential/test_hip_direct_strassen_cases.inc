@@ -198,7 +198,7 @@ TEST_CASE("public Strassen owns signed and unsigned exact exports and preserves 
 
 TEST_CASE("public rank23 methods retain exact proof and output transaction ownership") {
   if(!hip_available()) SKIP("no HIP device for public rank23 methods");
-  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP,RNS8_BILINEAR_RANK23_OCTOBER55,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE,RNS8_BILINEAR_RANK48_DYADIC}) {
+  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP,RNS8_BILINEAR_RANK23_OCTOBER55,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE,RNS8_BILINEAR_RANK48_DYADIC,RNS8_BILINEAR_RANK23_OCTOBER55_PRUNED,RNS8_BILINEAR_RANK48_SLP_PRUNED}) {
     check_public_strassen_owner<int64_t>(method);
     check_public_strassen_owner<uint64_t>(method);
   }
@@ -208,7 +208,7 @@ TEST_CASE("matrix-engine bilinear controls use actual builtin subproducts withou
   rns8_device_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
   if(rns8::detail::amdgpu_builtins_probe(0,info)!=RNS8_SUCCESS)SKIP("no compiled builtin matrix provider");
   for(auto method:{RNS8_BILINEAR_STRASSEN_MATRIX,RNS8_BILINEAR_RANK23_COEFFICIENTS_MATRIX,
-      RNS8_BILINEAR_RANK23_SLP_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX,RNS8_BILINEAR_RANK48_DYADIC_MATRIX}) {
+      RNS8_BILINEAR_RANK23_SLP_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX,RNS8_BILINEAR_RANK48_DYADIC_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_PRUNED_MATRIX,RNS8_BILINEAR_RANK48_SLP_PRUNED_MATRIX}) {
     check_public_strassen_owner<int64_t>(method);check_public_strassen_owner<uint64_t>(method);
   }
 }
@@ -241,8 +241,8 @@ TEST_CASE("compact rank48 public routes preserve logical planes and final exact 
   if(!hip_available())SKIP("no HIP device for compact rank48");
   rns8_device_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
   const bool matrix_available=amdgpu_builtins_probe(0,info)==RNS8_SUCCESS;
-  for(uint32_t method=10;method<=15;++method)for(uint32_t prefix:{1u,2u,3u,9u,20u}) {
-    if((method&1) && !matrix_available)continue;
+  for(uint32_t method=10;method<=19;++method)for(uint32_t prefix:{1u,2u,3u,9u,20u}) {
+    if(method==16 || method==17 || ((method&1) && !matrix_available))continue;
     CAPTURE(method,prefix);
     auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
     rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;

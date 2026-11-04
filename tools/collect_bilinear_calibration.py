@@ -10,7 +10,7 @@ from collect_native_calibration import strict_json, DEFAULT_MODULI
 from build_manifest import manifest_provenance_complete
 from benchmark_sweep_lib.execution import run_command
 
-MODES=('classical','strassen','coefficient-rank23','september-slp','october55-retained','october55-recompute','rank48-dyadic','rank48-slp-retained','rank48-slp-recompute')
+MODES=('classical','strassen','coefficient-rank23','september-slp','october55-retained','october55-recompute','rank48-dyadic','rank48-slp-retained','rank48-slp-recompute','october55-pruned','rank48-slp-pruned')
 
 
 def resources(c, *, compact=True):
@@ -22,7 +22,7 @@ def resources(c, *, compact=True):
     executed=sum(q%2 for q in DEFAULT_MODULI[:p]) if compact and mode.startswith('rank48') else p
     a,b,product=hm*hk*executed,hk*hn*executed,hm*hn*executed
     retained=mode in ('september-slp','october55-retained','rank48-slp-retained')
-    products=48 if mode.startswith('rank48-slp') else 23 if mode in ('september-slp','october55-retained','october55-recompute') else 1
+    products=48 if mode.startswith('rank48-slp') else 23 if mode in ('september-slp','october55-retained','october55-recompute','october55-pruned') else 1
     scratch=(products if retained else 1)*(a+b)+products*product+p*m*n
     return scratch,residue,host
 
@@ -59,7 +59,7 @@ def validate_capture(c,entry):
         memory_scope='logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead',
         transform_binary_nodes=200 if mode.startswith('rank48-slp') else 56 if mode=='september-slp' else 55 if mode.startswith('october55') else 0,
         transform_halving_nodes=4 if mode.startswith('rank48-slp') else 0,
-        input_transform_evaluations_per_cell=48 if mode in ('rank48-dyadic','rank48-slp-recompute') else 23 if mode=='october55-recompute' else 1,
+        input_transform_evaluations_per_cell=48 if mode in ('rank48-dyadic','rank48-slp-recompute','rank48-slp-pruned') else 23 if mode in ('october55-recompute','october55-pruned') else 1,
         output_boundary='complete_public_product_and_padded_three_limb_export',host_instrumentation_state='diagnostic_hooks_enabled' if diagnostic else 'hooks_disabled',
         exact_reference_passed=True,all_residue_planes_audited=True,residue_audit_scope='post_timing_public_product',oracle_inside_production_interval=False,promotion_eligible=False,native_useful_products=case['m']*case['n']*case['k'])
     for key,value in expected.items():
@@ -78,6 +78,13 @@ def validate_capture(c,entry):
     elif any(key in c for key in ('channel_contract_version','algebraic_plane_ids','classical_plane_ids','algebraic_moduli','algebraic_product_plane_gemms')):
         raise ValueError('indexed channel work requires capture ABI2')
     if schema=='rns8_bilinear_microcase_v3' and c.get('completion_contract')!=('ordinary_public_gemm_v1' if mode=='classical' else 'ordered_nondefault_single_terminal_v1'):raise ValueError('completion contract')
+    if mode.endswith('pruned'):
+        if schema!='rns8_bilinear_microcase_v3':raise ValueError('pruned mode requires ordered capture ABI3')
+        from bilinear_selected_schedule import identity_and_work
+        digest,work=identity_and_work(mode.startswith('rank48'))
+        schedule=dict(lowering='immutable_closure_before_slots_v1',sha256=digest,**work)
+        if c.get('pruned_transform_schedule')!=schedule:raise ValueError('selected DAG schedule/work')
+        if any(type(value) is not int for values in (c['pruned_transform_schedule'][field] for field in ('binary','halving','input_loads')) for value in values):raise ValueError('selected DAG work type')
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id'):raise ValueError('compiled/process provenance')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:raise ValueError('artifact binding')

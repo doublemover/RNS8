@@ -61,6 +61,22 @@ class BilinearCollection(unittest.TestCase):
         with self.assertRaises(ValueError):validate_case(case)
         self.assertEqual(validate_case(case,compact=False),case)
 
+    def test_pruned_capture_binds_independently_lowered_schedule_and_actual_work(self):
+        from bilinear_selected_schedule import identity_and_work
+        c,e=self.capture();case=c['case'];case['mode']='october55-pruned'
+        digest,work=identity_and_work(False);scratch,residue,host=resources(case)
+        c.update(schema='rns8_bilinear_microcase_v3',algorithm=case['mode'],input_transform_evaluations_per_cell=23,
+            completion_contract='ordered_nondefault_single_terminal_v1',channel_contract_version='indexed_modulus_planes_v1',
+            algebraic_plane_ids=[0,1,2],classical_plane_ids=[],algebraic_moduli=[256,255,253],algebraic_product_plane_gemms=69,
+            required_bilinear_scratch_bytes=scratch,known_peak_device_payload_bytes=residue+scratch+17*19*24,
+            host_payload_envelope_bytes=host,pruned_transform_schedule=dict(lowering='immutable_closure_before_slots_v1',sha256=digest,**work))
+        self.assertEqual(validate_capture(c,e),c)
+        for field,value in [('sha256','0'*64),('binary',[0,0]),('input_loads',[True,False])]:
+            bad=copy.deepcopy(c);bad['pruned_transform_schedule'][field]=value
+            with self.subTest(field=field),self.assertRaises(ValueError):validate_capture(bad,e)
+        c['schema']='rns8_bilinear_microcase_v2'
+        with self.assertRaises(ValueError):validate_capture(c,e)
+
     def test_rank48_uses_four_block_resources_and_explicit_mixed_ring_algorithm(self):
         c=self.case();c.update(mode='rank48-dyadic',m=17,n=19,k=33)
         scratch,residue,host=resources(c)

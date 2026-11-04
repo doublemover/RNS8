@@ -5,10 +5,11 @@ extern "C" int rns8_hip_rank23_oct55_transform(const int8_t*,int8_t*,int,int,int
 extern "C" int rns8_hip_rank23_oct55_combine(const int8_t*,int8_t*,int,int,int,int,int,void*);
 extern "C" int rns8_hip_rank48_slp_transform(const int8_t*,int8_t*,int,int,int,int,int,int,bool,int,IndexedModulusPlanes,void*);
 extern "C" int rns8_hip_rank48_slp_combine(const int8_t*,int8_t*,int,int,int,int,int,IndexedModulusPlanes,void*);
+extern "C" int rns8_hip_bilinear_selected_transform(const int8_t*,int8_t*,int,int,int,int,int,bool,bool,int,IndexedModulusPlanes,void*);
 #endif
 static rns8_status hip_direct_gemm_rank23_dag_device(
     int device_id,const void *a,const void *b,void *c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool &commit_started,bool october,bool recompute,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts,void* stream,bool rank48=false) {
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool &commit_started,bool october,bool recompute,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts,void* stream,bool rank48=false,bool pruned=false) {
   commit_started = false;
   if (!a || !b || !c) return RNS8_INVALID_ARGUMENT;
   const uint32_t product_count=rank48?48:23;
@@ -37,12 +38,14 @@ static rns8_status hip_direct_gemm_rank23_dag_device(
   const auto ordered=static_cast<hipStream_t>(stream);BilinearCompletion completion(ordered,scratch);
   return completion.finish([&]() -> rns8_status {
   auto transform=[&](int selected) {return timed_hip_operation(rank48?"rank48_slp_transform_pair":october?"rank23_oct55_transform_pair":"rank23_slp_basis_transform_pair",[&]() {
-    auto launch = static_cast<hipError_t>(rank48?rns8_hip_rank48_slp_transform(
+    auto launch = static_cast<hipError_t>(pruned?rns8_hip_bilinear_selected_transform(
+        static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,rank48,true,selected,resources.planes,stream):rank48?rns8_hip_rank48_slp_transform(
         static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,prefix,true,selected,resources.planes,stream):october?rns8_hip_rank23_oct55_transform(
         static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,prefix,true,selected,stream):
         rns8_hip_rank23_slp_transform(static_cast<const int8_t*>(a),left,int(m),int(k),int(lda),hm,hk,prefix,true,stream));
     if (launch == hipSuccess) {
-      launch = static_cast<hipError_t>(rank48?rns8_hip_rank48_slp_transform(
+      launch = static_cast<hipError_t>(pruned?rns8_hip_bilinear_selected_transform(
+          static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,rank48,false,selected,resources.planes,stream):rank48?rns8_hip_rank48_slp_transform(
           static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,prefix,false,selected,resources.planes,stream):october?rns8_hip_rank23_oct55_transform(
           static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,prefix,false,selected,stream):
           rns8_hip_rank23_slp_transform(static_cast<const int8_t*>(b),right,int(k),int(n),int(ldb),hk,hn,prefix,false,stream));
@@ -121,4 +124,18 @@ rns8_status hip_direct_gemm_rank48_slp_recompute_device(
     void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts,void* stream) {
   return hip_direct_gemm_rank23_dag_device(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,commit_started,
       false,true,retained_scratch,retained_bytes,matrix_subproducts,stream,true);
+}
+
+rns8_status hip_direct_gemm_rank23_oct55_pruned_device(int device,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,
+    bool& committed,void* scratch,uint64_t bytes,bool matrix,void* stream) {
+  return hip_direct_gemm_rank23_dag_device(device,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,committed,
+    true,true,scratch,bytes,matrix,stream,false,true);
+}
+
+rns8_status hip_direct_gemm_rank48_slp_pruned_device(int device,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,
+    bool& committed,void* scratch,uint64_t bytes,bool matrix,void* stream) {
+  return hip_direct_gemm_rank23_dag_device(device,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,committed,
+    false,true,scratch,bytes,matrix,stream,true,true);
 }
