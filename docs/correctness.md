@@ -312,3 +312,12 @@ Distributed HIP owners become irreversibly retired when destructive close starts
 a failed close may retry teardown but cannot submit or materialize a new epoch.
 A BUSY close caused by work or readers remains non-destructive. The November
 source pass has authored regression coverage; runtime qualification is pending.
+
+Offline exact-form consumers require both polynomial identity and finite exact
+recoverability before costing a form. The shared certificate checker admits the
+initial instruction and ordered-recombination carry separately and bounds all
+partial lengths, including zero. Checker v4 changes proof identity; older
+receipts do not automatically certify the stronger obligation. ISA, layout and
+measured target qualification remain separate verdicts. Modulus-search schema
+v3 is read and written through a shared strict-product validator; v1/v2 files
+remain readable as legacy, nonqualifying semantic-range evidence.

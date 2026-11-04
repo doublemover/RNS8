@@ -11,7 +11,7 @@ import json
 import math
 from pathlib import Path
 
-from arithmetic_certificate import ArithmeticCertificate, certificate_hash, from_json, verify
+from arithmetic_certificate import ArithmeticCertificate, certificate_hash, from_json, verify, exact_form_admissible
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,7 @@ def optimize(forms: list[Form], bound: int, signed: bool, k: int, max_nodes: int
         raise ValueError("form costs must share an explicit calibration cohort")
     unique = set()
     for form in forms:
-        if not verify(form.certificate)["algebraically_verified"]:
+        if not exact_form_admissible(verify(form.certificate)):
             raise ValueError("unverified arithmetic form")
         if any(type(cost) is not int or cost < 0 for cost in
                (form.conversion_ps, form.slab_ps, form.epilogue_ps, form.reconstruction_ps)):

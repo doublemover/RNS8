@@ -13,7 +13,7 @@ import math
 from typing import Protocol
 
 from analytical_planner import Rate, Stage, predict
-from arithmetic_certificate import ArithmeticCertificate, certificate_hash, verify
+from arithmetic_certificate import ArithmeticCertificate, certificate_hash, verify, exact_form_admissible
 
 U64_MAX = (1 << 64) - 1
 
@@ -278,7 +278,7 @@ def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueF
         raise ValueError("required input materialization is unavailable")
     for certificate in recipe.certificates:
         proof = verify(certificate)
-        if not proof["algebraically_verified"]:
+        if not exact_form_admissible(proof):
             raise ValueError(f"arithmetic: {proof['proof_failures']}")
         if certificate.semantics != problem.semantics or recipe.k_slab > certificate.safe_k:
             raise ValueError("certificate semantics or safe slab mismatch")

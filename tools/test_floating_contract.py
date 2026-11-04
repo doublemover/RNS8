@@ -20,6 +20,46 @@ def fixture(format_name="ocp_e2m1", count=32):
 
 
 class FloatingContracts(unittest.TestCase):
+    def test_exact_form_admission_reaches_all_search_and_planning_consumers(self):
+        from analytical_planner import Stage, Rate, predict
+        from arithmetic_certificate import centered_int8, exact_form_admissible
+        from modulus_scheme_optimizer import Form, optimize
+        from joint_scheme_optimizer import ScheduledForm, joint_optimize
+        from planning_recipe import (ProblemContract, ValueFacts, CandidateRecipe, ResourcePlan,
+                                     KernelCapability, TargetCapabilities, admit)
+        valid = fixture()
+        valid = bind_artifacts(replace(valid, instruction=replace(valid.instruction, measured_evidence_sha256="a"*64)))
+        bad = bind_artifacts(replace(valid, instruction=replace(valid.instruction,
+            floating=replace(valid.instruction.floating, accumulator_precision=3))))
+        self.assertTrue(verify(bad)["algebraically_verified"])
+        self.assertFalse(exact_form_admissible(verify(bad)))
+        for certificate in (centered_int8(4,32), valid, bad):
+            accepted = certificate is not bad
+            form = Form(certificate,1,1,1,1,"synthetic-proof-only")
+            stages = (Stage("compute","mock_kernel",(),("matrix",),(("matrix",1),),0),)
+            rate = Rate(Fraction(1),Fraction(1),"operations","synthetic-proof-only")
+            problem = ProblemContract(1,1,32,32,1,1,"finite_ring",(4,),"resident_residues")
+            facts = (ValueFacts("A",1,1,3,("native_i64",)),ValueFacts("B",2,1,3,("native_i64",)))
+            recipe = CandidateRecipe("proof",problem,facts,(certificate,),stages,"declared",16,16,32,
+                                     ((0,1),),ResourcePlan("success"))
+            # Binding a fabricated capability exercises admission, not qualification.
+            bound = certificate
+            if bound.instruction.measured_evidence_sha256 is None:
+                bound = replace(bound,instruction=replace(bound.instruction,measured_evidence_sha256="a"*64))
+                recipe = replace(recipe,certificates=(bound,))
+            capability = KernelCapability("mock_kernel",certificate_hash(bound),bound.instruction.opcode,"declared","a"*64)
+            target = TargetCapabilities(bound.instruction.target,bound.instruction.compiler,"b"*64,(capability,))
+            calls = (lambda: optimize([form],1,False,32),
+                     lambda: joint_optimize([ScheduledForm(form,"declared",1,0)],1,False,32,
+                         slabs=(32,),max_group_planes=1,register_budget=1,lds_budget=0,group_launch_ps=1,prefix_bit_ps=0),
+                     lambda: predict(stages,{"matrix":rate},certificate,0,"synthetic-target"),
+                     lambda: admit(recipe,problem,facts,target,0))
+            for call in calls:
+                if accepted:
+                    self.assertIsInstance(call(),dict)
+                else:
+                    with self.assertRaises(ValueError):call()
+
     def test_decoding_and_distinct_families(self):
         self.assertEqual(decode_element("ocp_e2m1",7),6)
         self.assertEqual(decode_element("ocp_e2m3",31),Fraction(15,2))

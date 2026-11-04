@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 
-from arithmetic_certificate import ArithmeticCertificate, certificate_hash, verify
+from arithmetic_certificate import ArithmeticCertificate, certificate_hash, verify, exact_form_admissible
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class Stage:
 def predict(stages: tuple[Stage, ...], rates: dict[str, Rate], certificate: ArithmeticCertificate,
             workspace_budget: int, target: str) -> dict:
     proof = verify(certificate)
-    if not proof["algebraically_verified"]:
+    if not exact_form_admissible(proof):
         raise ValueError(f"arithmetic obligations failed: {proof['proof_failures']}")
     if type(target) is not str or not target or type(workspace_budget) is not int or workspace_budget < 0:
         raise ValueError("target and nonnegative workspace budget are required")

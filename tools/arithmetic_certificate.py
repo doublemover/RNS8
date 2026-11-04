@@ -6,6 +6,7 @@ is deliberately independent of device reducers and generated kernel arithmetic.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -99,13 +100,21 @@ def _schema_failures(c: ArithmeticCertificate) -> list[str]:
 def certificate_hash(certificate: ArithmeticCertificate) -> str:
     if _schema_failures(certificate):
         raise ValueError("cannot hash a malformed arithmetic certificate")
-    payload = json.dumps({"checker_version": "integer-floating-certificate-v3", "certificate": asdict(certificate)}, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    payload = json.dumps({"checker_version": "integer-floating-certificate-v4", "certificate": asdict(certificate)}, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _product_interval(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int]:
     products = [x * y for x in a for y in b]
     return min(products), max(products)
+
+
+def exact_form_admissible(proof: Mapping[str, object]) -> bool:
+    """Mathematical admission only; ISA/layout/calibration remain independent."""
+    verdicts = proof.get("verdicts")
+    return (proof.get("algebraically_verified") is True and isinstance(verdicts, Mapping)
+            and verdicts.get("algebraic_value_equality") == "proven"
+            and verdicts.get("finite_exact_recoverability") == "proven")
 
 
 def verify(c: ArithmeticCertificate) -> dict:
@@ -136,6 +145,11 @@ def verify(c: ArithmeticCertificate) -> dict:
     if failures:
         return _result(c, failures, [])
 
+    if c.prior_min < instruction.accumulator_min or c.prior_max > instruction.accumulator_max:
+        failures.append("initial_instruction_accumulator_out_of_range")
+    if c.prior_min < c.recombination_min or c.prior_max > c.recombination_max:
+        failures.append("initial_recombination_accumulator_out_of_range")
+
     intervals = []
     running_min, running_max = c.prior_min, c.prior_max
     for index, plane in enumerate(c.planes):
@@ -145,7 +159,10 @@ def verify(c: ArithmeticCertificate) -> dict:
             failures.append(f"plane_{index}_stored_alphabet")
         lo, hi = _product_interval((min(plane.lhs), max(plane.lhs)), (min(plane.rhs), max(plane.rhs)))
         lo, hi = lo * c.safe_k, hi * c.safe_k
-        if lo + c.prior_min < instruction.accumulator_min or hi + c.prior_max > instruction.accumulator_max:
+        # Every length 0..safe_k lies in this hull: each endpoint is
+        # monotone in length, including all-positive/all-negative products.
+        partial_lo, partial_hi = min(0, lo), max(0, hi)
+        if partial_lo + c.prior_min < instruction.accumulator_min or partial_hi + c.prior_max > instruction.accumulator_max:
             failures.append(f"plane_{index}_accumulator_overflow")
         weighted = sorted((lo * plane.weight, hi * plane.weight))
         if weighted[0] < c.recombination_min or weighted[1] > c.recombination_max:
@@ -155,6 +172,7 @@ def verify(c: ArithmeticCertificate) -> dict:
         if running_min < c.recombination_min or running_max > c.recombination_max:
             failures.append(f"plane_{index}_ordered_recombination_overflow")
         intervals.append({"plane": index, "product_sum": [lo, hi],
+                          "product_partial_sum": [partial_lo, partial_hi],
                           "ordered_recombination": [running_min, running_max]})
 
     # Exhaust all byte-domain pairs, independently from interval proofs.
@@ -196,9 +214,11 @@ def verify(c: ArithmeticCertificate) -> dict:
 
 def _result(c: ArithmeticCertificate, failures: list[str], intervals: list[dict], malformed: bool = False) -> dict:
     floating = verify_floating(c) if not malformed and not failures and c.instruction.floating is not None else None
+    algebraic_failures = [failure for failure in failures if
+                          not failure.endswith("_overflow") and not failure.startswith("initial_")]
     result = {"schema": "rns8_arithmetic_certificate_v1", "sha256": None if malformed else certificate_hash(c),
-            "checker_version": "integer-floating-certificate-v3",
-            "verdicts": {"algebraic_value_equality": "proven" if not failures else "unknown",
+            "checker_version": "integer-floating-certificate-v4",
+            "verdicts": {"algebraic_value_equality": "proven" if not malformed and not algebraic_failures else "unknown",
                          "floating_rewrite_equivalence": "unsupported",
                          "finite_exact_recoverability": "proven" if not failures else "unknown",
                          "physical_layout_correctness": "not_run", "target_execution": "not_run"},

@@ -140,9 +140,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/29",
       "requirements_sha256": "0f2494e89ce4463c74e0cc016afee521c19c0c477bb449edd2c45f4a32f1a6da",
       "comments_reviewed": 5,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Checker v4 proves initial instruction/recombination carry nodes and all partial-length interval hulls; independent mirrored boundary fixtures authored"
+      ],
+      "remaining_source_items": [
+        "Typed CK physical encoding/implementation descriptor integration",
+        "Source-bound bounded bitvector proof pilot and negative-control receipt workflow"
+      ]
     },
     {
       "issue": 30,
@@ -170,8 +175,11 @@
       "url": "https://github.com/doublemover/RNS8/issues/32",
       "requirements_sha256": "6c2628af3e2451c0dfc37c5b4d33ea5ac6d09cb84ded61a8f7b699571efc4680",
       "comments_reviewed": 3,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Shared exact-form predicate in additive/joint optimizer, typed recipe admission and direct analytical predictor, with integer/floating positive and insufficient-precision negative fixtures",
+        "Shared modulus-search schema-v3 strict-product validator for producer/writer/reader and direct report consumer; legacy files explicitly nonqualifying; on-disk roundtrip/corruption fixtures authored"
+      ],
       "remaining_source_items": []
     },
     {

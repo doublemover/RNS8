@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from modulus_set_search import validate_search_report
 
 
 DEFAULT_OUT_DIR = Path("temp") / "modulus-set-autotune-reports"
@@ -47,12 +48,10 @@ def _load_search_report(path: Path) -> dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"{path}: failed to read modulus-set search report: {exc}") from exc
-    if not isinstance(data, dict) or data.get("schema_version") not in {1, 2}:
-        raise SystemExit(f"{path}: modulus-set search report must be a schema v1/v2 object")
-    candidates = data.get("candidates")
-    if not isinstance(candidates, list):
-        raise SystemExit(f"{path}: modulus-set search report must contain candidates")
-    return data
+    try:
+        return validate_search_report(data)
+    except ValueError as exc:
+        raise SystemExit(f"{path}: {exc}") from exc
 
 
 def _candidate_index(search_report: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -215,12 +214,15 @@ def _candidate_blockers(
 
 
 def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> dict[str, Any]:
+    search_report = validate_search_report(search_report)
     captures = [_load_capture(path) for path in _as_list(capture_paths)]
     search_candidates = _candidate_index(search_report)
     rows: list[dict[str, Any]] = []
     summary = Counter()
     for capture in captures:
         blockers, search_candidate = _candidate_blockers(capture, search_candidates, captures)
+        if _modulus_name(capture) != "default" and search_report["semantic_range_evidence_status"] != "strict_products_verified":
+            blockers.append("legacy_search_missing_strict_semantic_range_proof")
         anchor = _anchor_for(capture, captures) if _modulus_name(capture) != "default" else None
         evidence_blockers = [
             blocker
@@ -273,6 +275,7 @@ def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> di
             "spec_cache_schema_proof_and_same_target_review_required",
         ),
         "search_report_policy": search_report.get("policy"),
+        "semantic_range_evidence_status": search_report["semantic_range_evidence_status"],
         "search_dimensions": search_report.get("search_dimensions", []),
         "summary": dict(summary),
         "rows": rows,

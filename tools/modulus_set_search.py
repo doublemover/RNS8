@@ -293,7 +293,7 @@ def build_report(
     for item in reports:
         item["satisfies_min_bits"] = item["product_bits"] >= min_bits and item["pairwise_coprime"]
         item["disposition"] = candidate_disposition(item, min_bits)
-    return {
+    report = {
         "schema_version": 3,
         "policy": "offline_search_evidence_only_non_promoting",
         "minimum_product_bits": min_bits,
@@ -312,11 +312,48 @@ def build_report(
         "default_change_gate": "spec_cache_schema_proof_and_same_target_review_required",
         "candidates": reports,
     }
+    return validate_search_report(report)
+
+
+def validate_search_report(data: object) -> dict:
+    """Validate current semantic proofs; legacy search files stay nonqualifying."""
+    if not isinstance(data, dict) or type(data.get("schema_version")) is not int or data["schema_version"] not in {1, 2, 3}:
+        raise ValueError("modulus-set search report must be a schema v1/v2/v3 object")
+    candidates = data.get("candidates")
+    if not isinstance(candidates, list) or any(not isinstance(item, dict) for item in candidates):
+        raise ValueError("modulus-set search report must contain candidate objects")
+    result = dict(data)
+    if data["schema_version"] < 3:
+        result["semantic_range_evidence_status"] = "legacy_nonqualifying"
+        return result
+    if (data.get("minimum_product_bits_is_semantic_proof") is not False
+            or data.get("runtime_policy") != "report_only_runtime_ladder_unchanged"
+            or data.get("policy") != "offline_search_evidence_only_non_promoting"
+            or type(data.get("minimum_product_bits")) is not int or data["minimum_product_bits"] < 1
+            or json.dumps(data.get("range_contracts"), sort_keys=True, allow_nan=False) != json.dumps(range_contracts(DEFAULT_RANGE_PROFILES), sort_keys=True)):
+        raise ValueError("invalid schema-v3 strict semantic range contract")
+    names = set()
+    for item in candidates:
+        name, moduli = item.get("name"), item.get("moduli")
+        if (not isinstance(name, str) or not name or name in names or not isinstance(moduli, list)
+                or not moduli or any(type(q) is not int or q < 2 for q in moduli)):
+            raise ValueError("invalid or duplicate modulus search candidate")
+        names.add(name)
+        # Recompute the proof-bearing fields, never trust bit length as range.
+        expected = candidate_report(moduli, name)
+        for key in ("prefix_count", "pairwise_coprime", "product_bits", "required_prefixes", "prefix_products"):
+            if json.dumps(item.get(key), sort_keys=True, allow_nan=False) != json.dumps(expected[key], sort_keys=True):
+                raise ValueError(f"candidate {name}: inconsistent {key}")
+        if item.get("promotion_eligible") is not False or item.get("runtime_selectable") is not False:
+            raise ValueError("offline search cannot enable runtime promotion")
+    result["semantic_range_evidence_status"] = "strict_products_verified"
+    return result
 
 
 def write_report(report: dict, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "modulus-set-search-report.json"
+    report = validate_search_report(report)
     out_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return out_path
 

@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-from arithmetic_certificate import centered_int8, certificate_hash, from_json, verify, verify_wrap64_recode, verify_wrap64_mfma_recode
+from arithmetic_certificate import ArithmeticCertificate, ProductPlane, centered_int8, certificate_hash, from_json, verify, verify_wrap64_recode, verify_wrap64_mfma_recode
 
 
 def main() -> int:
@@ -17,6 +17,30 @@ def main() -> int:
         assert result["algebraically_verified"], (modulus, result)
         assert not result["runtime_dispatch_eligible"]
         assert certificate_hash(from_json(json.loads(json.dumps(asdict(certificate))))) == certificate_hash(certificate)
+    # Initial nodes must be representable even when later products bring
+    # the full slab endpoint back into range. Mirror both sign directions.
+    machine = centered_int8(2,1).instruction
+    for sign in (1,-1):
+        plane = ProductPlane((2,3),(2*sign,3*sign))
+        prior = -(1<<31)-1 if sign==1 else 1<<31
+        witness = ArithmeticCertificate(2,(plane,),1,1,prior,prior,-(1<<63),(1<<63)-1,machine)
+        proof = verify(witness)
+        assert "initial_instruction_accumulator_out_of_range" in proof["proof_failures"]
+        assert proof["verdicts"]["algebraic_value_equality"] == "proven"
+        assert proof["verdicts"]["finite_exact_recoverability"] != "proven"
+        valid_prior = -(1<<31) if sign==1 else (1<<31)-1
+        valid = replace(witness,prior_min=valid_prior,prior_max=valid_prior)
+        assert verify(valid)["algebraically_verified"]
+        recombination = replace(valid,instruction=replace(machine,accumulator_min=-(1<<63),accumulator_max=(1<<63)-1),
+            recombination_min=-(1<<31),recombination_max=(1<<31)-1,prior_min=prior,prior_max=prior)
+        assert "initial_recombination_accumulator_out_of_range" in verify(recombination)["proof_failures"]
+    for carry in (-255,0,255):
+        for q in (2,13,255,256):
+            c=replace(centered_int8(q),prior_min=carry,prior_max=carry)
+            assert verify(c)["algebraically_verified"]
+    zero=ProductPlane((0,0),(0,0))
+    c=centered_int8(2)
+    assert verify(replace(c,planes=(zero,)+c.planes))["algebraically_verified"]
     base = centered_int8(256, 131071)
     assert verify(base)["algebraically_verified"]
     for value in (True, 1.0, math.nan, math.inf, -math.inf, "1", None):

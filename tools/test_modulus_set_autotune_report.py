@@ -98,6 +98,23 @@ def main() -> int:
             [("prefix5-byte-ladder-search", modulus_set_search.DEFAULT_MODULI[:9])],
             72,
         )
+        search_path = write_capture(root, "search.json", search)
+        search = modulus_set_autotune_report._load_search_report(search_path)
+        assert search["semantic_range_evidence_status"] == "strict_products_verified"
+        assert search["schema_version"] == 3
+        for change in ("strict_product_threshold", "criterion"):
+            corrupt = copy.deepcopy(search)
+            contract = next(iter(corrupt["range_contracts"].values()))
+            contract[change] = 0
+            bad_path = write_capture(root, "bad-search.json", corrupt)
+            try:
+                modulus_set_autotune_report._load_search_report(bad_path)
+            except SystemExit:
+                pass
+            else:
+                raise AssertionError("corrupted schema-v3 semantic proof accepted")
+        legacy = modulus_set_search.validate_search_report({"schema_version": 2, "candidates": []})
+        assert legacy["semantic_range_evidence_status"] == "legacy_nonqualifying"
         default = set_median(with_default_modulus_metadata(load_fixture()), 200.0)
         candidate = set_median(as_experimental(default), 100.0)
         default_path = write_capture(root, "default.json", default)
