@@ -5,12 +5,6 @@ using namespace rns8::detail::api;
 
 namespace {
 
-bool same_source_device_residue_pack_current(const rns8_context& ctx, const rns8_matrix& matrix, uint64_t source_version) {
-  return source_version != 0 && matrix.imported_source && !matrix.generation_exhausted && matrix.source_version == source_version && hip_resident_rns_backend(ctx.backend) &&
-         matrix.device_residues_current && materialized_rns_prefix_covers(matrix, matrix.prefix) &&
-         !should_populate_native_on_pack(ctx, matrix);
-}
-
 bool same_source_device_byte_limb_pack_current(
     const rns8_context& ctx,
     const rns8_matrix& matrix,
@@ -53,13 +47,14 @@ rns8_status rns8_pack_i64(
     if (hip_resident_rns_backend(ctx->backend) &&
         !rns8::detail::qualified_i32_matrix_address(matrix->desc.rows, matrix->desc.cols, matrix->desc.cols, 1, sizeof(*src)))
       return RNS8_RANGE_ERROR;
+    if(same_source_device_rns_import_current(*ctx,*matrix,source_version))return RNS8_SUCCESS;
     // A compact verified magnitude also enables bounded single-source Gram.
     // Keep it independent of host mirrors and compute with unsigned arithmetic
     // so INT64_MIN is handled without signed negation overflow.
     uint64_t bounded_magnitude = 0;
     const bool certify_bounded = matrix->desc.semantics == RNS8_BOUNDED_I64 &&
                                  !native_vector_backend(ctx->backend);
-    if (certify_bounded && !same_source_device_residue_pack_current(*ctx,*matrix,source_version))
+    if (certify_bounded)
       for (int64_t row=0;row<matrix->desc.rows;++row)
         for (int64_t col=0;col<matrix->desc.cols;++col) {
           const auto value=src[row*ld+col];
@@ -74,13 +69,7 @@ rns8_status rns8_pack_i64(
           (hip_resident_rns_backend(ctx->backend) && matrix->hip_device_id != ctx->device_id)) {
         return RNS8_INVALID_ARGUMENT;
       }
-      // Stable source versions preserve the original packed value and proof.
-      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
-        exact_bound = matrix->exact_max_magnitude;
-      } else {
-        exact_ranges =
-            rns8::detail::native_exact_ranges(src, matrix->desc.rows, matrix->desc.cols, ld, exact_bound);
-      }
+      exact_ranges=rns8::detail::native_exact_ranges(src,matrix->desc.rows,matrix->desc.cols,ld,exact_bound);
       if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
                                         rns8::detail::modulus_product(matrix->prefix))) {
         return RNS8_RANGE_ERROR;
@@ -91,7 +80,7 @@ rns8_status rns8_pack_i64(
           !bounded_native_storage_matches(*matrix, RNS8_BOUNDED_I64, matrix->desc.rows, matrix->desc.cols)) {
         return RNS8_INVALID_ARGUMENT;
       }
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       const rns8_status status = upload_native_i64(*ctx, *matrix, src, ld);
       if (status != RNS8_SUCCESS) {
         return status;
@@ -109,10 +98,7 @@ rns8_status rns8_pack_i64(
       return RNS8_INVALID_ARGUMENT;
     }
     if (hip_resident_rns_backend(ctx->backend)) {
-      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
-        return RNS8_SUCCESS;
-      }
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       rns8_status status;
       if (should_populate_native_on_pack(*ctx, *matrix)) {
         // One owned compact upload supplies both the native readers and RNS
@@ -139,7 +125,7 @@ rns8_status rns8_pack_i64(
       }
       mark_device_residues_current(*matrix);
     } else {
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       rns8::detail::pack_i64_matrix(*matrix, src, ld);
       mark_host_residues_current(*matrix);
     }
@@ -190,6 +176,7 @@ rns8_status rns8_pack_u64(
     if (hip_resident_rns_backend(ctx->backend) &&
         !rns8::detail::qualified_i32_matrix_address(matrix->desc.rows, matrix->desc.cols, matrix->desc.cols, 1, sizeof(*src)))
       return RNS8_RANGE_ERROR;
+    if(same_source_device_rns_import_current(*ctx,*matrix,source_version))return RNS8_SUCCESS;
     std::optional<MatrixWriteGuard> write;
     boost::multiprecision::cpp_int exact_bound = 0;
     rns8_exact_matrix_ranges exact_ranges;
@@ -198,13 +185,7 @@ rns8_status rns8_pack_u64(
           (hip_resident_rns_backend(ctx->backend) && matrix->hip_device_id != ctx->device_id)) {
         return RNS8_INVALID_ARGUMENT;
       }
-      // Stable source versions preserve the original packed value and proof.
-      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
-        exact_bound = matrix->exact_max_magnitude;
-      } else {
-        exact_ranges =
-            rns8::detail::native_exact_ranges(src, matrix->desc.rows, matrix->desc.cols, ld, exact_bound);
-      }
+      exact_ranges=rns8::detail::native_exact_ranges(src,matrix->desc.rows,matrix->desc.cols,ld,exact_bound);
       if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
                                         rns8::detail::modulus_product(matrix->prefix))) {
         return RNS8_RANGE_ERROR;
@@ -215,7 +196,7 @@ rns8_status rns8_pack_u64(
           !bounded_native_storage_matches(*matrix, RNS8_BOUNDED_U64, matrix->desc.rows, matrix->desc.cols)) {
         return RNS8_INVALID_ARGUMENT;
       }
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       const rns8_status status = upload_native_u64(*ctx, *matrix, src, ld);
       if (status != RNS8_SUCCESS) {
         return status;
@@ -234,19 +215,17 @@ rns8_status rns8_pack_u64(
         return RNS8_INVALID_ARGUMENT;
       }
       if (ctx->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
         rns8::detail::pack_wrap_u64_matrix(*matrix, src, ld);
         mark_host_byte_limbs_current(*matrix);
       } else if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
         if (same_source_device_byte_limb_pack_current(*ctx, *matrix, source_version)) {
           return RNS8_SUCCESS;
         }
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
         const rns8_status status = rns8::detail::wrap64_hip_pack_u64_device(
             ctx->device_id,
             src,
-            &matrix->hip_upload_buffer,
-            &matrix->hip_upload_bytes,
             matrix->hip_byte_limbs,
             matrix->desc.rows,
             matrix->desc.cols,
@@ -264,10 +243,7 @@ rns8_status rns8_pack_u64(
       if (matrix->hip_device_id != ctx->device_id) {
         return RNS8_INVALID_ARGUMENT;
       }
-      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
-        return RNS8_SUCCESS;
-      }
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       rns8_status status;
       if (should_populate_native_on_pack(*ctx, *matrix)) {
         // One owned compact upload supplies both the native readers and RNS
@@ -294,7 +270,7 @@ rns8_status rns8_pack_u64(
       }
       mark_device_residues_current(*matrix);
     } else {
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       rns8::detail::pack_u64_matrix(*matrix, src, ld);
       mark_host_residues_current(*matrix);
     }
@@ -347,7 +323,7 @@ rns8_status rns8_pack_finite_u8(
       if (same_source_finite_device_residue_pack_current(*ctx, *matrix, modulus, source_version)) {
         return RNS8_SUCCESS;
       }
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       const rns8_status status = rns8::detail::hip_direct_pack_finite_u8_device(
           ctx->device_id,
           src,
@@ -363,7 +339,7 @@ rns8_status rns8_pack_finite_u8(
       }
       mark_device_residues_current(*matrix);
     } else if (host_rns_backend(ctx->backend)) {
-      write.emplace(*matrix);
+      write.emplace(*matrix,*ctx);
       rns8::detail::pack_finite_u8_matrix(*matrix, src, ld, modulus);
       mark_host_residues_current(*matrix);
     } else {
@@ -413,7 +389,7 @@ rns8_status rns8::detail::api::import_exact_wide_limbs(
     std::vector<int8_t> staging;
     if (matrix.hip_residues) staging.resize(matrix.hip_residue_bytes);
     auto* destination = matrix.hip_residues ? staging.data() : matrix.residues.data();
-    MatrixWriteGuard write(matrix);
+    MatrixWriteGuard write(matrix,ctx);
     for (uint32_t p = 0; p < matrix.prefix; ++p)
       for (std::size_t cell = 0; cell < cells; ++cell)
         destination[p * cells + cell] =

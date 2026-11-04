@@ -7,12 +7,12 @@ template<class T> void check_public_native_group() {
   rns8_plan* plans[2]{};rns8_workspace* work[2]{};rns8_prepared_execution* execution[2]{};
   rns8_matrix *a[2]{},*c[2]{},*b=nullptr;
   std::vector<T> av[2],bv(k*n);for(size_t i=0;i<bv.size();++i)bv[i]=T(i%7);
-  const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& values,int ld) {
-    if constexpr(std::is_unsigned_v<T>)return rns8_pack_u64(ctx,matrix,values.data(),ld,0);
-    else return rns8_pack_i64(ctx,matrix,values.data(),ld,0);
+  const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& values,int ld,uint64_t version=0) {
+    if constexpr(std::is_unsigned_v<T>)return rns8_pack_u64(ctx,matrix,values.data(),ld,version);
+    else return rns8_pack_i64(ctx,matrix,values.data(),ld,version);
   };
   auto bdesc=matrix_desc(k,n,semantics,RNS8_BOUND_NONE);bdesc.max_prefix=prefix;bdesc.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
-  REQUIRE(rns8_create_matrix(ctx,&bdesc,&b)==RNS8_SUCCESS);REQUIRE(pack(b,bv,n)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx,&bdesc,&b)==RNS8_SUCCESS);REQUIRE(pack(b,bv,n,77)==RNS8_SUCCESS);
   for(int i=0;i<2;++i) {
     auto desc=exact_signed_desc(rows[i],n,k,RNS8_BACKEND_HIP_DIRECT);desc.semantics=semantics;
     desc.max_prefix=prefix;desc.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX;
@@ -56,6 +56,10 @@ template<class T> void check_public_native_group() {
   REQUIRE(prepared==RNS8_SUCCESS);
   for(bool encoded:{false,true}) {
     if(encoded){REQUIRE(rns8_prepare_encoded_b(ctx,b,UINT64_MAX,&cache)==RNS8_SUCCESS);for(auto& binding:bindings)binding.encoded_b=cache;}
+    const auto before=b->content_generation;
+    rns8::detail::hip_direct_allocation_counters_reset();REQUIRE(pack(b,bv,n,77)==RNS8_SUCCESS);
+    CHECK(b->content_generation==before);CHECK(b->device_native_current);CHECK(b->device_residues_current);
+    CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().h2d_calls==0);
     for(auto order:{RNS8_LOCALITY_ORDINARY,RNS8_LOCALITY_OUTPUT_NEIGHBOR,RNS8_LOCALITY_MODULUS,RNS8_LOCALITY_SAME_OUTPUT}){
       auto local=desc;local.schedule_mode=0;local.ordinary_grid_control=0;rns8_locality_desc layout{sizeof(layout),RNS8_ABI_VERSION,order,0,1,1,3,1024};
       REQUIRE(rns8_prepare_native_group_locality(group,&local,bindings,2,&layout)==RNS8_SUCCESS);
@@ -75,7 +79,7 @@ template<class T> void check_public_native_group() {
         CHECK(cached.source_is_current==1);CHECK(cached.layout_version==1);CHECK(cached.prefix==prefix);
         CHECK(cached.source_generation==b->content_generation);CHECK(cached.retained_device_bytes>0);}
       rns8_native_group_info info{sizeof(info),RNS8_ABI_VERSION};REQUIRE(rns8_get_native_group_info(group,&info)==RNS8_SUCCESS);
-      CHECK(info.task_count==2);CHECK(info.schedule_mode==mode);CHECK(info.ordinary_grid_control==ordinary);
+      CHECK(info.task_count==2);CHECK(info.schedule_mode==mode);CHECK(info.ordinary_grid_control==uint32_t(ordinary));
       auto small=desc;small.max_metadata_bytes=info.retained_device_metadata_bytes;
       CHECK(rns8_prepare_native_group(group,&small,bindings,2)==RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE(rns8_capture_native_group_hip_graph(group)==RNS8_SUCCESS);

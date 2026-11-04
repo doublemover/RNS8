@@ -73,15 +73,15 @@ json run(const Case& c){const uint64_t ab=uint64_t(c.m)*c.k+uint64_t(c.k)*c.n,mn
  if(cs==RNS8_UNSUPPORTED_BACKEND||cs==RNS8_UNSUPPORTED_ARCH||cs==RNS8_UNSUPPORTED_OS)throw Unsupported(rns8_status_string(cs));check(cs);std::unique_ptr<rns8_context,ContextDelete> ctx(raw);
  rns8_device_info device{};device.struct_size=sizeof(device);device.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(ctx.get(),&device));require(device.backend==RNS8_BACKEND_HIP_DIRECT&&device.device_id==c.device&&device.gcn_arch[0],"explicit device identity unavailable");
  uint32_t mfma_k=0;if(c.candidate=="signed_radix_mfma"){const auto support=hip_direct_wrap_radix_mfma_query(c.device,mfma_k);if(support==RNS8_UNSUPPORTED_BACKEND)throw Unsupported("compiled CDNA2/3/4 signed INT8 MFMA unavailable");check(support);}
- Buffer wa(c.device),wb(c.device),wu(c.device),we(c.device),output(c.device),audit_export(c.device);output.allocate(size_t(mn*8+64));audit_export.allocate(size_t(mn*8));
+ Buffer wa(c.device),wb(c.device),output(c.device);output.allocate(size_t(mn*8+64));
  std::vector<uint8_t> poison(size_t(mn*8+64),0xA5),raw_output(poison.size());std::vector<uint64_t> host_output(c.m*(c.n+3),canary);
  if(c.scope!="cold"){wa.allocate(a.size()*8);wb.allocate(b.size()*8);}
- const auto pack=[&](Buffer& da,Buffer& db,Buffer& upload){check(wrap64_hip_pack_u64_device(c.device,a.data(),&upload.ptr,&upload.bytes,da.ptr,int64_t(c.m),int64_t(c.k),int64_t(c.k)));check(wrap64_hip_pack_u64_device(c.device,b.data(),&upload.ptr,&upload.bytes,db.ptr,int64_t(c.k),int64_t(c.n),int64_t(c.n)));};
- json resident_prepare=nullptr;if(c.scope=="resident" || c.scope=="repeated_b"){const auto t=Clock::now();if(c.scope=="resident")pack(wa,wb,wu);else check(wrap64_hip_pack_u64_device(c.device,b.data(),&wu.ptr,&wu.bytes,wb.ptr,int64_t(c.k),int64_t(c.n),int64_t(c.n)));resident_prepare=ns(t);}const auto setup_ns=ns(setup_begin);
- const auto invoke=[&](bool phases){Phases result;Buffer ca(c.device),cb(c.device),cu(c.device),ce(c.device);auto& da=c.scope=="cold"?ca:wa;auto& db=c.scope=="cold"?cb:wb;auto& upload=c.scope=="cold"?cu:wu;auto& exported=c.scope=="cold"?ce:we;
+ const auto pack=[&](Buffer& da,Buffer& db){check(wrap64_hip_pack_u64_device(c.device,a.data(),da.ptr,int64_t(c.m),int64_t(c.k),int64_t(c.k)));check(wrap64_hip_pack_u64_device(c.device,b.data(),db.ptr,int64_t(c.k),int64_t(c.n),int64_t(c.n)));};
+ json resident_prepare=nullptr;if(c.scope=="resident" || c.scope=="repeated_b"){const auto t=Clock::now();if(c.scope=="resident")pack(wa,wb);else check(wrap64_hip_pack_u64_device(c.device,b.data(),wb.ptr,int64_t(c.k),int64_t(c.n),int64_t(c.n)));resident_prepare=ns(t);}const auto setup_ns=ns(setup_begin);
+ const auto invoke=[&](bool phases){Phases result;Buffer ca(c.device),cb(c.device);auto& da=c.scope=="cold"?ca:wa;auto& db=c.scope=="cold"?cb:wb;
   auto t=phases?Clock::now():Clock::time_point{};
   if(c.scope=="cold"){da.allocate(a.size()*8);db.allocate(b.size()*8);}if(phases){result.allocation=c.scope=="cold"?ns(t):0;t=Clock::now();}
-  if(c.scope=="repeated_b")check(wrap64_hip_pack_u64_device(c.device,a.data(),&upload.ptr,&upload.bytes,da.ptr,int64_t(c.m),int64_t(c.k),int64_t(c.k)));else if(c.scope!="resident")pack(da,db,upload);if(phases){result.pack=c.scope!="resident"?ns(t):0;t=Clock::now();}
+  if(c.scope=="repeated_b")check(wrap64_hip_pack_u64_device(c.device,a.data(),da.ptr,int64_t(c.m),int64_t(c.k),int64_t(c.k)));else if(c.scope!="resident")pack(da,db);if(phases){result.pack=c.scope!="resident"?ns(t):0;t=Clock::now();}
   for(uint32_t i=0;i<c.reuse;++i){rns8_status status;
    if(c.candidate=="direct_v4")status=wrap64_hip_gemm_byte_limbs_device_resident(c.device,da.ptr,db.ptr,output.ptr,int64_t(c.m),int64_t(c.n),int64_t(c.k));
    else if(c.candidate=="native_u64"){bool started=false;status=hip_direct_wrap_native_u64_device(c.device,da.ptr,db.ptr,output.ptr,c.m,c.n,c.k,started);if(status==RNS8_SUCCESS)require(started,"native U64 returned success without commit");}
@@ -91,12 +91,12 @@ json run(const Case& c){const uint64_t ab=uint64_t(c.m)*c.k+uint64_t(c.k)*c.n,mn
    if(status==RNS8_UNSUPPORTED_BACKEND||status==RNS8_UNSUPPORTED_ARCH)throw Unsupported(rns8_status_string(status));check(status);
   }
   if(phases){result.gemm=ns(t);t=Clock::now();}
-  if(c.scope!="resident")check(wrap64_hip_export_u64_device(c.device,output.ptr,&exported.ptr,&exported.bytes,int64_t(c.m),int64_t(c.n),host_output.data(),int64_t(c.n+3)));
+  if(c.scope!="resident")check(wrap64_hip_export_u64_device(c.device,output.ptr,int64_t(c.m),int64_t(c.n),host_output.data(),int64_t(c.n+3)));
   if(phases){result.export_result=c.scope!="resident"?ns(t):0;t=Clock::now();}
-  if(c.scope=="cold"){ce.close();cu.close();cb.close();ca.close();}if(phases)result.release=c.scope=="cold"?ns(t):0;return result;
+  if(c.scope=="cold"){cb.close();ca.close();}if(phases)result.release=c.scope=="cold"?ns(t):0;return result;
  };
  const auto prepare=[&](){check(hip_direct_copy_host_to_device(c.device,output.ptr,poison.data(),poison.size()));std::fill(host_output.begin(),host_output.end(),canary);};
- const auto audit=[&](){if(c.scope=="resident")check(wrap64_hip_export_u64_device(c.device,output.ptr,&audit_export.ptr,&audit_export.bytes,int64_t(c.m),int64_t(c.n),host_output.data(),int64_t(c.n+3)));
+ const auto audit=[&](){if(c.scope=="resident")check(wrap64_hip_export_u64_device(c.device,output.ptr,int64_t(c.m),int64_t(c.n),host_output.data(),int64_t(c.n+3)));
   for(size_t r=0;r<c.m;++r)for(size_t col=0;col<c.n+3;++col)require(host_output[r*(c.n+3)+col]==(col<c.n?expected[r*c.n+col]:canary),"full Boost product or export padding mismatch");
   check(hip_direct_copy_device_to_host(c.device,raw_output.data(),output.ptr,raw_output.size()));for(size_t cell=0;cell<mn;++cell)for(unsigned byte=0;byte<8;++byte)require(raw_output[cell*8+byte]==uint8_t(expected[cell]>>(8*byte)),"canonical output byte mismatch");
   require(std::all_of(raw_output.begin()+size_t(mn*8),raw_output.end(),[](uint8_t x){return x==0xA5;}),"device output canary changed");

@@ -1,4 +1,6 @@
 #include "backend_wrap64/wrap64_hip.hpp"
+#include "backend_wrap64/canonical_host_transfer.hpp"
+#include <vector>
 
 #include <cstddef>
 #include <cstdint>
@@ -10,12 +12,7 @@
 #if RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
 
-extern "C" int rns8_wrap64_hip_pack_u64_device(
-    const uint64_t* src,
-    uint8_t* byte_limbs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld);
+
 
 extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
     const uint8_t* a_limbs,
@@ -28,11 +25,7 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
 extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(
     const uint8_t*, const uint8_t*, uint8_t*, int64_t, int64_t, int64_t, void*);
 
-extern "C" int rns8_wrap64_hip_export_u64_device(
-    const uint8_t* byte_limbs,
-    uint64_t* dst,
-    int64_t rows,
-    int64_t cols);
+
 #endif
 
 namespace rns8::detail {
@@ -172,55 +165,33 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
 rns8_status wrap64_hip_pack_u64_device(
     int device_id,
     const uint64_t* src,
-    void** upload_buffer,
-    std::size_t* upload_bytes,
     void* device_byte_limbs,
     int64_t rows,
     int64_t cols,
     int64_t ld) {
-  if (!src || !upload_buffer || !upload_bytes || !device_byte_limbs || ld < cols) {
+  if (!src || !device_byte_limbs || ld < cols) {
     return RNS8_INVALID_ARGUMENT;
   }
-  HostUploadPlan upload;
+  CanonicalU64HostTransfer transfer;
   Wrap64CompactLayout compact_layout;
-  if (!checked_matrix_elements_i32(rows, cols) || !make_host_upload_plan(rows, cols, ld, sizeof(uint64_t), upload) ||
+  if (!checked_matrix_elements_i32(rows, cols) || !canonical_u64_host_transfer(rows, cols, ld, transfer) ||
       !checked_compact_byte_limb_layout(rows, cols, &compact_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
 #if RNS8_ENABLE_HIP
-  rns8_status status = set_hip_device(device_id);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  status = hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  status = hip_direct_upload_host_matrix(device_id, "pack_h2d", *upload_buffer,
-      *upload_bytes, src, upload);
-  if (status != RNS8_SUCCESS) return status;
-  hipError_t err = timed_hip_operation("pack_kernel", [&]() {
-    const int code = rns8_wrap64_hip_pack_u64_device(
-        static_cast<const uint64_t*>(*upload_buffer),
-        static_cast<uint8_t*>(device_byte_limbs),
-        rows,
-        cols,
-        upload.device_ld);
-    if (code != static_cast<int>(hipSuccess)) {
-      return static_cast<hipError_t>(code);
-    }
-    return hipDeviceSynchronize();
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  return RNS8_SUCCESS;
+  if(transfer.native_byte_identity)
+    return hip_direct_upload_host_matrix(device_id,"pack_h2d",device_byte_limbs,
+        transfer.logical.device_bytes,src,transfer.logical);
+  // True representation conversion for an incompatible host byte order.
+  std::vector<uint8_t> canonical(transfer.logical.device_bytes);
+  for(int64_t row=0;row<rows;++row)for(int64_t col=0;col<cols;++col)
+    store_canonical_u64(canonical.data()+size_t(row*cols+col)*8,src[row*ld+col]);
+  return hip_direct_copy_host_to_device_labeled(device_id,"pack_h2d",device_byte_limbs,
+      canonical.data(),canonical.size());
 #else
   (void)device_id;
-  (void)upload_buffer;
-  (void)upload_bytes;
   (void)device_byte_limbs;
-  (void)upload;
+  (void)transfer;
   (void)compact_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
@@ -287,53 +258,36 @@ rns8_status wrap64_hip_enqueue_byte_limbs(
 rns8_status wrap64_hip_export_u64_device(
     int device_id,
     const void* device_byte_limbs,
-    void** export_buffer,
-    std::size_t* export_bytes,
     int64_t rows,
     int64_t cols,
     uint64_t* dst,
     int64_t ld) {
-  if (!device_byte_limbs || !export_buffer || !export_bytes || !dst || ld < cols ||
+  if (!device_byte_limbs || !dst || ld < cols ||
       !checked_matrix_elements_i32(rows, cols)) {
     return RNS8_INVALID_ARGUMENT;
   }
   std::size_t output_bytes = 0;
-  AddressDomain destination;
+  CanonicalU64HostTransfer transfer;
   Wrap64CompactLayout compact_layout;
   if (!checked_u64_compact_bytes(rows, cols, &output_bytes) ||
-      !checked_host_plane_address(rows, cols, ld, 1, sizeof(*dst), destination) ||
+      !canonical_u64_host_transfer(rows, cols, ld, transfer) ||
       !checked_compact_byte_limb_layout(rows, cols, &compact_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
 #if RNS8_ENABLE_HIP
-  rns8_status status = set_hip_device(device_id);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  status = hip_direct_ensure_upload_buffer(device_id, output_bytes, export_buffer, export_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  hipError_t err = timed_hip_operation("wrap64_export_kernel", [&]() {
-    const int code = rns8_wrap64_hip_export_u64_device(
-        static_cast<const uint8_t*>(device_byte_limbs), static_cast<uint64_t*>(*export_buffer), rows, cols);
-    if (code != static_cast<int>(hipSuccess)) {
-      return static_cast<hipError_t>(code);
-    }
-    return hipDeviceSynchronize();
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  status = hip_direct_copy_compact_matrix_device_to_host(
-      device_id, "wrap64_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(uint64_t), false);
-  return status;
+  if(transfer.native_byte_identity)
+    return hip_direct_copy_compact_matrix_device_to_host(device_id,"wrap64_export_d2h",dst,ld,
+        device_byte_limbs,rows,cols,8,false);
+  std::vector<uint8_t> canonical(output_bytes);
+  const auto status=hip_direct_copy_device_to_host(device_id,canonical.data(),device_byte_limbs,canonical.size());
+  if(status!=RNS8_SUCCESS)return status;
+  for(int64_t row=0;row<rows;++row)for(int64_t col=0;col<cols;++col)
+    dst[row*ld+col]=load_canonical_u64(canonical.data()+size_t(row*cols+col)*8);
+  return RNS8_SUCCESS;
 #else
   (void)device_id;
-  (void)export_buffer;
-  (void)export_bytes;
   (void)output_bytes;
-  (void)destination;
+  (void)transfer;
   (void)compact_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 

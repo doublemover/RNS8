@@ -154,7 +154,7 @@ void scatter_compact_host_matrix(
     int64_t cols,
     std::size_t cell_bytes) {
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
-  if (dst_ld == cols) {
+  if (rows == 1 || dst_ld == cols) {
     std::memcpy(dst, src, static_cast<std::size_t>(rows) * compact_row_bytes);
     return;
   }
@@ -189,7 +189,7 @@ hipError_t copy_compact_matrix_device_to_host_direct(
     int64_t cols,
     std::size_t cell_bytes) {
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
-  if (dst_ld == cols) {
+  if (rows == 1 || dst_ld == cols) {
     return tracked_sync_copy(
         dst,
         src,
@@ -217,8 +217,10 @@ hipError_t copy_compact_matrix_device_to_host(
     std::size_t cell_bytes,
     bool default_padded_staging = true,
     bool allow_pinned_staging = true) {
-  if (!dst || !src || dst_ld < cols || !checked_output_bytes(rows, cols, cell_bytes) ||
-      !checked_output_bytes(rows, dst_ld, cell_bytes)) {
+  AddressDomain destination;
+  if (!dst || !src || rows<=0 || cols<=0 || dst_ld < cols ||
+      !checked_output_bytes(rows, cols, cell_bytes) ||
+      !checked_host_plane_address(rows,cols,dst_ld,1,cell_bytes,destination)) {
     return hipErrorInvalidValue;
   }
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;

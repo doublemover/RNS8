@@ -4,25 +4,25 @@ namespace {
 // this API. Reservations also exclude outstanding asynchronous owners.
 struct ComplexWriteReservation {
   bool commit_started = false;
-  std::vector<SynchronousLease> leases;
-  ComplexWriteReservation() { leases.reserve(6); }
+  std::array<std::optional<SynchronousLease>,4> leases;
+  size_t count=0;
   rns8_status acquire(rns8_context& ctx,std::array<const rns8_matrix*,4> inputs,
                      rns8_matrix& real,rns8_matrix& imag,rns8_workspace& workspace) {
     size_t token=0;
     auto status=begin_synchronous_lease(ctx,*inputs[0],*inputs[1],real,workspace,token);
     if(status!=RNS8_SUCCESS)return status;
-    leases.emplace_back(ctx,token);leases.back().track_write(commit_started);
+    leases[count++].emplace(ctx,token);leases[count-1]->track_write(commit_started);
     status=begin_synchronous_output_lease(ctx,imag,token);if(status!=RNS8_SUCCESS)return finish(status);
-    leases.emplace_back(ctx,token);leases.back().track_write(commit_started);
+    leases[count++].emplace(ctx,token);leases[count-1]->track_write(commit_started);
     for(size_t i=2;i<inputs.size();++i) {
       status=begin_synchronous_read_lease(ctx,*inputs[i],token);
       if(status!=RNS8_SUCCESS)return finish(status);
-      leases.emplace_back(ctx,token);
+      leases[count++].emplace(ctx,token);
     }
     return RNS8_SUCCESS;
   }
   rns8_status finish(rns8_status status) noexcept {
-    for(auto& lease:leases)lease.finish(status);
+    for(size_t i=0;i<count;++i)leases[i]->finish(status);
     return status;
   }
 };

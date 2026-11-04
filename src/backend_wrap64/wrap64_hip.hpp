@@ -12,8 +12,6 @@ namespace rns8::detail {
 rns8_status wrap64_hip_pack_u64_device(
     int device_id,
     const uint64_t* src,
-    void** upload_buffer,
-    std::size_t* upload_bytes,
     void* device_byte_limbs,
     int64_t rows,
     int64_t cols,
@@ -37,8 +35,6 @@ rns8_status wrap64_hip_enqueue_byte_limbs(
 rns8_status wrap64_hip_export_u64_device(
     int device_id,
     const void* device_byte_limbs,
-    void** export_buffer,
-    std::size_t* export_bytes,
     int64_t rows,
     int64_t cols,
     uint64_t* dst,

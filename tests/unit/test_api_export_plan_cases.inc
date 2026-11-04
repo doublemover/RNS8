@@ -91,7 +91,7 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   auto wrap_hip = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_WRAP_U64_MOD_2_64);
   const auto wrap_hip_export = rns8_api::make_export_plan(wrap_hip, RNS8_WRAP_U64_MOD_2_64);
   CHECK(wrap_hip_export.output_layout == rns8_api::export_output_layout::scalar_u64);
-  CHECK(std::string(wrap_hip_export.selected_export_kernel) == "wrap64_hip_export_u64_device");
+  CHECK(std::string(wrap_hip_export.selected_export_kernel) == "wrap64_canonical_host_transfer_v2");
 
   auto exact_signed_cpu = export_plan_fixture(RNS8_BACKEND_CPU_REFERENCE, RNS8_EXACT_WIDE_SIGNED);
   const auto exact_signed_cpu_export =

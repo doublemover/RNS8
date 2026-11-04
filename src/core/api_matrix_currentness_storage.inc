@@ -247,7 +247,12 @@ void publish_matrix_value(rns8_matrix& matrix, bool imported, uint64_t source_ve
       (imported ? source_version : matrix.content_generation);
 }
 
-void MatrixWriteGuard::invalidate() { invalidate_output_currentness(matrix); }
+void MatrixWriteGuard::invalidate() {
+  if(reservation) {
+    const auto status=reservation->begin_write();
+    if(status!=RNS8_SUCCESS)throw ApiStatusFailure{status};
+  } else invalidate_output_currentness(matrix);
+}
 
 void invalidate_output_currentness(rns8_matrix& matrix) {
   require_matrix_writable(matrix);

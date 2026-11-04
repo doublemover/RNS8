@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <new>
 #include <string>
 #include <type_traits>
@@ -72,7 +73,7 @@ rns8_status drain_synchronous_context(rns8_context&) noexcept;
 // Uncertain device failures retain the context's existing failed-work record.
 class SynchronousLease {
  public:
-  SynchronousLease(rns8_context& ctx, size_t token) : ctx_(&ctx), token_(token) {}
+  SynchronousLease(rns8_context& ctx, size_t token) noexcept : ctx_(&ctx), token_(token) {}
   SynchronousLease(const SynchronousLease&) = delete;
   SynchronousLease& operator=(const SynchronousLease&) = delete;
   SynchronousLease(SynchronousLease&& other) noexcept
@@ -115,6 +116,7 @@ rns8_status complex_exact_signed_gemm(
     uint64_t max_scratch_bytes, rns8_workspace* workspace);
 
 struct ResourceBusy {};
+struct ApiStatusFailure {rns8_status status;};
 
 inline rns8_async_support_info async_support_info(rns8_status status, int device) noexcept {
   rns8_async_support_info info{};
@@ -187,6 +189,8 @@ rns8_status guard_api(Fn&& fn) {
     return fn();
   } catch (const ResourceBusy&) {
     return RNS8_BUSY;
+  } catch (const ApiStatusFailure& failure) {
+    return failure.status;
   } catch (const std::bad_alloc&) {
     return RNS8_INTERNAL_ERROR;
   } catch (...) {
@@ -535,9 +539,20 @@ void publish_matrix_value(rns8_matrix& matrix, bool imported = false, uint64_t s
 struct MatrixWriteGuard {
   rns8_matrix& matrix;
   bool committed = false;
+  std::optional<SynchronousLease> reservation;
   explicit MatrixWriteGuard(rns8_matrix& value) : matrix(value) { invalidate(); }
+  MatrixWriteGuard(rns8_matrix& value,rns8_context& ctx) : matrix(value) {
+    size_t token=0;const auto status=begin_synchronous_output_lease(ctx,value,token);
+    if(status!=RNS8_SUCCESS)throw ApiStatusFailure{status};
+    reservation.emplace(ctx,token);invalidate();
+    const auto dispatched=synchronous_dispatch_checkpoint(ctx,"matrix_import");
+    if(dispatched!=RNS8_SUCCESS)throw ApiStatusFailure{dispatched};
+  }
   void invalidate();
-  ~MatrixWriteGuard() { if (!committed) invalidate(); }
+  ~MatrixWriteGuard() {
+    if(reservation)reservation->finish(committed?RNS8_SUCCESS:RNS8_INTERNAL_ERROR);
+    else if(!committed)invalidate();
+  }
 };
 
 void invalidate_output_currentness(rns8_matrix& matrix);
@@ -717,6 +732,7 @@ rns8_status upload_native_i64(rns8_context& ctx, rns8_matrix& matrix, const int6
 rns8_status upload_native_u64(rns8_context& ctx, rns8_matrix& matrix, const uint64_t* src, int64_t ld);
 
 bool should_populate_native_on_pack(const rns8_context& ctx, const rns8_matrix& matrix);
+bool same_source_device_rns_import_current(const rns8_context&,const rns8_matrix&,uint64_t source_version);
 
 rns8_status ensure_bounded_native_residues_current_for_rns_plan(
     rns8_context& ctx,

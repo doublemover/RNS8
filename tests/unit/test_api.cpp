@@ -229,3 +229,5 @@ TEST_CASE("reserved CPU publication preserves exclusivity metadata and one gener
 #include "test_api_synchronous_dispatch_cases.inc"
 
 #include "test_api_cpu_export_cases.inc"
+
+#include "test_api_import_reuse_cases.inc"

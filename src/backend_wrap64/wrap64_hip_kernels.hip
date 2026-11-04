@@ -1,6 +1,11 @@
 #include <hip/hip_runtime.h>
 
 #include <stdint.h>
+#include <climits>
+#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
+static_assert(CHAR_BIT==8 && sizeof(uint64_t)==8 && __BYTE_ORDER__==__ORDER_LITTLE_ENDIAN__,
+              "canonical wrap64 GPU storage requires little-endian eight-byte uint64_t");
+#endif
 
 #include "wrap64_hip_kernel_config.hpp"
 

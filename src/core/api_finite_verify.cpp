@@ -55,11 +55,11 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
         gpu,options->max_workspace_bytes);
     if(support.status!=RNS8_SUCCESS) return support.status;
     completed.workspace_bytes=support.scratch_bytes;
-    std::vector<SynchronousLease> leases;leases.reserve(3);
+    std::array<std::optional<SynchronousLease>,3> leases;size_t leased=0;
     for(const auto* matrix:matrices) {
       size_t token=0;const auto status=begin_synchronous_read_lease(*ctx,*matrix,token);
-      if(status!=RNS8_SUCCESS){for(auto& lease:leases)lease.finish(status);return status;}
-      leases.emplace_back(*ctx,token);
+      if(status!=RNS8_SUCCESS){for(size_t i=0;i<leased;++i)leases[i]->finish(status);return status;}
+      leases[leased++].emplace(*ctx,token);
     }
     const auto status=[&]() -> rns8_status {
     const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"finite_verify");if(dispatched!=RNS8_SUCCESS)return dispatched;
@@ -98,7 +98,7 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
     *report = completed;
     return RNS8_SUCCESS;
     }();
-    for(auto& lease:leases)lease.finish(status);
+    for(size_t i=0;i<leased;++i)leases[i]->finish(status);
     return status;
   });
 }

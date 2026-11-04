@@ -154,6 +154,28 @@ bool should_populate_native_on_pack(const rns8_context& ctx, const rns8_matrix& 
          (ctx.auto_backend_selection && ctx.backend == RNS8_BACKEND_HIP_DIRECT && matrix.backend == RNS8_BACKEND_HIP_DIRECT);
 }
 
+bool same_source_device_rns_import_current(const rns8_context& ctx,const rns8_matrix& matrix,uint64_t version) {
+  if(!version || !matrix.matrix_instance_id || !matrix.content_generation || !matrix.imported_source || matrix.generation_exhausted || matrix.source_version!=version ||
+      ctx.hip_failure_poisoned || matrix.in_flight_writer || matrix.in_flight_readers ||
+      ctx.backend!=matrix.backend || !hip_resident_rns_backend(ctx.backend) ||
+      !uses_rns_storage(matrix.desc.semantics) || !matrix.prefix || matrix.prefix>RNS8_MAX_SUPPORTED_PREFIX ||
+      matrix.hip_device_id!=ctx.device_id || !matrix.device_residues_current ||
+      matrix.materialized_rns_prefix!=matrix.prefix ||
+      !matrix_descriptor_matches(matrix,matrix.desc.semantics,matrix.desc.bound_kind,matrix.desc.rows,
+          matrix.desc.cols,matrix.prefix,matrix.desc.tile_m,matrix.desc.tile_n) ||
+      !rns_matrix_storage_matches(matrix,ctx.backend,matrix.desc.rows,matrix.desc.cols,matrix.prefix))return false;
+  if(rns8::detail::exact_wide_semantics(matrix.desc.semantics) &&
+      (matrix.exact_range_prefix!=matrix.prefix || matrix.exact_max_magnitude<0 ||
+       !rns8::detail::exact_range_fits(matrix.desc.semantics,matrix.exact_max_magnitude,
+           rns8::detail::modulus_product(matrix.prefix))))return false;
+  if(!should_populate_native_on_pack(ctx,matrix))return true;
+  std::size_t bytes=0;
+  if(!matrix.device_native_current || !native_matrix_bytes(matrix.desc.rows,matrix.desc.cols,8,bytes))return false;
+  const bool sign=matrix.desc.semantics==RNS8_BOUNDED_I64 || matrix.desc.semantics==RNS8_EXACT_WIDE_SIGNED;
+  return sign ? matrix.hip_native_i64 && matrix.hip_native_i64_bytes==bytes :
+                matrix.hip_native_u64 && matrix.hip_native_u64_bytes==bytes;
+}
+
 rns8_status ensure_bounded_native_residues_current_for_rns_plan(
     rns8_context& ctx,
     const rns8_plan& plan,

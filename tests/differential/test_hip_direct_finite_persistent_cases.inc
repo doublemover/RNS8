@@ -705,26 +705,47 @@ TEST_CASE("minimal host allocations pack logical cells for every integer storage
   if(!hip_available())SKIP("HIP device required for compact host uploads");
   auto* gpu=create_context(RNS8_BACKEND_HIP_DIRECT);
   auto* cpu=create_context(RNS8_BACKEND_CPU_REFERENCE);
+  auto* automatic=create_context(RNS8_BACKEND_AUTO);REQUIRE(automatic->backend==RNS8_BACKEND_HIP_DIRECT);
   for(int64_t rows:{1,2})for(bool retain:{false,true}) {
     constexpr int64_t cols=3,ld=8;
     std::vector<uint64_t> source(static_cast<size_t>((rows-1)*ld+cols),17);
     for(int64_t r=0;r<rows;++r)for(int64_t c=0;c<cols;++c)source[size_t(r*ld+c)]=uint64_t(r*11+c+1);
     for(auto semantics:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
       const bool signed_values=semantics==RNS8_BOUNDED_I64 || semantics==RNS8_EXACT_WIDE_SIGNED;
-      auto md=matrix_desc(rows,cols,semantics,signed_values?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+      const bool wide=rns8::detail::exact_wide_semantics(semantics);
+      auto* target=retain && !wide?automatic:gpu;
+      auto md=matrix_desc(rows,cols,semantics,wide?RNS8_BOUND_NONE:signed_values?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
       rns8_matrix *a=nullptr,*reference=nullptr;
       REQUIRE(rns8_create_matrix(cpu,&md,&reference)==RNS8_SUCCESS);
-      md.flags=retain?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;
-      REQUIRE(rns8_create_matrix(gpu,&md,&a)==RNS8_SUCCESS);
+      md.flags=retain && wide?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;
+      REQUIRE(rns8_create_matrix(target,&md,&a)==RNS8_SUCCESS);
       const auto* signed_source=reinterpret_cast<const int64_t*>(source.data());
       REQUIRE((signed_values?rns8_pack_i64(cpu,reference,signed_source,ld,0):rns8_pack_u64(cpu,reference,source.data(),ld,0))==RNS8_SUCCESS);
       rns8::detail::hip_direct_allocation_counters_reset();
-      REQUIRE((signed_values?rns8_pack_i64(gpu,a,signed_source,ld,0):rns8_pack_u64(gpu,a,source.data(),ld,0))==RNS8_SUCCESS);
+      REQUIRE((signed_values?rns8_pack_i64(target,a,signed_source,ld,0):rns8_pack_u64(target,a,source.data(),ld,0))==RNS8_SUCCESS);
       CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().h2d_bytes==rows*cols*8);
       std::vector<int8_t> actual(reference->residues.size());
       REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,actual.data(),a->hip_residues,actual.size())==RNS8_SUCCESS);
       CHECK(actual==reference->residues);
       CHECK(a->source_version==0);
+      const auto pack=[&](uint64_t version) {
+        return signed_values?rns8_pack_i64(target,a,signed_source,ld,version):rns8_pack_u64(target,a,source.data(),ld,version);
+      };
+      REQUIRE(pack(77)==RNS8_SUCCESS);const auto generation=a->content_generation;
+      const auto proof=a->exact_max_magnitude;const auto proof_prefix=a->exact_range_prefix;
+      rns8::detail::hip_direct_allocation_counters_reset();REQUIRE(pack(77)==RNS8_SUCCESS);
+      CHECK(a->content_generation==generation);CHECK(a->exact_max_magnitude==proof);CHECK(a->exact_range_prefix==proof_prefix);
+      CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().h2d_calls==0);
+      CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
+      if(retain)CHECK(a->device_native_current);
+      ++a->in_flight_readers;CHECK(pack(77)==RNS8_BUSY);--a->in_flight_readers;
+      if(retain) {
+        a->device_native_current=false;rns8::detail::hip_direct_allocation_counters_reset();
+        REQUIRE(pack(77)==RNS8_SUCCESS);CHECK(a->content_generation==generation+1);CHECK(a->device_native_current);
+        CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().h2d_bytes==rows*cols*8);
+      }
+      const auto before_forced=a->content_generation;
+      REQUIRE(pack(0)==RNS8_SUCCESS);CHECK(a->content_generation==before_forced+1);
       REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(reference)==RNS8_SUCCESS);
     }
     for(uint16_t q:{251,255,256}) {
@@ -761,5 +782,6 @@ TEST_CASE("minimal host allocations pack logical cells for every integer storage
     REQUIRE(rns8_gemm_finite_ring_u8_oneshot(gpu,&fd,q,fa.data(),8,fb.data(),8,fo.data(),8)==RNS8_SUCCESS);
     CHECK(fo[0]==6);CHECK(fo[1]==6);CHECK(fo[8]==6);CHECK(fo[9]==6);CHECK(fo[2]==99);
   }
+  REQUIRE(rns8_destroy_context(automatic)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(cpu)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(gpu)==RNS8_SUCCESS);
 }

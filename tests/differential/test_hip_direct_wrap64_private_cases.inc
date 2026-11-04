@@ -150,8 +150,6 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
   std::vector<uint8_t> limbs(8, 0);
   uint64_t src = 0;
   uint64_t dst = 0;
-  void* buffer = nullptr;
-  std::size_t bytes = 0;
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, nullptr, limbs.data(), limbs.data(), 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), nullptr, limbs.data(), 1, 1, 1) ==
@@ -182,48 +180,38 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
             1,
             1,
             static_cast<int64_t>(std::numeric_limits<int>::max()) + 1) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, nullptr, &buffer, &bytes, limbs.data(), 1, 1, 1) ==
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, nullptr, limbs.data(), 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, nullptr, &bytes, limbs.data(), 1, 1, 1) ==
+
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, limbs.data(), 1, 2, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, nullptr, limbs.data(), 1, 1, 1) ==
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, limbs.data(), -1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, limbs.data(), 1, 2, 1) ==
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, limbs.data(), 0, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, limbs.data(), -1, 1, 1) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, limbs.data(), 0, 1, 1) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, nullptr, 1, 1, 1) ==
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, nullptr, 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_pack_u64_device(
             0,
             &src,
-            &buffer,
-            &bytes,
             limbs.data(),
             2,
             1,
             std::numeric_limits<int64_t>::max()) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), nullptr, &bytes, 1, 1, &dst, 1) ==
+
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), 1, 1, nullptr, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, nullptr, 1, 1, &dst, 1) ==
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), 1, 2, &dst, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, 1, 1, nullptr, 1) ==
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), -1, 1, &dst, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, 1, 2, &dst, 1) ==
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), 0, 1, &dst, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, -1, 1, &dst, 1) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, 0, 1, &dst, 1) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, nullptr, &buffer, &bytes, 1, 1, &dst, 1) ==
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, nullptr, 1, 1, &dst, 1) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_export_u64_device(
             0,
             limbs.data(),
-            &buffer,
-            &bytes,
             2,
             1,
             &dst,
@@ -256,57 +244,40 @@ TEST_CASE("private HIP wrap64 pack and export helpers preserve compact device by
   }
 
   void* device_limbs = nullptr;
-  void* upload = nullptr;
-  std::size_t upload_bytes = 0;
-  void* export_buffer = nullptr;
-  std::size_t export_bytes = 0;
   const std::size_t compact_bytes = expected_limbs.size();
   REQUIRE(rns8::detail::hip_direct_allocate(0, compact_bytes, &device_limbs) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_allocation_counters_reset();
 
   REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
               0,
               src.data(),
-              &upload,
-              &upload_bytes,
               device_limbs,
               rows,
               cols,
               ld) == RNS8_SUCCESS);
-  REQUIRE(upload != nullptr);
-  REQUIRE(upload_bytes >= static_cast<std::size_t>(rows * ld * static_cast<int64_t>(sizeof(uint64_t))));
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
   std::vector<uint8_t> device_copy(compact_bytes, 0);
   REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs, compact_bytes) ==
           RNS8_SUCCESS);
   CHECK(device_copy == expected_limbs);
 
-  void* first_upload = upload;
-  const std::size_t first_upload_bytes = upload_bytes;
   REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
               0,
               src.data(),
-              &upload,
-              &upload_bytes,
               device_limbs,
               rows,
               cols,
               ld) == RNS8_SUCCESS);
-  CHECK(upload == first_upload);
-  CHECK(upload_bytes == first_upload_bytes);
 
   std::fill(src.begin(), src.end(), 0x1111111111111111ull);
   REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
               0,
               device_limbs,
-              &export_buffer,
-              &export_bytes,
               rows,
               cols,
               out.data(),
               ld) == RNS8_SUCCESS);
-  REQUIRE(export_buffer != nullptr);
-  REQUIRE(export_bytes >= static_cast<std::size_t>(rows * cols * static_cast<int64_t>(sizeof(uint64_t))));
-  void* first_export = export_buffer;
-  const std::size_t first_export_bytes = export_bytes;
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
 
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
@@ -322,14 +293,10 @@ TEST_CASE("private HIP wrap64 pack and export helpers preserve compact device by
   REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
               0,
               device_limbs,
-              &export_buffer,
-              &export_bytes,
               rows,
               cols,
               out.data(),
               ld) == RNS8_SUCCESS);
-  CHECK(export_buffer == first_export);
-  CHECK(export_bytes == first_export_bytes);
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
       CHECK(out[static_cast<std::size_t>(row * ld + col)] ==
@@ -340,12 +307,6 @@ TEST_CASE("private HIP wrap64 pack and export helpers preserve compact device by
     }
   }
 
-  if (export_buffer) {
-    CHECK(rns8::detail::hip_direct_free(0, export_buffer) == RNS8_SUCCESS);
-  }
-  if (upload) {
-    CHECK(rns8::detail::hip_direct_free(0, upload) == RNS8_SUCCESS);
-  }
   CHECK(rns8::detail::hip_direct_free(0, device_limbs) == RNS8_SUCCESS);
 }
 
@@ -393,46 +354,34 @@ TEST_CASE("private HIP wrap64 pack and export helpers cover tile-tail padded lay
   };
 
   void* device_limbs = nullptr;
-  void* upload = nullptr;
-  std::size_t upload_bytes = 0;
-  void* export_buffer = nullptr;
-  std::size_t export_bytes = 0;
   const std::size_t compact_bytes = expected_limbs.size();
   REQUIRE(rns8::detail::hip_direct_allocate(0, compact_bytes, &device_limbs) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_allocation_counters_reset();
 
   fill_src(0x1111);
   refresh_expected_limbs();
   REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
               0,
               src.data(),
-              &upload,
-              &upload_bytes,
               device_limbs,
               rows,
               cols,
               ld) == RNS8_SUCCESS);
-  REQUIRE(upload != nullptr);
-  REQUIRE(upload_bytes >= static_cast<std::size_t>(rows * ld * static_cast<int64_t>(sizeof(uint64_t))));
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
   std::vector<uint8_t> device_copy(compact_bytes, 0);
   REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs, compact_bytes) ==
           RNS8_SUCCESS);
   CHECK(device_copy == expected_limbs);
-  void* first_upload = upload;
-  const std::size_t first_upload_bytes = upload_bytes;
 
   fill_src(0x2222);
   refresh_expected_limbs();
   REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
               0,
               src.data(),
-              &upload,
-              &upload_bytes,
               device_limbs,
               rows,
               cols,
               ld) == RNS8_SUCCESS);
-  CHECK(upload == first_upload);
-  CHECK(upload_bytes == first_upload_bytes);
   std::fill(device_copy.begin(), device_copy.end(), 0);
   REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs, compact_bytes) ==
           RNS8_SUCCESS);
@@ -441,16 +390,11 @@ TEST_CASE("private HIP wrap64 pack and export helpers cover tile-tail padded lay
   REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
               0,
               device_limbs,
-              &export_buffer,
-              &export_bytes,
               rows,
               cols,
               out.data(),
               ld) == RNS8_SUCCESS);
-  REQUIRE(export_buffer != nullptr);
-  REQUIRE(export_bytes >= static_cast<std::size_t>(rows * cols * static_cast<int64_t>(sizeof(uint64_t))));
-  void* first_export = export_buffer;
-  const std::size_t first_export_bytes = export_bytes;
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
 
   auto check_export = [&]() {
     for (int64_t row = 0; row < rows; ++row) {
@@ -469,22 +413,12 @@ TEST_CASE("private HIP wrap64 pack and export helpers cover tile-tail padded lay
   REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
               0,
               device_limbs,
-              &export_buffer,
-              &export_bytes,
               rows,
               cols,
               out.data(),
               ld) == RNS8_SUCCESS);
-  CHECK(export_buffer == first_export);
-  CHECK(export_bytes == first_export_bytes);
   check_export();
 
-  if (export_buffer) {
-    CHECK(rns8::detail::hip_direct_free(0, export_buffer) == RNS8_SUCCESS);
-  }
-  if (upload) {
-    CHECK(rns8::detail::hip_direct_free(0, upload) == RNS8_SUCCESS);
-  }
   CHECK(rns8::detail::hip_direct_free(0, device_limbs) == RNS8_SUCCESS);
 }
 
@@ -519,17 +453,12 @@ TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path
   }
 
   void* device_limbs = nullptr;
-  void* upload = nullptr;
-  std::size_t upload_bytes = 0;
-  void* export_buffer = nullptr;
-  std::size_t export_bytes = 0;
   const std::size_t compact_bytes = expected_limbs.size();
   REQUIRE(rns8::detail::hip_direct_allocate(0, compact_bytes, &device_limbs) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_allocation_counters_reset();
   REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
               0,
               src.data(),
-              &upload,
-              &upload_bytes,
               device_limbs,
               rows,
               cols,
@@ -540,8 +469,6 @@ TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path
   REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
               0,
               device_limbs,
-              &export_buffer,
-              &export_bytes,
               rows,
               cols,
               out.data(),
@@ -549,11 +476,10 @@ TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path
   auto export_events = rns8::detail::hip_direct_timing_snapshot();
   rns8::detail::hip_direct_timing_set_enabled(false);
 
-  CHECK(has_timing_label(export_events, "wrap64_export_kernel"));
+  CHECK_FALSE(has_timing_label(export_events, "wrap64_export_kernel"));
   CHECK(has_timing_label(export_events, "wrap64_export_d2h"));
   CHECK(has_timing_label(export_events, "export_host_staging_copy"));
-  REQUIRE(export_buffer != nullptr);
-  REQUIRE(export_bytes >= static_cast<std::size_t>(rows * cols * static_cast<int64_t>(sizeof(uint64_t))));
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
 
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
@@ -564,12 +490,6 @@ TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path
     }
   }
 
-  if (export_buffer) {
-    CHECK(rns8::detail::hip_direct_free(0, export_buffer) == RNS8_SUCCESS);
-  }
-  if (upload) {
-    CHECK(rns8::detail::hip_direct_free(0, upload) == RNS8_SUCCESS);
-  }
   CHECK(rns8::detail::hip_direct_free(0, device_limbs) == RNS8_SUCCESS);
 }
 

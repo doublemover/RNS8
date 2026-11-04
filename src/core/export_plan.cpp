@@ -228,7 +228,7 @@ export_reconstruction_plan make_export_plan(
     export_plan.selected_export_kernel = bounded_u64_export_kernel(plan);
   } else if (semantics == RNS8_WRAP_U64_MOD_2_64) {
     export_plan.output_layout = export_output_layout::scalar_u64;
-    export_plan.selected_export_kernel = plan.backend == RNS8_BACKEND_HIP_DIRECT ? "wrap64_hip_export_u64_device"
+    export_plan.selected_export_kernel = plan.backend == RNS8_BACKEND_HIP_DIRECT ? "wrap64_canonical_host_transfer_v2"
                                                                                  : "wrap64_reference_export_u64";
     export_plan.status_elision_reason = "wraparound_mod_2_64_has_no_range_status";
   } else if (uses_finite_storage(semantics)) {

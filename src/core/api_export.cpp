@@ -490,17 +490,20 @@ rns8_status rns8_export_wrap_u64(
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      const export_reconstruction_plan export_plan = make_export_plan(*plan, RNS8_WRAP_U64_MOD_2_64);
-      rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
+      size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
+      if(reserved!=RNS8_SUCCESS)return reserved;
+      SynchronousLease lease(*ctx,token);
+      return lease.finish([&]() -> rns8_status {
+      const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"wrap64_export");
+      if(dispatched!=RNS8_SUCCESS)return dispatched;
       return rns8::detail::wrap64_hip_export_u64_device(
           ctx->device_id,
           C->hip_byte_limbs,
-          &mutable_c.hip_export_buffer,
-          &mutable_c.hip_export_bytes,
           plan->desc.m,
           plan->desc.n,
           dst,
           ld);
+      }());
     }
     return RNS8_UNSUPPORTED_BACKEND;
   });

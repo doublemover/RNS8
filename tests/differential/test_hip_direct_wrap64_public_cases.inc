@@ -119,7 +119,7 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   auto hip_pack_events = rns8::detail::hip_direct_timing_snapshot();
   rns8::detail::hip_direct_timing_set_enabled(false);
   CHECK(has_timing_label(hip_pack_events, "pack_h2d"));
-  CHECK(has_timing_label(hip_pack_events, "pack_kernel"));
+  CHECK_FALSE(has_timing_label(hip_pack_events, "pack_kernel"));
   CHECK(hip_a->hip_byte_limbs == hip_a_bytes);
   CHECK(hip_b->hip_byte_limbs == hip_b_bytes);
   CHECK(hip_a->device_byte_limbs_current);
@@ -170,9 +170,9 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   REQUIRE(rns8_export_wrap_u64(hip, hip_plan, hip_out, hip_c.data(), ldc) == RNS8_SUCCESS);
   auto hip_export_events = rns8::detail::hip_direct_timing_snapshot();
   rns8::detail::hip_direct_timing_set_enabled(false);
-  CHECK(has_timing_label(hip_export_events, "wrap64_export_kernel"));
+  CHECK_FALSE(has_timing_label(hip_export_events, "wrap64_export_kernel"));
   CHECK(has_timing_label(hip_export_events, "wrap64_export_d2h"));
-  CHECK(hip_out->hip_export_buffer != nullptr);
+  CHECK(hip_out->hip_export_buffer == nullptr);
   void* hip_export = hip_out->hip_export_buffer;
   const std::size_t hip_export_bytes = hip_out->hip_export_bytes;
   CHECK_FALSE(hip_out->host_byte_limbs_current);
@@ -584,3 +584,34 @@ TEST_CASE("direct HIP public wrap64 resident path is device-current for large pa
   rns8_destroy_context(cpu);
 }
 
+
+TEST_CASE("canonical wrap64 host boundaries need no identity staging for minimal pitched allocations") {
+  if(!hip_available())SKIP("HIP device required for canonical host boundaries");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(int64_t rows:{1,2})for(int64_t stride:{int64_t(11),INT64_MAX}) {
+    if(rows>1 && stride==INT64_MAX)continue;
+    constexpr int64_t cols=9;
+    const uint64_t words[]{0,1,UINT64_MAX,UINT64_C(0x8000000000000000),UINT64_C(0x0102030405060708),
+      UINT64_C(0x8080808080808080),UINT64_C(0x7f7f7f7f7f7f7f7f),255,256};
+    std::vector<uint64_t> input(size_t((rows-1)*stride+cols)),output(input.size(),99);
+    for(int64_t r=0;r<rows;++r)for(int64_t col=0;col<cols;++col)input[size_t(r*stride+col)]=words[col];
+    auto d=wrap_desc(rows,cols,1,RNS8_BACKEND_HIP_DIRECT);rns8_plan* plan=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&d,&plan)==RNS8_SUCCESS);
+    auto md=matrix_desc(rows,cols,RNS8_WRAP_U64_MOD_2_64,RNS8_BOUND_NONE);
+    rns8_matrix* matrix=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+    rns8::detail::hip_direct_allocation_counters_reset();
+    REQUIRE(rns8_pack_u64(ctx,matrix,input.data(),stride,77)==RNS8_SUCCESS);
+    REQUIRE(rns8_export_wrap_u64(ctx,plan,matrix,output.data(),stride)==RNS8_SUCCESS);
+    const auto counts=rns8::detail::hip_direct_allocation_counters_snapshot();
+    CHECK(counts.allocate_calls==0);CHECK(counts.h2d_bytes==rows*cols*8);CHECK(counts.d2h_bytes==rows*cols*8);
+    CHECK(matrix->hip_upload_buffer==nullptr);CHECK(matrix->hip_export_buffer==nullptr);
+    for(int64_t r=0;r<rows;++r)for(int64_t col=0;col<cols;++col)CHECK(output[size_t(r*stride+col)]==words[col]);
+    if(rows>1)for(int64_t col=cols;col<stride;++col)CHECK(output[size_t(col)]==99);
+    const auto generation=matrix->content_generation;
+    rns8::detail::hip_direct_allocation_counters_reset();REQUIRE(rns8_pack_u64(ctx,matrix,input.data(),stride,77)==RNS8_SUCCESS);
+    CHECK(matrix->content_generation==generation);CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().h2d_calls==0);
+    REQUIRE(rns8_trim_matrix_staging(matrix)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

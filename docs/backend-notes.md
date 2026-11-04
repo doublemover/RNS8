@@ -43,6 +43,13 @@ byte basis. The arithmetic identity is `centered-byte-blocked-k65536-v2`;
 materialization graph/build identities invalidate earlier prices. New latency
 and ISA evidence must be collected for this implementation.
 
+Stable-version imports reuse the complete required materialization set,
+including retained native storage, without rescanning or advancing generation.
+An incomplete set performs a real import. Wrap64 host boundaries transfer
+canonical bytes directly on matching layouts, with explicit conversion for
+other host byte orders; they retain reader/writer leases across uncertain
+completion. These source changes await validation and matched measurements.
+
 | Backend / benchmark name | State and enablement | Arithmetic / constraints | Evidence or implementation owner |
 |---|---|---|---|
 | `cpu-reference` | Available public path | Bounded, exact-wide, finite; independent Boost reference, optional OpenMP | [Correctness](correctness.md), [developer checks](../CONTRIBUTING.md) |
