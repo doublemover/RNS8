@@ -1,4 +1,5 @@
 #include "backend_common/direct_rns_route.hpp"
+#include "backend_ck/arithmetic_contract.hpp"
 #include "backend_common/matrix_target.hpp"
 #include "backend_common/packed_gemm_layout.hpp"
 #include "core/api_internal.hpp"

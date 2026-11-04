@@ -28,6 +28,23 @@ or an SDK version label. CPU algebra covers all byte moduli; GPU regressions
 exercise negative residues, poisoned padding and K=64/65536/65537. Accumulation
 remains fused with centered-byte reduction; no INT32 global scratch is added.
 
+`implementation_contract.hpp` is shared by host planning, generated workspace
+admission and HIP packing. It records WMMA/XDL, the detected signed or unsigned
+alphabet, INT32 accumulation and the 32768-element slab. Ordinary-plan
+certificates model unsigned packing as a checked modular reduction of the
+logical centered residue. Every hardware dot starts at zero; its centered-byte
+epilogue precedes the INT32 merge with the previous centered slab. The current
+cap is unchanged. A larger host-proven boundary alone does not admit a larger
+device slab.
+
+Kernel identities use the v4 physical family (`wmma_s8`, `wmma_u8` or `xdl_s8`
+within the complete selected-kernel string). Dependency metadata reports
+`CK-sha256-192:` plus the first 192 bits of a SHA256 content identity of the
+selected implementation and available CK/version headers. This fits the existing
+64-byte public version field; the complete build manifest also binds dependency
+trees. Historical reports retain their original labels. Host certificate checks
+do not qualify generated matrix instructions or a device run.
+
 Dependency discovery and compile probes remain evidence only. CK reports an
 enabled correctness backend only in the explicit CK preset after the compiled
 kernels, exact CPU/direct-HIP differential tests, benchmark schema fixtures,

@@ -217,7 +217,7 @@ int run_ck_tile_modulus_impl(
   const char* add_alias = have_prefix_label ? "ck_add_centered_kernel" : nullptr;
   bool have_accumulated = false;
   rns8::detail::PackedGemmLayout layout;
-  if(!temp_c || !rns8::detail::ck_packed_gemm_layout(m,n,k,kRns8CkShapeAlignment,layout))return ck_range_error;
+  if(!temp_c || !rns8::detail::ck_packed_gemm_layout(m,n,k,kCkImplementation,layout))return ck_range_error;
   const int gemm_m=static_cast<int>(layout.rows),gemm_n=static_cast<int>(layout.cols);
   const bool padded_output = gemm_m != m || gemm_n != n;
   for (int64_t k_offset = 0; k_offset < k; k_offset += kRns8CanonicalSafeInt32KBlock) {

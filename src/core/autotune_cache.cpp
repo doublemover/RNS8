@@ -1,4 +1,5 @@
 #include "core/autotune_cache.hpp"
+#include "backend_ck/implementation_contract.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -390,19 +391,6 @@ bool is_finite_u8_semantic(const std::string& semantic_contract) {
   return semantic_contract == "finite_ring_u8" || semantic_contract == "finite_field_u8";
 }
 
-std::string expected_ck_finite_kernel(uint32_t finite_modulus) {
-  switch (finite_modulus) {
-    case 251:
-      return "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2";
-    case 255:
-      return "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2";
-    case 256:
-      return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
-    default:
-      return "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2";
-  }
-}
-
 std::string expected_rocwmma_finite_kernel(uint32_t finite_modulus) {
   switch (finite_modulus) {
     case 251:
@@ -497,14 +485,13 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
       if (!finite_u8::static_byte_modulus_supported(entry.finite_modulus)) {
         return false;
       }
-      return entry.selected_kernel == expected_ck_finite_kernel(entry.finite_modulus);
+      return ck_kernel_matches(entry.selected_kernel,entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3";
+      return ck_kernel_matches(entry.selected_kernel);
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3" ||
-             entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3";
+      return ck_kernel_matches(entry.selected_kernel,0,true);
     }
   }
   if (entry.selected_backend == "rocwmma") {

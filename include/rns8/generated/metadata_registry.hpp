@@ -176,7 +176,7 @@ inline constexpr std::array<std::string_view, 15> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 95> selected_kernels{{
+inline constexpr std::array<std::string_view, 113> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
@@ -195,7 +195,25 @@ inline constexpr std::array<std::string_view, 95> selected_kernels{{
     "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
     "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
+    "ck_wmma_cshuffle_s8_i32_v4_default_moduli_centered_epilogue",
+    "ck_wmma_cshuffle_s8_i32_v4_finite_u8_mod251_centered_epilogue",
+    "ck_wmma_cshuffle_s8_i32_v4_finite_u8_mod255_centered_epilogue",
+    "ck_wmma_cshuffle_s8_i32_v4_finite_u8_mod256_centered_epilogue",
+    "ck_wmma_cshuffle_s8_i32_v4_finite_u8_static_modulus_centered_epilogue",
+    "ck_wmma_cshuffle_s8_i32_v4_tiled_default_moduli_centered_epilogue",
     "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
+    "ck_wmma_cshuffle_u8_i32_v4_default_moduli_centered_epilogue",
+    "ck_wmma_cshuffle_u8_i32_v4_finite_u8_mod251_centered_epilogue",
+    "ck_wmma_cshuffle_u8_i32_v4_finite_u8_mod255_centered_epilogue",
+    "ck_wmma_cshuffle_u8_i32_v4_finite_u8_mod256_centered_epilogue",
+    "ck_wmma_cshuffle_u8_i32_v4_finite_u8_static_modulus_centered_epilogue",
+    "ck_wmma_cshuffle_u8_i32_v4_tiled_default_moduli_centered_epilogue",
+    "ck_xdl_cshuffle_s8_i32_v4_default_moduli_centered_epilogue",
+    "ck_xdl_cshuffle_s8_i32_v4_finite_u8_mod251_centered_epilogue",
+    "ck_xdl_cshuffle_s8_i32_v4_finite_u8_mod255_centered_epilogue",
+    "ck_xdl_cshuffle_s8_i32_v4_finite_u8_mod256_centered_epilogue",
+    "ck_xdl_cshuffle_s8_i32_v4_finite_u8_static_modulus_centered_epilogue",
+    "ck_xdl_cshuffle_s8_i32_v4_tiled_default_moduli_centered_epilogue",
     "cpu_amx_int8_16x16x64_centered_v1",
     "cpu_reference",
     "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",

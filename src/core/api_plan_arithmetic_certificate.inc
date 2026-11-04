@@ -50,6 +50,14 @@ static std::shared_ptr<const arithmetic::Guard> make_plan_arithmetic_guard(const
     const Integer lo=c.signed_output?-(Integer(1)<<63):Integer(0);
     const auto a=input(lo,hi,64,c.signed_output),b=input(lo,hi,64,c.signed_output);
     Node n;n.operation=Operation::dot;n.left=a;n.right=b;n.count=static_cast<uint64_t>(plan.desc.k);n.bits=192;n.is_signed=c.signed_output;c.dag.push_back(n);
+  } else if(plan.backend==RNS8_BACKEND_CK) {
+    c.representation=uses_finite_storage(plan.desc.semantics)?Representation::canonical_finite_u8:Representation::centered_rns_i8;
+    const auto moduli=uses_finite_storage(plan.desc.semantics)?std::vector<uint32_t>{plan.desc.finite_modulus}:c.basis;
+    const auto descriptor=compiled_ck_implementation();
+    if(i.safe_k>descriptor.slab_k || !append_ck_arithmetic_contract(c,descriptor,moduli,i.safe_k)) {
+      c.dag.clear();
+      return std::make_shared<const Guard>(std::move(c)); // Empty DAG fails closed.
+    }
   } else {
     c.representation=uses_finite_storage(plan.desc.semantics)?Representation::canonical_finite_u8:Representation::centered_rns_i8;
     const bool centered_prior=plan.backend==RNS8_BACKEND_CPU_AMX;

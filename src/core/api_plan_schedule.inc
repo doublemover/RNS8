@@ -7,16 +7,7 @@ bool is_input_range_bound_kind(rns8_bound_kind bound_kind) {
 }
 
 std::string ck_finite_selected_kernel(uint32_t finite_modulus) {
-  switch (finite_modulus) {
-    case 251:
-      return "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2";
-    case 255:
-      return "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2";
-    case 256:
-      return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
-    default:
-      return "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2";
-  }
+  return compiled_ck_implementation().selected_kernel(finite_modulus);
 }
 
 std::string rocwmma_finite_selected_kernel(uint32_t finite_modulus) {

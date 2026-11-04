@@ -177,7 +177,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if(backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA) {
     rns8::detail::PackedGemmLayout generated;
     const bool fits=backend==RNS8_BACKEND_CK
-        ? rns8::detail::ck_packed_gemm_layout(d.m,d.n,d.k,RNS8_CK_SHAPE_ALIGNMENT,generated)
+        ? rns8::detail::ck_packed_gemm_layout(d.m,d.n,d.k,compiled_ck_implementation(),generated)
         : rns8::detail::rocwmma_packed_gemm_layout(d.m,d.n,d.k,generated);
     if(!fits)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_ADDRESS,"generated_layout",
         "backend padded pack/output domains exceed the compiled signed32 lowering");

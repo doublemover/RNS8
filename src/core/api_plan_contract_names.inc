@@ -115,12 +115,12 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_CK) {
     if (!plan.tile_schedule.empty()) {
-      return "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3";
+      return compiled_ck_implementation().selected_kernel(0,true);
     }
     if (uses_finite_storage(plan.desc.semantics)) {
       return ck_finite_selected_kernel(plan.desc.finite_modulus);
     }
-    return "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3";
+    return compiled_ck_implementation().selected_kernel();
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     if (!plan.tile_schedule.empty()) {
@@ -415,6 +415,8 @@ uint64_t accumulator_modulus_for_plan(const rns8_plan& plan) {
 }
 
 uint64_t accumulator_max_abs_input_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CK)return compiled_ck_implementation().max_input(
+    uses_finite_storage(plan.desc.semantics)?plan.desc.finite_modulus:256);
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
       rns8::detail::wrap64_hip_uses_u32_accumulator(plan.desc.k)) {
     return 255u;
@@ -446,6 +448,8 @@ uint32_t accumulator_safe_for_k_block_for_plan(const rns8_plan& plan) {
 }
 
 std::string accumulator_input_domain_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CK && !compiled_ck_implementation().signed_operands)
+    return "canonical_u8_from_centered_residues";
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return plan.desc.semantics == RNS8_BOUNDED_I64 ? "native_i64_values" : "native_u64_values";
   }
@@ -459,6 +463,8 @@ std::string accumulator_input_domain_for_plan(const rns8_plan& plan) {
 }
 
 std::string accumulator_signedness_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CK && !compiled_ck_implementation().signed_operands)
+    return "unsigned_u8x_unsigned_u8";
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return plan.desc.semantics == RNS8_BOUNDED_I64 ? "signed_i64x_signed_i64" : "unsigned_u64x_unsigned_u64";
   }

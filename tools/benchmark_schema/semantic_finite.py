@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ck_kernel_contract import ck_kernel_family, ck_selected_kernel
 
 from .core_shared import *
 
@@ -149,6 +150,9 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
                 f"CK finite-u8 modulus {modulus} captures are unsupported by the static CK reducer set"
             )
         expected_kernel = CK_FINITE_SPECIALIZED_KERNELS.get(modulus, CK_FINITE_GENERIC_KERNEL)
+        family = ck_kernel_family(self.data.get("selected_kernel"))
+        if family and 2 <= modulus <= 256:
+            expected_kernel = ck_selected_kernel(family, modulus)
         if self.data.get("selected_kernel") != expected_kernel:
             self._error(
                 f"CK finite-u8 modulus {modulus} captures must use selected_kernel={expected_kernel}"

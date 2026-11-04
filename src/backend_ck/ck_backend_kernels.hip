@@ -18,6 +18,7 @@
 
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "input_encoding.hpp"
+#include "implementation_contract.hpp"
 
 struct rns8_plan_tile_schedule_entry {
   uint64_t struct_size;

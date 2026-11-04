@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "backend_ck/implementation_contract.hpp"
 
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
 TEST_CASE("CK input signedness preserves negative residues across K slab boundaries", "[ck][hip][signedness]") {
@@ -389,7 +390,7 @@ TEST_CASE("CK exact-wide RNS output matches CPU and direct HIP limbs") {
     if (backend == RNS8_BACKEND_CK) {
       CHECK(
           std::string(info.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
+          rns8::detail::compiled_ck_implementation().selected_kernel());
       CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_rns_output");
       CHECK(info.workspace_required_bytes > 0);
       CHECK(info.accumulator_uses_int32_inner_product == 1);
@@ -472,7 +473,7 @@ TEST_CASE("CK exact-wide unsigned RNS output matches CPU and direct HIP limbs") 
     if (backend == RNS8_BACKEND_CK) {
       CHECK(
           std::string(info.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
+          rns8::detail::compiled_ck_implementation().selected_kernel());
       CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_rns_output");
     }
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
@@ -677,12 +678,12 @@ TEST_CASE("CK finite u8 common moduli report specialized reducer kernels") {
   struct Case {
     rns8_semantics semantics;
     uint16_t modulus;
-    const char* selected_kernel;
+    std::string selected_kernel;
   };
   const Case cases[] = {
-      {RNS8_FINITE_FIELD_U8, 251, "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2"},
-      {RNS8_FINITE_RING_U8, 255, "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2"},
-      {RNS8_FINITE_RING_U8, 256, "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2"},
+      {RNS8_FINITE_FIELD_U8, 251, rns8::detail::compiled_ck_implementation().selected_kernel(251)},
+      {RNS8_FINITE_RING_U8, 255, rns8::detail::compiled_ck_implementation().selected_kernel(255)},
+      {RNS8_FINITE_RING_U8, 256, rns8::detail::compiled_ck_implementation().selected_kernel(256)},
   };
   for (const auto& item : cases) {
     auto desc = finite_desc(64, 64, 64, item.semantics, RNS8_BACKEND_CK, item.modulus);

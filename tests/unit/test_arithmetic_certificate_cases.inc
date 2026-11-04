@@ -67,3 +67,61 @@ TEST_CASE("public plans seal conditional arithmetic identity into cache and work
   }
   rns8_destroy_context(ctx);
 }
+
+TEST_CASE("CK certificates describe physical alphabets and post epilogue carries","[certificate][ck]") {
+  using namespace rns8::detail;
+  using namespace arithmetic;
+  std::vector<std::string> identities;
+  for(const auto descriptor:{make_ck_implementation(0,1,64),make_ck_implementation(0,0,64),make_ck_implementation(1,1,128)}) {
+    REQUIRE(descriptor.valid());identities.push_back(descriptor.lowering_identity());
+    for(uint32_t q=2;q<=256;++q) {
+      Certificate c;c.instruction.target="host-adapter-only";c.instruction.opcode=descriptor.kernel_family();
+      c.instruction.compiler_build="fixture";c.instruction.compiler_flags="fixture";c.instruction.lowering_identity="fixture";
+      REQUIRE(append_ck_arithmetic_contract(c,descriptor,{q},descriptor.slab_k));
+      const auto result=verify(c);INFO(q);INFO(descriptor.kernel_family());REQUIRE(result.admitted());
+      CHECK(result.target==Verdict::not_run);CHECK(c.instruction.prior_abs==0);
+      const uint32_t dot_index=descriptor.signed_operands?2:4;
+      const auto& dot=c.dag[dot_index];CHECK(dot.prior==UINT32_MAX);
+      const auto& physical=result.intervals[dot.left];
+      for(int value=-128;value<=127;++value) {
+        if(value<-int(q/2) || value>int((q-1)/2))continue;
+        const auto byte=ck_encode_matrix_input(static_cast<int8_t>(value),q,descriptor.signed_operands);
+        const int encoded=descriptor.signed_operands?int(byte):int(static_cast<uint8_t>(byte));
+        CHECK(Integer(encoded)>=physical.low);CHECK(Integer(encoded)<=physical.high);
+        CHECK((encoded-value)%int(q)==0);
+      }
+      CHECK(result.intervals.back().low==-Integer(q/2));
+      CHECK(result.intervals.back().high==Integer((q-1)/2));
+      auto bad=c;bad.instruction.signed_operands=!bad.instruction.signed_operands;CHECK_FALSE(verify(bad).admitted());
+      if(!descriptor.signed_operands) {
+        bad=c;bad.instruction.operand_encoding=OperandEncoding::centered_signed;CHECK_FALSE(verify(bad).admitted());
+        bad=c;bad.dag[dot.left].is_signed=true;CHECK_FALSE(verify(bad).admitted());
+        bad=c;bad.instruction.operand_encoding=OperandEncoding::centered_signed;bad.instruction.signed_operands=true;
+        CHECK_FALSE(verify(bad).admitted());
+      }
+    }
+    auto bad=descriptor;bad.signed_operands=!bad.signed_operands;CHECK_FALSE(bad.valid());
+    bad=descriptor;bad.alphabet=CkOperandAlphabet::unknown;CHECK_FALSE(bad.valid());
+    bad=descriptor;bad.family=descriptor.family==CkMatrixFamily::wmma?CkMatrixFamily::xdl:CkMatrixFamily::wmma;CHECK_FALSE(bad.valid());
+    bad=descriptor;bad.zero_initialized_dot=false;CHECK_FALSE(bad.valid());
+  }
+  CHECK(identities[0]!=identities[1]);CHECK(identities[0]!=identities[2]);
+  CHECK_FALSE(make_ck_implementation(0,-1,64).valid());CHECK_FALSE(make_ck_implementation(1,0,128).valid());
+}
+
+TEST_CASE("CK unsigned zero initialized dot boundary is independent of production cap","[certificate][ck]") {
+  using namespace rns8::detail;using namespace arithmetic;
+  const auto d=make_ck_implementation(0,0,64);
+  Certificate c;c.instruction.target="host-boundary-proof";c.instruction.opcode=d.kernel_family();
+  c.instruction.compiler_build="fixture";c.instruction.compiler_flags="fixture";c.instruction.lowering_identity="boundary-experiment";
+  REQUIRE(append_ck_arithmetic_contract(c,d,{256},32768));
+  REQUIRE(verify(c).admitted());CHECK(d.slab_k==32768);
+  // Deliberately enlarge only this host proof; no dispatch cap is changed.
+  c.instruction.safe_k=33025;c.dag[4].count=33025;
+  auto result=verify(c);REQUIRE(result.admitted());
+  CHECK(result.intervals[4].high==Integer(33025)*255*255);
+  CHECK(result.intervals[7].low==-256);CHECK(result.intervals[7].high==254);
+  c.instruction.safe_k=33026;c.dag[4].count=33026;CHECK_FALSE(verify(c).admitted());
+  c.instruction.safe_k=33025;c.dag[4].count=33025;c.dag[4].prior=6;
+  CHECK_FALSE(verify(c).admitted()); // Future prior node cannot enter the dot.
+}

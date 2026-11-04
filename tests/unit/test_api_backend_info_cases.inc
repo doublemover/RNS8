@@ -238,7 +238,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(std::string(capability.status) == "implemented_opt_in_ck_backend");
       CHECK(
           std::string(capability.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
+          rns8::detail::compiled_ck_implementation().selected_kernel());
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
 #if RNS8_CK_USE_XDL
       CHECK(std::string(capability.workspace_mode) ==

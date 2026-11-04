@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ck_kernel_contract import ck_kernel_family
 
 from .backend_metadata import validate_backend_metadata as validate_backend_metadata_impl
 from .contract_metadata import validate_contract_metadata as validate_contract_metadata_impl
@@ -176,18 +177,24 @@ class ValidatorBaseFieldsMixin:
         modulus = self.data.get("finite_modulus") if semantics in {"finite_ring_u8", "finite_field_u8"} else 0
         if not _is_int(modulus):
             modulus = 0
+        ck_family = ck_kernel_family(self.data.get("selected_kernel")) if selected_backend == "ck" else None
+        unsigned_ck = ck_family == "ck_wmma_cshuffle_u8_i32_v4"
+        maximum = 128
+        input_domain = "centered_i8_finite_u8_residues" if modulus else "centered_i8_rns_residue_planes"
+        if ck_family:
+            maximum = (modulus - 1 if unsigned_ck else modulus // 2) if modulus else (255 if unsigned_ck else 128)
+            if unsigned_ck:
+                input_domain = "canonical_u8_from_centered_residues"
         return {
             "uses_int32_inner_product": True,
             "k_block_size": min(k_value, cap) if k_value > 0 else 0,
             "k_block_cap": cap,
-            "max_lhs_abs": 128,
-            "max_rhs_abs": 128,
-            "max_product": 128 * 128,
+            "max_lhs_abs": maximum,
+            "max_rhs_abs": maximum,
+            "max_product": maximum * maximum,
             "accumulator_type": "int32",
-            "signedness": "signed_i8x_signed_i8",
-            "input_domain": "centered_i8_finite_u8_residues"
-            if semantics in {"finite_ring_u8", "finite_field_u8"}
-            else "centered_i8_rns_residue_planes",
+            "signedness": "unsigned_u8x_unsigned_u8" if unsigned_ck else "signed_i8x_signed_i8",
+            "input_domain": input_domain,
             "modulus_policy": "finite_u8_modulus"
             if semantics in {"finite_ring_u8", "finite_field_u8"}
             else "selected_rns_modulus_ladder",
@@ -530,13 +537,22 @@ class ValidatorBaseFieldsMixin:
         if selected_backend == "ck":
             expected = {
                 "accelerator_library": "Composable Kernel",
-                "accelerator_version": "repo-local release/rocm-rel-7.1",
                 "capability_status": "implemented_opt_in_ck_backend",
                 "isa_evidence": "ck_cshuffle_int8_matrix_isa_gate_no_divide",
             }
             for key, value in expected.items():
                 if metadata.get(key) != value:
                     self._error(f"CK captures must use backend_metadata.{key}={value}")
+            family = ck_kernel_family(metadata.get("selected_kernel"))
+            version = metadata.get("accelerator_version")
+            if family:
+                if not isinstance(version, str) or re.fullmatch(r"CK-sha256-192:[0-9a-f]{48}", version) is None:
+                    self._error("current CK captures require the selected dependency content identity")
+                workspace = "resident_device_buffers_with_ck_" + ("canonical" if "_u8_" in family else "centered") + "_pack_workspace"
+                if metadata.get("workspace_mode") != workspace:
+                    self._error("CK workspace encoding disagrees with the selected physical implementation")
+            elif version != "repo-local release/rocm-rel-7.1":
+                self._error("historical CK captures require their original dependency version")
             if metadata.get("workspace_mode") not in {
                 "resident_device_buffers_with_ck_canonical_pack_workspace",
                 "resident_device_buffers_with_ck_centered_pack_workspace",

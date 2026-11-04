@@ -2,6 +2,7 @@
 """Install reviewed RNS8 autotune cache entries into a destination cache."""
 
 from __future__ import annotations
+from ck_kernel_contract import ck_kernel_family, ck_kernel_matches
 
 import argparse
 import hashlib
@@ -183,6 +184,12 @@ def reviewed_kernel_supported_for_contract(
     if selected_backend == "hipblaslt":
         return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2"
     if selected_backend == "ck":
+        if ck_kernel_family(selected_kernel):
+            if semantic_contract in FINITE_U8_SEMANTICS:
+                return ck_kernel_matches(selected_kernel, finite_modulus)
+            if semantic_contract in EXACT_WIDE_SEMANTICS | BOUNDED_SEMANTICS:
+                return ck_kernel_matches(selected_kernel, allow_tiled=semantic_contract in BOUNDED_SEMANTICS)
+            return False
         if semantic_contract in FINITE_U8_SEMANTICS:
             return selected_kernel == CK_FINITE_SPECIALIZED_KERNELS.get(
                 finite_modulus, "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"

@@ -14,8 +14,10 @@ constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
 constexpr uint32_t kRns8TileScheduleZeroRowColProduct = 0x00000002u;
 constexpr uint32_t kRns8SupportedTileScheduleFlags =
     kRns8TileScheduleZeroOutput | kRns8TileScheduleZeroRowColProduct;
-constexpr int64_t kRns8CanonicalSafeInt32KBlock = 32768;
-constexpr int64_t kRns8CkShapeAlignment = RNS8_CK_SHAPE_ALIGNMENT;
+constexpr auto kCkImplementation=rns8::detail::compiled_ck_implementation();
+static_assert(kCkImplementation.valid(),"CK requires a detected physical implementation contract");
+constexpr int64_t kRns8CanonicalSafeInt32KBlock = kCkImplementation.slab_k;
+constexpr int64_t kRns8CkShapeAlignment = kCkImplementation.shape_alignment;
 static_assert(kRns8CkShapeAlignment == 64 || kRns8CkShapeAlignment == 128, "unsupported CK shape alignment");
 static_assert(RNS8_CK_USE_XDL == 0 || RNS8_CK_USE_XDL == 1, "unsupported CK kernel family selector");
 constexpr uint16_t kDefaultModuli[kRns8DefaultModulusCount] = {
@@ -296,7 +298,7 @@ bool ck_workspace_requirements_u64(
     uint64_t* b_bytes,
     uint64_t* temp_bytes) {
   rns8::detail::PackedGemmLayout layout;
-  if(!a_bytes || !b_bytes || !temp_bytes || max_m<=0 || max_n<=0 || k<=0 || !rns8::detail::ck_packed_gemm_layout(max_m,max_n,k,kRns8CkShapeAlignment,layout))return false;
+  if(!a_bytes || !b_bytes || !temp_bytes || max_m<=0 || max_n<=0 || k<=0 || !rns8::detail::ck_packed_gemm_layout(max_m,max_n,k,kCkImplementation,layout))return false;
   *a_bytes=layout.a_bytes;*b_bytes=layout.b_bytes;
   *temp_bytes=layout.c_bytes;
   return true;
@@ -308,13 +310,5 @@ __device__ int8_t center_i32_device(int32_t value, int modulus, uint32_t recipro
 }
 
 __device__ int8_t ck_input_byte_from_centered_device(int8_t residue, int modulus) {
-#if RNS8_CK_USE_XDL
-  (void)modulus;
-  return residue;
-#else
-#ifndef RNS8_CK_WMMA_SIGNED_INPUTS
-#error "CK WMMA requires a detected operand signedness contract"
-#endif
-  return rns8::detail::ck_encode_matrix_input(residue, uint32_t(modulus), RNS8_CK_WMMA_SIGNED_INPUTS != 0);
-#endif
+  return rns8::detail::ck_encode_matrix_input(residue,uint32_t(modulus),kCkImplementation.signed_operands);
 }

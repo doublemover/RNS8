@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ck_kernel_contract import ck_kernel_family, ck_selected_kernel
 from timing_diagnostics import is_censored_gpu_event_capture
 
 from .core_shared import *
@@ -692,6 +693,10 @@ class ValidatorScheduleMixin:
                 "amdgpu-builtins": amdgpu_expected_kernel,
             }
             expected_kernel = expected_kernels.get(selected_backend)
+            if selected_backend == "ck":
+                family = ck_kernel_family(selected_kernel)
+                if family:
+                    expected_kernel = ck_selected_kernel(family, tiled=True)
             if expected_kernel is not None and selected_kernel != expected_kernel:
                 self._error(f"per-tile adaptive {selected_backend} captures must use selected_kernel={expected_kernel}")
             if selected_backend == "hip-vector-alu-int64" and selected_kernel not in VECTOR_ALU_SELECTED_KERNELS:

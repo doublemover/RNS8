@@ -12,6 +12,7 @@ enum class Verdict:uint32_t { unknown=0,proven=1,refuted=2,unsupported=3,not_run
 enum class Equality:uint32_t { integer_value=0,modular_value=1,physical_layout=2 };
 enum class Operation:uint32_t { input=0,add=1,multiply=2,dot=3,canonical_reduce=4,centered_reduce=5,exact_divide=6,wrap_reduce=7,layout=8,wrap_add=9,wrap_multiply=10,wrap_dot=11 };
 enum class Representation:uint32_t { centered_rns_i8=1,canonical_finite_u8=2,wrap_byte_limbs=3,native_exact_limbs=4,signed_finite_i4=5 };
+enum class OperandEncoding:uint32_t { centered_signed=0,canonical_unsigned=1 };
 struct Interval {Integer low=0,high=0,multiple=1;uint32_t modulus=0,wrapped_bits=0;};
 struct Node {
   Operation operation=Operation::input;Equality equality=Equality::integer_value;
@@ -28,6 +29,7 @@ struct Instruction {
   // Receipts are identities only. This host checker never sets target execution
   // or layout verdicts from an evidence string, target name or format label.
   std::string instruction_evidence,layout_evidence;
+  OperandEncoding operand_encoding=OperandEncoding::centered_signed;
 };
 struct Certificate {
   uint32_t version=1;Representation representation=Representation::centered_rns_i8;
@@ -54,13 +56,14 @@ inline Interval multiply(const Interval& a,const Interval& b) {
 }
 // Length-prefixed canonical integer/text encoding avoids delimiter ambiguity.
 inline std::string canonical(const Certificate& c) {
-  std::string out="rns8-arithmetic-runtime-v1";
+  std::string out="rns8-arithmetic-runtime-v2";
   const auto text=[&](const std::string& value){out+='|';out+=std::to_string(value.size());out+=':';out+=value;};
   const auto integer=[&](const Integer& value){text(value.str());};
   integer(c.version);integer(uint32_t(c.representation));integer(c.semantics);integer(c.requires_range_guard);integer(c.signed_output);integer(c.bound_known);integer(c.output_bound);
   integer(c.basis.size());for(auto p:c.basis)integer(p);
   const auto& i=c.instruction;for(const auto* s:{&i.target,&i.opcode,&i.compiler_build,&i.compiler_flags,&i.lowering_identity,&i.instruction_evidence,&i.layout_evidence})text(*s);
   for(uint64_t v:{uint64_t(i.operand_bits),uint64_t(i.accumulator_bits),uint64_t(i.signed_operands),uint64_t(i.signed_accumulator),i.safe_k,i.prior_abs,uint64_t(i.lhs_abs),uint64_t(i.rhs_abs)})integer(v);
+  integer(uint32_t(i.operand_encoding));
   integer(c.dag.size());for(const auto& n:c.dag){for(uint64_t v:{uint64_t(n.operation),uint64_t(n.equality),uint64_t(n.left),uint64_t(n.right),uint64_t(n.prior),uint64_t(n.bits),uint64_t(n.is_signed),n.count,n.divisor,uint64_t(n.modulus)})integer(v);
     integer(n.input.low);integer(n.input.high);integer(n.input.multiple);integer(n.input.modulus);integer(n.input.wrapped_bits);integer(n.source_extent);integer(n.destination_extent);
     integer(n.source_offsets.size());for(auto v:n.source_offsets)integer(v);integer(n.destination_offsets.size());for(auto v:n.destination_offsets)integer(v);}
@@ -76,8 +79,12 @@ inline Checked verify(const Certificate& c) {
   if(c.bound_known && (c.output_bound<0 || (c.requires_range_guard && (c.basis.empty() || product<=c.output_bound*(c.signed_output?2:1)))))return fail("strict_integer_range");
   if(c.representation==Representation::centered_rns_i8 || c.representation==Representation::canonical_finite_u8 || c.representation==Representation::signed_finite_i4) {
     const bool nibble=c.representation==Representation::signed_finite_i4;
-    if(instruction.operand_bits!=(nibble?4u:8u) || instruction.accumulator_bits!=32 || !instruction.signed_operands || !instruction.signed_accumulator ||
-        !instruction.safe_k || instruction.lhs_abs>(nibble?8u:128u) || instruction.rhs_abs>(nibble?8u:128u))return fail("signed_i8_instruction_contract");
+    const bool canonical=instruction.operand_encoding==OperandEncoding::canonical_unsigned;
+    if(uint32_t(instruction.operand_encoding)>1 || (canonical && nibble) ||
+        instruction.operand_bits!=(nibble?4u:8u) || instruction.accumulator_bits!=32 ||
+        instruction.signed_operands==canonical || !instruction.signed_accumulator ||
+        !instruction.safe_k || instruction.lhs_abs>(nibble?8u:canonical?255u:128u) ||
+        instruction.rhs_abs>(nibble?8u:canonical?255u:128u))return fail("signed_i8_instruction_contract");
     if(Integer(instruction.safe_k)*instruction.lhs_abs*instruction.rhs_abs+instruction.prior_abs>INT32_MAX)return fail("instruction_slab_plus_prior_overflow");
   }
   result.intervals.reserve(c.dag.size());bool has_layout=false;
@@ -93,6 +100,18 @@ inline Checked verify(const Certificate& c) {
     }
     else if(n.operation==Operation::add || n.operation==Operation::multiply || n.operation==Operation::dot){
       if(!a || !b || a->wrapped_bits || b->wrapped_bits || (a->modulus && b->modulus && a->modulus!=b->modulus))return fail("arithmetic_domain_or_order",index);
+      if(n.operation==Operation::dot && (c.representation==Representation::centered_rns_i8 ||
+          c.representation==Representation::canonical_finite_u8 || c.representation==Representation::signed_finite_i4) &&
+          (c.dag[n.left].bits!=instruction.operand_bits || c.dag[n.right].bits!=instruction.operand_bits ||
+           c.dag[n.left].is_signed!=instruction.signed_operands || c.dag[n.right].is_signed!=instruction.signed_operands ||
+           a->low < -Integer(instruction.lhs_abs) || a->high>instruction.lhs_abs ||
+           b->low < -Integer(instruction.rhs_abs) || b->high>instruction.rhs_abs ||
+           n.bits!=instruction.accumulator_bits || n.is_signed!=instruction.signed_accumulator))return fail("physical_dot_instruction_contract",index);
+      if(n.operation==Operation::dot && instruction.operand_encoding==OperandEncoding::canonical_unsigned &&
+          (!a->modulus || !b->modulus || a->low<0 || b->low<0 || a->high>=a->modulus || b->high>=b->modulus ||
+           c.dag[n.left].is_signed || c.dag[n.right].is_signed || c.dag[n.left].bits!=instruction.operand_bits ||
+           c.dag[n.right].bits!=instruction.operand_bits || a->high>instruction.lhs_abs || b->high>instruction.rhs_abs ||
+           n.count>instruction.safe_k))return fail("canonical_unsigned_dot_operands",index);
       if(n.operation==Operation::add)value={a->low+b->low,a->high+b->high,gcd(a->multiple,b->multiple),a->modulus?a->modulus:b->modulus};
       else {value=multiply(*a,*b);if(n.operation==Operation::dot){if(!n.count)return fail("dot_count",index);
           value.low*=n.count;value.high*=n.count;value.low=std::min(Integer(0),value.low);value.high=std::max(Integer(0),value.high);}}

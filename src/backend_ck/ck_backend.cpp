@@ -2,6 +2,7 @@
 #include "backend_common/address_domain.hpp"
 #include "backend_common/finite_u8_reducer.hpp"
 #include "backend_ck/ck_backend.hpp"
+#include "backend_ck/implementation_contract.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/backend_common.hpp"
@@ -68,11 +69,6 @@ extern "C" int rns8_ck_gemm_finite_u8_device_on_stream(int,const void*,const voi
 
 namespace rns8::detail {
 
-namespace {
-constexpr uint64_t kCkShapeAlignment = RNS8_CK_SHAPE_ALIGNMENT;
-static_assert(kCkShapeAlignment == 64 || kCkShapeAlignment == 128, "unsupported CK shape alignment");
-}  // namespace
-
 bool ck_compiled() {
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   return true;
@@ -83,6 +79,7 @@ bool ck_compiled() {
 
 rns8_status ck_probe(int device_id, rns8_device_info& out) {
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+  if(!compiled_ck_implementation().valid())return RNS8_UNSUPPORTED_BACKEND;
   rns8_status status = hip_direct_probe(device_id, out);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -108,7 +105,7 @@ bool ck_workspace_requirements(
   a_pack_bytes=b_pack_bytes=total_bytes=0;
   temp_c_bytes=0;
   PackedGemmLayout layout;
-  if(max_m<=0 || max_n<=0 || k<=0 || !ck_packed_gemm_layout(max_m,max_n,k,kCkShapeAlignment,layout))return false;
+  if(max_m<=0 || max_n<=0 || k<=0 || !ck_packed_gemm_layout(max_m,max_n,k,compiled_ck_implementation(),layout))return false;
   a_pack_bytes=static_cast<std::size_t>(layout.a_bytes);
   b_pack_bytes=static_cast<std::size_t>(layout.b_bytes);
   temp_c_bytes=static_cast<std::size_t>(layout.c_bytes);

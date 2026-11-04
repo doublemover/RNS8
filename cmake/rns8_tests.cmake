@@ -22,6 +22,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     message(FATAL_ERROR "Benchmark case expansion failed: ${_rns8_cases_error}")
   endif()
   add_test(NAME matrix_target_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_matrix_targets.py")
+  add_test(NAME ck_physical_kernel_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ck_kernel_contract.py")
+  set_tests_properties(ck_physical_kernel_contracts PROPERTIES LABELS "tools;admission;certificate" TIMEOUT 60)
   set_tests_properties(matrix_target_contracts PROPERTIES LABELS "tools;admission" TIMEOUT 60)
   add_test(NAME benchmark_catalog_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_cases.py")
   add_test(NAME research_evidence_archive_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_research_evidence.py")
@@ -1196,6 +1198,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     PRIVATE $<$<BOOL:${RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE}>:RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE=1>
   )
   target_compile_definitions(rns8_tests PRIVATE RNS8_CK_USE_XDL=${RNS8_CK_USE_XDL})
+  target_compile_definitions(rns8_tests PRIVATE RNS8_CK_WMMA_SIGNED_INPUTS=${RNS8_CK_WMMA_SIGNED_INPUTS})
+  target_compile_definitions(rns8_tests PRIVATE RNS8_CK_DEPENDENCY_ID="${RNS8_CK_DEPENDENCY_ID}")
   target_compile_definitions(rns8_tests PRIVATE RNS8_CK_SHAPE_ALIGNMENT=${RNS8_CK_SHAPE_ALIGNMENT})
   target_compile_definitions(
     rns8_tests

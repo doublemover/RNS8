@@ -1,4 +1,5 @@
 #include "core/api_internal.hpp"
+#include "backend_ck/implementation_contract.hpp"
 
 namespace rns8::detail::api {
 
@@ -324,19 +325,16 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.selected_kernel,
           sizeof(info.selected_kernel),
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
+          compiled_ck_implementation().selected_kernel());
       set_text(info.library_name, sizeof(info.library_name), "Composable Kernel");
-      set_text(info.library_version, sizeof(info.library_version), "repo-local release/rocm-rel-7.1");
+      set_text(info.library_version, sizeof(info.library_version), ck_dependency_identity());
       set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_CK");
       set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "ck_fused_i32_to_centered_residue");
       set_text(
           info.workspace_mode,
           sizeof(info.workspace_mode),
-#if RNS8_CK_USE_XDL
-          "resident_device_buffers_with_ck_centered_pack_workspace");
-#else
-          "resident_device_buffers_with_ck_canonical_pack_workspace");
-#endif
+          compiled_ck_implementation().signed_operands?"resident_device_buffers_with_ck_centered_pack_workspace":
+            "resident_device_buffers_with_ck_canonical_pack_workspace");
       set_text(
           info.isa_evidence,
           sizeof(info.isa_evidence),
