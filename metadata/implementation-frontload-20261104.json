@@ -820,10 +820,11 @@
       "comments_reviewed": 1,
       "implementation_status": "in_progress",
       "completed_slices": [
-        "Fixed uint32 representation on every named public enum; raw native/Gram/schedule/locality negative coverage authored"
+        "Fixed uint32 representation on every named public enum; raw native/Gram/schedule/locality negative coverage authored",
+        "Compiler-derived complete C/C++ declaration and per-target layout registry; immutable actual-library ABI metrics/digest/compiler/CRT query; installed static/shared native consumers, export checks, compiler/flag receipts, seeded packing/enum/member/export negatives and optional pinned Linux complete-type abidiff adapter authored"
       ],
       "remaining_source_items": [
-        "Installed full C/C++ ABI inventory/layout/export/link checker and systematic descriptor/flag coverage"
+        "Reconcile every external enum/flag real-validator and genuinely sized descriptor/version/reserved-bit behavior against the complete inventory; extend missing positive/raw-invalid controls (layout/link checker explicitly does not claim this coverage)"
       ]
     },
     {

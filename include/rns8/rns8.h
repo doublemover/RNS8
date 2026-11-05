@@ -10,6 +10,7 @@
 #include "rns8/semantics.h"
 #include "rns8/status.h"
 #include "rns8/integer_split.h"
+#include "rns8/public_abi.h"
 
 #ifdef __cplusplus
 extern "C" {
