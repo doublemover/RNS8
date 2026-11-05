@@ -35,7 +35,8 @@ def classify(paths: Iterable[str], policy: dict) -> tuple[SourceFile, ...]:
         ):
             raise ValueError("invalid or duplicate tracked inventory path: " + name)
         seen.add(name)
-        if path.parts[0] in policy["excluded_roots"] or name in policy["generated"]:
+        if (path.parts[0] in policy["excluded_roots"] or name in policy["generated"]
+                or name in policy.get("checker_negative_inputs", {})):
             continue
         if name.startswith(".github/workflows/") and path.suffix in {".yml", ".yaml"}:
             result.append(SourceFile(name, "workflow"))

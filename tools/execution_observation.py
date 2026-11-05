@@ -3,45 +3,46 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from benchmark_request import relevant_environment_key
+from collections.abc import Mapping
+from execution_environment_contract import relevant_environment_key
 
 SCHEMA = "rns8_execution_environment_witness_v1"
 FIELDS = frozenset(("schema", "state", "arguments", "before", "after"))
 
 
-def _strings(value, *, environment=False):
-    if environment:
-        if not isinstance(value, dict) or len(value) > 256:
-            raise ValueError("native environment requires a bounded object")
-        if any(
-            type(key) is not str
-            or not key
-            or not relevant_environment_key(key)
-            or len(key.encode("utf-8")) > 256
-            or type(item) is not str
-            or len(item.encode("utf-8")) > 4096
-            for key, item in value.items()
-        ):
+def _environment(value: object) -> tuple[tuple[str, str], ...]:
+    if not isinstance(value, dict) or len(value) > 256:
+        raise ValueError("native environment requires a bounded object")
+    result: list[tuple[str, str]] = []
+    size = 0
+    for key, item in value.items():
+        if (type(key) is not str or not key or not relevant_environment_key(key)
+                or type(item) is not str):
             raise ValueError("native environment has an unknown or invalid key/value")
-        if (
-            sum(
-                len(key.encode("utf-8")) + len(item.encode("utf-8"))
-                for key, item in value.items()
-            )
-            > 65536
-        ):
+        key_size, item_size = len(key.encode("utf-8")), len(item.encode("utf-8"))
+        if key_size > 256 or item_size > 4096:
+            raise ValueError("native environment has an unknown or invalid key/value")
+        size += key_size + item_size
+        if size > 65536:
             raise ValueError("native environment exceeds its byte budget")
-        return tuple(sorted(value.items()))
-    if (
-        not isinstance(value, list)
-        or len(value) > 512
-        or any(type(item) is not str for item in value)
-    ):
+        result.append((key, item))
+    return tuple(sorted(result))
+
+
+def _arguments(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list) or len(value) > 512:
         raise ValueError("native argv requires a bounded string array")
-    sizes = [len(item.encode("utf-8")) for item in value]
-    if any(size > 4096 for size in sizes) or sum(sizes) > 65536:
-        raise ValueError("native argv exceeds its byte budget")
-    return tuple(value)
+    result: list[str] = []
+    size = 0
+    for item in value:
+        if type(item) is not str:
+            raise ValueError("native argv requires a bounded string array")
+        item_size = len(item.encode("utf-8"))
+        size += item_size
+        if item_size > 4096 or size > 65536:
+            raise ValueError("native argv exceeds its byte budget")
+        result.append(item)
+    return tuple(result)
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ class ExecutionObservation:
 
 
 def execution_observation(
-    capture: dict, *, required=False
+    capture: Mapping[str, object], *, required: bool = False
 ) -> ExecutionObservation | None:
     value = capture.get("execution_environment_witness")
     if value is None:
@@ -78,10 +79,10 @@ def execution_observation(
         return None
     if value["state"] != "stable":
         raise ValueError("native execution environment changed or did not complete")
-    arguments = _strings(value["arguments"])
+    arguments = _arguments(value["arguments"])
     before, after = (
-        _strings(value["before"], environment=True),
-        _strings(value["after"], environment=True),
+        _environment(value["before"]),
+        _environment(value["after"]),
     )
     if before != after:
         raise ValueError("native execution environment contradicts its stable state")
@@ -89,7 +90,7 @@ def execution_observation(
 
 
 def validate_execution_request(
-    capture: dict, request: dict, *, required=False
+    capture: Mapping[str, object], request: Mapping[str, object], *, required: bool = False
 ) -> ExecutionObservation | None:
     arguments = request.get("arguments")
     count = (
@@ -114,7 +115,7 @@ def validate_execution_request(
     return observed
 
 
-def execution_observation_blockers(capture: dict) -> list[str]:
+def execution_observation_blockers(capture: Mapping[str, object]) -> list[str]:
     request = capture.get("request_identity")
     try:
         if isinstance(request, dict):

@@ -57,6 +57,18 @@ Sweep command controls assert visibility masks, unique shard destinations and
 metadata-to-argv agreement; a tiny authored catalog checks that removing masks
 or reuse flags, or aliasing outputs, is rejected without launching a workload.
 
+The same environment also locks mypy 2.4.1 and its complete CPython 3.15 wheel
+closure. `python tools/quality.py types --tool-bin temp/quality-tools/Scripts`
+(Linux: `bin`) checks the five strict modules listed in
+`metadata/python-typecheck-scope.json` and requires deliberate wrong-command,
+missing-artifact-key and unresolved-name inputs to produce their expected
+diagnostics. Those three named inputs are excluded only from passing lint and
+format inventories. The gate follows imports normally, reports sources outside
+its explicit strict scope, and does not claim that the entire Python tree is
+typed. The Python 3.12 source target remains separate from the selected 3.15
+developer interpreter. Negative controls and integrated gate execution remain
+part of final validation.
+
 ## CPU oracle development
 
 A GPU is unnecessary for portable reference, API and tooling work. On Windows,

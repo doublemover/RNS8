@@ -93,5 +93,134 @@
         }
       ]
     }
-  ]
+  ],
+  "type_checking": {
+    "interpreter_artifacts": "CPython 3.15 Windows AMD64/Linux x86_64",
+    "checker": "mypy",
+    "requirements": "scripts/requirements-type-tools.txt",
+    "wheels": [
+      {
+        "name": "mypy",
+        "version": "2.4.1",
+        "source": "https://pypi.org/project/mypy/2.4.1/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "mypy-2.4.1-cp315-cp315-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/76/05/0c22b1f0390120a8592d31209cb6b9f932b6a0b426fe643e550de15139e3/mypy-2.4.1-cp315-cp315-win_amd64.whl",
+            "sha256": "080cf64a60b90a73435542feecf4171904cc5710658165b40c6869115d4aa100"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "mypy-2.4.1-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/c3/c9/3108b38f4c30eabd80194f5d9771a87e27196c5e0ddb5bf4b99c6ed1e97e/mypy-2.4.1-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "a2d4a51db92059eecc2c33b2a5194b28585ebfd917292c015fe87a77dbff6cd2"
+          }
+        ]
+      },
+      {
+        "name": "typing_extensions",
+        "version": "4.16.0",
+        "source": "https://pypi.org/project/typing_extensions/4.16.0/",
+        "license": "PSF-2.0",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+            "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+            "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          }
+        ]
+      },
+      {
+        "name": "mypy_extensions",
+        "version": "1.2.0",
+        "source": "https://pypi.org/project/mypy_extensions/1.2.0/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "mypy_extensions-1.2.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/b5/99/7b1adac7e97ce7bbda34792dc6e9b2f5cc5cffd1875883f78a818b2a2687/mypy_extensions-1.2.0-py3-none-any.whl",
+            "sha256": "993e7a20aa5671eb41a7132cf555af30062da99729601601b9a8382b11cae768"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "mypy_extensions-1.2.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/b5/99/7b1adac7e97ce7bbda34792dc6e9b2f5cc5cffd1875883f78a818b2a2687/mypy_extensions-1.2.0-py3-none-any.whl",
+            "sha256": "993e7a20aa5671eb41a7132cf555af30062da99729601601b9a8382b11cae768"
+          }
+        ]
+      },
+      {
+        "name": "pathspec",
+        "version": "1.1.1",
+        "source": "https://pypi.org/project/pathspec/1.1.1/",
+        "license": "See primary distribution metadata",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "pathspec-1.1.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl",
+            "sha256": "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "pathspec-1.1.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl",
+            "sha256": "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189"
+          }
+        ]
+      },
+      {
+        "name": "librt",
+        "version": "0.16.0",
+        "source": "https://pypi.org/project/librt/0.16.0/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "librt-0.16.0-cp315-cp315-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/56/1e/801fe26bc622061b9dfd010e166d94142cb774b733217e6d98d1c0cf2638/librt-0.16.0-cp315-cp315-win_amd64.whl",
+            "sha256": "bc02954b1295de798bbdb0b4e2d8a28c2117de8b5c73dcbeb27dc32572dfb971"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "librt-0.16.0-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/e1/6f/53762927a32e9dc9eb1d1c1f3528da281290c86d96929a8af652f671266e/librt-0.16.0-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "e56aaf8c167548dc8e5d6f3bd0f48dcdd299a23c73be3f744aab79d99e9c7f5d"
+          }
+        ]
+      },
+      {
+        "name": "ast-serialize",
+        "version": "0.13.1",
+        "source": "https://pypi.org/project/ast-serialize/0.13.1/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "ast_serialize-0.13.1-cp39-abi3-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/9f/6f/bafd6490fe7b355627fabe95f4417e3d02da93102c8552550eb9a0774e1e/ast_serialize-0.13.1-cp39-abi3-win_amd64.whl",
+            "sha256": "ddf7cbc9c8abf70102c4a088efe154bb86bfb825b0a10e556d2b15972cf99bd7"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "ast_serialize-0.13.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/c5/fa/da311559dd3dae9af5825cf21660775a929b970f72e3786af3f2cd667944/ast_serialize-0.13.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "sha256": "9f99786e0d62082a5b121b3437f3167562133711df22128de1e9886f57f0b226"
+          }
+        ]
+      }
+    ],
+    "scope": "metadata/python-typecheck-scope.json",
+    "configuration": "mypy.ini"
+  }
 }

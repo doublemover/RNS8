@@ -10,7 +10,7 @@ from execution_observation import (
     validate_execution_request,
     SCHEMA,
 )
-from benchmark_request import relevant_environment_key
+from execution_environment_contract import relevant_environment_key
 from timing_eligibility import phase_blockers
 from diagnostic_companion import production_evidence
 

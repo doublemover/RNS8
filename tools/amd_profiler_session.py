@@ -19,7 +19,6 @@ from amd_rocpd import read_process
 from benchmark_request import (
     attach_capture_identity,
     file_digest,
-    relevant_environment_key,
     request_identity,
     request_environment_identity,
 )
@@ -37,6 +36,8 @@ from evidence_database_lib.isa import (
     summarize_isa_report,
 )
 from execution_observation import execution_observation, validate_execution_request
+from execution_environment_contract import relevant_environment_key
+from evidence_records import ArtifactReference
 from gpu_qualification import ROOT, execute_plan, owned_artifact_files, write_json
 from json_evidence import parse_evidence_json, same_evidence_value
 from measurement_contract import profile_ranges_instrumented
@@ -67,7 +68,7 @@ TRACE_VARIABLES = (
 )
 
 
-def reference(path: Path) -> dict:
+def reference(path: Path) -> ArtifactReference:
     path = path.resolve(strict=True)
     return dict(path=str(path), sha256=file_digest(path))
 

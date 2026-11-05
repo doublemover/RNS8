@@ -27,6 +27,8 @@ def parse_evidence_json(text: str) -> JsonValue:
             raise ValueError('nonfinite evidence JSON number: ' + token)
         return value
 
+    # json.loads constructs only JSON primitives/containers. The hooks reject
+    # duplicate keys and nonfinite numbers before this recursive-type cast.
     return cast(JsonValue, json.loads(text, object_pairs_hook=pairs, parse_constant=invalid_constant, parse_float=finite_float))
 
 

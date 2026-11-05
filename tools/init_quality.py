@@ -84,6 +84,8 @@ def install(out: Path) -> Path:
             "quality environment needs a previously absent child of repository temp/"
         )
     lock = load_quality_lock(ROOT)
+    if sys.version_info[:2] != (3, 15):
+        raise ValueError("locked quality/type-tool wheels require the selected CPython 3.15 development lane")
     out.parent.mkdir(parents=True, exist_ok=True)
     venv.EnvBuilder(with_pip=True, clear=False).create(out)
     binary_dir = out / ("Scripts" if system == "Windows" else "bin")
@@ -99,6 +101,8 @@ def install(out: Path) -> Path:
             "--no-deps",
             "-r",
             str(ROOT / lock["requirements"]),
+            "-r",
+            str(ROOT / lock["type_checking"]["requirements"]),
         ],
         cwd=ROOT,
         check=True,

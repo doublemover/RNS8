@@ -12,17 +12,10 @@ import os
 from pathlib import Path
 import shutil
 import re
+from execution_environment_contract import relevant_environment_key
 
 REQUEST_SCHEMA = "rns8_benchmark_request_v1"
 ENVIRONMENT_SCHEMA = "rns8_relevant_environment_v1"
-ENVIRONMENT_PREFIXES = ("RNS8_", "OMP_", "HIP_", "ROCR_", "ROCP_", "ROCPROF", "HSA_", "KMP_")
-ENVIRONMENT_KEYS = frozenset(("CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD"))
-
-
-def relevant_environment_key(key: str) -> bool:
-    return key.startswith(ENVIRONMENT_PREFIXES) or key in ENVIRONMENT_KEYS
-
-
 def _canonical_environment(environment: dict[str, str]) -> dict[str, str]:
     if type(environment) is not dict or any(type(k) is not str or not k or type(v) is not str
                                            for k, v in environment.items()):

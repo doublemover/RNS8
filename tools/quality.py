@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 import hashlib
 import json
 import os
@@ -16,12 +16,7 @@ import sys
 
 from quality_inventory import ROOT, ROLES, SourceFile, batches, inventory
 from quality_policy import load_quality_lock
-
-
-@dataclass(frozen=True)
-class Command:
-    role: str
-    argv: tuple[str, ...]
+from evidence_records import Command
 
 
 def command_plan(
@@ -165,11 +160,14 @@ def selected_tools(lock: dict, *, tool_bin: Path | None = None) -> dict[str, str
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("check", "fix", "inventory"))
+    parser.add_argument("mode", choices=("check", "fix", "inventory", "types"))
     parser.add_argument("--tool-bin", type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=300)
     args = parser.parse_args(argv)
     try:
+        if args.mode == "types":
+            from typecheck import main as typecheck_main
+            return typecheck_main(["--self-test", *(["--tool-bin", str(args.tool_bin)] if args.tool_bin else [])])
         if not 0 < args.timeout_seconds < float("inf"):
             raise ValueError("positive finite per-command timeout required")
         sources = inventory()

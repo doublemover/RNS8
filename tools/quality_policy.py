@@ -80,4 +80,35 @@ def load_quality_lock(root: Path, *, policy: dict | None = None) -> dict:
         actual[parts[0]] = {part.removeprefix("--hash=sha256:") for part in parts[1:]}
     if actual != expected:
         raise ValueError("quality requirements differ from reviewed versions/hashes")
+    typing = lock.get("type_checking")
+    if (not isinstance(typing, dict) or typing.get("checker") != "mypy"
+            or typing.get("requirements") != "scripts/requirements-type-tools.txt"):
+        raise ValueError("quality lock has no maintained Python type-checker closure")
+    expected = {}
+    names = set()
+    for wheel in typing["wheels"]:
+        name, version = wheel["name"], wheel["version"]
+        if name in names or components.get(name, {}).get("selected", {}).get("version") != version:
+            raise ValueError("type-tool version differs from shared dependency policy")
+        names.add(name)
+        if len(wheel["artifacts"]) != 2 or {row["platform"] for row in wheel["artifacts"]} != {"windows-amd64", "linux-x86_64"}:
+            raise ValueError("type-tool wheel platform inventory is incomplete")
+        for artifact in wheel["artifacts"]:
+            if (not re.fullmatch(r"[0-9a-f]{64}", artifact["sha256"])
+                    or not artifact["url"].startswith("https://")
+                    or not artifact["filename"].endswith(".whl")):
+                raise ValueError("type-tool wheel lacks immutable HTTPS identity")
+        expected[name + "==" + version] = {row["sha256"] for row in wheel["artifacts"]}
+    if names != {"mypy", "typing_extensions", "mypy_extensions", "pathspec", "librt", "ast-serialize"}:
+        raise ValueError("unexpected type-checker dependency closure")
+    actual = {}
+    for line in (root / typing["requirements"]).read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        parts = line.split()
+        if parts[0] in actual or not all(part.startswith("--hash=sha256:") for part in parts[1:]):
+            raise ValueError("type-tool requirements contain unsupported options or duplicate packages")
+        actual[parts[0]] = {part.removeprefix("--hash=sha256:") for part in parts[1:]}
+    if actual != expected:
+        raise ValueError("type-tool requirements differ from reviewed versions/hashes")
     return lock

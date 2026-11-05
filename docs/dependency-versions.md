@@ -43,6 +43,10 @@ and Linux x86_64. The formatter is independent of both host compiler selection
 and AMDClang. Registry/release artifact identities are recorded; native archives
 were retrieved and hashed without executing tools. Tool behavior and the
 repository formatting baseline still require the deferred validation batch.
+The same lock includes mypy 2.4.1 and its exact six-package CPython 3.15 wheel
+closure. The five explicitly migrated evidence-boundary modules pass the narrow
+Windows source type-check; checker controls and cross-platform gate validation
+remain pending. This does not qualify the rest of the Python tree.
 Use the explicit developer initializer described in
 [CONTRIBUTING](../CONTRIBUTING.md#source-quality); normal quality checks never
 download or install tools.
