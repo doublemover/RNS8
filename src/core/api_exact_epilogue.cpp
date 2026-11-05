@@ -92,14 +92,57 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
       return status;
     SynchronousLease lease(*ctx, lease_token);
     lease.track_write(commit_started);
+    status = lease.hold_buffer(workspace->narrow_product_owner);
+    if (status != RNS8_SUCCESS)
+      return lease.finish(status);
     return lease.finish([&]() -> rns8_status {
       status = synchronous_dispatch_checkpoint(*ctx, "narrow", &commit_started);
       if (status != RNS8_SUCCESS)
         return status;
-      status = hip_direct_gemm_narrow_rns_device(
-          ctx->device_id, a, b, C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
-          A->desc.cols, B->desc.cols, plan->prefix, unsigned_inputs, bool(uint32_t(method) & 1),
-          max_scratch_bytes, commit_started, method >= RNS8_NARROW_SCALAR_FUSED_RNS);
+      const bool byte_wmma = bool(uint32_t(method) & 1);
+      const bool fused = method >= RNS8_NARROW_SCALAR_FUSED_RNS;
+      const bool certified = A->native_domain.matches(native_summary_identity(*ctx, *A, a)) &&
+                             B->native_domain.matches(native_summary_identity(*ctx, *B, b));
+      auto& product = workspace->narrow_product_owner;
+      if (product.pending())
+        return RNS8_BACKEND_FAILURE;
+      if (certified) {
+        if (byte_wmma) {
+          status = ensure_native_wmma_capability(*ctx);
+          if (status != RNS8_SUCCESS)
+            return status;
+          if (!ctx->native_wmma_capability.supported)
+            return RNS8_UNSUPPORTED_BACKEND;
+        }
+        uint64_t partial_bound = 0;
+        status = native_narrow_domain_admission(A->native_domain.range, B->native_domain.range,
+                                                uint64_t(plan->desc.k), byte_wmma, partial_bound);
+        if (status != RNS8_SUCCESS)
+          return status;
+        if (fused)
+          status = product.reset();
+        else if (product.bytes() != support.payload_bytes)
+          status = product.allocate(ctx->device_id, size_t(support.payload_bytes));
+        if (status != RNS8_SUCCESS)
+          return status;
+        if (!fused)
+          product.mark_pending();
+        status = hip_direct_gemm_narrow_rns_certified_device(
+            ctx->device_id, A->native_domain, B->native_domain, C->hip_residues, plan->prefix,
+            byte_wmma, fused, ctx->native_wmma_capability, product.get(), product.bytes(),
+            max_scratch_bytes, commit_started);
+        if (status == RNS8_SUCCESS && !fused)
+          product.mark_completed();
+      } else {
+        // An external native import has no host-pack certificate. Keep its
+        // actual-input checked route and do not overlap an idle cached product.
+        status = product.reset();
+        if (status == RNS8_SUCCESS)
+          status = hip_direct_gemm_narrow_rns_device(
+              ctx->device_id, a, b, C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
+              A->desc.cols, B->desc.cols, plan->prefix, unsigned_inputs, byte_wmma,
+              max_scratch_bytes, commit_started, fused);
+      }
       if (status != RNS8_SUCCESS)
         return status;
       mark_output_device_residues_current(*C, plan);

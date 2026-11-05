@@ -64,12 +64,14 @@ class NarrowPublicCollection(unittest.TestCase):
         entry = dict(case=case, run_id="synthetic-not-hardware-evidence")
         sample = dict(prepare_us=1, execute_us=2, export_us=3, cleanup_us=0, total_us=6)
         c = dict(
-            schema="rns8_public_narrow_microcase_v1",
+            schema="rns8_public_narrow_microcase_v2",
             case=case,
             run_id=entry["run_id"],
             dataset="affine_native_small_v1",
             selected_prefix=2,
             narrow_producer="scalar-fused",
+            narrow_input_admission_policy="generation_bound_host_pack_certificate",
+            narrow_product_storage="fused_no_native_product",
             known_narrow_scratch_bytes=16,
             output_boundary="complete_public_product_and_padded_three_limb_integer_adapter",
             vector_export_adapter="not_applicable",
@@ -96,6 +98,9 @@ class NarrowPublicCollection(unittest.TestCase):
         c, entry = self.capture()
         self.assertEqual(validate_capture(c, entry), c)
         for key, value in [
+            ("schema", "rns8_public_narrow_microcase_v1"),
+            ("narrow_input_admission_policy", "device_scan_every_call"),
+            ("narrow_product_storage", "unobserved_transient_product"),
             ("selected_prefix", 9),
             ("known_narrow_scratch_bytes", 0),
             ("all_residue_planes_audited", False),
@@ -130,12 +135,32 @@ class NarrowPublicCollection(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_case(c)
 
+    def test_staged_owner_storage_is_part_of_capture_identity(self):
+        for mode in ("scalar-staged", "wmma-staged"):
+            c, entry = self.capture()
+            entry["case"]["mode"] = mode
+            c.update(
+                narrow_producer=mode,
+                narrow_product_storage="workspace_retained_native_product",
+                known_narrow_scratch_bytes=(32 if mode.startswith("wmma") else 16) + 17 * 19 * 8,
+            )
+            self.assertEqual(validate_capture(c, entry), c)
+            c["narrow_product_storage"] = "fused_no_native_product"
+            with self.assertRaises(ValueError):
+                validate_capture(c, entry)
+
     def test_resident_output_is_separate_from_host_adapter_boundary(self):
         for mode in ["rns-resident-public", "scalar-resident-fused", "wmma-resident-fused"]:
             c, entry = self.capture()
             entry["case"]["mode"] = mode
             c.update(
                 narrow_producer=mode if mode != "rns-resident-public" else "not_applicable",
+                narrow_input_admission_policy="not_applicable"
+                if mode == "rns-resident-public"
+                else "generation_bound_host_pack_certificate",
+                narrow_product_storage="not_applicable"
+                if mode == "rns-resident-public"
+                else "fused_no_native_product",
                 known_narrow_scratch_bytes=32
                 if mode.startswith("wmma-")
                 else 16
@@ -180,6 +205,8 @@ class NarrowPublicCollection(unittest.TestCase):
             entry["case"]["mode"] = mode
             c.update(
                 narrow_producer="not_applicable",
+                narrow_input_admission_policy="not_applicable",
+                narrow_product_storage="not_applicable",
                 known_narrow_scratch_bytes=0,
                 adaptive_summary_policy="generation_bound" if cached else "fresh_scan",
                 adaptive_method="axis_l1",

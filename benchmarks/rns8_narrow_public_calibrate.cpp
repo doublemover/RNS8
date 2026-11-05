@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
     const uint64_t scratch = narrow ? (wmma ? 32 : 16) + (fused ? 0 : uint64_t(m) * n * 8) : 0;
     std::cout << json({{"hot_loop_serialization",
                         "typed_observation_no_phase_clocks_in_sustained_v2"},
-                       {"schema", "rns8_public_narrow_microcase_v1"},
+                       {"schema", "rns8_public_narrow_microcase_v2"},
                        {"case", c},
                        {"run_id", argv[2]},
                        {"target", target},
@@ -366,6 +366,11 @@ int main(int argc, char** argv) {
                        {"selected_prefix", prefix},
                        {"ordinary_plan_kernel", kernel},
                        {"narrow_producer", narrow ? mode : "not_applicable"},
+                       {"narrow_input_admission_policy",
+                        narrow ? "generation_bound_host_pack_certificate" : "not_applicable"},
+                       {"narrow_product_storage", !narrow ? "not_applicable"
+                                                  : fused ? "fused_no_native_product"
+                                                          : "workspace_retained_native_product"},
                        {"known_narrow_scratch_bytes", scratch},
                        {"output_boundary",
                         resident_output

@@ -62,22 +62,10 @@ rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
   if (proof[2] ||
       !native_partial_sum_bound(proof[0], proof[1], static_cast<uint64_t>(k), INT32_MAX, bound))
     return RNS8_RANGE_ERROR;
-  if (write_started)
-    *write_started = true;
-  const auto error = timed_hip_operation(
-      rns_prefix ? "native_byte_wmma_fused_rns" : "native_byte_wmma_gemm", [&]() {
-        const auto launched = static_cast<hipError_t>(
-            rns_prefix ? rns8_hip_native_fused_narrow_rns(a, b, static_cast<int8_t*>(c), int(m),
-                                                          int(n), int(k), int(lda), int(ldb),
-                                                          int(rns_prefix), true, unsigned_inputs)
-                       : rns8_hip_native_byte_wmma(a, b, c, static_cast<int>(m),
-                                                   static_cast<int>(n), static_cast<int>(k),
-                                                   static_cast<int>(lda), static_cast<int>(ldb),
-                                                   static_cast<int>(ldc), unsigned_inputs));
-        return launched == hipSuccess ? hipDeviceSynchronize() : launched;
-      });
-  if (error != hipSuccess)
-    return RNS8_BACKEND_FAILURE;
+  const auto product_status = launch_admitted_narrow_product(
+      a, b, c, m, n, k, lda, ldb, ldc, rns_prefix, true, unsigned_inputs, write_started);
+  if (product_status != RNS8_SUCCESS)
+    return product_status;
   *out_abs_sum_bound = bound;
   return RNS8_SUCCESS;
 #else

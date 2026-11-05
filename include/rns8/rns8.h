@@ -2522,10 +2522,12 @@ typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
  * SCALAR_I64 accepts signed semantics and proves every partial within INT64_MAX;
  * BYTE_WMMA accepts signed/unsigned semantics, requires actual byte-domain values
  * and proves every partial within INT32_MAX. Target support is feature-detected.
- * Actual device values are scanned on every call. There is no fallback or AUTO
- * selection. max_scratch_bytes includes the staged native output and scan words;
- * encoding the staged result into the complete output prefix is part of the call.
- * Admission failures preserve C; failure during encoding invalidates C. */
+ * Matching generation-bound native pack proofs avoid input scans; other imports
+ * use actual device scans. Compiled WMMA capability is cached separately by
+ * device/target/provider. No scalar substitution or AUTO selection is performed.
+ * max_scratch_bytes conservatively covers the native product and scan words;
+ * staged calls reuse workspace-owned product storage, fused calls need none.
+ * Admission failures preserve C; failed product/encoding writes invalidate C. */
 RNS8_API rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan,
                                             const rns8_matrix* A, const rns8_matrix* B,
                                             rns8_matrix* C, rns8_narrow_product_method method,

@@ -65,6 +65,7 @@ TEST_CASE("direct HIP native narrow admission proves partial sums from actual de
 }
 
 template <class T> void check_public_narrow_owner(rns8_narrow_product_method method) {
+  using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   constexpr bool u = std::is_unsigned_v<T>;
   constexpr int side = 17, host_ld = 19;
@@ -206,6 +207,38 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
       SKIP("compiled device lacks requested narrow method");
     }
     REQUIRE(status == RNS8_SUCCESS);
+    // Observe another complete public product before export. A current native
+    // certificate must avoid scans/readback/probes and reuse staged storage.
+    const auto before = hip_direct_allocation_counters_snapshot();
+    struct Timing {
+      Timing() {
+        hip_direct_timing_reset();
+        hip_direct_timing_set_enabled(true);
+      }
+      ~Timing() {
+        hip_direct_timing_set_enabled(false);
+        hip_direct_timing_reset();
+      }
+    };
+    {
+      Timing timing;
+      REQUIRE(run() == RNS8_SUCCESS);
+      hip_direct_timing_flush_pending_events();
+      CHECK(hip_direct_timing_failures_complete());
+      CHECK(hip_direct_timing_failure_snapshot().empty());
+      for (const auto& event : hip_direct_timing_snapshot()) {
+        CHECK(event.label != "narrow_native_bound_scan");
+        CHECK(event.label != "native_byte_wmma_admission");
+        CHECK(event.label != "native_wmma_prepare_capability");
+      }
+    }
+    const auto after = hip_direct_allocation_counters_snapshot();
+    CHECK(after.allocate_calls == before.allocate_calls);
+    CHECK(after.free_calls == before.free_calls);
+    CHECK(after.h2d_calls == before.h2d_calls);
+    CHECK(after.d2h_calls == before.d2h_calls);
+    CHECK(ws->narrow_product_owner.bytes() ==
+          (method >= RNS8_NARROW_SCALAR_FUSED_RNS ? 0 : uint64_t(side) * side * 8));
     CHECK_FALSE(c->device_native_current);
     std::vector<uint64_t> limbs(side * side * 3);
     if constexpr (std::is_unsigned_v<T>)
@@ -237,6 +270,22 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
   CHECK(c->device_residues_current);
   av[0] = 3;
   REQUIRE(pack(a, av) == RNS8_SUCCESS);
+  if constexpr (!std::is_unsigned_v<T>)
+    if (uint32_t(method) & 1) {
+      av[0] = 128;
+      REQUIRE(pack(a, av) == RNS8_SUCCESS);
+      CHECK(run() == RNS8_RANGE_ERROR);
+      CHECK(c->content_generation == generation);
+      av[0] = 3;
+      REQUIRE(pack(a, av) == RNS8_SUCCESS);
+    }
+  const auto saved_b = bv[0];
+  bv[0] = (uint32_t(method) & 1) ? T(256) : std::numeric_limits<T>::max();
+  REQUIRE(pack(b, bv) == RNS8_SUCCESS);
+  CHECK(run() == RNS8_RANGE_ERROR);
+  CHECK(c->content_generation == generation);
+  bv[0] = saved_b;
+  REQUIRE(pack(b, bv) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(ctx, plan, b, b, a, ws) == RNS8_SUCCESS);
   CHECK_FALSE(a->device_native_current);
   CHECK(run() == RNS8_INVALID_ARGUMENT);

@@ -4,6 +4,55 @@ extern "C" int rns8_hip_native_fused_narrow_rns(const void*, const void*, int8_t
 extern "C" int rns8_hip_native_i64_abs_max(const int64_t*, int, int, int, void*);
 extern "C" int rns8_hip_native_i64_narrow_gemm(const int64_t*, const int64_t*, int64_t*, int, int,
                                                int, int, int, int);
+extern "C" int rns8_hip_native_byte_wmma(const void*, const void*, void*, int, int, int, int, int,
+                                         int, bool);
+#endif
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+namespace {
+// Arithmetic admission belongs to the checked scan or immutable owner proof.
+// Share the actual launch/timing boundary between those two authorities.
+rns8_status launch_admitted_narrow_product(const void* a, const void* b, void* output, int64_t m,
+                                           int64_t n, int64_t k, int64_t lda, int64_t ldb,
+                                           int64_t ldc, uint32_t prefix, bool byte_wmma,
+                                           bool unsigned_inputs, bool* write_started) {
+  if (write_started)
+    *write_started = true;
+  const char* label =
+      byte_wmma ? (prefix ? "native_byte_wmma_fused_rns" : "native_byte_wmma_gemm")
+                : (prefix ? "narrow_native_i64_fused_rns_kernel" : "narrow_native_i64_gemm_kernel");
+  const auto error = timed_hip_operation(label, [&] {
+    const auto launched = static_cast<hipError_t>(
+        prefix ? rns8_hip_native_fused_narrow_rns(a, b, static_cast<int8_t*>(output), int(m),
+                                                  int(n), int(k), int(lda), int(ldb), int(prefix),
+                                                  byte_wmma, unsigned_inputs)
+        : byte_wmma ? rns8_hip_native_byte_wmma(a, b, output, int(m), int(n), int(k), int(lda),
+                                                int(ldb), int(ldc), unsigned_inputs)
+                    : rns8_hip_native_i64_narrow_gemm(static_cast<const int64_t*>(a),
+                                                      static_cast<const int64_t*>(b),
+                                                      static_cast<int64_t*>(output), int(m), int(n),
+                                                      int(k), int(lda), int(ldb), int(ldc)));
+    return launched == hipSuccess ? hipDeviceSynchronize() : launched;
+  });
+  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+}
+
+rns8_status encode_narrow_product(const void* product, void* output, int64_t m, int64_t n,
+                                  uint32_t prefix, bool unsigned_inputs, bool& commit_started) {
+  commit_started = true;
+  const auto error = timed_hip_operation("narrow_native_encode_rns", [&] {
+    const auto code = unsigned_inputs
+                          ? rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(product),
+                                                            static_cast<int8_t*>(output), int(m),
+                                                            int(n), int(n), int(prefix))
+                          : rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(product),
+                                                            static_cast<int8_t*>(output), int(m),
+                                                            int(n), int(n), int(prefix));
+    return code == int(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+  });
+  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+}
+} // namespace
 #endif
 
 rns8_status hip_direct_gemm_i64_narrow_checked_device(int device_id, const int64_t* a,
@@ -58,25 +107,76 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(int device_id, const int64
   uint64_t sum_bound = 0;
   if (!native_partial_sum_bound(bounds[0], bounds[1], static_cast<uint64_t>(k), limit, sum_bound))
     return RNS8_RANGE_ERROR;
-  if (write_started)
-    *write_started = true;
-  const auto error = timed_hip_operation(
-      rns_prefix ? "narrow_native_i64_fused_rns_kernel" : "narrow_native_i64_gemm_kernel", [&]() {
-        const auto launched = static_cast<hipError_t>(
-            rns_prefix ? rns8_hip_native_fused_narrow_rns(a, b, reinterpret_cast<int8_t*>(c),
-                                                          int(m), int(n), int(k), int(lda),
-                                                          int(ldb), int(rns_prefix), false, false)
-                       : rns8_hip_native_i64_narrow_gemm(
-                             a, b, c, static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
-                             static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc)));
-        return launched == hipSuccess ? hipDeviceSynchronize() : launched;
-      });
-  if (error != hipSuccess)
-    return RNS8_BACKEND_FAILURE;
+  const auto product_status = launch_admitted_narrow_product(
+      a, b, c, m, n, k, lda, ldb, ldc, rns_prefix, false, false, write_started);
+  if (product_status != RNS8_SUCCESS)
+    return product_status;
   *out_abs_sum_bound = sum_bound;
   return RNS8_SUCCESS;
 #else
   (void)device_id;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_gemm_narrow_rns_certified_device(
+    int device_id, const NativeDomainCertificate& a, const NativeDomainCertificate& b, void* output,
+    uint32_t prefix, bool byte_wmma, bool fused, const NativeWmmaDeviceCapability& capability,
+    void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started) {
+  commit_started = false;
+  const auto& lhs = a.identity;
+  const auto& rhs = b.identity;
+  if (!output || !a.matches(lhs) || !b.matches(rhs) || lhs.device != device_id ||
+      rhs.device != device_id || lhs.unsigned_inputs != rhs.unsigned_inputs ||
+      lhs.cols != rhs.rows || lhs.method != NativeBoundMethod::tile_max ||
+      rhs.method != NativeBoundMethod::tile_max || lhs.panel_k || rhs.panel_k || lhs.row_tiles ||
+      rhs.row_tiles)
+    return RNS8_INVALID_ARGUMENT;
+  const bool unsigned_inputs = lhs.unsigned_inputs;
+  if (unsigned_inputs && !byte_wmma)
+    return RNS8_UNSUPPORTED_BACKEND;
+  const auto m = lhs.rows, n = rhs.cols, k = lhs.cols;
+  const auto support =
+      query_narrow_rns_support(m, n, k, lhs.ld, rhs.ld, prefix, byte_wmma, budget, fused);
+  if (support.status != RNS8_SUCCESS)
+    return support.status;
+  const uint64_t output_bytes = uint64_t(m) * uint64_t(n) * prefix;
+  const uint64_t a_bytes = uint64_t(m) * uint64_t(lhs.ld) * 8;
+  const uint64_t b_bytes = uint64_t(k) * uint64_t(rhs.ld) * 8;
+  if (!nonoverlapping_byte_ranges(output, output_bytes, lhs.native, a_bytes) ||
+      !nonoverlapping_byte_ranges(output, output_bytes, rhs.native, b_bytes))
+    return RNS8_INVALID_ARGUMENT;
+  if (!fused &&
+      (!native_product || product_bytes < support.payload_bytes ||
+       reinterpret_cast<uintptr_t>(native_product) % alignof(uint64_t) ||
+       !nonoverlapping_byte_ranges(native_product, support.payload_bytes, output, output_bytes) ||
+       !nonoverlapping_byte_ranges(native_product, support.payload_bytes, lhs.native, a_bytes) ||
+       !nonoverlapping_byte_ranges(native_product, support.payload_bytes, rhs.native, b_bytes)))
+    return RNS8_INVALID_ARGUMENT;
+  if (byte_wmma) {
+    if (capability.provider != &hip_direct_query_native_wmma_capability ||
+        capability.device_id != device_id || !capability.target[0])
+      return RNS8_INVALID_ARGUMENT;
+    if (!capability.supported)
+      return RNS8_UNSUPPORTED_BACKEND;
+  }
+  uint64_t bound = 0;
+  const auto admission =
+      native_narrow_domain_admission(a.range, b.range, uint64_t(k), byte_wmma, bound);
+  if (admission != RNS8_SUCCESS)
+    return admission;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto selected = set_hip_device(device_id);
+  if (selected != RNS8_SUCCESS)
+    return selected;
+  const auto product = launch_admitted_narrow_product(
+      lhs.native, rhs.native, fused ? output : native_product, m, n, k, lhs.ld, rhs.ld, n,
+      fused ? prefix : 0, byte_wmma, unsigned_inputs, fused ? &commit_started : nullptr);
+  if (product != RNS8_SUCCESS || fused)
+    return product;
+  return encode_narrow_product(native_product, output, m, n, prefix, unsigned_inputs,
+                               commit_started);
+#else
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
@@ -131,23 +231,12 @@ rns8_status hip_direct_gemm_narrow_rns_device(int device_id, const void* a, cons
       product.mark_completed();
     return status;
   }
-  // The owner's independent complete-expression proof admits the CRT capacity.
-  // The device scan above separately admits every native accumulation partial.
-  commit_started = true;
-  const auto error = timed_hip_operation("narrow_native_encode_rns", [&]() {
-    const int code =
-        unsigned_inputs
-            ? rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(product.get()),
-                                              static_cast<int8_t*>(c), int(m), int(n), int(n),
-                                              int(prefix))
-            : rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(product.get()),
-                                              static_cast<int8_t*>(c), int(m), int(n), int(n),
-                                              int(prefix));
-    return code == int(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
-  });
-  if (error == hipSuccess)
+  // The CRT-capacity proof remains independent of native accumulation safety.
+  const auto encoded =
+      encode_narrow_product(product.get(), c, m, n, prefix, unsigned_inputs, commit_started);
+  if (encoded == RNS8_SUCCESS)
     product.mark_completed();
-  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  return encoded;
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;

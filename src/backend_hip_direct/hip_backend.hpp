@@ -27,6 +27,7 @@
 #include "backend_common/block_sparse_directory.hpp"
 #include "backend_common/integrity_identity.hpp"
 #include "backend_common/native_narrow.hpp"
+#include "backend_common/native_domain.hpp"
 #include "backend_common/native_tdm.hpp"
 #include "backend_common/host_upload.hpp"
 #include "core/hip_device_buffer.hpp"
@@ -333,6 +334,13 @@ rns8_status hip_direct_gemm_narrow_rns_device(int device_id, const void* a, cons
                                               int64_t ldb, uint32_t prefix, bool unsigned_inputs,
                                               bool byte_wmma, uint64_t budget, bool& commit_started,
                                               bool fused = false);
+
+// Trusted owner route only: callers hold source generations and a completed
+// domain certificate. Raw-pointer checked entry points retain their real scans.
+rns8_status hip_direct_gemm_narrow_rns_certified_device(
+    int device_id, const NativeDomainCertificate& a, const NativeDomainCertificate& b, void* output,
+    uint32_t prefix, bool byte_wmma, bool fused, const NativeWmmaDeviceCapability& capability,
+    void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started);
 
 // Explicit raw-byte WMMA candidate with native i64/u64 storage and output.
 // Scan actual operands for signed [-128,127] or unsigned [0,255] membership,

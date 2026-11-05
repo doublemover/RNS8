@@ -6,14 +6,14 @@ It consumes current matrix-owned native inputs retained by
 `RNS8_MATRIX_RETAIN_NATIVE_INPUT`, and publishes a complete persistent RNS
 output with the same proof/generation rules as ordinary GEMM.
 
-`RNS8_NARROW_SCALAR_I64` accepts signed exact-wide plans. An actual device scan
-finds both input magnitude maxima; a checked `K*max_abs(A)*max_abs(B)` envelope
+`RNS8_NARROW_SCALAR_I64` accepts signed exact-wide plans. Certified input extrema
+or an actual device scan supply maxima; a checked `K*max_abs(A)*max_abs(B)` envelope
 must fit `INT64_MAX`, bounding every accumulation partial. This deliberately
 rejects cancellation-only safety. `RNS8_NARROW_BYTE_WMMA` accepts signed or
-unsigned exact-wide plans, scans for actual `[-128,127]` or `[0,255]` membership,
+unsigned exact-wide plans, proves actual `[-128,127]` or `[0,255]` membership,
 and bounds every partial by `INT32_MAX`. WMMA capability is detected on the
 selected compiled device. Unsupported targets report unsupported; there is no
-silent scalar replacement, AUTO selection, or cached admission proof.
+silent scalar replacement or AUTO selection.
 
 The current source frontload retains typed native min/max metadata from the
 existing exact host-pack scan, without another input traversal. It binds that
@@ -21,29 +21,45 @@ metadata after successful publication to the same complete instance/generation,
 device, owned native pointer, shape/stride and signedness identity used by
 adaptive summaries. Publication and native invalidation retire it. Signed
 `-128` and `+128` remain distinct, and `INT64_MIN`/`UINT64_MAX` extrema use
-unsigned-safe magnitude arithmetic. This metadata slice alone does not yet
-elide narrow dispatch scans; the trusted-owner execution integration is in
-progress. Portable extrema/padding/identity and real-HIP pack controls are
-authored; runtime validation remains deferred.
+unsigned-safe magnitude arithmetic. Public execution consumes matching proofs
+under the existing input/output/workspace lease, avoiding data scans/readback.
+It recomputes the partial-sum admission for the current K and accumulator width;
+the independent CRT bound cannot replace this check. Portable extrema, cap±1,
+padding, identity and real-HIP warm counters/exact-output controls are authored;
+runtime validation remains deferred.
+
+Public narrow microcase version2 records the host-pack certificate policy and
+fused versus retained staged-product storage explicitly. Its conservative
+scratch bound is not an observed allocation counter. This keeps source-current
+owner calls distinct from earlier always-scanned captures and private native
+output controls; no prior timing result qualifies this changed execution path.
 
 The actual compiled native WMMA probe and its context capability owner are now
 shared with block-sparse preparation. The cache binds the target/device and
 loaded provider, publishes only successful observations, and retains an explicit
 unsupported result. Poisoned contexts and mismatched providers/targets cannot
-reuse it. The private checked byte helper still probes each raw-pointer call;
-connecting the shared owner to public narrow execution remains in progress.
+reuse it. Certified public byte execution observes it once per context; the
+private checked byte helper still probes each raw-pointer call. Device imports
+without a host-pack domain certificate retain the checked device-scan route.
+Generation-bound device summary caching for those imports is still in progress.
 
 The independent matrix-owned exact-range proof must also fit the selected CRT
 basis. The native result is staged, then encoded into every output residue
 plane. Peak transient device payload is `8*M*N+16` bytes for scalar, or
 `8*M*N+32` bytes for byte WMMA: the native output overlaps the input scan words.
 The explicit scratch budget covers both; resident inputs/output and the caller's
-ordinary plan workspace are separate. The implementation does not repack inputs
-or export results through the host. Bounds are read back for admission.
+ordinary plan workspace are separate. A certified staged call instead retains
+`8*M*N` native product bytes in its workspace and reuses them; a certified fused
+call needs no product allocation. Switching to fused or untrusted-input execution
+releases an inactive cached product before issuing work, avoiding hidden overlap.
+The conservative public scratch budget is unchanged. The implementation does not
+repack inputs or export results through the host. Uncertified admission reads
+bounds back; certified admission uses the validated extrema.
 
 Bad shape, prefix, budget, stale native inputs, domain or accumulation bounds
-preserve the prior output. Only the encoding launch starts the public write
-transaction; a failure there invalidates output currentness. Success retires any
+preserve the prior output. A staged call starts the public write at encoding;
+a fused call starts it at the product launch. Failure after that point invalidates
+output currentness. Success retires any
 old native copy of C, publishes the current RNS value and exact proof, and allows
 ordinary resident chaining/export. Input/output aliases and outstanding write or
 output-reader reservations follow the shared public validators.
@@ -55,8 +71,9 @@ private native-output measurements do not qualify this complete public call.
 Performance comparisons must include scan, native product, RNS encoding and
 allocation, against the same persistent-output contract and input reuse count.
 
-Grouped, asynchronous, fused-epilogue and automatic planner integration remain
-separate work. The default resident GEMM route is unchanged.
+Grouped, asynchronous and automatic planner integration remain separate work.
+The explicit fused variants are described below. The default resident GEMM route
+is unchanged.
 
 ## Public skinny route identity and width-exact control
 

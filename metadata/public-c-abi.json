@@ -4210,7 +4210,7 @@
       "rns8/moduli.h": "bbb2626341efbc1c39641bb889a88b2005c6b478d105d39e9429ba807772c13e",
       "rns8/pipeline_recipe.h": "1aabfc7bc5a89763773ded12acda7b7be44729774cb7522dd5a665d9f89e6c9d",
       "rns8/public_abi.h": "20ccbb0b271bfa98c4303d52817d63902a131ffd895323032ae4feb0230828a5",
-      "rns8/rns8.h": "5513108aa4380f9559f94cb4ecac27f3ed63cc6e1f7effb648b05a6461f134ee",
+      "rns8/rns8.h": "95239a9030e9cc364cbf182083fb34679eb72bdfa5d1e435a2d2b63b33f14db6",
       "rns8/semantics.h": "9c8e8391013be3668833abcb57176c2ae0213eb3bfd5e0ac84261e7f380c2421",
       "rns8/status.h": "c7c68893c448f238fcdea3c3bf68f595e7c7868264be588d58a9620756ef7c8b"
     },

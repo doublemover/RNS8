@@ -122,12 +122,20 @@ def validate_capture(c, entry):
         else 0
     )
     fixed = dict(
-        schema="rns8_public_narrow_microcase_v1",
+        schema="rns8_public_narrow_microcase_v2",
         case=case,
         run_id=entry["run_id"],
         dataset="affine_native_small_v1",
         selected_prefix=selected_prefix(case),
         narrow_producer=mode if narrow else "not_applicable",
+        narrow_input_admission_policy="generation_bound_host_pack_certificate"
+        if narrow
+        else "not_applicable",
+        narrow_product_storage="not_applicable"
+        if not narrow
+        else "fused_no_native_product"
+        if mode.endswith("-fused")
+        else "workspace_retained_native_product",
         known_narrow_scratch_bytes=scratch,
         output_boundary="complete_public_product_resident_rns"
         if resident_output

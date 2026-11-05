@@ -231,6 +231,7 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
 #endif
   keep_first_error(workspace.exact_auto_scratch_owner.reset());
   keep_first_error(workspace.adaptive_summary_owner.reset());
+  keep_first_error(workspace.narrow_product_owner.reset());
   workspace.adaptive_summary_identity[0] = {};
   workspace.adaptive_summary_identity[1] = {};
   keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena,

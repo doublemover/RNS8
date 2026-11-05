@@ -108,6 +108,42 @@ TEST_CASE("native domain certificates distinguish signed byte endpoints and full
   CHECK_FALSE(certificate.matches(identity));
 }
 
+TEST_CASE("native domain admission bounds every partial independently of output range") {
+  using namespace rns8::detail;
+  auto signed_byte = NativeDomainRange::signed_bounds(-128, 127);
+  auto unsigned_byte = NativeDomainRange::unsigned_bounds(0, 255);
+  uint64_t bound = UINT64_MAX;
+  REQUIRE(native_narrow_domain_admission(signed_byte, signed_byte, 131071, true, bound) ==
+          RNS8_SUCCESS);
+  CHECK(bound == UINT64_C(131071) * 128 * 128);
+  bound = UINT64_MAX;
+  CHECK(native_narrow_domain_admission(signed_byte, signed_byte, 131072, true, bound) ==
+        RNS8_RANGE_ERROR);
+  CHECK(bound == UINT64_MAX);
+  REQUIRE(native_narrow_domain_admission(NativeDomainRange::signed_bounds(127, 127),
+                                         NativeDomainRange::signed_bounds(127, 127), 131072, true,
+                                         bound) == RNS8_SUCCESS);
+  CHECK(bound == UINT64_C(131072) * 127 * 127);
+  const auto unsigned_cap = uint64_t(INT32_MAX) / (255 * 255);
+  REQUIRE(native_narrow_domain_admission(unsigned_byte, unsigned_byte, unsigned_cap, true, bound) ==
+          RNS8_SUCCESS);
+  CHECK(native_narrow_domain_admission(unsigned_byte, unsigned_byte, unsigned_cap + 1, true,
+                                       bound) == RNS8_RANGE_ERROR);
+  CHECK(native_narrow_domain_admission(unsigned_byte, unsigned_byte, 1, false, bound) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  CHECK(native_narrow_domain_admission(signed_byte, unsigned_byte, 1, true, bound) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(native_narrow_domain_admission({}, signed_byte, 1, true, bound) == RNS8_INVALID_ARGUMENT);
+  CHECK(native_narrow_domain_admission(signed_byte, signed_byte, 0, true, bound) ==
+        RNS8_INVALID_ARGUMENT);
+  const auto full = NativeDomainRange::signed_bounds(INT64_MIN, INT64_MAX);
+  REQUIRE(native_narrow_domain_admission(full, NativeDomainRange::signed_bounds(0, 0), UINT64_MAX,
+                                         false, bound) == RNS8_SUCCESS);
+  CHECK(bound == 0);
+  CHECK(native_narrow_domain_admission(full, NativeDomainRange::signed_bounds(1, 1), 1, false,
+                                       bound) == RNS8_RANGE_ERROR);
+}
+
 TEST_CASE("mixed radix lift subtracts the complete source product for negatives") {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
