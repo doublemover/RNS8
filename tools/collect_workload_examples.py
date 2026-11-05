@@ -105,7 +105,7 @@ def validate_workload_extent(report):
     )
     budget = report.get("declared_memory_budget_bytes")
     demand(
-        type(budget) is int and 1 <= budget <= (16384 if large else 4096) * 1024 * 1024,
+        type(budget) is int and 1 <= budget <= (131072 if large else 4096) * 1024 * 1024,
         "invalid explicit workload memory budget",
     )
     if large:

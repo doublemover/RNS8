@@ -510,6 +510,40 @@ class WorkloadExtentAdmission(unittest.TestCase):
             with self.subTest(budget=budget), self.assertRaises(ValueError):
                 collector.validate_requested_reference_budget(report, 4294967296)
 
+    def test_large_aggregate_allowance_remains_distinct_from_device_allocation(self):
+        work = 2048 * 2048 * 4096
+        report = dict(
+            workload="integer_gram",
+            size="large",
+            m=2048,
+            n=2048,
+            k=4096,
+            gram_batch=dict(products_per_batch=32),
+            declared_memory_budget_bytes=131072 * 1024 * 1024,
+            gram_reference_budget=dict(
+                version=1,
+                max_products_per_generation=work,
+                products_per_generation=work,
+                reference_generations=2,
+                total_reference_products=2 * work,
+                repeat_products_reuse_complete_reference=True,
+            ),
+        )
+        self.assertTrue(collector.validate_workload_extent(report))
+        report["declared_memory_budget_bytes"] += 1
+        with self.assertRaises(ValueError):
+            collector.validate_workload_extent(report)
+        ordinary = dict(
+            workload="integer_gram",
+            size="modest",
+            m=32,
+            n=32,
+            k=32,
+            declared_memory_budget_bytes=4096 * 1024 * 1024 + 1,
+        )
+        with self.assertRaises(ValueError):
+            collector.validate_workload_extent(ordinary)
+
     def test_extent_scope_overflow_types_and_budget_are_rejected_before_recipe_work(self):
         base = dict(
             workload="integer_gram",
@@ -534,7 +568,7 @@ class WorkloadExtentAdmission(unittest.TestCase):
             dict(k=1 << 63),
             dict(declared_memory_budget_bytes=True),
             dict(declared_memory_budget_bytes=0),
-            dict(declared_memory_budget_bytes=16384 * 1024 * 1024 + 1),
+            dict(declared_memory_budget_bytes=131072 * 1024 * 1024 + 1),
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 collector.validate_workload_extent({**base, **changes})

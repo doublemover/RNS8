@@ -143,7 +143,7 @@ inline void validate_workload_extent(const Options& options) {
           options.k <= (large_gram ? 65537u : 512u),
       "extended shapes require --size large --gram --gram-reuse; Gram maxima are M=N2048,K65537");
   require(options.memory && options.memory_mib >= 1 &&
-              options.memory_mib <= (large_gram ? 16384u : 4096u),
+              options.memory_mib <= (large_gram ? 131072u : 4096u),
           "memory budget exceeds the explicit workload cohort limit");
   require(!options.gram_reuse ||
               (options.gram && options.m == options.n && options.gram_reuse <= 256 &&
@@ -164,7 +164,7 @@ inline Options options(int argc, char** argv) {
              "--backend hip-direct|cpu-reference|hip-vector-alu-int64|hipblaslt|ck|rocwmma|amdgpu-builtins\n"
              "--device 0..63 (CPU uses -1) --reference-only --json --run-id ID\n"
              "--size tiny|modest|large --m M --n N --k K (1..512) --bits 1..63\n"
-             "explicit large Gram batches allow M=N<=2048,K<=65537 and --memory-mib<=16384\n"
+             "explicit large Gram batches allow M=N<=2048,K<=65537 and --memory-mib<=131072\n"
              "--seed U64 --pattern seeded|zero|sparse --repeats 1..100 --warmups 0..20\n"
              "--gram-reuse 1..256 --gram-export each|once (explicit --gram batch only; default once)\n"
              "--reference-max-products 1..274882101248 (large Gram only; default134217728 per original/changed reference)\n"
@@ -227,7 +227,7 @@ inline Options options(int argc, char** argv) {
     else if (key == "--sustained-ms")
       out.sustained_ms = static_cast<uint32_t>(number(value, 0, 10000, "sustained-ms"));
     else if (key == "--memory-mib")
-      out.memory_mib = number(value, 1, 16384, "memory-mib");
+      out.memory_mib = number(value, 1, 131072, "memory-mib");
     else if (key == "--baseline-max-products")
       out.baseline_max_products = number(value, 1, 134217728, "baseline-max-products");
     else if (key == "--reference-max-products")

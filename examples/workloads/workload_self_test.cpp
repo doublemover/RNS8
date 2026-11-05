@@ -43,6 +43,38 @@ int main() {
           }
           require(too_small_rejected, "Gram admitted a reference larger than its explicit budget");
         }
+    {
+      // Admission arithmetic only: no dataset, comparator or GPU allocation.
+      Options large;
+      large.m = large.n = 2048;
+      large.k = 4096;
+      large.gram = true;
+      large.gram_reuse = 32;
+      large.size = "large";
+      large.memory_mib = 131072;
+      large.reference_max_products = uint64_t(large.m) * large.n * large.k;
+      memory_admission(large);
+      for (unsigned comparator = 0; comparator < 4; ++comparator)
+        optional_reference_memory(large, false);
+      require(large.memory->reserved < large.memory_mib * 1024 * 1024 &&
+                  large.memory_mib * 1024 * 1024 - large.memory->reserved > (uint64_t{24} << 30),
+              "large Gram conservative host/comparator models exhaust the explicit allowance");
+      for (const bool extended : {false, true}) {
+        Options invalid;
+        invalid.gram = extended;
+        invalid.gram_reuse = extended ? 1 : 0;
+        invalid.size = extended ? "large" : "modest";
+        invalid.memory_mib = extended ? 131073 : 4097;
+        bool rejected = false;
+        try {
+          validate_workload_extent(invalid);
+        } catch (const std::invalid_argument&) {
+          rejected = true;
+        }
+        require(rejected && invalid.memory->reserved == 0,
+                "memory allowance escaped its explicit cohort or allocated storage");
+      }
+    }
     int64_t value = 0;
     require(!checked_product(INT64_MIN, -1, value), "min*-1 was not rejected");
     require(!checked_product(INT64_MAX, 2, value), "max*2 was not rejected");

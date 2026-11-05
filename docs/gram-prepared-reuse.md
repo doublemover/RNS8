@@ -39,7 +39,11 @@ Both controls require `--gram`; other workload families reject them.
 
 Explicit `--size large --gram --gram-reuse R` batches admit output orders up to
 2048 and K up to65537, including65535/65536/65537 boundaries. Their declared
-memory budget may be up to16384MiB; the ordinary workload limit remains4096MiB.
+aggregate host/device allowance may be up to131072MiB; the ordinary workload
+limit remains4096MiB. The larger opt-in accommodates conservative simultaneous
+Boost/native/GMP/FLINT comparator models at N2048/K4096 and feasible long-K
+cohorts. It does not reserve128GiB, report actual allocation, establish available
+host/GPU capacity, or demonstrate oversubscription.
 The default independent-reference cap is134,217,728 mathematical products
 per source generation (`N*N*K`). Repeated products reuse the complete reference;
 they do not multiply reference construction work. For larger explicit cohorts,
@@ -52,7 +56,7 @@ This opt-in can make reference construction and replay expensive. It does not
 skip exact verification or raise pre-allocation aggregate memory admission.
 The larger memory declaration pays for
 simultaneously retained controls and conservative host/reference allowances;
-it is not a request to allocate16GiB on the device or evidence of a measured peak.
+it is not a request to allocate the declared allowance on the device or evidence of a measured peak.
 
 Useful bounded cohort points include the following. Each still needs its own
 memory admission and runtime qualification; this table is not an executed campaign.
