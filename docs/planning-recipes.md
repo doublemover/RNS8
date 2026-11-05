@@ -499,7 +499,7 @@ work, not a measured latency gain or a broader materialization-route promotion.
 ### Explicit native-to-RNS producer planning
 
 `rns8_plan_pipeline` accepts either the ordinary `RNS8_OP_GEMM` producer or
-`RNS8_OP_NARROW_NATIVE` with one of the four concrete narrow methods. The native
+`RNS8_OP_NARROW_NATIVE` with one of the five concrete narrow methods. The native
 form is an explicit direct-HIP query, not an automatic replacement for an RNS
 producer. Its typed provider requires retained-native and actual input-range
 proof binding; create both input matrices with `RNS8_MATRIX_RETAIN_NATIVE_INPUT`
@@ -518,7 +518,7 @@ source generation; a proposed planner output bound never substitutes for those
 checks. Unsupported unsigned scalar methods and unavailable target instructions
 remain explicit rejections. No fallback silently changes representation.
 
-Stage kinds 11..14 describe each complete native producer call, including real
+Stage kinds 11..15 describe each complete native producer call, including real
 range scans, status readback, scratch lifecycle, native accumulation and final
 RNS encoding. Its work units are logical multiply-adds, not residue-plane work.
 The six-rate profile cannot price these calls, so their candidate cost stays

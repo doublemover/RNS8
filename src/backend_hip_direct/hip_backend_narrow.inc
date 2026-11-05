@@ -7,6 +7,9 @@ extern "C" int rns8_hip_native_i64_narrow_gemm(const int64_t*, const int64_t*, i
                                                int, int, int, int);
 extern "C" int rns8_hip_native_byte_wmma(const void*, const void*, void*, int, int, int, int, int,
                                          int, bool);
+extern "C" int rns8_hip_native_narrow_split_partials(const int64_t*, const int64_t*, int64_t*, int,
+                                                     int, int, int, int);
+extern "C" int rns8_hip_native_narrow_split_encode(const int64_t*, int8_t*, int, int, int, int);
 #endif
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -182,7 +185,8 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(int device_id, const int64
 rns8_status hip_direct_gemm_narrow_rns_certified_device(
     int device_id, const NativeDomainCertificate& a, const NativeDomainCertificate& b, void* output,
     uint32_t prefix, bool byte_wmma, bool fused, const NativeWmmaDeviceCapability& capability,
-    void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started) {
+    void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started,
+    bool split_k) {
   commit_started = false;
   const auto& lhs = a.identity;
   const auto& rhs = b.identity;
@@ -197,7 +201,7 @@ rns8_status hip_direct_gemm_narrow_rns_certified_device(
     return RNS8_UNSUPPORTED_BACKEND;
   const auto m = lhs.rows, n = rhs.cols, k = lhs.cols;
   const auto support =
-      query_narrow_rns_support(m, n, k, lhs.ld, rhs.ld, prefix, byte_wmma, budget, fused);
+      query_narrow_rns_support(m, n, k, lhs.ld, rhs.ld, prefix, byte_wmma, budget, fused, split_k);
   if (support.status != RNS8_SUCCESS)
     return support.status;
   const uint64_t output_bytes = uint64_t(m) * uint64_t(n) * prefix;
@@ -206,7 +210,7 @@ rns8_status hip_direct_gemm_narrow_rns_certified_device(
   if (!nonoverlapping_byte_ranges(output, output_bytes, lhs.native, a_bytes) ||
       !nonoverlapping_byte_ranges(output, output_bytes, rhs.native, b_bytes))
     return RNS8_INVALID_ARGUMENT;
-  if (!fused &&
+  if (support.payload_bytes &&
       (!native_product || product_bytes < support.payload_bytes ||
        reinterpret_cast<uintptr_t>(native_product) % alignof(uint64_t) ||
        !nonoverlapping_byte_ranges(native_product, support.payload_bytes, output, output_bytes) ||
@@ -229,6 +233,26 @@ rns8_status hip_direct_gemm_narrow_rns_certified_device(
   const auto selected = set_hip_device(device_id);
   if (selected != RNS8_SUCCESS)
     return selected;
+  if (split_k) {
+    // The full-K magnitude envelope also bounds each lane, block and merge
+    // partial. Output currentness changes only when the merge is submitted.
+    const auto partials = timed_hip_operation("narrow_native_split_k_partials", [&] {
+      const auto error = static_cast<hipError_t>(rns8_hip_native_narrow_split_partials(
+          static_cast<const int64_t*>(lhs.native), static_cast<const int64_t*>(rhs.native),
+          static_cast<int64_t*>(native_product), int(m), int(n), int(k), int(lhs.ld), int(rhs.ld)));
+      return error == hipSuccess ? hipDeviceSynchronize() : error;
+    });
+    if (partials != hipSuccess)
+      return RNS8_BACKEND_FAILURE;
+    commit_started = true;
+    const auto merged = timed_hip_operation("narrow_native_split_k_encode", [&] {
+      const auto error = static_cast<hipError_t>(rns8_hip_native_narrow_split_encode(
+          static_cast<const int64_t*>(native_product), static_cast<int8_t*>(output), int(m), int(n),
+          int(k), int(prefix)));
+      return error == hipSuccess ? hipDeviceSynchronize() : error;
+    });
+    return merged == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  }
   const auto product = launch_admitted_narrow_product(
       lhs.native, rhs.native, fused ? output : native_product, m, n, k, lhs.ld, rhs.ld, n,
       fused ? prefix : 0, byte_wmma, unsigned_inputs, fused ? &commit_started : nullptr);

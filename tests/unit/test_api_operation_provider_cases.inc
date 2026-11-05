@@ -774,8 +774,8 @@ TEST_CASE(
     profile.lower_ns_per_unit[i] = 1;
     profile.upper_ns_per_unit[i] = 2;
   }
-  std::string identities[4];
-  for (uint32_t method = 0; method < 4; ++method) {
+  std::string identities[rns8::detail::native_narrow_method_count];
+  for (uint32_t method = 0; method < rns8::detail::native_narrow_method_count; ++method) {
     q.operation.algorithm = method;
     rns8_pipeline_candidate candidates[7]{};
     uint32_t count = 0;
@@ -836,7 +836,7 @@ TEST_CASE(
   q.operation.lda = 0;
   q.operation.problem.semantics = RNS8_EXACT_WIDE_UNSIGNED;
   q.output_boundary = 2;
-  for (uint32_t method : {0u, 2u}) {
+  for (uint32_t method : {0u, 2u, 4u}) {
     q.operation.algorithm = method;
     REQUIRE(rns8_plan_pipeline(&target, &q, nullptr, 0, candidates, 7, &count) == RNS8_SUCCESS);
     for (const auto& candidate : candidates) {

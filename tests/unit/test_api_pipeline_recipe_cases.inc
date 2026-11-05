@@ -51,7 +51,7 @@ TEST_CASE("bound whole routes execute checked exports and reject stale or forged
     uint32_t count = 0;
     REQUIRE(rns8_query_pipeline_recipes(ctx, plan, a, b, c, &o, nullptr, 0, candidates, 16,
                                         &count) == RNS8_SUCCESS);
-    REQUIRE(count == 8);
+    REQUIRE(count == 9);
     uint32_t chosen = 123;
     CHECK(rns8_select_pipeline_recipe(candidates, count, &chosen) == RNS8_UNSUPPORTED_BACKEND);
     CHECK(chosen == 123);

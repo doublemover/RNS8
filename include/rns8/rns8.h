@@ -926,7 +926,7 @@ typedef struct rns8_operation_query {
   rns8_gemm_desc problem;
   int64_t lda, ldb, ldc; /* zero means compact */
   uint32_t output_limbs, device_count;
-  /* Family-specific method: narrow 0/1 staged scalar/WMMA,2/3 fused;
+  /* Family-specific method: narrow 0/1 staged scalar/WMMA,2/3 fused,4 split-K;
    * Gram 4*input_policy + method (0/1 scalar/WMMA, +2 separate mirror),
    * or 12+2*input_policy+separate_mirror for gfx942 MFMA;
    * input_policy 0 resident,1 retained native i64,2 cached transpose; bilinear 0 Strassen,1
@@ -986,7 +986,7 @@ typedef struct rns8_pipeline_cost_profile {
 typedef struct rns8_pipeline_query {
   uint64_t struct_size;
   uint32_t abi_version;
-  /* Producer is GEMM or explicit NARROW_NATIVE (direct HIP methods 0..3).
+  /* Producer is GEMM or explicit NARROW_NATIVE (direct HIP methods 0..4).
    * Native producers require actual retained-native/range proof binding; create
    * each input matrix with RNS8_MATRIX_RETAIN_NATIVE_INPUT before packing.
    * Preserve this query when binding a candidate: executable_problem creates
@@ -1003,7 +1003,7 @@ typedef struct rns8_pipeline_stage {
    * complete prepared checked-export owner (Garner/direct/balanced/local/split),
    * including root/decode/status/readback/publication. These costs are unknown
    * in this profile schema; ordinary CRT rates never price another policy.
-   * Kinds 11..14 describe complete narrow-native producer methods 0..3,
+   * Kinds 11..15 describe complete narrow-native producer methods 0..4,
    * including actual scan/status/native accumulation/RNS encoding. Their costs
    * are also unknown; no per-plane GEMM rate substitutes for this boundary. */
   uint32_t kind, dependencies, resources; /* prior stage bitmask; host1,copy2,compute4 */
@@ -2529,7 +2529,8 @@ typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
   RNS8_NARROW_SCALAR_I64 = 0,
   RNS8_NARROW_BYTE_WMMA = 1,
   RNS8_NARROW_SCALAR_FUSED_RNS = 2,
-  RNS8_NARROW_BYTE_WMMA_FUSED_RNS = 3
+  RNS8_NARROW_BYTE_WMMA_FUSED_RNS = 3,
+  RNS8_NARROW_SPLIT_K_I64_FUSED_RNS = 4
 } rns8_narrow_product_method;
 
 /* Experimental synchronous direct-HIP exact-wide product with persistent RNS
@@ -2542,7 +2543,10 @@ typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
  * Compiled WMMA capability is cached separately by
  * device/target/provider. No scalar substitution or AUTO selection is performed.
  * max_scratch_bytes conservatively covers the native product and scan words;
- * staged calls reuse workspace-owned product storage, fused calls need none.
+ * staged calls reuse workspace-owned product storage; single-launch fused calls
+ * need none. SPLIT_K_I64_FUSED_RNS uses signed exact-wide semantics and retained
+ * M*N*ceil(K/4096) int64 partials, then merges and encodes in a second launch.
+ * It shares the full-K INT64_MAX partial bound; cancellation grants no safety.
  * Admission failures preserve C; failed product/encoding writes invalidate C. */
 RNS8_API rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan,
                                             const rns8_matrix* A, const rns8_matrix* B,

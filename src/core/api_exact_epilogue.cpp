@@ -33,10 +33,14 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
                                    rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!ctx || !plan || !A || !B || !C || !workspace || A == C || B == C || (uint32_t(method) > 3))
+    if (!ctx || !plan || !A || !B || !C || !workspace || A == C || B == C ||
+        uint32_t(method) >= native_narrow_method_count)
       return RNS8_INVALID_ARGUMENT;
+    const bool byte_wmma = native_narrow_byte_wmma(method);
+    const bool split_k = native_narrow_split(method);
+    const bool fused = native_narrow_fused(method);
     if (plan->backend != RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(plan->desc.semantics) ||
-        (!(uint32_t(method) & 1) && plan->desc.semantics != RNS8_EXACT_WIDE_SIGNED))
+        (!byte_wmma && plan->desc.semantics != RNS8_EXACT_WIDE_SIGNED))
       return RNS8_UNSUPPORTED_BACKEND;
     rns8_operation_query query{};
     query.struct_size = sizeof(query);
@@ -62,9 +66,9 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
     if (C->generation_exhausted)
       return RNS8_RANGE_ERROR;
     const bool unsigned_inputs = plan->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED;
-    const auto support = query_narrow_rns_support(
-        plan->desc.m, plan->desc.n, plan->desc.k, A->desc.cols, B->desc.cols, plan->prefix,
-        bool(uint32_t(method) & 1), max_scratch_bytes, method >= RNS8_NARROW_SCALAR_FUSED_RNS);
+    const auto support = query_narrow_rns_support(plan->desc.m, plan->desc.n, plan->desc.k,
+                                                  A->desc.cols, B->desc.cols, plan->prefix,
+                                                  byte_wmma, max_scratch_bytes, fused, split_k);
     if (support.status != RNS8_SUCCESS)
       return support.status;
     const auto native = [&](const rns8_matrix& input) -> const void* {
@@ -102,8 +106,6 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
       status = synchronous_dispatch_checkpoint(*ctx, "narrow", &commit_started);
       if (status != RNS8_SUCCESS)
         return status;
-      const bool byte_wmma = bool(uint32_t(method) & 1);
-      const bool fused = method >= RNS8_NARROW_SCALAR_FUSED_RNS;
       auto& product = workspace->narrow_product_owner;
       auto& scan = workspace->narrow_scan_owner;
       if (product.pending() || scan.pending())
@@ -111,7 +113,7 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
       if ((product && product.device_id() != ctx->device_id) ||
           (scan && scan.device_id() != ctx->device_id))
         return RNS8_INVALID_ARGUMENT;
-      if (fused) {
+      if (!support.payload_bytes) {
         status = product.reset();
         if (status != RNS8_SUCCESS)
           return status;
@@ -135,18 +137,18 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
                                               uint64_t(plan->desc.k), byte_wmma, partial_bound);
       if (status != RNS8_SUCCESS)
         return status;
-      if (!fused && product.bytes() != support.payload_bytes) {
+      if (support.payload_bytes && product.bytes() != support.payload_bytes) {
         status = product.allocate(ctx->device_id, size_t(support.payload_bytes));
         if (status != RNS8_SUCCESS)
           return status;
       }
-      if (!fused)
+      if (support.payload_bytes)
         product.mark_pending();
       status = hip_direct_gemm_narrow_rns_certified_device(
           ctx->device_id, workspace->narrow_domains[0], workspace->narrow_domains[1],
           C->hip_residues, plan->prefix, byte_wmma, fused, ctx->native_wmma_capability,
-          product.get(), product.bytes(), max_scratch_bytes, commit_started);
-      if (status == RNS8_SUCCESS && !fused)
+          product.get(), product.bytes(), max_scratch_bytes, commit_started, split_k);
+      if (status == RNS8_SUCCESS && support.payload_bytes)
         product.mark_completed();
       if (status != RNS8_SUCCESS)
         return status;

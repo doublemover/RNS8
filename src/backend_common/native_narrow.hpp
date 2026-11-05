@@ -4,6 +4,18 @@
 #include <rns8/rns8.h>
 #include "native_domain.hpp"
 namespace rns8::detail {
+inline constexpr uint32_t native_narrow_method_count = 5;
+inline constexpr uint32_t native_narrow_split_k = 4096;
+inline bool native_narrow_byte_wmma(uint32_t method) {
+  return method == RNS8_NARROW_BYTE_WMMA || method == RNS8_NARROW_BYTE_WMMA_FUSED_RNS;
+}
+inline bool native_narrow_split(uint32_t method) {
+  return method == RNS8_NARROW_SPLIT_K_I64_FUSED_RNS;
+}
+inline bool native_narrow_fused(uint32_t method) {
+  return method == RNS8_NARROW_SCALAR_FUSED_RNS || method == RNS8_NARROW_BYTE_WMMA_FUSED_RNS ||
+         native_narrow_split(method);
+}
 // A magnitude envelope bounds every sequential or tree-reduction partial.
 // Check divisions before multiplication; rejection leaves the output untouched.
 inline bool native_partial_sum_bound(uint64_t a, uint64_t b, uint64_t k, uint64_t limit,

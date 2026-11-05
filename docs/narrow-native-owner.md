@@ -110,7 +110,7 @@ private native-output measurements do not qualify this complete public call.
 Performance comparisons must include scan, native product, RNS encoding and
 allocation, against the same persistent-output contract and input reuse count.
 
-Grouped, asynchronous and automatic planner integration remain separate work.
+Grouped and asynchronous specialization and automatic promotion remain separate work.
 The explicit fused variants are described below. The default resident GEMM route
 is unchanged.
 
@@ -152,6 +152,34 @@ that state plus an 8*M*N native product. The separate encoding launch and native
 product write/read are absent in source; required RNS stores remain. This is not
 a claim about HBM counters, register pressure, crossover or latency. Staged
 variants remain selectable.
+
+## Explicit signed hierarchical split-K
+
+`RNS8_NARROW_SPLIT_K_I64_FUSED_RNS` is a separate synchronous signed exact-wide
+candidate. One 256-thread block reduces each output's 4096-element K slab;
+a second launch merges the signed native partials and encodes the result into
+every selected RNS plane. It uses no cross-block atomic accumulation. The same
+full-K `K*max_abs(A)*max_abs(B) <= INT64_MAX` certificate bounds each product,
+lane sum, block-tree sum and final merge, including cancellation-heavy inputs.
+Unsigned and byte-WMMA semantics are not inferred from its method number.
+
+The conservative scratch query charges
+`8*M*N*ceil(K/4096)+16` bytes and checks the full partial-plane address domain.
+The workspace retains the native partial allocation across unchanged calls;
+generation-bound A/B proof reuse remains independent. Failed partial production
+preserves C; the output transaction begins at merge submission. Uncertain
+partials remain leased until completion is observed. Switching methods releases
+or replaces inactive storage before submitting new work.
+
+Operation queries, explicit pipeline recipes and analytical stage kind 15 carry
+this method's own resource and cost identity. Ordinary GEMM/WMMA rate models do
+not price its complete-call cost. The public narrow calibrator accepts
+`scalar-split-k-fused` and `scalar-split-k-resident-fused`, with retained partial
+bytes and separate partial/merge native diagnostic labels. Both retain full
+Boost/output/residue checks outside production intervals. Authored controls
+cover slab tails, K=65535/65536/65537, stale proofs, poisoned padding, exact
+budget boundaries and warm allocation reuse. Only source/frontend checks have
+run; target execution, ISA/resource inspection and speedup remain unmeasured.
 
 The public narrow calibrator compares staged/fused scalar and WMMA, actual
 ordinary public RNS, explicit selected-prefix parallel RNS, and production

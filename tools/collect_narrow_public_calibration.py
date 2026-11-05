@@ -16,6 +16,8 @@ from build_manifest import manifest_provenance_complete
 MODES = (
     "scalar-staged",
     "scalar-fused",
+    "scalar-split-k-fused",
+    "scalar-split-k-resident-fused",
     "wmma-staged",
     "wmma-fused",
     "rns-public",
@@ -31,6 +33,7 @@ MODES = (
     "rns-resident-public",
 )
 RESIDENT_OUTPUT_MODES = {
+    "scalar-split-k-resident-fused",
     "adaptive-resident-fresh",
     "adaptive-resident-cached",
     "wmma-resident-fused",
@@ -106,6 +109,12 @@ def selected_prefix(c):
     raise ValueError("capacity")
 
 
+def narrow_product_bytes(case):
+    if case["mode"].startswith("scalar-split-k-"):
+        return case["m"] * case["n"] * ((case["k"] + 4095) // 4096) * 8
+    return 0 if case["mode"].endswith("-fused") else case["m"] * case["n"] * 8
+
+
 def validate_capture(c, entry):
     observation_boundary(c)
     case = validate_case(entry["case"])
@@ -114,12 +123,7 @@ def validate_capture(c, entry):
     vector = mode.startswith("vector-")
     resident_output = mode in RESIDENT_OUTPUT_MODES
     scratch = (
-        (
-            (32 if mode.startswith("wmma-") else 16)
-            + (0 if mode.endswith("-fused") else case["m"] * case["n"] * 8)
-        )
-        if narrow
-        else 0
+        ((32 if mode.startswith("wmma-") else 16) + narrow_product_bytes(case)) if narrow else 0
     )
     fixed = dict(
         schema="rns8_public_narrow_microcase_v2",
@@ -133,6 +137,8 @@ def validate_capture(c, entry):
         else "not_applicable",
         narrow_product_storage="not_applicable"
         if not narrow
+        else "workspace_retained_split_k_partials"
+        if mode.startswith("scalar-split-k-")
         else "fused_no_native_product"
         if mode.endswith("-fused")
         else "workspace_retained_native_product",
@@ -283,8 +289,17 @@ def validate_narrow_native_observation(c, case):
         if wmma
         else ("narrow_native_i64_fused_rns_kernel" if fused else "narrow_native_i64_gemm_kernel")
     )
+    split_k = case["mode"].startswith("scalar-split-k-")
     if (
-        labels.get(product) != 1
+        (not split_k and labels.get(product) != 1)
+        or (
+            split_k
+            and (
+                labels.get("narrow_native_split_k_partials") != 1
+                or labels.get("narrow_native_split_k_encode") != 1
+                or labels.get(product, 0)
+            )
+        )
         or labels.get("narrow_native_encode_rns", 0) != int(not fused)
         or labels.get("native_wmma_prepare_capability", 0)
         != int(wmma and case["residency"] == "cold")
@@ -352,9 +367,7 @@ def validate_narrow_summary_capture(c, case):
             raise ValueError("narrow summary record")
         expected = dict(
             retained_scan_bytes=0,
-            retained_product_bytes=0
-            if case["mode"].endswith("-fused")
-            else case["m"] * case["n"] * 8,
+            retained_product_bytes=narrow_product_bytes(case),
             wmma_capability_observed=wmma,
             wmma_capability_supported=wmma,
             a_generation=1 + count if repack_a else 1,

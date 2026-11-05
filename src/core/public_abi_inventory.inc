@@ -3710,7 +3710,7 @@ RNS8_ABI_FUNCTION(rns8_wait_resident_graph_hip_for,rns8_abi_function_32_rns8_wai
 #undef RNS8_ABI_FUNCTION
 
 namespace {
-constexpr char rns8_public_declaration_sha256[] = "b87c159eabd84645b5727625904221e56cea375d71f1abdaf4ef5efd02fa6ff4";
+constexpr char rns8_public_declaration_sha256[] = "8950d85bf6c88c8140587d2640457c9b6e90df11e24be6f65c0ff841f160dc6a";
 constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"CHAR_BIT",(uint64_t)(CHAR_BIT)},
   {"alignof:rns8_adaptive_bound_method",(uint64_t)(RNS8_ABI_ALIGNOF(rns8_adaptive_bound_method))},
@@ -4010,6 +4010,7 @@ constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"constant:RNS8_NARROW_BYTE_WMMA_FUSED_RNS",(uint64_t)(RNS8_NARROW_BYTE_WMMA_FUSED_RNS)},
   {"constant:RNS8_NARROW_SCALAR_FUSED_RNS",(uint64_t)(RNS8_NARROW_SCALAR_FUSED_RNS)},
   {"constant:RNS8_NARROW_SCALAR_I64",(uint64_t)(RNS8_NARROW_SCALAR_I64)},
+  {"constant:RNS8_NARROW_SPLIT_K_I64_FUSED_RNS",(uint64_t)(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS)},
   {"constant:RNS8_NATIVE_DEVICE_BORROW",(uint64_t)(RNS8_NATIVE_DEVICE_BORROW)},
   {"constant:RNS8_NATIVE_DEVICE_COPY_OWNED",(uint64_t)(RNS8_NATIVE_DEVICE_COPY_OWNED)},
   {"constant:RNS8_NATIVE_DEVICE_I64",(uint64_t)(RNS8_NATIVE_DEVICE_I64)},

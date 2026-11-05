@@ -25,11 +25,13 @@ gfx1100/1101/1102 only after a device-compiled capability check. The unsigned
 route deliberately uses the positive INT32 cap rather than assuming wrapping
 unsigned accumulator behavior.
 
-These are explicit research candidates. They do not change public dispatch or
-cache admission and do not replace full-width/RNS fallbacks. Public generation
-binding, planner integration, epilogues, grouped specialization and measured
-one-shot/resident break-even remain open under #53. Output transaction owners
-must invalidate a destination if a launched backend operation fails.
+These are explicit research candidates and do not replace full-width/RNS
+fallbacks. The [public narrow owner](narrow-native-owner.md) now binds input
+generations and cached extrema, supports staged/fused RNS output and explicit
+planner recipes, and includes a signed hierarchical split-K candidate. Grouped
+specialization, composed epilogues and measured one-shot/resident break-even
+remain open under #53. Output transaction owners invalidate a destination if
+a launched output write fails.
 
 Authored CPU/Boost and HIP fixtures cover partial-sum cap boundaries, signed and
 unsigned byte endpoints, invalid full-width values, zero final products with

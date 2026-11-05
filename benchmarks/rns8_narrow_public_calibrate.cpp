@@ -113,10 +113,10 @@ int main(int argc, char** argv) {
                    seed = number(c, "seed", 0, UINT32_MAX);
     const bool u = c.at("unsigned_inputs");
     const std::string mode = c.at("mode"), residency = c.at("residency");
-    const bool resident_output = mode == "adaptive-resident-fresh" ||
-                                 mode == "adaptive-resident-cached" ||
-                                 mode == "wmma-resident-fused" || mode == "scalar-resident-fused" ||
-                                 mode == "rns-resident-public";
+    const bool resident_output =
+        mode == "adaptive-resident-fresh" || mode == "adaptive-resident-cached" ||
+        mode == "wmma-resident-fused" || mode == "scalar-resident-fused" ||
+        mode == "rns-resident-public" || mode == "scalar-split-k-resident-fused";
     const bool adaptive = mode == "adaptive-fresh" || mode == "adaptive-cached" ||
                           mode == "adaptive-resident-fresh" || mode == "adaptive-resident-cached";
     const bool cached = mode == "adaptive-cached" || mode == "adaptive-resident-cached";
@@ -125,12 +125,13 @@ int main(int argc, char** argv) {
                narrow = mode.rfind("scalar-", 0) == 0 || mode.rfind("wmma-", 0) == 0;
     const bool wmma =
         mode == "wmma-staged" || mode == "wmma-fused" || mode == "wmma-resident-fused";
+    const bool split_k = mode == "scalar-split-k-fused" || mode == "scalar-split-k-resident-fused";
     const bool fused = mode == "scalar-fused" || mode == "wmma-fused" ||
-                       mode == "scalar-resident-fused" || mode == "wmma-resident-fused";
+                       mode == "scalar-resident-fused" || mode == "wmma-resident-fused" || split_k;
     if ((!vector && !parallel && !narrow && !adaptive && mode != "rns-public" &&
          mode != "rns-resident-public") ||
         (narrow && mode != "scalar-staged" && mode != "scalar-fused" &&
-         mode != "scalar-resident-fused" && !wmma) ||
+         mode != "scalar-resident-fused" && !wmma && !split_k) ||
         (u && narrow && !wmma) || (parallel && n > 8) ||
         (mode == "vector-exact-width" && (n < 2 || n > 8 || k < 512)) ||
         (residency != "cold" && residency != "resident" && residency != "repack" &&
@@ -264,8 +265,9 @@ int main(int argc, char** argv) {
       } else if (narrow)
         check(rns8_gemm_narrow_exact(
             o.ctx, o.plan, o.a, o.b, o.c,
-            static_cast<rns8_narrow_product_method>((wmma ? 1 : 0) + (fused ? 2 : 0)), UINT64_MAX,
-            o.work));
+            split_k ? RNS8_NARROW_SPLIT_K_I64_FUSED_RNS
+                    : static_cast<rns8_narrow_product_method>((wmma ? 1 : 0) + (fused ? 2 : 0)),
+            UINT64_MAX, o.work));
       else
         check(rns8_gemm_rns(o.ctx, o.plan, o.a, o.b, o.c, o.work));
     };
@@ -404,7 +406,10 @@ int main(int argc, char** argv) {
     }
     if (owner)
       check(owner->close());
-    const uint64_t scratch = narrow ? (wmma ? 32 : 16) + (fused ? 0 : uint64_t(m) * n * 8) : 0;
+    const uint64_t product_bytes = split_k ? uint64_t(m) * n * ((k + 4095) / 4096) * 8
+                                   : fused ? 0
+                                           : uint64_t(m) * n * 8;
+    const uint64_t scratch = narrow ? (wmma ? 32 : 16) + product_bytes : 0;
     std::cout
         << json(
                {{"hot_loop_serialization", "typed_observation_no_phase_clocks_in_sustained_v2"},
@@ -421,9 +426,10 @@ int main(int argc, char** argv) {
                 {"narrow_producer", narrow ? mode : "not_applicable"},
                 {"narrow_input_admission_policy",
                  narrow ? "generation_bound_host_pack_certificate" : "not_applicable"},
-                {"narrow_product_storage", !narrow ? "not_applicable"
-                                           : fused ? "fused_no_native_product"
-                                                   : "workspace_retained_native_product"},
+                {"narrow_product_storage", !narrow   ? "not_applicable"
+                                           : split_k ? "workspace_retained_split_k_partials"
+                                           : fused   ? "fused_no_native_product"
+                                                     : "workspace_retained_native_product"},
                 {"known_narrow_scratch_bytes", scratch},
                 {"narrow_summary_scope",
                  !narrow               ? "not_applicable"

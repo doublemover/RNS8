@@ -11,7 +11,7 @@ Uniform recipes accept bounded i64/u64, exact-wide signed/unsigned, finite
 ring/field and strict wrap64 plans with current inputs. Representation-specific
 routes retain their exact-wide admission. Candidates select an ordinary prepared RNS product, generation-bound
 encoded B with its ordinary native-grid consumer, a windowed split-K owner,
-one of four narrow native methods, or a persistent native queue with optional
+one of five narrow native methods, or a persistent native queue with optional
 explicit-work locality order. Each uses the shared operation provider and the
 existing implementation's static predicates, then checks concrete native
 materialization, proof, prefix, stride and resource requirements.

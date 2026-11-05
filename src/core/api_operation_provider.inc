@@ -93,7 +93,7 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
   const uint32_t max_algorithm =
       query.operation == RNS8_OP_FP8             ? 23
       : checked_export                           ? 14
-      : query.operation == RNS8_OP_NARROW_NATIVE ? 3
+      : query.operation == RNS8_OP_NARROW_NATIVE ? rns8::detail::native_narrow_method_count - 1
       : query.operation == RNS8_OP_STRASSEN      ? 19
       : query.operation == RNS8_OP_GRAM
           ? 17
@@ -312,14 +312,15 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     break;
   case RNS8_OP_NARROW_NATIVE:
     if (!hip || !rns8::detail::exact_wide_semantics(d.semantics) ||
-        (!(query.algorithm & 1) && d.semantics != RNS8_EXACT_WIDE_SIGNED))
+        (!rns8::detail::native_narrow_byte_wmma(query.algorithm) &&
+         d.semantics != RNS8_EXACT_WIDE_SIGNED))
       return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_SEMANTICS, "semantics",
                     "narrow native provider requires direct-HIP signed semantics");
     if ((query.lda && query.lda != d.k) || (query.ldb && query.ldb != d.n))
       return reject(
           RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_SHAPE, "native_input_stride",
           "public narrow owners consume compact retained native copies; padded host packing does not create padded native storage");
-    if ((query.algorithm & 1) && !rdna3)
+    if (rns8::detail::native_narrow_byte_wmma(query.algorithm) && !rdna3)
       return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_TARGET, "algorithm",
                     "current byte-WMMA narrow provider requires gfx11");
     if (!(query.proof_flags & RNS8_QUERY_NATIVE_RETAINED))
@@ -521,9 +522,10 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     }
   }
   if (query.operation == RNS8_OP_NARROW_NATIVE) {
-    const auto support = rns8::detail::query_narrow_rns_support(d.m, d.n, d.k, lda, ldb, prefix,
-                                                                bool(query.algorithm & 1),
-                                                                UINT64_MAX, query.algorithm >= 2);
+    const auto support = rns8::detail::query_narrow_rns_support(
+        d.m, d.n, d.k, lda, ldb, prefix, rns8::detail::native_narrow_byte_wmma(query.algorithm),
+        UINT64_MAX, rns8::detail::native_narrow_fused(query.algorithm),
+        rns8::detail::native_narrow_split(query.algorithm));
     if (support.status != RNS8_SUCCESS)
       return reject(support.status, RNS8_SUPPORT_ADDRESS, "narrow_resources",
                     "shared narrow provider rejected complete shape/address domain");

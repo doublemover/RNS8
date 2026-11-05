@@ -300,6 +300,7 @@
         "constant:RNS8_NARROW_BYTE_WMMA_FUSED_RNS": 3,
         "constant:RNS8_NARROW_SCALAR_FUSED_RNS": 2,
         "constant:RNS8_NARROW_SCALAR_I64": 0,
+        "constant:RNS8_NARROW_SPLIT_K_I64_FUSED_RNS": 4,
         "constant:RNS8_NATIVE_DEVICE_BORROW": 1,
         "constant:RNS8_NATIVE_DEVICE_COPY_OWNED": 2,
         "constant:RNS8_NATIVE_DEVICE_I64": 1,
@@ -3749,7 +3750,8 @@
         "RNS8_NARROW_BYTE_WMMA": 1,
         "RNS8_NARROW_BYTE_WMMA_FUSED_RNS": 3,
         "RNS8_NARROW_SCALAR_FUSED_RNS": 2,
-        "RNS8_NARROW_SCALAR_I64": 0
+        "RNS8_NARROW_SCALAR_I64": 0,
+        "RNS8_NARROW_SPLIT_K_I64_FUSED_RNS": 4
       },
       "rns8_native_device_access": {
         "RNS8_NATIVE_DEVICE_READ": 1,
@@ -4268,7 +4270,7 @@
       "rns8/moduli.h": "bbb2626341efbc1c39641bb889a88b2005c6b478d105d39e9429ba807772c13e",
       "rns8/pipeline_recipe.h": "1aabfc7bc5a89763773ded12acda7b7be44729774cb7522dd5a665d9f89e6c9d",
       "rns8/public_abi.h": "20ccbb0b271bfa98c4303d52817d63902a131ffd895323032ae4feb0230828a5",
-      "rns8/rns8.h": "de8bf4f58203b627478179c3fadae84352e45a432ee058facef09ecbc1015592",
+      "rns8/rns8.h": "73419a92fda021b66a5d1a448b578433e1bdac318a641bed6b3ae8be6ecc82e1",
       "rns8/semantics.h": "9c8e8391013be3668833abcb57176c2ae0213eb3bfd5e0ac84261e7f380c2421",
       "rns8/status.h": "c7c68893c448f238fcdea3c3bf68f595e7c7868264be588d58a9620756ef7c8b"
     },

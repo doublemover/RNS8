@@ -21,7 +21,12 @@ def synthetic_narrow_summary(c):
                 "narrow_native_i64_fused_rns_kernel" if fused else "narrow_native_i64_gemm_kernel"
             )
         )
-        labels = {product: 1}
+        split_k = case["mode"].startswith("scalar-split-k-")
+        labels = (
+            {"narrow_native_split_k_partials": 1, "narrow_native_split_k_encode": 1}
+            if split_k
+            else {product: 1}
+        )
         if not fused:
             labels["narrow_native_encode_rns"] = 1
         if cold and wmma:
@@ -61,7 +66,9 @@ def synthetic_narrow_summary(c):
         wmma = int(case["mode"].startswith("wmma-"))
         c[name] = dict(
             retained_scan_bytes=0,
-            retained_product_bytes=0
+            retained_product_bytes=case["m"] * case["n"] * ((case["k"] + 4095) // 4096) * 8
+            if case["mode"].startswith("scalar-split-k-")
+            else 0
             if case["mode"].endswith("-fused")
             else case["m"] * case["n"] * 8,
             wmma_capability_observed=wmma,
@@ -223,6 +230,31 @@ class NarrowPublicCollection(unittest.TestCase):
             c["narrow_product_storage"] = "fused_no_native_product"
             with self.assertRaises(ValueError):
                 validate_capture(c, entry)
+
+    def test_split_k_partials_are_distinct_from_zero_scratch_fusion(self):
+        for k in (4095, 4096, 4097, 65535, 65536, 65537):
+            c, entry = self.capture()
+            entry["case"].update(mode="scalar-split-k-fused", k=k)
+            parts = (k + 4095) // 4096
+            c.update(
+                narrow_producer="scalar-split-k-fused",
+                narrow_product_storage="workspace_retained_split_k_partials",
+                known_narrow_scratch_bytes=16 + 17 * 19 * parts * 8,
+                native_useful_products=17 * 19 * k,
+                selected_prefix=selected_prefix(entry["case"]),
+            )
+            synthetic_narrow_summary(c)
+            self.assertEqual(validate_capture(c, entry), c)
+            bad = copy.deepcopy(c)
+            bad["narrow_summary_final"]["retained_product_bytes"] = 0
+            with self.assertRaises(ValueError):
+                validate_capture(bad, entry)
+            bad = copy.deepcopy(c)
+            observation = bad["separate_native_observation"]
+            observation["event_labels"].pop("narrow_native_split_k_partials")
+            observation["event_microseconds"].pop("narrow_native_split_k_partials")
+            with self.assertRaises(ValueError):
+                validate_capture(bad, entry)
 
     def test_resident_output_is_separate_from_host_adapter_boundary(self):
         for mode in ["rns-resident-public", "scalar-resident-fused", "wmma-resident-fused"]:

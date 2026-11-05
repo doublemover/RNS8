@@ -153,12 +153,94 @@ TEST_CASE("direct HIP native narrow admission proves partial sums from actual de
   }
 }
 
+TEST_CASE("public narrow split-K matches full Boost output across slab and 65536 boundaries",
+          "[hip][narrow][split-k]") {
+  if (!hip_available())
+    SKIP("no HIP device for narrow split-K differential");
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  constexpr int m = 3, n = 5;
+  for (int k : {4095, 4096, 4097, 65535, 65536, 65537}) {
+    auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+    auto desc = exact_signed_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+    desc.max_prefix = 20;
+    desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+    auto am = matrix_desc(m, k, desc.semantics, RNS8_BOUND_NONE);
+    auto bm = matrix_desc(k, n, desc.semantics, RNS8_BOUND_NONE);
+    auto cm = matrix_desc(m, n, desc.semantics, RNS8_BOUND_NONE);
+    am.max_prefix = bm.max_prefix = cm.max_prefix = 20;
+    am.flags = bm.flags = RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    rns8_matrix *a = nullptr, *b = nullptr, *c = nullptr;
+    REQUIRE(rns8_create_matrix(ctx, &am, &a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &bm, &b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &cm, &c) == RNS8_SUCCESS);
+    std::vector<int64_t> av(size_t(m) * (k + 1), INT64_MIN), bv(size_t(k) * (n + 2), INT64_MIN);
+    for (int r = 0; r < m; ++r)
+      for (int q = 0; q < k; ++q)
+        av[size_t(r) * (k + 1) + q] = ((q + r) % 2 ? -1 : 1) * (1 + (q * 7 + r) % 113);
+    for (int q = 0; q < k; ++q)
+      for (int col = 0; col < n; ++col)
+        bv[size_t(q) * (n + 2) + col] = (q * 3 + col * 11) % 97 - 48;
+    REQUIRE(rns8_pack_i64(ctx, a, av.data(), k + 1, 0) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx, b, bv.data(), n + 2, 0) == RNS8_SUCCESS);
+    const auto support = query_narrow_rns_support(m, n, k, k, n, 20, false, UINT64_MAX, true, true);
+    const auto run = [&](uint64_t budget) {
+      return rns8_gemm_narrow_exact(ctx, plan, a, b, c, RNS8_NARROW_SPLIT_K_I64_FUSED_RNS, budget,
+                                    workspace);
+    };
+    CHECK(run(support.scratch_bytes - 1) == RNS8_WORKSPACE_TOO_SMALL);
+    REQUIRE(run(support.scratch_bytes) == RNS8_SUCCESS);
+    CHECK(workspace->narrow_product_owner.bytes() == support.payload_bytes);
+    CHECK_FALSE(workspace->narrow_product_owner.pending());
+    const auto before = hip_direct_allocation_counters_snapshot();
+    REQUIRE(run(support.scratch_bytes) == RNS8_SUCCESS);
+    const auto after = hip_direct_allocation_counters_snapshot();
+    CHECK(after.allocate_calls == before.allocate_calls);
+    CHECK(after.free_calls == before.free_calls);
+    CHECK(after.h2d_calls == before.h2d_calls);
+    CHECK(after.d2h_calls == before.d2h_calls);
+    std::vector<uint64_t> output(m * n * 3);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, output.data(), n, 3) == RNS8_SUCCESS);
+    for (int r = 0; r < m; ++r)
+      for (int col = 0; col < n; ++col) {
+        cpp_int expected = 0;
+        for (int q = 0; q < k; ++q)
+          expected += cpp_int(av[size_t(r) * (k + 1) + q]) * bv[size_t(q) * (n + 2) + col];
+        const auto cell = size_t(r * n + col) * 3;
+        cpp_int actual = cpp_int(output[cell]) + (cpp_int(output[cell + 1]) << 64) +
+                         (cpp_int(output[cell + 2]) << 128);
+        if (output[cell + 2] >> 63)
+          actual -= cpp_int(1) << 192;
+        CHECK(actual == expected);
+      }
+    const auto generation = c->content_generation;
+    av[0] = INT64_MAX;
+    REQUIRE(rns8_pack_i64(ctx, a, av.data(), k + 1, 0) == RNS8_SUCCESS);
+    CHECK(run(support.scratch_bytes) == RNS8_RANGE_ERROR);
+    CHECK(c->content_generation == generation);
+    REQUIRE(rns8_destroy_matrix(c) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_matrix(b) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_matrix(a) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+  }
+}
+
 template <class T>
 void check_public_narrow_owner(rns8_narrow_product_method method, bool device_import = false) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   constexpr bool u = std::is_unsigned_v<T>;
   constexpr int side = 17, host_ld = 19;
+  const auto payload =
+      query_narrow_rns_support(side, side, side, side, side, 20, native_narrow_byte_wmma(method),
+                               UINT64_MAX, native_narrow_fused(method), native_narrow_split(method))
+          .payload_bytes;
   const auto semantics = u ? RNS8_EXACT_WIDE_UNSIGNED : RNS8_EXACT_WIDE_SIGNED;
   auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
   auto desc = exact_signed_desc(side, side, side, RNS8_BACKEND_HIP_DIRECT);
@@ -350,8 +432,7 @@ void check_public_narrow_owner(rns8_narrow_product_method method, bool device_im
       CHECK(info.b_instance == b->matrix_instance_id);
       CHECK(info.b_generation == b->content_generation);
       CHECK(info.retained_scan_bytes == (device_import ? 16 : 0));
-      CHECK(info.retained_product_bytes ==
-            (method >= RNS8_NARROW_SCALAR_FUSED_RNS ? 0 : uint64_t(side) * side * 8));
+      CHECK(info.retained_product_bytes == payload);
       CHECK(info.wmma_capability_observed == (uint32_t(method) & 1));
       CHECK(info.wmma_capability_supported == (uint32_t(method) & 1));
       CHECK(info.a_device_scans == (device_import ? uint64_t(mutation + 1) : 0));
@@ -397,8 +478,7 @@ void check_public_narrow_owner(rns8_narrow_product_method method, bool device_im
     CHECK(after.free_calls == before.free_calls);
     CHECK(after.h2d_calls == before.h2d_calls);
     CHECK(after.d2h_calls == before.d2h_calls);
-    CHECK(ws->narrow_product_owner.bytes() ==
-          (method >= RNS8_NARROW_SCALAR_FUSED_RNS ? 0 : uint64_t(side) * side * 8));
+    CHECK(ws->narrow_product_owner.bytes() == payload);
     CHECK_FALSE(c->device_native_current);
     std::vector<uint64_t> limbs(side * side * 3);
     if constexpr (std::is_unsigned_v<T>)
@@ -540,6 +620,9 @@ TEST_CASE("public narrow products preserve exact ownership and reject changed do
   SECTION("signed scalar fused") {
     check_public_narrow_owner<int64_t>(RNS8_NARROW_SCALAR_FUSED_RNS);
   }
+  SECTION("signed split-K fused") {
+    check_public_narrow_owner<int64_t>(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS);
+  }
   SECTION("signed byte WMMA fused") {
     check_public_narrow_owner<int64_t>(RNS8_NARROW_BYTE_WMMA_FUSED_RNS);
   }
@@ -557,6 +640,9 @@ TEST_CASE("public narrow products preserve exact ownership and reject changed do
   }
   SECTION("device imported signed scalar fused") {
     check_public_narrow_owner<int64_t>(RNS8_NARROW_SCALAR_FUSED_RNS, true);
+  }
+  SECTION("device imported signed split-K fused") {
+    check_public_narrow_owner<int64_t>(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS, true);
   }
   SECTION("device imported signed WMMA") {
     check_public_narrow_owner<int64_t>(RNS8_NARROW_BYTE_WMMA, true);

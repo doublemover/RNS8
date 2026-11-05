@@ -34,6 +34,7 @@
 #include "../backend_common/rank23_october55.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
+#include "../backend_common/native_narrow.hpp"
 #include "../backend_common/native_wmma_queue.hpp"
 #include "../backend_common/native_wmma_schedule.hpp"
 #include "../backend_common/native_conversion_layout.hpp"
@@ -672,6 +673,27 @@ extern "C" int rns8_hip_native_fused_narrow_rns(const void* a, const void* b, in
                        static_cast<const int64_t*>(a), static_cast<const int64_t*>(b), nullptr, m,
                        n, k, lda, ldb, n, residues, prefix);
   return int(hipGetLastError());
+}
+
+extern "C" int rns8_hip_native_narrow_split_partials(const int64_t* a, const int64_t* b,
+                                                     int64_t* partials, int m, int n, int k,
+                                                     int lda, int ldb) {
+  const auto parts =
+      (uint64_t(k) + rns8::detail::native_narrow_split_k - 1) / rns8::detail::native_narrow_split_k;
+  const auto blocks = static_cast<unsigned>(uint64_t(m) * n * parts);
+  hipLaunchKernelGGL(rns8_native_narrow_split_partials_kernel, dim3(blocks), dim3(256), 0, nullptr,
+                     a, b, partials, m, n, k, lda, ldb);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_native_narrow_split_encode(const int64_t* partials, int8_t* residues, int m,
+                                                   int n, int k, int prefix) {
+  const auto blocks = static_cast<unsigned>((uint64_t(m) * n + 255) / 256);
+  const int parts = int((uint64_t(k) + rns8::detail::native_narrow_split_k - 1) /
+                        rns8::detail::native_narrow_split_k);
+  hipLaunchKernelGGL(rns8_native_narrow_split_encode_kernel, dim3(blocks), dim3(256), 0, nullptr,
+                     partials, residues, m, n, parts, prefix);
+  return static_cast<int>(hipGetLastError());
 }
 
 extern "C" int rns8_hip_native_i64_narrow_gemm(const int64_t* a, const int64_t* b, int64_t* c,

@@ -341,7 +341,8 @@ rns8_status hip_direct_gemm_narrow_rns_device(int device_id, const void* a, cons
 rns8_status hip_direct_gemm_narrow_rns_certified_device(
     int device_id, const NativeDomainCertificate& a, const NativeDomainCertificate& b, void* output,
     uint32_t prefix, bool byte_wmma, bool fused, const NativeWmmaDeviceCapability& capability,
-    void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started);
+    void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started,
+    bool split_k = false);
 
 // Caller retains the scratch owner through uncertain completion. Publish only
 // after a completed owned readback of the full signed/unsigned native extrema.

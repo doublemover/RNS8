@@ -194,6 +194,31 @@ TEST_CASE("narrow fused resource contracts omit native intermediate but retain p
               .status == RNS8_WORKSPACE_TOO_SMALL);
     }
 }
+TEST_CASE("narrow split-K resources charge all native partials and the retained proof scan",
+          "[narrow][resources]") {
+  using namespace rns8::detail;
+  for (int64_t k : {1, 4095, 4096, 4097, 65535, 65536, 65537}) {
+    const auto parts = (uint64_t(k) + 4095) / 4096;
+    const auto support =
+        query_narrow_rns_support(3, 5, k, k + 1, 7, 20, false, UINT64_MAX, true, true);
+    REQUIRE(support.status == RNS8_SUCCESS);
+    CHECK(support.payload_bytes == 3 * 5 * parts * 8);
+    CHECK(support.scratch_bytes == support.payload_bytes + 16);
+    CHECK(query_narrow_rns_support(3, 5, k, k + 1, 7, 20, false, support.scratch_bytes, true, true)
+              .status == RNS8_SUCCESS);
+    CHECK(query_narrow_rns_support(3, 5, k, k + 1, 7, 20, false, support.scratch_bytes - 1, true,
+                                   true)
+              .status == RNS8_WORKSPACE_TOO_SMALL);
+  }
+  CHECK(query_narrow_rns_support(3, 5, 4097, 4097, 5, 20, true, UINT64_MAX, true, true).status ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(query_narrow_rns_support(3, 5, 4097, 4097, 5, 20, false, UINT64_MAX, false, true).status ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(native_narrow_method_count == 5);
+  CHECK(native_narrow_split(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS));
+  CHECK(native_narrow_fused(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS));
+  CHECK_FALSE(native_narrow_byte_wmma(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS));
+}
 TEST_CASE("synchronous failure leases invalidate only written outputs and release clean failures",
           "[api][lifetime]") {
   using namespace rns8::detail::api;

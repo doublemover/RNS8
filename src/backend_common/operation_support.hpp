@@ -1,5 +1,6 @@
 #pragma once
 #include "address_domain.hpp"
+#include "native_narrow.hpp"
 #include "rns8/status.h"
 
 namespace rns8::detail {
@@ -150,9 +151,12 @@ inline OperationSupport query_exact_lift_support(int64_t cells, uint32_t source,
 // Compact persistent output; native staging and the selected input scan overlap.
 inline OperationSupport query_narrow_rns_support(int64_t m, int64_t n, int64_t k, int64_t lda,
                                                  int64_t ldb, uint32_t prefix, bool byte_wmma,
-                                                 uint64_t budget, bool fused = false) {
+                                                 uint64_t budget, bool fused = false,
+                                                 bool split_k = false) {
   OperationSupport out;
   if (m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n)
+    return out;
+  if (split_k && (byte_wmma || !fused))
     return out;
   if (!prefix || prefix > 20) {
     out.constraint = OperationConstraint::prefix;
@@ -170,7 +174,14 @@ inline OperationSupport query_narrow_rns_support(int64_t m, int64_t n, int64_t k
     out.constraint = OperationConstraint::address_span;
     return out;
   }
-  out.payload_bytes = fused ? 0 : uint64_t(m) * uint64_t(n) * sizeof(uint64_t);
+  const uint64_t parts =
+      split_k ? (uint64_t(k) + native_narrow_split_k - 1) / native_narrow_split_k : 1;
+  if (split_k && !qualified_i32_matrix_address(m, n, n, parts, sizeof(int64_t))) {
+    out.status = RNS8_UNSUPPORTED_BACKEND;
+    out.constraint = OperationConstraint::address_span;
+    return out;
+  }
+  out.payload_bytes = fused && !split_k ? 0 : uint64_t(m) * uint64_t(n) * parts * sizeof(uint64_t);
   const uint64_t scan_bytes = (byte_wmma ? 4u : 2u) * sizeof(uint64_t);
   if (out.payload_bytes > SIZE_MAX - scan_bytes) {
     out.status = RNS8_RANGE_ERROR;

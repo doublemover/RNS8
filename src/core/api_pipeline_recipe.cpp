@@ -158,8 +158,10 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx, const rns8_plan
     const bool sign = plan->desc.semantics == RNS8_EXACT_WIDE_SIGNED;
     for (unsigned route = 0; route < 5; ++route)
       if (o.route_mask & (1u << route)) {
-        const unsigned methods =
-            route == RNS8_ROUTE_NARROW || route == RNS8_ROUTE_NATIVE_QUEUE ? 4 : 1;
+        const unsigned methods = route == RNS8_ROUTE_NARROW
+                                     ? rns8::detail::native_narrow_method_count
+                                 : route == RNS8_ROUTE_NATIVE_QUEUE ? 4
+                                                                    : 1;
         for (unsigned method = 0; method < methods; ++method) {
           if (route == RNS8_ROUTE_NATIVE_QUEUE &&
               !((o.locality_order_mask ? o.locality_order_mask : 1u) & (1u << method)))
@@ -200,7 +202,7 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx, const rns8_plan
             const boost::multiprecision::cpp_int limit =
                 sign ? boost::multiprecision::cpp_int(INT64_MAX)
                      : boost::multiprecision::cpp_int(UINT64_MAX);
-            const bool byte = method == 1 || method == 3;
+            const bool byte = rns8::detail::native_narrow_byte_wmma(method);
             if (product <= limit && (!byte || (a->exact_max_magnitude <= (sign ? 127 : 255) &&
                                                b->exact_max_magnitude <= (sign ? 127 : 255))))
               q.proof_flags |= RNS8_QUERY_NARROW_INPUT_PROOF;

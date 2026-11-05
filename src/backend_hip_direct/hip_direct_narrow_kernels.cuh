@@ -53,6 +53,46 @@ __global__ void rns8_native_domain_kernel(const uint64_t* source, int rows, int 
   }
 }
 
+// Each block owns one output and K slab. No atomics or output-sized partials
+// per residue plane: the native partials are merged once before RNS encoding.
+__global__ void rns8_native_narrow_split_partials_kernel(const int64_t* a, const int64_t* b,
+                                                         int64_t* partials, int m, int n, int k,
+                                                         int lda, int ldb) {
+  __shared__ int64_t sums[256];
+  const int64_t cells = int64_t(m) * n;
+  const int64_t cell = int64_t(blockIdx.x) % cells;
+  const int part = int(int64_t(blockIdx.x) / cells);
+  const int begin = part * rns8::detail::native_narrow_split_k;
+  const int end = min(k, begin + int(rns8::detail::native_narrow_split_k));
+  const int64_t row = cell / n, col = cell % n;
+  int64_t value = 0;
+  for (int q = begin + int(threadIdx.x); q < end; q += 256)
+    value += a[row * lda + q] * b[int64_t(q) * ldb + col];
+  sums[threadIdx.x] = value;
+  __syncthreads();
+  for (unsigned stride = 128; stride; stride /= 2) {
+    if (threadIdx.x < stride)
+      sums[threadIdx.x] += sums[threadIdx.x + stride];
+    __syncthreads();
+  }
+  if (!threadIdx.x)
+    partials[int64_t(part) * cells + cell] = sums[0];
+}
+
+__global__ void rns8_native_narrow_split_encode_kernel(const int64_t* partials, int8_t* residues,
+                                                       int m, int n, int parts, int prefix) {
+  const int64_t cell = int64_t(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t cells = int64_t(m) * n;
+  if (cell >= cells)
+    return;
+  int64_t value = 0;
+  for (int part = 0; part < parts; ++part)
+    value += partials[int64_t(part) * cells + cell];
+  for (int p = 0; p < prefix; ++p)
+    residues[int64_t(p) * cells + cell] =
+        rns8_center_i64_device(value, rns8_default_moduli_device[p]);
+}
+
 template <bool Residues = false>
 __global__ void rns8_native_i64_narrow_gemm_kernel(const int64_t* a, const int64_t* b, int64_t* c,
                                                    int m, int n, int k, int lda, int ldb, int ldc,
