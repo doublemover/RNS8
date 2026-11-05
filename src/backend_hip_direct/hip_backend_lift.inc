@@ -29,8 +29,8 @@ rns8_status hip_direct_lift_exact_suffix_workspace(int device_id, void* residues
         return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize()
                                                     : static_cast<hipError_t>(code);
       });
-  if (error != hipSuccess || tracked_sync_copy(&host_status, view.status, sizeof(int),
-                                               hipMemcpyDeviceToHost) != hipSuccess)
+  if (error != hipSuccess ||
+      tracked_status_copy(device_id, &host_status, view.status, sizeof(host_status)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   if (host_status)
     return host_status == 2 ? RNS8_RANGE_ERROR : RNS8_INVALID_ARGUMENT;

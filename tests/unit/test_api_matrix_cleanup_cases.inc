@@ -1,5 +1,6 @@
 #include "core/matrix_cleanup.hpp"
 #include "core/export_metadata_transaction.hpp"
+#include "core/host_readback_slot.hpp"
 #include <array>
 #include <memory>
 
@@ -260,4 +261,58 @@ TEST_CASE("device retry records retain pageable DMA sources across unwind and fa
   CHECK(source.reset() == RNS8_BUSY);
   source.mark_completed();
   CHECK(source.reset() == RNS8_SUCCESS);
+}
+
+TEST_CASE("small status readbacks publish only after completion and retain failed destinations",
+          "[api][lifetime]") {
+  using Slot = rns8::detail::HostReadbackSlot;
+  using Ops = MockDeviceBufferOperations;
+  Ops::deferred_count = 0;
+  Slot slot(Ops::defer);
+  CHECK(slot.begin(-1, 4) == RNS8_INVALID_ARGUMENT);
+  CHECK(slot.begin(3, 0) == RNS8_INVALID_ARGUMENT);
+  CHECK(slot.begin(3, Slot::capacity + 1) == RNS8_INVALID_ARGUMENT);
+  uint32_t output = 0xdeadbeef;
+  REQUIRE(slot.begin(3, sizeof(output)) == RNS8_SUCCESS);
+  const uint32_t computed = 123;
+  std::memcpy(slot.data(), &computed, sizeof(computed));
+  CHECK(slot.begin(3, sizeof(output)) == RNS8_BUSY);
+  CHECK(slot.complete(nullptr) == RNS8_INVALID_ARGUMENT);
+  slot.fail();
+  CHECK(output == 0xdeadbeef);
+  REQUIRE(Ops::deferred_count == 1);
+  auto* failed = Ops::deferred[0];
+  CHECK(failed->kind == rns8::detail::hip_deferred_allocation_kind::host_payload);
+  CHECK(failed->device_id == 3);
+  std::weak_ptr<const void> retained = failed->host_payload;
+  REQUIRE(slot.begin(3, sizeof(output)) == RNS8_SUCCESS);
+  CHECK(slot.data() != failed->pointer);
+  std::memcpy(failed->pointer, &computed, sizeof(computed)); // Simulated late copy.
+  CHECK(output == 0xdeadbeef);
+  auto* reused = slot.data();
+  std::memcpy(slot.data(), &computed, sizeof(computed));
+  REQUIRE(slot.complete(&output) == RNS8_SUCCESS);
+  CHECK(output == computed);
+  REQUIRE(slot.begin(3, sizeof(uint64_t)) == RNS8_SUCCESS);
+  CHECK(slot.data() == reused);
+  const uint64_t boundary = UINT64_MAX;
+  std::memcpy(slot.data(), &boundary, sizeof(boundary));
+  uint64_t wide = 0;
+  REQUIRE(slot.complete(&wide) == RNS8_SUCCESS);
+  CHECK(wide == boundary);
+  delete failed; // The existing completion owner, not the slot, authorizes this.
+  Ops::deferred[0] = nullptr;
+  Ops::deferred_count = 0;
+  CHECK(retained.expired());
+  try {
+    Slot unwinding(Ops::defer);
+    REQUIRE(unwinding.begin(4, 4) == RNS8_SUCCESS);
+    throw std::bad_alloc();
+  } catch (const std::bad_alloc&) {
+  }
+  REQUIRE(Ops::deferred_count == 1);
+  CHECK(Ops::deferred[0]->device_id == 4);
+  delete Ops::deferred[0];
+  Ops::deferred[0] = nullptr;
+  Ops::deferred_count = 0;
 }

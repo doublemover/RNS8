@@ -26,6 +26,7 @@
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
+#include "core/host_readback_slot.hpp"
 #include "core/internal.hpp"
 
 #include <algorithm>
@@ -292,6 +293,8 @@ rns8_status release_completed_buffers(int device_id, hip_deferred_buffer_cleanup
       auto status = RNS8_UNSUPPORTED_BACKEND;
       if (node->kind == hip_deferred_allocation_kind::device)
         status = hip_direct_free(device_id, node->pointer);
+      else if (node->kind == hip_deferred_allocation_kind::host_payload)
+        status = RNS8_SUCCESS; // Ordinary host storage is released with the record.
       else if (node->kind == hip_deferred_allocation_kind::library_handle)
         status =
             node->release_library_handle && node->release_library_handle(device_id, node->pointer)

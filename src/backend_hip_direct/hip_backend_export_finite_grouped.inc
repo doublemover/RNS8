@@ -160,8 +160,7 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_to_device(
   if (requires_status) {
     int host_status = 0;
     err = timed_hip_operation("exact_wide_export_status_d2h", [&]() {
-      return tracked_sync_copy(&host_status, *status_buffer, sizeof(host_status),
-                               hipMemcpyDeviceToHost);
+      return tracked_status_copy(device_id, &host_status, *status_buffer, sizeof(host_status));
     });
     if (err != hipSuccess) {
       return RNS8_BACKEND_FAILURE;

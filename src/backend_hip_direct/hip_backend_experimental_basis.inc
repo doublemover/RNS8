@@ -130,7 +130,7 @@ rns8_status hip_direct_basis_export(int device, const void* residues, void* outp
     return issued == hipSuccess ? hipDeviceSynchronize() : issued;
   });
   if (error != hipSuccess ||
-      tracked_sync_copy(host_status, flag, 4, hipMemcpyDeviceToHost) != hipSuccess)
+      tracked_status_copy(device, host_status, flag, sizeof(*host_status)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   return *host_status == 0                            ? RNS8_SUCCESS
          : *host_status == int(RNS8_INVALID_ARGUMENT) ? RNS8_INVALID_ARGUMENT
@@ -167,7 +167,7 @@ rns8_status hip_direct_basis_convert(int device, const void* source, void* outpu
     return issued == hipSuccess ? hipDeviceSynchronize() : issued;
   });
   if (error != hipSuccess ||
-      tracked_sync_copy(host_status, flag, 4, hipMemcpyDeviceToHost) != hipSuccess)
+      tracked_status_copy(device, host_status, flag, sizeof(*host_status)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   return *host_status == 0                            ? RNS8_SUCCESS
          : *host_status == int(RNS8_INVALID_ARGUMENT) ? RNS8_INVALID_ARGUMENT

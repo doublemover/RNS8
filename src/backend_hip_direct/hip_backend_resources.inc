@@ -139,6 +139,8 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
     return device_status;
   }
   const hipError_t err = timed_hip_operation("residue_d2h_sync", [&]() {
+    if (bytes <= HostReadbackSlot::capacity)
+      return tracked_status_copy(device_id, dst, src, bytes);
     return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToHost);
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;

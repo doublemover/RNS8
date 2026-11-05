@@ -40,6 +40,13 @@ uncertain completion keeps both allocations alive through deferred cleanup.
 This adds host ownership metadata to preparation, without another completion
 state machine. The new ownership controls await the combined validation batch.
 
+Internal scalar status/capability reads use a reusable eight-byte ordinary host
+slot. Success copies into the caller's status word; failure retires the owned
+destination through the same device drain, leaving the caller's word untouched.
+Pinned export staging likewise remains pending through its copy and retires on
+failure or unwinding. These changes do not establish real device-failure recovery
+or a measured performance improvement.
+
 Each token contains a unique prepared-instance identity and a nonwrapping epoch.
 `rns8_get_prepared_completion` accepts only the latest epoch of that instance.
 It reports the exact input generations, output generation and operation status.

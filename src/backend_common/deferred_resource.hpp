@@ -6,6 +6,7 @@ namespace rns8::detail {
 // requeue failed destruction without allocating or changing resource identity.
 enum class hip_deferred_allocation_kind {
   device,
+  host_payload,
   pinned_host,
   event,
   stream,

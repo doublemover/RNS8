@@ -1,6 +1,23 @@
 namespace {
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+hipError_t tracked_status_copy(int device_id, void* destination, const void* source,
+                               std::size_t bytes) {
+  if (!destination || !source)
+    return hipErrorInvalidValue;
+  const auto prepared = g_host_status_readback.begin(device_id, bytes);
+  if (prepared != RNS8_SUCCESS)
+    return prepared == RNS8_INTERNAL_ERROR ? hipErrorOutOfMemory : hipErrorInvalidValue;
+  const auto error =
+      tracked_sync_copy(g_host_status_readback.data(), source, bytes, hipMemcpyDeviceToHost);
+  if (error != hipSuccess) {
+    g_host_status_readback.fail();
+    return error;
+  }
+  return g_host_status_readback.complete(destination) == RNS8_SUCCESS ? hipSuccess
+                                                                      : hipErrorInvalidValue;
+}
+
 template <typename Fn>
 hipError_t timed_hip_operation(const char* label, Fn&& fn, hipStream_t stream = nullptr) {
   if (!hip_direct_timing_enabled()) {
@@ -208,12 +225,23 @@ hipError_t copy_compact_matrix_device_to_host(int device_id, const char* label, 
       pinned_export_staging_enabled(compact_bytes, dst_ld != cols, default_padded_staging)) {
     void* pinned = ensure_pinned_export_staging(device_id, compact_bytes);
     if (pinned) {
-      hipError_t err = timed_hip_operation(label, [&]() {
-        return tracked_sync_copy(pinned, src, compact_bytes, hipMemcpyDeviceToHost);
-      });
+      g_pinned_export_staging.mark_pending();
+      hipError_t err;
+      try {
+        err = timed_hip_operation(label, [&]() {
+          return tracked_sync_copy(pinned, src, compact_bytes, hipMemcpyDeviceToHost);
+        });
+      } catch (...) {
+        g_pinned_export_staging = hip_pinned_host_buffer{};
+        throw;
+      }
       if (err != hipSuccess) {
+        // Move replacement retires the preallocated pending record; TLS exit or
+        // a later export must not free or reuse an uncertain copy destination.
+        g_pinned_export_staging = hip_pinned_host_buffer{};
         return err;
       }
+      g_pinned_export_staging.mark_completed();
       const auto start = std::chrono::steady_clock::now();
       scatter_compact_host_matrix(dst, dst_ld, pinned, rows, cols, cell_bytes);
       const auto stop = std::chrono::steady_clock::now();
