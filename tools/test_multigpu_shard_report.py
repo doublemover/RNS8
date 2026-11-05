@@ -107,17 +107,23 @@ def main() -> int:
             target_status=[status_path],
             shards_dir=tmp / "shards",
         )
-        assert report["schema"] == "rns8_multigpu_shard_report_v1"
+        assert report["schema"] == "rns8_multigpu_shard_report_v2"
         assert report["env_summary_status"] == "present"
         assert report["capture_count"] == 4
         assert report["missing_ranks"] == []
         assert report["failed_ranks"] == []
         rows = {row["rank"]: row for row in report["rows"]}
         assert rows[0]["physical_device_id"] == 4
-        assert rows[0]["device_bdf"] == "0000:05:00.0"
+        assert rows[0]["device_bdf"] is None
+        assert rows[0]["expected_device_bdf"] == "0000:05:00.0"
         assert rows[3]["physical_device_id"] == 7
-        assert rows[3]["device_bdf"] == "0000:08:00.0"
-        assert multigpu_shard_report.report_has_critical_failures(report) is False
+        assert rows[3]["device_bdf"] is None
+        assert rows[3]["expected_device_bdf"] == "0000:08:00.0"
+        assert report["qualified_observation_count"] == 0
+        assert "capture_observation_unbound" in report["promotion_blockers"]
+        assert "observed_target_mismatch" in report["promotion_blockers"]
+        assert rows[0]["target_arch"] == _base_capture()["device"]["gcn_arch"]
+        assert multigpu_shard_report.report_has_critical_failures(report)
         outputs = multigpu_shard_report.write_outputs(report, tmp / "report")
         assert Path(outputs["json"]).exists()
         assert Path(outputs["markdown"]).exists()
@@ -187,7 +193,8 @@ def main() -> int:
         assert multigpu_shard_report.report_has_critical_failures(missing_env_report) is True
         missing_env_rows = {row["rank"]: row for row in missing_env_report["rows"]}
         assert missing_env_rows[0]["physical_device_id"] == 4
-        assert missing_env_rows[0]["device_bdf"] == "0000:05:00.0"
+        assert missing_env_rows[0]["device_bdf"] is None
+        assert missing_env_rows[0]["expected_device_bdf"] == "0000:05:00.0"
 
     print("multi-GPU shard report self-test: PASS")
     return 0

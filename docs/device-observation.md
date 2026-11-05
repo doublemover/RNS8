@@ -37,9 +37,41 @@ ordinal and every available identifier; missing, changed or failed observations
 remain explicitly unavailable/changed. Serialization preserves raw UUID bytes
 as fixed hexadecimal, without changing the output stream's number format.
 
-This source slice supplies native observations. Session visibility mapping and
-the standalone multi-GPU reporter still need to consume and bind these records
-to their exact capture/execution/artifact and rank/case receipts under #96.
-Filesystem names and launcher intent must not overwrite contradictory runtime
-observations. Hardware validation of these new query/witness paths is deferred
-to the final batch.
+The session runner records the launched process ID and a bounded mapping
+environment for every command. An unmasked parent inspection selects the
+requested parent ordinal; the isolated child and benchmark observe ordinal
+zero. Their architecture, device name, runtime/driver, memory size and every
+common available native identifier must agree. Different selected parent
+ordinals require distinguishable execution-device identities. UUIDs permit
+distinct partitions sharing one PCI function; BDF-only observations cannot
+establish that distinction. Inadequate identifiers remain unknown, and cannot
+complete multi-device qualification.
+
+The standalone reporter consumes the existing session's immutable manifest,
+results, raw stdout, binary identities and capture files. Creating its binding
+receipts performs no GPU work:
+
+    python tools/multigpu_observation.py --session-manifest temp/SESSION/manifest.json --session-results temp/SESSION/results.json --out-dir temp/SESSION/observations
+    python tools/multigpu_shard_report.py --observation-dir temp/SESSION/observations --out-dir temp/SESSION/report
+
+Use the actual manifest/results filenames produced by the session. The first
+output directory must be fresh. Receipts are content-bound associations, not
+signatures or proof of trust against deliberate replacement of every input.
+Both emission and reporting reopen the raw inputs, verify artifact hashes and
+compiled identities, and require their actual process IDs, arguments,
+visibility, rank/world and runtime observations to agree. The reporter retains
+launcher intent separately from observed fields. It never uses a filename,
+status label or generic management-tool UUID to invent a HIP observation.
+
+Report schema v2 marks legacy, missing or contradictory bindings unqualified
+and returns a critical exit decision. Complete case IDs and shared exact-work
+contracts—including seed, input profile, modulus and output semantics—partition
+checksum comparisons. One case label cannot change work across ranks. Missing
+cases/ranks, copied executions and within-case checksum differences remain
+critical. Explicit dry runs remain plans. These smoke reports always retain
+nonpromotion status; device association does not establish numerical correctness,
+release qualification or a performance gain.
+
+Native query/witness and authored loader/report regression execution are
+deferred to the final validation batch. No new multi-GPU hardware result is
+claimed.

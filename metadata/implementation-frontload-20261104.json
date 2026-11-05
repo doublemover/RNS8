@@ -858,13 +858,12 @@
       "url": "https://github.com/doublemover/RNS8/issues/96",
       "requirements_sha256": "d055f689810308f25b2be643f71dfe155cafb7aa77d1a36ec4fdd89d38877543",
       "comments_reviewed": 0,
-      "implementation_status": "in_progress",
+      "implementation_status": "source_written_pending_batch_validation",
       "completed_slices": [
-        "Public process-local HIP PCI-BDF/opaque-UUID inquiry with transactional preflight, explicit availability and native status; canonical CPU-observable validation; inspector snapshots and benchmark before/after witness outside timing; native-query error cleanup and CPU/real-HIP test source authored"
+        "Public process-local HIP PCI-BDF/opaque-UUID inquiry with transactional preflight, explicit availability and native status; canonical CPU-observable validation; inspector snapshots and benchmark before/after witness outside timing; native-query error cleanup and CPU/real-HIP test source authored",
+        "Bind actual launched query/inspection/benchmark process IDs, isolated visibility and rank/world environment to raw session manifests/results, immutable executable identities and capture bytes. Reuse shared evidence-store bookends and exact-work contracts in versioned observation receipts; separate native observations from expected labels in standalone reporter v2; reject unknown/stale/contradictory/copied associations and per-case contract changes. Author four-rank seed/modulus, checksum, environment, artifact/PID/target/availability and inventory regression source; register final-batch tests and document the offline adapter. Static checks only; no fixture or hardware execution."
       ],
-      "remaining_source_items": [
-        "Bind runtime snapshots/witnesses to actual session visibility, rank/case, request and artifact records; reject contradictory/copied/missing observations in legacy multi-GPU reporter and use complete exact-work/case identity for checksum groups; add real-loader positive/negative fixtures"
-      ]
+      "remaining_source_items": []
     },
     {
       "issue": 97,

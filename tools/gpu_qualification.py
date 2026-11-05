@@ -22,10 +22,12 @@ from pathlib import Path
 from process_progress import run_capture
 from session_artifacts import load_inventory, inspect_cache, stage_cache
 from check_dependencies_lib.resolution import Request, REQUEST_KEYS, resolve
-from session_environment import build_environment, execution_blockers, isolated_environment, snapshot
+from session_environment import build_environment, execution_blockers, isolated_environment, snapshot, runtime_mapping_snapshot
 from compiled_binary_identity import validate_document, bind_document
 from json_evidence import parse_evidence_json
 from benchmark_request import request_identity, attach_capture_identity
+from device_observation import (IdentityUnavailable, IdentityMismatch, inspection_observation,
+    observation_relation, capture_relation, distinct_execution_devices, inspection_relation, binding_identifiers)
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKENDS = ("hip-direct", "amdgpu-builtins", "hipblaslt", "ck", "rocwmma")
@@ -113,12 +115,14 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
             for device in devices:
                 add(f"{prefix}-device{device}-parent-inspect", [binary("rns8-inspect"), "--backend", backend,
                     "--device", str(device), "--json"], inspect_target=arch, inspect_backend=backend,
-                    inspect_device=device, parent_inspect=True, device=None, selected_device=device)
+                    inspect_device=device, parent_inspect=True, device=None, selected_device=device,
+                    require_physical_identity=len(devices) > 1)
                 child = device_command_plan(backend, device, arch, binary, python, wrapper, build,
                     out, session_kind, stage_prefix=prefix, full_tests=backend_index == 0)
                 for name, argv, checks in child:
+                    checks["require_physical_identity"] = len(devices) > 1
                     if "capture" in checks:
-                        checks.update(expected_target=arch, expected_backend=backend)
+                        checks.update(expected_target=arch, expected_backend=backend, case_id=prefix+":"+checks["case_id"])
                     add(name, argv, device=device, selected_device=device, **checks)
     return commands
 
@@ -156,7 +160,8 @@ def device_command_plan(backend, device, arch, binary, python, wrapper, build, o
             capture = out / f"{stem}-{name}.json"
             add(name, [binary("rns8-bench"), "--backend", backend, "--semantics", semantics,
                 "--m", "32", "--n", "32", "--k", "64", "--warmups", "1", "--repeats", "3",
-                "--seed", "20261006", "--cpu-threads", "1", "--device", "0", "--verify-native-output", "--progress", *extra], capture=str(capture))
+                "--seed", "20261006", "--cpu-threads", "1", "--device", "0", "--verify-native-output", "--progress", *extra], capture=str(capture),
+                case_id=name, observation_parent_stage=stem+"-parent-inspect", observation_child_stage=stem+"-inspect")
             add(name + "-schema", [python, "tools/benchmark_schema.py", str(capture)])
     if backend == "hip-direct" and session_kind != "smoke":
             # Existing graph capture, not the removed dead global graph helpers.
@@ -164,7 +169,8 @@ def device_command_plan(backend, device, arch, binary, python, wrapper, build, o
             capture = out / f"{stem}-{name}.json"
             add(name, [binary("rns8-bench"), "--backend", "hip-direct", "--semantics", "bounded-i64",
                 "--m", "32", "--n", "32", "--k", "64", "--hip-graph-replay",
-                "--warmups", "1", "--repeats", "3", "--seed", "20261006", "--device", "0", "--progress"], capture=str(capture))
+                "--warmups", "1", "--repeats", "3", "--seed", "20261006", "--device", "0", "--progress"], capture=str(capture),
+                case_id=name, observation_parent_stage=stem+"-parent-inspect", observation_child_stage=stem+"-inspect")
             add(name + "-schema", [python, "tools/benchmark_schema.py", str(capture)])
     return commands
 
@@ -176,13 +182,16 @@ def validate_result(item: dict, result: dict, parent_info: dict | None = None) -
     if item.get("compiled_identity"):
         try:
             value = parse_evidence_json(result["stdout"])
+            if (isinstance(value, dict) and (value.get("process_id") is not None or result.get("process_id") is not None)
+                    and (type(value.get("process_id")) is not int or value["process_id"] != result.get("process_id"))):
+                raise ValueError("compiled query JSON belongs to another process")
             for backend in item["identity_backends"]:
                 validate_document(value, backend)
         except (ValueError, TypeError, KeyError):
             errors.append("compiled executable/library identity is missing or incompatible")
     if "inspect_target" in item:
         try:
-            info = json.loads(result["stdout"])
+            info = parse_evidence_json(result["stdout"])
             if info.get("gcn_arch", "").split(":")[0] != item["inspect_target"]:
                 errors.append("runtime GPU target does not match the manifest")
             if info.get("backend") != item["inspect_backend"]:
@@ -196,6 +205,20 @@ def validate_result(item: dict, result: dict, parent_info: dict | None = None) -
                 errors.append("runtime ordinal does not match the explicitly selected inspection ordinal")
             if not isinstance(info.get("name"), str) or not info["name"].strip():
                 errors.append("runtime GPU name is missing")
+            if info.get("process_id") is not None or result.get("process_id") is not None or item.get("require_physical_identity"):
+                if type(info.get("process_id")) is not int or info["process_id"] <= 0 or info["process_id"] != result.get("process_id"):
+                    errors.append("runtime inspection JSON does not belong to the launched process")
+            try:
+                observed = inspection_observation(info)
+                if "match_parent" in item:
+                    relation = observation_relation(inspection_observation(parent_info), observed)
+                    if relation.state != "verified":
+                        errors.append("physical runtime device mapping is " + relation.state + ": " + ",".join(relation.reasons))
+            except IdentityUnavailable:
+                if item.get("require_physical_identity"):
+                    errors.append("runtime physical device identity is unavailable")
+            except IdentityMismatch as error:
+                errors.append("runtime physical device identity is contradictory: " + str(error))
             if "match_parent" in item:
                 if parent_info is None:
                     errors.append("parent runtime inspection is missing")
@@ -337,7 +360,8 @@ def resume_results(out: Path, manifest: dict) -> list[dict]:
 def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool = False,
                  runner=run_capture, clock=time.monotonic) -> int:
     results = resume_results(out, manifest) if resume else []
-    inspections = {row["name"]: json.loads(row["stdout"]) for row in results if row.get("parent_inspect")}
+    inspections = {row["name"]: parse_evidence_json(row["stdout"]) for row in results
+                   if row.get("parent_inspect") or row.get("runtime_inspection")}
     started = clock()
     # Include interrupted/failed work and checkpoint overhead in the same
     # session budget; removing a failed suffix must not reset its consumed time.
@@ -347,12 +371,20 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
     reserve = manifest["budgets"]["export_reserve_seconds"]
 
     def checkpoint(status, error=None):
+        observations = [row["device_binding"] if isinstance(row.get("device_binding"), dict) else {} for row in results
+                        if row.get("runtime_inspection") or row.get("capture_observation")]
+        expected = sum("inspect_target" in item or "capture" in item for item in manifest["commands"])
+        physical_verified = (expected > 0 and len(results) == len(manifest["commands"]) and
+            len(observations) == expected and all(item.get("state") in ("observed", "verified") for item in observations) and
+            not any(row.get("validation_errors") for row in results))
         write_json(out / "results.json", {"schema": "rns8_gpu_session_results_v2", "status": status,
             "promotion_allowed": False, "manifest_identity_sha256": manifest["identity_sha256"],
             "run_id": run_id,
-            "physical_identity_verified": False, "hardware_qualified": False,
-            "observed_parent_runtime_devices": [{"stage": name, **info, "pci_bdf": None, "physical_uuid": None}
-                                                for name, info in inspections.items()],
+            "physical_identity_verified": physical_verified, "hardware_qualified": False,
+            "observed_parent_runtime_devices": [{"stage": row["name"], **inspections[row["name"]],
+                "pci_bdf": binding_identifiers(row.get("device_binding"))["pci_bdf"],
+                "physical_uuid": binding_identifiers(row.get("device_binding"))["uuid"]}
+                for row in results if row.get("parent_inspect") and row["name"] in inspections],
             "completed": len(results), "planned": len(manifest["commands"]),
             "runner_error": error,
             "elapsed_seconds": prior_elapsed + clock() - started, "results": results})
@@ -393,6 +425,25 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
                 (out / f"{item['name']}.{stream}.log").write_text(result[stream], encoding="utf-8")
             errors = validate_result(item, result, inspections.get(item.get("match_parent")))
             binary_identity = None
+            device_binding = None
+            if "inspect_target" in item and not errors:
+                try:
+                    inspected = parse_evidence_json(result["stdout"])
+                    device_binding = inspection_relation(inspected, inspections.get(item.get("match_parent")))
+                    if item.get("parent_inspect"):
+                        current = inspection_observation(inspected)
+                        for earlier in results:
+                            if not earlier.get("parent_inspect") or earlier.get("selected_runtime_ordinal") == item.get("selected_device"):
+                                continue
+                            previous = inspection_observation(inspections[earlier["name"]])
+                            if not distinct_execution_devices(current, previous):
+                                errors.append("selected parent ordinals have duplicate or ambiguous observed execution-device identities")
+                                break
+                except IdentityUnavailable as error:
+                    device_binding = dict(state="unavailable", reasons=[str(error)])
+                except IdentityMismatch as error:
+                    device_binding = dict(state="mismatch", reasons=[str(error)])
+                    errors.append("runtime device observations are contradictory")
             if item.get("compiled_identity") and not errors:
                 try:
                     identity_output = ROOT / item["identity_output"]
@@ -406,6 +457,9 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
                     capture = parse_evidence_json(result["stdout"])
                     if not isinstance(capture, dict):
                         raise ValueError("benchmark output is not an object")
+                    if (type(capture.get("process_id")) is not int or capture["process_id"] <= 0
+                            or capture["process_id"] != result.get("process_id")):
+                        raise ValueError("benchmark JSON does not belong to the launched process")
                     if capture_request["executable_sha256"] != identity_before:
                         raise ValueError("benchmark executable changed before launch")
                     attach_capture_identity(capture, capture_request, executable, execution_id=str(uuid.uuid4()))
@@ -416,14 +470,28 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
                     if (str(device.get("gcn_arch", "")).split(":")[0] != item.get("expected_target")
                             or capture.get("backend_requested") != item.get("expected_backend")):
                         raise ValueError("benchmark runtime target/backend differs from session request")
+                    try:
+                        device_binding = capture_relation(capture, inspections.get(item.get("observation_parent_stage")),
+                                                          inspections.get(item.get("observation_child_stage")))
+                        if device_binding["state"] != "verified":
+                            raise IdentityMismatch("capture differs from selected parent/child observations")
+                    except IdentityUnavailable as error:
+                        device_binding = dict(state="unavailable", reasons=[str(error)])
+                        if item.get("require_physical_identity"):
+                            raise ValueError("capture runtime device association is unavailable") from error
                     write_json(ROOT / item["capture"], capture)
                 except (OSError, ValueError, TypeError, KeyError):
-                    errors.append("benchmark capture has invalid schema, artifact, target or request association")
-            if item.get("parent_inspect") and not errors:
-                inspections[item["name"]] = json.loads(result["stdout"])
+                    errors.append("benchmark capture has invalid schema, artifact, process, target, device or request association")
+            if "inspect_target" in item and not errors:
+                inspections[item["name"]] = parse_evidence_json(result["stdout"])
             artifacts = artifact_records(item, out)
             results.append({"name": item["name"], **result, "parent_inspect": item.get("parent_inspect", False),
-                            "selected_runtime_ordinal": item.get("selected_device"), "physical_uuid": None, "pci_bdf": None,
+                            "selected_runtime_ordinal": item.get("selected_device"),
+                            "physical_uuid": binding_identifiers(device_binding)["uuid"],
+                            "pci_bdf": binding_identifiers(device_binding)["pci_bdf"],
+                            "runtime_inspection": "inspect_target" in item, "capture_observation": "capture" in item,
+                            "device_binding": device_binding,
+                            "execution_environment": runtime_mapping_snapshot(child),
                             "compiled_binary_identity": binary_identity,
                             "fresh_evidence_outputs": {str(path): artifacts[str(path)] for path in fresh_outputs if str(path) in artifacts},
                             "validation_errors": errors, "artifacts": artifacts})

@@ -8,6 +8,7 @@ VISIBILITY_KEYS = ("HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_OR
 OVERRIDE_KEYS = ("HSA_OVERRIDE_GFX_VERSION", "HSA_XNACK", "HSA_ENABLE_SDMA")
 PATH_KEYS = ("ROCM_PATH", "HIP_PATH", "HIP_CLANG_PATH", "HIP_DEVICE_LIB_PATH", "LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH")
 ALLOWLIST = (*VISIBILITY_KEYS, *OVERRIDE_KEYS, *PATH_KEYS, "OMP_NUM_THREADS", "SLURM_JOB_ID", "SLURM_STEP_ID")
+RUNTIME_MAPPING_KEYS = (*VISIBILITY_KEYS, "RNS8_RANK", "RNS8_WORLD_SIZE", "RNS8_MULTI_GPU_MODE")
 BUILD_ENV_KEYS = ("PATH", "HOME", "USERPROFILE", "TMP", "TEMP", "TMPDIR", "SystemRoot", "SYSTEMROOT",
                   "COMSPEC", "PATHEXT", "ProgramFiles", "ProgramFiles(x86)", "ProgramData", "LOCALAPPDATA",
                   "INCLUDE", "LIB", "LIBPATH", "VSINSTALLDIR", "VCINSTALLDIR", "VCToolsInstallDir",
@@ -26,6 +27,10 @@ def safe_value(value: str | None) -> str | None:
 
 def snapshot(environment: Mapping[str, str]) -> dict[str, str | None]:
     return {key: safe_value(environment.get(key)) for key in ALLOWLIST}
+
+
+def runtime_mapping_snapshot(environment: Mapping[str, str]) -> dict[str, str | None]:
+    return {key: safe_value(environment.get(key)) for key in RUNTIME_MAPPING_KEYS}
 
 
 def execution_blockers(environment: Mapping[str, str]) -> list[str]:

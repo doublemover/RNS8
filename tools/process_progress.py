@@ -26,7 +26,7 @@ def run_capture(
                                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
     except OSError as exc:
         return {"command": command, "returncode": None, "timed_out": False,
-                "elapsed_seconds": time.monotonic() - start, "stdout": "", "stderr": str(exc)}
+                "process_id": None, "elapsed_seconds": time.monotonic() - start, "stdout": "", "stderr": str(exc)}
     def stop_process_tree():
         if os.name == "nt":
             subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
@@ -62,4 +62,4 @@ def run_capture(
     state = "TIMEOUT" if timed_out else f"exit={process.returncode}"
     print(f"[{label}] {state} elapsed={elapsed:.1f}s", file=sys.stderr, flush=True)
     return {"command": command, "returncode": process.returncode, "timed_out": timed_out,
-            "elapsed_seconds": elapsed, "stdout": stdout, "stderr": stderr}
+            "process_id": process.pid, "elapsed_seconds": elapsed, "stdout": stdout, "stderr": stderr}

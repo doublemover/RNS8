@@ -4,6 +4,7 @@
 #include <ostream>
 
 #include "rns8/public_abi.h"
+#include "tool_common/process_identity.hpp"
 
 namespace rns8::tools {
 
@@ -16,7 +17,8 @@ inline int emit_build_identity(int argc, char** argv, std::ostream& output) {
   library.abi_version = RNS8_ABI_VERSION;
   if (rns8_get_public_abi_info(&library) != RNS8_SUCCESS ||
       !library.declaration_sha256) return 2;
-  output << "{\"schema\":\"rns8_compiled_binary_identity_v1\",\"build_manifest\":";
+  output << "{\"schema\":\"rns8_compiled_binary_identity_v1\",\"process_id\":" << process_id()
+         << ",\"build_manifest\":";
 #ifdef RNS8_BUILD_MANIFEST_JSON
   output << RNS8_BUILD_MANIFEST_JSON;
 #else

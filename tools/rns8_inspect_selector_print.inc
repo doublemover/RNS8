@@ -86,6 +86,7 @@ void print_json(
     bool selector_shadow) {
   std::cout << "{\n";
   std::cout << "  \"backend\": \"" << backend_name(info.backend) << "\",\n";
+  std::cout << "  \"process_id\": " << rns8::tools::process_id() << ",\n";
   std::cout << "  \"device_id\": " << info.device_id << ",\n";
   std::cout << "  \"runtime_device_identity\": ";
   rns8::tools::print_device_identity(std::cout,
