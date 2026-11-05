@@ -2286,7 +2286,8 @@ RNS8_API rns8_status rns8_gemm_encoded_b_grouped(rns8_context* ctx,
 /** Experimental direct-HIP native WMMA group. Explicit opt-in, never AUTO.
  * Every child is an existing exact-wide prepared GEMM with retained native inputs.
  * Preparation binds matrix instances/generations, layouts and optional encoded B.
- * Schedule: 0 explicit round-robin, 1 task-major, 2 compact round-robin.
+ * Schedule: 0 explicit round-robin, 1 task-major, 2 compact fair scan,
+ * 3 explicit fair bitmap rank/select candidate (extra directory bytes charged).
  * ordinary_grid_control launches the SAME native/encoded representation per task.
  * max_metadata_bytes charges old + replacement device descriptors at preparation.
  */

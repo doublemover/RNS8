@@ -33,7 +33,7 @@ struct TaskStorage {
 json run(const json& input,const std::string& mode,const std::string& run_id) {
   need(input.size()==10,"unknown case controls");
   need(input.at("schema")=="native_queue_case_v1","unknown case ABI");
-  need(mode=="explicit"||mode=="task-major"||mode=="fair"||mode=="ordinary","unknown schedule");
+  need(mode=="explicit"||mode=="task-major"||mode=="fair"||mode=="rank-select"||mode=="ordinary","unknown schedule");
   need(!run_id.empty()&&run_id.size()<=128&&run_id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")==std::string::npos,"invalid run ID");
   const auto workers=number(input,"workers",1,1024),chunk=number(input,"chunk",1,32);
   const auto reuse=number(input,"reuse",1,256),repeats=number(input,"repeats",3,1000),warmups=number(input,"warmups",1,1000);
@@ -85,7 +85,7 @@ json run(const json& input,const std::string& mode,const std::string& run_id) {
   }oracle_ns+=ns(start);};
   reference();
   const auto audit=[&](){for(auto& s:storage){check(hip_direct_copy_device_to_host(0,s.actual.data(),s.c.get(),s.actual.size()));need(s.actual==s.expected,"exact residue/padding/extra-plane mismatch");checked_cells+=s.actual.size();}};
-  NativeWmmaScheduleConfig config{1,mode=="task-major"?NativeWmmaScheduleMode::task_major:mode=="fair"?NativeWmmaScheduleMode::compact_round_robin:NativeWmmaScheduleMode::explicit_round_robin,chunk};
+  NativeWmmaScheduleConfig config{1,mode=="task-major"?NativeWmmaScheduleMode::task_major:mode=="fair"?NativeWmmaScheduleMode::compact_round_robin:mode=="rank-select"?NativeWmmaScheduleMode::ranked_round_robin:NativeWmmaScheduleMode::explicit_round_robin,chunk};
   uint64_t build_ns=0,upload_bytes=0,plan_capacity=0;uint32_t work=0;
   {NativeWmmaSchedulePlan plan;auto start=Clock::now();check(build_native_wmma_schedule(tasks,workers,budget,config,plan));build_ns=ns(start);upload_bytes=plan.device_bytes-4;plan_capacity=plan.transient_host_capacity_bytes();work=plan.header.work_count;}
   NativeWmmaPreparedQueue queue;auto start=Clock::now();check(queue.prepare(0,tasks,workers,budget,config));const auto prepare_ns=ns(start);
@@ -123,7 +123,9 @@ json run(const json& input,const std::string& mode,const std::string& run_id) {
   json events=json::array(); // explicit event instrumented companion, not host production sample
   hip_direct_timing_set_enabled(true);hip_direct_timing_reset();invoke();hip_direct_timing_set_enabled(false);audit();
   for(const auto& event:hip_direct_timing_snapshot())events.push_back({{"phase",event.label},{"microseconds",event.microseconds}});
-  return {{"schema","rns8_native_queue_microcase_v1"},{"promotion_eligible",false},{"run_id",run_id},{"case",input},{"schedule",mode},
+  const auto actual_schedule=queue.schedule_header();
+  const uint64_t rank_directory_bytes=actual_schedule.mode==3?uint64_t(actual_schedule.phase_count-1)*actual_schedule.reserved1*4:0;
+  return {{"decoder_layout",{{"abi_version",actual_schedule.abi_version},{"phase_count",actual_schedule.phase_count},{"rank_directory_bytes",rank_directory_bytes}}},{"schema","rns8_native_queue_microcase_v1"},{"promotion_eligible",false},{"run_id",run_id},{"case",input},{"schedule",mode},
     {"schedule_identity",mode=="ordinary"?"ordinary_grids_same_preparation":native_wmma_schedule_identity(config.mode)},
     {"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",device.gcn_arch},{"device_name",device.name},{"hip_runtime_version",device.hip_runtime_version},{"hip_driver_version",device.hip_driver_version},
     {"input_recipe","fullwidth_seed3838_boundary_first_mutate_xor_generation_v1"},{"initial_input_checksum",std::to_string(checksum)},
@@ -141,7 +143,7 @@ json run(const json& input,const std::string& mode,const std::string& run_id) {
 }
 int main(int argc,char** argv) {
   try {
-    if(argc==2&&std::string(argv[1])=="--help"){std::cout<<"rns8-queue-calibrate CASE.json explicit|task-major|fair|ordinary UNIQUE_RUN_ID\n";return 0;}
+    if(argc==2&&std::string(argv[1])=="--help"){std::cout<<"rns8-queue-calibrate CASE.json explicit|task-major|fair|rank-select|ordinary UNIQUE_RUN_ID\n";return 0;}
     need(argc==4,"expected CASE.json MODE RUN_ID");std::ifstream file(argv[1]);need(bool(file),"cannot open case");json input;file>>input;
     std::cout<<run(input,argv[2],argv[3]).dump()<<'\n';return 0;
   }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

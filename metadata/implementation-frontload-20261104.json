@@ -243,10 +243,12 @@
       "comments_reviewed": 3,
       "implementation_status": "in_progress",
       "completed_slices": [
-        "Prepare native unique-reader/multiplicity tables and retained proof-array shells before replacement publication. A stack-scoped admission capability validates each actual borrowed stream once per batch while preserving per-child mutable proof/epoch/reservation checks and existing events. Metadata charges retained table/proof objects; host mock overflow, shared-reader and stream-admission fixtures authored."
+        "Prepare native unique-reader/multiplicity tables and retained proof-array shells before replacement publication. A stack-scoped admission capability validates each actual borrowed stream once per batch while preserving per-child mutable proof/epoch/reservation checks and existing events. Metadata charges retained table/proof objects; host mock overflow, shared-reader and stream-admission fixtures authored.",
+        "Add explicit fair rank/select mode3 with header ABI2, preserving old fair-scan controls. Equal-count phases select directly without directory storage; sparse phases use binary prefix-rank selection plus five bit subdivisions. Canonical admission, uploads and physical host/device peak accounting include O(phases*tasks) directory bytes. Authored exact sequence/corruption/budget/CPU work diagnostics and extended raw/public GPU differentials; compact512/4096 equal/skew and public64 shared-B controls, selected decoder identities and independent shared Python resource accounting are ready."
       ],
       "remaining_source_items": [
-        "Review compact rank/select device directory rescans and finish grouped host-control diagnostic counters in the existing public queue calibrator; preserve separate child event controls."
+        "Preserve signedness/group/encoded-B specialization for homogeneous native queues and keep an explicit generic control.",
+        "Finish opt-in grouped host-control query/proof/event diagnostic counters in the existing public queue calibrator."
       ]
     },
     {
@@ -458,7 +460,8 @@
       "completed_slices": [
         "Default and indexed dense matrix entry points share architecture-specific inlined bodies and common store/batch admission helpers; default kernel signatures and arithmetic are preserved",
         "Authored malformed-packet preflight controls and exact GPU differential controls for reordered moduli, 48 batches, padding, K65536 and both submission modes; HIP host/gfx1100 device syntax passed, runtime deferred",
-        "Share exact-range algorithms across real matrices and compact metadata-only proof values; reuse the same axis/limb memory accounting for prepared and graph certificates rather than copying matrix resource owners into proof propagation."
+        "Share exact-range algorithms across real matrices and compact metadata-only proof values; reuse the same axis/limb memory accounting for prepared and graph certificates rather than copying matrix resource owners into proof propagation.",
+        "Share independent physical native-queue schedule metadata accounting between private/public collectors, including sparse rank directory size and versioned identities; bounded catalog record repetition avoids checked-in expanded task arrays."
       ],
       "remaining_source_items": []
     },

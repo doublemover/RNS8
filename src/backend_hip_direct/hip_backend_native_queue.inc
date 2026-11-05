@@ -41,8 +41,9 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
   auto* device_work=config.mode==NativeWmmaScheduleMode::explicit_round_robin?reinterpret_cast<NativeWmmaWork*>(payload):nullptr;
   auto* ranges=device_work?nullptr:reinterpret_cast<NativeWmmaTaskRange*>(payload);
   auto* phases=device_work?nullptr:reinterpret_cast<NativeWmmaRoundPhase*>(ranges+schedule.ranges.size());
+  auto* rank_directory=device_work?nullptr:reinterpret_cast<uint32_t*>(phases+schedule.phases.size());
   auto* cursor=device_work?reinterpret_cast<uint32_t*>(device_work+schedule.explicit_work.size()):
-      reinterpret_cast<uint32_t*>(phases+schedule.phases.size());
+      rank_directory+schedule.rank_directory.size();
   storage.mark_pending();
   auto error = timed_hip_operation("native_queue_prepare_capability", [&]() {
     const auto launch = static_cast<hipError_t>(rns8_hip_native_wmma_capability(reinterpret_cast<int*>(cursor)));
@@ -63,6 +64,8 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
       upload=tracked_sync_copy(ranges,schedule.ranges.data(),schedule.ranges.size()*sizeof(NativeWmmaTaskRange),hipMemcpyHostToDevice);
     if(upload==hipSuccess && !schedule.phases.empty())
       upload=tracked_sync_copy(phases,schedule.phases.data(),schedule.phases.size()*sizeof(NativeWmmaRoundPhase),hipMemcpyHostToDevice);
+    if(upload==hipSuccess && !schedule.rank_directory.empty())
+      upload=tracked_sync_copy(rank_directory,schedule.rank_directory.data(),schedule.rank_directory.size()*sizeof(uint32_t),hipMemcpyHostToDevice);
     return upload == hipSuccess ? hipDeviceSynchronize() : upload;
   });
   if (error != hipSuccess){if(hipDeviceSynchronize()==hipSuccess)storage.mark_completed();return RNS8_BACKEND_FAILURE;}

@@ -71,7 +71,7 @@ template<class T> void check_public_native_group() {
       REQUIRE(rns8_get_native_group_locality_info(group,&info)==RNS8_SUCCESS);CHECK(info.requested_order==order);CHECK(info.permutation_fingerprint==fingerprint);
       local.schedule_mode=2;CHECK(rns8_prepare_native_group_locality(group,&local,bindings,2,&layout)==RNS8_INVALID_ARGUMENT);
     }
-    for(uint32_t mode=0;mode<3;++mode)for(bool ordinary:{false,true}) {
+    for(uint32_t mode=0;mode<4;++mode)for(bool ordinary:{false,true}) {
       desc.schedule_mode=mode;desc.ordinary_grid_control=ordinary;
       REQUIRE(rns8_prepare_native_group(group,&desc,bindings,2)==RNS8_SUCCESS);
       if(encoded){CHECK(rns8_destroy_encoded_b(cache)==RNS8_BUSY);

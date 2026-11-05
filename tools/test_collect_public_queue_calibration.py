@@ -8,9 +8,18 @@ import unittest
 from collect_public_queue_calibration import collection_plan, counts, validate_case, validate_capture
 from native_locality_contract import public_contract as locality_contract
 from test_capture_identity_support import synthetic_identity
+from native_queue_schedule_contract import IDENTITIES as SCHEDULE_IDENTITIES
 
 
 class PublicQueueCollection(unittest.TestCase):
+    def test_ranked_public_capture_requires_actual_selected_schedule_identity(self):
+        c,e=self.fixture();e['case']['schedule']=3
+        _,metadata,_,_=counts(e['case']);c['metadata']['device_bytes']=metadata;c['metadata']['preparation_peak_device_bytes']=metadata
+        with self.assertRaises(ValueError):validate_capture(c,e)
+        c['metadata'].update(schedule_mode=3,schedule_identity=SCHEDULE_IDENTITIES[3])
+        self.assertEqual(validate_capture(c,e),c)
+        c['metadata']['schedule_mode']=2
+        with self.assertRaises(ValueError):validate_capture(c,e)
     def case(self):
         return dict(schema='public_native_group_case_v1', mode='persistent', input_policy='resident', encoded_b=True,
                     schedule=2, chunk=4, workers=8, reuse=4, warmups=3, repeats=9, seed=3838, padding=3,

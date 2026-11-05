@@ -40,14 +40,22 @@ def expand_value(value, depth=0):
             raise ValueError("invalid record layouts")
         output = []
         for row in rows:
-            if not row or type(row[0]) is not int or not 0 <= row[0] < len(layouts):
+            repeat = 1
+            if isinstance(row, dict):
+                if set(row) != {'repeat', 'row'} or type(row['repeat']) is not int or not 1 <= row['repeat'] <= 4096:
+                    raise ValueError('invalid bounded record repetition')
+                repeat, row = row['repeat'], row['row']
+            if len(output) + repeat > 100000:
+                raise ValueError('expanded record count exceeds limit')
+            if not isinstance(row,list) or not row or type(row[0]) is not int or not 0 <= row[0] < len(layouts):
                 raise ValueError("invalid record layout index")
             keys = layouts[row[0]]
             columns = [key for key in keys if key not in defaults]
             if len(row) != len(columns) + 1:
                 raise ValueError("invalid table row")
             fields = {**defaults, **dict(zip(columns, row[1:]))}
-            output.append({key: expand_value(fields[key], depth + 1) for key in keys})
+            for _ in range(repeat):
+                output.append({key: expand_value(fields[key], depth + 1) for key in keys})
         return output
     return {key: expand_value(item, depth + 1) for key, item in value.items()}
 

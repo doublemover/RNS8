@@ -3,6 +3,7 @@
 #include "core/internal.hpp"
 #include "core/hip_resources.hpp"
 #include "backend_common/native_wmma_queue.hpp"
+#include "backend_common/native_wmma_schedule.hpp"
 static_assert(sizeof(rns8::detail::NativeWmmaTask)==104,"public queue capture ABI requires 64-bit pointer layout");
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -59,7 +60,7 @@ int main(int argc,char** argv){try{
   need(policy=="resident" || policy=="mutated-b","input policy");
   need(config.at("encoded_b").is_boolean(),"encoded B must be bool");const bool encoded=config.at("encoded_b");
   need(mode!="resident" || !encoded,"resident RNS control does not consume encoded B");
-  const uint32_t schedule=number(config,"schedule",0,2),chunk=number(config,"chunk",1,32),workers=number(config,"workers",1,1024),
+  const uint32_t schedule=number(config,"schedule",0,3),chunk=number(config,"chunk",1,32),workers=number(config,"workers",1,1024),
       reuse=number(config,"reuse",1,64),warmups=number(config,"warmups",1,1000),repeats=number(config,"repeats",3,1000),seed=number(config,"seed",0,UINT32_MAX),padding=number(config,"padding",0,64);
   const bool locality_enabled=config.contains("locality_order");const std::string locality_order=config.value("locality_order",std::string("ordinary"));
   need(!locality_enabled || (!schedule && (mode=="persistent" || mode=="graph") &&
@@ -176,7 +177,7 @@ int main(int argc,char** argv){try{
   }
   rns8_device_info device{};device.struct_size=sizeof(device);device.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(owner.ctx,&device));
   json metadata=nullptr;if(mode!="resident"){rns8_native_group_info info{sizeof(info),RNS8_ABI_VERSION};check(rns8_get_native_group_info(owner.group,&info));
-    metadata={{"tasks",info.task_count},{"work",info.work_count},{"device_bytes",info.retained_device_metadata_bytes},{"host_bytes",info.retained_host_metadata_bytes},
+    metadata={{"schedule_mode",info.schedule_mode},{"schedule_identity",rns8::detail::native_wmma_schedule_identity(rns8::detail::NativeWmmaScheduleMode(info.schedule_mode))},{"tasks",info.task_count},{"work",info.work_count},{"device_bytes",info.retained_device_metadata_bytes},{"host_bytes",info.retained_host_metadata_bytes},
       {"preparation_peak_device_bytes",info.preparation_peak_device_metadata_bytes},{"graph_ready",info.graph_ready!=0}};}
   json result={{"schema","rns8_public_native_group_microcase_v1"},{"case",config},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"device",device.name},{"target",device.gcn_arch},{"runtime_version",device.hip_runtime_version},{"seed",seed},{"dataset","bounded_mt19937_64_shared_b_v1"},

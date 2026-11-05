@@ -41,13 +41,24 @@ class CatalogTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             list(catalog_documents(catalog))
 
+    def test_bounded_repeated_records_preserve_order_and_independent_nested_values(self):
+        table=dict(layouts=[['m','values']],defaults={'values':[]},rows=[{'repeat':3,'row':[0,1]},[0,7]])
+        value=expand_value({'$rns8_records':table})
+        self.assertEqual([row['m'] for row in value],[1,1,1,7])
+        value[0]['values'].append(9);self.assertEqual(value[1]['values'],[])
+        for repeat in (True,0,4097):
+            table['rows']=[dict(repeat=repeat,row=[0,1])]
+            with self.subTest(repeat=repeat),self.assertRaises(ValueError):expand_value({'$rns8_records':table})
+        table['rows']=[dict(repeat=4096,row=[0,1])]*25
+        with self.assertRaises(ValueError):expand_value({'$rns8_records':table})
+
     def test_complete_repository_corpus_and_idempotent_publication(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "cases"
             report = materialize(output)
-            self.assertEqual((report["cases"], report["catalogs"], report["retained_files"]), (2190, 25, 38))
+            self.assertEqual((report["cases"], report["catalogs"], report["retained_files"]), (2194, 25, 38))
             files = sorted(output.rglob("*.json"))
-            self.assertEqual(len(files), 2190)
+            self.assertEqual(len(files), 2194)
             before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
             materialize(output)
             self.assertEqual(before, {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files})

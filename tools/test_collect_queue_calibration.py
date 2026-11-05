@@ -4,16 +4,44 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from collect_queue_calibration import MODES, commands, validate_case
+from collect_queue_calibration import MODES, commands, validate_case, validate_capture
+from native_queue_schedule_contract import IDENTITIES, layout
+from test_capture_identity_support import synthetic_identity
 
 ROOT=Path(__file__).resolve().parents[1]
 class QueueCollectionTests(unittest.TestCase):
+    def test_ranked_capture_binds_decoder_bytes_without_rewriting_legacy_scan_captures(self):
+        case=dict(schema='native_queue_case_v1',workers=1,chunk=1,reuse=1,repeats=3,warmups=1,metadata_budget_mib=1,
+                  encoded_b=False,mutate_b=False,tasks=[dict(m=1,n=1,k=1,prefix=1,group=1,unsigned=False)])
+        entry=dict(case=case,run_id='synthetic',mode='rank-select')
+        capture=dict(schema='rns8_native_queue_microcase_v1',promotion_eligible=False,case=case,run_id='synthetic',schedule='rank-select',
+                     schedule_identity=IDENTITIES[3],host_instrumentation_state='hooks_disabled',exact_reference_passed=True,
+                     oracle_inside_production_interval=False,target='synthetic-not-hardware-evidence',
+                     samples=[dict(batch_ns=1,exact_reference_passed=True) for _ in range(3)],work_assignments_per_call=1,
+                     completion_diagnostic=dict(completed_work=[1],completion_ticks=[1],wall_clock_rate_khz=1000,completion_us=[1]),
+                     decoder_layout=dict(abi_version=2,phase_count=1,rank_directory_bytes=0))
+        synthetic_identity(capture);self.assertEqual(validate_capture(capture,entry),capture)
+        for field,value in [('abi_version',1),('phase_count',True),('rank_directory_bytes',4)]:
+            bad=copy.deepcopy(capture);bad['decoder_layout'][field]=value
+            with self.subTest(field=field),self.assertRaises(ValueError):validate_capture(bad,entry)
+        legacy=copy.deepcopy(capture);legacy.pop('decoder_layout');legacy.update(schedule='fair',schedule_identity=IDENTITIES[2])
+        self.assertEqual(validate_capture(legacy,dict(entry,mode='fair')),legacy)
+        capture.pop('decoder_layout')
+        with self.assertRaises(ValueError):validate_capture(capture,entry)
+    def test_rank_directory_prices_actual_sparse_phases_and_equal_count_fast_path(self):
+        tasks=[dict(m=1,n=1,prefix=1,group=1) for _ in range(4096)]
+        self.assertEqual(layout(tasks,3),dict(abi_version=2,phase_count=1,rank_directory_bytes=0,device_bytes=491540))
+        tasks[-1]['m']=257
+        self.assertEqual(layout(tasks,3),dict(abi_version=2,phase_count=2,rank_directory_bytes=1028,device_bytes=492584))
+        self.assertEqual(layout(tasks,2)['device_bytes']+1028,layout(tasks,3)['device_bytes'])
+        self.assertEqual(layout(tasks,0)['rank_directory_bytes'],0)
+        with self.assertRaises(ValueError):layout([],3)
     def test_repository_controls_and_independent_order(self):
         cases=sorted((case_root() / 'native-queue').glob("*.json"))
         self.assertGreaterEqual(len(cases),7)
         for path in cases:validate_case(json.loads(path.read_text()))
         plan=commands(Path("binary"),cases,Path("output"),4,38,"collection")
-        self.assertEqual(len(plan),len(cases)*16)
+        self.assertEqual(len(plan),len(cases)*len(MODES)*4)
         self.assertEqual(len({e["run_id"] for e in plan}),len(plan))
         for path in cases:
             own=[e for e in plan if e["command"][1]==str(path)]

@@ -43,7 +43,8 @@ extern "C" int rns8_hip_native_wmma_queue_schedule(const rns8::detail::NativeWmm
     const rns8::detail::NativeWmmaWork* work,const rns8::detail::NativeWmmaTaskRange* ranges,
     const rns8::detail::NativeWmmaRoundPhase* phases,rns8::detail::NativeWmmaScheduleHeader header,
     uint32_t* cursor,uint32_t workers,uint32_t group,bool unsigned_inputs) {
-  if(header.abi_version!=1 || header.mode>2 || !header.claim_chunk || header.claim_chunk>32 || !workers)
+  if(!tasks || !cursor || !rns8::detail::native_wmma_schedule_header_valid(header) || !workers || workers>1024 ||
+      (header.mode==0?!work:!ranges) || (header.mode>=2 && !phases))
     return static_cast<int>(hipErrorInvalidValue);
 #define RNS8_QUEUE_SCHEDULE(G) return unsigned_inputs ? rns8_launch_native_wmma_schedule<uint64_t,G>(tasks,work,ranges,phases,header,cursor,workers) : rns8_launch_native_wmma_schedule<int64_t,G>(tasks,work,ranges,phases,header,cursor,workers)
   switch(group) {case 0:RNS8_QUEUE_SCHEDULE(0);case 1:RNS8_QUEUE_SCHEDULE(1);case 2:RNS8_QUEUE_SCHEDULE(2);case 4:RNS8_QUEUE_SCHEDULE(4);default:return static_cast<int>(hipErrorInvalidValue);}
@@ -120,8 +121,8 @@ extern "C" int rns8_hip_native_wmma_queue_completion(const rns8::detail::NativeW
     const rns8::detail::NativeWmmaRoundPhase* phases,rns8::detail::NativeWmmaScheduleHeader header,
     uint32_t* cursor,uint32_t workers,uint32_t* completed,uint64_t* ticks,uint64_t* start) {
   if(!tasks || !cursor || !workers || workers>1024 || !completed || !ticks || !start ||
-      header.abi_version!=1 || header.mode>2 || !header.task_count || header.task_count>4096 ||
-      !header.claim_chunk || header.claim_chunk>32 || (header.mode==0?!work:!ranges))return int(hipErrorInvalidValue);
+      !rns8::detail::native_wmma_schedule_header_valid(header) ||
+      (header.mode==0?!work:!ranges) || (header.mode>=2 && !phases))return int(hipErrorInvalidValue);
   hipLaunchKernelGGL(rns8_native_queue_completion_begin,dim3((header.task_count+255)/256),dim3(256),0,nullptr,
       header.task_count,completed,ticks,start);
   auto status=hipGetLastError();if(status!=hipSuccess)return int(status);
@@ -136,7 +137,8 @@ extern "C" int rns8_hip_native_wmma_queue_schedule_on_stream(const rns8::detail:
     const rns8::detail::NativeWmmaWork* work,const rns8::detail::NativeWmmaTaskRange* ranges,
     const rns8::detail::NativeWmmaRoundPhase* phases,rns8::detail::NativeWmmaScheduleHeader header,
     uint32_t* cursor,uint32_t workers,uint32_t group,bool unsigned_inputs,void* stream) {
-  if(!tasks || !cursor || !stream || header.abi_version!=1 || header.mode>2 || !header.claim_chunk || header.claim_chunk>32 || !workers)
+  if(!tasks || !cursor || !stream || !rns8::detail::native_wmma_schedule_header_valid(header) || !workers || workers>1024 ||
+      (header.mode==0?!work:!ranges) || (header.mode>=2 && !phases))
     return static_cast<int>(hipErrorInvalidValue);
 #define RNS8_QUEUE_STREAM(G) return unsigned_inputs ? rns8_launch_native_wmma_schedule<uint64_t,G>(tasks,work,ranges,phases,header,cursor,workers,static_cast<hipStream_t>(stream)) : rns8_launch_native_wmma_schedule<int64_t,G>(tasks,work,ranges,phases,header,cursor,workers,static_cast<hipStream_t>(stream))
   switch(group){case 0:RNS8_QUEUE_STREAM(0);case 1:RNS8_QUEUE_STREAM(1);case 2:RNS8_QUEUE_STREAM(2);case 4:RNS8_QUEUE_STREAM(4);default:return static_cast<int>(hipErrorInvalidValue);}

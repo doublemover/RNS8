@@ -1663,6 +1663,83 @@
           }
         ]
       ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "mode": "persistent",
+        "input_policy": "resident",
+        "encoded_b": true,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 8,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3
+      },
+      "columns": [
+        "tasks"
+      ],
+      "rows": [
+        [
+          "rank-select-shared64.json",
+          "b55af152dd7268ba1cdb6252273f59dc6b3b404a666afafa8e2707742ae07644",
+          {
+            "$rns8_records": {
+              "layouts": [
+                [
+                  "m",
+                  "n",
+                  "k",
+                  "prefix",
+                  "group",
+                  "unsigned_inputs",
+                  "b_slot"
+                ]
+              ],
+              "defaults": {
+                "n": 1,
+                "k": 17,
+                "prefix": 3,
+                "group": 1,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                {
+                  "repeat": 63,
+                  "row": [
+                    0,
+                    1
+                  ]
+                },
+                [
+                  0,
+                  33
+                ]
+              ]
+            }
+          }
+        ]
+      ]
     }
   ]
 }

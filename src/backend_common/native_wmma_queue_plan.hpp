@@ -113,16 +113,17 @@ struct NativeWmmaSchedulePlan {
   std::vector<NativeWmmaWork> explicit_work;
   std::vector<NativeWmmaTaskRange> ranges;
   std::vector<NativeWmmaRoundPhase> phases;
+  std::vector<uint32_t> rank_directory;
   uint64_t device_bytes=0,peak_host_payload_bytes=0;
   uint64_t transient_host_capacity_bytes() const {
     return explicit_work.capacity()*sizeof(NativeWmmaWork)+ranges.capacity()*sizeof(NativeWmmaTaskRange)+
-        phases.capacity()*sizeof(NativeWmmaRoundPhase);
+        phases.capacity()*sizeof(NativeWmmaRoundPhase)+rank_directory.capacity()*sizeof(uint32_t);
   }
 };
 
 inline rns8_status build_native_wmma_schedule(const std::vector<NativeWmmaTask>& tasks,
     uint32_t workers,uint64_t budget,NativeWmmaScheduleConfig config,NativeWmmaSchedulePlan& output) {
-  if(config.abi_version!=1 || uint32_t(config.mode)>2 || !config.claim_chunk || config.claim_chunk>32)
+  if(config.abi_version!=1 || uint32_t(config.mode)>3 || !config.claim_chunk || config.claim_chunk>32)
     return RNS8_INVALID_ARGUMENT;
   try {
     std::vector<uint32_t> counts;
@@ -133,6 +134,10 @@ inline rns8_status build_native_wmma_schedule(const std::vector<NativeWmmaTask>&
     NativeWmmaSchedulePlan plan;
     plan.peak_host_payload_bytes=admission_peak;
     plan.header={1,uint32_t(config.mode),uint32_t(tasks.size()),total,0,config.claim_chunk,0,0};
+    if(config.mode==NativeWmmaScheduleMode::ranked_round_robin) {
+      plan.header.abi_version=2;plan.header.reserved0=(uint32_t(tasks.size())+31)/32;
+      plan.header.reserved1=2*plan.header.reserved0+1;
+    }
     if(config.mode==NativeWmmaScheduleMode::explicit_round_robin) {
       uint64_t explicit_peak=0;
       status=build_native_wmma_queue(tasks,workers,budget,plan.explicit_work,plan.device_bytes,&explicit_peak);
@@ -146,7 +151,7 @@ inline rns8_status build_native_wmma_schedule(const std::vector<NativeWmmaTask>&
                               (tasks[i].prefix+tasks[i].group-1)/tasks[i].group});
         offset+=counts[i];
       }
-      if(config.mode==NativeWmmaScheduleMode::compact_round_robin) {
+      if(config.mode==NativeWmmaScheduleMode::compact_round_robin || config.mode==NativeWmmaScheduleMode::ranked_round_robin) {
         auto sorted=counts;std::sort(sorted.begin(),sorted.end());
         uint32_t round=0,first=0,active=uint32_t(tasks.size());
         plan.phases.reserve(tasks.size());
@@ -158,12 +163,28 @@ inline rns8_status build_native_wmma_schedule(const std::vector<NativeWmmaTask>&
           while(i<sorted.size() && sorted[i]==end){++i;--active;}
         }
         if(first!=total)return RNS8_INTERNAL_ERROR;
+        if(config.mode==NativeWmmaScheduleMode::ranked_round_robin && plan.phases.size()>1) {
+          const uint32_t words=plan.header.reserved0,stride=plan.header.reserved1;
+          const uint64_t directory_words=uint64_t(plan.phases.size()-1)*stride;
+          const uint64_t bytes=tasks.size()*sizeof(NativeWmmaTask)+plan.ranges.size()*sizeof(NativeWmmaTaskRange)+
+            plan.phases.size()*sizeof(NativeWmmaRoundPhase)+directory_words*sizeof(uint32_t)+sizeof(uint32_t);
+          if(bytes>budget || bytes>SIZE_MAX)return RNS8_WORKSPACE_TOO_SMALL;
+          plan.rank_directory.resize(size_t(directory_words));
+          for(size_t phase=1;phase<plan.phases.size();++phase) {
+            auto* table=plan.rank_directory.data()+(phase-1)*stride;
+            const auto round=plan.phases[phase].round_begin;
+            for(uint32_t task=0;task<tasks.size();++task)if(counts[task]>round)table[words+1+task/32]|=1u<<(task%32);
+            for(uint32_t word=0;word<words;++word)table[word+1]=table[word]+native_wmma_popcount32(table[words+1+word]);
+            if(table[words]!=plan.phases[phase].active_tasks)return RNS8_INTERNAL_ERROR;
+          }
+        }
         plan.peak_host_payload_bytes=std::max(plan.peak_host_payload_bytes,plan.transient_host_capacity_bytes()+(counts.capacity()+sorted.capacity())*sizeof(uint32_t));
       }
       plan.peak_host_payload_bytes=std::max(plan.peak_host_payload_bytes,plan.transient_host_capacity_bytes()+counts.capacity()*sizeof(uint32_t));
       plan.header.phase_count=uint32_t(plan.phases.size());
       plan.device_bytes=tasks.size()*sizeof(NativeWmmaTask)+
-          plan.ranges.size()*sizeof(NativeWmmaTaskRange)+plan.phases.size()*sizeof(NativeWmmaRoundPhase)+sizeof(uint32_t);
+          plan.ranges.size()*sizeof(NativeWmmaTaskRange)+plan.phases.size()*sizeof(NativeWmmaRoundPhase)+
+          plan.rank_directory.size()*sizeof(uint32_t)+sizeof(uint32_t);
       if(plan.device_bytes>budget || plan.device_bytes>SIZE_MAX)return RNS8_WORKSPACE_TOO_SMALL;
     }
     output=std::move(plan);
@@ -172,17 +193,18 @@ inline rns8_status build_native_wmma_schedule(const std::vector<NativeWmmaTask>&
 }
 
 // Serialization/admission boundary: reject malformed or reordered directories
-// without expanding the work list. Equality to the canonical O(tasks) builder
+// without expanding the work list. Equality to the canonical builder
 // proves monotonicity, complete coverage, exact rasterization and fair phases.
 inline rns8_status validate_native_wmma_schedule(const std::vector<NativeWmmaTask>& tasks,
     uint32_t workers,const NativeWmmaSchedulePlan& candidate) {
   const auto& h=candidate.header;
-  if(h.mode==0 || h.reserved0 || h.reserved1)return RNS8_INVALID_ARGUMENT;
+  if(h.mode==0 || !native_wmma_schedule_header_valid(h))return RNS8_INVALID_ARGUMENT;
   NativeWmmaSchedulePlan expected;
   const auto status=build_native_wmma_schedule(tasks,workers,UINT64_MAX,
-      {h.abi_version,NativeWmmaScheduleMode(h.mode),h.claim_chunk},expected);
+      {1,NativeWmmaScheduleMode(h.mode),h.claim_chunk},expected);
   if(status!=RNS8_SUCCESS)return status;
-  if(h.task_count!=expected.header.task_count || h.work_count!=expected.header.work_count ||
+  if(h.abi_version!=expected.header.abi_version || h.reserved0!=expected.header.reserved0 || h.reserved1!=expected.header.reserved1 ||
+      candidate.rank_directory!=expected.rank_directory || h.task_count!=expected.header.task_count || h.work_count!=expected.header.work_count ||
       h.phase_count!=expected.header.phase_count || candidate.ranges.size()!=expected.ranges.size() ||
       candidate.phases.size()!=expected.phases.size() || !candidate.explicit_work.empty() ||
       candidate.device_bytes!=expected.device_bytes)return RNS8_INVALID_ARGUMENT;

@@ -9,8 +9,9 @@ import uuid
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 from collect_native_calibration import strict_json
+from native_queue_schedule_contract import IDENTITIES, layout, work_counts
 
-MODES = ("explicit", "task-major", "fair", "ordinary")
+MODES = ("explicit", "task-major", "fair", "rank-select", "ordinary")
 
 
 def validate_case(case):
@@ -42,10 +43,10 @@ def commands(binary, cases, output, runs, seed, collection_id):
     for path in cases:
         case = validate_case(strict_json(path.read_text()))
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        offset = int(hashlib.sha256(f"{seed}:{digest}".encode()).hexdigest(),16)%4
+        offset = int(hashlib.sha256(f"{seed}:{digest}".encode()).hexdigest(),16)%len(MODES)
         for run in range(runs):
             # Rotating/reversing order, not a fixed candidate-favored sequence.
-            order = list(MODES); shift=(offset+run)%4; order=order[shift:]+order[:shift]
+            order = list(MODES); shift=(offset+run)%len(MODES); order=order[shift:]+order[:shift]
             if run%2: order.reverse()
             for position,mode in enumerate(order):
                 run_id=f"{collection_id}-{digest[:12]}-{run}-{mode}"
@@ -68,7 +69,13 @@ def validate_capture(capture, entry):
     def positive(x): return type(x) in (int,float) and math.isfinite(x) and x>0
     if any(not positive(s.get("batch_ns")) or s.get("exact_reference_passed") is not True for s in samples): raise ValueError("invalid completed batch sample")
     tasks=entry["case"]["tasks"]
-    counts=[((t["m"]+15)//16)*((t["n"]+15)//16)*((t["prefix"]+t["group"]-1)//t["group"]) for t in tasks]
+    counts=work_counts(tasks)
+    mode={'explicit':0,'ordinary':0,'task-major':1,'fair':2,'rank-select':3}[entry['mode']]
+    if capture.get('schedule_identity')!=('ordinary_grids_same_preparation' if entry['mode']=='ordinary' else IDENTITIES[mode]):raise ValueError('physical schedule identity')
+    expected=layout(tasks,mode);decoder=capture.get('decoder_layout')
+    if decoder is not None or mode==3:
+        wanted={key:expected[key] for key in ('abi_version','phase_count','rank_directory_bytes')}
+        if decoder!=wanted or any(type(value) is not int for value in decoder.values()):raise ValueError('decoder layout')
     if capture.get("work_assignments_per_call")!=sum(counts): raise ValueError("work accounting")
     diagnostic=capture.get("completion_diagnostic")
     if entry["mode"]=="ordinary":

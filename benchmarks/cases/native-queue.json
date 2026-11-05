@@ -221,6 +221,143 @@
           }
         ]
       ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "workers",
+        "chunk",
+        "reuse",
+        "repeats",
+        "warmups",
+        "metadata_budget_mib",
+        "encoded_b",
+        "mutate_b",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "native_queue_case_v1",
+        "workers": 32,
+        "chunk": 32,
+        "reuse": 4,
+        "repeats": 9,
+        "warmups": 3,
+        "metadata_budget_mib": 64,
+        "encoded_b": false,
+        "mutate_b": false
+      },
+      "columns": [
+        "tasks"
+      ],
+      "rows": [
+        [
+          "rank-select-equal512.json",
+          "08c241ec51bf6fbd39a34b54342aae9a7b8694d446015be23848dfb9826283bd",
+          {
+            "$rns8_records": {
+              "layouts": [
+                [
+                  "m",
+                  "n",
+                  "k",
+                  "prefix",
+                  "group",
+                  "unsigned"
+                ]
+              ],
+              "defaults": {
+                "n": 1,
+                "k": 1,
+                "prefix": 1,
+                "group": 1,
+                "unsigned": false
+              },
+              "rows": [
+                {
+                  "repeat": 512,
+                  "row": [
+                    0,
+                    1
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        [
+          "rank-select-equal4096.json",
+          "3accef5d34a5948f8e076fe6a47a456947ef5ded65f5bee05d0ff1988340ba1d",
+          {
+            "$rns8_records": {
+              "layouts": [
+                [
+                  "m",
+                  "n",
+                  "k",
+                  "prefix",
+                  "group",
+                  "unsigned"
+                ]
+              ],
+              "defaults": {
+                "n": 1,
+                "k": 1,
+                "prefix": 1,
+                "group": 1,
+                "unsigned": false
+              },
+              "rows": [
+                {
+                  "repeat": 4096,
+                  "row": [
+                    0,
+                    1
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        [
+          "rank-select-last4096.json",
+          "005a4a82d4379de14cf44a92c729c6a5871d23781a28b83e54b9e3a573988b14",
+          {
+            "$rns8_records": {
+              "layouts": [
+                [
+                  "m",
+                  "n",
+                  "k",
+                  "prefix",
+                  "group",
+                  "unsigned"
+                ]
+              ],
+              "defaults": {
+                "n": 1,
+                "k": 1,
+                "prefix": 1,
+                "group": 1,
+                "unsigned": false
+              },
+              "rows": [
+                {
+                  "repeat": 4095,
+                  "row": [
+                    0,
+                    1
+                  ]
+                },
+                [
+                  0,
+                  257
+                ]
+              ]
+            }
+          }
+        ]
+      ]
     }
   ]
 }

@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 import statistics
 import uuid
+from native_queue_schedule_contract import IDENTITIES as SCHEDULE_IDENTITIES, layout as schedule_layout, work_counts
 from native_locality_contract import public_contract as locality_contract, ORDERS as LOCALITY_ORDERS
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
@@ -24,7 +25,7 @@ def validate_case(c):
         raise ValueError('execution/input contract')
     if c['mode'] == 'resident' and c['encoded_b']:
         raise ValueError('resident RNS does not consume encoded B')
-    for key, low, high in [('schedule', 0, 2), ('chunk', 1, 32), ('workers', 1, 1024), ('reuse', 1, 64), ('warmups', 1, 1000), ('repeats', 3, 1000), ('seed', 0, 2**32-1), ('padding', 0, 64)]:
+    for key, low, high in [('schedule', 0, 3), ('chunk', 1, 32), ('workers', 1, 1024), ('reuse', 1, 64), ('warmups', 1, 1000), ('repeats', 3, 1000), ('seed', 0, 2**32-1), ('padding', 0, 64)]:
         if not integer(c[key], low, high):
             raise ValueError(key)
     if 'locality_order' in c and (c['locality_order'] not in LOCALITY_ORDERS or c['schedule'] or c['mode'] not in ('persistent','graph')):
@@ -58,8 +59,8 @@ def finite(value, positive=False):
 
 def counts(case):
     tasks = case['tasks']
-    work = [((t['m']+15)//16)*((t['n']+15)//16)*((t['prefix']+t['group']-1)//t['group']) for t in tasks]
-    metadata = len(tasks)*104 + 4 + (sum(work)*16 if case['schedule'] == 0 else len(tasks)*16 + (len(set(work))*16 if case['schedule'] == 2 else 0))
+    work = work_counts(tasks)
+    metadata = schedule_layout(tasks,case['schedule'])['device_bytes']
     bs = {t['b_slot']: t for t in tasks}
     encoded = sum(t['prefix']*t['n']*((t['k']+15)//16)*16+4 for t in bs.values()) if case['encoded_b'] else 0
     return sum(work), metadata, encoded, sum(t['m']*t['n']*24 for t in tasks)
@@ -100,6 +101,9 @@ def validate_capture(c, entry):
             raise ValueError('complete disjoint phases')
         if type(sample.get('complete_groups')) is not int or sample['complete_groups'] != case['reuse']:
             raise ValueError('reuse must execute real groups')
+    if case['mode']!='resident' and (case['schedule']==3 or 'schedule_mode' in (c.get('metadata') or {})):
+        selected=c.get('metadata') or {}
+        if type(selected.get('schedule_mode')) is not int or selected['schedule_mode']!=case['schedule'] or selected.get('schedule_identity')!=SCHEDULE_IDENTITIES[case['schedule']]:raise ValueError('public selected schedule')
     if case['mode'] == 'resident':
         if c.get('metadata') is not None:
             raise ValueError('resident baseline cannot claim native descriptors')

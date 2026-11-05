@@ -156,7 +156,7 @@ TEST_CASE("procedural native schedules preserve sets and compressed fair sequenc
       REQUIRE(build_native_wmma_schedule(tasks,128,UINT64_MAX,{},explicit_plan)==RNS8_SUCCESS);
       std::set<decltype(queue_key(NativeWmmaWork{}))> expected;
       for(auto w:explicit_plan.explicit_work)REQUIRE(expected.insert(queue_key(w)).second);
-      for(auto mode:{NativeWmmaScheduleMode::task_major,NativeWmmaScheduleMode::compact_round_robin})
+      for(auto mode:{NativeWmmaScheduleMode::task_major,NativeWmmaScheduleMode::compact_round_robin,NativeWmmaScheduleMode::ranked_round_robin})
         for(uint32_t chunk:{1u,4u,32u}) {
           NativeWmmaSchedulePlan plan;
           REQUIRE(build_native_wmma_schedule(tasks,128,UINT64_MAX,{1,mode,chunk},plan)==RNS8_SUCCESS);
@@ -166,9 +166,9 @@ TEST_CASE("procedural native schedules preserve sets and compressed fair sequenc
           std::set<decltype(queue_key(NativeWmmaWork{}))> actual;
           for(uint32_t i=0;i<plan.header.work_count;++i) {
             NativeWmmaWork w{};
-            REQUIRE(decode_native_wmma_schedule(plan.header,plan.ranges.data(),plan.phases.data(),tasks.data(),i,w));
+            REQUIRE(decode_native_wmma_schedule(plan.header,plan.ranges.data(),plan.phases.data(),tasks.data(),i,w,plan.rank_directory.data()));
             REQUIRE(actual.insert(queue_key(w)).second);
-            if(mode==NativeWmmaScheduleMode::compact_round_robin)CHECK(queue_key(w)==queue_key(explicit_plan.explicit_work[i]));
+            if(mode!=NativeWmmaScheduleMode::task_major)CHECK(queue_key(w)==queue_key(explicit_plan.explicit_work[i]));
           }
           CHECK(actual==expected);
           NativeWmmaWork sentinel{99,99,99,99};
@@ -176,6 +176,48 @@ TEST_CASE("procedural native schedules preserve sets and compressed fair sequenc
           CHECK(sentinel.task==99);
         }
     }
+}
+TEST_CASE("ranked fair queues remove scalar directory scans while preserving complete phase order") {
+  for(uint32_t count:{1u,64u,512u,4096u})for(uint32_t shape:{0u,1u,2u}) {
+    std::vector<NativeWmmaTask> tasks;
+    for(uint32_t i=0;i<count;++i) {
+      const uint32_t tiles=shape==0?1:shape==1?(i+1==count?37:1):1+(i%31);
+      tasks.push_back(address_only_task(i,int64_t(tiles)*16,1,1,1,1));
+    }
+    NativeWmmaSchedulePlan ranked,explicit_plan,scan;
+    REQUIRE(build_native_wmma_schedule(tasks,128,UINT64_MAX,{1,NativeWmmaScheduleMode::ranked_round_robin,32},ranked)==RNS8_SUCCESS);
+    REQUIRE(validate_native_wmma_schedule(tasks,128,ranked)==RNS8_SUCCESS);
+    REQUIRE(build_native_wmma_schedule(tasks,128,UINT64_MAX,{},explicit_plan)==RNS8_SUCCESS);
+    REQUIRE(build_native_wmma_schedule(tasks,128,UINT64_MAX,{1,NativeWmmaScheduleMode::compact_round_robin,32},scan)==RNS8_SUCCESS);
+    CHECK(ranked.header.abi_version==2);CHECK(ranked.header.work_count==explicit_plan.header.work_count);
+    CHECK(ranked.rank_directory.size()==(ranked.phases.size()-1)*ranked.header.reserved1);
+    CHECK(ranked.device_bytes==scan.device_bytes+ranked.rank_directory.size()*4);
+    NativeWmmaDecodeWork ranked_work,scan_work;
+    for(uint32_t ordinal=0;ordinal<ranked.header.work_count;++ordinal) {
+      NativeWmmaWork output{};
+      REQUIRE(decode_native_wmma_schedule(ranked.header,ranked.ranges.data(),ranked.phases.data(),tasks.data(),ordinal,output,ranked.rank_directory.data(),&ranked_work));
+      REQUIRE(queue_key(output)==queue_key(explicit_plan.explicit_work[ordinal]));
+      if(shape==0)REQUIRE(decode_native_wmma_schedule(scan.header,scan.ranges.data(),scan.phases.data(),tasks.data(),ordinal,output,nullptr,&scan_work));
+    }
+    CHECK(ranked_work.range_predicates==0);CHECK(ranked_work.rank_probes<=uint64_t(ranked.header.work_count)*12);
+    if(shape==0) {
+      CHECK(ranked.rank_directory.empty());CHECK(ranked_work.rank_probes==0);
+      CHECK(scan_work.range_predicates==uint64_t(count)*(count+1)/2);
+    }
+    const auto original=ranked;
+    CHECK(build_native_wmma_schedule(tasks,128,ranked.device_bytes-1,{1,NativeWmmaScheduleMode::ranked_round_robin,32},ranked)==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(ranked.device_bytes==original.device_bytes);CHECK(ranked.rank_directory==original.rank_directory);
+    if(!ranked.rank_directory.empty()) {
+      NativeWmmaWork sentinel{99,99,99,99};
+      CHECK_FALSE(decode_native_wmma_schedule(ranked.header,ranked.ranges.data(),ranked.phases.data(),tasks.data(),ranked.phases[1].first_work,sentinel));
+      CHECK(sentinel.task==99);
+      auto bad=ranked;bad.rank_directory.pop_back();CHECK(validate_native_wmma_schedule(tasks,128,bad)==RNS8_INVALID_ARGUMENT);
+      bad=ranked;bad.rank_directory.back()^=1;CHECK(validate_native_wmma_schedule(tasks,128,bad)==RNS8_INVALID_ARGUMENT);
+      bad=ranked;++bad.rank_directory[1];CHECK(validate_native_wmma_schedule(tasks,128,bad)==RNS8_INVALID_ARGUMENT);
+    }
+    auto bad=ranked;bad.header.abi_version=1;CHECK(validate_native_wmma_schedule(tasks,128,bad)==RNS8_INVALID_ARGUMENT);
+    bad=ranked;++bad.header.reserved1;CHECK(validate_native_wmma_schedule(tasks,128,bad)==RNS8_INVALID_ARGUMENT);
+  }
 }
 TEST_CASE("procedural metadata rejects corrupt directories before publication") {
   std::vector<NativeWmmaTask> tasks={address_only_task(0,33,17,19,20,1),address_only_task(1,1,1,7,3,2)};

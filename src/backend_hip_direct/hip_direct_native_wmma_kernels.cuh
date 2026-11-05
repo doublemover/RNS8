@@ -209,7 +209,8 @@ __global__ __launch_bounds__(32) void rns8_native_wmma_schedule_kernel(
     for(uint32_t offset=0;offset<chunk && uint64_t(first)+offset<header.work_count;++offset) {
       if(!threadIdx.x) {
         if(header.mode==0){item=work[first+offset];valid=1;}
-        else valid=rns8::detail::decode_native_wmma_schedule(header,ranges,phases,tasks,first+offset,item);
+        else valid=rns8::detail::decode_native_wmma_schedule(header,ranges,phases,tasks,first+offset,item,
+          header.mode==3?reinterpret_cast<const uint32_t*>(phases+header.phase_count):nullptr);
       }
       __syncthreads();
       if(!valid)return; // host immutable-directory admission makes this unreachable

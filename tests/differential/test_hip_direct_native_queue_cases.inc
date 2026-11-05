@@ -117,7 +117,7 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
           }
         }
         REQUIRE(prepared.prepare(0, tasks, workers, descriptor_bytes * 2) == RNS8_SUCCESS);
-        for(auto mode:{NativeWmmaScheduleMode::explicit_round_robin,NativeWmmaScheduleMode::task_major,NativeWmmaScheduleMode::compact_round_robin})
+        for(auto mode:{NativeWmmaScheduleMode::explicit_round_robin,NativeWmmaScheduleMode::task_major,NativeWmmaScheduleMode::compact_round_robin,NativeWmmaScheduleMode::ranked_round_robin})
           for(uint32_t chunk:{1u,4u,32u}) {
             NativeWmmaPreparedQueue compact;
             REQUIRE(compact.prepare(0,tasks,workers,UINT64_MAX,{1,mode,chunk})==RNS8_SUCCESS);

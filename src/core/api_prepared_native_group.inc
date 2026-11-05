@@ -105,7 +105,7 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if(!group || !desc || !bindings || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
-        count!=group->executions.size() || count>4096 || desc->schedule_mode>2 ||
+        count!=group->executions.size() || count>4096 || desc->schedule_mode>3 ||
         !desc->claim_chunk || desc->claim_chunk>32 || !desc->workers || desc->workers>1024 ||
         desc->ordinary_grid_control>1)return RNS8_INVALID_ARGUMENT;
     if(locality && (!locality_descriptor_valid(*locality) || desc->schedule_mode || desc->ordinary_grid_control))return RNS8_INVALID_ARGUMENT;

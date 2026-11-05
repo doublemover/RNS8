@@ -111,6 +111,25 @@ not an untrusted device-produced schedule. Irregular/adaptive coverage retains
 its separate explicit representation. The whole K reduction and existing
 plane/tile tail masks are unchanged.
 
+The explicit `ranked_round_robin` candidate (public schedule 3, private
+`rank-select`) uses header ABI 2. Its first, all-active phase selects the task
+directly from the round rank. Later sparse phases binary-search prefix counts
+to select a bitmap word, then select its bit in five bounded subdivisions. It
+preserves the same reference fair sequence; mode 2 retains the original scan.
+For T tasks and P distinct count phases, the extra directory is
+`4*(P-1)*(2*ceil(T/32)+1)` bytes. Equal-count queues allocate no rank directory.
+Construction and retained/peak payload accounting charge these actual tables;
+the worst-case representation is O(P*T), rather than O(T).
+
+Authored exact-sequence and malformed-directory fixtures cover 1/64/512/4096
+tasks, late survivors, many count breakpoints and chunk crossings. Private
+targeted cases add 512/4096 equal-count tasks and one late survivor among 4096 tasks;
+the public shared-B case exercises schedule 3 at 64 tasks. Compact catalog record
+repetition emits ignored expanded fixtures without storing repeated task lists.
+Collectors check the selected decoder identity and independently price physical
+directory bytes. Host/device syntax checks are separate from the deferred exact
+execution, ISA/resource, preparation-cost and sustained-latency qualification.
+
 A one-task 8192-square, prefix-20/group-one schedule has 5,242,880 assignments.
 The explicit assignment payload alone is 80 MiB. The fair procedural payload is
 `sizeof(NativeWmmaTask) + 16 + 16 + 4` bytes; its 32-byte header is a kernel
