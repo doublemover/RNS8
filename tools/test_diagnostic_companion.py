@@ -11,7 +11,7 @@ from promotion_ledger import capture_entry
 from collect_diagnostic_pairs import paired_plan
 from diagnostic_companion import build_binding, common_identity, digest, load_bindings, production_evidence, validate_binding
 from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
-from test_benchmark_schema_support import as_reused_pack_capture, as_reused_a_capture, add_helper_lane_fields
+from test_benchmark_schema_support import as_reused_pack_capture, as_reused_a_capture, add_helper_lane_fields, as_hip_graph_full_bounded_capture, as_hip_graph_full_finite_capture, as_hip_graph_full_exact_wide_capture, as_hip_graph_full_wrap64_capture
 
 FIXTURES = Path(__file__).parents[1]/'tests/fixtures/benchmark_schema'
 
@@ -76,6 +76,43 @@ def authored_reuse_pair(root, operands):
     return *result, paths
 
 
+def authored_graph_pair(root, transform):
+    production, diagnostic, paths = authored_pair(root)
+    result = []
+    for index, (capture, path) in enumerate(zip((production, diagnostic), paths)):
+        capture = transform(capture)
+        detailed = index == 1
+        metadata = capture["timing_metadata"]
+        metadata["host_instrumentation_state"] = "diagnostic_gpu_events" if detailed else "hooks_disabled"
+        if not detailed:
+            metadata.update(gpu_event_timing_status="not_requested_production_timing",
+                            gpu_event_timing_reason="explicit_production_hooks_disabled")
+        graph = capture["hip_graph_replay"]
+        finite = capture["semantics"] in ("finite_ring_u8", "finite_field_u8")
+        width = 1 if finite else 8
+        wide = capture["semantics"] in ("exact_wide_signed", "exact_wide_unsigned")
+        limbs = capture["exact_wide_limb_count"] if wide else 1
+        records = [dict(total_us=value, input_staging_us=1 if detailed else None,
+                        replay_us=value-2 if detailed else None, caller_delivery_us=1 if detailed else None)
+                   for value in capture["raw_timings_us"]["end_to_end"]]
+        graph["caller_transaction"] = dict(schema="rns8_graph_caller_transaction_v1",
+            completion_boundary="per_task_host_destinations", input_staging="every_completed_call",
+            caller_output_delivery="every_completed_call",common_setup_excluded=["planning_workspace","matrix_allocation"],
+            phase_clocks=detailed,additional_preparation_us=100+index,stream_preparation_us=20+index,teardown_us=30+index,
+            input_a_bytes_per_call=capture["m"]*capture["k"]*width,input_b_bytes_per_call=capture["k"]*capture["n"]*width,
+            output_bytes_per_call=capture["m"]*capture["n"]*width*limbs,first_replay=dict(records[0]),observations=records)
+        request = capture["request_identity"]
+        mode = "instrumented" if detailed else "production"
+        semantic = {"wrap_u64_mod_2_64":"wrap-u64"}.get(capture["semantics"],capture["semantics"].replace("_","-"))
+        request["arguments"] = ["--backend","hip-direct","--semantics",semantic,"--hip-graph-replay","--host-timing",mode]
+        request["identity_sha256"] = digest({key:value for key,value in request.items() if key!="identity_sha256"})
+        synthetic_host_measurements(capture)
+        validate_capture(capture,path)
+        path.write_text(json.dumps(capture),encoding="utf-8")
+        result.append(capture)
+    return *result, paths
+
+
 class DiagnosticCompanion(unittest.TestCase):
     def test_independent_reuse_observations_bind_without_weakening_immutable_receipts(self):
         for operands in (("A",), ("B",), ("A", "B")):
@@ -118,6 +155,19 @@ class DiagnosticCompanion(unittest.TestCase):
                 bad = copy.deepcopy(diagnostic)
                 mutate(bad)
                 self.assertNotEqual(common_identity(production), common_identity(bad))
+
+    def test_full_path_graph_host_phase_companions_do_not_claim_hip_event_or_isa_evidence(self):
+        for transform in (as_hip_graph_full_bounded_capture,as_hip_graph_full_finite_capture,
+                          as_hip_graph_full_exact_wide_capture,as_hip_graph_full_wrap64_capture):
+            with self.subTest(transform=transform.__name__), tempfile.TemporaryDirectory() as temp:
+                production,diagnostic,paths=authored_graph_pair(Path(temp),transform)
+                binding=build_binding(*paths)
+                self.assertEqual(binding["diagnostic_kind"],"graph_caller_host_phases")
+                self.assertEqual(validate_binding(binding,production),binding)
+                self.assertTrue(production_evidence(production,binding)["eligible"])
+                diagnostic["hip_graph_replay"]["caller_transaction"]["caller_output_delivery"]="after_all_repeats"
+                paths[1].write_text(json.dumps(diagnostic),encoding="utf-8")
+                with self.assertRaises(ValueError):validate_binding(binding)
 
     def test_eventless_accelerator_requires_explicit_production_contract(self):
         with tempfile.TemporaryDirectory() as temp:

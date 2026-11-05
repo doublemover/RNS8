@@ -1,6 +1,7 @@
 """Normalized workload identities shared by comparisons and execution cohorts."""
 from __future__ import annotations
 from typing import Any
+from graph_caller_contract import full_path_graph, SCHEMA as GRAPH_CALLER_SCHEMA
 
 
 def exact_proof_policy(capture: dict[str, Any]) -> str:
@@ -37,6 +38,11 @@ def host_instrumentation(capture: dict[str, Any]) -> str:
 
 
 def output_completion_boundary(capture: dict[str, Any]) -> str:
+    if full_path_graph(capture):
+        transaction = capture["hip_graph_replay"].get("caller_transaction")
+        if (not isinstance(transaction, dict) or transaction.get("schema") != GRAPH_CALLER_SCHEMA
+                or transaction.get("completion_boundary") != "per_task_host_destinations"):
+            return "legacy_prepared_pinned_graph_output"
     policy = capture.get("output_policy") or {}
     value = policy.get("completion_boundary")
     if value is not None:

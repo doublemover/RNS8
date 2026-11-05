@@ -1,5 +1,6 @@
 #include "../../benchmarks/public_sustained.hpp"
 #include "../../benchmarks/call_observation.hpp"
+#include "../../benchmarks/graph_caller_transaction.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 #include <type_traits>
@@ -63,4 +64,65 @@ TEST_CASE("failed sustained calls propagate without a successful observation") {
   uint64_t version=0;
   auto failure=[](uint64_t){throw std::runtime_error("production completion failed");};
   REQUIRE_THROWS(rns8::bench::measure_sustained(failure,1,8,0,1,version));
+}
+
+
+namespace {
+struct GraphFixtureClock {
+  using duration = std::chrono::nanoseconds;
+  using time_point = std::chrono::time_point<GraphFixtureClock>;
+  static inline uint64_t ticks = 0, reads = 0;
+  static time_point now() { ++reads; return time_point(duration(ticks)); }
+};
+}
+
+TEST_CASE("graph caller transactions include staging and every output delivery") {
+  using rns8::bench::completed_graph_caller_transaction;
+  for (const bool detailed : {false, true}) {
+    for (const unsigned warmups : {0u, 2u}) {
+      GraphFixtureClock::ticks = GraphFixtureClock::reads = 0;
+      uint64_t source = 0, staged = 0, device_output = 0, caller_output = 0;
+      unsigned stage_count = 0, launch_count = 0, delivery_count = 0;
+      for (unsigned call = 0; call < warmups + 3; ++call) {
+        source = 7 + call;
+        const auto observation = completed_graph_caller_transaction<GraphFixtureClock>(detailed,
+            [&] { staged = source; ++stage_count; GraphFixtureClock::ticks += 1000; },
+            [&] { device_output = staged * 3; ++launch_count; GraphFixtureClock::ticks += 2000; return RNS8_SUCCESS; },
+            [&] { caller_output = device_output; ++delivery_count; GraphFixtureClock::ticks += 3000; return RNS8_SUCCESS; });
+        REQUIRE(observation.status == RNS8_SUCCESS);
+        REQUIRE(caller_output == source * 3);
+        REQUIRE(observation.total_us == 6);
+        if (detailed) {
+          REQUIRE(observation.phases_us[0] == 1);
+          REQUIRE(observation.phases_us[1] == 2);
+          REQUIRE(observation.phases_us[2] == 3);
+        } else {
+          REQUIRE((observation.phases_us == std::array<double, 3>{}));
+        }
+      }
+      REQUIRE(stage_count == warmups + 3);
+      REQUIRE(launch_count == stage_count);
+      REQUIRE(delivery_count == stage_count);
+      REQUIRE(GraphFixtureClock::reads == stage_count * (detailed ? 4 : 2));
+    }
+  }
+}
+
+TEST_CASE("graph caller transactions do not deliver after a failed replay or status") {
+  using rns8::bench::completed_graph_caller_transaction;
+  for (const auto failure : {RNS8_BACKEND_FAILURE, RNS8_RANGE_ERROR}) {
+    bool delivered = false;
+    const auto observation = completed_graph_caller_transaction<GraphFixtureClock>(false,
+        [] {},
+        [&] { return failure; },
+        [&] { delivered = true; return RNS8_SUCCESS; });
+    REQUIRE(observation.status == failure);
+    REQUIRE_FALSE(delivered);
+  }
+  bool delivered = false;
+  const auto observation = completed_graph_caller_transaction<GraphFixtureClock>(true,
+      [] {}, [] { return RNS8_SUCCESS; },
+      [&] { delivered = true; return RNS8_RANGE_ERROR; });
+  REQUIRE(delivered);
+  REQUIRE(observation.status == RNS8_RANGE_ERROR);
 }

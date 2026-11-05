@@ -177,6 +177,9 @@
                                                                          : std::string());
   std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": false,\n";
+  std::cout << "    \"caller_transaction\": ";
+  print_graph_caller_transaction_json(args, result);
+  std::cout << ",\n";
   std::cout << "    \"capture_us\": " << result.hip_graph_capture_us << ",\n";
   std::cout << "    \"instantiate_us\": " << result.hip_graph_instantiate_us << ",\n";
   std::cout << "    \"graph_launches_per_measured_repeat\": "

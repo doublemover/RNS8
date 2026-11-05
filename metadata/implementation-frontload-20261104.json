@@ -726,8 +726,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/86",
       "requirements_sha256": "912eabe304f04127d5f5e8cb7e70327432d7548b46081c3589d3bc02bda274f8",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Repair all four full-path graph owners with a shared typed caller transaction: stage A/B on every warmup/replay, include status validation and caller delivery before the outer timer ends, preserve failed outputs, and retain first/steady observations. Production keeps two outer clock reads; independent graph diagnostics can record staging/replay/delivery clocks without claiming HIP-event/ISA evidence. Record additional pinned/private preparation as a disjoint parent minus separately measured capture/instantiate/stream/common matrix allocation; time local owner teardown and publish payload/cadence/setup receipts. Shared graph contracts gate schema, immutable production/diagnostic companions, generic review and specialized reports; legacy prepared-pinned outputs have a distinct normalized completion identity. Compare hook-disabled production operands with all-process bindings, independent-process cohort qualification and setup-inclusive medians; reject incomplete/instrumented boundaries and suppress classified ratios/break-even until qualified. Author injectable-clock, zero-warmup, changing-input, repeated-delivery/failure controls plus four-family actual-loader bindings and metadata payload/setup/clock/legacy mismatch fixtures. Preserve and qualify historical rank58/rank68 ratios without invented corrections or changes to resident-chain/compiled-DAG evidence. CPU/HIP-host benchmark and unit MSVC syntax plus Python3.15 AST/undefined-name lint pass; runtime fixtures and target qualification remain deferred."
+      ],
       "remaining_source_items": []
     },
     {

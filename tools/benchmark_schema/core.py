@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from json_evidence import load_evidence_json
 from first_call_setup import inventory_errors
+from graph_caller_contract import caller_transaction_blockers
 from pathlib import Path
 from typing import Any
 from build_manifest import manifest_diagnostic_shape_valid
@@ -82,6 +83,10 @@ class _Validator(
             return
         self.version = version
         self._validate_v4()
+        graph = self.data.get("hip_graph_replay") or {}
+        if isinstance(graph, dict) and graph.get("caller_transaction") is not None:
+            for error in caller_transaction_blockers(self.data):
+                self._error(error)
         for error in inventory_errors(self.data):
             self._error(error)
         manifest = self.data.get("build_manifest")

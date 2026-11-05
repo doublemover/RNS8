@@ -546,3 +546,27 @@ first-call total. Review tools use the same accounting helper; first-call,
 steady and sustained observations remain separate. This source change does not
 replace historical measurements or claim that the October25 ordinary first-call
 table used prepacked inputs.
+
+
+Full pack/GEMM/export graph lanes now stage caller inputs and deliver caller
+output inside every completed replay, including warmups and zero-warmup first
+use. Their caller_transaction receipt records per-call payloads and first/steady
+observations, additional pinned/private preparation, stream creation and
+teardown. Capture and instantiate remain separate children. Preparation excludes
+those separately measured children and common matrix allocation exactly once.
+
+The setup-inclusive comparison deliberately excludes common planning/workspace
+and matrix allocation on both operands; it includes prepack and graph-specific
+additional preparation, stream creation, capture and instantiate. Teardown is
+reported separately. This is not a whole-owner-lifetime total. Production uses
+only the outer wall-clock pair. Separate diagnostic graph runs can report host
+staging/replay/delivery phases; their companion kind is graph_caller_host_phases,
+which does not assert HIP-event timings or executed ISA. Ordinary GPU controls
+use their separately bound HIP-event diagnostics. The shared timing/provenance
+gates reject instrumented-versus-production and incomplete/legacy boundary
+comparisons before classifying a win or break-even result.
+The graph report now retains independent process cohorts and validates every
+member's production companion. It aggregates setup-inclusive observations per
+process and applies the shared spread/run-count gates; duplicated records cannot
+supply independent runs. Unqualified rows retain observed ratios for diagnosis
+while classified speedups and break-even conclusions remain unavailable.

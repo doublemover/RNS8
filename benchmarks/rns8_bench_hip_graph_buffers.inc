@@ -85,6 +85,7 @@ rns8_status capture_hip_graph_replay(
     std::string& error_text) {
 #if RNS8_CONFIGURED_HIP_ENABLED
   destroy_hip_graph_replay_state(state);
+  const auto stream_prepare_start = std::chrono::steady_clock::now();
   const hipError_t device_status = hipSetDevice(device_id);
   if (device_status != hipSuccess) {
     error_text = hip_graph_error_text("hipSetDevice", static_cast<int>(device_status));
@@ -96,6 +97,7 @@ rns8_status capture_hip_graph_replay(
     return RNS8_BACKEND_FAILURE;
   }
 
+  state.stream_prepare_us = elapsed_us(stream_prepare_start, std::chrono::steady_clock::now());
   const auto capture_start = std::chrono::steady_clock::now();
   status = hipStreamBeginCapture(state.stream.get(), hipStreamCaptureModeGlobal);
   if (status != hipSuccess) {

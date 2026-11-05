@@ -447,6 +447,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME reference_verdict_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_reference_verdict.py")
   add_test(NAME review_reference_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_review_reference.py")
   add_test(NAME report_numerical_gates_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_report_numerical_gates.py")
+  add_test(NAME graph_caller_contract_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_graph_caller_contract.py")
 
   add_test(
     NAME performance_dashboard_self_test

@@ -342,6 +342,41 @@ void print_prepack_setup_breakdown_json(const BenchmarkResult& result, const cha
   std::cout << indent << "}";
 }
 
+void print_graph_caller_observation_json(const Args& args, const GraphCallerObservation& observation) {
+  std::cout << "{\"total_us\": " << observation.total_us << ", \"input_staging_us\": ";
+  if (!args.production_host_timing) std::cout << observation.phases_us[0]; else std::cout << "null";
+  std::cout << ", \"replay_us\": ";
+  if (!args.production_host_timing) std::cout << observation.phases_us[1]; else std::cout << "null";
+  std::cout << ", \"caller_delivery_us\": ";
+  if (!args.production_host_timing) std::cout << observation.phases_us[2]; else std::cout << "null";
+  std::cout << "}";
+}
+
+void print_graph_caller_transaction_json(const Args& args, const BenchmarkResult& result) {
+  if (!result.hip_graph_caller_transaction) { std::cout << "null"; return; }
+  std::cout << "{\"schema\": \"rns8_graph_caller_transaction_v1\", "
+            << "\"completion_boundary\": \"per_task_host_destinations\", "
+            << "\"input_staging\": \"every_completed_call\", \"caller_output_delivery\": \"every_completed_call\", "
+            << "\"common_setup_excluded\": [\"planning_workspace\", \"matrix_allocation\"], "
+            << "\"phase_clocks\": " << (args.production_host_timing ? "false" : "true")
+            << ", \"additional_preparation_us\": " << result.hip_graph_owner_prepare_us
+            << ", \"stream_preparation_us\": " << result.hip_graph_stream_prepare_us
+            << ", \"teardown_us\": " << result.hip_graph_owner_teardown_us
+            << ", \"input_a_bytes_per_call\": " << result.hip_graph_caller_payload_bytes[0]
+            << ", \"input_b_bytes_per_call\": " << result.hip_graph_caller_payload_bytes[1]
+            << ", \"output_bytes_per_call\": " << result.hip_graph_caller_payload_bytes[2]
+            << ", \"first_replay\": ";
+  if (result.hip_graph_first_caller_observation_available)
+    print_graph_caller_observation_json(args, result.hip_graph_first_caller_observation);
+  else std::cout << "null";
+  std::cout << ", \"observations\": [";
+  for (std::size_t i = 0; i < result.hip_graph_caller_samples.size(); ++i) {
+    if (i) std::cout << ", ";
+    print_graph_caller_observation_json(args, result.hip_graph_caller_samples[i]);
+  }
+  std::cout << "]}";
+}
+
 void print_first_call_setup_inventory_json(const Args& args, const BenchmarkResult& result) {
   // These parents are disjoint; prepack's A/B/cache subphases must not be added again.
   const bool supported = !args.oneshot && !args.transient_uniform_small_inputs &&

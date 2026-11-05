@@ -101,16 +101,16 @@ def main() -> int:
     summary = report["summary"]
     comparison = report["comparisons"][0]
     assert summary["comparison_count"] == 1
-    assert summary["candidate_workload_wins"] == 1
+    assert summary["candidate_workload_wins"] == 0
     assert summary["missing_baselines"] == 0
-    assert comparison["decision"] == "candidate_workload_win"
+    assert comparison["decision"] == "keep_experimental"
     assert comparison["baseline_setup_inclusive_per_repeat_us"] == 1010.0
     assert comparison["graph_setup_inclusive_per_repeat_us"] == 931.0
     assert comparison["checksum_match"] is True
 
     slow_graph = capture(graph=True, median_us=1200.0, setup_us=90.0, name="slow-graph")
     slow_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([baseline, slow_graph])
-    assert slow_report["comparisons"][0]["decision"] == "deprioritize"
+    assert slow_report["comparisons"][0]["decision"] == "keep_experimental"
 
     missing_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([graph])
     assert missing_report["summary"]["missing_baselines"] == 1
@@ -126,12 +126,13 @@ def main() -> int:
     full_graph = capture(graph=True, median_us=720.0, setup_us=None, name="full-graph", full_path=True)
     full_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([full_baseline, full_graph])
     full_comparison = full_report["comparisons"][0]
-    assert full_comparison["decision"] == "candidate_workload_win"
+    assert full_comparison["decision"] == "keep_experimental"
     assert full_comparison["graph_scope"] == "direct_hip_bounded_pack_gemm_export"
     assert full_comparison["baseline_prepack_setup_us"] == 0.0
     assert full_comparison["graph_prepack_setup_us"] == 0.0
     assert full_comparison["baseline_setup_inclusive_per_repeat_us"] == 800.0
-    assert full_comparison["graph_setup_inclusive_per_repeat_us"] == 741.0
+    assert full_comparison["graph_setup_inclusive_per_repeat_us"] is None
+    assert "graph_caller_transaction_contract_missing" in full_comparison["blockers"]
 
     wrap_baseline = capture(graph=False, median_us=700.0, setup_us=None, name="wrap-baseline", full_path=True)
     wrap_graph = capture(graph=True, median_us=650.0, setup_us=None, name="wrap-graph", full_path=True)
@@ -146,7 +147,7 @@ def main() -> int:
     wrap_graph["hip_graph_replay"]["scope"] = "direct_hip_wrap64_pack_gemm_export"
     wrap_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([wrap_baseline, wrap_graph])
     wrap_comparison = wrap_report["comparisons"][0]
-    assert wrap_comparison["decision"] == "candidate_workload_win"
+    assert wrap_comparison["decision"] == "keep_experimental"
     assert wrap_comparison["graph_scope"] == "direct_hip_wrap64_pack_gemm_export"
 
     print("hip graph replay report self-test: PASS")

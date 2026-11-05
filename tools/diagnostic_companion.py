@@ -16,6 +16,7 @@ from build_manifest import manifest_provenance_complete
 from timing_eligibility import capture_identity
 from companion_contract import SCHEMA as COMMON_CONTRACT_SCHEMA, TOP_LEVEL_OBSERVATIONS, remove_observations
 from json_evidence import load_evidence_json, same_evidence_value
+from graph_caller_contract import graph_phase_diagnostic, caller_transaction_blockers
 
 SCHEMA = 'rns8_production_diagnostic_binding_v2'
 GPU_BACKENDS = {'hip-direct', 'hipblaslt', 'ck', 'rocwmma', 'amdgpu-builtins', 'hip-vector-alu-int64'}
@@ -75,8 +76,11 @@ def _pair_contract(production, diagnostic):
     p = production.get('timing_metadata') or {}; d = diagnostic.get('timing_metadata') or {}
     if p.get('host_instrumentation_state') != 'hooks_disabled' or p.get('gpu_event_timing') is not False or p.get('gpu_event_timing_status') != 'not_requested_production_timing' or p.get('gpu_event_timing_reason') != 'explicit_production_hooks_disabled':
         raise ValueError('explicit hook-disabled production capture required')
-    if d.get('host_instrumentation_state') != 'diagnostic_gpu_events' or d.get('gpu_event_timing') is not True or d.get('gpu_event_timing_status') != 'available' or d.get('gpu_event_timing_source') != 'hipEventElapsedTime' or not d.get('gpu_event_phase_order'):
+    graph_diagnostic = graph_phase_diagnostic(diagnostic)
+    if not graph_diagnostic and (d.get('host_instrumentation_state') != 'diagnostic_gpu_events' or d.get('gpu_event_timing') is not True or d.get('gpu_event_timing_status') != 'available' or d.get('gpu_event_timing_source') != 'hipEventElapsedTime' or not d.get('gpu_event_phase_order')):
         raise ValueError('complete explicit HIP-event diagnostic required')
+    if graph_diagnostic and caller_transaction_blockers(production):
+        raise ValueError("production graph caller boundary is incomplete")
     if production.get('backend_selected') not in GPU_BACKENDS:
         raise ValueError('companion is only needed for a supported GPU backend')
     for capture in (production, diagnostic):
@@ -114,7 +118,8 @@ def build_binding(production_path, diagnostic_path):
     production, diagnostic = load_capture(production_path), load_capture(diagnostic_path)
     validate_capture(production, production_path); validate_capture(diagnostic, diagnostic_path)
     common = _pair_contract(production, diagnostic)
-    return dict(schema=SCHEMA, common_identity_schema=COMMON_CONTRACT_SCHEMA, production_capture=str(production_path), diagnostic_capture=str(diagnostic_path),
+    return dict(schema=SCHEMA, common_identity_schema=COMMON_CONTRACT_SCHEMA,
+                diagnostic_kind="graph_caller_host_phases" if graph_phase_diagnostic(diagnostic) else "hip_events", production_capture=str(production_path), diagnostic_capture=str(diagnostic_path),
                 production_file_sha256=file_digest(production_path), diagnostic_file_sha256=file_digest(diagnostic_path),
                 production_capture_sha256=capture_identity(production), diagnostic_capture_sha256=capture_identity(diagnostic),
                 common_identity_sha256=common, evidence_scope='matched_contract_only_not_performance_or_ISA_qualification')

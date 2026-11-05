@@ -29,6 +29,10 @@ TOP_LEVEL_OBSERVATIONS = frozenset((
 ))
 
 OBSERVATION_SECTIONS = (
+    ObservationSection(("hip_graph_replay", "caller_transaction"),
+        frozenset(("additional_preparation_us", "stream_preparation_us", "teardown_us", "phase_clocks"))),
+    ObservationSection(("hip_graph_replay", "caller_transaction", "first_replay"),
+        frozenset(("total_us", "input_staging_us", "replay_us", "caller_delivery_us"))),
     ObservationSection(("prepack_setup_breakdown_us",),
                        frozenset(("pack_a", "pack_b", "runtime_cache", "unclassified"))),
     ObservationSection(("streaming_overlap",),
@@ -73,4 +77,12 @@ def remove_observations(identity: dict[str, Any]) -> None:
                 if isinstance(record, dict):
                     for field in fields:
                         record.pop(field, None)
+    graph = identity.get("hip_graph_replay")
+    transaction = graph.get("caller_transaction") if isinstance(graph, dict) else None
+    observations = transaction.get("observations") if isinstance(transaction, dict) else None
+    if isinstance(observations, list):
+        for record in observations:
+            if isinstance(record, dict):
+                for field in ("total_us", "input_staging_us", "replay_us", "caller_delivery_us"):
+                    record.pop(field, None)
     identity["common_identity_contract"] = SCHEMA

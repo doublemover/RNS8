@@ -14,6 +14,7 @@ from timing_eligibility import phase_blockers, pair_blockers, comparison_record,
 from diagnostic_companion import production_evidence, binding_for_capture
 from review_contract import REVIEW_MODES, release_capture_satisfied
 from first_call_setup import review_first_call
+from graph_caller_contract import graph_setup_us as graph_specific_setup_us, caller_transaction_blockers, full_path_graph
 from reference_verdict import SCHEMA as NUMERICAL_REFERENCE_SCHEMA, checksum_u64 as capture_checksum, reference_verdict
 
 from .capture_metadata import (
@@ -1145,11 +1146,10 @@ def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> floa
             return None
         setup += prepack
     if include_graph_setup:
-        capture_us = graph_numeric_value(capture, "capture_us")
-        instantiate_us = graph_numeric_value(capture, "instantiate_us")
-        if capture_us is None or instantiate_us is None:
+        graph_setup = graph_specific_setup_us(capture)
+        if graph_setup is None:
             return None
-        setup += capture_us + instantiate_us
+        setup += graph_setup
     return setup
 
 
@@ -1425,8 +1425,18 @@ def hip_graph_replay_review(
         blockers.append("graph_replay_not_available")
     if graph_setup is not None and baseline_setup is not None and graph_setup >= baseline_setup:
         blockers.append("graph_not_faster_than_non_graph_setup_inclusive")
+    blockers.extend(caller_transaction_blockers(capture))
+    if baseline is not None:
+        blockers.extend(pair_blockers(baseline, capture))
+        if capture_hip_graph_replay(baseline):
+            blockers.append("non_graph_baseline_is_graph")
+        if full_path_graph(capture) and capture_execution_mode(baseline) != "persistent_resident_matrices":
+            blockers.append("ordinary_caller_host_baseline_required")
     blockers.extend(checksum_match_blockers(capture, baseline, label="non_graph_baseline"))
+    if blockers:
+        break_even_repeats = None
     return {
+        "common_setup_excluded": ["planning_workspace", "matrix_allocation"],
         "setup_inclusive_median_end_to_end_us": graph_setup,
         "candidate_median_end_to_end_us": graph_median,
         "graph_capture_us": graph_numeric_value(capture, "capture_us"),
@@ -1468,7 +1478,7 @@ def hip_graph_replay_review(
             else False
         ),
         "speedup_vs_non_graph_setup_inclusive": (
-            baseline_setup / graph_setup if baseline_setup is not None and graph_setup not in (None, 0.0) else None
+            baseline_setup / graph_setup if not blockers and baseline_setup is not None and graph_setup not in (None, 0.0) else None
         ),
         "blockers": sorted(set(blockers)),
     }

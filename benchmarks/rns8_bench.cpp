@@ -79,6 +79,9 @@ using rns8::bench::checked_elements;
 using rns8::bench::checked_limb_elements;
 using rns8::bench::Args;
 using rns8::bench::BenchmarkResult;
+using rns8::bench::GraphCallerObservation;
+using rns8::bench::GraphCallerOwnerAccounting;
+using rns8::bench::completed_graph_caller_transaction;
 using rns8::bench::benchmark_node_gpu_count;
 using rns8::bench::BenchSemantics;
 using rns8::bench::BoundMode;
@@ -180,6 +183,7 @@ struct HipGraphReplayState {
   hipGraphExec_t executable = nullptr;
 #endif
   uint64_t launch_count = 0;
+  double stream_prepare_us = 0;
 };
 void destroy_hip_graph_replay_state(HipGraphReplayState& state);
 rns8_status capture_hip_graph_replay(

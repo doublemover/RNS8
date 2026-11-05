@@ -9,6 +9,7 @@
 #include "exact_wide_magnitude.hpp"
 #include "public_sustained.hpp"
 #include "native_reference_cache.hpp"
+#include "graph_caller_transaction.hpp"
 #include "streaming_measurement.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
@@ -291,6 +292,14 @@ struct BenchmarkResult {
   bool hip_graph_replay_requested = false;
   bool hip_graph_replay_available = false;
   bool hip_graph_replay_used = false;
+  bool hip_graph_caller_transaction = false;
+  std::array<std::size_t, 3> hip_graph_caller_payload_bytes{};
+  double hip_graph_owner_prepare_us = 0;
+  double hip_graph_stream_prepare_us = 0;
+  double hip_graph_owner_teardown_us = 0;
+  bool hip_graph_first_caller_observation_available = false;
+  GraphCallerObservation hip_graph_first_caller_observation{};
+  std::vector<GraphCallerObservation> hip_graph_caller_samples;
   double hip_graph_capture_us = 0;
   double hip_graph_instantiate_us = 0;
   uint64_t hip_graph_launch_count = 0;

@@ -580,6 +580,10 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
     std::vector<HostT>& C,
     uint64_t bound,
     rns8_matrix*& latest_output_matrix) {
+  if (args.output_ld_padding != 0) {
+    fail_status("graph caller transaction requires compact output", RNS8_INVALID_ARGUMENT);
+  }
+
   if (!a_matrix || !b_matrix || !c_matrix) {
     fail_status("hip graph bounded pack/GEMM/export requires resident A/B/C matrices", RNS8_INVALID_ARGUMENT);
   }
@@ -594,6 +598,11 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
   const std::size_t output_bytes =
       checked_bytes(checked_elements(args.m, args.n, "hip graph C output"), sizeof(HostT), "hip graph C output");
 
+  result.hip_graph_caller_transaction = true;
+  result.hip_graph_caller_payload_bytes = {a_bytes, b_bytes, output_bytes};
+  result.hip_graph_caller_samples.reserve(args.repeats);
+  GraphCallerOwnerAccounting owner_accounting(
+      result.hip_graph_owner_prepare_us, result.hip_graph_owner_teardown_us);
   rns8::detail::hip_pinned_host_buffer pinned_a;
   rns8::detail::hip_pinned_host_buffer pinned_b;
   rns8::detail::hip_pinned_host_buffer pinned_c;
@@ -602,8 +611,6 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
   fail_streaming_hip("hipHostMalloc(hip graph B)", pinned_b.ensure(args.device_id, b_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph C)", pinned_c.ensure(args.device_id, output_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph status)", pinned_status.ensure(args.device_id, sizeof(int)));
-  std::memcpy(pinned_a.get(), A.data(), a_bytes);
-  std::memcpy(pinned_b.get(), B.data(), b_bytes);
   std::memset(pinned_c.get(), 0, output_bytes);
   *static_cast<int*>(pinned_status.get()) = 0;
 
@@ -692,8 +699,32 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
   result.hip_graph_replay_used = true;
   result.hip_graph_replay_status = "available";
 
+  owner_accounting.finish_preparation(result.hip_graph_capture_us + result.hip_graph_instantiate_us + graph_state.stream_prepare_us);
+  result.hip_graph_stream_prepare_us = graph_state.stream_prepare_us;
+  auto replay_caller_transaction = [&] {
+    auto observation = completed_graph_caller_transaction(!args.production_host_timing,
+        [&] {
+          std::memcpy(pinned_a.get(), A.data(), a_bytes);
+          std::memcpy(pinned_b.get(), B.data(), b_bytes);
+          *static_cast<int*>(pinned_status.get()) = 0;
+        },
+        [&] { return launch_hip_graph_replay(args.device_id, graph_state, graph_error); },
+        [&] {
+          const auto export_status = static_cast<rns8_status>(*static_cast<int*>(pinned_status.get()));
+          if (export_status != RNS8_SUCCESS) return export_status;
+          std::memcpy(C.data(), pinned_c.get(), output_bytes);
+          return RNS8_SUCCESS;
+        });
+    if (!result.hip_graph_first_caller_observation_available) {
+      result.hip_graph_first_caller_observation = observation;
+      result.hip_graph_first_caller_observation_available = true;
+    }
+    return observation;
+  };
+
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "warmup_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -710,10 +741,8 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    *static_cast<int*>(pinned_status.get()) = 0;
-    const auto repeat_start = std::chrono::steady_clock::now();
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
-    const auto repeat_end = std::chrono::steady_clock::now();
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "measured_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -727,16 +756,17 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("hip graph bounded pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
     }
-    const double elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = observation.total_us;
+    result.hip_graph_caller_samples.push_back(observation);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
     result.samples.end_to_end_us.push_back(elapsed);
   }
   record_allocation_after_repeats(result);
-  std::memcpy(C.data(), pinned_c.get(), output_bytes);
   latest_output_matrix = c_matrix;
   result.hip_graph_launch_count = graph_state.launch_count;
+  owner_accounting.begin_teardown();
   destroy_hip_graph_replay_state(graph_state);
 }
 
@@ -806,6 +836,10 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
     const std::vector<HostT>& B,
     std::vector<uint64_t>& C,
     rns8_matrix*& latest_output_matrix) {
+  if (args.output_ld_padding != 0) {
+    fail_status("graph caller transaction requires compact output", RNS8_INVALID_ARGUMENT);
+  }
+
   if (!a_matrix || !b_matrix || !c_matrix || args.exact_wide_limb_count != 4 || args.output_ld_padding != 0) {
     fail_status("hip graph exact-wide pack/GEMM/export requires contiguous 4-limb A/B/C matrices", RNS8_INVALID_ARGUMENT);
   }
@@ -822,6 +856,11 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
       sizeof(uint64_t),
       "hip graph exact-wide C output");
 
+  result.hip_graph_caller_transaction = true;
+  result.hip_graph_caller_payload_bytes = {a_bytes, b_bytes, output_bytes};
+  result.hip_graph_caller_samples.reserve(args.repeats);
+  GraphCallerOwnerAccounting owner_accounting(
+      result.hip_graph_owner_prepare_us, result.hip_graph_owner_teardown_us);
   rns8::detail::hip_pinned_host_buffer pinned_a;
   rns8::detail::hip_pinned_host_buffer pinned_b;
   rns8::detail::hip_pinned_host_buffer pinned_c;
@@ -830,8 +869,6 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
   fail_streaming_hip("hipHostMalloc(hip graph exact-wide B)", pinned_b.ensure(args.device_id, b_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph exact-wide C)", pinned_c.ensure(args.device_id, output_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph exact-wide status)", pinned_status.ensure(args.device_id, sizeof(int)));
-  std::memcpy(pinned_a.get(), A.data(), a_bytes);
-  std::memcpy(pinned_b.get(), B.data(), b_bytes);
   std::memset(pinned_c.get(), 0, output_bytes);
   *static_cast<int*>(pinned_status.get()) = 0;
 
@@ -919,8 +956,32 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
   result.hip_graph_replay_used = true;
   result.hip_graph_replay_status = "available";
 
+  owner_accounting.finish_preparation(result.hip_graph_capture_us + result.hip_graph_instantiate_us + graph_state.stream_prepare_us);
+  result.hip_graph_stream_prepare_us = graph_state.stream_prepare_us;
+  auto replay_caller_transaction = [&] {
+    auto observation = completed_graph_caller_transaction(!args.production_host_timing,
+        [&] {
+          std::memcpy(pinned_a.get(), A.data(), a_bytes);
+          std::memcpy(pinned_b.get(), B.data(), b_bytes);
+          *static_cast<int*>(pinned_status.get()) = 0;
+        },
+        [&] { return launch_hip_graph_replay(args.device_id, graph_state, graph_error); },
+        [&] {
+          const auto export_status = static_cast<rns8_status>(*static_cast<int*>(pinned_status.get()));
+          if (export_status != RNS8_SUCCESS) return export_status;
+          std::memcpy(C.data(), pinned_c.get(), output_bytes);
+          return RNS8_SUCCESS;
+        });
+    if (!result.hip_graph_first_caller_observation_available) {
+      result.hip_graph_first_caller_observation = observation;
+      result.hip_graph_first_caller_observation_available = true;
+    }
+    return observation;
+  };
+
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "warmup_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -937,10 +998,8 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    *static_cast<int*>(pinned_status.get()) = 0;
-    const auto repeat_start = std::chrono::steady_clock::now();
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
-    const auto repeat_end = std::chrono::steady_clock::now();
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "measured_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -954,16 +1013,17 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("hip graph exact-wide pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
     }
-    const double elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = observation.total_us;
+    result.hip_graph_caller_samples.push_back(observation);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
     result.samples.end_to_end_us.push_back(elapsed);
   }
   record_allocation_after_repeats(result);
-  std::memcpy(C.data(), pinned_c.get(), output_bytes);
   latest_output_matrix = c_matrix;
   result.hip_graph_launch_count = graph_state.launch_count;
+  owner_accounting.begin_teardown();
   destroy_hip_graph_replay_state(graph_state);
 }
 
@@ -1066,6 +1126,10 @@ void run_hip_graph_replay_finite_pack_gemm_export(
     const std::vector<uint8_t>& A,
     const std::vector<uint8_t>& B,
     std::vector<uint8_t>& C) {
+  if (args.output_ld_padding != 0) {
+    fail_status("graph caller transaction requires compact output", RNS8_INVALID_ARGUMENT);
+  }
+
   if (!a_matrix || !b_matrix || !c_matrix) {
     fail_status("hip graph finite pack/GEMM/export requires resident A/B/C matrices", RNS8_INVALID_ARGUMENT);
   }
@@ -1080,14 +1144,17 @@ void run_hip_graph_replay_finite_pack_gemm_export(
   const std::size_t output_bytes =
       checked_bytes(checked_elements(args.m, args.n, "hip graph finite C output"), sizeof(uint8_t), "hip graph finite C output");
 
+  result.hip_graph_caller_transaction = true;
+  result.hip_graph_caller_payload_bytes = {a_bytes, b_bytes, output_bytes};
+  result.hip_graph_caller_samples.reserve(args.repeats);
+  GraphCallerOwnerAccounting owner_accounting(
+      result.hip_graph_owner_prepare_us, result.hip_graph_owner_teardown_us);
   rns8::detail::hip_pinned_host_buffer pinned_a;
   rns8::detail::hip_pinned_host_buffer pinned_b;
   rns8::detail::hip_pinned_host_buffer pinned_c;
   fail_streaming_hip("hipHostMalloc(hip graph finite A)", pinned_a.ensure(args.device_id, a_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph finite B)", pinned_b.ensure(args.device_id, b_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph finite C)", pinned_c.ensure(args.device_id, output_bytes));
-  std::memcpy(pinned_a.get(), A.data(), a_bytes);
-  std::memcpy(pinned_b.get(), B.data(), b_bytes);
   std::memset(pinned_c.get(), 0, output_bytes);
 
   rns8_status status =
@@ -1178,8 +1245,29 @@ void run_hip_graph_replay_finite_pack_gemm_export(
   result.hip_graph_replay_used = true;
   result.hip_graph_replay_status = "available";
 
+  owner_accounting.finish_preparation(result.hip_graph_capture_us + result.hip_graph_instantiate_us + graph_state.stream_prepare_us);
+  result.hip_graph_stream_prepare_us = graph_state.stream_prepare_us;
+  auto replay_caller_transaction = [&] {
+    auto observation = completed_graph_caller_transaction(!args.production_host_timing,
+        [&] {
+          std::memcpy(pinned_a.get(), A.data(), a_bytes);
+          std::memcpy(pinned_b.get(), B.data(), b_bytes);
+        },
+        [&] { return launch_hip_graph_replay(args.device_id, graph_state, graph_error); },
+        [&] {
+          std::memcpy(C.data(), pinned_c.get(), output_bytes);
+          return RNS8_SUCCESS;
+        });
+    if (!result.hip_graph_first_caller_observation_available) {
+      result.hip_graph_first_caller_observation = observation;
+      result.hip_graph_first_caller_observation_available = true;
+    }
+    return observation;
+  };
+
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "warmup_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -1192,9 +1280,8 @@ void run_hip_graph_replay_finite_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    const auto repeat_start = std::chrono::steady_clock::now();
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
-    const auto repeat_end = std::chrono::steady_clock::now();
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "measured_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -1204,15 +1291,16 @@ void run_hip_graph_replay_finite_pack_gemm_export(
       }
       fail_status("hip graph finite pack/GEMM/export measured launch", status);
     }
-    const double elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = observation.total_us;
+    result.hip_graph_caller_samples.push_back(observation);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
     result.samples.end_to_end_us.push_back(elapsed);
   }
   record_allocation_after_repeats(result);
-  std::memcpy(C.data(), pinned_c.get(), output_bytes);
   result.hip_graph_launch_count = graph_state.launch_count;
+  owner_accounting.begin_teardown();
   destroy_hip_graph_replay_state(graph_state);
 }
 
@@ -1223,6 +1311,10 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
     const std::vector<uint64_t>& B,
     std::vector<uint64_t>& C,
     int64_t ldc) {
+  if (args.output_ld_padding != 0) {
+    fail_status("graph caller transaction requires compact output", RNS8_INVALID_ARGUMENT);
+  }
+
   if (ldc != args.n) {
     fail_status("HIP Graph wrap64 pack/GEMM/export requires contiguous output", RNS8_INVALID_ARGUMENT);
   }
@@ -1240,14 +1332,17 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
   const std::size_t b_limb_bytes = wrap64_compact_limb_bytes(args.k, args.n, "hip graph wrap64 B byte limbs");
   const std::size_t c_limb_bytes = wrap64_compact_limb_bytes(args.m, args.n, "hip graph wrap64 C byte limbs");
 
+  result.hip_graph_caller_transaction = true;
+  result.hip_graph_caller_payload_bytes = {a_bytes, b_bytes, output_bytes};
+  result.hip_graph_caller_samples.reserve(args.repeats);
+  GraphCallerOwnerAccounting owner_accounting(
+      result.hip_graph_owner_prepare_us, result.hip_graph_owner_teardown_us);
   rns8::detail::hip_pinned_host_buffer pinned_a;
   rns8::detail::hip_pinned_host_buffer pinned_b;
   rns8::detail::hip_pinned_host_buffer pinned_c;
   fail_streaming_hip("hipHostMalloc(hip graph wrap64 A)", pinned_a.ensure(args.device_id, a_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph wrap64 B)", pinned_b.ensure(args.device_id, b_bytes));
   fail_streaming_hip("hipHostMalloc(hip graph wrap64 C)", pinned_c.ensure(args.device_id, output_bytes));
-  std::memcpy(pinned_a.get(), A.data(), a_bytes);
-  std::memcpy(pinned_b.get(), B.data(), b_bytes);
   std::memset(pinned_c.get(), 0, output_bytes);
 
   DeviceBuffer a_upload;
@@ -1355,8 +1450,29 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
   result.hip_graph_replay_used = true;
   result.hip_graph_replay_status = "available";
 
+  owner_accounting.finish_preparation(result.hip_graph_capture_us + result.hip_graph_instantiate_us + graph_state.stream_prepare_us + result.matrix_alloc_us);
+  result.hip_graph_stream_prepare_us = graph_state.stream_prepare_us;
+  auto replay_caller_transaction = [&] {
+    auto observation = completed_graph_caller_transaction(!args.production_host_timing,
+        [&] {
+          std::memcpy(pinned_a.get(), A.data(), a_bytes);
+          std::memcpy(pinned_b.get(), B.data(), b_bytes);
+        },
+        [&] { return launch_hip_graph_replay(args.device_id, graph_state, graph_error); },
+        [&] {
+          std::memcpy(C.data(), pinned_c.get(), output_bytes);
+          return RNS8_SUCCESS;
+        });
+    if (!result.hip_graph_first_caller_observation_available) {
+      result.hip_graph_first_caller_observation = observation;
+      result.hip_graph_first_caller_observation_available = true;
+    }
+    return observation;
+  };
+
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "warmup_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -1369,9 +1485,8 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    const auto repeat_start = std::chrono::steady_clock::now();
-    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
-    const auto repeat_end = std::chrono::steady_clock::now();
+    const auto observation = replay_caller_transaction();
+    status = observation.status;
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "measured_launch_failed";
       result.hip_graph_replay_caveat = graph_error;
@@ -1381,15 +1496,16 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
       }
       fail_status("hip graph wrap64 pack/GEMM/export measured launch", status);
     }
-    const double elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = observation.total_us;
+    result.hip_graph_caller_samples.push_back(observation);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
     result.samples.end_to_end_us.push_back(elapsed);
   }
   record_allocation_after_repeats(result);
-  std::memcpy(C.data(), pinned_c.get(), output_bytes);
   result.hip_graph_launch_count = graph_state.launch_count;
+  owner_accounting.begin_teardown();
   destroy_hip_graph_replay_state(graph_state);
 }
 #else

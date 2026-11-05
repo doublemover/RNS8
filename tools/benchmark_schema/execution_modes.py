@@ -739,7 +739,11 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
         self._error("timing_metadata.hip_graph_total_launches must match hip_graph_replay.total_graph_launches")
     if metadata.get("gpu_event_timing") is not False:
         self._error("hip_graph_replay captures must report gpu_event_timing=false")
-    if metadata.get("gpu_event_timing_reason") != "hip_graph_replay_wall_clock_only":
-        self._error("hip_graph_replay captures must report gpu_event_timing_reason=hip_graph_replay_wall_clock_only")
-    if metadata.get("gpu_event_timing_status") != "not_requested_graph_replay":
-        self._error("hip_graph_replay captures must report gpu_event_timing_status=not_requested_graph_replay")
+    production = (metadata.get("host_instrumentation_state") == "hooks_disabled"
+                  and metadata.get("gpu_event_timing_reason") == "explicit_production_hooks_disabled"
+                  and metadata.get("gpu_event_timing_status") == "not_requested_production_timing")
+    if not production:
+        if metadata.get("gpu_event_timing_reason") != "hip_graph_replay_wall_clock_only":
+            self._error("hip_graph_replay diagnostic captures require the explicit wall-clock policy")
+        if metadata.get("gpu_event_timing_status") != "not_requested_graph_replay":
+            self._error("hip_graph_replay diagnostic captures require not_requested_graph_replay")
