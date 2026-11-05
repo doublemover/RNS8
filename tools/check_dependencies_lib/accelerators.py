@@ -463,7 +463,7 @@ def compile_accelerator_primitive_probe(
             "MSVC developer environment could not be discovered automatically",
             True,
         )
-    code, output = run(actual_command, timeout=180)
+    code, output = run(actual_command, timeout=180, logical_command=command)
     ok = code == 0
     return {
         "primitive_probe_requested": True,
@@ -574,7 +574,7 @@ def accelerator_compile_probes(
                 True,
             )
             continue
-        code, output = run(actual_command, timeout=60)
+        code, output = run(actual_command, timeout=60, logical_command=command if isinstance(command,list) else None)
         run_command: list[str] = []
         run_code: int | None = None
         run_output = ""

@@ -18,12 +18,35 @@ from unittest.mock import patch
 from check_dependencies_lib import resolution as r
 from check_dependencies_lib.readiness import optional_cpp_references
 from check_dependencies_lib.system import find_command
+from check_dependencies_lib import system as system_runner
+import msvc_env
 import windows_dev
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class Discovery(unittest.TestCase):
+    def test_selected_compiler_environment_survives_windows_wrapping_without_parsing_shell_text(self):
+        sdk=self.sdk();report=self.resolve(self.request(overrides={'RNS8_HIP_ROOT':str(sdk)},hip=True))
+        compiler=report['hip']['selected']['paths']['compiler'];command=[compiler,'-c','source with spaces.hip']
+        for developer_loaded in (False,True):
+            with patch.object(msvc_env,'has_developer_environment',return_value=developer_loaded), \
+                 patch.object(msvc_env,'find_vsdevcmd',return_value=Path('VS with spaces/VsDevCmd.bat')):
+                actual,_=msvc_env.command_in_msvc_environment(command)
+            with r.selection_context(report),patch.object(system_runner.subprocess,'run',return_value=subprocess.CompletedProcess(actual,0,'ok')) as execute:
+                code,_=system_runner.run(actual,env={'HIP_CLANG_PATH':'stale','UNRELATED':'retained'},logical_command=command)
+                self.assertEqual(code,0);environment=execute.call_args.kwargs['env']
+                for key,value in r.compiler_environment(report).items():self.assertEqual(environment[key],value)
+                self.assertEqual(environment['UNRELATED'],'retained')
+                self.assertEqual(execute.call_args.args[0],actual)
+                self.assertEqual(execute.call_args.kwargs['shell'],not developer_loaded)
+        # Linux/direct argv needs the same selected environment. A non-compiler
+        # command is not reclassified just because shell text mentions hipcc.
+        with r.selection_context(report),patch.object(system_runner.subprocess,'run',return_value=subprocess.CompletedProcess(command,0,'ok')) as execute:
+            system_runner.run(command);self.assertEqual(execute.call_args.kwargs['env']['HIP_PATH'],r.compiler_environment(report)['HIP_PATH'])
+            system_runner.run('echo hipcc',env={'HIP_PATH':'unchanged'})
+            self.assertEqual(execute.call_args.kwargs['env'],{'HIP_PATH':'unchanged'})
+
     def test_selected_manifest_installation_precedes_classic_optional_references(self):
         vcpkg = self.vcpkg()
         installed = self.base / "prepared manifest"

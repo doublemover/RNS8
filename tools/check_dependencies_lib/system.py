@@ -17,10 +17,15 @@ from msvc_env import command_in_msvc_environment, find_visual_studio_installatio
 from .config import *
 from .resolution import ACTIVE_RESOLUTION, compiler_environment, selected_command
 
-def run(args: list[str] | str, timeout: int = 20, env: dict[str, str] | None = None) -> tuple[int, str]:
+def run(args: list[str] | str, timeout: int = 20, env: dict[str, str] | None = None, *, logical_command: list[str] | None = None) -> tuple[int, str]:
     try:
         active = ACTIVE_RESOLUTION.get()
-        if active and isinstance(args, list) and args and "hipcc" in Path(args[0]).name.lower():
+        original = logical_command if logical_command is not None else args if isinstance(args,list) else []
+        selected = (active.get("hip",{}).get("selected") or {}) if active else {}
+        compiler = selected.get("paths",{}).get("compiler")
+        # The MSVC wrapper may turn argv into shell text. Bind environment from
+        # the original compiler identity, never by parsing/reversing that text.
+        if compiler and original and Path(original[0]).resolve() == Path(compiler).resolve():
             env = {**os.environ, **(env or {}), **compiler_environment(active)}
         completed = subprocess.run(
             args,

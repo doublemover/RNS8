@@ -211,3 +211,9 @@ the resolved SDK root, compiler directory and device libraries. A stale HIP_PATH
 or an older compiler on the calling shell PATH cannot select another SDK for
 the tests. The user and system environment remain unchanged; runtime DLL staging
 and loaded-module identity checks still apply.
+
+Doctor compile probes preserve the selected HIP compiler environment in both
+an existing VS developer shell and a plain shell that needs `VsDevCmd.bat`.
+The runner receives the original compiler argv alongside the wrapped command,
+so SDK bindings override stale inherited HIP variables without parsing shell
+text. Unrelated child environment entries and the MSVC setup step are retained.

@@ -19,7 +19,7 @@ import tarfile
 import tempfile
 import urllib.request
 
-from check_dependencies_lib.resolution import FEATURE_KEYS, REQUEST_KEYS, Request, default_hip_roots, resolve, truth
+from check_dependencies_lib.resolution import FEATURE_KEYS, REQUEST_KEYS, Request, HipSelectionPolicy, resolve_hip, resolve, truth
 from check_dependencies_lib.version_policy import installed_vcpkg_receipt
 
 BASE_URL = "https://stable.repo.amd.com/rocm/core/tarball/"
@@ -249,47 +249,59 @@ def extract(archive: Path, destination: Path, host: str) -> None:
 
 def inspect(root: Path, host: str, version: str | None = None) -> dict:
     resolution = resolve(Request(host, overrides={"RNS8_HIP_ROOT": str(root)},
-                                 source_root=str(ROOT), require_hip=True, require_vcpkg=False))
+                                 source_root=str(ROOT), require_hip=True, require_vcpkg=False),
+                         hip_policy=HipSelectionPolicy(exact_core_release=version))
     if resolution["errors"]:
         raise ValueError("Invalid SDK extraction: " + "; ".join(map(str, resolution["errors"])))
-    if version:
-        version_file = root / ".info/version"
-        if not version_file.is_file() or version_file.read_text().strip() != version:
-            raise ValueError("SDK .info/version does not match requested Core SDK release")
     return resolution
 
 
-def existing_sdk(lane: dict, expected: str | None = None) -> tuple[Path | None, list[dict]]:
-    """Reuse an exact release, never guess a 'latest' version from directory names."""
+def managed_sdk_receipt(lane: dict, expected: str | None = None) -> tuple[Path, dict]:
+    """Read an existing managed selection without downloading or changing it."""
     destination = Path(lane["destination"])
-    if destination.exists():
-        root, _ = provision(lane, destination.parent / "unused-cache", expected)
-        return root, [{"root": str(root), "origin": "managed_receipt", "selected": True}]
+    saved = json.loads((destination / "rns8-sdk.json").read_text(encoding="utf-8"))
+    if not isinstance(saved,dict) or any(saved.get(key) != lane[key] for key in ("url","host","version","family")):
+        raise ValueError("Existing SDK receipt does not match requested release/family")
+    if expected and saved.get("archive_sha256") != expected:
+        raise ValueError("Existing SDK receipt does not match requested SHA-256")
+    relative = saved.get("sdk_relative_root")
+    if not isinstance(relative,str) or Path(relative).is_absolute():
+        raise ValueError("SDK receipt requires a relative extraction root")
+    root = (destination / relative).resolve()
+    if not root.is_relative_to(destination.resolve()):
+        raise ValueError("SDK receipt points outside its managed prefix")
+    return root,saved
+
+
+def existing_sdk(lane: dict, expected: str | None = None) -> tuple[Path | None, list[dict]]:
+    """Use the doctor's ranked selection with exact-release/managed policy inputs."""
+    destination = Path(lane["destination"])
+    managed = None; rejected = []
     if expected:
-        return None, [{"origin": "unmanaged_sdk", "rejected": "a pinned archive requires managed installation"}]
-    candidates = [(os.environ[key], "environment:" + key) for key in ("RNS8_HIP_ROOT", "HIP_PATH", "ROCM_PATH") if os.environ.get(key)]
-    candidates.extend((str(root), "platform_default") for root in default_hip_roots(lane["host"], os.environ))
-    report = []
-    usable: dict[Path, str] = {}
-    for value, origin in candidates:
-        root = Path(value).expanduser().resolve()
-        if any(item["root"] == str(root) for item in report):
-            continue
-        version_file = root / ".info/version"
-        if not version_file.is_file() or version_file.read_text().strip() != lane["version"]:
-            report.append(dict(root=str(root), origin=origin, rejected="Core SDK version is not the exact requested release"))
-            continue
+        # A deliberate archive pin cannot verify an adopted extraction. This
+        # explicit policy supersedes environment selection and is reported.
+        override = dict(origin="archive_sha256_policy",overridden_environment=[key for key in
+            ("RNS8_HIP_ROOT","HIP_PATH","ROCM_PATH") if os.environ.get(key)])
+        if not destination.exists():
+            return None,[{**override,"rejected":"a pinned archive requires managed installation"}]
+        managed,_ = managed_sdk_receipt(lane,expected)
+        inspect(managed,lane["host"],lane["version"])
+        return managed,[{**override,"root":str(managed),"selected":True}]
+    if destination.exists():
         try:
-            inspect(root, lane["host"], lane["version"])
-        except (OSError, ValueError) as error:
-            report.append(dict(root=str(root), origin=origin, rejected=str(error)))
-            continue
-        usable[root] = origin
-        report.append(dict(root=str(root), origin=origin, eligible=True))
-    if len(usable) > 1:
-        raise ValueError("Multiple coherent SDKs match this exact release; select --sdk-root: " + ", ".join(map(str, usable)))
-    selected = next(iter(usable), None)
-    return selected, report
+            managed,_ = managed_sdk_receipt(lane)
+        except (OSError,ValueError) as error:
+            rejected.append(dict(root=str(destination),origin="managed_receipt",rejected=[str(error)]))
+    selection = resolve_hip(Request(lane["host"],require_hip=True),os.environ,
+        HipSelectionPolicy(lane["version"],(str(managed),) if managed else ()))
+    if selection["status"] in ("invalid","ambiguous"):
+        raise ValueError("; ".join(selection["errors"]) or "HIP: ambiguous equally eligible SDK installations")
+    chosen = selection.get("selected")
+    if not chosen and destination.exists():
+        raise ValueError("Invalid managed SDK prefix; preserve or repair it before provisioning: " + json.dumps(rejected+selection["candidates"]))
+    root = Path(chosen["canonical_root"]) if chosen else None
+    report = [{**candidate,"selected":candidate["canonical_root"]==str(root)} for candidate in selection["candidates"]]
+    return root,report+rejected
 
 
 def build_tools() -> dict[str, str]:
@@ -357,16 +369,8 @@ def package_installation(resolution: dict, definitions: dict[str, str]) -> dict:
 
 def provision(lane: dict, cache: Path, expected: str | None = None) -> tuple[Path, dict]:
     destination = Path(lane["destination"])
-    receipt = destination / "rns8-sdk.json"
     if destination.exists():
-        saved = json.loads(receipt.read_text())
-        if any(saved.get(key) != lane[key] for key in ("url", "host", "version", "family")):
-            raise ValueError("Existing SDK receipt does not match requested release/family")
-        if expected and saved.get("archive_sha256") != expected:
-            raise ValueError("Existing SDK receipt does not match requested SHA-256")
-        root = destination / saved["sdk_relative_root"]
-        if not root.resolve().is_relative_to(destination.resolve()):
-            raise ValueError("SDK receipt points outside its managed prefix")
+        root,saved = managed_sdk_receipt(lane,expected)
         inspect(root, lane["host"], lane["version"])
         return root, saved
     if lane["filename"] not in official_inventory():
@@ -445,6 +449,10 @@ def run(args: argparse.Namespace) -> dict:
     results = []
     for lane in lanes:
         result = dict(lane, dry_run=args.dry_run)
+        result["sdk_selection_policy"] = ("explicit_sdk_root" if args.sdk_root else
+            "explicit_archive_pin" if pins.get(lane["family"]) else "automatic_ranked_discovery" if args.sdk_auto else "explicit_archive_install")
+        if result["sdk_selection_policy"] != "automatic_ranked_discovery":
+            result["overridden_environment"] = [key for key in ("RNS8_HIP_ROOT","HIP_PATH","ROCM_PATH") if os.environ.get(key)]
         root = args.sdk_root.resolve() if args.sdk_root else Path(lane["destination"])
         if args.sdk_auto:
             found, result["sdk_candidates"] = existing_sdk(lane, pins.get(lane["family"]))

@@ -199,6 +199,18 @@ HIP selection uses these ordered sources:
    `Program Files/AMD/ROCm` on Windows; `/opt/rocm`, immediate `/opt/rocm-*`,
    `/usr` and `/usr/local` on Linux.
 
+Automatic SDK initialization uses this same ranked result with an exact
+requested Core release constraint from `.info/version`, separate from the HIP
+header version. Valid managed receipts enter after declared prefixes and before
+PATH/default candidates. They cannot bypass an explicit project root. Invalid
+explicit roots, incompatible explicit releases, and equal-priority ambiguity
+stop reuse before provisioning; canonical aliases remain one candidate. A bad
+managed receipt is reported and may be bypassed by a valid higher-priority SDK;
+an unselected inconsistent managed destination is preserved for repair.
+`--sdk-root`, explicit archive installation and archive SHA-256 pins deliberately
+override environment discovery and report that policy. A pin never certifies an
+unmanaged extraction.
+
 An invalid explicit choice fails even when another complete SDK exists. Two
 valid candidates at the same best priority require an explicit selection;
 directory names and highest-version guesses do not break ties. Symlink aliases

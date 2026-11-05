@@ -106,6 +106,12 @@ class Request:
         return cls(host, dict(overrides), dict(features), root, value.get("require_hip", False), value.get("require_vcpkg", False))
 
 
+@dataclass(frozen=True)
+class HipSelectionPolicy:
+    exact_core_release: str | None = None
+    managed_roots: tuple[str, ...] = ()
+
+
 @dataclass
 class Candidate:
     root: str
@@ -121,6 +127,7 @@ class Candidate:
     file_sha256: dict[str, str] = field(default_factory=dict)
     revision: str | None = None
     binary_architectures: dict[str, str | None] = field(default_factory=dict)
+    core_release: str | None = None
 
 
 def canonical(path: str | Path) -> str:
@@ -350,7 +357,7 @@ def select(name: str, roots: list[tuple[str, str, int, bool]], request: Request,
             "compatibility": "not_run", "runtime_validation": "not_run"}
 
 
-def resolve_hip(request: Request, environment: Mapping[str, str]) -> dict:
+def resolve_hip(request: Request, environment: Mapping[str, str], policy: HipSelectionPolicy | None = None) -> dict:
     roots = []
     if request.overrides.get("RNS8_HIP_ROOT"):
         roots.append((request.overrides["RNS8_HIP_ROOT"], "override:RNS8_HIP_ROOT", 0, True))
@@ -377,7 +384,20 @@ def resolve_hip(request: Request, environment: Mapping[str, str]) -> dict:
     on_path = shutil.which("hipcc", path=environment.get("PATH", ""))
     if on_path: roots.append((str(Path(on_path).resolve().parent.parent), "PATH:hipcc", 30, False))
     roots += [(str(root), "bounded_platform_default", 40, False) for root in default_hip_roots(request.host, environment)]
-    return select("HIP", roots, request, request.require_hip, inspect_hip)
+    if policy:
+        roots += [(root, "managed_receipt", 25, False) for root in policy.managed_roots]
+    def inspect_candidate(candidate: Candidate, selected_request: Request) -> None:
+        inspect_hip(candidate, selected_request)
+        if policy and policy.exact_core_release:
+            version_file = Path(candidate.canonical_root) / ".info/version"
+            try:
+                candidate.core_release = version_file.read_text(encoding="utf-8").strip()
+                candidate.file_sha256["core_release"] = digest(version_file)
+            except (OSError,UnicodeError) as error:
+                candidate.rejected.append("cannot read Core SDK .info/version: " + str(error))
+            if candidate.core_release != policy.exact_core_release:
+                candidate.rejected.append("Core SDK version is not the exact requested release " + policy.exact_core_release)
+    return select("HIP", roots, request, request.require_hip, inspect_candidate)
 
 
 def inspect_vcpkg(candidate: Candidate, request: Request) -> None:
@@ -523,7 +543,7 @@ def optional_components(request: Request, environment: Mapping[str, str], hip: d
     return result
 
 
-def resolve(request: Request, environment: Mapping[str, str] | None = None) -> dict:
+def resolve(request: Request, environment: Mapping[str, str] | None = None, *, hip_policy: HipSelectionPolicy | None = None) -> dict:
     env = dict(os.environ if environment is None else environment)
     errors = []
     for root in sysroot_prefixes(request):
@@ -532,7 +552,7 @@ def resolve(request: Request, environment: Mapping[str, str] | None = None) -> d
         for key in ("CMAKE_PREFIX_PATH", "CMAKE_INCLUDE_PATH", "CMAKE_LIBRARY_PATH"):
             if any(forbidden_windows_path(value) for value in split_paths(env.get(key, ""), request.host)):
                 errors.append(NATIVE_PACKAGE_POLICY + "environment:" + key + " contains Windows artifacts forbidden on native Linux/WSL")
-    hip = resolve_hip(request, env)
+    hip = resolve_hip(request, env, hip_policy)
     vcpkg, toolchain = resolve_vcpkg(request, env)
     optional = optional_components(request, env, hip, vcpkg)
     for item in (hip, vcpkg, *optional.values()): errors += item["errors"]

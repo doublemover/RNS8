@@ -480,9 +480,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/57",
       "requirements_sha256": "e58880d0af72140d69826427976e4c69770ddab0426d8bde03000c8c153091a9",
       "comments_reviewed": 4,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Use shared ranked HIP selection for automatic SDK reuse, with explicit exact Core-release and lower-priority managed-receipt inputs. Invalid explicit roots/releases and equally eligible ambiguity fail before provisioning; canonical aliases deduplicate. Share managed receipt parsing between reuse/provisioning, preserve inconsistent destinations, and report deliberate CLI/archive-pin environment overrides. Doctor HIP probes carry original compiler argv through MSVC wrapping and bind the selected environment by compiler identity for direct and wrapped calls. Offline positive/negative/alias/receipt/pin/environment fixtures authored; syntax only, no SDK download/compiler/runtime execution."
+      ],
+      "remaining_source_items": [
+        "Repair installed hipBLASLt dependency policy and forward selected consumer inputs; author configure-only package fixtures.",
+        "Reconcile the remaining issue body and prior source credits against the complete current discovery path before marking implementation complete."
+      ]
     },
     {
       "issue": 58,

@@ -6,6 +6,7 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tarfile
 import tempfile
@@ -14,6 +15,7 @@ from unittest.mock import patch
 
 import rocm_sdk as sdk
 import init as init_entry
+from check_dependencies_lib import resolution as shared_resolution
 
 
 class SDKTests(unittest.TestCase):
@@ -218,12 +220,54 @@ class SDKTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["env"]["HIP_PATH"], str(root))
         self.assertIn("windows-gfx110X-all-10.1.0" if sdk.platform.system() == "Windows" else "linux-gfx110X-all-10.1.0", result["lanes"][0]["build_dir"])
 
+    def test_auto_uses_shared_explicit_priority_and_never_downloads_around_bad_roots(self):
+        sdk.extract(self.archive(),self.base/'unpack','Windows');one=self.base/'unpack/sdk'
+        two=self.base/'default SDK';shutil.copytree(one,two)
+        lane=sdk.plan(['gfx1100'],'Windows','10.1.0',self.base/'managed')[0]
+        with patch.dict(sdk.os.environ,{'RNS8_HIP_ROOT':str(one)},clear=True), \
+             patch.object(shared_resolution,'default_hip_roots',return_value=[two]), \
+             patch.object(sdk,'official_inventory',side_effect=AssertionError('network')):
+            chosen,report=sdk.existing_sdk(lane);self.assertEqual(chosen,one.resolve())
+            self.assertEqual(next(c for c in report if c.get('selected'))['origin'],'environment:RNS8_HIP_ROOT')
+            sdk.os.environ['RNS8_HIP_ROOT']=str(self.base/'missing')
+            with self.assertRaisesRegex(ValueError,'invalid explicit'):sdk.existing_sdk(lane)
+            sdk.os.environ['RNS8_HIP_ROOT']=str(one);(one/'.info/version').write_text('10.0.0')
+            with self.assertRaisesRegex(ValueError,'exact requested release'):sdk.existing_sdk(lane)
+        (one/'.info/version').write_text('10.1.0')
+        with patch.dict(sdk.os.environ,{},clear=True),patch.object(shared_resolution,'default_hip_roots',return_value=[one,two]):
+            with self.assertRaisesRegex(ValueError,'ambiguous'):sdk.existing_sdk(lane)
+
+    def test_managed_receipt_is_a_lower_ranked_candidate_and_pins_report_overrides(self):
+        sdk.extract(self.archive(),self.base/'unpack','Windows');one=self.base/'unpack/sdk'
+        lane=sdk.plan(['gfx1100'],'Windows','10.1.0',self.base/'managed')[0];destination=Path(lane['destination'])
+        shutil.copytree(one,destination/'sdk');receipt=destination/'rns8-sdk.json'
+        receipt.write_text(json.dumps(dict(lane,sdk_relative_root='sdk',archive_sha256='a'*64)))
+        with patch.dict(sdk.os.environ,{'RNS8_HIP_ROOT':str(one)},clear=True),patch.object(shared_resolution,'default_hip_roots',return_value=[]):
+            chosen,report=sdk.existing_sdk(lane);self.assertEqual(chosen,one.resolve())
+            self.assertTrue(any(c['origin']=='managed_receipt' and not c['selected'] for c in report))
+            chosen,report=sdk.existing_sdk(lane,'a'*64);self.assertEqual(chosen,(destination/'sdk').resolve())
+            self.assertEqual(report[0]['overridden_environment'],['RNS8_HIP_ROOT'])
+            with self.assertRaisesRegex(ValueError,'SHA-256'):sdk.existing_sdk(lane,'b'*64)
+            receipt.write_text('{broken')
+            chosen,report=sdk.existing_sdk(lane);self.assertEqual(chosen,one.resolve())
+            self.assertTrue(any(c['origin']=='managed_receipt' and c.get('rejected') for c in report))
+
+    def test_equivalent_sdk_root_aliases_are_one_shared_candidate(self):
+        sdk.extract(self.archive(),self.base/'unpack','Windows');one=self.base/'unpack/sdk';alias=self.base/'alias SDK'
+        try:alias.symlink_to(one,target_is_directory=True)
+        except OSError:self.skipTest('directory symlink permission unavailable for offline alias fixture')
+        lane=sdk.plan(['gfx1100'],'Windows','10.1.0',self.base/'managed')[0]
+        with patch.dict(sdk.os.environ,{'RNS8_HIP_ROOT':str(alias)},clear=True),patch.object(shared_resolution,'default_hip_roots',return_value=[one]):
+            chosen,report=sdk.existing_sdk(lane);self.assertEqual(chosen,one.resolve())
+            self.assertEqual(sum(bool(c['selected']) for c in report),1)
+            self.assertTrue(next(c for c in report if c['selected'])['aliases'])
+
     def test_auto_reuses_exact_standard_sdk_without_network(self):
         sdk.extract(self.archive(), self.base / "unpack", "Windows")
         root = self.base / "unpack/sdk"
         lane = sdk.plan(["gfx1100"], "Windows", "10.1.0", self.base / "managed")[0]
         with patch.dict(sdk.os.environ, {}, clear=True), \
-                patch.object(sdk, "default_hip_roots", return_value=[root]), \
+                patch.object(shared_resolution, "default_hip_roots", return_value=[root]), \
                 patch.object(sdk, "official_inventory", side_effect=AssertionError("network")):
             chosen, _ = sdk.existing_sdk(lane)
             self.assertEqual(chosen, root.resolve())
