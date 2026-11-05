@@ -26,6 +26,7 @@ class AnalysisCmake(unittest.TestCase):
             source = r'''
 cmake_minimum_required(VERSION 3.22)
 project(authored_analysis_contract LANGUAGES CXX)
+set(CMAKE_BUILD_TYPE Debug)
 include("@MODULE@")
 add_library(owned STATIC src/owned.cpp)
 add_executable(owned_tool src/owned.cpp)
@@ -49,7 +50,7 @@ endif()
 set(RNS8_AMDGPU_TARGETS "gfx1100;gfx942")
 set(args "compiler with spaces" "-Ipath with spaces/λ" "-DSEMICOLON=a\;b" "-DQUOTED=\"bytes\"" "-c" "input.hip")
 set(environment "HIP_PATH=SDK with spaces" "EXPLICIT=a\;b")
-rns8_record_hip_compile("input.hip" "output.obj" "${args}" "${environment}" "manifest.hpp;overlay.hpp")
+rns8_record_hip_compile("input.hip" "output.obj" "${args}" "${environment}" "generated/$<CONFIG>/manifest.hpp;overlay.hpp")
 rns8_write_analysis_metadata()
 '''.replace("@MODULE@", module)
             (root / "CMakeLists.txt").write_text(source, encoding="utf-8")
@@ -65,7 +66,9 @@ rns8_write_analysis_metadata()
                 "-DSEMICOLON=a;b", '-DQUOTED="bytes"', "-c", "input.hip"])
             self.assertEqual(command["environment"], ["HIP_PATH=SDK with spaces", "EXPLICIT=a;b"])
             self.assertEqual(command["targets"], ["gfx1100", "gfx942"])
-            self.assertEqual(command["generated_inputs"], ["manifest.hpp", "overlay.hpp"])
+            self.assertEqual(command["generated_inputs"], ["generated/Debug/manifest.hpp", "overlay.hpp"])
+            self.assertEqual(command["configuration"], "Debug")
+            self.assertEqual(document, json.loads((root / "build/rns8-hip-compile-commands-Debug.json").read_text()))
 
 
 if __name__ == "__main__":

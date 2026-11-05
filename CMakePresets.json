@@ -350,6 +350,36 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "windows-analysis-cpu",
+      "displayName": "Windows Analysis Cpu",
+      "description": "Separate non-unity CPU analysis configuration; host commands do not establish HIP device coverage.",
+      "inherits": "cpu-debug",
+      "binaryDir": "${sourceDir}/build/windows-analysis-cpu",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_UNITY_BUILD": "OFF",
+        "RNS8_BUILD_TESTS": "ON",
+        "RNS8_BUILD_TOOLS": "ON",
+        "RNS8_BUILD_BENCHMARKS": "ON",
+        "RNS8_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "linux-analysis-cpu",
+      "displayName": "Linux Analysis Cpu",
+      "description": "Separate non-unity CPU analysis configuration; host commands do not establish HIP device coverage.",
+      "inherits": "linux-cpu-debug",
+      "binaryDir": "${sourceDir}/build/linux-analysis-cpu",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_UNITY_BUILD": "OFF",
+        "RNS8_BUILD_TESTS": "ON",
+        "RNS8_BUILD_TOOLS": "ON",
+        "RNS8_BUILD_BENCHMARKS": "ON",
+        "RNS8_BUILD_EXAMPLES": "ON"
+      }
     }
   ],
   "buildPresets": [

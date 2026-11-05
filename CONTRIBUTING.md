@@ -76,9 +76,18 @@ warnings. `-DRNS8_WARNINGS_AS_ERRORS=ON` opts into `/WX` or `-Werror`; those
 options are not exported to installed consumers or applied to vendor targets.
 HIP custom compilations write `rns8-hip-compile-commands.json` from the same
 argv list passed to the compiler, including selected environment overrides,
-targets and required generated inputs. This is configured-command inventory,
+targets and required generated inputs. Per-configuration files use the suffix
+`-<CONFIG>.json`; generated-header expressions are resolved during generation.
+This is configured-command inventory,
 not proof that the compiler or an analyzer ran. The host/HIP static-analysis
 runner and qualification receipts remain implementation work under #99.
+The `windows-analysis-cpu` and `linux-analysis-cpu` presets export non-unity
+host commands into separate build directories. Their generated target/source
+inventory lets the reader reject missing or duplicated static/shared/tool
+contexts rather than treating a shortened database as full coverage. Native
+`command` strings are retained unchanged; they are not reparsed with a foreign
+shell's quoting rules. `rns8_analysis_inputs` prepares real generated inputs
+without depending on HIP object compilation.
 
 A GPU is unnecessary for portable reference, API and tooling work. On Windows,
 set `VCPKG_ROOT` to an installation containing the manifest packages, then use
