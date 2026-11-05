@@ -27,6 +27,11 @@ the original mangled symbol or loaded artifact. The adapter joins native
 process/node/GUID-scoped records and reuses the existing selected static ISA
 and immutable artifact receipts.
 
+The JSON code-object agent field is agent_id.handle, as emitted by the pinned
+[SDK serializer](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/include/rocprofiler-sdk/cxx/serialization/save.hpp).
+The adapter and authored format controls use that producer spelling; an
+unsupported alias cannot supply missing association.
+
 ## Plan and preflight
 
 Plan-only emits supported-feature policy and read-only commands:

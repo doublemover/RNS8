@@ -16,6 +16,19 @@ from compiled_binary_identity import canonical_digest
 
 
 class NativeProfilerEvidence(unittest.TestCase):
+    def test_unsupported_code_object_agent_field_cannot_qualify(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            native = copy.deepcopy(fixture.native)
+            code = native["rocprofiler-sdk-tool"][0]["code_objects"][0]
+            code["rocp_agent"] = code.pop("agent_id")
+            write(fixture.native_path, native)
+            receipt = copy.deepcopy(fixture.dispatch)
+            receipt["native_trace"] = reference(fixture.native_path)
+            write(fixture.dispatch_path, receipt)
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(reference(fixture.dispatch_path),
+                    capture=fixture.capture, store=EvidenceStore(), parent=fixture.root)
     def test_native_file_output_is_an_explicit_raw_bound_observation(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = QualificationFixture(Path(directory))

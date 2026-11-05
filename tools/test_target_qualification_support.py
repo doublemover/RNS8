@@ -127,7 +127,7 @@ class QualificationFixture:
                     code_objects=[
                         dict(
                             code_object_id=7,
-                            rocp_agent=dict(handle=3),
+                            agent_id=dict(handle=3),
                             uri="file://"
                             + self.binaries["rns8-bench"].as_posix()
                             + "#offset=6&size="

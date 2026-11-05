@@ -347,9 +347,10 @@ def validate_dispatch_receipt(
         code = objects.get(_integer(kernel.get("code_object_id")))
         if (
             code is None
-            or _integer(_object(code.get("rocp_agent")).get("handle")) != key[0]
+            or not isinstance(code.get("agent_id"), dict)
+            or _integer(code["agent_id"].get("handle")) != key[0]
         ):
-            raise ValueError("loaded code object belongs to another agent")
+            raise ValueError("loaded code object lacks its SDK agent_id or belongs to another agent")
         object_id = code["code_object_id"]
         if object_id not in object_hashes:
             object_hashes[object_id] = code_object_digest(

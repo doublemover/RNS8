@@ -333,7 +333,7 @@ def read_process(
                     code_objects=[
                         dict(
                             code_object_id=key,
-                            rocp_agent=dict(handle=row["agent_id"]),
+                            agent_id=dict(handle=row["agent_id"]),
                             uri=row["uri"],
                         )
                         for key, row in objects.items()
