@@ -23,6 +23,7 @@ typedef struct rns8_public_abi_info {
   const char* declaration_sha256;
   const char* compiler_id;
   const char* runtime_model;
+  const char* build_manifest_json;
 } rns8_public_abi_info;
 
 /* CPU-only, allocation-free inspection of this compiled library's public C ABI.
@@ -32,6 +33,8 @@ typedef struct rns8_public_abi_info {
  * The returned sorted table/strings are immutable and owned by the loaded
  * library; never free them or retain them after unloading it. Values describe
  * actual compiled sizes, alignments, offsets, enum values and public constants.
+ * build_manifest_json is the library's compiled manifest, or null in a build
+ * without embedded provenance. Consumers must validate it before qualification.
  * This does not qualify GPU code, all runtime contracts or C++ source compatibility.
  */
 RNS8_API rns8_status rns8_get_public_abi_info(rns8_public_abi_info* out);

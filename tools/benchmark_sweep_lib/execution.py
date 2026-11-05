@@ -6,19 +6,18 @@ import json
 import os
 import subprocess
 import hashlib
-import shutil
 import sys
 import threading
 import time
 from pathlib import Path
 
 from autotune_paths import default_autotune_cache_path
-from benchmark_request import request_identity, request_mismatch
+from benchmark_request import request_identity, request_mismatch, attach_capture_identity, resolved_executable
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
 
-from .config import SweepCommand, WRAP64_ROCWMMA_CANDIDATE_BACKEND
+from .config import SweepCommand
 
 def cli_backend(backend: str) -> str:
     if backend == "hip-vector-alu-int64":
@@ -106,8 +105,7 @@ def run_command(
     execution_id = str(uuid.uuid4())
     capture_start = time.perf_counter()
     request = request_identity(command, env_overrides, run_env)
-    executable = Path(shutil.which(command[0]) or command[0]).resolve()
-    executable_hash = hashlib.sha256(executable.read_bytes()).hexdigest()
+    executable = resolved_executable(command, run_env)
     capture_overhead = time.perf_counter() - capture_start
     started = time.perf_counter()
     if progress:
@@ -128,7 +126,7 @@ def run_command(
 
     try:
         process = subprocess.Popen(
-            command,
+            [str(executable), *command[1:]],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -202,13 +200,7 @@ def run_command(
         return False
     try:
         capture = json.loads(stdout_text)
-        capture["execution_id"] = execution_id
-        capture["request_identity"] = request
-        capture["artifact_capture"] = {
-            "executable_sha256": executable_hash, "executable_path": str(executable),
-            "hash_seconds": capture_overhead, "rns8_linkage": "static",
-            "unchanged_during_run": hashlib.sha256(executable.read_bytes()).hexdigest() == executable_hash,
-        }
+        attach_capture_identity(capture, request, executable, execution_id=execution_id, hash_seconds=capture_overhead)
         stdout_text = json.dumps(capture, indent=2)
     except (ValueError, TypeError):
         pass  # Preserve malformed output for the schema diagnostic.

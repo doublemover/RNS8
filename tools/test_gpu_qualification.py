@@ -189,7 +189,9 @@ class QualificationTests(unittest.TestCase):
             index=names.index(gate['name']);self.assertTrue(names[index-1].endswith('-build'))
             self.assertIn('--check-build',gate['argv']);self.assertIsNone(gate.get('device'))
             self.assertNotIn('inspect_target',gate)
-            for backend in q.BACKENDS:self.assertIn(backend,gate['argv'])
+            self.assertIn('hip-direct',gate['argv'])
+            combined=next(item for item in plan if item['name']=='all-enabled-manifest-admission')
+            for backend in q.BACKENDS:self.assertIn(backend,combined['argv'])
             self.assertTrue(all(i>index for i,item in enumerate(plan) if 'inspect_target' in item))
             self.assertEqual(plan[index+1]['depends_on'],[gate['name']])
             for item in plan:

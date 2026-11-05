@@ -8,6 +8,7 @@
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 #include "tool_common/cli_integer.hpp"
+#include "tool_common/build_identity.hpp"
 
 namespace {
 #include "rns8_inspect_parse_helpers.inc"
@@ -15,6 +16,8 @@ namespace {
 #include "rns8_inspect_autotune_print.inc"
 #include "rns8_inspect_selector_print.inc"
 int main(int argc, char** argv) {
+  const int identity_status = rns8::tools::emit_build_identity(argc, argv, std::cout);
+  if (identity_status >= 0) return identity_status;
   bool json = false;
   bool operations=false;
   bool show_autotune_cache = false;

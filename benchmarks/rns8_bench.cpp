@@ -29,6 +29,7 @@
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 #include "rns8/generated/metadata_registry.hpp"
+#include "tool_common/build_identity.hpp"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
 #  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
@@ -239,6 +240,8 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 }  // namespace
 
 int main(int argc, char** argv) try {
+  const int identity_status = rns8::tools::emit_build_identity(argc, argv, std::cout);
+  if (identity_status >= 0) return identity_status;
   const Args args = parse_args(argc, argv);
   (void)rns8::bench::host_clock_calibration(); // Validated args; outside every workload timing interval.
   struct ScopedAmdgpuBuiltinDenseVariantOverride {

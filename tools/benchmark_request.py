@@ -67,11 +67,15 @@ def file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def resolved_executable(command: list[str], environment: dict[str, str]) -> Path:
+    return Path(shutil.which(command[0], path=environment.get("PATH", os.defpath)) or command[0]).resolve(strict=True)
+
+
 def request_identity(command: list[str], overrides: dict[str, str] | None = None,
                      environ: dict[str, str] | None = None) -> dict:
     env = dict(os.environ if environ is None else environ)
     env.update(overrides or {})
-    executable = Path(shutil.which(command[0], path=env.get("PATH")) or command[0]).resolve()
+    executable = resolved_executable(command, env)
     relevant = {key: value for key, value in env.items()
                 if key.startswith(("RNS8_", "OMP_", "HIP_", "ROCR_", "HSA_", "KMP_"))
                 or key in {"CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD"}}
@@ -105,3 +109,19 @@ def request_mismatch(capture: dict, requested: dict) -> str | None:
     if artifact.get("unchanged_during_run") is not True:
         return "executable stability during capture was not established"
     return None
+
+
+def attach_capture_identity(capture: dict, request: dict, executable: Path, *,
+                            execution_id: str, hash_seconds: float = 0.0) -> None:
+    """Bind a subprocess observation outside all benchmark timing intervals."""
+    _, error = request_environment_identity(request)
+    if error:
+        raise ValueError(error)
+    capture["execution_id"] = execution_id
+    capture["request_identity"] = request
+    capture["artifact_capture"] = {
+        "executable_sha256": request["executable_sha256"],
+        "executable_path": str(executable.resolve(strict=True)),
+        "hash_seconds": hash_seconds, "rns8_linkage": "static",
+        "unchanged_during_run": file_digest(executable) == request["executable_sha256"],
+    }

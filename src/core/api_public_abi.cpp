@@ -52,6 +52,9 @@ rns8_status rns8_get_public_abi_info(rns8_public_abi_info* out) {
   result.declaration_sha256 = rns8_public_declaration_sha256;
   result.compiler_id = compiler_id;
   result.runtime_model = runtime_model;
+#ifdef RNS8_BUILD_MANIFEST_JSON
+  result.build_manifest_json = RNS8_BUILD_MANIFEST_JSON;
+#endif
   *out = result;
   return RNS8_SUCCESS;
 }

@@ -15,6 +15,7 @@ import signal
 import sys
 import time
 import xml.etree.ElementTree as ET
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,6 +23,9 @@ from process_progress import run_capture
 from session_artifacts import load_inventory, inspect_cache, stage_cache
 from check_dependencies_lib.resolution import Request, REQUEST_KEYS, resolve
 from session_environment import build_environment, execution_blockers, isolated_environment, snapshot
+from compiled_binary_identity import validate_document, bind_document
+from json_evidence import parse_evidence_json
+from benchmark_request import request_identity, attach_capture_identity
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKENDS = ("hip-direct", "amdgpu-builtins", "hipblaslt", "ck", "rocwmma")
@@ -98,6 +102,11 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
         for backend in enabled_backends:
             manifest_check.extend(['--backend', backend])
         add(f'{lane}-manifest-admission', manifest_check, device=None, build_dir=str(build))
+        for tool in ("rns8-inspect", "rns8-verify", "rns8_tests", "rns8-bench"):
+            name = f"{lane}-identity-{tool}"
+            add(name, [binary(tool), "--build-identity"], device=None, build_dir=str(build),
+                compiled_identity=True, identity_backends=enabled_backends,
+                identity_output=str(out / (name + ".identity.json")))
         for backend_index, backend in enumerate(enabled_backends):
             prefix = lane + "-" + backend if len(enabled_backends) > 1 else backend
             # Parent runtime ordinals and child-visible zero remain distinct.
@@ -108,6 +117,8 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
                 child = device_command_plan(backend, device, arch, binary, python, wrapper, build,
                     out, session_kind, stage_prefix=prefix, full_tests=backend_index == 0)
                 for name, argv, checks in child:
+                    if "capture" in checks:
+                        checks.update(expected_target=arch, expected_backend=backend)
                     add(name, argv, device=device, selected_device=device, **checks)
     return commands
 
@@ -160,6 +171,13 @@ def validate_result(item: dict, result: dict, parent_info: dict | None = None) -
     errors = []
     if result["returncode"] != 0 or result["timed_out"]:
         return ["command failed or timed out"]
+    if item.get("compiled_identity"):
+        try:
+            value = parse_evidence_json(result["stdout"])
+            for backend in item["identity_backends"]:
+                validate_document(value, backend)
+        except (ValueError, TypeError, KeyError):
+            errors.append("compiled executable/library identity is missing or incompatible")
     if "inspect_target" in item:
         try:
             info = json.loads(result["stdout"])
@@ -274,7 +292,7 @@ def readiness_blockers(args, resolution: dict, environment: dict) -> list[str]:
 
 def artifact_records(item: dict, out: Path) -> dict[str, str]:
     paths = [out / (item["name"] + suffix) for suffix in (".stdout.log", ".stderr.log")]
-    paths += [ROOT / item[key] for key in ("capture", "junit", "preparation_junit") if key in item]
+    paths += [ROOT / item[key] for key in ("capture", "junit", "preparation_junit", "identity_output") if key in item]
     executable = ROOT / item["argv"][0]
     if executable.is_file():
         paths.append(executable)
@@ -318,13 +336,14 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
     total = manifest["budgets"]["total_seconds"]
     reserve = manifest["budgets"]["export_reserve_seconds"]
 
-    def checkpoint(status):
+    def checkpoint(status, error=None):
         write_json(out / "results.json", {"schema": "rns8_gpu_session_results_v2", "status": status,
             "promotion_allowed": False, "manifest_identity_sha256": manifest["identity_sha256"],
             "physical_identity_verified": False, "hardware_qualified": False,
             "observed_parent_runtime_devices": [{"stage": name, **info, "pci_bdf": None, "physical_uuid": None}
                                                 for name, info in inspections.items()],
             "completed": len(results), "planned": len(manifest["commands"]),
+            "runner_error": error,
             "elapsed_seconds": prior_elapsed + clock() - started, "results": results})
 
     checkpoint("in_progress")
@@ -341,22 +360,59 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
             if item.get("device") is not None:
                 child.update(RNS8_MULTI_GPU_MODE="embarrassingly_parallel_shards",
                              RNS8_RANK=str(manifest["devices"].index(item["device"])), RNS8_WORLD_SIZE=str(len(manifest["devices"])))
+            identity_before = None
+            capture_request = None
+            if item.get("compiled_identity") or "capture" in item:
+                executable = (ROOT / item["argv"][0]).resolve(strict=True)
+                identity_before = sha256(executable)
+                if "capture" in item:
+                    capture_request = request_identity(item["argv"], environ=child)
             result = runner(item["argv"], cwd=ROOT, label=f"{index}/{len(manifest['commands'])} {item['name']}",
                             timeout_seconds=min(item["timeout_seconds"], remaining), env=child)
             for stream in ("stdout", "stderr"):
                 (out / f"{item['name']}.{stream}.log").write_text(result[stream], encoding="utf-8")
             errors = validate_result(item, result, inspections.get(item.get("match_parent")))
+            binary_identity = None
+            if item.get("compiled_identity") and not errors:
+                try:
+                    identity_output = ROOT / item["identity_output"]
+                    write_json(identity_output, parse_evidence_json(result["stdout"]))
+                    binary_identity = bind_document(executable, identity_output, before_sha256=identity_before)
+                except (OSError, ValueError, TypeError):
+                    errors.append("compiled binary changed or identity query could not be bound")
             if "capture" in item and not errors:
-                (ROOT / item["capture"]).write_text(result["stdout"], encoding="utf-8")
+                try:
+                    from benchmark_schema import validate_capture
+                    capture = parse_evidence_json(result["stdout"])
+                    if not isinstance(capture, dict):
+                        raise ValueError("benchmark output is not an object")
+                    if capture_request["executable_sha256"] != identity_before:
+                        raise ValueError("benchmark executable changed before launch")
+                    attach_capture_identity(capture, capture_request, executable, execution_id=str(uuid.uuid4()))
+                    if capture["artifact_capture"]["unchanged_during_run"] is not True:
+                        raise ValueError("benchmark executable changed during capture")
+                    validate_capture(capture)
+                    device = capture.get("device") or {}
+                    if (str(device.get("gcn_arch", "")).split(":")[0] != item.get("expected_target")
+                            or capture.get("backend_requested") != item.get("expected_backend")):
+                        raise ValueError("benchmark runtime target/backend differs from session request")
+                    write_json(ROOT / item["capture"], capture)
+                except (OSError, ValueError, TypeError, KeyError):
+                    errors.append("benchmark capture has invalid schema, artifact, target or request association")
             if item.get("parent_inspect") and not errors:
                 inspections[item["name"]] = json.loads(result["stdout"])
             results.append({"name": item["name"], **result, "parent_inspect": item.get("parent_inspect", False),
                             "selected_runtime_ordinal": item.get("selected_device"), "physical_uuid": None, "pci_bdf": None,
+                            "compiled_binary_identity": binary_identity,
                             "validation_errors": errors, "artifacts": artifact_records(item, out)})
             checkpoint("blocked" if errors else "in_progress")
             if errors:
                 print(f"STOP: {item['name']}: {'; '.join(errors)}", file=sys.stderr, flush=True)
                 return 1
+    except (OSError, ValueError, TypeError) as error:
+        checkpoint("blocked", str(error))
+        print(f"STOP: session evidence could not be bound: {error}", file=sys.stderr, flush=True)
+        return 1
     except KeyboardInterrupt:
         # run_capture has already terminated its owned process group.
         checkpoint("interrupted")

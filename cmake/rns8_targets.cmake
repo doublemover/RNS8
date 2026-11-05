@@ -102,11 +102,13 @@ set_target_properties(rns8_static PROPERTIES OUTPUT_NAME rns8_static)
 
 if(RNS8_BUILD_TOOLS)
   add_executable(rns8-inspect tools/rns8_inspect.cpp)
+  rns8_bind_manifest(rns8-inspect)
   target_include_directories(rns8-inspect PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(rns8-inspect PRIVATE rns8_static nlohmann_json::nlohmann_json)
   rns8_copy_windows_clang_asan_runtime(rns8-inspect)
 
   add_executable(rns8-verify tools/rns8_verify.cpp)
+  rns8_bind_manifest(rns8-verify)
   target_include_directories(
     rns8-verify
     PRIVATE

@@ -37,7 +37,8 @@ a comment-only edit does not change the declaration digest.
 The compiled inventory uses actual sizeof/alignof/offsetof expressions,
 member/callback/function type assertions and constants. The allocation-free
 rns8_get_public_abi_info API returns a borrowed immutable table plus its
-declaration digest and compiler/runtime identity. Its caller must provide a
+declaration digest, compiler/runtime identity and the actual library's embedded
+build_manifest_json (null when provenance was not compiled in). Its caller must provide a
 readable eight-byte size prefix; success requires exactly the current full
 struct size and ABI version. Rejection preserves output bytes. Table/string
 pointers remain valid only until the library is unloaded.

@@ -3,9 +3,11 @@
 #include <cstdint>
 #include <cstring>
 #include <string_view>
+#include <sstream>
 #include <type_traits>
 #include "rns8/rns8.h"
 #include "rns8/pipeline_recipe.h"
+#include "tool_common/build_identity.hpp"
 static_assert(sizeof(rns8_allocation_domain_observation)==56);
 static_assert(sizeof(rns8_allocation_observation)==136);
 static_assert(std::is_standard_layout_v<rns8_allocation_observation>);
@@ -131,4 +133,25 @@ TEST_CASE("compiled ABI inspection preserves rejected outputs and borrows a stab
   Header header{sizeof(Header)};
   CHECK(rns8_get_public_abi_info(reinterpret_cast<rns8_public_abi_info*>(&header)) == RNS8_INVALID_ARGUMENT);
   CHECK(header.struct_size == sizeof(Header));
+}
+
+TEST_CASE("binary identity option is separate from workload dispatch", "[abi][cpu]") {
+  char program[] = "fixture";
+  char other[] = "--other";
+  char option[] = "--build-identity";
+  char* unknown[]{program, other};
+  std::ostringstream untouched;
+  CHECK(rns8::tools::emit_build_identity(2, unknown, untouched) == -1);
+  CHECK(untouched.str().empty());
+  char* request[]{program, option};
+  std::ostringstream output;
+  const int status = rns8::tools::emit_build_identity(2, request, output);
+#ifdef RNS8_BUILD_MANIFEST_JSON
+  CHECK(status == 0);
+#else
+  CHECK(status == 2);
+#endif
+  CHECK(output.str().find("\"schema\":\"rns8_compiled_binary_identity_v1\"") != std::string::npos);
+  CHECK(output.str().find("\"library_build_manifest\":") != std::string::npos);
+  CHECK(output.str().find("\"library_abi_declaration_sha256\":") != std::string::npos);
 }

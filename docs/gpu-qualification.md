@@ -303,3 +303,26 @@ backend-specific. GPU CTest runs serially; `--jobs` controls build parallelism.
 The combined lane is explicit and is not part of CPU-only preparation. It tests
 interactions among the configured accelerator options, not availability of
 unsupported target-specific instructions or automatic backend promotion.
+
+
+## Compiled binary association
+
+The benchmark, verifier, inspector and Catch test runner accept --build-identity
+as a standalone CPU-only query before any GPU or workload initialization. It
+emits the executable's embedded manifest, the actual linked library's embedded
+manifest and that library's ABI declaration digest. Missing provenance returns
+a nonzero status. The session runner queries all four binaries after manifest
+admission and before runtime device probes; differing, dirty or incomplete
+executable/library manifests block the session.
+
+Each query receipt binds the executable and raw JSON file by content, verifies
+the executable did not change during the query, and records the compiled
+manifest digest. Session checkpoints retain these receipts and their files.
+Benchmark captures now use the same request/environment/executable annotation
+helper as the existing sweep collector, outside benchmark timing intervals.
+The request must describe the actual child environment, and the executable
+must remain unchanged. Runtime architecture and requested backend must agree
+with the session's selected lane. Resume still requires unchanged checkpoint
+artifacts. These identities are prerequisites for candidate-specific phase
+qualification; a successful query or smoke session alone does not complete
+release, profiler, physical-device or cache-promotion gates.

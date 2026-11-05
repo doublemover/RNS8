@@ -833,9 +833,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/94",
       "requirements_sha256": "72ddbb2dcb1f0e6c1281fd62df1eb4eff99d588942c5b6cb545aed44383bffbd",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "CPU-only executable/actual-library compiled-manifest queries for benchmark, verifier, inspector and tests; bounded session queries/immutable receipts before device work; shared capture request/artifact binding and child-PATH-resolved launch"
+      ],
+      "remaining_source_items": [
+        "Candidate/session/run-bound phase receipt verification and requalification/conflict model; report/ledger/installer propagation and consuming-boundary checks with historical/current negative fixtures"
+      ]
     },
     {
       "issue": 95,

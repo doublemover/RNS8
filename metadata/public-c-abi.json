@@ -1519,6 +1519,7 @@
         "field_size:rns8_product_recipe_resources.struct_size": 8,
         "field_size:rns8_product_recipe_resources.unreused_payload_bytes": 8,
         "field_size:rns8_public_abi_info.abi_version": 4,
+        "field_size:rns8_public_abi_info.build_manifest_json": 8,
         "field_size:rns8_public_abi_info.compiler_id": 8,
         "field_size:rns8_public_abi_info.declaration_sha256": 8,
         "field_size:rns8_public_abi_info.metric_count": 8,
@@ -2987,6 +2988,7 @@
         "offsetof:rns8_product_recipe_resources.struct_size": 0,
         "offsetof:rns8_product_recipe_resources.unreused_payload_bytes": 32,
         "offsetof:rns8_public_abi_info.abi_version": 8,
+        "offsetof:rns8_public_abi_info.build_manifest_json": 56,
         "offsetof:rns8_public_abi_info.compiler_id": 40,
         "offsetof:rns8_public_abi_info.declaration_sha256": 32,
         "offsetof:rns8_public_abi_info.metric_count": 16,
@@ -3434,7 +3436,7 @@
         "sizeof:rns8_product_recipe_pointer": 8,
         "sizeof:rns8_product_recipe_resources": 64,
         "sizeof:rns8_proof_verdict": 4,
-        "sizeof:rns8_public_abi_info": 56,
+        "sizeof:rns8_public_abi_info": 64,
         "sizeof:rns8_public_abi_metric": 16,
         "sizeof:rns8_quarter_crt_desc": 32,
         "sizeof:rns8_quarter_crt_export_pointer": 8,
@@ -4150,7 +4152,7 @@
       "rns8/integer_split.h": "7266ba2545782cfee20f4fa10b46ad30f4380ccab2bd8b47020757faf5146593",
       "rns8/moduli.h": "99fdc92580cf500d632f193715d2251f89f46a927736051ddf281c63fb20b2bb",
       "rns8/pipeline_recipe.h": "49b94e7c71d823e91be7f986938280dbf895e02cddfac0108d9b6f55372545aa",
-      "rns8/public_abi.h": "2a19f407d154e9e5084799f7322473ae23dd13fb51bca3e57ca15e95fceab25d",
+      "rns8/public_abi.h": "20ccbb0b271bfa98c4303d52817d63902a131ffd895323032ae4feb0230828a5",
       "rns8/rns8.h": "71bbe6739ba3f646ae692261d5246bf9e91f0a82d939692f9f506337428ce657",
       "rns8/semantics.h": "75ceba49e8bd975b4f03a0fa199535a864dde5beb6d8ac7e081a2489eb30b047",
       "rns8/status.h": "01fe71b1e6cafba2036240266615bfbaebf70dce810e309f165574f9b768debb"
@@ -8935,6 +8937,10 @@
         ],
         [
           "runtime_model",
+          "const char *"
+        ],
+        [
+          "build_manifest_json",
           "const char *"
         ]
       ],
