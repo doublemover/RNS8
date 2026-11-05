@@ -147,3 +147,11 @@ list before any run. The complete remote-session bundle is still tracked by
 [#58](https://github.com/doublemover/RNS8/issues/58); submitting an offer grants no
 provisioning, access or spending authorization. Financial support belongs on
 [GitHub Sponsors](https://github.com/sponsors/doublemover).
+
+Installed HIP package checks include a compiler-free SDK-package policy lane.
+Windows static consumers use the package's matching HIP import library and DLL;
+install both Development and Runtime components. Linux consumers supply their
+current AMD HIP package through `RNS8_HIP_ROOT`, `hip_DIR` or CMake prefixes.
+These configure fixtures verify dependency naming, relocation and rejection;
+the existing installed static/shared workload lanes still own real link/runtime
+qualification. Neither fixture generation nor package discovery qualifies GPU code.

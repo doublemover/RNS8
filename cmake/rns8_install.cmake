@@ -3,6 +3,15 @@ if(RNS8_ENABLE_ROCSHMEM)
     install(FILES "${RNS8_ROCSHMEM_HELPER}" DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT ${_component})
   endforeach()
 endif()
+set(RNS8_HIP_IMPORT_LIBRARY_NAME "")
+set(RNS8_HIP_RUNTIME_NAME "")
+if(WIN32 AND RNS8_ENABLE_HIP)
+  get_filename_component(RNS8_HIP_IMPORT_LIBRARY_NAME "${RNS8_HIP_LIBRARY}" NAME)
+  get_filename_component(RNS8_HIP_RUNTIME_NAME "${RNS8_HIP_RUNTIME}" NAME)
+  # The DLL is already part of the runtime component. Its matching import library
+  # makes static Windows consumers relocatable without another SDK installation.
+  install(FILES "${RNS8_HIP_LIBRARY}" DESTINATION "${CMAKE_INSTALL_LIBDIR}/rns8-dependencies" COMPONENT Development)
+endif()
 set(RNS8_INSTALL_CONFIG_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/RNS8")
 foreach(_rns8_license_component IN ITEMS Runtime Development)
   install(FILES third_party/rank48/Licence_CeCILL-B_V1-en.txt NOTICE
@@ -55,7 +64,7 @@ install(
     "${CMAKE_CURRENT_BINARY_DIR}/RNS8Config.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/RNS8ConfigVersion.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8Runtime.cmake"
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8HIPBLASLTDependency.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8SDKPackageDependency.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8StageRuntime.cmake"
   DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
   COMPONENT Development

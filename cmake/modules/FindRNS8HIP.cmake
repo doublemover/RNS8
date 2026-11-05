@@ -18,7 +18,17 @@ if(RNS8HIP_FOUND)
   rns8_assert_no_linux_windows_vcpkg_paths("HIP library" "${RNS8_HIP_LIBRARY}")
   rns8_assert_no_linux_windows_vcpkg_paths("hipcc executable" "${RNS8_HIP_HIPCC}")
   set(RNS8_HIP_INCLUDE_DIRS "${RNS8_HIP_INCLUDE_DIR}")
-  set(RNS8_HIP_LIBRARIES "${RNS8_HIP_LIBRARY}")
+  if(NOT TARGET RNS8::hip_runtime)
+    add_library(RNS8::hip_runtime INTERFACE IMPORTED)
+    set_target_properties(RNS8::hip_runtime PROPERTIES INTERFACE_LINK_LIBRARIES "${RNS8_HIP_LIBRARY}")
+  else()
+    get_target_property(_rns8_runtime_library RNS8::hip_runtime INTERFACE_LINK_LIBRARIES)
+    if(NOT _rns8_runtime_library STREQUAL RNS8_HIP_LIBRARY)
+      message(FATAL_ERROR "Existing RNS8::hip_runtime differs from the shared selected runtime; configure a fresh coherent build")
+    endif()
+  endif()
+  # Export a dependency name, never the producer machine's runtime library path.
+  set(RNS8_HIP_LIBRARIES RNS8::hip_runtime)
 endif()
 
 # LLVM llvm-project#201563 fixes MSVC 14.51 constexpr math declarations colliding

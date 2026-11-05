@@ -290,6 +290,17 @@ hipBLASLt include/library paths or fabricates a raw imported target after a
 failed lookup. Missing dependencies return package-not-found for optional
 lookups and fail a required lookup. Failed partial imports cannot become success
 on a subsequent lookup. CPU-only packages do not require this component.
+Core HIP export linkage likewise uses a named runtime dependency, rather than
+serializing the producer's runtime library path. Windows Development packages
+include the matching HIP import library under `lib/rns8-dependencies`; installed
+static consumers bind it to the HIP DLL already bundled in the Runtime component.
+Both components are required for an installed HIP package. Relocating the RNS8
+prefix moves that pair together without requiring the producer's SDK. Native
+Linux consumers resolve their current AMD HIP config package (`hip::host` and
+`hip::amdhip64`) through `hip_DIR`, `RNS8_HIP_ROOT` or normal CMake prefixes.
+The shared package checker verifies the physical AMD runtime as well as its
+host interface against an explicit SDK root. No CMake HIP language is enabled.
+
 The installed workload harness forwards the selected SDK/component/package
 inputs. Compiler-free configure fixtures cover moved RNS8 prefixes, nondefault
 SDKs with spaces, required/quiet rejection, conflicting roots and CPU-only use;
