@@ -702,8 +702,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/84",
       "requirements_sha256": "a148d800e6562bbae349b1d9a8e782bb04bae1ecb977f2759331470d2e0cafc9",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Emit build manifest3 with package-manager-neutral selected dependency content: explicit native/vcpkg resolution, shared selected tree/file identities, ABI/configuration inputs and actual dependency-policy/build-tool/vcpkg-status receipts. CMake records HIP headers/compiler/runtime, concrete selected hipBLASLt link/runtime artifacts, explicit runtime DLLs, transport/MPI/OpenMP and enabled reference files; hashes refresh at build time. Remove empty-root/cwd vcpkg lookups. Validate canonical digest/types/declared sets, lock/resolution evidence, clean known source, experimental policy and selected backend flags; preserve explicit diagnostic shape separately without synthetic digests or configuration rewrites. Keep legacy manifest2 admission but reject cross-version pooling; allow differing optional selected sets only with matching shared content/receipts. Add strict host-only manifest-file/build admission after every qualification build, before inspectors/GPU work and CPU preparation tests. Author native/vcpkg generator-to-real-collector, mutation/missing/stale/tampered/dirty/legacy/optional-set/ambient-cwd and CLI/preflight-order fixtures. Python3.15 AST and definition-only CMake syntax parsing pass. Runtime fixtures, native Linux rehearsal and target qualification remain deferred; no configure/build/probe/benchmark executed."
+      ],
       "remaining_source_items": []
     },
     {

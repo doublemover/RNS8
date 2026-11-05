@@ -114,6 +114,11 @@ They default to plan-only and require a target plus explicit unmasked parent
 HIP runtime ordinals. No missing-device or architecture fallback is permitted.
 The same shared dependency resolver supplies configure bindings; the scripts do
 not install packages or dump the complete process environment.
+After each build, a host-only manifest check admits the selected native content
+and policy receipts before any device inspection or GPU collection. CPU-only
+preparation runs the same admission before its test stage. This preflight does
+not require vcpkg or qualify the target's kernels; see
+[dependency content identity](dependency-discovery.md).
 
 ```bash
 bash scripts/cdna_first_pass.sh --target mi300x --devices 0 \

@@ -6,6 +6,14 @@ independent processes, paired instrumented/uninstrumented calls and sustained
 bursts. The [initial 256³ diagnostic](7900xtx-throughput-2026-10-23.md) is retained
 as historical small-workload evidence. Other qualification gaps remain open.
 
+Native-package builds now emit content-based version3 dependency manifests.
+Collector diagnostics validate their recorded shape without asserting complete
+qualification; release admission additionally requires clean source, selected
+header/binary evidence, policy receipts and matching backend flags. Existing
+version2 records keep their historical contract and cannot be pooled with
+version3 dependency identities. The host-only qualification preflight checks
+this before GPU work; target execution for the new source remains deferred.
+
 The `rns8-native-calibrate` research executable exposes explicit product/packing and epilogue microcases:
 
 | Candidate | Timed work | Input boundary |

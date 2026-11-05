@@ -73,6 +73,8 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
             "-DRNS8_BUILD_BENCHMARKS=ON", "-DRNS8_WORKLOAD_GPU_TESTS=OFF",
             "-DVCPKG_MANIFEST_INSTALL=OFF", "-DFETCHCONTENT_FULLY_DISCONNECTED=ON"], build_dir=str(build))
         add("prepare-build", ["cmake", "--build", str(build), "--parallel", str(jobs)], build_dir=str(build))
+        add('prepare-manifest-admission', [python, 'tools/build_manifest.py', '--check-build', str(build),
+            '--backend', 'cpu-reference'], build_dir=str(build))
         junit = out / "cpu-preparation.xml"
         add("prepare-cpu-tests", ["ctest", "--test-dir", str(build), "--output-on-failure", "--parallel", "1",
             "--timeout", "600", "--no-tests=error", "--output-junit", str(ROOT / junit)],
@@ -92,6 +94,10 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
             *bound, f"-DRNS8_AMDGPU_TARGETS={arch}", "-DRNS8_ENABLE_HIP=ON", "-DVCPKG_MANIFEST_INSTALL=OFF",
             "-DRNS8_PROBE_ACCELERATORS=OFF", *options], device=None, build_dir=str(build))
         add(f"{lane}-build", wrapper + ["cmake", "--build", str(build), "--parallel", str(jobs)], build_dir=str(build))
+        manifest_check = [python, 'tools/build_manifest.py', '--check-build', str(build)]
+        for backend in enabled_backends:
+            manifest_check.extend(['--backend', backend])
+        add(f'{lane}-manifest-admission', manifest_check, device=None, build_dir=str(build))
         for backend_index, backend in enumerate(enabled_backends):
             prefix = lane + "-" + backend if len(enabled_backends) > 1 else backend
             # Parent runtime ordinals and child-visible zero remain distinct.

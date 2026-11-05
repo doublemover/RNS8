@@ -9,7 +9,7 @@ import statistics
 import subprocess
 import time
 import uuid
-from build_manifest import manifest_provenance_complete
+from build_manifest import manifest_diagnostic_shape_valid, manifest_provenance_complete
 from modulus_set_search import DEFAULT_MODULI
 from native_locality_contract import private_contract as native_locality_contract, ORDERS as LOCALITY_ORDERS
 from native_dataset import PROFILES as DATASET_PROFILES, identity as dataset_identity, model as dataset_model
@@ -508,19 +508,8 @@ def validate_capture(capture, case, run_id, repeats, warmups):
     # Validate their shape without misrepresenting them as release-qualified.
     if not isinstance(manifest, dict) or type(manifest.get("source_dirty")) is not bool:
         raise ValueError("invalid build provenance")
-    qualified_shape = dict(manifest, source_dirty=False)
-    if manifest.get("dependency_digest") == "unavailable":
-        qualified_shape["dependency_digest"] = "0" * 64
-    # Experimental Garner is valid diagnostic provenance, but the original
-    # manifest must still fail the separate release-provenance check below.
-    configuration = manifest.get("configuration")
-    if isinstance(configuration, str):
-        lines = configuration.splitlines()
-        qualified_shape["configuration"] = "\n".join(
-            "garner_table=OFF" if line.partition("=")[0] == "garner_table" else line
-            for line in lines)
     backend = "rocwmma" if case["candidate"] == "epilogue_rocwmma" else None
-    if not manifest_provenance_complete(qualified_shape, backend):
+    if not manifest_diagnostic_shape_valid(manifest, backend):
         raise ValueError("invalid build provenance")
     return {key: capture[key] for key in ("build_manifest", "device", "target", "runtime_version")}
 

@@ -181,6 +181,17 @@ class ArtifactCacheTests(unittest.TestCase):
 
 
 class QualificationTests(unittest.TestCase):
+    def test_content_manifest_admission_precedes_every_device_probe(self):
+        for target in q.TARGETS:
+            plan=q.command_plan(target,['hip-direct'],Path('temp/manifest-preflight'),2,[0],all_enabled=True)
+            names=[item['name'] for item in plan]
+            gate=next(item for item in plan if item['name'].endswith('-manifest-admission'))
+            index=names.index(gate['name']);self.assertTrue(names[index-1].endswith('-build'))
+            self.assertIn('--check-build',gate['argv']);self.assertIsNone(gate.get('device'))
+            self.assertNotIn('inspect_target',gate)
+            for backend in q.BACKENDS:self.assertIn(backend,gate['argv'])
+            self.assertTrue(all(i>index for i,item in enumerate(plan) if 'inspect_target' in item))
+            self.assertEqual(plan[index+1]['depends_on'],[gate['name']])
     def test_combined_lane_compiles_once_and_runs_every_backend_without_duplicate_ctest(self):
         plan = q.command_plan("mi300x", ["hip-direct"], Path("temp/combined"), 12, [4, 7], all_enabled=True)
         names = [item["name"] for item in plan]
@@ -207,7 +218,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_cpu_preparation_has_no_device_or_network_stage(self):
         plan = q.command_plan("mi300x", [], Path("temp/preparation"), 3, [], session_kind="prepare")
-        self.assertEqual([item["name"] for item in plan], ["prepare-configure", "prepare-build", "prepare-cpu-tests"])
+        self.assertEqual([item["name"] for item in plan], ["prepare-configure", "prepare-build", "prepare-manifest-admission", "prepare-cpu-tests"])
         self.assertIn("-DRNS8_ENABLE_HIP=OFF", plan[0]["argv"])
         self.assertIn("-DFETCHCONTENT_FULLY_DISCONNECTED=ON", plan[0]["argv"])
         self.assertIn("-DVCPKG_MANIFEST_INSTALL=OFF", plan[0]["argv"])

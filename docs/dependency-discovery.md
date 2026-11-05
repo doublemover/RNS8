@@ -347,3 +347,29 @@ The [dependency version policy](dependency-versions.md) now supplies exact
 candidate pins and offline consistency/observed-version gates. Filesystem
 resolution still does not establish qualification; source declarations, installed
 artifacts and actual runtime compatibility remain distinct.
+
+Build manifest version3 records package-manager-neutral selected content. CMake
+declares the actual dependency trees, linked HIP/hipBLASLt/transport/reference
+files, explicit runtime files and compiler inputs. Every build hashes those
+contents alongside the dependency policy, build-tool lock and shared resolution
+identity. Native packages need no vcpkg installation or status file. A vcpkg
+toolchain additionally binds its actual installed-status receipt; an empty install
+setting never triggers a relative lookup in the working directory.
+
+The full dependency digest binds each selected set. Compatibility compares common
+header/library contents and policy/package receipts, allowing different optional
+backend sets while rejecting contradictory shared contents. Existing complete
+version2 manifests retain their historical status/header contract; version2 and
+version3 are not implicitly merged. Missing declared contents, stale lock hashes,
+unknown resolution, dirty/unknown source and backend mismatches remain ineligible.
+Diagnostic shape acceptance remains separate and cannot substitute a fabricated
+digest or rewrite experimental configuration to obtain qualification.
+
+`tools/build_manifest.py --check-build BUILD_DIR` performs host-only admission of
+the unique built configuration manifest; `--backend` may be repeated for combined
+lanes. Multiple built configurations require explicit `--check-manifest PATH`.
+The qualification runner invokes this gate after each build and before device
+inspection, tests or collection. Interface-only hipBLASLt packages without a
+declared concrete binary remain buildable but lack complete binary provenance.
+Native Linux execution and target measurements for this source change remain
+deferred; content admission alone qualifies no GPU behavior or performance.
