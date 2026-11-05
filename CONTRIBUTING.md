@@ -164,3 +164,9 @@ and keep research promotion restrictions separate from numerical completion.
 Current schema3 sidecars must resolve their candidate and CPU-reference captures;
 stale, conflicting or legacy sidecars require a fresh review. Synthetic protocol
 fixtures exercise these rules and are never hardware qualification evidence.
+The standalone scheduler, CPU selector, FHE proxy, vector-chain, tile-shape,
+incremental-cache and layout-search reports use the same numerical contract.
+CPU anchors are indexed by mathematical/input identity, independently of timing
+selection; conflicting observations remain blockers. Pending policy statuses
+remain incomplete even when other metadata is valid. The adapter regression
+suite is tools/test_report_numerical_gates.py.

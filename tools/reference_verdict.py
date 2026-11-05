@@ -1,7 +1,7 @@
 """Numerical evidence for schema-validated captures, separate from timing/promotion."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
 from typing import Iterable
@@ -172,3 +172,31 @@ def reference_verdict(candidate: dict, references: Iterable[dict] = ()) -> Refer
     full_state = 'mismatch' if mismatch else 'passed' if coverage and not blockers else 'pending'
     return ReferenceVerdict(SCHEMA, candidate_hash, tuple(sorted(reference_hashes)), work_hash,
         checksum_state, coverage, full_state, tuple(sorted(set(blockers))))
+
+
+class CPUReferenceIndex:
+    """Index every CPU observation by mathematical work, independently of timing."""
+
+    def __init__(self, captures: Iterable[dict]) -> None:
+        self._references: dict[str, list[dict]] = {}
+        for capture in captures:
+            backend = capture.get('backend_selected') or capture.get('backend_requested')
+            if backend not in ('cpu', 'cpu-reference'):
+                continue
+            try:
+                key = numerical_contract(capture)
+            except (TypeError, ValueError, KeyError):
+                continue
+            self._references.setdefault(key, []).append(capture)
+
+    def verdict(self, candidate: dict) -> ReferenceVerdict:
+        try:
+            references = self._references.get(numerical_contract(candidate), ())
+        except (TypeError, ValueError, KeyError):
+            references = ()
+        verdict = reference_verdict(candidate, references)
+        if verdict.reference_capture_sha256:
+            return verdict
+        blockers = tuple(sorted(set(verdict.blockers) | {'cpu_reference_work_coverage_missing'}))
+        return replace(verdict, blockers=blockers,
+                       full_output_comparison='mismatch' if verdict.full_output_comparison == 'mismatch' else 'pending')

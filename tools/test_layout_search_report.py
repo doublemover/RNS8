@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import tempfile
 from pathlib import Path
@@ -63,7 +65,7 @@ def with_common_layout(capture: dict, *, name: str, role: str, baseline: str | N
     capture["gpu_event_timing_summary_us"] = {
         "crt_export_d2h": {"median": 5.0},
     }
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def make_candidate(base: dict, *, name: str, baseline: str, median: float, actual_delta: bool = True) -> dict:

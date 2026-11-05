@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import json
 import tempfile
@@ -39,6 +41,7 @@ DIRECT_GPU_EVENT_PHASES = [
 
 
 def write_capture(path: Path, capture: dict) -> None:
+    add_synthetic_full_reference(capture)
     validate_capture(capture, path)
     path.write_text(json.dumps(capture, indent=2) + "\n", encoding="utf-8")
 

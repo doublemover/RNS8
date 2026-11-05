@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from reference_verdict import CPUReferenceIndex
+from review_contract import COMPLETE_COMPARISON_STATUSES, FINAL_COMPARISON_STATUSES
+
 import argparse
 import json
 from collections import Counter, defaultdict
@@ -27,12 +30,7 @@ REQUIRED_PROXY_OPERATIONS = {
     "tower_reuse",
     "dense_linear_transform",
 }
-FINAL_COMPARISON_STATUSES = {
-    "checksum_recorded_reference_required",
-    "reference_required",
-    "exact_cpu_reference_compared",
-    "passed",
-}
+
 
 
 def _scenario(capture: dict[str, Any]) -> dict[str, Any]:
@@ -84,13 +82,14 @@ def _group_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
-def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
+def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | None = None) -> dict[str, Any]:
     proxy = _proxy(capture)
     scenario = _scenario(capture)
     extra = _scenario_extra(capture)
     verification = _verification(capture)
     backend = backend_id(capture)
-    blockers: list[str] = list(evidence(capture)["blockers"])
+    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
+    blockers: list[str] = list(evidence(capture)["blockers"]) + list(numerical.blockers)
     family = proxy.get("family") or extra.get("algebra_family") or scenario.get("family")
     if family != "fhe_lattice_proxy":
         blockers.append("not_fhe_lattice_proxy")
@@ -106,6 +105,8 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         blockers.append("final_exact_comparison_not_required")
     if verification.get("final_exact_comparison_status") not in FINAL_COMPARISON_STATUSES:
         blockers.append("final_exact_comparison_status_missing")
+    if verification.get("final_exact_comparison_status") not in COMPLETE_COMPARISON_STATUSES:
+        blockers.append("final_exact_comparison_pending")
     if verification.get("promotion_eligible") is not False:
         blockers.append("verification_amortization_promotable")
     release_gate = capture.get("release_gate") if isinstance(capture.get("release_gate"), dict) else {}
@@ -127,6 +128,7 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         or "unknown",
         "verification_policy": verification.get("policy"),
         "verification_status": verification.get("final_exact_comparison_status"),
+        "numerical_reference": numerical.to_json(),
         "compatibility_claim": proxy.get("compatibility_claim"),
         "scenario_promotion_eligibility": scenario.get("promotion_eligibility"),
         "backend": backend,
@@ -143,7 +145,8 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
 def build_report(paths: list[Path]) -> dict[str, Any]:
     raw = load_report_captures(paths)
     captures = aggregate_captures(raw)
-    rows = [row_for_capture(capture) for capture in captures]
+    references = CPUReferenceIndex(captures)
+    rows = [row_for_capture(capture, references) for capture in captures]
     groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         groups[_group_key(row)].append(row)

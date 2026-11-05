@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import json
 import tempfile
@@ -51,7 +53,7 @@ def cache_capture(backend: str = "hip-direct") -> dict:
             capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
             capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(capture)
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def public_cache_capture(backend: str, end_to_end: int, role: str, public_candidate: bool = False) -> dict:
@@ -97,7 +99,7 @@ def public_cache_capture(backend: str, end_to_end: int, role: str, public_candid
             }
         )
     set_phase(capture, end_to_end)
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def write(path: Path, capture: dict) -> Path:

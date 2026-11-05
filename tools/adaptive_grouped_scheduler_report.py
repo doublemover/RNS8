@@ -3,13 +3,15 @@
 
 from __future__ import annotations
 
+from reference_verdict import CPUReferenceIndex
+
 import argparse
 import json
 import math
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import load_capture, validate_capture
+from report_capture_inputs import load_report_capture
 from observation_cohorts import aggregate_captures, canonical_work, phase_median, evidence, qualified, best_implementation
 
 
@@ -52,10 +54,7 @@ def _release_reviewed(capture: dict[str, Any]) -> bool:
 
 
 def _load(path: Path) -> dict[str, Any]:
-    capture = load_capture(path)
-    validate_capture(capture, path)
-    capture["_path"] = str(path)
-    return capture
+    return load_report_capture(path, from_directory=False)
 
 
 def _adaptive_metadata(capture: dict[str, Any]) -> dict[str, Any]:
@@ -96,12 +95,16 @@ def _speedup(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> floa
     return baseline_median / candidate_median
 
 
-def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]], references: CPUReferenceIndex) -> dict[str, Any]:
     adaptive = _adaptive_metadata(candidate)
     schedule = candidate.get("schedule_metadata") if isinstance(candidate.get("schedule_metadata"), dict) else {}
     cpu = best_implementation(baselines.get("cpu", []), candidate=candidate, cpu_anchor=True)
     direct = best_implementation(baselines.get("direct_hip", []), candidate=candidate)
-    blockers: list[str] = list(evidence(candidate)["blockers"])
+    numerical = references.verdict(candidate)
+    direct_numerical = references.verdict(direct) if direct is not None else None
+    blockers: list[str] = list(evidence(candidate)["blockers"]) + list(numerical.blockers)
+    if direct_numerical is not None:
+        blockers.extend("direct:" + item for item in direct_numerical.blockers)
     if adaptive.get("capture_status") != "executed":
         blockers.append("adaptive_grouped_scheduler_not_executed")
     if adaptive.get("promotion_eligible") is not False:
@@ -141,6 +144,8 @@ def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]]) -> dic
     return {
         "capture_path": candidate.get("_path"),
         "measurement_cohort": evidence(candidate),
+        "numerical_reference": numerical.to_json(),
+        "direct_numerical_reference": direct_numerical.to_json() if direct_numerical else None,
         "baseline_observation_cohorts": {name: [evidence(c) for c in values] for name, values in baselines.items()},
         "selected_direct_cohort": evidence(direct),
         "semantics": candidate.get("semantics"),
@@ -172,7 +177,8 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     captures = aggregate_captures(raw)
     candidates = [capture for capture in captures if _candidate(capture)]
     baselines = _baseline_map(captures)
-    rows = [_row(candidate, baselines.get(_same_contract_key(candidate), {})) for candidate in candidates]
+    references = CPUReferenceIndex(captures)
+    rows = [_row(candidate, baselines.get(_same_contract_key(candidate), {}), references) for candidate in candidates]
     return {
         "schema": "rns8_adaptive_grouped_scheduler_report_v1",
         "capture_count": len(raw),

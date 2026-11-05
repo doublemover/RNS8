@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import json
 import sys
@@ -25,10 +27,10 @@ def make_capture(*, host_repack_control: bool, median: float, checksum: int = 12
     )
     capture["warmups"] = 3
     capture["repeats"] = 9
-    capture["checksum"] = checksum
+    capture["checksum_u64"] = checksum
     for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
         capture["timing_summary_us"][phase]["median"] = median if phase == "end_to_end" else median / 4.0
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 candidate = make_capture(host_repack_control=False, median=80.0)
@@ -47,10 +49,17 @@ assert missing["rows"][0]["disposition"] == "keep experimental"
 assert "missing_host_export_repack_control" in missing["rows"][0]["blockers"]
 
 mismatch_control = copy.deepcopy(control)
-mismatch_control["checksum"] = 777
+mismatch_control["checksum_u64"] = 777
 mismatch = vector_to_rns_chain_report.build_report([candidate, mismatch_control])
 assert mismatch["rows"][0]["disposition"] == "keep experimental"
-assert "final_checksum_mismatch" in mismatch["rows"][0]["blockers"]
+assert "final_checksum_mismatch_or_missing" in mismatch["rows"][0]["blockers"]
+
+# A later correct record cannot erase an earlier mismatching process.
+conflicting_candidate = copy.deepcopy(candidate)
+conflicting_candidate["checksum_u64"] ^= 1
+conflicting = vector_to_rns_chain_report.build_report([conflicting_candidate, candidate, control])
+assert conflicting["rows"][0]["disposition"] == "keep experimental"
+assert "checksum_mismatch_vs_reference" in conflicting["rows"][0]["blockers"]
 
 slow_candidate = make_capture(host_repack_control=False, median=140.0)
 slow_report = vector_to_rns_chain_report.build_report([slow_candidate, control])

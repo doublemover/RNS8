@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from reference_verdict import CPUReferenceIndex
+
 import argparse
 import json
 import math
@@ -369,10 +371,16 @@ def row_for_candidate(
     cpu: dict[str, Any] | None,
     direct: dict[str, Any] | None,
     resource: dict[str, Any],
+    references: CPUReferenceIndex | None = None,
 ) -> dict[str, Any]:
     variant = _tile_variant(candidate)
     resource_status = _resource_status(resource)
-    core_blockers: list[str] = []
+    references = references or CPUReferenceIndex([cpu] if cpu is not None else [])
+    numerical = references.verdict(candidate)
+    direct_numerical = references.verdict(direct) if direct is not None else None
+    core_blockers: list[str] = list(numerical.blockers)
+    if direct_numerical is not None:
+        core_blockers.extend("direct:" + item for item in direct_numerical.blockers)
     resource_blockers: list[str] = []
     if not _is_release_reviewed(candidate):
         core_blockers.append("candidate_not_release_reviewed")
@@ -457,6 +465,8 @@ def row_for_candidate(
         "autotune_key_has_tile_identity": _autotune_key_has_tile_identity(candidate),
         "selected_kernel_has_tile_report_identity": _selected_kernel_has_tile_report_identity(candidate),
         "resource_status": resource_status,
+        "numerical_reference": numerical.to_json(),
+        "direct_numerical_reference": direct_numerical.to_json() if direct_numerical else None,
         "promotion_eligible": decision == "promote locally",
         "promotion_blockers": blockers,
         "decision": decision,
@@ -468,12 +478,14 @@ def build_report(paths: list[Path], resource_manifest: dict[str, dict[str, Any]]
     captures = load_report_captures(paths)
     candidates = [capture for capture in captures if _is_tile_candidate(capture)]
     cpu_map, direct_map = _baseline_maps(captures)
+    references = CPUReferenceIndex(captures)
     rows = [
         row_for_candidate(
             candidate,
             cpu_map.get(_contract_key(candidate)),
             direct_map.get((_contract_key(candidate), _target_id(candidate))),
             _resource_for_capture(candidate, resources),
+            references,
         )
         for candidate in candidates
     ]

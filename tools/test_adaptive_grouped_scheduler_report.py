@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import tempfile
 from pathlib import Path
@@ -137,7 +139,7 @@ def _capture(backend: str, end_to_end_us: int, *, candidate: bool = False) -> di
         }
         capture["command_line"] += " --adaptive-grouped-scheduler"
     validate_capture(capture, Path(f"{backend}.json"))
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def build_report(paths):

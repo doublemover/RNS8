@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from reference_verdict import reference_verdict, checksum_u64
+
 import argparse
 import json
 from pathlib import Path
@@ -127,8 +129,14 @@ def classify_pair(candidate: dict[str, Any] | None, control: dict[str, Any] | No
         blockers.append("missing_candidate_end_to_end_median")
     if control_median is None:
         blockers.append("missing_control_end_to_end_median")
-    if candidate.get("checksum") != control.get("checksum"):
-        blockers.append("final_checksum_mismatch")
+    numerical = reference_verdict(candidate, [control])
+    control_numerical = reference_verdict(control, [candidate])
+    blockers.extend(numerical.blockers)
+    blockers.extend("control:" + item for item in control_numerical.blockers)
+    candidate_checksum, control_checksum = checksum_u64(candidate), checksum_u64(control)
+    checksum_match = candidate_checksum is not None and control_checksum is not None and candidate_checksum == control_checksum
+    if not checksum_match:
+        blockers.append("final_checksum_mismatch_or_missing")
     if not release_reviewed(candidate):
         blockers.append("candidate_not_release_reviewed")
     if not release_reviewed(control):
@@ -157,7 +165,9 @@ def classify_pair(candidate: dict[str, Any] | None, control: dict[str, Any] | No
         "candidate_end_to_end_median_us": candidate_median,
         "control_end_to_end_median_us": control_median,
         "speedup_vs_host_repack_control": speedup,
-        "checksum_match": candidate.get("checksum") == control.get("checksum"),
+        "checksum_match": checksum_match,
+        "numerical_reference": numerical.to_json(),
+        "control_numerical_reference": control_numerical.to_json(),
         "candidate_pack_median_us": timing_median(candidate, "pack"),
         "candidate_chain_median_us": timing_median(candidate, "rns_gemm"),
         "candidate_export_median_us": timing_median(candidate, "crt_export"),
@@ -177,15 +187,26 @@ def classify_pair(candidate: dict[str, Any] | None, control: dict[str, Any] | No
 
 def build_report(captures: list[dict[str, Any]]) -> dict[str, Any]:
     selected = vector_chain_captures(captures)
-    groups: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = {}
+    groups: dict[tuple[Any, ...], dict[str, list[dict[str, Any]]]] = {}
     for capture in selected:
-        groups.setdefault(chain_key(capture), {})[control_mode(capture)] = capture
+        groups.setdefault(chain_key(capture), {}).setdefault(control_mode(capture), []).append(capture)
 
     rows: list[dict[str, Any]] = []
     for key, group in sorted(groups.items(), key=lambda item: tuple(str(value) for value in item[0])):
-        candidate = group.get("fused_device_native_to_rns")
-        control = group.get("host_export_repack_control")
+        candidate_observations = group.get("fused_device_native_to_rns", [])
+        control_observations = group.get("host_export_repack_control", [])
+        candidate = candidate_observations[-1] if candidate_observations else None
+        control = control_observations[-1] if control_observations else None
         classified = classify_pair(candidate, control)
+        # Preserve every submitted numerical observation even before timing selection.
+        anchors = [capture for capture in (candidate, control) if capture is not None]
+        numerical_observations = [reference_verdict(capture, anchors)
+                                  for capture in [*candidate_observations, *control_observations]]
+        numerical_blockers = sorted({item for verdict in numerical_observations for item in verdict.blockers})
+        classified["numerical_observations"] = [verdict.to_json() for verdict in numerical_observations]
+        if numerical_blockers:
+            classified["blockers"] = sorted(set(classified["blockers"]) | set(numerical_blockers))
+            classified["disposition"] = "keep experimental"
         representative = candidate or control or {}
         rows.append(
             {

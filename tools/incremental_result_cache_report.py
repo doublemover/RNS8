@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from reference_verdict import CPUReferenceIndex
+from review_contract import COMPLETE_COMPARISON_STATUSES, FINAL_COMPARISON_STATUSES
+
 import argparse
 import json
 from collections import Counter, defaultdict
@@ -14,12 +17,7 @@ from report_capture_inputs import load_report_captures
 
 
 DEFAULT_OUT_DIR = Path("temp") / "incremental-result-cache-reports"
-FINAL_COMPARISON_STATUSES = {
-    "checksum_recorded_reference_required",
-    "reference_required",
-    "exact_cpu_reference_compared",
-    "passed",
-}
+
 PROMOTION_SPEEDUP_THRESHOLD = 1.10
 
 
@@ -90,10 +88,11 @@ def _has_gpu_events(capture: dict[str, Any]) -> bool:
     return isinstance(timing, dict) and timing.get("gpu_event_timing") is True
 
 
-def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
+def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | None = None) -> dict[str, Any]:
     cache = _cache(capture)
     scenario = _scenario(capture)
-    blockers: list[str] = []
+    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
+    blockers: list[str] = list(numerical.blockers)
     if cache.get("enabled") is not True:
         blockers.append("incremental_result_cache_not_enabled")
     promotion_scope = _promotion_scope(capture)
@@ -126,6 +125,8 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         blockers.append("final_exact_comparison_not_required")
     if cache.get("final_exact_comparison_status") not in FINAL_COMPARISON_STATUSES:
         blockers.append("final_exact_comparison_status_missing")
+    if cache.get("final_exact_comparison_status") not in COMPLETE_COMPARISON_STATUSES:
+        blockers.append("final_exact_comparison_pending")
     if cache.get("default_gemm_unchanged") is not True:
         blockers.append("default_gemm_must_remain_unchanged")
     if public_contract:
@@ -167,6 +168,7 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         "dirty_region_policy": cache.get("dirty_region_policy"),
         "result_lifetime_policy": cache.get("result_lifetime_policy"),
         "checksum_policy": cache.get("checksum_policy"),
+        "numerical_reference": numerical.to_json(),
         "partial_recompute_policy": cache.get("partial_recompute_policy"),
         "median_end_to_end_us": median_phase(capture, "end_to_end"),
         "promotion_scope": promotion_scope,
@@ -241,9 +243,10 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     ]
     grouped: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     grouped_captures: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    references = CPUReferenceIndex(captures)
     for capture in captures:
         key = _contract_key(capture)
-        grouped[key].append(row_for_capture(capture))
+        grouped[key].append(row_for_capture(capture, references))
         grouped_captures[key].append(capture)
     groups: list[dict[str, Any]] = []
     promotable: list[dict[str, Any]] = []
@@ -301,7 +304,7 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     return {
         "schema": "rns8_incremental_result_cache_report_v1",
         "policy": "research_rows_blocked_public_contract_candidates_require_1_10x_same_backend_speedup",
-        "rank75_gate_complete": bool(groups) and not any(group["blockers"] for group in groups if not group["public_contract_available"]),
+        "rank75_gate_complete": bool(groups) and not any(group["blockers"] for group in groups),
         "rank78_gate_complete": bool(promotable),
         "promotable_result_cache_candidate_count": len(promotable),
         "promotable_result_cache_candidates": [

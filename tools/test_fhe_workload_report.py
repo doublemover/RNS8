@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import json
 import tempfile
@@ -59,7 +61,7 @@ def proxy_capture(backend: str, operation: str, median_us: int = 1000) -> dict:
         capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
         capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(capture)
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def write(path: Path, capture: dict) -> Path:

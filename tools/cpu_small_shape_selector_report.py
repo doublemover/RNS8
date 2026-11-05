@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from reference_verdict import CPUReferenceIndex, checksum_u64
+
 import argparse
 import json
 from collections import Counter, defaultdict
@@ -73,10 +75,11 @@ def _group_key(capture: dict[str, Any]) -> tuple[str, str, str, str, str, int, i
     )
 
 
-def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
+def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | None = None) -> dict[str, Any]:
     selector = _selector(capture)
     backend = backend_id(capture)
-    blockers: list[str] = []
+    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
+    blockers: list[str] = list(numerical.blockers)
     if selector.get("enabled") is not True:
         blockers.append("cpu_small_shape_selector_not_enabled")
     if selector.get("cpu_reference_required") is not True:
@@ -97,7 +100,8 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         "policy": selector.get("policy"),
         "boundary_key": selector.get("boundary_key"),
         "median_end_to_end_us": median,
-        "checksum": capture.get("checksum"),
+        "checksum_u64": checksum_u64(capture),
+        "numerical_reference": numerical.to_json(),
         "blockers": sorted(set(blockers)),
     }
 
@@ -120,10 +124,6 @@ def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list
     fastest_gpu_median = (
         float(fastest_gpu["median_end_to_end_us"]) if fastest_gpu and fastest_gpu["median_end_to_end_us"] is not None else None
     )
-    cpu_checksum = cpu_rows[0].get("checksum") if cpu_rows else None
-    for row in rows:
-        if cpu_checksum is not None and row.get("checksum") not in {None, cpu_checksum}:
-            blockers.append("checksum_mismatch_vs_cpu")
     target_boundaries = sorted({str(row["target_boundary"]) for row in rows})
     if len(target_boundaries) > 2:
         blockers.append("mixed_target_boundary_review")
@@ -195,8 +195,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         and capture.get("cpu_small_shape_selector", {}).get("enabled") is True
     ]
     grouped: dict[tuple[str, str, str, str, str, int, int, int], list[dict[str, Any]]] = defaultdict(list)
+    references = CPUReferenceIndex(captures)
     for capture in captures:
-        grouped[_group_key(capture)].append(row_for_capture(capture))
+        grouped[_group_key(capture)].append(row_for_capture(capture, references))
     groups = [_group_report(key, rows) for key, rows in sorted(grouped.items(), key=lambda item: str(item[0]))]
     blocker_counts = Counter(blocker for group in groups for blocker in group["blockers"])
     promotable_thresholds = [

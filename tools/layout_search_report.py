@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from reference_verdict import reference_verdict
+
 import argparse
 import json
 from pathlib import Path
@@ -172,7 +174,11 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         baseline_name = str(metadata.get("layout_baseline_name") or "")
         baseline_options = baselines.get(contract_key(capture, baseline_name=baseline_name), [])
         baseline = best_implementation(baseline_options, candidate=capture)
-        blockers: list[str] = list(evidence(capture)["blockers"])
+        numerical = reference_verdict(capture, baseline_options)
+        baseline_numerical = reference_verdict(baseline, [capture]) if baseline is not None else None
+        blockers: list[str] = list(evidence(capture)["blockers"]) + list(numerical.blockers)
+        if baseline_numerical is not None:
+            blockers.extend("baseline:" + item for item in baseline_numerical.blockers)
         baseline_median = None
         speedup = None
         deltas: list[str] = []
@@ -228,6 +234,8 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "capture": capture.get("_path"),
                 "measurement_cohort": evidence(capture),
+                "numerical_reference": numerical.to_json(),
+                "baseline_numerical_reference": baseline_numerical.to_json() if baseline_numerical else None,
                 "baseline_observation_cohorts": [evidence(c) for c in baseline_options],
                 "baseline_capture": baseline.get("_path") if baseline else None,
                 "layout_variant_name": metadata.get("layout_variant_name") or scenario_metadata(capture).get("name"),

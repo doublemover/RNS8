@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import json
 import tempfile
@@ -43,7 +45,7 @@ def selector_capture(backend: str, median_us: int, *, name: str = "bounded-i64-3
             capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(capture)
     set_phase(capture, median_us)
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def finite_selector_capture(backend: str, median_us: int) -> dict:
@@ -76,7 +78,7 @@ def finite_selector_capture(backend: str, median_us: int) -> dict:
             capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(capture)
     set_phase(capture, median_us)
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def write(path: Path, capture: dict) -> Path:
