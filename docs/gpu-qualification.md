@@ -271,6 +271,19 @@ receipts report unrecorded cost. New process/configure/tamper controls are
 authored; no build, fake-compiler fixture or CMake configuration was executed
 during this source pass.
 
+The family report also joins source-current logical/memory coverage by variant
+and exact configuration. Reused checks increase the record count while each
+configuration is counted once, with unknown/refuted checks preventing a proven
+summary for that configuration. Full structural equality identifies duplicate
+configurations and work counters; hashes serve as recorded identities. The
+summary checks final-writer counts against prefix × M × N and reports qualified
+full-pitch storage envelopes. These are logical ownership/model claims under
+the named trusted contracts, rather than device traffic or emitted barrier
+evidence. Physical lane/layout correctness remains unknown. Raw logical reports
+stay linked by path/hash instead of being repeated in the ISA summary. Logical
+ingestion rejects duplicate/nonfinite JSON and oversized reports before parsing.
+The added inventory controls are authored with syntax/lint checks only.
+
 ## After smoke, before promotion
 
 Run the bounded [release plan](performance.md), then selected larger/padded,

@@ -36,8 +36,10 @@ def verify_generated_source(directory, root=None):
 
 def inspect(config, directory, logical_report=None, compile_receipt=None):
     manifest = verify_generated_source(directory)
-    from check_native_wmma_logic import load_bound_report
+    from check_native_wmma_logic import load_bound_report, logical_inventory
     logical = load_bound_report(directory, logical_report) if logical_report else None
+    logical_coverage=logical["inventory"] if logical else logical_inventory(manifest,None)
+    logical_rows={row["id"]:row for row in logical_coverage["variants"]}
     from compile_receipt import load_compile_cost
     compile_cost=load_compile_cost(compile_receipt,source=directory/"native_variants.hip",
         host_object=config.host_object,target=config.target) if compile_receipt else dict(status="not_recorded",seconds=None)
@@ -88,6 +90,8 @@ def inspect(config, directory, logical_report=None, compile_receipt=None):
                             "attributed_matrix_instructions": attribution["matrix_count"],
                             "reachable_code_bytes": sum(item["bytes"] for item in extents) if size_complete else None,
                             "instruction_scope": "selected_entry_and_resolved_reachable_functions_once_each",
+                            "logical_memory_coverage":{key:value for key,value in logical_rows[entry["id"]].items()
+                                if key!="configurations"} if entry["id"] in logical_rows else None,
                             "functions": [{key:value for key,value in function.items() if key!="disassembly"} for function in functions],
                             "global_int32_store_diagnostics": stores,
                             "remainder_diagnostics": forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)})
@@ -96,11 +100,11 @@ def inspect(config, directory, logical_report=None, compile_receipt=None):
     all_sizes_known = len(reports)==len(manifest["variants"]) and all(row["reachable_code_bytes"] is not None for row in reports)
     return {"schema": "rns8_generated_native_isa_v2", "target": config.target, "artifact": artifact,
             "generated_source_sha256": manifest["source_sha256"], "symbols": reports,
-            "logical_assurance": logical,
+            "logical_assurance":{key:value for key,value in logical.items() if key not in ("report","inventory")} if logical else None,
             "family_inventory": {"generated_variants":len(manifest["variants"]),"inspected_variants":len(reports),
                 "unique_reachable_functions":len(owned_functions),
                 "unique_reachable_code_bytes":sum(sizes[name]["bytes"] for name in owned_functions) if all_sizes_known else None,
-                "compile_cost":compile_cost},
+                "compile_cost":compile_cost,"logical_memory_coverage":logical_coverage},
             "inspection_failures": failures, "inspection_passed": not failures,
             "checker_sha256": sha(Path(__file__).read_bytes()),
             "device_differential_executed": False, "performance_qualified": False, "promotion_eligible": False}

@@ -17,6 +17,7 @@ import time
 
 from modulus_set_search import DEFAULT_MODULI
 from native_wmma_lowering import expression, fingerprint, mutations, render, validate
+from json_evidence import parse_evidence_json
 
 
 class Refuted(ValueError):
@@ -43,6 +44,10 @@ TRUSTED = ["RDNA3 signed IU8 wave32 physical-lane-to-logical-matrix instruction 
            "compiler implements emitted C++ without miscompilation",
            "live A/B allocations initialized at every declared logical input cell; no concurrent mutation",
            "launch uses exactly the manifested grid and 32 threads; output does not alias inputs"]
+MEMORY_SCOPE = "logical_single_wave_program_order_not_emitted_barriers"
+MEMORY_DEPENDENCIES = ["initialized input -> masked load -> native encode -> fragment",
+    "initialized accumulator + fragment -> WMMA -> centered remainder carry",
+    "final carry -> centered store -> unique output cell"]
 
 
 def fail(condition, detail):
@@ -198,10 +203,7 @@ def check(ir, c, budget=40000000):
               "logical_equivalence": "unknown", "memory_model": "unknown", "physical_layout_correctness": "unknown",
               "target_execution": "not_run", "unresolved_nodes": [], "operations": SUPPORT, "trusted_assumptions": TRUSTED,
               "qualification": False, "promotion_eligible": False,
-              "memory_dependencies": ["initialized input -> masked load -> native encode -> fragment",
-                  "initialized accumulator + fragment -> WMMA -> centered remainder carry",
-                  "final carry -> centered store -> unique output cell"],
-              "memory_scope": "logical_single_wave_program_order_not_emitted_barriers"}
+              "memory_dependencies": list(MEMORY_DEPENDENCIES), "memory_scope": MEMORY_SCOPE}
     try:
         result["work"] = _check(ir, c, budget)
         result.update(logical_equivalence="proven", memory_model="proven")
@@ -267,8 +269,10 @@ def load_bound_report(directory, path):
     """
     from check_generated_native_wmma import verify_generated_source
     manifest = verify_generated_source(directory)
-    raw = path.read_bytes()
-    report = json.loads(raw)
+    with path.open("rb") as stream:raw=stream.read(8*1024**2+1)
+    if len(raw)>8*1024**2:raise ValueError("logical report exceeds its byte budget")
+    report = parse_evidence_json(raw.decode("utf-8"))
+    if type(report) is not dict:raise ValueError("logical report must be a JSON object")
     if (report.get("schema") != "rns8_generated_native_logical_v1" or
         report.get("generated_manifest_sha256") != fingerprint(manifest) or
         report.get("generated_source_sha256") != manifest["source_sha256"] or
@@ -296,8 +300,72 @@ def load_bound_report(directory, path):
     checks = [c for v in report["variants"] for c in v["checks"]]
     if report.get("logical_checks_passed") != all(c.get("logical_equivalence") == "proven" and c.get("memory_model") == "proven" for c in checks):
         raise ValueError("logical report aggregate contradicts individual verdicts")
-    return {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(),
-            "source_current": True, "independently_replayed_during_ingestion": False, "report": report}
+    bound={"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(),
+        "source_current": True, "independently_replayed_during_ingestion": False, "report": report}
+    bound["inventory"]=logical_inventory(manifest,bound)
+    return bound
+
+
+def logical_inventory(manifest, bound):
+    """Summarize source-bound claims per exact configuration without replaying.
+
+    Reused checks count as records, never additional configuration coverage.
+    Storage envelopes are descriptor arithmetic, not measured device traffic.
+    """
+    if bound is None:
+        return dict(status="not_recorded",source_current=False,variants=[],covered_variants=0,
+            check_records=0,distinct_variant_configurations=0,hardware_qualification=False)
+    if type(bound) is not dict or bound.get("source_current") is not True:
+        raise ValueError("logical inventory requires source-current bound evidence")
+    by_id={entry["id"]:entry for entry in manifest["variants"]}
+    variants=[];seen=set()
+    for variant in bound["report"]["variants"]:
+        identity=variant["id"]
+        if identity not in by_id or identity in seen or variant["kernel_symbol"]!=by_id[identity]["kernel_symbol"]:
+            raise ValueError("logical inventory variant/symbol coverage differs")
+        seen.add(identity);groups={}
+        checks=variant["checks"]
+        if not checks or len(checks)>10000:raise ValueError("logical inventory check count is empty/over budget")
+        for checked in checks:
+            c=checked["configuration"];configuration(c)
+            logical,memory=checked.get("logical_equivalence"),checked.get("memory_model")
+            if ((logical,memory) not in (("proven","proven"),("refuted","unknown"),("unknown","unknown")) or
+                    checked.get("physical_layout_correctness")!="unknown" or
+                    checked.get("memory_scope")!=MEMORY_SCOPE or checked.get("memory_dependencies")!=MEMORY_DEPENDENCIES):
+                raise ValueError("logical inventory has unsupported proof/memory claims")
+            work=checked.get("work")
+            if work is not None and (type(work) is not dict or
+                    any(type(key) is not str or type(value) is not int or value<0 for key,value in work.items())):
+                raise ValueError("logical work counters must be nonnegative integers")
+            if logical=="proven" and (work is None or work.get("final_stores")!=c["prefix"]*c["m"]*c["n"]):
+                raise ValueError("logical final-writer count differs from its exact configuration")
+            key=fingerprint(c)
+            row=groups.setdefault(tuple(sorted(c.items())),dict(configuration=dict(c),configuration_sha256=key,check_records=0,
+                logical_verdicts=[],memory_verdicts=[],work_groups={},
+                qualified_full_pitch_byte_envelope=dict(a_native=c["m"]*c["lda"]*8,b_native=c["k"]*c["ldb"]*8,
+                    c_residues=c["prefix"]*c["m"]*c["ldc"]),expected_unique_final_writers=c["prefix"]*c["m"]*c["n"]))
+            row["check_records"]+=1;row["logical_verdicts"].append(logical);row["memory_verdicts"].append(memory)
+            if work is not None:
+                work_id=fingerprint(work)
+                work_row=row["work_groups"].setdefault(tuple(sorted(work.items())),dict(sha256=work_id,counters=dict(work),check_records=0))
+                work_row["check_records"]+=1
+        configurations=[]
+        for row in groups.values():
+            for kind in ("logical","memory"):
+                verdicts=row.pop(kind+"_verdicts")
+                row[kind+"_verdict"]="refuted" if "refuted" in verdicts else "unknown" if "unknown" in verdicts else "proven"
+            row["claimed_work"]=list(row.pop("work_groups").values())
+            configurations.append(row)
+        variants.append(dict(id=identity,kernel_symbol=variant["kernel_symbol"],check_records=len(checks),
+            distinct_configurations=len(configurations),configurations=configurations))
+    if seen!=set(by_id):raise ValueError("logical inventory lacks generated variants")
+    return dict(status="recorded_exact_configurations",source_current=True,variants=variants,
+        covered_variants=len(variants),check_records=sum(row["check_records"] for row in variants),
+        distinct_variant_configurations=sum(row["distinct_configurations"] for row in variants),
+        logical_proven_configurations=sum(c["logical_verdict"]=="proven" for row in variants for c in row["configurations"]),
+        memory_proven_configurations=sum(c["memory_verdict"]=="proven" for row in variants for c in row["configurations"]),
+        memory_scope=MEMORY_SCOPE,physical_layout_correctness="unknown",
+        independently_replayed_during_ingestion=False,hardware_qualification=False)
 
 
 def main():
