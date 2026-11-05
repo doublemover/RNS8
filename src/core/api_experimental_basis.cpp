@@ -351,25 +351,36 @@ rns8_status upload_basis_packet(rns8_basis_plan& plan,const std::shared_ptr<cons
 }
 template<class Operation>
 rns8_status basis_transaction(rns8_basis_plan& plan,const rns8_matrix* a,const rns8_matrix* b,rns8_matrix* c,
-    bool unary_write,Operation&& operation) {
+    bool unary_write,const char* operation_name,Operation&& operation) {
   size_t token=0;auto status=a && b && c?begin_synchronous_lease(*plan.ctx,*a,*b,*c,plan.lease_work,token):
       begin_synchronous_matrix_lease(*plan.ctx,c?*c:*const_cast<rns8_matrix*>(a),plan.lease_work,token,unary_write);
   if(status!=RNS8_SUCCESS)return status;
-  bool written=false;plan.device.mark_pending();
-  struct Finish {
-    rns8_basis_plan& plan;size_t token;bool& written;rns8_status status=RNS8_INTERNAL_ERROR;
-    ~Finish(){if(finish_synchronous_lease(*plan.ctx,token,status,written))plan.device.mark_completed();}
-  } finish{plan,token,written};
-  status=operation(written);finish.status=status;
-  if(status!=RNS8_SUCCESS){plan.target_uploaded=false;plan.source_basis.reset();}
+  bool written=false;
+  struct PacketPublication {
+    rns8_basis_plan& plan;bool committed=false;
+    ~PacketPublication(){if(!committed){plan.target_uploaded=false;plan.source_basis.reset();}}
+  } packets{plan};
+  SynchronousLease lease(*plan.ctx,token);lease.track_write(written);
+  status=lease.hold_buffer(plan.device);
+  if(status!=RNS8_SUCCESS)return lease.finish(status);
+  status=lease.finish([&]() -> rns8_status {
+    auto result=synchronous_dispatch_checkpoint(*plan.ctx,operation_name,&written);
+    if(result!=RNS8_SUCCESS)return result;
+    result=operation(written);
+    return result==RNS8_SUCCESS?synchronous_dispatch_checkpoint(*plan.ctx,"basis_transaction_publish",&written):result;
+  }());
+  packets.committed=status==RNS8_SUCCESS;
   return status;
 }
 rns8_status commit_basis_stage(rns8_basis_plan& plan,rns8_matrix& matrix,uint32_t prefix,bool& written) {
+  auto status=synchronous_dispatch_checkpoint(*plan.ctx,"basis_commit",&written);
+  if(status!=RNS8_SUCCESS)return status;
   written=true;clear_residue_current(matrix);clear_native_current(matrix);clear_byte_limb_current(matrix);
   const auto bytes=uint64_t(matrix.desc.rows)*matrix.desc.cols*prefix;
   if(plan.ctx->backend==RNS8_BACKEND_HIP_DIRECT)
-    return hip_direct_copy_device_to_device(plan.ctx->device_id,matrix.hip_residues,basis_device(plan,plan.scratch),size_t(bytes));
-  std::copy_n(plan.host_residues.data(),size_t(bytes),matrix.residues.data());return RNS8_SUCCESS;
+    status=hip_direct_copy_device_to_device(plan.ctx->device_id,matrix.hip_residues,basis_device(plan,plan.scratch),size_t(bytes));
+  else std::copy_n(plan.host_residues.data(),size_t(bytes),matrix.residues.data());
+  return status==RNS8_SUCCESS?synchronous_dispatch_checkpoint(*plan.ctx,"basis_commit_publish",&written):status;
 }
 void publish_basis_value(rns8_basis_plan& plan,rns8_matrix& matrix,uint32_t prefix,cpp_int& bound,bool imported=false,uint64_t version=0) {
   if(plan.ctx->backend==RNS8_BACKEND_HIP_DIRECT)mark_device_residues_current(matrix,prefix);
@@ -410,7 +421,7 @@ rns8_status pack_basis(rns8_basis_plan* plan,rns8_matrix* matrix,const T* source
       const auto magnitude=sign && (word>>63)?uint64_t(0)-word:word;maximum=std::max(maximum,magnitude);
     }
     cpp_int bound=maximum;if(!exact_range_fits(matrix->desc.semantics,bound,plan->basis->products[matrix->prefix]))return RNS8_RANGE_ERROR;
-    status=basis_transaction(*plan,nullptr,nullptr,matrix,true,[&](bool& written) -> rns8_status {
+    status=basis_transaction(*plan,nullptr,nullptr,matrix,true,"basis_pack",[&](bool& written) -> rns8_status {
       if(plan->ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
         auto result=upload_basis_packet(*plan);if(result!=RNS8_SUCCESS)return result;
         result=hip_direct_copy_host_to_device(plan->ctx->device_id,basis_device(*plan,plan->native_upload),plan->host_words.data(),size_t(cells*8));if(result!=RNS8_SUCCESS)return result;
@@ -443,7 +454,7 @@ rns8_status rns8_gemm_basis(rns8_basis_plan* plan,const rns8_matrix* a,const rns
         a->exact_range_prefix<d.prefix || b->exact_range_prefix<d.prefix || c->prefix<d.prefix)return RNS8_INVALID_ARGUMENT;
     cpp_int bound=cpp_int(d.k)*a->exact_max_magnitude*b->exact_max_magnitude;
     if(!exact_range_fits(d.semantics,bound,plan->basis->products[d.prefix]))return RNS8_RANGE_ERROR;
-    status=basis_transaction(*plan,a,b,c,false,[&](bool& written) -> rns8_status {
+    status=basis_transaction(*plan,a,b,c,false,"basis_gemm",[&](bool& written) -> rns8_status {
       if(basis_device_backend(d.backend)) {
         const auto result=basis_provider_gemm(*plan,*a,*b);if(result!=RNS8_SUCCESS)return result;
       } else for(uint32_t p=0;p<d.prefix;++p)for(int64_t row=0;row<d.m;++row)for(int64_t col=0;col<d.n;++col) {
@@ -575,7 +586,7 @@ rns8_status rns8_export_basis_limbs(rns8_basis_plan* plan,const rns8_matrix* mat
     const unsigned bits=64*limbs-(sign?1:0);
     if(matrix->exact_max_magnitude>=(cpp_int(1)<<bits))return RNS8_RANGE_ERROR;
     const auto cells=uint64_t(matrix->desc.rows)*matrix->desc.cols;
-    status=basis_transaction(*plan,matrix,nullptr,nullptr,false,[&](bool&) -> rns8_status {
+    status=basis_transaction(*plan,matrix,nullptr,nullptr,false,"basis_export",[&](bool&) -> rns8_status {
       if(plan->ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
         auto result=upload_basis_packet(*plan);if(result!=RNS8_SUCCESS)return result;
         BasisMagnitude bound;basis_words(matrix->exact_max_magnitude,bound.words);
@@ -611,7 +622,7 @@ rns8_status rns8_convert_basis_values(rns8_basis_plan* plan,const rns8_matrix* s
     if(!exact_range_fits(destination->desc.semantics,bound,plan->basis->products[destination->prefix]))return RNS8_RANGE_ERROR;
     const auto from=matrix_basis(*source);const auto cells=uint64_t(source->desc.rows)*source->desc.cols;
     const bool sign=source->desc.semantics==RNS8_EXACT_WIDE_SIGNED;
-    status=basis_transaction(*plan,source,source,destination,false,[&](bool& written) -> rns8_status {
+    status=basis_transaction(*plan,source,source,destination,false,"basis_convert",[&](bool& written) -> rns8_status {
       if(plan->ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
         auto result=upload_basis_packet(*plan,from);if(result!=RNS8_SUCCESS)return result;
         BasisMagnitude magnitude;basis_words(bound,magnitude.words);

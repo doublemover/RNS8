@@ -517,6 +517,17 @@ This replaces the separate pending/output reservation bookkeeping and adds no
 success-path wait. Host and optional HIP failure controls are authored; their
 runtime execution remains deferred.
 
+Synchronous ordered-basis pack, GEMM, conversion and export retain their plan's
+staging allocation in the shared lease. Dispatch, commit and publication
+checkpoints distinguish rejected work from attempted output writes. Exceptions
+also clear uploaded-packet cache state, so a recoverable retry uploads the
+required packets again. The plan's workspace reservation blocks destruction
+until failed-work drain completes; read-only export failure keeps its source
+current and leaves caller output untouched. Authored CPU/optional direct-HIP
+controls include native signed/unsigned extremes, changed basis order and
+successful retry after recoverable failure. Syntax checks pass; runtime and
+provider qualification remain deferred.
+
 
 ## Prepared exact conversion variant
 

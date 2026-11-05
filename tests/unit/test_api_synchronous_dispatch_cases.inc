@@ -7,6 +7,7 @@ struct SynchronousDispatchFixture {
   const rns8_context* owner_context=nullptr;
   bool expect_owner_only=false;
   const char* target_operation=nullptr;
+  const rns8_context* workspace_context=nullptr;
   unsigned calls=0,drains=0;
   bool fail=false,throw_after_issue=false,drain_fails=false,reservations_observed=false,write_started_on_failure=true;
   static rns8_status dispatch(void* opaque,const char* operation,bool* started) {
@@ -17,6 +18,10 @@ struct SynchronousDispatchFixture {
     for(auto* matrix:s.readers)s.reservations_observed&=matrix->in_flight_readers>0;
     for(auto* matrix:s.writers)s.reservations_observed&=matrix->in_flight_writer;
     if(s.workspace)s.reservations_observed&=s.workspace->in_flight;
+    if(s.workspace_context){
+      const auto* workspace=s.workspace_context->failed_work_leases.back().workspace;
+      s.reservations_observed&=workspace && workspace->in_flight;
+    }
     for(auto* counter:s.private_owners)s.reservations_observed&=*counter>0;
     if(s.owner_context){
       const auto& record=s.owner_context->failed_work_leases.back();
@@ -419,3 +424,4 @@ TEST_CASE("public prepack construction retains unpublished device and native sta
 
 #include "test_api_cache_dispatch_cases.inc"
 #include "test_api_ragged_dispatch_cases.inc"
+#include "test_api_basis_dispatch_cases.inc"
