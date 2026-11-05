@@ -125,6 +125,43 @@ collector attachments, and requires its absolute --json-output argument to
 name that exact artifact. File-output plumbing is an explicit observation
 difference; arbitrary argument changes still fail the common work contract.
 
+`tools/amd_profiler_session.py` plans one Linux SDK 1.4.1 timeline acquisition
+from an existing hook-disabled, fully reference-checked production capture,
+its raw-bound capabilities receipt and selected static ISA. It does not require
+the later complete target-qualification verdict, which itself consumes profiler
+evidence. Planning reads files only; append `--execute` to launch the four
+bounded stages (compiled benchmark/inspector identities, live device inspection,
+and one native timeline execution):
+
+```shell
+python tools/amd_profiler_session.py temp/production.json --capabilities temp/profiler-preflight/capabilities.json --selected-isa temp/isa/report.json --inspector /absolute/build/rns8-inspect --out-dir temp/profiles/timeline-01
+```
+
+The session directory must be new and below repository `temp/`. Defaults reserve
+600 seconds including 30 seconds for export, cap each command at 300 seconds,
+retain at most 16 MiB of process output, sample a 2 GiB native-artifact budget,
+and require 5 GiB free space. Artifact limits are sampled and may overshoot;
+they are not a filesystem quota. Timeouts, incomplete output, tool/library
+changes, unsupported launcher injection, missing native files and ambiguous
+database inventories fail the session while preserving raw files. There is no
+automatic retry, permission adjustment, service launch or cache promotion.
+
+The runner replays the recorded relevant production environment under the same
+admitted visibility mapping. It does not relabel a masked ordinal as an unmasked
+physical device. Both live inspection and the profiled benchmark must match the
+production PCI/UUID observation. The native argv/environment witness must match
+the pinned single-pass launcher's exact injection, including its libraries and
+output paths. The dispatch-receipt consumer reopens the retained session stages,
+compiled identities, logs, input receipts and injection-library bytes. Exact
+mangled symbols select native dispatches; the existing validator then joins
+their actual loaded code objects. Selected-dispatch qualification establishes
+neither complete trace/counter coverage nor a production timing improvement.
+
+This collector is source-implemented with authored offline controls; the final
+validation batch and a supported Linux hardware run remain pending. Windows
+RDP/RGP acquisition, converter/export orchestration and ATT/sampling sessions
+remain separate implementation work.
+
     python tools/gpu_counter_report.py temp/production.json --dispatch-receipt temp/dispatch-receipt.json --out-dir temp/counter-review
 
 For multiple captures use per-capture dispatch_receipts entries in the existing

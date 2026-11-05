@@ -37,12 +37,23 @@ ADAPTERS = {
 PROFILER_ENVIRONMENT = frozenset(
     (
         "ROCP_TOOL_LIBRARIES",
-        "ROCPROFILER_PRELOAD",
         "LD_PRELOAD",
-        "ROCP_KERNEL_TRACE",
-        "ROCP_OUTPUT_FORMAT",
-        "ROCP_OUTPUT_PATH",
-        "ROCP_OUTPUT_FILE_NAME",
+        # Maintained SDK 1.4.1 rocprofv3 timeline launcher (therock-10.1).
+        "LD_LIBRARY_PATH",
+        "ROCPROFILER_LIBRARY_CTOR",
+        "ROCPROF_OUTPUT_FILE_NAME",
+        "ROCPROF_OUTPUT_PATH",
+        "ROCPROF_OUTPUT_FORMAT",
+        "ROCPROF_ATTACH_OUTPUT_GENERATION_SYNC",
+        "ROCPROF_HIP_COMPILER_API_TRACE",
+        "ROCPROF_HIP_RUNTIME_API_TRACE",
+        "ROCPROF_HIP_GRAPH_TRACE",
+        "ROCPROF_HIP_EVENT_TRACE",
+        "ROCPROF_MARKER_API_TRACE",
+        "ROCPROF_KERNEL_TRACE",
+        "ROCPROF_MEMORY_COPY_TRACE",
+        "ROCPROF_MEMORY_ALLOCATION_TRACE",
+        "ROCPROF_SCRATCH_MEMORY_TRACE",
         "RNS8_PROFILE_RANGES",
     )
 )
@@ -194,10 +205,14 @@ def _profile_pair(
         raise ValueError(
             "actual profiler injection differs from its declared environment"
         )
-    if any(key in p_env for key in declared_environment):
+    replaced = {"LD_LIBRARY_PATH", "RNS8_PROFILE_RANGES"}
+    if any(key in p_env and key not in replaced for key in declared_environment):
         raise ValueError("production environment already contains profiler injection")
     for key in declared_environment:
-        d_env.pop(key, None)
+        if key in p_env:
+            d_env[key] = p_env[key]
+        else:
+            d_env.pop(key, None)
     if not same_evidence_value(identities[0], identities[1]):
         raise ValueError(
             "profiled and production captures differ beyond declared instrumentation observations"
@@ -428,8 +443,13 @@ def validate_dispatch_receipt(
         )
     ):
         raise ValueError("profiled benchmark argv differs from the native acquisition")
+    acquisition = None
+    if receipt.get("acquisition_session") is not None:
+        from amd_profiler_session import validate_acquisition
+        acquisition = validate_acquisition(receipt, capture, store, base)
     return dict(
         schema=SCHEMA,
+        acquisition=acquisition,
         qualified_selected_dispatches=True,
         observations=observations,
         native_trace_sha256=receipt["native_trace"]["sha256"],

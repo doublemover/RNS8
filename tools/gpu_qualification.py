@@ -323,6 +323,12 @@ def artifact_records(item: dict, out: Path) -> dict[str, str]:
     if not isinstance(additional, list) or any(not isinstance(path, str) for path in additional):
         raise ValueError("session evidence output inventory must contain explicit paths")
     paths += [ROOT / path for path in additional]
+    owned_paths = []
+    for directory in item.get("owned_artifact_directories", []):
+        owned_paths += owned_artifact_files(Path(directory), out)
+    if owned_paths and sum(path.stat().st_size for path in owned_paths) > item["max_artifact_bytes"]:
+        raise ValueError("owned artifact bytes exceed the acquisition budget; raw files retained without hashing")
+    paths += owned_paths
     executable = ROOT / item["argv"][0]
     if executable.is_file():
         paths.append(executable)
@@ -331,6 +337,34 @@ def artifact_records(item: dict, out: Path) -> dict[str, str]:
         if cache.is_file():
             paths.append(cache)
     return {str(path.resolve()): sha256(path) for path in paths if path.is_file()}
+
+
+def owned_artifact_files(directory: Path, out: Path) -> list[Path]:
+    """Inventory only this session's bounded, link-free acquisition subtree."""
+    directory = directory.absolute()
+    if (not directory.is_relative_to(out.resolve()) or directory == out.resolve()
+            or directory.resolve() != directory):
+        raise ValueError("owned artifact directory must be a child of the session")
+    pending, files, count = [directory], [], 0
+    deadline = time.monotonic() + 5
+    while pending:
+        if time.monotonic() > deadline:
+            raise ValueError("artifact inventory scan budget exhausted")
+        path = pending.pop()
+        if path.is_symlink() or path.is_junction():
+            raise ValueError("artifact inventory contains a link or junction")
+        if path.is_dir():
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    count += 1
+                    if count > 100000:
+                        raise ValueError("artifact inventory entry budget exhausted")
+                    pending.append(Path(entry.path))
+        elif path.is_file():
+            files.append(path)
+        else:
+            raise ValueError("artifact inventory contains an absent or nonregular file")
+    return sorted(files)
 
 
 def resume_results(out: Path, manifest: dict) -> list[dict]:
@@ -406,6 +440,16 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
             identity_before = None
             capture_request = None
             fresh_outputs = []
+            directories = item.get("owned_artifact_directories", [])
+            if (not isinstance(directories, list) or len(set(directories)) != len(directories)
+                    or any(not isinstance(name, str) for name in directories)):
+                raise ValueError("owned artifact directories need unique explicit paths")
+            for name in directories:
+                directory = Path(name).absolute()
+                if (not directory.is_relative_to(out.resolve()) or directory == out.resolve()
+                        or directory.resolve() != directory or directory.exists()):
+                    raise ValueError("acquisition requires a fresh session-owned artifact directory")
+                directory.mkdir(parents=True, exist_ok=False)
             outputs = item.get("evidence_outputs", [])
             if not isinstance(outputs, list) or any(not isinstance(name, str) for name in outputs) or len(set(outputs)) != len(outputs):
                 raise ValueError("native evidence outputs need a unique explicit path inventory")
@@ -419,8 +463,14 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
                 identity_before = sha256(executable)
                 if "capture" in item:
                     capture_request = request_identity(item["argv"], environ=child)
+            capture_options = {}
+            if directories:
+                capture_options.update(artifact_roots=[Path(name) for name in directories],
+                    max_artifact_bytes=item["max_artifact_bytes"])
+            if "max_output_bytes" in item:
+                capture_options["max_output_bytes"] = item["max_output_bytes"]
             result = runner(item["argv"], cwd=ROOT, label=f"{index}/{len(manifest['commands'])} {item['name']}",
-                            timeout_seconds=min(item["timeout_seconds"], remaining), env=child)
+                            timeout_seconds=min(item["timeout_seconds"], remaining), env=child, **capture_options)
             for stream in ("stdout", "stderr"):
                 (out / f"{item['name']}.{stream}.log").write_text(result[stream], encoding="utf-8")
             errors = validate_result(item, result, inspections.get(item.get("match_parent")))
@@ -484,7 +534,13 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
                     errors.append("benchmark capture has invalid schema, artifact, process, target, device or request association")
             if "inspect_target" in item and not errors:
                 inspections[item["name"]] = parse_evidence_json(result["stdout"])
-            artifacts = artifact_records(item, out)
+            try:
+                artifacts = artifact_records(item, out)
+            except (OSError, ValueError) as error:
+                errors.append("artifact inventory could not be completed: " + str(error))
+                # Preserve the failed stage and bounded logs even when native
+                # files exceed budget or cannot be safely inventoried.
+                artifacts = artifact_records({"name": item["name"], "argv": item["argv"]}, out)
             results.append({"name": item["name"], **result, "parent_inspect": item.get("parent_inspect", False),
                             "selected_runtime_ordinal": item.get("selected_device"),
                             "physical_uuid": binding_identifiers(device_binding)["uuid"],
