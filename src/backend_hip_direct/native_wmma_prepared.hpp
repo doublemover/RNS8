@@ -54,6 +54,8 @@ public:
     return host_tasks_.capacity() * sizeof(NativeWmmaTask) + sizeof(header_) +
            sizeof(dispatch_hint_) + (locality_.struct_size ? sizeof(locality_) : 0);
   }
+  // Owned payload capacities plus the concrete staging object; allocator/control
+  // headers require host allocation profiling and are not inferred here.
   uint64_t preparation_materialized_host_payload_bytes() const { return materialized_host_bytes_; }
   uint64_t preparation_peak_host_payload_bytes() const { return peak_host_payload_bytes_; }
   uint64_t preparation_peak_device_metadata_bytes() const { return peak_device_bytes_; }

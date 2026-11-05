@@ -47,6 +47,14 @@ Pinned export staging likewise remains pending through its copy and retires on
 failure or unwinding. These changes do not establish real device-failure recovery
 or a measured performance improvement.
 
+Native queue preparation retains descriptor and schedule vectors with its device
+allocation while uploading. The one-shot queue owns its descriptor snapshot too.
+Capability kernels, readbacks, uploads and compute all mark temporary device
+storage pending before issue; errors keep it pending unless a drain succeeds.
+Successful replacement preserves the existing prepared queue until publication.
+Queue payload accounting includes the concrete staging object and capacities;
+allocator/control headers remain outside that model.
+
 Each token contains a unique prepared-instance identity and a nonwrapping epoch.
 `rns8_get_prepared_completion` accepts only the latest epoch of that instance.
 It reports the exact input generations, output generation and operation status.

@@ -127,7 +127,13 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
           descriptor_bytes += ((task.m + 15) / 16) * ((task.n + 15) / 16) *
                               ((task.prefix + task.group - 1) / task.group) *
                               sizeof(NativeWmmaWork);
-        REQUIRE(prepared.prepare(0, tasks, workers, descriptor_bytes) == RNS8_SUCCESS);
+        {
+          auto transient_descriptors = tasks;
+          REQUIRE(prepared.prepare(0, transient_descriptors, workers, descriptor_bytes) ==
+                  RNS8_SUCCESS);
+          // Subsequent ordinary/persistent launches use the admitted snapshot.
+          std::fill(transient_descriptors.begin(), transient_descriptors.end(), NativeWmmaTask{});
+        }
         // Admission failures are transactional: the earlier descriptors survive.
         CHECK(prepared.prepare(0, tasks, workers, 0) == RNS8_WORKSPACE_TOO_SMALL);
         CHECK(prepared.prepare(0, tasks, workers, descriptor_bytes * 2 - 1) ==

@@ -1,4 +1,21 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+namespace {
+struct NativeQueuePrepareUpload {
+  std::vector<NativeWmmaTask> tasks;
+  NativeWmmaSchedulePlan schedule;
+};
+struct NativeQueueLiteralUpload {
+  std::vector<NativeWmmaTask> tasks;
+  std::vector<NativeWmmaWork> work;
+};
+rns8_status finish_native_queue_buffer(hip_direct_device_buffer& storage,
+                                       rns8_status status) noexcept {
+  if (status == RNS8_SUCCESS || hipDeviceSynchronize() == hipSuccess)
+    storage.mark_completed();
+  return status;
+}
+} // namespace
+
 extern "C" int rns8_hip_native_wmma_queue(const NativeWmmaTask*, const NativeWmmaWork*, uint32_t,
                                           uint32_t*, uint32_t, NativeWmmaUniformHint);
 extern "C" int rns8_hip_native_wmma_queue_schedule(const NativeWmmaTask*, const NativeWmmaWork*,
@@ -88,64 +105,74 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
         static_cast<hipError_t>(rns8_hip_native_wmma_capability(reinterpret_cast<int*>(cursor)));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
-  if (error != hipSuccess) {
-    if (hipDeviceSynchronize() == hipSuccess)
-      storage.mark_completed();
-    return RNS8_BACKEND_FAILURE;
-  }
-  storage.mark_completed();
+  status = finish_native_queue_buffer(storage,
+                                      error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE);
+  if (status != RNS8_SUCCESS)
+    return status;
   uint32_t supported = 0;
+  storage.mark_pending();
   status = hip_direct_copy_device_to_host(device_id, &supported, cursor, sizeof(supported));
+  status = finish_native_queue_buffer(storage, status);
   if (status != RNS8_SUCCESS)
     return status;
   if (!supported)
     return RNS8_UNSUPPORTED_BACKEND;
+  std::shared_ptr<NativeQueuePrepareUpload> staging;
+  try {
+    staging = std::make_shared<NativeQueuePrepareUpload>();
+    staging->tasks = std::move(host_tasks);
+    staging->schedule = std::move(schedule);
+  } catch (const std::bad_alloc&) {
+    return RNS8_INTERNAL_ERROR;
+  }
+  status = storage.retain_host_payload(staging);
+  if (status != RNS8_SUCCESS)
+    return status;
   storage.mark_pending();
   error = timed_hip_operation("native_queue_prepare_upload", [&]() {
-    auto upload = tracked_sync_copy(device_tasks, tasks.data(),
-                                    tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
+    auto upload =
+        tracked_sync_copy(device_tasks, staging->tasks.data(),
+                          staging->tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
     if (upload == hipSuccess && device_work)
-      upload = tracked_sync_copy(device_work, schedule.explicit_work.data(),
-                                 schedule.explicit_work.size() * sizeof(NativeWmmaWork),
+      upload = tracked_sync_copy(device_work, staging->schedule.explicit_work.data(),
+                                 staging->schedule.explicit_work.size() * sizeof(NativeWmmaWork),
                                  hipMemcpyHostToDevice);
     if (upload == hipSuccess && ranges)
-      upload = tracked_sync_copy(ranges, schedule.ranges.data(),
-                                 schedule.ranges.size() * sizeof(NativeWmmaTaskRange),
+      upload = tracked_sync_copy(ranges, staging->schedule.ranges.data(),
+                                 staging->schedule.ranges.size() * sizeof(NativeWmmaTaskRange),
                                  hipMemcpyHostToDevice);
-    if (upload == hipSuccess && !schedule.phases.empty())
-      upload = tracked_sync_copy(phases, schedule.phases.data(),
-                                 schedule.phases.size() * sizeof(NativeWmmaRoundPhase),
+    if (upload == hipSuccess && !staging->schedule.phases.empty())
+      upload = tracked_sync_copy(phases, staging->schedule.phases.data(),
+                                 staging->schedule.phases.size() * sizeof(NativeWmmaRoundPhase),
                                  hipMemcpyHostToDevice);
-    if (upload == hipSuccess && !schedule.rank_directory.empty())
-      upload = tracked_sync_copy(rank_directory, schedule.rank_directory.data(),
-                                 schedule.rank_directory.size() * sizeof(uint32_t),
+    if (upload == hipSuccess && !staging->schedule.rank_directory.empty())
+      upload = tracked_sync_copy(rank_directory, staging->schedule.rank_directory.data(),
+                                 staging->schedule.rank_directory.size() * sizeof(uint32_t),
                                  hipMemcpyHostToDevice);
     return upload == hipSuccess ? hipDeviceSynchronize() : upload;
   });
-  if (error != hipSuccess) {
-    if (hipDeviceSynchronize() == hipSuccess)
-      storage.mark_completed();
-    return RNS8_BACKEND_FAILURE;
-  }
-  storage.mark_completed();
+  status = finish_native_queue_buffer(storage,
+                                      error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE);
+  if (status != RNS8_SUCCESS)
+    return status;
   materialized_host_bytes_ =
-      schedule.transient_host_capacity_bytes() + sizeof(schedule.header) +
+      staging->schedule.transient_host_capacity_bytes() + sizeof(*staging) +
       (locality ? sizeof(locality_info) : 0) +
-      (host_tasks.capacity() + host_tasks_.capacity()) * sizeof(NativeWmmaTask);
+      (staging->tasks.capacity() + host_tasks_.capacity()) * sizeof(NativeWmmaTask);
   peak_host_payload_bytes_ = std::max(materialized_host_bytes_,
-                                      schedule.peak_host_payload_bytes + sizeof(schedule.header) +
+                                      staging->schedule.peak_host_payload_bytes + sizeof(*staging) +
                                           (locality ? sizeof(locality_info) : 0) +
                                           host_tasks_.capacity() * sizeof(NativeWmmaTask));
   peak_device_bytes_ = retained + bytes;
   storage_ = std::move(storage);
-  host_tasks_.swap(host_tasks);
+  host_tasks_.swap(staging->tasks);
   device_id_ = device_id;
   tasks_ = device_tasks;
   work_ = device_work;
   cursor_ = cursor;
   ranges_ = ranges;
   phases_ = phases;
-  header_ = schedule.header;
+  header_ = staging->schedule.header;
   locality_ = locality_info;
   count_ = header_.work_count;
   workers_ = std::min(workers, count_);
@@ -344,39 +371,62 @@ rns8_status hip_direct_gemm_native_wmma_queue(int device_id,
   auto* device_tasks = static_cast<NativeWmmaTask*>(storage.get());
   auto* device_work = reinterpret_cast<NativeWmmaWork*>(device_tasks + tasks.size());
   auto* cursor = reinterpret_cast<uint32_t*>(device_work + work.size());
+  storage.mark_pending();
   auto error = timed_hip_operation("native_queue_capability", [&]() {
     auto launch =
         static_cast<hipError_t>(rns8_hip_native_wmma_capability(reinterpret_cast<int*>(cursor)));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
-  if (error != hipSuccess)
-    return RNS8_BACKEND_FAILURE;
+  status = finish_native_queue_buffer(storage,
+                                      error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE);
+  if (status != RNS8_SUCCESS)
+    return status;
   uint32_t supported = 0;
+  storage.mark_pending();
   status = hip_direct_copy_device_to_host(device_id, &supported, cursor, sizeof(supported));
+  status = finish_native_queue_buffer(storage, status);
   if (status != RNS8_SUCCESS)
     return status;
   if (!supported)
     return RNS8_UNSUPPORTED_BACKEND;
+  std::shared_ptr<NativeQueueLiteralUpload> staging;
+  try {
+    staging = std::make_shared<NativeQueueLiteralUpload>();
+    staging->tasks = tasks;
+    staging->work = std::move(work);
+  } catch (const std::bad_alloc&) {
+    return RNS8_INTERNAL_ERROR;
+  }
+  status = storage.retain_host_payload(staging);
+  if (status != RNS8_SUCCESS)
+    return status;
+  storage.mark_pending();
   error = timed_hip_operation("native_queue_descriptor_upload", [&]() {
-    auto upload = tracked_sync_copy(device_tasks, tasks.data(),
-                                    tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
+    auto upload =
+        tracked_sync_copy(device_tasks, staging->tasks.data(),
+                          staging->tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
     if (upload == hipSuccess)
-      upload = tracked_sync_copy(device_work, work.data(), work.size() * sizeof(NativeWmmaWork),
-                                 hipMemcpyHostToDevice);
+      upload =
+          tracked_sync_copy(device_work, staging->work.data(),
+                            staging->work.size() * sizeof(NativeWmmaWork), hipMemcpyHostToDevice);
     if (upload == hipSuccess)
       upload = hipMemset(cursor, 0, sizeof(uint32_t));
     return upload == hipSuccess ? hipDeviceSynchronize() : upload;
   });
-  if (error != hipSuccess)
-    return RNS8_BACKEND_FAILURE;
+  status = finish_native_queue_buffer(storage,
+                                      error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE);
+  if (status != RNS8_SUCCESS)
+    return status;
   outputs_may_be_written = true;
+  storage.mark_pending();
   error = timed_hip_operation("native_queue_persistent_wmma", [&]() {
     auto launch = static_cast<hipError_t>(rns8_hip_native_wmma_queue(
-        device_tasks, device_work, static_cast<uint32_t>(work.size()), cursor,
-        std::min(workers, static_cast<uint32_t>(work.size())), hint));
+        device_tasks, device_work, static_cast<uint32_t>(staging->work.size()), cursor,
+        std::min(workers, static_cast<uint32_t>(staging->work.size())), hint));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
-  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  return finish_native_queue_buffer(storage,
+                                    error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE);
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;
