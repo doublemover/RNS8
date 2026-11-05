@@ -55,6 +55,7 @@ install(
     "${CMAKE_CURRENT_BINARY_DIR}/RNS8Config.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/RNS8ConfigVersion.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8Runtime.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8HIPBLASLTDependency.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8StageRuntime.cmake"
   DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
   COMPONENT Development

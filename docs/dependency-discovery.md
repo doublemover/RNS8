@@ -278,6 +278,23 @@ header/library candidates remain `discovered`; their existing CMake finders and
 explicit probe workflows own API/target/link evidence. Merely discovering them
 does not change any `RNS8_ENABLE_*` flag or default backend dispatch.
 
+Enabled hipBLASLt builds and installed consumers require the upstream CMake
+config package exporting `roc::hipblaslt`. Raw header/library discovery remains
+useful inventory/probe evidence, but cannot recreate its full link interface or
+Windows import-library contract. The shared build/consumer package resolver
+honors current `hipblaslt_DIR`, `RNS8_HIPBLASLT_ROOT`, `RNS8_HIP_ROOT` and ordinary
+CMake package prefixes; explicit roots and package directories must agree.
+A consumer package-directory choice takes precedence over inherited project
+root variables. Installed RNS8 configuration no longer embeds producer-machine
+hipBLASLt include/library paths or fabricates a raw imported target after a
+failed lookup. Missing dependencies return package-not-found for optional
+lookups and fail a required lookup. Failed partial imports cannot become success
+on a subsequent lookup. CPU-only packages do not require this component.
+The installed workload harness forwards the selected SDK/component/package
+inputs. Compiler-free configure fixtures cover moved RNS8 prefixes, nondefault
+SDKs with spaces, required/quiet rejection, conflicting roots and CPU-only use;
+real static/shared link/runtime qualification remains a separate gate.
+
 Boost.Multiprecision and nlohmann-json remain required CMake dependencies;
 Catch2 remains conditional on test targets and OpenMP on the existing CPU option.
 Their actual `find_package`/header checks consume the selected toolchain and

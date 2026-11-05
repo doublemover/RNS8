@@ -27,27 +27,16 @@ endif()
 list(APPEND _RNS8_HIPBLASLT_HINTS "/opt/rocm")
 
 if(RNS8_DISCOVERY_IDENTITY_SHA256 AND RNS8_HIPBLASLT_ROOT)
-  # NO_DEFAULT_PATH does not exclude other HINTS. A missing package in the
-  # selected root must not import targets from another SDK or vcpkg prefix.
   set(_RNS8_HIPBLASLT_HINTS "${RNS8_HIPBLASLT_ROOT}")
   set(_RNS8_HIPBLASLT_PACKAGE_POLICY NO_DEFAULT_PATH)
-  if(hipblaslt_DIR AND NOT hipblaslt_DIR MATCHES "-NOTFOUND$")
-    file(REAL_PATH "${hipblaslt_DIR}" _rns8_package_dir)
-    file(REAL_PATH "${RNS8_HIPBLASLT_ROOT}" _rns8_package_root)
-    string(FIND "${_rns8_package_dir}/" "${_rns8_package_root}/" _rns8_package_prefix)
-    if(NOT _rns8_package_prefix EQUAL 0)
-      message(FATAL_ERROR "hipblaslt_DIR is outside the shared selected RNS8_HIPBLASLT_ROOT; remove the stale cache or select one coherent installation")
-    endif()
-  endif()
 endif()
-find_package(
-  hipblaslt
-  CONFIG
-  QUIET
-  HINTS ${_RNS8_HIPBLASLT_HINTS}
-  PATH_SUFFIXES lib/cmake/hipblaslt
-  ${_RNS8_HIPBLASLT_PACKAGE_POLICY}
-)
+include("${CMAKE_CURRENT_LIST_DIR}/../RNS8HIPBLASLTDependency.cmake")
+rns8_resolve_hipblaslt_package(_rns8_lt_package_found _rns8_lt_package_message)
+if(RNS8_ENABLE_HIPBLASLT AND NOT _rns8_lt_package_found)
+  message(FATAL_ERROR "RNS8_ENABLE_HIPBLASLT: ${_rns8_lt_package_message}")
+endif()
+# Raw paths below remain discovery/probe evidence. Backend linkage always uses
+# the complete upstream config target; installed consumers use the same policy.
 
 find_path(
   RNS8_HIPBLASLT_INCLUDE_DIR
