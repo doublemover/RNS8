@@ -19,9 +19,55 @@ from init_quality import archive_executable
 from quality import command_plan, selected_tools
 from quality_inventory import ROOT, SourceFile, batches, classify, inventory
 from quality_policy import load_quality_lock
+from quality_controls import run_controls
 
 
 class Quality(unittest.TestCase):
+    def test_real_checker_control_protocol_is_fail_closed_without_executing_tools(self):
+        markers = {
+            "cpp-format": "clang-format-violations",
+            "python-lint": "F821",
+            "bash": "SC2086",
+            "workflow": "authored_missing_context",
+        }
+        tools = {
+            name: "authored never executed/" + name
+            for name in ("clang-format", "ruff", "shellcheck", "actionlint")
+        }
+
+        def runner_for(failure):
+            def run(argv, **kwargs):
+                label = kwargs["label"]
+                negative = label.startswith("quality-negative-")
+                output = ""
+                if label.startswith("quality-prepare-"):
+                    output = Path(argv[-1]).read_text(encoding="utf-8")
+                if negative:
+                    output = markers[label.removeprefix("quality-negative-")]
+                if failure == "missing_marker" and negative:
+                    output = "unrelated tool failure"
+                if failure == "mutation" and label == "quality-positive-python-lint":
+                    (Path(kwargs["cwd"]) / argv[-1]).write_text(
+                        "changed by checker", encoding="utf-8"
+                    )
+                return dict(
+                    returncode=int(negative and failure != "negative_pass"),
+                    timed_out=failure == "timeout",
+                    limit_exceeded=None,
+                    capture_error=None,
+                    stdout=output,
+                    stderr="",
+                )
+
+            return run
+
+        result = run_controls(tools, plan=command_plan, runner=runner_for(None))
+        self.assertEqual(len(result["records"]), 9)
+        self.assertEqual(sum(row["expected"] == "reject" for row in result["records"]), 4)
+        for failure in ("negative_pass", "missing_marker", "timeout", "mutation"):
+            with self.subTest(failure=failure), self.assertRaises(ValueError):
+                run_controls(tools, plan=command_plan, runner=runner_for(failure))
+
     def setUp(self):
         self.policy = json.loads((ROOT / "metadata/first-party-inventory.json").read_text())
 

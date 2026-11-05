@@ -14,6 +14,16 @@ CORE = "src/backend_hip_direct/hip_direct_tiled_residue_core.cuh"
 LOAD = "src/backend_common/residue_tile.hpp"
 WRAPPERS = "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh"
 SCHEDULED = "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh"
+SOURCE_INPUTS = (
+    CORE,
+    LOAD,
+    WRAPPERS,
+    SCHEDULED,
+    "src/backend_common/residue_dot.hpp",
+    "src/backend_common/finite_u8_reducer.hpp",
+    "src/backend_hip_direct/hip_direct_device_common.cuh",
+    "metadata/kernels.yaml",
+)
 
 
 def validate_policy_manifest(value: object) -> list[dict]:
@@ -262,21 +272,11 @@ def inspect_source(value: object, *, root: Path = ROOT) -> dict:
         or "__forceinline__voidrns8_tiled_residue_body" not in compact_core
     ):
         raise ValueError("shared tiled core lost its explicit barrier/load/inlining structure")
-    inputs = (
-        CORE,
-        LOAD,
-        WRAPPERS,
-        SCHEDULED,
-        "src/backend_common/residue_dot.hpp",
-        "src/backend_common/finite_u8_reducer.hpp",
-        "src/backend_hip_direct/hip_direct_device_common.cuh",
-        "metadata/kernels.yaml",
-    )
     return dict(
         schema="rns8_tiled_residue_source_contract_v2",
         selected_wrappers=len(rows),
         policies=rows,
-        source_sha256={name: file_digest(root / name) for name in inputs},
+        source_sha256={name: file_digest(root / name) for name in SOURCE_INPUTS},
         scope="lexical_source_contract_not_compiled_lowering_or_execution_proof",
         hardware_qualification=False,
         performance_qualified=False,

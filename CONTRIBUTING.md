@@ -48,9 +48,15 @@ conservative Python 3.12 floor, not a claim of interpreter qualification.
 
 The shared dependency policy owns exact versions and Windows/Linux artifact
 hashes in `metadata/quality-tools.json`. These are optional developer tools,
-separate from AMD's compiler and runtime dependencies. Source tooling and
-offline controls are implemented; the formatting/lint baseline, CI gate and
-final validation batch remain pending. Schema and sweep contract modules now
+separate from AMD's compiler and runtime dependencies. The canonical baseline is
+recorded in `.git-blame-ignore-revs`; subsequent changes use the same check-only
+gate. CI checks the inventory on Windows and Linux before native builds, retaining
+the existing functional suites. The `self-test` mode takes the same `--tool-bin`
+directory and runs tiny checker controls in ignored scratch space:
+formatting drift, an undefined Python name, an unsafe shell expansion and an
+invalid workflow expression must fail. It never compiles or runs fixture workloads.
+The source gates and controls still need their final qualification batch and
+cold/warm wall-time and memory measurements. Schema and sweep contract modules now
 run independently through ordinary unittest classes and fresh fixture inputs;
 their aggregate commands retain all mapped cases without shared fragment globals.
 

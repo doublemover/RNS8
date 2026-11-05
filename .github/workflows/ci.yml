@@ -14,7 +14,43 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  source-quality:
+    name: Source quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            tool-bin: bin
+          - os: windows-2025
+            tool-bin: Scripts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - name: Select locked Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+      - name: Install hash-locked developer tools
+        run: python tools/init_quality.py --out temp/quality-tools
+      - name: Check canonical source and orchestration
+        run: python tools/quality.py check --tool-bin temp/quality-tools/${{ matrix.tool-bin }}
+      - name: Prove deliberate checker failures
+        run: python tools/quality.py self-test --tool-bin temp/quality-tools/${{ matrix.tool-bin }}
+      - name: Check strict evidence boundaries and diagnostic controls
+        run: python tools/quality.py types --tool-bin temp/quality-tools/${{ matrix.tool-bin }}
+      - name: Check inventory and fixture structure contracts
+        run: |
+          python tools/test_quality.py
+          python tools/test_typecheck.py
+          python tools/test_python_case_structure.py
+
   ubuntu-cpu:
+    needs: source-quality
     runs-on: ubuntu-24.04
     env:
       GIT_CONFIG_COUNT: 1
@@ -97,6 +133,7 @@ jobs:
         run: ctest --preset linux-cpu-debug --output-on-failure
 
   linux-openmp-matrix:
+    needs: source-quality
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false

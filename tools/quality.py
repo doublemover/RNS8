@@ -17,6 +17,7 @@ import sys
 from quality_inventory import ROOT, ROLES, SourceFile, batches, inventory
 from quality_policy import load_quality_lock
 from evidence_records import Command
+from process_progress import capture_succeeded, run_capture
 
 
 def command_plan(
@@ -158,7 +159,9 @@ def main(argv=None) -> int:
 
         return analysis_main(arguments[1:])
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("check", "fix", "inventory", "types", "analyze"))
+    parser.add_argument(
+        "mode", choices=("check", "fix", "inventory", "types", "analyze", "self-test")
+    )
     parser.add_argument("--tool-bin", type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=300)
     args = parser.parse_args(arguments)
@@ -177,6 +180,11 @@ def main(argv=None) -> int:
             return 0
         lock = load_quality_lock(ROOT)
         tools = selected_tools(lock, tool_bin=args.tool_bin)
+        if args.mode == "self-test":
+            from quality_controls import run_controls
+
+            print(json.dumps(run_controls(tools, plan=command_plan), indent=2))
+            return 0
         for name in (
             ".clang-format",
             "ruff.toml",
@@ -195,10 +203,31 @@ def main(argv=None) -> int:
         failed = False
         for command in command_plan(sources, tools, fix=args.mode == "fix"):
             print(json.dumps(asdict(command)), flush=True)
-            result = subprocess.run(
-                command.argv, cwd=ROOT, timeout=args.timeout_seconds, check=False
+            result = run_capture(
+                list(command.argv),
+                cwd=ROOT,
+                label="quality-" + command.role,
+                timeout_seconds=args.timeout_seconds,
+                max_output_bytes=8 * 1024**2,
             )
-            failed |= result.returncode != 0
+            print(result["stdout"], end="", flush=True)
+            print(result["stderr"], end="", file=sys.stderr, flush=True)
+            print(
+                json.dumps(
+                    {
+                        key: result.get(key)
+                        for key in (
+                            "returncode",
+                            "elapsed_seconds",
+                            "timed_out",
+                            "limit_exceeded",
+                            "capture_error",
+                        )
+                    }
+                ),
+                flush=True,
+            )
+            failed |= not capture_succeeded(result)
         return int(failed)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(str(error), file=sys.stderr)
