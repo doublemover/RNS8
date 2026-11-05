@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+from review_reference import ReviewIndex, load_review_index
 
 from report_capture_inputs import expand_report_inputs, load_report_capture
 
@@ -24,16 +24,6 @@ REQUIRED_VARIANT_CLASSES = {
 BASELINE_EXPORT_VARIANTS = {"default", "exact-wide-fixed-limb-export"}
 
 
-def _normalize_path(path: str | Path) -> str:
-    candidate = Path(path)
-    if not candidate.is_absolute():
-        candidate = REPO_ROOT / candidate
-    try:
-        resolved = candidate.resolve()
-    except OSError:
-        resolved = candidate.absolute()
-    text = str(resolved).replace("\\", "/")
-    return text.lower() if sys.platform.startswith("win") else text
 
 
 def _relative(path: Path) -> str:
@@ -65,57 +55,8 @@ def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]
     return captures, skipped
 
 
-def _review_capture_keys(capture_path: str, report_path: Path) -> set[str]:
-    raw = Path(capture_path.replace("\\", "/"))
-    paths = [raw]
-    if not raw.is_absolute():
-        paths.append(REPO_ROOT / raw)
-        paths.append(report_path.parent / raw)
-    return {_normalize_path(path) for path in paths}
 
 
-def _load_review_index(inputs: list[Path]) -> dict[str, dict[str, Any]]:
-    reports = [
-        path
-        for path in _json_inputs(inputs)
-        if path.name == "review_report.json"
-    ]
-    index: dict[str, dict[str, Any]] = {}
-    for report_path in reports:
-        try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(report, dict):
-            continue
-        for group_index, group in enumerate(report.get("groups", [])):
-            if not isinstance(group, dict):
-                continue
-            group_entry = {
-                "review_report": _relative(report_path),
-                "review_report_group_index": group_index,
-                "review_mode": group.get("review_mode") or report.get("review_mode"),
-                "release_review_satisfied": group.get("release_review_satisfied"),
-                "missing_required_baselines": group.get("missing_required_baselines") or [],
-                "duplicate_backends": group.get("duplicate_backends") or [],
-                "contract_key": group.get("contract_key"),
-            }
-            for candidate in group.get("candidates", []):
-                if not isinstance(candidate, dict):
-                    continue
-                capture_path = candidate.get("capture")
-                if not isinstance(capture_path, str) or not capture_path:
-                    continue
-                entry = {
-                    **group_entry,
-                    "candidate_promotable": candidate.get("promotable") is True,
-                    "candidate_promotion_reason": candidate.get("promotion_reason"),
-                    "candidate_promotion_blockers": candidate.get("promotion_blockers") or [],
-                    "candidate_cache_write_status": candidate.get("cache_write_status"),
-                }
-                for key in _review_capture_keys(capture_path, report_path):
-                    index[key] = entry
-    return index
 
 
 def _timing_median(capture: dict[str, Any], phase: str) -> float | None:
@@ -162,12 +103,14 @@ def _variant_class(export: dict[str, Any], reconstruction: dict[str, Any]) -> st
     return "other_export_reconstruction_variant"
 
 
-def _row_for_capture(path: Path, capture: dict[str, Any], review_index: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _row_for_capture(path: Path, capture: dict[str, Any], review_index: ReviewIndex) -> dict[str, Any]:
     export = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
     reconstruction = (
         capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
     )
-    review = review_index.get(_normalize_path(path))
+    review = review_index.lookup(path, capture)
+    numerical = review.get('numerical_reference') if review else None
+    reference_blockers = list(review.get('review_reader_blockers') or []) if review else ['review_reference_missing']
     missing = review.get("missing_required_baselines") if isinstance(review, dict) else []
     duplicates = review.get("duplicate_backends") if isinstance(review, dict) else []
     release_ready = (
@@ -176,9 +119,13 @@ def _row_for_capture(path: Path, capture: dict[str, Any], review_index: dict[str
         and review.get("release_review_satisfied") is True
         and not missing
         and not duplicates
+        and not reference_blockers
+        and isinstance(numerical, dict) and numerical.get('passed') is True
     )
     return {
         "capture_path": _relative(path),
+        "numerical_reference": numerical,
+        "reference_blockers": reference_blockers,
         "semantics": capture.get("semantics"),
         "backend": capture.get("backend_selected"),
         "target_id": _target_id(capture, export),
@@ -238,6 +185,8 @@ def _candidate_blockers(candidate: dict[str, Any], baseline: dict[str, Any] | No
     blockers: list[str] = []
     if baseline is None:
         return ["missing_default_baseline"]
+    blockers.extend('candidate:' + item for item in candidate.get('reference_blockers', []))
+    blockers.extend('baseline:' + item for item in baseline.get('reference_blockers', []))
     if not candidate["release_review_ready"]:
         blockers.append("candidate_release_review_not_ready")
     if not baseline["release_review_ready"]:
@@ -284,7 +233,7 @@ def _comparison_for(candidate: dict[str, Any], baseline: dict[str, Any] | None) 
 
 def build_report(inputs: list[Path]) -> dict[str, Any]:
     captures, skipped = _load_captures(inputs)
-    review_index = _load_review_index(inputs)
+    review_index = load_review_index(inputs, captures)
     rows = [_row_for_capture(path, capture, review_index) for path, capture in captures]
     baseline_by_key: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:

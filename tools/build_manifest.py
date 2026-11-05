@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from json_evidence import load_evidence_json
 
 TRUE_OPTIONS = frozenset(('ON', 'TRUE', '1', 'YES', 'Y'))
 FALSE_OPTIONS = frozenset(('OFF', 'FALSE', '0', 'NO', 'N', ''))
@@ -284,19 +285,6 @@ def generate(source, config):
                 **groups, linkage="static-rns8", identity_scope="source-config-and-selected-dependency-content")
 
 
-def read_manifest(path):
-    def pairs(items):
-        result = {}
-        for key, value in items:
-            if key in result:
-                raise ValueError('duplicate manifest JSON key: ' + key)
-            result[key] = value
-        return result
-    def invalid_constant(value):
-        raise ValueError('nonfinite manifest JSON constant: ' + value)
-    return json.loads(Path(path).read_text(encoding='utf-8'), object_pairs_hook=pairs, parse_constant=invalid_constant)
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path)
@@ -322,7 +310,7 @@ def main(argv=None):
                 if len(candidates) != 1:
                     raise ValueError('expected exactly one built configuration manifest; use --check-manifest for an explicit configuration')
                 path = candidates[0]
-            manifest = read_manifest(path)
+            manifest = load_evidence_json(path)
             if not all(manifest_provenance_complete(manifest, backend) for backend in (args.backend or [None])):
                 raise ValueError('manifest has incomplete, dirty, inconsistent or backend-incompatible provenance')
             print(json.dumps(dict(schema='rns8_build_manifest_admission_v1', manifest=str(path),

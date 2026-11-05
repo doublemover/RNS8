@@ -12,7 +12,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from build_manifest import (generate, dependency_tree_identity, manifest_provenance_complete,
-    manifest_dependencies_compatible, manifest_diagnostic_shape_valid, main as manifest_main, read_manifest)
+    manifest_dependencies_compatible, manifest_diagnostic_shape_valid, main as manifest_main)
+from json_evidence import load_evidence_json
 
 
 def dependency_fixture(root, kind='native'):
@@ -94,7 +95,7 @@ class BuildManifestTest(unittest.TestCase):
                 with self.assertRaises(SystemExit):manifest_main(['--check-manifest',str(release),'--source',str(source)])
             for text in ('{"version":3,"version":2}','{"version":NaN}','{"version":Infinity}'):
                 release.write_text(text,encoding='utf-8')
-                with self.assertRaises(ValueError):read_manifest(release)
+                with self.assertRaises(ValueError):load_evidence_json(release)
     def test_generated_native_and_vcpkg_content_manifests_reach_real_collector_admission(self):
         from test_collect_native_calibration import case_for,capture_for
         from collect_native_calibration import validate_capture

@@ -12,6 +12,8 @@ from evidence_database_lib.isa import lookup_isa_resources
 from build_manifest import manifest_provenance_complete, manifest_dependencies_compatible
 from timing_eligibility import phase_blockers, pair_blockers, comparison_record, capture_identity, bound_comparison_blockers
 from diagnostic_companion import production_evidence, binding_for_capture
+from review_contract import REVIEW_MODES, release_capture_satisfied
+from reference_verdict import SCHEMA as NUMERICAL_REFERENCE_SCHEMA, checksum_u64 as capture_checksum, reference_verdict
 
 from .capture_metadata import (
     backend_id,
@@ -1074,23 +1076,6 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
     }
 
 
-def release_capture_satisfied(capture: dict[str, Any]) -> bool:
-    return (
-        isinstance(capture.get("warmups"), int)
-        and isinstance(capture.get("repeats"), int)
-        and capture["warmups"] >= RELEASE_MIN_WARMUPS
-        and capture["repeats"] >= RELEASE_MIN_REPEATS
-    )
-
-
-def capture_checksum(capture: dict[str, Any] | None) -> Any:
-    if not capture:
-        return None
-    if capture.get("checksum_u64") is not None:
-        return capture.get("checksum_u64")
-    return capture.get("checksum")
-
-
 def capture_prepacked_reuse(capture: dict[str, Any]) -> bool:
     return capture_pack_mode(capture) in REUSE_PACK_MODES or capture.get("reuse_packed_inputs") is True
 
@@ -1818,7 +1803,7 @@ def review_captures(
     isa_index: dict[str, list[dict[str, Any]]] | None = None,
     diagnostic_bindings: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    if review_mode not in {"smoke", "release"}:
+    if review_mode not in REVIEW_MODES:
         raise ValueError(f"unsupported review mode: {review_mode}")
     nonreuse_by_key_backend, nonreuse_by_key, graph_baseline_by_key_backend = build_setup_baseline_indexes(captures)
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -2130,11 +2115,14 @@ def review_captures(
                 blockers.append("checksum_mismatch_vs_reference")
             blockers.extend(scenario_promotion_blockers(item))
             promotable = not blockers
+            cpu_reference = by_backend.get('cpu-reference') or by_backend.get('cpu')
+            numerical = reference_verdict(item, [cpu_reference] if cpu_reference is not None else []).to_json()
             candidate = {
                 "backend": backend,
                 "selected_kernel": selected_kernel(item),
                 "capture": item.get("_path"),
                 "capture_sha256": capture_identity(item),
+                "numerical_reference": numerical,
                 "production_timing_evidence": companion,
                 "baseline_production_timing_evidence": baseline_evidence,
                 "additional_baseline_evidence": additional_baselines,
@@ -2317,6 +2305,7 @@ def review_captures(
 
     return {
         "schema_version": REVIEW_SCHEMA_VERSION,
+        "numerical_reference_contract": NUMERICAL_REFERENCE_SCHEMA,
         "review_mode": review_mode,
         "route_comparison_scope": "descriptive_same_instrumentation_only; production promotion separately requires bound hook-disabled evidence",
         "release_review_requirements": {

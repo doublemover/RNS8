@@ -10,6 +10,7 @@ from pathlib import Path
 
 import reconstruction_export_report
 from test_export_selector_report import reviewable_fixed_limb_capture
+from test_review_reference_support import add_synthetic_full_reference, write_variant_review as write_review_report
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -85,32 +86,6 @@ def as_candidate(capture: dict, name: str, *, reconstruction: str = "default_gar
     return capture
 
 
-def write_review_report(path: Path, capture_paths: list[Path]) -> None:
-    write_json(
-        path,
-        {
-            "review_mode": "release",
-            "groups": [
-                {
-                    "review_mode": "release",
-                    "release_review_satisfied": True,
-                    "missing_required_baselines": [],
-                    "duplicate_backends": [],
-                    "contract_key": "fixture",
-                    "candidates": [
-                        {
-                            "capture": str(capture_path),
-                            "promotable": True,
-                            "promotion_reason": "fixture_release_review",
-                            "promotion_blockers": [],
-                            "cache_write_status": "not_requested",
-                        }
-                        for capture_path in capture_paths
-                    ],
-                }
-            ],
-        },
-    )
 
 
 def main() -> int:
@@ -149,7 +124,7 @@ def main() -> int:
         capture_paths: list[Path] = []
         for name, capture in captures:
             path = tmp / name
-            write_json(path, capture)
+            write_json(path, add_synthetic_full_reference(capture))
             capture_paths.append(path)
         write_review_report(tmp / "review_report.json", capture_paths)
 
@@ -172,6 +147,16 @@ def main() -> int:
         assert dispositions["status_elided_exact_proof"] == "drop/deprioritize"
         assert dispositions["prefix20_fixed_export"] == "keep experimental"
         assert dispositions["tree_crt_reconstruction"] == "keep experimental"
+
+        # A fresh, content-bound sidecar must still preserve a numerical failure.
+        mismatch = json.loads(capture_paths[1].read_text(encoding="utf-8"))
+        mismatch["checksum_u64"] ^= 1
+        write_json(capture_paths[1], mismatch)
+        write_review_report(tmp / "review_report.json", capture_paths)
+        rejected = reconstruction_export_report.build_report([tmp])
+        assert rejected["variant_class_summary"]["compact_d2h_host_scatter"]["ready"] is False
+        assert any("checksum" in reason for item in rejected["comparisons"]
+                   if item["variant_class"] == "compact_d2h_host_scatter" for reason in item["blockers"])
 
         no_review_report = reconstruction_export_report.build_report([capture_paths[0], capture_paths[2]])
         assert no_review_report["rank33_classification_complete"] is False

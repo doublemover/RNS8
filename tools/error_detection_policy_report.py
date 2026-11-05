@@ -5,41 +5,26 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
+from review_reference import ReviewIndex, load_review_index
+from review_contract import REVIEW_SCHEMA_VERSION, FINAL_COMPARISON_STATUSES, COMPLETE_COMPARISON_STATUSES
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from benchmark_schema import BenchmarkSchemaError
+from report_capture_inputs import load_report_capture
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUT_DIR = REPO_ROOT / "temp" / "error-detection-policy-reports"
 CPU_REFERENCE_BACKENDS = {"cpu", "cpu-reference"}
-REVIEW_SCHEMA_VERSION = 1
 RESEARCH_ONLY_SCOPES = {
     "exploratory_only",
     "proxy_evidence_only",
     "scenario_surface_only",
 }
-FINAL_EXACT_STATUSES = {
-    "checksum_recorded_reference_required",
-    "reference_required",
-    "exact_cpu_reference_compared",
-    "passed",
-}
 
 
-def _normalize_path(path: str | Path) -> str:
-    candidate = Path(path)
-    if not candidate.is_absolute():
-        candidate = REPO_ROOT / candidate
-    try:
-        resolved = candidate.resolve()
-    except OSError:
-        resolved = candidate.absolute()
-    text = str(resolved).replace("\\", "/")
-    return text.lower() if sys.platform.startswith("win") else text
 
 
 def _relative(path: Path) -> str:
@@ -73,8 +58,7 @@ def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]
         if path.name.endswith(".failed.json") or path.name in ignored_names:
             continue
         try:
-            capture = load_capture(path)
-            validate_capture(capture, path)
+            capture = load_report_capture(path, from_directory=False)
         except BenchmarkSchemaError as exc:
             skipped.append(f"{_relative(path)}: {exc}")
             continue
@@ -84,60 +68,8 @@ def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]
     return captures, skipped
 
 
-def _review_capture_keys(capture_path: str, report_path: Path) -> set[str]:
-    raw = Path(capture_path.replace("\\", "/"))
-    paths = [raw]
-    if not raw.is_absolute():
-        paths.append(REPO_ROOT / raw)
-        paths.append(report_path.parent / raw)
-    return {_normalize_path(path) for path in paths}
 
 
-def _load_review_index(inputs: list[Path]) -> dict[str, dict[str, Any]]:
-    reports = [path for path in _json_inputs(inputs) if path.name == "review_report.json"]
-    index: dict[str, dict[str, Any]] = {}
-    for report_path in reports:
-        try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(report, dict):
-            continue
-        for group_index, group in enumerate(report.get("groups", [])):
-            if not isinstance(group, dict):
-                continue
-            candidates = [candidate for candidate in group.get("candidates", []) if isinstance(candidate, dict)]
-            backends = sorted({str(candidate.get("backend")) for candidate in candidates if candidate.get("backend")})
-            cpu_candidates = [candidate for candidate in candidates if str(candidate.get("backend")) in CPU_REFERENCE_BACKENDS]
-            group_entry = {
-                "review_report": _relative(report_path),
-                "review_schema_version": report.get("schema_version"),
-                "review_mode": group.get("review_mode") or report.get("review_mode"),
-                "review_report_group_index": group_index,
-                "required_baselines": group.get("required_baselines") or [],
-                "missing_required_baselines": group.get("missing_required_baselines") or [],
-                "duplicate_backends": group.get("duplicate_backends") or [],
-                "candidate_backends": backends,
-                "cpu_reference_present": bool(cpu_candidates),
-                "cpu_reference_release_review_capture": any(
-                    candidate.get("release_review_capture") is True for candidate in cpu_candidates
-                ),
-            }
-            for candidate in candidates:
-                capture_path = candidate.get("capture")
-                if not isinstance(capture_path, str) or not capture_path:
-                    continue
-                entry = {
-                    **group_entry,
-                    "candidate_backend": candidate.get("backend"),
-                    "candidate_promotable": candidate.get("promotable") is True,
-                    "candidate_cache_write_status": candidate.get("cache_write_status"),
-                    "candidate_promotion_blockers": candidate.get("promotion_blockers") or [],
-                    "candidate_scenario_promotion_scope": candidate.get("scenario_promotion_scope"),
-                }
-                for key in _review_capture_keys(capture_path, report_path):
-                    index[key] = entry
-    return index
 
 
 def _scenario_scope(capture: dict[str, Any]) -> str | None:
@@ -153,7 +85,7 @@ def _scenario_scope(capture: dict[str, Any]) -> str | None:
     return None
 
 
-def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> list[str]:
+def _policy_blockers(capture: dict[str, Any]) -> list[str]:
     blockers: list[str] = []
     policy = capture.get("error_detection_policy")
     if not isinstance(policy, dict):
@@ -176,7 +108,7 @@ def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> lis
             blockers.append("probabilistic_rng_seed_missing")
     if policy.get("final_exact_comparison_required") is not True:
         blockers.append("final_exact_comparison_not_required")
-    if policy.get("final_exact_comparison_status") not in FINAL_EXACT_STATUSES:
+    if policy.get("final_exact_comparison_status") not in FINAL_COMPARISON_STATUSES:
         blockers.append("final_exact_comparison_status_missing_or_unknown")
     if policy.get("research_only") is not True:
         blockers.append("error_detection_not_research_only")
@@ -188,10 +120,18 @@ def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> lis
         blockers.append("error_detection_cache_eligible")
     if policy.get("promotion_eligible") is not False:
         blockers.append("error_detection_promotable")
+    scope = _scenario_scope(capture)
+    if scope not in RESEARCH_ONLY_SCOPES:
+        blockers.append("error_detection_scenario_not_research_only")
+    return sorted(set(blockers))
+
+
+def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> list[str]:
+    blockers = _policy_blockers(capture)
     if review is None:
         blockers.append("review_report_missing_for_error_detection_capture")
     else:
-        if review.get("review_schema_version") not in {None, REVIEW_SCHEMA_VERSION}:
+        if review.get("review_schema_version") != REVIEW_SCHEMA_VERSION:
             blockers.append("review_schema_version_mismatch")
         if review.get("cpu_reference_present") is not True:
             blockers.append("cpu_reference_baseline_missing")
@@ -207,18 +147,22 @@ def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> lis
             blockers.append("error_detection_capture_promotable_in_review")
         if review.get("candidate_cache_write_status") in {"eligible_after_review", "written", "pending"}:
             blockers.append("error_detection_capture_cache_write_eligible")
-    scope = _scenario_scope(capture)
-    if scope not in RESEARCH_ONLY_SCOPES:
-        blockers.append("error_detection_scenario_not_research_only")
+    policy = capture.get("error_detection_policy") or {}
+    if policy.get("final_exact_comparison_status") not in COMPLETE_COMPARISON_STATUSES:
+        blockers.append("final_exact_comparison_pending")
+    if review is not None:
+        blockers.extend(review.get("review_reader_blockers") or [])
     return sorted(set(blockers))
 
 
-def _row_for_capture(path: Path, capture: dict[str, Any], review_index: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    review = review_index.get(_normalize_path(path))
+def _row_for_capture(path: Path, capture: dict[str, Any], review_index: ReviewIndex) -> dict[str, Any]:
+    review = review_index.lookup(path, capture)
     policy = capture.get("error_detection_policy")
     if not isinstance(policy, dict):
         policy = {}
     blockers = _row_blockers(capture, review)
+    numerical = review.get("numerical_reference") if review else None
+    reference_passed = isinstance(numerical, dict) and numerical.get("passed") is True and not review.get("review_reader_blockers")
     return {
         "capture_path": _relative(path),
         "backend": capture.get("backend_selected"),
@@ -246,6 +190,11 @@ def _row_for_capture(path: Path, capture: dict[str, Any], review_index: dict[str
         "review_duplicate_backends": review.get("duplicate_backends") if isinstance(review, dict) else [],
         "review_candidate_promotable": review.get("candidate_promotable") if isinstance(review, dict) else None,
         "review_candidate_cache_write_status": review.get("candidate_cache_write_status") if isinstance(review, dict) else None,
+        "policy_metadata_valid": not _policy_blockers(capture),
+        "reference_coverage_present": numerical.get("reference_coverage_present") is True if isinstance(numerical, dict) else False,
+        "comparison_passed": reference_passed and policy.get("final_exact_comparison_status") in COMPLETE_COMPARISON_STATUSES,
+        "promotion_prohibited": policy.get("promotion_eligible") is False,
+        "numerical_reference": numerical,
         "ready": not blockers,
         "blockers": blockers,
     }
@@ -253,7 +202,7 @@ def _row_for_capture(path: Path, capture: dict[str, Any], review_index: dict[str
 
 def build_report(inputs: list[Path]) -> dict[str, Any]:
     captures, skipped = _load_captures(inputs)
-    review_index = _load_review_index(inputs)
+    review_index = load_review_index(inputs, captures)
     rows = [_row_for_capture(path, capture, review_index) for path, capture in captures]
     blocker_counts = Counter(blocker for row in rows for blocker in row["blockers"])
     policy_counts = Counter(str(row.get("policy")) for row in rows)

@@ -155,3 +155,12 @@ current AMD HIP package through `RNS8_HIP_ROOT`, `hip_DIR` or CMake prefixes.
 These configure fixtures verify dependency naming, relocation and rejection;
 the existing installed static/shared workload lanes still own real link/runtime
 qualification. Neither fixture generation nor package discovery qualifies GPU code.
+
+Numerical report gates use tools/reference_verdict.py; review-sidecar consumers
+use tools/review_reference.py. A CPU backend name or matching checksum alone
+does not establish a full output comparison. Preserve explicit mismatches and
+pending coverage, bind decisions to capture contents and mathematical inputs,
+and keep research promotion restrictions separate from numerical completion.
+Current schema3 sidecars must resolve their candidate and CPU-reference captures;
+stale, conflicting or legacy sidecars require a fresh review. Synthetic protocol
+fixtures exercise these rules and are never hardware qualification evidence.

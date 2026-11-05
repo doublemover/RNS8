@@ -21,7 +21,9 @@ NUMERICAL_KEYS = (
 )
 
 
-def checksum_u64(capture: dict) -> int | None:
+def checksum_u64(capture: dict | None) -> int | None:
+    if not isinstance(capture, dict):
+        return None
     value = capture.get('checksum_u64')
     return value if type(value) is int and 0 <= value < 2**64 else None
 

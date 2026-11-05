@@ -6,6 +6,7 @@ from typing import Any
 
 from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
 from benchmark_cases import case_root
+from review_contract import REVIEW_SCHEMA_VERSION, RELEASE_MIN_WARMUPS, RELEASE_MIN_REPEATS
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 HOST_API_BATCH_BACKENDS = ["hip-direct"]
@@ -18,10 +19,7 @@ BOUNDED_SEMANTICS = ["bounded-i64", "bounded-u64"]
 EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]
 RNS_CHAIN_SEMANTICS = BOUNDED_SEMANTICS + EXACT_WIDE_SEMANTICS
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
-REVIEW_SCHEMA_VERSION = 3
 PLACEHOLDER_TARGET_IDS = PLACEHOLDER_GPU_TARGET_IDS
-RELEASE_MIN_WARMUPS = 3
-RELEASE_MIN_REPEATS = 9
 PROMOTABLE_RELEASE_SHAPES = [64, 128, 512, 1024]
 EXPLORATORY_RELEASE_SHAPES = [2048, 4096, 8192]
 DEFAULT_ADAPTIVE_CASES = [

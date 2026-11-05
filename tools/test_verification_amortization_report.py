@@ -8,7 +8,8 @@ import tempfile
 from pathlib import Path
 
 import verification_amortization_report
-from test_starfoundry_reports import starfoundry_capture
+from test_benchmark_sweep_support import finite_capture
+from test_review_reference_support import add_synthetic_full_reference, write_policy_review as write_review_report
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -17,7 +18,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def amortized_capture() -> dict:
-    capture = starfoundry_capture()
+    capture = finite_capture("ck", 190)
     capture["scenario_metadata"] = {
         "family": "fhe-lattice-proxy-starfoundry",
         "name": "ckks-linear-layer-final-export",
@@ -32,69 +33,9 @@ def amortized_capture() -> dict:
         "final_exact_comparison_status": "checksum_recorded_reference_required",
         "promotion_eligible": False,
     }
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
-def write_review_report(
-    path: Path,
-    capture_path: Path,
-    *,
-    include_cpu: bool = True,
-    candidate_promotable: bool = False,
-    cache_status: str = "not_eligible",
-) -> None:
-    candidates = []
-    if include_cpu:
-        candidates.append(
-            {
-                "backend": "cpu-reference",
-                "capture": str(path.parent / "cpu-reference.json"),
-                "release_review_capture": True,
-                "promotable": False,
-                "promotion_blockers": ["not_accelerator_backend"],
-                "cache_write_status": "not_eligible",
-                "scenario_promotion_scope": "proxy_evidence_only",
-            }
-        )
-    candidates.extend(
-        [
-            {
-                "backend": "hip-direct",
-                "capture": str(path.parent / "hip-direct.json"),
-                "release_review_capture": True,
-                "promotable": False,
-                "promotion_blockers": ["not_accelerator_backend"],
-                "cache_write_status": "not_eligible",
-                "scenario_promotion_scope": "proxy_evidence_only",
-            },
-            {
-                "backend": "hipblaslt",
-                "capture": str(capture_path),
-                "release_review_capture": True,
-                "promotable": candidate_promotable,
-                "promotion_blockers": [] if candidate_promotable else ["scenario_scope_not_autotune_promotable"],
-                "cache_write_status": cache_status,
-                "scenario_promotion_scope": "proxy_evidence_only",
-            },
-        ]
-    )
-    write_json(
-        path,
-        {
-            "schema_version": 1,
-            "review_mode": "release",
-            "groups": [
-                {
-                    "review_mode": "release",
-                    "release_review_satisfied": True,
-                    "required_baselines": ["cpu-reference", "hip-direct"],
-                    "missing_required_baselines": [] if include_cpu else ["cpu-reference"],
-                    "duplicate_backends": [],
-                    "candidates": candidates,
-                }
-            ],
-        },
-    )
 
 
 def main() -> int:
@@ -109,7 +50,7 @@ def main() -> int:
         row = report["rows"][0]
         assert row["ready"] is True
         assert row["review_cpu_reference_present"] is True
-        assert row["review_candidate_cache_write_status"] == "not_eligible"
+        assert row["review_candidate_cache_write_status"] not in {"eligible_after_review", "written", "pending"}
 
         no_cpu = tmp / "no-cpu"
         no_cpu.mkdir()

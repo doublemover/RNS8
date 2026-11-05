@@ -10,6 +10,7 @@ import subprocess
 import time
 import uuid
 from build_manifest import manifest_diagnostic_shape_valid, manifest_provenance_complete
+from json_evidence import parse_evidence_json as strict_json
 from modulus_set_search import DEFAULT_MODULI
 from native_locality_contract import private_contract as native_locality_contract, ORDERS as LOCALITY_ORDERS
 from native_dataset import PROFILES as DATASET_PROFILES, identity as dataset_identity, model as dataset_model
@@ -29,20 +30,6 @@ BOUND_CONTROLS = (*ADAPTIVE,"global_minimum")
 TILED = ("tiled_register", "tiled_lds")
 ENCODED = ("encoded_b_cold", "encoded_b_warm")
 REUSE = ("wmma", *ENCODED)
-
-
-def strict_json(text):
-    def object_pairs(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError(f"duplicate JSON key: {key}")
-            result[key] = value
-        return result
-
-    def invalid_constant(value):
-        raise ValueError(f"non-finite JSON number: {value}")
-    return json.loads(text, object_pairs_hook=object_pairs, parse_constant=invalid_constant)
 
 
 def validate_case(case):
@@ -634,6 +621,7 @@ def main():
     artifact = hashlib.sha256(exe.read_bytes()).hexdigest()
     args.output.mkdir(parents=True, exist_ok=True)
     collector_sources = [Path(__file__).resolve(), Path(__file__).with_name("build_manifest.py").resolve(),
+                         Path(__file__).with_name('json_evidence.py').resolve(),
                          Path(__file__).with_name("modulus_set_search.py").resolve(), Path(__file__).with_name("native_dataset.py").resolve(), Path(__file__).with_name("native_locality_contract.py").resolve()]
     collector_identity = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in collector_sources}
     distribution_observations=[]

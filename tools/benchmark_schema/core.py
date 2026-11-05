@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import json
+from json_evidence import load_evidence_json
 from pathlib import Path
 from typing import Any
 from build_manifest import manifest_diagnostic_shape_valid
@@ -20,9 +20,8 @@ class BenchmarkSchemaError(ValueError):
 
 def load_capture(path: Path) -> dict[str, Any]:
     try:
-        with path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (OSError, json.JSONDecodeError) as exc:
+        data = load_evidence_json(path)
+    except (OSError, ValueError) as exc:
         raise BenchmarkSchemaError(f"{path}: failed to read benchmark JSON: {exc}") from exc
     if not isinstance(data, dict):
         raise BenchmarkSchemaError(f"{path}: benchmark JSON root must be an object")

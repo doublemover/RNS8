@@ -3,6 +3,7 @@ import copy
 import unittest
 
 from reference_verdict import checksum_u64, numerical_observation, reference_verdict
+from json_evidence import parse_evidence_json
 
 
 def capture(checksum=7, *, complete=True, seed=3135):
@@ -23,6 +24,12 @@ def cohort(records):
 
 
 class ReferenceVerdictTest(unittest.TestCase):
+    def test_evidence_json_rejects_duplicate_keys_nonfinite_constants_and_exponent_overflow(self):
+        for text in ('{"checksum_u64":1,"checksum_u64":2}', '{"nested":[{"x":1,"x":2}]}',
+                     '{"x":NaN}', '{"x":Infinity}', '{"x":-Infinity}', '{"x":1e999}', '{"x":-1e999}'):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):parse_evidence_json(text)
+        self.assertEqual(parse_evidence_json('{"checksum_u64":0,"value":1.25}'),dict(checksum_u64=0,value=1.25))
     def test_full_comparison_checksum_agreement_and_promotion_are_distinct(self):
         candidate, cpu = capture(), capture()
         cpu['backend_selected'] = 'cpu-reference'

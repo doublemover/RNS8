@@ -445,6 +445,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME arithmetic_certificate_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_arithmetic_certificate.py")
   add_test(NAME build_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_build_manifest.py")
   add_test(NAME reference_verdict_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_reference_verdict.py")
+  add_test(NAME review_reference_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_review_reference.py")
 
   add_test(
     NAME performance_dashboard_self_test
