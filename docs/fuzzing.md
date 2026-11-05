@@ -15,12 +15,21 @@ checks actual compile commands and inspects the archive with the matching
 Third-party dependencies are outside the library instrumentation claim.
 See LLVM's [separate fuzzer instrumentation](https://llvm.org/docs/LibFuzzer.html#fuzzer-usage).
 
+`rns8_fuzz_plan_descriptor` constructs known-valid plans in all six domains,
+checks explicit backend/schedule/workspace admission, then applies one invalid
+descriptor mutation and requires its specific rejection/null-output contract.
+The existing live plan must remain queryable. No arbitrary dangling handles
+are supplied. `rns8_fuzz_json_dependency` is explicitly a third-party JSON
+parser/access smoke; it does not claim to exercise RNS8 metadata validation or
+link the instrumented RNS8 library. The former metadata harness name is retired.
+
 `rns8_fuzz_export_contract` consumes arithmetic-case-v1 bytes. Its primary
 oracle uses scalar Boost integers without production reduction, CRT, prefix
 selection or cached results. Finite results use mathematical modulo q;
 wrap64 uses modulo 2^64. Signed/unsigned bounded values must fit their declared
 destination and prefix. Wide cases must fit a conservative input/accumulation
-proof within their explicit prefix; three exported limbs include required
+proof within their explicit prefix and use the explicit exact-value-bound
+plan contract; three exported limbs include required
 sign extension. Out-of-envelope inputs are not counted as valid arithmetic
 executions. Wrong successful values, unexpected statuses, modified padding,
 invalid-LD writes and stale prepared execution cause a crash/reproducer.

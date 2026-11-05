@@ -9,27 +9,22 @@ namespace {
 
 constexpr std::size_t kMaxJsonBytes = 4096;
 
+// Dependency parser/typed-access smoke only. Production Python capture
+// admission requires the separate property driver, not this adapter.
 void touch_metadata_shape(const nlohmann::json& value) {
   if (!value.is_object()) {
     return;
   }
-  const auto backend = value.value("backend", std::string());
-  const auto selected_backend = value.value("selected_backend", std::string());
-  const auto schema_version = value.value("schema_version", 0);
-  const auto semantic_contract = value.value("semantic_contract", nlohmann::json::object());
-  const auto gpu_events = value.value("gpu_events", nlohmann::json::array());
-  const auto grouped_dispatch = value.value("grouped_dispatch", nlohmann::json::object());
-  const auto output_policy = value.value("output_policy", nlohmann::json::object());
-  const auto metadata_registry = value.value("metadata_registry", nlohmann::json::object());
-
-  volatile std::size_t sink = backend.size();
-  sink ^= selected_backend.size();
-  sink ^= static_cast<std::size_t>(schema_version);
-  sink ^= semantic_contract.size();
-  sink ^= gpu_events.size();
-  sink ^= grouped_dispatch.size();
-  sink ^= output_policy.size();
-  sink ^= metadata_registry.size();
+  volatile std::size_t sink = 0;
+  for (const char* key : {"backend", "selected_backend", "schema_version", "semantic_contract",
+                          "gpu_events", "grouped_dispatch", "output_policy", "metadata_registry"}) {
+    const auto item = value.find(key);
+    if (item != value.end()) {
+      // size() is defined for every JSON type. No harness-only unchecked
+      // value<T>() conversion can turn a valid wrong-type input into a crash.
+      sink ^= item->size();
+    }
+  }
   (void)sink;
 }
 

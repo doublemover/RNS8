@@ -108,7 +108,7 @@ void replay(ArithmeticCase value, const Expected& expected) {
                     value.semantic == 1 ? RNS8_BOUND_GLOBAL_MAX_UNSIGNED : RNS8_BOUND_NONE;
   desc.m = value.m; desc.n = value.n; desc.k = value.k; desc.max_prefix = value.prefix;
   desc.finite_modulus = value.modulus; desc.bound = expected.bound;
-  if (value.wide()) desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  if (value.wide()) desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_EXACT_VALUE_BOUND;
   check(rns8_create_plan(owner.ctx, &desc, &owner.plan), RNS8_SUCCESS, "create plan");
   auto matrix = [&](uint32_t rows, uint32_t cols, uint32_t padding, rns8_matrix** out) {
     auto md = abi<rns8_matrix_desc>(); md.rows = rows; md.cols = cols; md.logical_ld = cols+padding;

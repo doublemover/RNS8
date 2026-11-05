@@ -308,7 +308,7 @@ if(RNS8_BUILD_FUZZERS)
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rns8_fuzz.cmake)
   rns8_add_fuzz_library()
 
-  function(rns8_add_cpu_fuzzer target_name source_file)
+  function(rns8_add_cpu_fuzzer target_name source_file production_library)
     add_executable(${target_name} "${source_file}")
     target_compile_features(${target_name} PRIVATE cxx_std_17)
     target_include_directories(
@@ -318,7 +318,9 @@ if(RNS8_BUILD_FUZZERS)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
     )
-    target_link_libraries(${target_name} PRIVATE rns8_fuzz_library)
+    if(production_library)
+      target_link_libraries(${target_name} PRIVATE rns8_fuzz_library)
+    endif()
     if(MSVC)
       target_compile_options(${target_name} PRIVATE /fsanitize=address /clang:-fsanitize=fuzzer-no-link)
       target_link_libraries(${target_name} PRIVATE "${RNS8_CLANG_FUZZER_LIB}")
@@ -329,10 +331,11 @@ if(RNS8_BUILD_FUZZERS)
     rns8_copy_windows_clang_asan_runtime(${target_name})
   endfunction()
 
-  rns8_add_cpu_fuzzer(rns8_fuzz_plan_descriptor tests/fuzz/rns8_fuzz_plan_descriptor.cpp)
-  rns8_add_cpu_fuzzer(rns8_fuzz_export_contract tests/fuzz/rns8_fuzz_export_contract.cpp)
-  rns8_add_cpu_fuzzer(rns8_fuzz_metadata_json tests/fuzz/rns8_fuzz_metadata_json.cpp)
-  target_link_libraries(rns8_fuzz_metadata_json PRIVATE nlohmann_json::nlohmann_json)
+  rns8_add_cpu_fuzzer(rns8_fuzz_plan_descriptor tests/fuzz/rns8_fuzz_plan_descriptor.cpp TRUE)
+  rns8_add_cpu_fuzzer(rns8_fuzz_export_contract tests/fuzz/rns8_fuzz_export_contract.cpp TRUE)
+  # This exercises a third-party parser only, not RNS8 metadata admission.
+  rns8_add_cpu_fuzzer(rns8_fuzz_json_dependency tests/fuzz/rns8_fuzz_json_dependency.cpp FALSE)
+  target_link_libraries(rns8_fuzz_json_dependency PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
 
