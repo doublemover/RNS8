@@ -182,6 +182,7 @@ if(RNS8_BUILD_BENCHMARKS)
   endif()
   set(
     RNS8_BENCHMARK_SOURCES
+    src/tool_common/execution_environment_json.cpp
     benchmarks/rns8_bench.cpp
     benchmarks/rns8_bench_args.cpp
     benchmarks/rns8_bench_modes.cpp
@@ -287,6 +288,7 @@ if(RNS8_BUILD_BENCHMARKS)
     PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
+      ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS}
   )
   target_link_libraries(rns8-bench PRIVATE rns8_static)
   rns8_copy_windows_clang_asan_runtime(rns8-bench)

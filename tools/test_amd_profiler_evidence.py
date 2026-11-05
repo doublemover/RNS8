@@ -16,6 +16,38 @@ from compiled_binary_identity import canonical_digest
 
 
 class NativeProfilerEvidence(unittest.TestCase):
+    def test_only_native_observed_and_declared_profiler_injection_can_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            profiled = copy.deepcopy(fixture.profiled)
+            request = profiled["request_identity"]
+            injection = {"ROCP_TOOL_LIBRARIES": "/authored/native-tool.so"}
+            request["environment"].update(injection)
+            request["identity_sha256"] = canonical_digest(
+                {key: value for key, value in request.items() if key != "identity_sha256"})
+            witness = profiled["execution_environment_witness"]
+            witness["before"] = copy.deepcopy(request["environment"])
+            witness["after"] = copy.deepcopy(request["environment"])
+            write(fixture.profiled_path, profiled)
+            receipt = copy.deepcopy(fixture.dispatch)
+            receipt["profiled_capture"] = reference(fixture.profiled_path)
+            receipt["profiler_environment"] = injection
+            write(fixture.dispatch_path, receipt)
+            store = EvidenceStore()
+            result = validate_dispatch_receipt(reference(fixture.dispatch_path),
+                capture=fixture.capture, store=store, parent=fixture.root)
+            store.finish()
+            self.assertTrue(result["qualified_selected_dispatches"])
+            # Caller labels cannot supply an injection the native process did
+            # not observe, even if the request and file hashes are resealed.
+            witness["after"] = {}
+            write(fixture.profiled_path, profiled)
+            receipt["profiled_capture"] = reference(fixture.profiled_path)
+            write(fixture.dispatch_path, receipt)
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(reference(fixture.dispatch_path),
+                    capture=fixture.capture, store=EvidenceStore(), parent=fixture.root)
+
     def test_unsupported_code_object_agent_field_cannot_qualify(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = QualificationFixture(Path(directory))
@@ -41,6 +73,9 @@ class NativeProfilerEvidence(unittest.TestCase):
             request["arguments"].extend(["--json-output", str(native_path)])
             request["identity_sha256"] = canonical_digest(
                 {key: value for key, value in request.items() if key != "identity_sha256"})
+            profiled["execution_environment_witness"]["arguments"] = copy.deepcopy(request["arguments"])
+            native["execution_environment_witness"] = copy.deepcopy(profiled["execution_environment_witness"])
+            write(native_path, native)
             write(fixture.profiled_path, profiled)
             receipt = copy.deepcopy(fixture.dispatch)
             receipt["profiled_capture"] = reference(fixture.profiled_path)

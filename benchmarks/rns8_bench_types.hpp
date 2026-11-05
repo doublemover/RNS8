@@ -85,6 +85,7 @@ struct Args {
   std::string cpu_reference_mode = "timed-baseline";
   std::string reference_cache_directory;
   std::string json_output;
+  bool record_execution_environment = false;
   bool populate_reference_cache = false;
   bool verify_native_output = false;
   uint64_t seed = 1;

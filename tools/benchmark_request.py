@@ -15,6 +15,12 @@ import re
 
 REQUEST_SCHEMA = "rns8_benchmark_request_v1"
 ENVIRONMENT_SCHEMA = "rns8_relevant_environment_v1"
+ENVIRONMENT_PREFIXES = ("RNS8_", "OMP_", "HIP_", "ROCR_", "ROCP_", "ROCPROF", "HSA_", "KMP_")
+ENVIRONMENT_KEYS = frozenset(("CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD"))
+
+
+def relevant_environment_key(key: str) -> bool:
+    return key.startswith(ENVIRONMENT_PREFIXES) or key in ENVIRONMENT_KEYS
 
 
 def _canonical_environment(environment: dict[str, str]) -> dict[str, str]:
@@ -77,8 +83,7 @@ def request_identity(command: list[str], overrides: dict[str, str] | None = None
     env.update(overrides or {})
     executable = resolved_executable(command, env)
     relevant = {key: value for key, value in env.items()
-                if key.startswith(("RNS8_", "OMP_", "HIP_", "ROCR_", "ROCP_", "ROCPROF", "HSA_", "KMP_"))
-                or key in {"CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD"}}
+                if relevant_environment_key(key)}
     # Include explicit overrides even if they are a new benchmark control. Store
     # only their digest: unrelated inherited credentials are never inspected.
     override_digest = hashlib.sha256(json.dumps(overrides or {}, sort_keys=True).encode()).hexdigest()
@@ -117,6 +122,8 @@ def attach_capture_identity(capture: dict, request: dict, executable: Path, *,
     _, error = request_environment_identity(request)
     if error:
         raise ValueError(error)
+    from execution_observation import validate_execution_request
+    validate_execution_request(capture, request)
     capture["execution_id"] = execution_id
     capture["request_identity"] = request
     capture["artifact_capture"] = {

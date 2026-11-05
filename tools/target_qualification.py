@@ -24,6 +24,7 @@ from review_contract import release_capture_satisfied
 from timing_eligibility import capture_identity
 from reference_verdict import numerical_contract
 from process_progress import capture_succeeded
+from execution_observation import validate_execution_request
 
 SCHEMA = "rns8_target_candidate_qualification_v1"
 VERDICT_SCHEMA = "rns8_target_candidate_verdict_v1"
@@ -62,6 +63,7 @@ def candidate_identity(capture: dict, row: dict) -> dict:
     if not manifest_provenance_complete(manifest, backend):
         raise ValueError("candidate compiled manifest is incomplete")
     request = object_value(capture.get("request_identity"))
+    validate_execution_request(capture, request)
     environment, error = request_environment_identity(request)
     if error:
         raise ValueError(error)

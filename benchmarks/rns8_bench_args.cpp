@@ -271,6 +271,9 @@ Args parse_args(int argc, char** argv) {
       args.populate_reference_cache = true;
     } else if (arg == "--verify-native-output") {
       args.verify_native_output = true;
+    } else if (arg == "--record-execution-environment") {
+      if (args.record_execution_environment) usage_error("--record-execution-environment may be supplied once");
+      args.record_execution_environment = true;
     } else if (arg == "--progress") {
       args.progress = true;
     } else if (arg == "--seed" && i + 1 < argc) {
@@ -485,6 +488,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--incremental-result-cache NAME]\n"
           << "                  [--verify-native-output] [--reference-cache-dir PATH] [--populate-reference-cache]\n"
           << "                  [--json-output NEW_FILE] (JSON only; logs remain on stdout/stderr)\n"
+          << "                  [--record-execution-environment] (bounded native argv/environment witness)\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"

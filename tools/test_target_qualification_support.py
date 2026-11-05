@@ -115,6 +115,14 @@ class QualificationFixture:
             tool="rocprofv3",
             mode="kernel_trace",
         )
+        request = self.profiled["request_identity"]
+        request["arguments"].append("--record-execution-environment")
+        request["identity_sha256"] = canonical_digest(
+            {key: value for key, value in request.items() if key != "identity_sha256"})
+        self.profiled["execution_environment_witness"] = dict(
+            schema="rns8_execution_environment_witness_v1", state="stable",
+            arguments=copy.deepcopy(request["arguments"]), before=copy.deepcopy(request["environment"]),
+            after=copy.deepcopy(request["environment"]))
         self.profiled_path = write(self.root / "profiled.json", self.profiled)
         symbol = "synthetic_selected_symbol"
         self.native = {

@@ -18,6 +18,7 @@ from benchmark_schema import validate_capture
 from build_manifest import manifest_provenance_complete
 from benchmark_request import request_environment_identity
 from compiled_binary_identity import canonical_digest
+from execution_observation import validate_execution_request
 from diagnostic_companion import common_identity
 from evidence_database_lib.isa import (
     summarize_isa_report,
@@ -154,6 +155,8 @@ def _profile_pair(
         if error:
             raise ValueError(error)
         identities.append(common_identity(capture))
+    validate_execution_request(production, production["request_identity"])
+    validate_execution_request(profiled, profiled["request_identity"], required=True)
     arguments = identities[1]["execution_request"]["arguments"]
     if native_output is not None:
         if arguments.count("--json-output") != 1 or "--json-output" in identities[0]["execution_request"]["arguments"]:
@@ -165,6 +168,12 @@ def _profile_pair(
         del arguments[position:position+2]
     elif "--json-output" in arguments:
         raise ValueError("profiled file output has no retained raw native artifact")
+    flag = "--record-execution-environment"
+    baseline_flags = identities[0]["execution_request"]["arguments"].count(flag)
+    if baseline_flags == 0:
+        arguments.remove(flag)
+    elif baseline_flags != 1:
+        raise ValueError("production environment observation flag is ambiguous")
     if production.get("external_instrumentation") is not None:
         raise ValueError("production capture is already externally instrumented")
     marker = profiled.get("external_instrumentation")

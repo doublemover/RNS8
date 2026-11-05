@@ -7,9 +7,13 @@ import math
 from pathlib import Path
 from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary, host_observation_contract
 from measurement_contract import profile_ranges_instrumented
+from execution_observation import execution_observation_blockers
 
 
 def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
+    execution_blockers = execution_observation_blockers(capture)
+    if execution_blockers:
+        return execution_blockers
     if profile_ranges_instrumented(capture):
         return ["profile_range_instrumentation_not_production_evidence"]
     if capture.get("external_instrumentation") is not None:

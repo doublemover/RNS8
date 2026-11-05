@@ -448,6 +448,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME amd_profiler_dispatch_evidence_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_amd_profiler_evidence.py")
   add_test(NAME amd_profiler_capabilities_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_amd_profiler_capabilities.py")
   add_test(NAME process_capture_budgets_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_process_progress.py")
+  add_test(NAME execution_observation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_execution_observation.py")
   set_tests_properties(process_capture_budgets_self_test PROPERTIES LABELS "cpu;tools;process" TIMEOUT 60)
   add_test(NAME amd_rocpd_evidence_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_amd_rocpd.py")
   add_test(NAME compiled_binary_identity_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_compiled_binary_identity.py")
@@ -1087,10 +1088,12 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2)
   set(
     RNS8_TEST_SOURCES
+    src/tool_common/execution_environment_json.cpp
     tests/unit/test_public_abi.cpp
     tests/unit/test_device_identity.cpp
     tests/unit/test_trace_ranges.cpp
     tests/unit/test_json_output.cpp
+    tests/unit/test_execution_environment.cpp
     tests/unit/test_cli_integer.cpp
     tests/unit/test_matrix_target.cpp
     tests/unit/test_generated_address.cpp

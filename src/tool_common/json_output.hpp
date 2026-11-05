@@ -55,12 +55,11 @@ struct Close {
 // after all workload intervals. Profiler logs keep their original streams.
 class JsonOutput {
  public:
-  explicit JsonOutput(const std::string& path) : to_file_(!path.empty()) {
+  explicit JsonOutput(const std::filesystem::path& path) : to_file_(!path.empty()) {
     if (!to_file_) return;
     std::FILE* opened = nullptr;
 #if defined(_WIN32)
-    const auto native = std::filesystem::u8path(path);
-    if (_wfopen_s(&opened, native.c_str(), L"wbx") != 0) opened = nullptr;
+    if (_wfopen_s(&opened, path.c_str(), L"wbx") != 0) opened = nullptr;
 #else
     opened = std::fopen(path.c_str(), "wbx");
 #endif
@@ -89,7 +88,7 @@ class JsonOutput {
   bool to_file_ = false, emitted_ = false;
 };
 template<class Writer>
-void emit_json_file_or_stdout(const std::string& path, Writer&& writer) {
+void emit_json_file_or_stdout(const std::filesystem::path& path, Writer&& writer) {
   JsonOutput output(path);
   output.emit(std::forward<Writer>(writer));
 }

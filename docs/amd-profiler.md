@@ -88,6 +88,28 @@ native output digest, selected static ISA, profiler executable/version receipt
 and original acquisition argv. rocpd selected agent/queue/dispatch IDs refer to
 its database namespace, not the JSON handle namespace.
 
+Profiled runs must request --record-execution-environment. The benchmark records
+its actual argument vector and relevant C-runtime environment before and after
+work, including profiler-injected variables. The witness must be complete,
+stable and equal to the attached request. Caller-side labels alone cannot
+substitute for it. The production/profile relation permits this one observation
+flag when it was absent from the production control; other argument differences
+still require their explicit raw-output relation.
+
+The native observer and collector use the same relevant-variable contract.
+They retain RNS8/OMP/HIP/ROCR/ROCP/ROCPROF/HSA/KMP controls and selected loader/
+visibility variables, not the full environment. Each snapshot is bounded to
+256 selected entries, 4 KiB per value and 64 KiB total; argv is bounded
+separately. Windows native CRT text is converted to UTF-8 in a private platform
+translation unit. Failed encoding, ambiguity, over-budget or changed
+observations cannot qualify. Environment mutation during observation is outside
+the benchmark's controlled process contract.
+
+Ordinary runs leave the observer disabled. No environment enumeration occurs
+unless requested, and observation/serialization stays outside workload timing
+intervals. Older profiled captures without a native witness remain inventories;
+they cannot be silently upgraded into dispatch qualification.
+
 For automated collection, rns8-bench accepts --json-output NEW_FILE. It
 exclusively reserves the destination after argument validation and before
 work, writes native JSON after all measurement intervals, and preserves

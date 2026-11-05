@@ -38,13 +38,13 @@ TEST_CASE("native JSON file output preserves evidence and restores stdout", "[cp
   OutputFiles files;
   auto* original = std::cout.rdbuf();
   const std::string payload = "{\"authored\":\"" + std::string(20000, 'a') + "\"}\n";
-  rns8::tools::emit_json_file_or_stdout(files.native.u8string(), [&] { std::cout << payload; });
+  rns8::tools::emit_json_file_or_stdout(files.native, [&] { std::cout << payload; });
   CHECK(std::cout.rdbuf() == original);
   CHECK(read(files.native) == payload);
-  CHECK_THROWS_AS(rns8::tools::emit_json_file_or_stdout(files.native.u8string(),
+  CHECK_THROWS_AS(rns8::tools::emit_json_file_or_stdout(files.native,
       [] { std::cout << "must not overwrite"; }), std::runtime_error);
   CHECK(read(files.native) == payload);
-  CHECK_THROWS_AS(rns8::tools::emit_json_file_or_stdout(files.partial.u8string(), [] {
+  CHECK_THROWS_AS(rns8::tools::emit_json_file_or_stdout(files.partial, [] {
     std::cout << "{\"partial\":";
     throw std::runtime_error("authored writer failure");
   }), std::runtime_error);

@@ -1,5 +1,8 @@
   std::cout << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
   std::cout << "  \"process_id\": " << rns8::tools::process_id() << ",\n";
+  std::cout << "  \"execution_environment_witness\": ";
+  execution_environment.print(std::cout);
+  std::cout << ",\n";
   std::cout << "  \"profiler_ranges\": ";
   rns8::detail::trace::write_snapshot(std::cout);
   std::cout << ",\n";

@@ -4,7 +4,8 @@ void print_json(
     const BenchmarkResult& result,
     uint64_t bound,
     const std::string& cmdline,
-    const rns8::tools::DeviceIdentityWitness& device_identity) {
+    const rns8::tools::DeviceIdentityWitness& device_identity,
+    const rns8::tools::ExecutionEnvironmentWitness& execution_environment) {
   std::cout << std::setprecision(17);
 #include "rns8_bench_print_json_context.inc"
 #include "rns8_bench_print_json_header_backend.inc"

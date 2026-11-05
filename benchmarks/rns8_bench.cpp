@@ -1,6 +1,7 @@
 #include <algorithm>
 #include "diagnostics/trace_ranges.hpp"
 #include "tool_common/json_output.hpp"
+#include "tool_common/execution_environment_json.hpp"
 #include <array>
 #include <chrono>
 #include <cstdio>
@@ -248,6 +249,7 @@ int main(int argc, char** argv) try {
   if (identity_status >= 0) return identity_status;
   const Args args = parse_args(argc, argv);
   rns8::tools::JsonOutput json_output(args.json_output);
+  rns8::tools::ExecutionEnvironmentWitness execution_environment(args.record_execution_environment, argc, argv);
   (void)rns8::bench::host_clock_calibration(); // Validated args; outside every workload timing interval.
   struct ScopedAmdgpuBuiltinDenseVariantOverride {
     explicit ScopedAmdgpuBuiltinDenseVariantOverride(const Args& args) {
@@ -336,7 +338,8 @@ int main(int argc, char** argv) try {
     rns8_destroy_context(vector_ctx);
     const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
     json_output.emit([&] {
-      print_json(args, info, result, effective_bound, cmdline, device_identity);
+      execution_environment.finish();
+      print_json(args, info, result, effective_bound, cmdline, device_identity, execution_environment);
     });
     return 0;
   }
@@ -425,7 +428,8 @@ int main(int argc, char** argv) try {
               << " checksum=" << result.checksum << "\n";
   }
   json_output.emit([&] {
-    print_json(args, info, result, effective_bound, cmdline, device_identity);
+    execution_environment.finish();
+    print_json(args, info, result, effective_bound, cmdline, device_identity, execution_environment);
   });
   return 0;
 } catch (const std::exception& error) {

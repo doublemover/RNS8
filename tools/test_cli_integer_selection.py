@@ -33,6 +33,8 @@ def main() -> None:
     run(args.benchmark, ['--json-output', '', '--help'], 2)
     run(args.benchmark, ['--json-output', 'temp/native-json-output.json', '--help'], 0)
     run(args.benchmark, ['--json-output', 'first.json', '--json-output', 'second.json', '--help'], 2)
+    run(args.benchmark, ['--record-execution-environment', '--help'], 0)
+    run(args.benchmark, ['--record-execution-environment', '--record-execution-environment', '--help'], 2)
 
 
 if __name__ == '__main__':
