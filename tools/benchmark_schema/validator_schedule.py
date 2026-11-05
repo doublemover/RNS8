@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 from ck_kernel_contract import ck_kernel_family, ck_selected_kernel
 from timing_diagnostics import is_censored_gpu_event_capture
@@ -168,7 +170,7 @@ class ValidatorScheduleMixin:
         if not isinstance(value, str):
             self._error("residue_output_mode must be a string")
             return "host_export"
-        if value not in {"host_export", "residue_current_rns"}:
+        if not text_choice(value, {"host_export", "residue_current_rns"}):
             self._error("residue_output_mode must be host_export or residue_current_rns")
             return "host_export"
         return value
@@ -205,7 +207,7 @@ class ValidatorScheduleMixin:
             self._error(f"schedule_metadata.source must be {expected_source}")
         schedule_bound_kind = schedule.get("bound_kind")
         if schedule_bound_kind is not None:
-            if not isinstance(schedule_bound_kind, str) or schedule_bound_kind not in BOUND_KINDS:
+            if not isinstance(schedule_bound_kind, str) or not text_choice(schedule_bound_kind, BOUND_KINDS):
                 self._error(f"schedule_metadata.bound_kind must be one of {sorted(BOUND_KINDS)}")
             elif schedule_bound_kind != self.data.get("bound_kind"):
                 self._error("schedule_metadata.bound_kind must match bound_kind")
@@ -354,7 +356,7 @@ class ValidatorScheduleMixin:
             if zero_row_col_products == 0 and row_col_flag:
                 self._error("schedule_metadata ZERO_ROW_COL_PRODUCT flag requires zero_row_col_product_count > 0")
             per_tile_bounded = (
-                self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+                text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
                 and self.data.get("bound_mode") == "per_tile"
             )
             if not per_tile_bounded and (
@@ -374,13 +376,13 @@ class ValidatorScheduleMixin:
         semantics = self.data.get("semantics")
         bound_mode = self.data.get("bound_mode", "global")
         if bound_source is not None:
-            if not isinstance(bound_source, str) or bound_source not in BOUND_SOURCES:
+            if not isinstance(bound_source, str) or not text_choice(bound_source, BOUND_SOURCES):
                 self._error(f"bound_source must be one of {sorted(BOUND_SOURCES)}")
         if discovery is None:
             if bound_source == "input_scan":
                 self._error("input_scan captures must include bound_discovery")
             return
-        if semantics not in {"bounded_i64", "bounded_u64"}:
+        if not text_choice(semantics, {"bounded_i64", "bounded_u64"}):
             self._error("bound_discovery is only valid for bounded captures")
             return
         if not isinstance(discovery, dict):
@@ -388,7 +390,7 @@ class ValidatorScheduleMixin:
             return
 
         source = discovery.get("source")
-        if not isinstance(source, str) or source not in BOUND_DISCOVERY_SOURCES:
+        if not isinstance(source, str) or not text_choice(source, BOUND_DISCOVERY_SOURCES):
             self._error(f"bound_discovery.source must be one of {sorted(BOUND_DISCOVERY_SOURCES)}")
         static_bound = discovery.get("static_bound")
         selected_bound = discovery.get("selected_bound")
@@ -515,12 +517,12 @@ class ValidatorScheduleMixin:
                 self._error(f"{key} must be a nonnegative integer")
         if not _is_number(skip_fraction) or float(skip_fraction) < 0.0 or float(skip_fraction) > 1.0:
             self._error("residue_plane_skip_fraction must be a number in [0, 1]")
-        if not isinstance(policy, str) or policy not in CONTRACT_PREFIX_POLICIES:
+        if not isinstance(policy, str) or not text_choice(policy, CONTRACT_PREFIX_POLICIES):
             self._error(f"contract_prefix_policy must be one of {sorted(CONTRACT_PREFIX_POLICIES)}")
         if _is_int(prefix) and _is_int(requested) and requested != prefix:
             self._error("requested_max_prefix must match prefix")
 
-        if semantics in NON_RNS_PREFIX_SEMANTICS:
+        if text_choice(semantics, NON_RNS_PREFIX_SEMANTICS):
             if selected != 0 or requested != 0 or planes_requested != 0 or planes_selected != 0 or planes_skipped != 0:
                 self._error("non-RNS captures must report zero prefix policy plane counts")
             if policy != "semantic_specific_no_rns_prefix":
@@ -529,7 +531,7 @@ class ValidatorScheduleMixin:
                 self._error("non-RNS captures must use residue_plane_skip_fraction=0")
             return
 
-        if semantics in RNS_PREFIX_SEMANTICS:
+        if text_choice(semantics, RNS_PREFIX_SEMANTICS):
             if _is_int(prefix) and prefix <= 0:
                 self._error("RNS captures with prefix policy metadata must use prefix>0")
             if _is_int(selected) and _is_int(prefix) and selected > prefix:
@@ -559,9 +561,9 @@ class ValidatorScheduleMixin:
                 self._error("RNS captures must not use semantic_specific_no_rns_prefix")
             if policy == "per_tile_minimum" and bound_mode != "per_tile":
                 self._error("contract_prefix_policy=per_tile_minimum requires bound_mode=per_tile")
-            if policy in {"minimum_proven", "fixed_requested_residue_chain"} and bound_mode != "global":
+            if text_choice(policy, {"minimum_proven", "fixed_requested_residue_chain"}) and bound_mode != "global":
                 self._error(f"contract_prefix_policy={policy} requires bound_mode=global")
-            if policy in {"fixed_requested", "fixed_requested_residue_chain"} and _is_int(selected) and _is_int(prefix):
+            if text_choice(policy, {"fixed_requested", "fixed_requested_residue_chain"}) and _is_int(selected) and _is_int(prefix):
                 if selected != prefix or planes_skipped != 0:
                     self._error(f"contract_prefix_policy={policy} requires selected_prefix=prefix")
             if policy == "minimum_proven" and isinstance(schedule, dict):
@@ -651,7 +653,7 @@ class ValidatorScheduleMixin:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1
             else:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3
-            finite_semantics = self.data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+            finite_semantics = text_choice(self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"})
             amdgpu_expected_kernel = (
                 "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
                 if finite_semantics
@@ -665,7 +667,7 @@ class ValidatorScheduleMixin:
                     if finite_semantics
                     else "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
                 )
-            elif target in {"gfx1200", "gfx1201"}:
+            elif text_choice(target, {"gfx1200", "gfx1201"}):
                 amdgpu_expected_kernel = (
                     "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"
                     if finite_semantics
@@ -699,7 +701,7 @@ class ValidatorScheduleMixin:
                     expected_kernel = ck_selected_kernel(family, tiled=True)
             if expected_kernel is not None and selected_kernel != expected_kernel:
                 self._error(f"per-tile adaptive {selected_backend} captures must use selected_kernel={expected_kernel}")
-            if selected_backend == "hip-vector-alu-int64" and selected_kernel not in VECTOR_ALU_SELECTED_KERNELS:
+            if selected_backend == "hip-vector-alu-int64" and not text_choice(selected_kernel, VECTOR_ALU_SELECTED_KERNELS):
                 self._error("per-tile adaptive hip-vector-alu-int64 captures must use a known vector-ALU selected_kernel")
         prefix_group_count = schedule.get("prefix_group_count")
         max_selected = schedule.get("max_selected_prefix")
@@ -779,10 +781,10 @@ class ValidatorScheduleMixin:
                 self.data.get("backend_selected"), "resident_device_buffers_with_active_prefix_tiled_schedule"
             )
             if self.data.get("backend_selected") == "ck":
-                if backend_metadata.get("workspace_mode") not in {
+                if not text_choice(backend_metadata.get("workspace_mode"), {
                     "resident_device_buffers_with_ck_canonical_pack_workspace",
                     "resident_device_buffers_with_ck_centered_pack_workspace",
-                }:
+                }):
                     self._error("per-tile adaptive CK captures must use a known CK pack workspace mode")
             elif backend_metadata.get("workspace_mode") != expected_workspace:
                 self._error(

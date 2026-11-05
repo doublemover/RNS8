@@ -1,4 +1,6 @@
 """Exact integer checks for public single-GEMM magnitude receipts (not timing qualification)."""
+
+from evidence_scalars import text_choice
 import math
 
 WIDE_PROFILES = {"wide-two-limb-constant": (40, False), "wide-three-limb-constant": (62, False),
@@ -10,7 +12,7 @@ def validate_magnitude(data: dict) -> list[str]:
     profile = data.get("input_profile", "uniform-small")
     magnitude = data.get("exact_wide_magnitude")
     if magnitude is None:
-        return ["wide magnitude profile requires complete magnitude receipt"] if profile in WIDE_PROFILES else []
+        return ["wide magnitude profile requires complete magnitude receipt"] if text_choice(profile, WIDE_PROFILES) else []
     errors = []
     try:
         if not isinstance(magnitude, dict) or magnitude["schema"] != "exact_wide_magnitude_v1":
@@ -20,7 +22,7 @@ def validate_magnitude(data: dict) -> list[str]:
         if data.get("residue_chain_length", 1) != 1:
             raise ValueError("single-GEMM magnitude receipt cannot describe a dependent chain")
         signed = data["semantics"] == "exact_wide_signed"
-        if data["semantics"] not in {"exact_wide_signed", "exact_wide_unsigned"}:
+        if not text_choice(data["semantics"], {"exact_wide_signed", "exact_wide_unsigned"}):
             raise ValueError("magnitude semantic contract")
         def decimal(key):
             value = magnitude[key]
@@ -53,7 +55,7 @@ def validate_magnitude(data: dict) -> list[str]:
             raise ValueError("oracle must check every output limb, not a sample or checksum only")
         if number("negative_outputs") > expected_outputs or (not signed and number("negative_outputs")):
             raise ValueError("output signedness")
-        if profile in WIDE_PROFILES:
+        if text_choice(profile, WIDE_PROFILES):
             exponent, mixed = WIDE_PROFILES[profile]
             if not all((1 << exponent) <= value <= (1 << exponent) + (1023 if mixed else 0) for value in (a, b)):
                 raise ValueError("input maxima do not match magnitude profile")

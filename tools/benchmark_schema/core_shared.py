@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 import math
+from evidence_scalars import finite_number
 import re
 from typing import Any
 
@@ -307,13 +310,13 @@ def _is_int(value: Any) -> bool:
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+    return finite_number(value)
 
 
 def _has_concrete_gpu_target_id(value: Any) -> bool:
     if not isinstance(value, str):
         return False
-    return value.strip().lower() not in PLACEHOLDER_GPU_TARGET_IDS
+    return not text_choice(value.strip().lower(), PLACEHOLDER_GPU_TARGET_IDS)
 
 
 def _percentile(values: list[float], p: float) -> float:

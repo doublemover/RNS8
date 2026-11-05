@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 from ck_kernel_contract import ck_kernel_family
 
@@ -52,18 +54,18 @@ class ValidatorBaseFieldsMixin:
             self._error("selected_kernel must be a string or null")
         execution_mode = self.data.get("benchmark_execution_mode")
         if execution_mode is not None:
-            if execution_mode not in BENCHMARK_EXECUTION_MODES:
+            if not text_choice(execution_mode, BENCHMARK_EXECUTION_MODES):
                 self._error(f"benchmark_execution_mode must be one of {sorted(BENCHMARK_EXECUTION_MODES)}")
             elif (
-                self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}
+                text_choice(self.data.get("benchmark"), {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"})
                 and execution_mode != "public_oneshot_transient_native_inputs"
             ):
                 self._error("one-shot benchmark captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
         selected_backend = self.data.get("backend_selected")
-        if isinstance(selected_backend, str) and selected_backend not in BACKEND_SELECTED_VALUES:
+        if isinstance(selected_backend, str) and not text_choice(selected_backend, BACKEND_SELECTED_VALUES):
             self._error(f"backend_selected must be one of {sorted(BACKEND_SELECTED_VALUES)}")
         requested_backend = self.data.get("backend_requested")
-        if isinstance(requested_backend, str) and requested_backend not in BACKEND_REQUESTED_VALUES:
+        if isinstance(requested_backend, str) and not text_choice(requested_backend, BACKEND_REQUESTED_VALUES):
             self._error(f"backend_requested must be one of {sorted(BACKEND_REQUESTED_VALUES)}")
         self._require("bound_mode", "str")
         for key in [
@@ -81,6 +83,11 @@ class ValidatorBaseFieldsMixin:
             "checksum_u64",
         ]:
             self._require(key, "int")
+        # Semantic/timing helpers consume these typed fields. Preserve the
+        # actual admission diagnostics instead of passing malformed containers
+        # or scalars into arithmetic and backend-specific checks.
+        if self.errors:
+            return
         self._validate_nonnegative_ints()
         self._validate_nested_metadata()
         self._validate_backend_metadata()
@@ -174,7 +181,7 @@ class ValidatorBaseFieldsMixin:
                 "status": "exact_mod_2_64_byte_limb_no_int32_k_cap",
             }
         cap = 32768 if selected_backend == "ck" else 65536
-        modulus = self.data.get("finite_modulus") if semantics in {"finite_ring_u8", "finite_field_u8"} else 0
+        modulus = self.data.get("finite_modulus") if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}) else 0
         if not _is_int(modulus):
             modulus = 0
         ck_family = ck_kernel_family(self.data.get("selected_kernel")) if selected_backend == "ck" else None
@@ -196,7 +203,7 @@ class ValidatorBaseFieldsMixin:
             "signedness": "unsigned_u8x_unsigned_u8" if unsigned_ck else "signed_i8x_signed_i8",
             "input_domain": input_domain,
             "modulus_policy": "finite_u8_modulus"
-            if semantics in {"finite_ring_u8", "finite_field_u8"}
+            if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"})
             else "selected_rns_modulus_ladder",
             "modulus": int(modulus),
             "status": "safe_int32_k_block_split",
@@ -263,12 +270,12 @@ class ValidatorBaseFieldsMixin:
             normalized_key = f";{autotune_key};"
             selected_backend = self.data.get("backend_selected")
             expected_target_id: str | None = None
-            if selected_backend in HIP_RESIDENT_BACKENDS:
+            if text_choice(selected_backend, HIP_RESIDENT_BACKENDS):
                 device = self.data.get("device")
                 target_id = device.get("gcn_arch") if isinstance(device, dict) else None
                 if _has_concrete_gpu_target_id(target_id):
                     expected_target_id = str(target_id)
-            elif selected_backend in BACKEND_SELECTED_VALUES:
+            elif text_choice(selected_backend, BACKEND_SELECTED_VALUES):
                 expected_target_id = "cpu"
             if expected_target_id is not None and f";target_id={expected_target_id};" not in normalized_key:
                 self._error(f"backend_metadata.autotune_key must include target_id={expected_target_id}")
@@ -338,7 +345,7 @@ class ValidatorBaseFieldsMixin:
             for key in ["hipcc_path", "hipcc_version", "version_source"]:
                 if toolchain.get(key) is not None:
                     self._error(f"hip_toolchain.{key} must be null when hip_toolchain.enabled is false")
-        if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
+        if text_choice(self.data.get("backend_selected"), HIP_RESIDENT_BACKENDS):
             if enabled is not True:
                 self._error("HIP backend captures must set hip_toolchain.enabled=true")
             for key in ["hip_root", "hipcc_path", "hipcc_version", "version_source"]:
@@ -375,7 +382,7 @@ class ValidatorBaseFieldsMixin:
                 self._error("device.device_name must match device.name")
             if "target_arch" in device and device.get("target_arch") != device.get("gcn_arch"):
                 self._error("device.target_arch must match device.gcn_arch")
-            if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
+            if text_choice(self.data.get("backend_selected"), HIP_RESIDENT_BACKENDS):
                 if not _has_concrete_gpu_target_id(device.get("gcn_arch")):
                     self._error("HIP backend captures must include non-placeholder device.gcn_arch")
                 if device.get("hip_available") != 1:
@@ -419,7 +426,7 @@ class ValidatorBaseFieldsMixin:
             self._validate_output_layout_metadata(metadata)
             metadata_mode = metadata.get("benchmark_execution_mode")
             if metadata_mode is not None:
-                if metadata_mode not in BENCHMARK_EXECUTION_MODES:
+                if not text_choice(metadata_mode, BENCHMARK_EXECUTION_MODES):
                     self._error(
                         f"timing_metadata.benchmark_execution_mode must be one of {sorted(BENCHMARK_EXECUTION_MODES)}"
                     )
@@ -472,7 +479,7 @@ class ValidatorBaseFieldsMixin:
         if not isinstance(baseline, dict):
             return
         status = baseline.get("status")
-        if status not in COMPARISON_BASELINE_STATUSES:
+        if not text_choice(status, COMPARISON_BASELINE_STATUSES):
             self._error("comparison_baseline.status must describe reviewed or missing same-contract baseline evidence")
         if not isinstance(baseline.get("speedup_claimed"), bool):
             self._error("comparison_baseline.speedup_claimed must be a boolean")
@@ -490,7 +497,7 @@ class ValidatorBaseFieldsMixin:
         performance_validated = metadata.get("performance_validated") is True
         derived_tops = self.data.get("derived_tops_equivalent")
         if baseline.get("speedup_claimed") is True:
-            if status not in REVIEWED_BASELINE_STATUSES or not isinstance(selected_reference, str) or not selected_reference:
+            if not text_choice(status, REVIEWED_BASELINE_STATUSES) or not isinstance(selected_reference, str) or not selected_reference:
                 self._error("speedup claims require a reviewed same-contract comparison baseline")
         if performance_validated and status != BASELINE_STATUS_RELEASE_REVIEWED:
             self._error(
@@ -500,7 +507,7 @@ class ValidatorBaseFieldsMixin:
         if derived_tops is not None and status != BASELINE_STATUS_RELEASE_REVIEWED:
             self._error("derived_tops_equivalent requires a reviewed release same-contract comparison baseline")
         semantics = self.data.get("semantics")
-        if semantics in {"bounded_i64", "bounded_u64"} and isinstance(required, list):
+        if text_choice(semantics, {"bounded_i64", "bounded_u64"}) and isinstance(required, list):
             expected = ["same_contract_cpu_reference"]
             if selected_backend == "hip-vector-alu-int64":
                 expected.append("same_contract_direct_hip_correctness")
@@ -517,7 +524,7 @@ class ValidatorBaseFieldsMixin:
             for item in ["same_contract_cpu_wrap64_byte_limb_reference", "same_contract_direct_hip_wrap64_byte_gemm36"]:
                 if item not in required:
                     self._error(f"wrap64 captures require comparison baseline prerequisite {item}")
-        if semantics in {"finite_ring_u8", "finite_field_u8"} and isinstance(required, list):
+        if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}) and isinstance(required, list):
             if "same_contract_cpu_reference" not in required:
                 self._error("finite-u8 captures require comparison baseline prerequisite same_contract_cpu_reference")
             if selected_backend != "hip-direct" and "same_contract_direct_hip_correctness" not in required:
@@ -527,7 +534,7 @@ class ValidatorBaseFieldsMixin:
                     "finite-u8 one-shot captures require comparison baseline prerequisite "
                     "same_contract_direct_hip_persistent_finite_u8"
                 )
-        if semantics in {"exact_wide_signed", "exact_wide_unsigned"} and isinstance(required, list):
+        if text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}) and isinstance(required, list):
             if "same_contract_cpu_reference" not in required:
                 self._error("exact-wide captures require comparison baseline prerequisite same_contract_cpu_reference")
             if selected_backend != "hip-direct" and "same_contract_direct_hip_correctness" not in required:
@@ -553,12 +560,12 @@ class ValidatorBaseFieldsMixin:
                     self._error("CK workspace encoding disagrees with the selected physical implementation")
             elif version != "repo-local release/rocm-rel-7.1":
                 self._error("historical CK captures require their original dependency version")
-            if metadata.get("workspace_mode") not in {
+            if not text_choice(metadata.get("workspace_mode"), {
                 "resident_device_buffers_with_ck_canonical_pack_workspace",
                 "resident_device_buffers_with_ck_centered_pack_workspace",
-            }:
+            }):
                 self._error("CK captures must use a known CK pack workspace mode")
-            if metadata.get("selected_kernel") not in CK_SELECTED_KERNELS:
+            if not text_choice(metadata.get("selected_kernel"), CK_SELECTED_KERNELS):
                 self._error("CK captures must report a known CK selected_kernel")
             bool_expected = {
                 "accelerator_backend": True,
@@ -570,11 +577,11 @@ class ValidatorBaseFieldsMixin:
                 if metadata.get(key) is not value:
                     self._error(f"CK captures must use backend_metadata.{key}={value}")
             epilogue = metadata.get("epilogue_mode")
-            if epilogue not in {
+            if not text_choice(epilogue, {
                 "ck_fused_i32_to_centered_residue_then_crt_export",
                 "ck_fused_i32_to_centered_residue_rns_output",
                 "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
-            }:
+            }):
                 self._error("CK captures must report a fused CK centered-residue epilogue")
         if selected_backend == "rocwmma":
             if self._is_wrap64_rocwmma_candidate():
@@ -611,7 +618,7 @@ class ValidatorBaseFieldsMixin:
                 for key, value in expected.items():
                     if metadata.get(key) != value:
                         self._error(f"rocWMMA captures must use backend_metadata.{key}={value}")
-                if metadata.get("selected_kernel") not in ROCWMMA_SELECTED_KERNELS:
+                if not text_choice(metadata.get("selected_kernel"), ROCWMMA_SELECTED_KERNELS):
                     self._error("rocWMMA captures must report a known rocWMMA selected_kernel")
                 bool_expected = {
                     "accelerator_backend": True,
@@ -623,15 +630,15 @@ class ValidatorBaseFieldsMixin:
                     if metadata.get(key) is not value:
                         self._error(f"rocWMMA captures must use backend_metadata.{key}={value}")
                 epilogue = metadata.get("epilogue_mode")
-                if epilogue not in {
+                if not text_choice(epilogue, {
                     "rocwmma_fused_i32_to_centered_residue_then_crt_export",
                     "rocwmma_fused_i32_to_centered_residue_rns_output",
                     "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export",
-                }:
+                }):
                     self._error("rocWMMA captures must report a fused rocWMMA centered-residue epilogue")
         if selected_backend == "hip-direct" and metadata.get("accelerator_library") != "HIP runtime":
             self._error("hip-direct captures must use backend_metadata.accelerator_library=HIP runtime")
-        if selected_backend not in HIP_RESIDENT_BACKENDS and metadata.get("accelerator_library") not in {None, ""}:
+        if not text_choice(selected_backend, HIP_RESIDENT_BACKENDS) and metadata.get("accelerator_library") not in {None, ""}:
             self._error("non-HIP correctness captures must not report an accelerator library")
         self._validate_accumulator_safety(metadata)
 

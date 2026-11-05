@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 
 from .core_shared import *
@@ -20,14 +22,14 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
     status_check = ctx['status_check']
     prefix_policy = ctx['prefix_policy']
     metadata = ctx['metadata']
-    if self.data.get("backend_selected") not in {
+    if not text_choice(self.data.get("backend_selected"), {
         "cpu-reference",
         "hip-direct",
         "hipblaslt",
         "ck",
         "rocwmma",
         "amdgpu-builtins",
-    }:
+    }):
         self._error(
             "exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, rocwmma, or amdgpu-builtins backend"
         )
@@ -50,10 +52,10 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
                 if semantics == "exact_wide_signed"
                 else "exact_wide_unsigned_limb_export"
             )
-            if self._benchmark_execution_mode() not in {
+            if not text_choice(self._benchmark_execution_mode(), {
                 "residue_chain_final_host_export",
                 "residue_chain_independent_final_host_export",
-            }:
+            }):
                 self._error(
                     "exact-wide residue-chain final-export captures must use "
                     "benchmark_execution_mode=residue_chain_final_host_export or "

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 
 from .core_shared import *
@@ -67,7 +69,7 @@ class ValidatorTimingEventsMixin:
                 self._error("fractional host timings require phase_states")
             else:
                 for phase in ("planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"):
-                    if states.get(phase) not in {"measured", "elided", "fused", "unsupported", "below_resolution"}:
+                    if not text_choice(states.get(phase), {"measured", "elided", "fused", "unsupported", "below_resolution"}):
                         self._error(f"invalid host phase state for {phase}")
 
         result: dict[str, list[float]] = {}
@@ -78,7 +80,7 @@ class ValidatorTimingEventsMixin:
             if not isinstance(values, list):
                 self._error(f"raw_timings_us.{phase} must be an array")
                 continue
-            expected_length = raw_host_sample_count(self.data,phase,repeats if phase in REPEATED_TIMING_PHASES else 1)
+            expected_length = raw_host_sample_count(self.data,phase,repeats if text_choice(phase, REPEATED_TIMING_PHASES) else 1)
             if len(values) != expected_length:
                 self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}")
             parsed: list[float] = []
@@ -204,7 +206,7 @@ class ValidatorTimingEventsMixin:
 
     def _gpu_event_selected_prefix_count(self) -> int:
         semantics = self.data.get("semantics")
-        if semantics in {"finite_ring_u8", "finite_field_u8", "wrap_u64_mod_2_64"}:
+        if text_choice(semantics, {"finite_ring_u8", "finite_field_u8", "wrap_u64_mod_2_64"}):
             return 0
         schedule = self.data.get("schedule_metadata")
         if isinstance(schedule, dict):
@@ -243,7 +245,7 @@ class ValidatorTimingEventsMixin:
 
     def _expected_accelerator_deep_gpu_event_phases(self) -> list[str] | None:
         backend = self.data.get("backend_selected")
-        if backend not in {"ck", "rocwmma", "amdgpu-builtins"} or self._is_wrap64_rocwmma_candidate():
+        if not text_choice(backend, {"ck", "rocwmma", "amdgpu-builtins"}) or self._is_wrap64_rocwmma_candidate():
             return None
         semantics = self.data.get("semantics")
         selected_kernel = self.data.get("selected_kernel")
@@ -254,7 +256,7 @@ class ValidatorTimingEventsMixin:
         )
         use_prepacked_b = backend == "rocwmma" and self._uses_rocwmma_prepacked_b_cache()
         gemm_group = "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
-        if semantics in {"finite_ring_u8", "finite_field_u8"}:
+        if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
             if sparse_amdgpu_capture:
                 phases = [
                     "sparse_a_values_h2d",
@@ -268,11 +270,11 @@ class ValidatorTimingEventsMixin:
             if backend != "amdgpu-builtins":
                 phases.extend(["rns_gemm_kernel_group", "rns_gemm", "finite_export_kernel", "finite_export_d2h", "crt_export"])
                 return phases
-        elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+        elif text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
             phases = ["pack_h2d", "pack_kernel", "pack"]
         else:
             phases = ["pack_h2d", "pack_kernel", "pack"]
-        if sparse_amdgpu_capture and semantics not in {"finite_ring_u8", "finite_field_u8"}:
+        if sparse_amdgpu_capture and not text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
             phases = ["sparse_a_values_h2d", "sparse_a_indices_h2d", *phases]
         prefix_count = self._gpu_event_selected_prefix_count()
         schedule = self.data.get("schedule_metadata")
@@ -292,9 +294,9 @@ class ValidatorTimingEventsMixin:
         phases.append("rns_gemm")
         if self._is_residue_current_chain_capture():
             return phases
-        if semantics in {"finite_ring_u8", "finite_field_u8"}:
+        if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
             phases.extend(["finite_export_kernel", "finite_export_d2h", "crt_export"])
-        elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+        elif text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
             phases.extend(
                 [
                     "exact_wide_export_status_memset",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 import math
 from typing import Any
 
@@ -122,7 +124,7 @@ def _validate_setup_breakdown(
             self._error(f"{field}.{key} must be a nonnegative number")
             return None
         breakdown[key] = float(item)
-    extra = sorted(str(key) for key in value if key not in PREPACK_SETUP_BREAKDOWN_KEYS)
+    extra = sorted(str(key) for key in value if not text_choice(key, PREPACK_SETUP_BREAKDOWN_KEYS))
     if extra:
         self._error(f"{field} has unknown keys: {extra}")
     if _is_number(setup_cost):
@@ -164,7 +166,7 @@ def validate_contract_metadata(self: Any) -> None:
         else:
             if not isinstance(reuse.get("enabled"), bool):
                 self._error("reuse_contract.enabled must be a boolean")
-            if reuse.get("operand_role") not in REUSE_OPERAND_ROLES:
+            if not text_choice(reuse.get("operand_role"), REUSE_OPERAND_ROLES):
                 self._error(f"reuse_contract.operand_role must be one of {sorted(REUSE_OPERAND_ROLES)}")
             for key in [
                 "source_version_inputs",
@@ -177,7 +179,7 @@ def validate_contract_metadata(self: Any) -> None:
             ]:
                 if not isinstance(reuse.get(key), str):
                     self._error(f"reuse_contract.{key} must be a string")
-            if reuse.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+            if not text_choice(reuse.get("output_domain"), OUTPUT_CONTRACT_DOMAINS):
                 self._error(f"reuse_contract.output_domain must be one of {sorted(OUTPUT_CONTRACT_DOMAINS)}")
             setup_cost = reuse.get("setup_cost_us")
             if setup_cost is not None and (not _is_number(setup_cost) or setup_cost < 0):
@@ -361,7 +363,7 @@ def validate_contract_metadata(self: Any) -> None:
                         self._error("runtime prepack cache operand_pack_bytes must not exceed device_bytes")
                     if (
                         runtime_cache.get("production_prepack_cache_available") is True
-                        and self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}
+                        and not text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
                     ):
                         self._error("runtime production prepack cache is allowed only for bounded i64/u64 captures")
 
@@ -370,19 +372,19 @@ def validate_contract_metadata(self: Any) -> None:
         if not isinstance(exact_output, dict):
             self._error("exact_output_contract must be an object")
         else:
-            if exact_output.get("requested_final_output") not in OUTPUT_CONTRACT_DOMAINS:
+            if not text_choice(exact_output.get("requested_final_output"), OUTPUT_CONTRACT_DOMAINS):
                 self._error(
                     f"exact_output_contract.requested_final_output must be one of {sorted(OUTPUT_CONTRACT_DOMAINS)}"
                 )
             limb_count = exact_output.get("limb_count")
-            if self.data.get("semantics") in {"exact_wide_signed", "exact_wide_unsigned"}:
+            if text_choice(self.data.get("semantics"), {"exact_wide_signed", "exact_wide_unsigned"}):
                 if not _is_int(limb_count) or not 1 <= limb_count <= 32:
                     self._error("exact_output_contract.limb_count must be in [1, 32] for exact-wide captures")
             elif limb_count is not None:
                 self._error("exact_output_contract.limb_count must be null outside exact-wide captures")
-            if exact_output.get("status_policy") not in STATUS_HANDLING:
+            if not text_choice(exact_output.get("status_policy"), STATUS_HANDLING):
                 self._error(f"exact_output_contract.status_policy must be one of {sorted(STATUS_HANDLING)}")
-            if exact_output.get("output_domain_after_measured_repeats") not in OUTPUT_CONTRACT_DOMAINS:
+            if not text_choice(exact_output.get("output_domain_after_measured_repeats"), OUTPUT_CONTRACT_DOMAINS):
                 self._error("exact_output_contract.output_domain_after_measured_repeats must be a known output domain")
             if not isinstance(exact_output.get("final_checksum_export_after_repeats"), bool):
                 self._error("exact_output_contract.final_checksum_export_after_repeats must be a boolean")
@@ -397,7 +399,7 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["source", "status_policy", "constants_placement"]:
                 if not isinstance(export_variant.get(key), str):
                     self._error(f"export_variant.{key} must be a string")
-            if export_variant.get("status_policy") not in STATUS_HANDLING:
+            if not text_choice(export_variant.get("status_policy"), STATUS_HANDLING):
                 self._error(f"export_variant.status_policy must be one of {sorted(STATUS_HANDLING)}")
             selector_source = export_variant.get("selector_source")
             if selector_source is not None and not isinstance(selector_source, str):
@@ -417,21 +419,21 @@ def validate_contract_metadata(self: Any) -> None:
             if selector_key is not None and not isinstance(selector_key, str):
                 self._error("export_variant.selector_key must be a string or null")
             final_output_mode = export_variant.get("final_output_mode")
-            if final_output_mode is not None and final_output_mode not in EXPORT_FINAL_OUTPUT_MODES:
+            if final_output_mode is not None and not text_choice(final_output_mode, EXPORT_FINAL_OUTPUT_MODES):
                 self._error(f"export_variant.final_output_mode must be one of {sorted(EXPORT_FINAL_OUTPUT_MODES)}")
             for key in ["stale_entry_reason", "status_elision_reason"]:
                 if export_variant.get(key) is not None and not isinstance(export_variant.get(key), str):
                     self._error(f"export_variant.{key} must be a string or null")
             output_layout = export_variant.get("output_layout")
-            if output_layout is not None and output_layout not in EXPORT_OUTPUT_LAYOUTS:
+            if output_layout is not None and not text_choice(output_layout, EXPORT_OUTPUT_LAYOUTS):
                 self._error(f"export_variant.output_layout must be one of {sorted(EXPORT_OUTPUT_LAYOUTS)}")
             selector_status = export_variant.get("selector_status_policy")
-            if selector_status is not None and selector_status not in EXPORT_SELECTOR_STATUS_POLICIES:
+            if selector_status is not None and not text_choice(selector_status, EXPORT_SELECTOR_STATUS_POLICIES):
                 self._error(
                     f"export_variant.selector_status_policy must be one of {sorted(EXPORT_SELECTOR_STATUS_POLICIES)}"
                 )
             d2h_policy = export_variant.get("d2h_policy")
-            if d2h_policy is not None and d2h_policy not in EXPORT_D2H_POLICIES:
+            if d2h_policy is not None and not text_choice(d2h_policy, EXPORT_D2H_POLICIES):
                 self._error(f"export_variant.d2h_policy must be one of {sorted(EXPORT_D2H_POLICIES)}")
             selected_export_kernel = export_variant.get("selected_kernel")
             if selected_export_kernel is not None and not isinstance(selected_export_kernel, str):
@@ -458,7 +460,7 @@ def validate_contract_metadata(self: Any) -> None:
                 self._error("export_variant.selector_key must include semantic_contract")
             reviewable_fixed_limb = (
                 export_variant.get("name") == "exact-wide-fixed-limb-export"
-                and self.data.get("semantics") in {"exact_wide_signed", "exact_wide_unsigned"}
+                and text_choice(self.data.get("semantics"), {"exact_wide_signed", "exact_wide_unsigned"})
                 and export_variant.get("semantic_contract") == self.data.get("semantics")
                 and output_layout == "fixed_u64_limbs"
                 and _is_int(limb_count)
@@ -470,11 +472,11 @@ def validate_contract_metadata(self: Any) -> None:
                         and bool(export_variant.get("status_elision_reason"))
                     )
                 )
-                and export_variant.get("d2h_policy") in {"host_ld_padded", "compact_contiguous"}
+                and text_choice(export_variant.get("d2h_policy"), {"host_ld_padded", "compact_contiguous"})
                 and final_output_mode == "final_host_output"
             )
             if export_variant.get("promotion_eligible") is True:
-                if export_variant.get("name") not in REVIEWABLE_EXPORT_VARIANTS or (
+                if not text_choice(export_variant.get("name"), REVIEWABLE_EXPORT_VARIANTS) or (
                     export_variant.get("name") != "default" and not reviewable_fixed_limb
                 ):
                     self._error(
@@ -622,7 +624,7 @@ def validate_contract_metadata(self: Any) -> None:
                 if not isinstance(grouped.get(key), str):
                     self._error(f"grouped_dispatch.{key} must be a string")
             strategy = grouped.get("execution_strategy")
-            if strategy is not None and strategy not in GROUPED_DISPATCH_EXECUTION_STRATEGIES:
+            if strategy is not None and not text_choice(strategy, GROUPED_DISPATCH_EXECUTION_STRATEGIES):
                 self._error("grouped_dispatch.execution_strategy must be a known grouped strategy")
             batched_export = grouped.get("batched_export_enabled")
             if batched_export is not None and not isinstance(batched_export, bool):
@@ -630,7 +632,7 @@ def validate_contract_metadata(self: Any) -> None:
             slab_bytes = grouped.get("device_output_slab_bytes")
             if slab_bytes is not None and (not _is_int(slab_bytes) or slab_bytes < 0):
                 self._error("grouped_dispatch.device_output_slab_bytes must be a nonnegative integer")
-            if grouped.get("capture_status") not in GROUPED_DISPATCH_STATUSES:
+            if not text_choice(grouped.get("capture_status"), GROUPED_DISPATCH_STATUSES):
                 self._error(f"grouped_dispatch.capture_status must be one of {sorted(GROUPED_DISPATCH_STATUSES)}")
             if task_count and task_count > 1 and grouped.get("requested") is not True:
                 self._error("grouped_dispatch.requested must be true when task_count > 1")
@@ -644,10 +646,10 @@ def validate_contract_metadata(self: Any) -> None:
                     if task_descriptor.get("schema_version") != 1:
                         self._error("grouped_dispatch.task_descriptor_contract.schema_version must be 1")
                     descriptor_layout = task_descriptor.get("descriptor_layout")
-                    if descriptor_layout not in GROUPED_TASK_DESCRIPTOR_LAYOUTS:
+                    if not text_choice(descriptor_layout, GROUPED_TASK_DESCRIPTOR_LAYOUTS):
                         self._error("grouped_dispatch.task_descriptor_contract.descriptor_layout must be known")
                     bucket_policy = task_descriptor.get("bucket_policy")
-                    if bucket_policy not in GROUPED_TASK_BUCKET_POLICIES:
+                    if not text_choice(bucket_policy, GROUPED_TASK_BUCKET_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.bucket_policy must be known")
                     bucket_count = task_descriptor.get("bucket_count")
                     if not _is_int(bucket_count) or bucket_count < 0:
@@ -660,33 +662,33 @@ def validate_contract_metadata(self: Any) -> None:
                     for key in ["shape_key", "semantics"]:
                         if not isinstance(task_descriptor.get(key), str):
                             self._error(f"grouped_dispatch.task_descriptor_contract.{key} must be a string")
-                    if task_descriptor.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+                    if not text_choice(task_descriptor.get("output_domain"), OUTPUT_CONTRACT_DOMAINS):
                         self._error("grouped_dispatch.task_descriptor_contract.output_domain must be a known output domain")
-                    if task_descriptor.get("source_version_policy") not in GROUPED_TASK_SOURCE_VERSION_POLICIES:
+                    if not text_choice(task_descriptor.get("source_version_policy"), GROUPED_TASK_SOURCE_VERSION_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.source_version_policy must be known")
-                    if task_descriptor.get("workspace_policy") not in GROUPED_TASK_WORKSPACE_POLICIES:
+                    if not text_choice(task_descriptor.get("workspace_policy"), GROUPED_TASK_WORKSPACE_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.workspace_policy must be known")
-                    if task_descriptor.get("matrix_ownership_policy") not in GROUPED_TASK_MATRIX_OWNERSHIP_POLICIES:
+                    if not text_choice(task_descriptor.get("matrix_ownership_policy"), GROUPED_TASK_MATRIX_OWNERSHIP_POLICIES):
                         self._error(
                             "grouped_dispatch.task_descriptor_contract.matrix_ownership_policy must be known"
                         )
-                    if task_descriptor.get("descriptor_reuse_policy") not in GROUPED_TASK_DESCRIPTOR_REUSE_POLICIES:
+                    if not text_choice(task_descriptor.get("descriptor_reuse_policy"), GROUPED_TASK_DESCRIPTOR_REUSE_POLICIES):
                         self._error(
                             "grouped_dispatch.task_descriptor_contract.descriptor_reuse_policy must be known"
                         )
-                    if task_descriptor.get("stride_policy") not in GROUPED_TASK_STRIDE_POLICIES:
+                    if not text_choice(task_descriptor.get("stride_policy"), GROUPED_TASK_STRIDE_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.stride_policy must be known")
-                    if task_descriptor.get("output_currentness_policy") not in GROUPED_TASK_OUTPUT_CURRENTNESS_POLICIES:
+                    if not text_choice(task_descriptor.get("output_currentness_policy"), GROUPED_TASK_OUTPUT_CURRENTNESS_POLICIES):
                         self._error(
                             "grouped_dispatch.task_descriptor_contract.output_currentness_policy must be known"
                         )
-                    if task_descriptor.get("lifetime_policy") not in GROUPED_TASK_LIFETIME_POLICIES:
+                    if not text_choice(task_descriptor.get("lifetime_policy"), GROUPED_TASK_LIFETIME_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.lifetime_policy must be known")
-                    if task_descriptor.get("checksum_policy") not in GROUPED_TASK_CHECKSUM_POLICIES:
+                    if not text_choice(task_descriptor.get("checksum_policy"), GROUPED_TASK_CHECKSUM_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.checksum_policy must be known")
-                    if task_descriptor.get("status_policy") not in GROUPED_TASK_STATUS_POLICIES:
+                    if not text_choice(task_descriptor.get("status_policy"), GROUPED_TASK_STATUS_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.status_policy must be known")
-                    if task_descriptor.get("device_descriptor_policy") not in GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES:
+                    if not text_choice(task_descriptor.get("device_descriptor_policy"), GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES):
                         self._error("grouped_dispatch.task_descriptor_contract.device_descriptor_policy must be known")
                     if task_descriptor.get("promotion_eligible") is not False:
                         self._error("grouped_dispatch.task_descriptor_contract.promotion_eligible must be false")
@@ -717,7 +719,7 @@ def validate_contract_metadata(self: Any) -> None:
                                         self._error(
                                             f"grouped_dispatch.task_descriptor_contract.buckets.{key} must be a string"
                                         )
-                                if bucket.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+                                if not text_choice(bucket.get("output_domain"), OUTPUT_CONTRACT_DOMAINS):
                                     self._error(
                                         "grouped_dispatch.task_descriptor_contract.buckets.output_domain "
                                         "must be a known output domain"
@@ -733,7 +735,7 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["descriptor_identity", "plan_identity", "setup_scope"]:
                 if not isinstance(graph.get(key), str):
                     self._error(f"hip_graph_replay.{key} must be a string")
-            if graph.get("capture_status") not in GRAPH_REPLAY_STATUSES:
+            if not text_choice(graph.get("capture_status"), GRAPH_REPLAY_STATUSES):
                 self._error(f"hip_graph_replay.capture_status must be one of {sorted(GRAPH_REPLAY_STATUSES)}")
             if graph.get("requested") is True and graph.get("promotion_eligible") is not False:
                 self._error("hip_graph_replay requested captures must set promotion_eligible=false")
@@ -775,7 +777,7 @@ def validate_contract_metadata(self: Any) -> None:
                 self._error("adaptive_grouped_scheduler.launch_reduction_ratio must be a nonnegative number")
             if not isinstance(adaptive.get("event_scope"), str):
                 self._error("adaptive_grouped_scheduler.event_scope must be a string")
-            if adaptive.get("capture_status") not in GROUPED_DISPATCH_STATUSES:
+            if not text_choice(adaptive.get("capture_status"), GROUPED_DISPATCH_STATUSES):
                 self._error(
                     f"adaptive_grouped_scheduler.capture_status must be one of {sorted(GROUPED_DISPATCH_STATUSES)}"
                 )
@@ -868,7 +870,7 @@ def validate_contract_metadata(self: Any) -> None:
             ]:
                 if not isinstance(resident.get(key), str):
                     self._error(f"resident_lifetime.{key} must be a string")
-            if resident.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+            if not text_choice(resident.get("output_domain"), OUTPUT_CONTRACT_DOMAINS):
                 self._error("resident_lifetime.output_domain must be a known output domain")
             if resident.get("promotion_eligible") is not False:
                 self._error("resident_lifetime captures must set promotion_eligible=false")
@@ -917,7 +919,7 @@ def validate_contract_metadata(self: Any) -> None:
                 self._error("streaming_overlap.explicit_dependency_events must be a boolean")
             if not isinstance(overlap.get("stage_event_scope"), str):
                 self._error("streaming_overlap.stage_event_scope must be a string")
-            if overlap.get("capture_status") not in STREAMING_OVERLAP_STATUSES:
+            if not text_choice(overlap.get("capture_status"), STREAMING_OVERLAP_STATUSES):
                 self._error(f"streaming_overlap.capture_status must be one of {sorted(STREAMING_OVERLAP_STATUSES)}")
             if overlap.get("requested") is True and overlap.get("promotion_eligible") is not False:
                 self._error("streaming_overlap requested captures must set promotion_eligible=false")
@@ -959,12 +961,12 @@ def validate_contract_metadata(self: Any) -> None:
         else:
             if not isinstance(proxy.get("enabled"), bool):
                 self._error("workload_proxy.enabled must be a boolean")
-            if proxy.get("family") not in WORKLOAD_PROXY_FAMILIES:
+            if not text_choice(proxy.get("family"), WORKLOAD_PROXY_FAMILIES):
                 self._error(f"workload_proxy.family must be one of {sorted(WORKLOAD_PROXY_FAMILIES)}")
             for key in ["label", "tower_role", "reuse_profile", "transform_role", "output_domain_requirement"]:
                 if not isinstance(proxy.get(key), str):
                     self._error(f"workload_proxy.{key} must be a string")
-            if proxy.get("output_domain_requirement") not in OUTPUT_CONTRACT_DOMAINS:
+            if not text_choice(proxy.get("output_domain_requirement"), OUTPUT_CONTRACT_DOMAINS):
                 self._error("workload_proxy.output_domain_requirement must be a known output domain")
             if proxy.get("compatibility_claim") is not False:
                 self._error("workload_proxy.compatibility_claim must be false")
@@ -981,7 +983,7 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["classification_tier", "cpu_reference_policy", "memory_cap_policy", "resume_policy"]:
                 if not isinstance(release_gate.get(key), str):
                     self._error(f"release_gate.{key} must be a string")
-            if release_gate.get("review_status") not in RELEASE_GATE_REVIEW_STATUSES:
+            if not text_choice(release_gate.get("review_status"), RELEASE_GATE_REVIEW_STATUSES):
                 self._error(f"release_gate.review_status must be one of {sorted(RELEASE_GATE_REVIEW_STATUSES)}")
             if not isinstance(release_gate.get("cache_eligible"), bool):
                 self._error("release_gate.cache_eligible must be a boolean")
@@ -1014,7 +1016,7 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["policy", "mode", "verification_basis", "false_negative_policy", "final_exact_comparison_status"]:
                 if not isinstance(error_detection.get(key), str):
                     self._error(f"error_detection_policy.{key} must be a string")
-            if error_detection.get("mode") not in ERROR_DETECTION_MODES:
+            if not text_choice(error_detection.get("mode"), ERROR_DETECTION_MODES):
                 self._error(f"error_detection_policy.mode must be one of {sorted(ERROR_DETECTION_MODES)}")
             rounds = error_detection.get("verification_rounds")
             if not _is_int(rounds) or rounds < 0:
@@ -1035,13 +1037,13 @@ def validate_contract_metadata(self: Any) -> None:
                     self._error("enabled error_detection_policy.policy must be a nonempty non-none string")
                 if error_detection.get("mode") == "not_requested":
                     self._error("enabled error_detection_policy.mode must not be not_requested")
-                if error_detection.get("verification_basis") in {"", "none"}:
+                if text_choice(error_detection.get("verification_basis"), {"", "none"}):
                     self._error("enabled error_detection_policy.verification_basis must describe the verification basis")
-                if error_detection.get("false_negative_policy") in {"", "none"}:
+                if text_choice(error_detection.get("false_negative_policy"), {"", "none"}):
                     self._error("enabled error_detection_policy.false_negative_policy must describe false-negative policy")
                 if error_detection.get("final_exact_comparison_required") is not True:
                     self._error("error_detection_policy.final_exact_comparison_required must be true")
-                if error_detection.get("final_exact_comparison_status") not in ERROR_DETECTION_FINAL_STATUSES:
+                if not text_choice(error_detection.get("final_exact_comparison_status"), ERROR_DETECTION_FINAL_STATUSES):
                     self._error(
                         "error_detection_policy.final_exact_comparison_status must record exact/reference status"
                     )
@@ -1073,7 +1075,7 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["policy", "candidate_role", "boundary_key", "threshold_scope", "selector_explanation"]:
                 if not isinstance(cpu_selector.get(key), str):
                     self._error(f"cpu_small_shape_selector.{key} must be a string")
-            if cpu_selector.get("candidate_role") not in CPU_SELECTOR_ROLES:
+            if not text_choice(cpu_selector.get("candidate_role"), CPU_SELECTOR_ROLES):
                 self._error(
                     f"cpu_small_shape_selector.candidate_role must be one of {sorted(CPU_SELECTOR_ROLES)}"
                 )
@@ -1087,7 +1089,7 @@ def validate_contract_metadata(self: Any) -> None:
                 if not isinstance(cpu_selector.get(key), bool):
                     self._error(f"cpu_small_shape_selector.{key} must be a boolean")
             if cpu_selector.get("enabled") is True:
-                if cpu_selector.get("policy") in {"", "none"}:
+                if text_choice(cpu_selector.get("policy"), {"", "none"}):
                     self._error("enabled cpu_small_shape_selector.policy must be a nonempty non-none string")
                 if cpu_selector.get("candidate_role") == "not_requested":
                     self._error("enabled cpu_small_shape_selector.candidate_role must not be not_requested")
@@ -1137,7 +1139,7 @@ def validate_contract_metadata(self: Any) -> None:
                 scenario = self.data.get("scenario_metadata") or {}
                 promotion_scope = scenario.get("promotion_eligibility")
                 public_contract = incremental.get("public_contract_available") is True
-                if incremental.get("policy") in {"", "none"}:
+                if text_choice(incremental.get("policy"), {"", "none"}):
                     self._error("enabled incremental_result_cache.policy must be a nonempty non-none string")
                 for key in [
                     "source_identity_policy",
@@ -1147,11 +1149,11 @@ def validate_contract_metadata(self: Any) -> None:
                     "checksum_policy",
                     "partial_recompute_policy",
                 ]:
-                    if incremental.get(key) in {"", "none"}:
+                    if text_choice(incremental.get(key), {"", "none"}):
                         self._error(f"enabled incremental_result_cache.{key} must describe the contract")
                 if incremental.get("final_exact_comparison_required") is not True:
                     self._error("incremental_result_cache.final_exact_comparison_required must be true")
-                if incremental.get("final_exact_comparison_status") not in ERROR_DETECTION_FINAL_STATUSES:
+                if not text_choice(incremental.get("final_exact_comparison_status"), ERROR_DETECTION_FINAL_STATUSES):
                     self._error("incremental_result_cache.final_exact_comparison_status must record exact/reference status")
                 if incremental.get("default_gemm_unchanged") is not True:
                     self._error("enabled incremental_result_cache captures must keep default_gemm_unchanged=true")

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 
 from .core_shared import *
@@ -52,9 +54,9 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
             self._error("one-shot captures must use benchmark=rns8_bounded_gemm_public_oneshot")
         if self._benchmark_execution_mode() != "public_oneshot_transient_native_inputs":
             self._error("one-shot captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
-        if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct"}:
+        if not text_choice(self.data.get("backend_selected"), {"cpu-reference", "hip-direct"}):
             self._error("one-shot bounded captures must select cpu-reference or hip-direct")
-        if self.data.get("backend_requested") not in {"cpu-reference", "cpu", "hip-direct"}:
+        if not text_choice(self.data.get("backend_requested"), {"cpu-reference", "cpu", "hip-direct"}):
             self._error("one-shot bounded captures must request cpu or hip-direct")
         if bound_mode != "global":
             self._error("one-shot bounded captures must use bound_mode=global")
@@ -505,7 +507,7 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
         if self.data.get("backend_requested") != "auto":
             self._error("vector-to-RNS chain captures must use backend_requested=auto")
         pack_mode = self.data.get("pack_mode")
-        if pack_mode not in {"per_repeat_repack", "prepacked_reuse_b"}:
+        if not text_choice(pack_mode, {"per_repeat_repack", "prepacked_reuse_b"}):
             self._error("vector-to-RNS chain captures must use pack_mode=per_repeat_repack or prepacked_reuse_b")
         expected_reuse = pack_mode == "prepacked_reuse_b"
         if self.data.get("reuse_packed_inputs") is not expected_reuse:
@@ -571,10 +573,10 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
             expected_epilogue_type = "residue_current_rns_output"
         else:
             expected_epilogue_type = "crt_export"
-            if self._benchmark_execution_mode() not in {
+            if not text_choice(self._benchmark_execution_mode(), {
                 "residue_chain_final_host_export",
                 "residue_chain_independent_final_host_export",
-            }:
+            }):
                 self._error(
                     "bounded residue-chain final-export captures must use "
                     "benchmark_execution_mode=residue_chain_final_host_export or "
@@ -582,7 +584,7 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
                 )
         if bound_mode != "global":
             self._error("bounded residue chains must use bound_mode=global")
-        if self.data.get("backend_selected") in {"hip-vector-alu-int64"}:
+        if text_choice(self.data.get("backend_selected"), {"hip-vector-alu-int64"}):
             self._error("bounded residue chains must not select hip-vector-alu-int64")
         if self.data.get("m") != self.data.get("n") or self.data.get("n") != self.data.get("k"):
             self._error("bounded residue chains must use square m=n=k shapes")
@@ -645,14 +647,14 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
         expected_bound_kind = "per_tile_max_abs" if semantics == "bounded_i64" else "per_tile_max_unsigned"
         if self.data.get("bound_kind") != expected_bound_kind:
             self._error(f"{semantics} per-tile captures must use bound_kind={expected_bound_kind}")
-        if self.data.get("backend_selected") not in {
+        if not text_choice(self.data.get("backend_selected"), {
             "cpu-reference",
             "hip-direct",
             "ck",
             "rocwmma",
             "amdgpu-builtins",
             "hip-vector-alu-int64",
-        }:
+        }):
             self._error(
                 "per-tile adaptive captures must select cpu-reference, hip-direct, ck, rocwmma, amdgpu-builtins, "
                 "or hip-vector-alu-int64 backend"

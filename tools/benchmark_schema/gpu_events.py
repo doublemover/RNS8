@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 import re
 
 from metadata_registry_constants import (
@@ -104,7 +106,7 @@ def vector_gpu_event_phases(semantics: object, selected_kernel: object) -> list[
 
 def amdgpu_builtin_gpu_event_label(selected_kernel: object, semantics: object = None) -> str:
     kernel = selected_kernel if isinstance(selected_kernel, str) else ""
-    finite = semantics in {"finite_ring_u8", "finite_field_u8"}
+    finite = text_choice(semantics, {"finite_ring_u8", "finite_field_u8"})
     for row in AMDGPU_BUILTIN_EVENT_FAMILIES:
         if row['family'] in kernel:
             return row['finite_event'] if finite or '_finite' in kernel else row['integer_event']
@@ -117,9 +119,9 @@ def amdgpu_builtin_deep_gpu_event_phases(selected_kernel: object, semantics: obj
 
 def is_deep_accelerator_gpu_event_label(phase: str) -> bool:
     return (
-        phase in CK_DEEP_GPU_EVENT_LABELS
-        or phase in ROCWMMA_DEEP_GPU_EVENT_LABELS
-        or phase in AMDGPU_BUILTIN_DEEP_GPU_EVENT_LABELS
+        text_choice(phase, CK_DEEP_GPU_EVENT_LABELS)
+        or text_choice(phase, ROCWMMA_DEEP_GPU_EVENT_LABELS)
+        or text_choice(phase, AMDGPU_BUILTIN_DEEP_GPU_EVENT_LABELS)
         or CK_PREFIX_EVENT_RE.match(phase) is not None
         or ROCWMMA_PREFIX_EVENT_RE.match(phase) is not None
     )

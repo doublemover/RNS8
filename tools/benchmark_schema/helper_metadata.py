@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 import math
 import re
@@ -40,16 +42,16 @@ def validate_helper_lane_metadata(self: Any) -> None:
     metadata = self.data.get("timing_metadata")
     if isinstance(metadata, dict):
         pack_layout = metadata.get("pack_layout")
-        if pack_layout is not None and pack_layout not in PACK_LAYOUTS:
+        if pack_layout is not None and not text_choice(pack_layout, PACK_LAYOUTS):
             self._error(f"timing_metadata.pack_layout must be one of {sorted(PACK_LAYOUTS)}")
         fusion_mode = metadata.get("fusion_mode")
-        if fusion_mode is not None and fusion_mode not in FUSION_MODES:
+        if fusion_mode is not None and not text_choice(fusion_mode, FUSION_MODES):
             self._error(f"timing_metadata.fusion_mode must be one of {sorted(FUSION_MODES)}")
         residue_width = metadata.get("residue_group_width")
         if residue_width is not None and (not _is_int(residue_width) or residue_width <= 0):
             self._error("timing_metadata.residue_group_width must be a positive integer")
         residue_layout = metadata.get("residue_group_layout")
-        if residue_layout is not None and residue_layout not in RESIDUE_GROUP_LAYOUTS:
+        if residue_layout is not None and not text_choice(residue_layout, RESIDUE_GROUP_LAYOUTS):
             self._error(f"timing_metadata.residue_group_layout must be one of {sorted(RESIDUE_GROUP_LAYOUTS)}")
         reducer = metadata.get("generated_reducer_identity")
         if reducer is not None:
@@ -72,7 +74,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if batch_size is not None and (not _is_int(batch_size) or batch_size <= 0):
             self._error("timing_metadata.host_api_batch_size must be a positive integer")
         grouped_strategy = metadata.get("grouped_dispatch_execution_strategy")
-        if grouped_strategy is not None and grouped_strategy not in GROUPED_DISPATCH_EXECUTION_STRATEGIES:
+        if grouped_strategy is not None and not text_choice(grouped_strategy, GROUPED_DISPATCH_EXECUTION_STRATEGIES):
             self._error(
                 "timing_metadata.grouped_dispatch_execution_strategy must be a known grouped strategy"
             )
@@ -153,11 +155,11 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if not isinstance(requested_next_op, dict):
             self._error("requested_next_op must be an object")
         else:
-            if requested_next_op.get("requested") not in NEXT_OP_HINTS:
+            if not text_choice(requested_next_op.get("requested"), NEXT_OP_HINTS):
                 self._error(f"requested_next_op.requested must be one of {sorted(NEXT_OP_HINTS)}")
             if requested_next_op.get("resolved") not in NEXT_OP_HINTS - {"auto"}:
                 self._error(f"requested_next_op.resolved must be one of {sorted(NEXT_OP_HINTS - {'auto'})}")
-            if requested_next_op.get("source") not in {"cli", "benchmark_default"}:
+            if not text_choice(requested_next_op.get("source"), {"cli", "benchmark_default"}):
                 self._error("requested_next_op.source must be cli or benchmark_default")
 
     output_policy = self.data.get("output_policy")
@@ -165,7 +167,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if not isinstance(output_policy, dict):
             self._error("output_policy must be an object")
         else:
-            if output_policy.get("destination_layout") not in OUTPUT_DESTINATION_LAYOUTS:
+            if not text_choice(output_policy.get("destination_layout"), OUTPUT_DESTINATION_LAYOUTS):
                 self._error(f"output_policy.destination_layout must be one of {sorted(OUTPUT_DESTINATION_LAYOUTS)}")
             if output_policy.get("destination_layout") != output_destination_layout(self.data.get("output_ld_padding", 0)):
                 self._error("output_policy.destination_layout must match output_ld_padding")
@@ -177,7 +179,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
                 self._error("output_policy.logical_ld must match output_logical_ld")
             if output_policy.get("ld_padding") != self.data.get("output_ld_padding"):
                 self._error("output_policy.ld_padding must match output_ld_padding")
-            if output_policy.get("status_handling") not in STATUS_HANDLING:
+            if not text_choice(output_policy.get("status_handling"), STATUS_HANDLING):
                 self._error(f"output_policy.status_handling must be one of {sorted(STATUS_HANDLING)}")
             if not isinstance(output_policy.get("status_event_policy"), str):
                 self._error("output_policy.status_event_policy must be a string")
@@ -255,7 +257,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
     if (
         target_variant is None
         and helper_lane_surface_present
-        and self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS
+        and text_choice(self.data.get("backend_selected"), HIP_RESIDENT_BACKENDS)
     ):
         self._error("HIP helper-lane captures must include target_variant")
     if target_variant is not None:
@@ -266,9 +268,9 @@ def validate_helper_lane_metadata(self: Any) -> None:
             namespace = target_variant.get("target_namespace")
             if not isinstance(target_id, str):
                 self._error("target_variant.target_id must be a string")
-            if namespace not in TARGET_NAMESPACES:
+            if not text_choice(namespace, TARGET_NAMESPACES):
                 self._error(f"target_variant.target_namespace must be one of {sorted(TARGET_NAMESPACES)}")
-            if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
+            if text_choice(self.data.get("backend_selected"), HIP_RESIDENT_BACKENDS):
                 if not _has_concrete_gpu_target_id(target_id):
                     self._error("HIP captures with target_variant must include concrete target_variant.target_id")
                 if namespace == "unknown":
@@ -306,7 +308,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
                         if not isinstance(item, dict):
                             self._error(f"auto_selector.rejected_candidates[{index}] must be an object")
                             continue
-                        if item.get("reason") not in SELECTOR_REJECTION_REASONS:
+                        if not text_choice(item.get("reason"), SELECTOR_REJECTION_REASONS):
                             self._error(
                                 f"auto_selector.rejected_candidates[{index}].reason must be a fixed rejection reason"
                             )

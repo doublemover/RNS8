@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 
 from .core import (
@@ -30,7 +32,7 @@ def _validate_prepack_setup_breakdown(self: Any, value: Any, *, field: str, setu
             self._error(f"{field}.{key} must be a nonnegative number")
             return None
         breakdown[key] = float(item)
-    extra = sorted(str(key) for key in value if key not in PREPACK_SETUP_BREAKDOWN_KEYS)
+    extra = sorted(str(key) for key in value if not text_choice(key, PREPACK_SETUP_BREAKDOWN_KEYS))
     if extra:
         self._error(f"{field} has unknown keys: {extra}")
     if _is_number(setup_cost):
@@ -48,7 +50,7 @@ def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> Non
 
     pack_mode = self.data.get("pack_mode")
     if pack_mode is not None:
-        if pack_mode not in PACK_MODES:
+        if not text_choice(pack_mode, PACK_MODES):
             self._error(f"pack_mode must be one of {sorted(PACK_MODES)}")
         elif reuse_packed and pack_mode == "per_repeat_repack":
             self._error("pack_mode must describe a prepacked reuse mode")
@@ -59,7 +61,7 @@ def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> Non
     if isinstance(metadata, dict):
         metadata_mode = metadata.get("pack_mode")
         if metadata_mode is not None:
-            if metadata_mode not in PACK_MODES:
+            if not text_choice(metadata_mode, PACK_MODES):
                 self._error(f"timing_metadata.pack_mode must be one of {sorted(PACK_MODES)}")
             elif reuse_packed and metadata_mode == "per_repeat_repack":
                 self._error("timing_metadata.pack_mode must describe a prepacked reuse mode")
@@ -68,23 +70,23 @@ def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> Non
             if pack_mode is not None and metadata_mode != pack_mode:
                 self._error("timing_metadata.pack_mode must match pack_mode")
         metadata_operands = metadata.get("prepack_reuse_operands")
-        if metadata_operands is not None and isinstance(pack_mode, str) and pack_mode in PACK_MODE_OPERANDS:
+        if metadata_operands is not None and isinstance(pack_mode, str) and text_choice(pack_mode, PACK_MODE_OPERANDS):
             if metadata_operands != PACK_MODE_OPERANDS[pack_mode]:
                 self._error("timing_metadata.prepack_reuse_operands must match pack_mode")
         metadata_strategy = metadata.get("prepack_reuse_strategy")
         if metadata_strategy is not None:
-            if metadata_strategy not in PREPACK_REUSE_STRATEGIES:
+            if not text_choice(metadata_strategy, PREPACK_REUSE_STRATEGIES):
                 self._error(
                     f"timing_metadata.prepack_reuse_strategy must be one of {sorted(PREPACK_REUSE_STRATEGIES)}"
                 )
 
     operands = self.data.get("prepack_reuse_operands")
-    if operands is not None and isinstance(pack_mode, str) and pack_mode in PACK_MODE_OPERANDS:
+    if operands is not None and isinstance(pack_mode, str) and text_choice(pack_mode, PACK_MODE_OPERANDS):
         if operands != PACK_MODE_OPERANDS[pack_mode]:
             self._error("prepack_reuse_operands must match pack_mode")
     strategy = self.data.get("prepack_reuse_strategy")
     if strategy is not None:
-        if strategy not in PREPACK_REUSE_STRATEGIES:
+        if not text_choice(strategy, PREPACK_REUSE_STRATEGIES):
             self._error(f"prepack_reuse_strategy must be one of {sorted(PREPACK_REUSE_STRATEGIES)}")
         metadata = self.data.get("timing_metadata")
         if isinstance(metadata, dict) and metadata.get("prepack_reuse_strategy") is not None:
@@ -177,7 +179,7 @@ def is_all_zero_direct_hip_adaptive_capture(self) -> bool:
     zero_count = schedule.get("zero_output_tile_count")
     return (
         self.data.get("backend_selected") == "hip-direct"
-        and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+        and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
         and schedule.get("adaptive_execution_applied") is True
         and _is_int(tile_count)
         and tile_count > 0

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 from timing_diagnostics import is_censored_gpu_event_capture, timing_failure_metadata_errors
 
@@ -451,7 +453,7 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             if not missing and not extra:
                 self._error("vector-ALU GPU event phase order must match the native int64 operation order")
         return
-    if backend not in {"ck", "rocwmma", "amdgpu-builtins"} or self._is_wrap64_rocwmma_candidate():
+    if not text_choice(backend, {"ck", "rocwmma", "amdgpu-builtins"}) or self._is_wrap64_rocwmma_candidate():
         return
     deep_labels = [phase for phase in phases if self._is_deep_accelerator_gpu_event_label(phase)]
     if scope == OLD_ACCELERATOR_GPU_EVENT_SCOPE:
@@ -480,9 +482,9 @@ def expected_status_event_labels(self) -> list[str]:
     semantics = self.data.get("semantics")
     if backend == "hip-vector-alu-int64":
         return ["vector_alu_status_memset", "vector_alu_status_d2h"]
-    if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+    if text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
         return ["exact_wide_export_status_memset", "exact_wide_export_status_d2h"]
-    if semantics in {"bounded_i64", "bounded_u64"}:
+    if text_choice(semantics, {"bounded_i64", "bounded_u64"}):
         return ["crt_export_status_memset", "crt_export_status_d2h"]
     return []
 
@@ -536,7 +538,7 @@ def validate_gpu_events(self) -> None:
     selected_backend = self.data.get("backend_selected")
     residue_current_chain = self._is_residue_current_chain_capture()
     if (
-        selected_backend in {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"}
+        text_choice(selected_backend, {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"})
         and enabled is not True
         and not is_censored_gpu_event_capture(self.data)
         and not residue_current_chain
@@ -567,16 +569,16 @@ def validate_gpu_events(self) -> None:
         self._error("timing_metadata.gpu_event_timing_source must be hipEventElapsedTime")
     if not isinstance(scope, str):
         self._error("timing_metadata.gpu_event_timing_source_scope must be a string when events are available")
-    elif selected_backend == "hip-direct" and scope not in DIRECT_HIP_GPU_EVENT_SCOPES:
+    elif selected_backend == "hip-direct" and not text_choice(scope, DIRECT_HIP_GPU_EVENT_SCOPES):
         expected = ", ".join(sorted(DIRECT_HIP_GPU_EVENT_SCOPES))
         self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known direct-HIP scope: {expected}")
-    elif selected_backend == "hipblaslt" and scope not in HIPBLASLT_GPU_EVENT_SCOPES:
+    elif selected_backend == "hipblaslt" and not text_choice(scope, HIPBLASLT_GPU_EVENT_SCOPES):
         expected = ", ".join(sorted(HIPBLASLT_GPU_EVENT_SCOPES))
         self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known hipBLASLt scope: {expected}")
-    elif selected_backend in {"ck", "rocwmma", "amdgpu-builtins"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
+    elif text_choice(selected_backend, {"ck", "rocwmma", "amdgpu-builtins"}) and not text_choice(scope, ACCELERATOR_GPU_EVENT_SCOPES):
         expected = ", ".join(sorted(ACCELERATOR_GPU_EVENT_SCOPES))
         self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known accelerator scope: {expected}")
-    elif selected_backend == "hip-vector-alu-int64" and scope not in VECTOR_ALU_GPU_EVENT_SCOPES:
+    elif selected_backend == "hip-vector-alu-int64" and not text_choice(scope, VECTOR_ALU_GPU_EVENT_SCOPES):
         expected = ", ".join(sorted(VECTOR_ALU_GPU_EVENT_SCOPES))
         self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known vector-ALU scope: {expected}")
     if not isinstance(timings, dict):

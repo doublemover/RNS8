@@ -40,6 +40,8 @@ def schema_version(data: dict[str, Any]) -> int:
 
 
 def validation_errors(data: dict[str, Any], path: str | Path = "<memory>") -> list[str]:
+    if not isinstance(data, dict):
+        return [f"{path}: benchmark JSON root must be an object"]
     validator = _Validator(data, str(path))
     validator.validate()
     return validator.errors
@@ -83,6 +85,8 @@ class _Validator(
             return
         self.version = version
         self._validate_v4()
+        if self.errors:
+            return
         graph = self.data.get("hip_graph_replay") or {}
         if isinstance(graph, dict) and graph.get("caller_transaction") is not None:
             for error in caller_transaction_blockers(self.data):

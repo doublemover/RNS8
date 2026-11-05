@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from .core_shared import _is_int
 from .semantic_bounded import validate_bounded_contract
 from .semantic_exact_wide import validate_exact_wide_contract
@@ -24,7 +26,7 @@ def validate_semantic_contract(self) -> None:
     status_check = self.data.get("exact_wide_export_status_check")
     prefix_policy = self.data.get("contract_prefix_policy")
     metadata = self.data.get("timing_metadata")
-    if bound_mode not in {"global", "per_tile"}:
+    if not text_choice(bound_mode, {"global", "per_tile"}):
         self._error("bound_mode must be global or per_tile")
     if residue_chain_final_export is not None and not isinstance(residue_chain_final_export, bool):
         self._error("residue_chain_final_export must be a boolean")
@@ -32,7 +34,7 @@ def validate_semantic_contract(self) -> None:
         residue_chain_independent_final_export, bool
     ):
         self._error("residue_chain_independent_final_export must be a boolean")
-    if status_check is not None and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
+    if status_check is not None and not text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
         self._error("exact_wide_export_status_check must be null outside exact-wide captures")
     rns_chain_semantics = {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
     if residue_chain_length > 1 and semantics not in rns_chain_semantics:
@@ -46,7 +48,7 @@ def validate_semantic_contract(self) -> None:
         if residue_chain_final_export is not expected_final_export:
             self._error("residue_chain_final_export must match residue_output_mode for chain captures")
     if residue_chain_independent_final_export is True:
-        if semantics not in {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}:
+        if not text_choice(semantics, {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}):
             self._error("independent final-output residue-chain captures require bounded or exact-wide RNS semantics")
         if residue_chain_length <= 1 or residue_output_mode != "host_export":
             self._error("independent final-output residue-chain captures must use host_export residue_chain_length > 1")
@@ -97,11 +99,11 @@ def validate_semantic_contract(self) -> None:
     }
     if semantics == "wrap_u64_mod_2_64":
         validate_wrap64_contract(self, ctx)
-    elif semantics in {"bounded_i64", "bounded_u64"}:
+    elif text_choice(semantics, {"bounded_i64", "bounded_u64"}):
         validate_bounded_contract(self, ctx)
-    elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+    elif text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
         validate_exact_wide_contract(self, ctx)
-    elif semantics in {"finite_ring_u8", "finite_field_u8"}:
+    elif text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
         validate_finite_u8_contract(self, ctx)
     elif isinstance(semantics, str):
         self._error(f"unsupported benchmark semantics {semantics}")
@@ -113,7 +115,7 @@ def validate_semantic_contract(self) -> None:
         expected_applicable = (
             prefix > 0
             and not self._is_public_oneshot_capture()
-            and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
+            and not (text_choice(semantics, {"bounded_i64", "bounded_u64"}) and bound_mode == "per_tile")
             and not self._is_direct_hip_vector_to_rns_chain_capture()
             and not self._is_host_api_batch_capture()
             and not self._is_grouped_dispatch_capture()

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 from ck_kernel_contract import ck_kernel_family, ck_selected_kernel
 
@@ -24,9 +26,9 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
             self._error("finite one-shot captures must use benchmark=rns8_finite_u8_public_oneshot")
         if self._benchmark_execution_mode() != "public_oneshot_transient_native_inputs":
             self._error("finite one-shot captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
-        if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct"}:
+        if not text_choice(self.data.get("backend_selected"), {"cpu-reference", "hip-direct"}):
             self._error("finite one-shot captures must select cpu-reference or hip-direct")
-        if self.data.get("backend_requested") not in {"cpu-reference", "cpu", "hip-direct"}:
+        if not text_choice(self.data.get("backend_requested"), {"cpu-reference", "cpu", "hip-direct"}):
             self._error("finite one-shot captures must request cpu or hip-direct")
         if self.data.get("reuse_packed_inputs") is True:
             self._error("finite one-shot captures must not use packed-input reuse")
@@ -34,14 +36,14 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
             self._error("finite one-shot captures must use pack_mode=per_repeat_repack")
         if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
             self._error("finite one-shot captures must use prepack_reuse_strategy=none")
-    if self.data.get("backend_selected") not in {
+    if not text_choice(self.data.get("backend_selected"), {
         "cpu-reference",
         "hip-direct",
         "hipblaslt",
         "ck",
         "rocwmma",
         "amdgpu-builtins",
-    }:
+    }):
         self._error(
             "finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, rocwmma, or amdgpu-builtins backend"
         )
@@ -145,7 +147,7 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
                     f"backend_metadata.workspace_mode={DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE}"
                 )
     if self.data.get("backend_selected") == "ck" and _is_int(modulus):
-        if modulus not in CK_FINITE_STATIC_MODULI:
+        if not _is_int(modulus) or modulus not in CK_FINITE_STATIC_MODULI:
             self._error(
                 f"CK finite-u8 modulus {modulus} captures are unsupported by the static CK reducer set"
             )
@@ -158,7 +160,7 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
                 f"CK finite-u8 modulus {modulus} captures must use selected_kernel={expected_kernel}"
             )
     if self.data.get("backend_selected") == "rocwmma" and _is_int(modulus):
-        if modulus not in ROCWMMA_FINITE_STATIC_MODULI:
+        if not _is_int(modulus) or modulus not in ROCWMMA_FINITE_STATIC_MODULI:
             self._error(
                 f"rocWMMA finite-u8 modulus {modulus} captures are unsupported by the static rocWMMA reducer set"
             )

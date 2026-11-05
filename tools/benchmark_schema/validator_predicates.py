@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from .core_shared import *
 
 class ValidatorPredicatesMixin:
@@ -20,7 +22,7 @@ class ValidatorPredicatesMixin:
     def _is_vector_alu_gemv_n1_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-vector-alu-int64"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("n") == 1
             and _is_int(self.data.get("k"))
             and self.data.get("k") >= 4096
@@ -29,7 +31,7 @@ class ValidatorPredicatesMixin:
     def _is_vector_alu_gemv_small_n_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-vector-alu-int64"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and _is_int(self.data.get("n"))
             and 1 < self.data.get("n") <= 8
             and _is_int(self.data.get("k"))
@@ -58,7 +60,7 @@ class ValidatorPredicatesMixin:
             return "hip_graph_replay_exact_wide_pack_gemm_export"
         if self.data.get("benchmark") == "rns8_hip_graph_replay_wrap64_pack_gemm_export":
             return "hip_graph_replay_wrap64_pack_gemm_export"
-        if self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
+        if text_choice(self.data.get("benchmark"), {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}):
             return "public_oneshot_transient_native_inputs"
         if self.data.get("backend_selected") == "hip-vector-alu-int64":
             if self._is_vector_alu_gemv_n1_capture():
@@ -76,7 +78,7 @@ class ValidatorPredicatesMixin:
         return (
             self._benchmark_execution_mode() == "public_oneshot_transient_native_inputs"
             or self.data.get("benchmark") == "rns8_bounded_gemm_public_oneshot"
-        ) and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+        ) and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
 
     def _is_direct_hip_bounded_native_input_oneshot_capture(self) -> bool:
         return (
@@ -104,7 +106,7 @@ class ValidatorPredicatesMixin:
         return (
             self._benchmark_execution_mode() == "public_oneshot_transient_native_inputs"
             or self.data.get("benchmark") == "rns8_finite_u8_public_oneshot"
-        ) and self.data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+        ) and text_choice(self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"})
 
     def _is_public_oneshot_capture(self) -> bool:
         return self._is_bounded_oneshot_capture() or self._is_finite_oneshot_capture()
@@ -112,11 +114,10 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_bounded_native_a_reuse_b_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("pack_mode") == "prepacked_reuse_b"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
-            and self._benchmark_execution_mode()
-            in {"transient_native_a_resident_b_reuse", "transient_uniform_small_i8_a_resident_i8_b_reuse"}
+            and text_choice(self._benchmark_execution_mode(), {"transient_native_a_resident_b_reuse", "transient_uniform_small_i8_a_resident_i8_b_reuse"})
         )
 
     def _is_direct_hip_bounded_native_a_reuse_b_uniform_small(self) -> bool:
@@ -129,7 +130,7 @@ class ValidatorPredicatesMixin:
 
     def _is_direct_hip_bounded_native_a_reuse_b_large_colpair(self) -> bool:
         return (
-            self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and not self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
             and _is_int(self.data.get("m"))
             and _is_int(self.data.get("n"))
@@ -142,7 +143,7 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_bounded_uniform_small_reuse_a_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("pack_mode") == "prepacked_reuse_a"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
             and self._benchmark_execution_mode() == "transient_uniform_small_i8_b_resident_i8_a_reuse"
@@ -152,7 +153,7 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_bounded_uniform_small_transient_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("pack_mode") == "per_repeat_repack"
             and self.data.get("prepack_reuse_strategy") == "none"
             and self._benchmark_execution_mode() == "transient_uniform_small_i8_ab_inputs"
@@ -162,32 +163,31 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_native_to_rns_bridge_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self._benchmark_execution_mode() == "auto_native_to_rns_bridge"
         )
 
     def _is_direct_hip_vector_to_rns_chain_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
-            and self._benchmark_execution_mode()
-            in {
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
+            and text_choice(self._benchmark_execution_mode(), {
                 "vector_native_to_direct_rns_chain",
                 "vector_native_host_export_repack_direct_rns_chain",
-            }
+            })
         )
 
     def _is_direct_hip_vector_to_rns_host_repack_control_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self._benchmark_execution_mode() == "vector_native_host_export_repack_direct_rns_chain"
         )
 
     def _is_direct_hip_bounded_residue_channel_fusion_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("benchmark") == "rns8_bounded_gemm_residue_channel_fusion_experiment"
             and self._benchmark_execution_mode() == "residue_channel_fusion_native_inputs"
             and self.data.get("pack_mode") == "per_repeat_repack"
@@ -201,13 +201,13 @@ class ValidatorPredicatesMixin:
         return self._benchmark_execution_mode() == "benchmark_grouped_dispatch_evidence"
 
     def _is_hip_graph_replay_capture(self) -> bool:
-        return self._benchmark_execution_mode() in {
+        return text_choice(self._benchmark_execution_mode(), {
             "hip_graph_replay_resident_rns_chain",
             "hip_graph_replay_bounded_pack_gemm_export",
             "hip_graph_replay_finite_u8_pack_gemm_export",
             "hip_graph_replay_exact_wide_pack_gemm_export",
             "hip_graph_replay_wrap64_pack_gemm_export",
-        }
+        })
 
     def _is_streaming_overlap_capture(self) -> bool:
         overlap = self.data.get("streaming_overlap")
@@ -222,8 +222,7 @@ class ValidatorPredicatesMixin:
             self._residue_chain_length() > 1
             and self._residue_output_mode() == "host_export"
             and self.data.get("residue_chain_final_export") is True
-            and self._benchmark_execution_mode()
-            in {"residue_chain_final_host_export", "residue_chain_independent_final_host_export"}
+            and text_choice(self._benchmark_execution_mode(), {"residue_chain_final_host_export", "residue_chain_independent_final_host_export"})
         )
 
     def _is_residue_chain_independent_final_export_capture(self) -> bool:
@@ -238,7 +237,7 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_bounded_native_b_reuse_a_large_colpair_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("pack_mode") == "prepacked_reuse_a"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
             and self._benchmark_execution_mode() == "transient_native_b_resident_a_reuse"
@@ -254,7 +253,7 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_bounded_skinny_gemv_n1_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("n") == 1
             and self.data.get("prefix") == self.data.get("selected_prefix") == 9
             and self.data.get("pack_mode") == "per_repeat_repack"
@@ -265,7 +264,7 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_bounded_skinny_gemv_small_n_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and _is_int(self.data.get("n"))
             and 1 < self.data.get("n") <= 8
             and self.data.get("prefix") == self.data.get("selected_prefix") == 9
@@ -277,7 +276,7 @@ class ValidatorPredicatesMixin:
     def _is_direct_hip_finite_native_a_reuse_b_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+            and text_choice(self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"})
             and self.data.get("pack_mode") == "prepacked_reuse_b"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
         )

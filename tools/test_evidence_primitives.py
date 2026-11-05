@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import unittest
 
-from evidence_scalars import demand, integer, positive
+from evidence_scalars import demand, finite_number, integer, positive, text_choice
 from json_evidence import parse_evidence_json, same_evidence_value
 from verification_contract import checksum
 
@@ -34,6 +34,17 @@ class EvidencePrimitives(unittest.TestCase):
         value = parse_evidence_json('{"integer":18446744073709551615,"zero":0,"null":null}')
         self.assertEqual(value["integer"], (1 << 64) - 1)
         self.assertFalse(same_evidence_value(value["zero"], value["null"]))
+
+    def test_finite_numbers_and_text_choices_reject_wrong_type_frontiers(self):
+        for value in (True, [], {}, None, "1", 1 << 16384, math.nan, math.inf):
+            self.assertFalse(finite_number(value))
+        for value in (0, -1, 0.5):
+            self.assertTrue(finite_number(value))
+        choices = {"supported", "unsupported"}
+        for value in ([], {}, None, True, 1, ["supported"]):
+            self.assertFalse(text_choice(value, choices))
+        self.assertTrue(text_choice("supported", choices))
+        self.assertFalse(text_choice("unknown", choices))
 
     def test_structural_comparison_keeps_type_null_and_missing_distinct(self):
         for left, right in ((True, 1), (1, 1.0), ({}, {"x": None}),

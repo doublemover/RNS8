@@ -60,9 +60,23 @@ for skinny K=65535/65536/65537 cases. Raw corpus files remain ignored; a sibling
 manifest records names, sizes and hashes without becoming a fuzzer input.
 The Python integer oracle and codec are independent cross-language controls.
 
+`python tools/fuzz_metadata.py --out temp/metadata-properties` plans a separate
+property session against the actual production benchmark capture validator.
+Add `--execute` to run its bounded child, `--cases`/`--seconds` to select limits,
+or repeat `--fixture PATH` to choose an explicit fixture inventory. Every
+selected fixture receives a positive control and a mutation share. Values are
+replaced throughout the JSON tree, including wrong types and oversized
+integers. The driver checks both diagnostic and throwing APIs, deterministic
+errors and absence of input mutation. Only documented parser/schema rejection
+is expected; unexpected exceptions retain exact reproducer bytes and fail.
+Limits on bytes, nesting, nodes, child time/output and owned artifacts bound
+the session. Source/interpreter/fixture hashes and compact case verdicts remain
+in ignored output. Reaching a case limit reports bounded completion, not full
+mutation coverage. No GPU or performance credit follows from this result.
+
 Implementation is in progress under #101. These new controls and harness have
 not run in the deferred validation batch. Production-library instrumentation
 inspection, bounded discovery/replay CI, structured failure reports/shrinking,
-stronger descriptor-state controls, production Python metadata fuzzing and
-explicit GPU/backend replay remain open. Neither source registration nor a
+broader descriptor-state controls and explicit GPU/backend replay remain open.
+Neither source registration nor a
 compiled harness establishes exercised library branches or GPU coverage.

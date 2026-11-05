@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 
 from .core_shared import *
@@ -18,7 +20,7 @@ def validate_wrap64_contract(self, ctx: dict[str, Any]) -> None:
     prefix_policy = ctx['prefix_policy']
     metadata = ctx['metadata']
     is_candidate = self._is_wrap64_rocwmma_candidate()
-    if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"} and not is_candidate:
+    if not text_choice(self.data.get("backend_selected"), {"wrap64-byte-limb", "hip-direct"}) and not is_candidate:
         self._error(
             "wrap64 captures must select wrap64-byte-limb, hip-direct, or rocWMMA candidate backend"
         )

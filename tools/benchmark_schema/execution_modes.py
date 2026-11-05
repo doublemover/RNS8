@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 import math
 from typing import Any
 
@@ -99,18 +101,18 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
         if strategy is not None and strategy == "not_requested":
             self._error("benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy")
         if batched_export is True:
-            if strategy in GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES:
-                if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
+            if text_choice(strategy, GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES):
+                if not text_choice(self.data.get("semantics"), {"exact_wide_signed", "exact_wide_unsigned"}):
                     self._error("grouped_dispatch exact-wide batched export is only valid for exact-wide semantics")
                 if self.data.get("exact_wide_export_status_check") != "elided_full_width_device_reconstruction":
                     self._error("grouped_dispatch exact-wide batched export requires structurally elided exact-wide status")
-            elif strategy in GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES:
-                if self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}:
+            elif text_choice(strategy, GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES):
+                if not text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"}):
                     self._error("grouped_dispatch bounded batched export is only valid for bounded semantics")
                 if self.data.get("exact_wide_export_status_check") is not None:
                     self._error("grouped_dispatch bounded batched export must not declare exact-wide status handling")
-            elif strategy in GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES:
-                if self.data.get("semantics") not in {"finite_ring_u8", "finite_field_u8"}:
+            elif text_choice(strategy, GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES):
+                if not text_choice(self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"}):
                     self._error("grouped_dispatch finite batched export is only valid for finite-u8 semantics")
                 if self.data.get("exact_wide_export_status_check") is not None:
                     self._error("grouped_dispatch finite batched export must not declare exact-wide status handling")
@@ -149,9 +151,9 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
         else:
             semantics = self.data.get("semantics")
             expected_output_domain = "native_i64_u64_host"
-            if semantics in {"finite_ring_u8", "finite_field_u8"}:
+            if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
                 expected_output_domain = "finite_u8_host"
-            elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            elif text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
                 expected_output_domain = "exact_wide_limb_host"
             descriptor_layout = task_descriptor.get("descriptor_layout")
             bucket_policy = task_descriptor.get("bucket_policy")
@@ -511,7 +513,7 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
         self._error("hip_graph_replay.total_graph_launches must equal warmups + repeats")
 
     if resident_chain_graph:
-        if self.data.get("semantics") not in {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}:
+        if not text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}):
             self._error("resident-chain hip_graph_replay captures must use bounded or exact-wide RNS semantics")
         if self.data.get("reuse_packed_inputs") is not True:
             self._error("resident-chain hip_graph_replay captures must use reuse_packed_inputs=true")
@@ -539,7 +541,7 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
         if not isinstance(caveat, str) or "resident Direct-HIP RNS GEMM launches only" not in caveat:
             self._error("resident-chain hip_graph_replay.caveat must describe graph replay scope")
     elif bounded_full_graph:
-        if self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}:
+        if not text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"}):
             self._error("bounded pack/GEMM/export hip_graph_replay captures must use bounded semantics")
         if self.data.get("reuse_packed_inputs") is not False:
             self._error("bounded pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
@@ -584,7 +586,7 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             },
         )
     elif finite_full_graph:
-        if self.data.get("semantics") not in {"finite_ring_u8", "finite_field_u8"}:
+        if not text_choice(self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"}):
             self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use finite-u8 semantics")
         if self.data.get("reuse_packed_inputs") is not False:
             self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
@@ -631,7 +633,7 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             },
         )
     elif exact_wide_full_graph:
-        if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
+        if not text_choice(self.data.get("semantics"), {"exact_wide_signed", "exact_wide_unsigned"}):
             self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use exact-wide semantics")
         if self.data.get("reuse_packed_inputs") is not False:
             self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
