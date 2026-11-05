@@ -70,6 +70,7 @@ def fixture(workload="integer_cross_product"):
         "compiler": "fixture compiler",
         "os": "fixture",
         "cpu_comparator_threads": 1,
+        "declared_memory_budget_bytes": 256 * 1024 * 1024,
         "build_manifest": {"source": "fixture"},
         "workload_source_identity": {"recipes.json": "a" * 64},
         "semantics": "finite_u8_field"
@@ -366,6 +367,57 @@ def five_gram_fixture(products=3, policy="once", hip=False, prefix=4):
         )
         report["variants"].append(row)
     return report
+
+
+class WorkloadExtentAdmission(unittest.TestCase):
+    def test_larger_and_long_k_gram_cases_are_admitted_without_allocating(self):
+        for n in (1, 15, 16, 17, 32, 33, 128, 512, 1024, 2048):
+            for k in (32, 256, 4096, 65535, 65536, 65537):
+                for reuse in (1, 2, 8, 32):
+                    report = dict(
+                        workload="integer_gram",
+                        size="large",
+                        m=n,
+                        n=n,
+                        k=k,
+                        gram_batch=dict(products_per_batch=reuse),
+                        declared_memory_budget_bytes=16384 * 1024 * 1024,
+                    )
+                    with self.subTest(n=n, k=k, reuse=reuse):
+                        if n * n * k * reuse <= 134217728:
+                            self.assertTrue(collector.validate_workload_extent(report))
+                        else:
+                            with self.assertRaises(ValueError):
+                                collector.validate_workload_extent(report)
+
+    def test_extent_scope_overflow_types_and_budget_are_rejected_before_recipe_work(self):
+        base = dict(
+            workload="integer_gram",
+            size="large",
+            m=32,
+            n=32,
+            k=65537,
+            gram_batch=dict(products_per_batch=1),
+            declared_memory_budget_bytes=16384 * 1024 * 1024,
+        )
+        for changes in (
+            dict(workload="integer_cross_product"),
+            dict(size="modest"),
+            dict(gram_batch={}),
+            dict(gram_batch=True),
+            dict(gram_batch=dict(products_per_batch=True)),
+            dict(m=True),
+            dict(m=0),
+            dict(m=2049),
+            dict(n=31),
+            dict(k=65538),
+            dict(k=1 << 63),
+            dict(declared_memory_budget_bytes=True),
+            dict(declared_memory_budget_bytes=0),
+            dict(declared_memory_budget_bytes=16384 * 1024 * 1024 + 1),
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                collector.validate_workload_extent({**base, **changes})
 
 
 class FiveProductGramReports(unittest.TestCase):

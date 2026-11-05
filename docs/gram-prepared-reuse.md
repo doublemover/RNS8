@@ -17,6 +17,30 @@ The default export policy for an explicit batch is `once`. Without
 `--gram-reuse`, the existing single-product workload keeps its existing scope.
 Both controls require `--gram`; other workload families reject them.
 
+Explicit `--size large --gram --gram-reuse R` batches admit output orders up to
+2048 and K up to65537, including65535/65536/65537 boundaries. Their declared
+memory budget may be up to16384MiB; the ordinary workload limit remains4096MiB.
+All batches retain the134,217,728 mathematical-product cap (`N*N*K*R`) and
+pre-allocation aggregate memory admission. The larger declaration pays for
+simultaneously retained controls and conservative host/reference allowances;
+it is not a request to allocate16GiB on the device or evidence of a measured peak.
+
+Useful bounded cohort points include the following. Each still needs its own
+memory admission and runtime qualification; this table is not an executed campaign.
+
+| Output order N | K | Feasible reuse counts under the work cap |
+|---:|---:|---|
+| 32 | 65535 /65536 /65537 | 1;2 also fits except at65537 |
+| 128 | 4096 | 1 /2 |
+| 512 | 32 /256 | 1 /2 /8 for K32;1 /2 for K256 |
+| 1024 | 32 | 1 /2 /4 |
+| 2048 | 32 | 1 |
+
+Awkward neighbors such as31/33,127/129 and511/513 use the same checked rules.
+Larger combinations reject before dataset allocation or independent reference
+work, rather than silently dropping controls. Source-only admission controls
+enumerate the campaign bounds without allocating these matrices.
+
 `--gram-five-product` adds the experimental compact prime-channel recipe to an
 explicit Gram batch. It compares prepared scalar subproducts and, on direct HIP,
 the actual compiled AMDGPU matrix provider against the same dense and triangular

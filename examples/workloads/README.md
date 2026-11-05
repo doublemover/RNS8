@@ -173,6 +173,11 @@ individual dimensions within1..512. Work above4million scalar products requires
 is also a real CPU cost. `--baseline-max-products` bounds whether the additional
 naive comparator is timed; omitted timing stays `not_run`, without extrapolation.
 All reports retain the strongest implemented correct blocked comparator.
+Explicit large Gram reuse batches additionally admit M=N through2048 and K
+through65537 under the same134,217,728 mathematical-product cap. Their declared
+aggregate memory envelope may be up to16384MiB. Ordinary workloads retain the
+512-dimension and4096MiB limits. See the [Gram cohort boundaries](../../docs/gram-prepared-reuse.md)
+for larger, long-K and experimental five-product comparisons.
 
 Before allocating data, a shared budget reserves1024bytes per modeled host
 input/intermediate/output cell for all simultaneously retained baselines and

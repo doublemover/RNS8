@@ -7,6 +7,27 @@
 using namespace rns8_workload;
 int main() {
   try {
+    // Admission only: exercise large-index/work bounds without allocating data.
+    for (uint32_t order : {1u, 15u, 16u, 17u, 32u, 33u, 128u, 512u, 1024u, 2048u})
+      for (uint32_t k : {32u, 256u, 4096u, 65535u, 65536u, 65537u})
+        for (uint32_t reuse : {1u, 2u, 8u, 32u}) {
+          Options candidate;
+          candidate.m = candidate.n = order;
+          candidate.k = k;
+          candidate.gram = true;
+          candidate.gram_reuse = reuse;
+          candidate.size = "large";
+          candidate.memory_mib = 16384;
+          bool admitted = true;
+          try {
+            validate_workload_extent(candidate);
+          } catch (const std::invalid_argument&) {
+            admitted = false;
+          }
+          require(admitted == (uint64_t(order) * order * k * reuse <= 134217728) &&
+                      candidate.memory->reserved == 0,
+                  "Gram extent admission changed the work bound or allocated storage");
+        }
     int64_t value = 0;
     require(!checked_product(INT64_MIN, -1, value), "min*-1 was not rejected");
     require(!checked_product(INT64_MAX, 2, value), "max*2 was not rejected");

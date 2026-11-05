@@ -84,6 +84,36 @@ def checksum_bytes(data: bytes) -> int:
     return result
 
 
+def validate_workload_extent(report):
+    batch = report.get("gram_batch")
+    large = (
+        report.get("workload") == "integer_gram" and report.get("size") == "large" and bool(batch)
+    )
+    limits = (2048, 2048, 65537) if large else (512, 512, 512)
+    demand(
+        all(
+            type(report.get(key)) is int and 1 <= report[key] <= limit
+            for key, limit in zip(("m", "n", "k"), limits)
+        ),
+        "recipe shape outside explicit cohort bounds",
+    )
+    budget = report.get("declared_memory_budget_bytes")
+    demand(
+        type(budget) is int and 1 <= budget <= (16384 if large else 4096) * 1024 * 1024,
+        "invalid explicit workload memory budget",
+    )
+    if large:
+        products = batch.get("products_per_batch") if type(batch) is dict else None
+        demand(
+            type(products) is int
+            and 1 <= products <= 256
+            and report["m"] == report["n"]
+            and report["m"] * report["n"] * report["k"] * products <= 134217728,
+            "extended Gram shape exceeds bounded reference work",
+        )
+    return large
+
+
 def dataset_identity(report: dict) -> dict:
     """Reconstruct recipe bytes, not merely hash a claimed checksum/seed."""
     recipe = report["dataset_recipe"]
@@ -117,10 +147,7 @@ def dataset_identity(report: dict) -> dict:
             "serialization": "ordered witness native inputs as little-endian signed64",
         }
     m, n, k = (report[key] for key in ("m", "n", "k"))
-    demand(
-        all(type(value) is int and 1 <= value <= 512 for value in (m, n, k)),
-        "recipe shape outside bounds",
-    )
+    validate_workload_extent(report)
     chain = report["workload"] == "resident_integer_chain"
     field = report["workload"] == "gf251_linear_transform"
     gram = report["workload"] == "integer_gram"

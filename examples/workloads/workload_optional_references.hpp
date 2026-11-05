@@ -54,9 +54,7 @@ inline Json optional_reference_identity() {
 }
 
 inline uint64_t optional_reference_memory(const Options& options, bool chain) {
-  require(options.m >= 1 && options.m <= 512 && options.n >= 1 && options.n <= 512 &&
-              options.k >= 1 && options.k <= 512,
-          "optional comparator shape exceeds1..512");
+  validate_workload_extent(options);
   const uint64_t cells =
       uint64_t(options.m) * options.k + uint64_t(options.k) * options.n +
       uint64_t(options.m) * options.n +
@@ -67,8 +65,6 @@ inline uint64_t optional_reference_memory(const Options& options, bool chain) {
   const uint64_t serialization = uint64_t(options.m) * options.n * 3 * 8;
   require(cells <= (UINT64_MAX - serialization - 4096) / 1024,
           "optional comparator memory estimate overflow");
-  require(options.memory && options.memory_mib >= 1 && options.memory_mib <= 4096,
-          "invalid optional comparator memory budget");
   const uint64_t bytes = 1024 * cells + serialization + 4096;
   options.memory->reserve(bytes, options.memory_mib * 1024 * 1024,
                           "optional exact comparator state and workspace allowance");
@@ -76,9 +72,7 @@ inline uint64_t optional_reference_memory(const Options& options, bool chain) {
 }
 inline bool optional_reference_shape(const Dataset& data, const Options& options, bool chain,
                                      uint32_t limbs) {
-  require(options.m >= 1 && options.m <= 512 && options.n >= 1 && options.n <= 512 &&
-              options.k >= 1 && options.k <= 512,
-          "optional comparator shape exceeds1..512");
+  validate_workload_extent(options);
   require(limbs == 1 || limbs == 3,
           "optional comparator supports explicit one/three-limb signed outputs");
   require(data.a.size() == size_t(options.m) * options.k &&

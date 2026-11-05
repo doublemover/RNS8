@@ -126,6 +126,24 @@ struct Options {
   std::set<std::string> supplied;
   std::shared_ptr<MemoryBudget> memory = std::make_shared<MemoryBudget>();
 };
+inline void validate_workload_extent(const Options& options) {
+  require((!options.gram || options.m == options.n) &&
+              (!options.gram_five_product || options.gram_reuse),
+          "Gram controls require one square-output source and an explicit experimental batch");
+  const bool large_gram = options.gram && options.gram_reuse && options.size == "large";
+  require(
+      options.m >= 1 && options.m <= (large_gram ? 2048u : 512u) && options.n >= 1 &&
+          options.n <= (large_gram ? 2048u : 512u) && options.k >= 1 &&
+          options.k <= (large_gram ? 65537u : 512u),
+      "extended shapes require --size large --gram --gram-reuse; Gram maxima are M=N2048,K65537");
+  require(options.memory && options.memory_mib >= 1 &&
+              options.memory_mib <= (large_gram ? 16384u : 4096u),
+          "memory budget exceeds the explicit workload cohort limit");
+  require(!options.gram_reuse ||
+              (options.gram && options.m == options.n && options.gram_reuse <= 256 &&
+               uint64_t(options.m) * options.n * options.k * options.gram_reuse <= 134217728),
+          "Gram batch requires square output and at most134217728 mathematical products");
+}
 inline Options options(int argc, char** argv) {
   Options out;
   bool device_set = false;
@@ -138,6 +156,7 @@ inline Options options(int argc, char** argv) {
              "--backend hip-direct|cpu-reference|hip-vector-alu-int64|hipblaslt|ck|rocwmma|amdgpu-builtins\n"
              "--device 0..63 (CPU uses -1) --reference-only --json --run-id ID\n"
              "--size tiny|modest|large --m M --n N --k K (1..512) --bits 1..63\n"
+             "explicit large Gram batches allow M=N<=2048,K<=65537 and --memory-mib<=16384\n"
              "--seed U64 --pattern seeded|zero|sparse --repeats 1..100 --warmups 0..20\n"
              "--gram-reuse 1..256 --gram-export each|once (explicit --gram batch only; default once)\n"
              "--gram-five-product (explicit experimental scalar/matrix comparison; requires --gram-reuse)\n"
@@ -178,11 +197,11 @@ inline Options options(int argc, char** argv) {
       require(value == "tiny" || value == "modest" || value == "large", "invalid --size");
       out.size = value;
     } else if (key == "--m")
-      out.m = static_cast<uint32_t>(number(value, 1, 512, "m"));
+      out.m = static_cast<uint32_t>(number(value, 1, 2048, "m"));
     else if (key == "--n")
-      out.n = static_cast<uint32_t>(number(value, 1, 512, "n"));
+      out.n = static_cast<uint32_t>(number(value, 1, 2048, "n"));
     else if (key == "--k")
-      out.k = static_cast<uint32_t>(number(value, 1, 512, "k"));
+      out.k = static_cast<uint32_t>(number(value, 1, 65537, "k"));
     else if (key == "--bits")
       out.bits = static_cast<uint32_t>(number(value, 1, 63, "bits"));
     else if (key == "--gram-reuse")
@@ -199,7 +218,7 @@ inline Options options(int argc, char** argv) {
     else if (key == "--sustained-ms")
       out.sustained_ms = static_cast<uint32_t>(number(value, 0, 10000, "sustained-ms"));
     else if (key == "--memory-mib")
-      out.memory_mib = number(value, 1, 4096, "memory-mib");
+      out.memory_mib = number(value, 1, 16384, "memory-mib");
     else if (key == "--baseline-max-products")
       out.baseline_max_products = number(value, 1, 134217728, "baseline-max-products");
     else if (key == "--pattern") {
@@ -239,9 +258,7 @@ inline Options options(int argc, char** argv) {
   require(!out.gram_five_product || out.gram_reuse, "--gram-five-product requires --gram-reuse");
   require(!out.supplied.count("--gram-export") || out.gram_reuse,
           "--gram-export requires --gram-reuse");
-  if (out.gram_reuse)
-    require(uint64_t(out.m) * out.n * out.k * out.gram_reuse <= 134217728,
-            "Gram batch exceeds134217728 mathematical products; reduce shape/reuse");
+  validate_workload_extent(out);
   return out;
 }
 inline Json gram_batch_contract(const Options& options) {
@@ -388,6 +405,7 @@ inline cpp_int maximum(const std::vector<int64_t>& values) {
   return cpp_int(max);
 }
 inline void memory_admission(const Options& options, bool chain = false) {
+  validate_workload_extent(options);
   const uint64_t cells =
       uint64_t(options.m) * options.k + uint64_t(options.k) * options.n +
       uint64_t(options.m) * options.n +
