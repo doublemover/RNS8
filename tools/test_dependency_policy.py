@@ -22,7 +22,7 @@ class Policy(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for filename in ("vcpkg.json", ".python-version", "scripts/requirements-build-tools.txt", ".github/workflows/ci.yml", ".github/workflows/perf-regression.yml", "metadata/dependencies.json", "metadata/quality-tools.json", "scripts/requirements-quality-tools.txt", "scripts/requirements-type-tools.txt"):
+        for filename in ("vcpkg.json", ".python-version", "scripts/requirements-build-tools.txt", ".github/workflows/ci.yml", ".github/workflows/perf-regression.yml", "metadata/dependencies.json", "metadata/quality-tools.json", "scripts/requirements-quality-tools.txt", "scripts/requirements-type-tools.txt", "scripts/requirements-analysis-tools.txt"):
             target = self.root / filename; target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / filename, target)
 

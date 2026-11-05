@@ -658,6 +658,38 @@
       "last_tested": null,
       "owner": "shared_dependency_policy_issue_60",
       "artifact_lock": "metadata/quality-tools.json"
+    },
+    {
+      "name": "clang-tidy",
+      "role": "ci",
+      "latest_stable": {
+        "version": "23.1.4",
+        "source": "https://pypi.org/project/clang-tidy/23.1.4/"
+      },
+      "selected": {
+        "version": "23.1.4",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "Apache 2.0",
+      "last_tested": null,
+      "owner": "shared_dependency_policy_issue_60",
+      "artifact_lock": "metadata/quality-tools.json"
+    },
+    {
+      "name": "ruamel.yaml",
+      "role": "ci",
+      "latest_stable": {
+        "version": "0.19.1",
+        "source": "https://pypi.org/project/ruamel.yaml/0.19.1/"
+      },
+      "selected": {
+        "version": "0.19.1",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "owner": "shared_dependency_policy_issue_60",
+      "artifact_lock": "metadata/quality-tools.json"
     }
   ],
   "vcpkg": {
@@ -2090,7 +2122,7 @@
   },
   "quality_tools": {
     "lock": "metadata/quality-tools.json",
-    "sha256": "de843b99cff29012d289a7ba2d587503bbba797132884bb9d029f7906f83d1bd",
+    "sha256": "c0f3bcd5dda2820738c8f42f6e7b034370a95ab80458d8a895310d0eb38398a6",
     "qualification": "source_and_artifact_inventory_pending_tool_validation"
   }
 }

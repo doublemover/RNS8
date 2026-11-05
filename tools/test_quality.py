@@ -135,6 +135,7 @@ class Quality(unittest.TestCase):
                 "metadata/quality-tools.json",
                 "scripts/requirements-quality-tools.txt",
                 "scripts/requirements-type-tools.txt",
+                "scripts/requirements-analysis-tools.txt",
             ):
                 destination = root / name
                 destination.parent.mkdir(parents=True, exist_ok=True)

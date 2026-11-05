@@ -47,6 +47,11 @@ The same lock includes mypy 2.4.1 and its exact six-package CPython 3.15 wheel
 closure. The five explicitly migrated evidence-boundary modules pass the narrow
 Windows source type-check; checker controls and cross-platform gate validation
 remain pending. This does not qualify the rest of the Python tree.
+Optional analysis also locks clang-tidy 23.1.4 and ruamel.yaml 0.19.1, using
+the safe pure-Python YAML decoder without native parser extras. Their registry
+artifacts are recorded; analyzer and decoder execution remain pending. The
+diagnostic adapter follows the pinned LLVM producer's native fields and
+retains proposed replacements without applying them.
 Use the explicit developer initializer described in
 [CONTRIBUTING](../CONTRIBUTING.md#source-quality); normal quality checks never
 download or install tools.
