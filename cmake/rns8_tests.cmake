@@ -1088,6 +1088,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_public_abi.cpp
     tests/unit/test_device_identity.cpp
     tests/unit/test_trace_ranges.cpp
+    tests/unit/test_json_output.cpp
     tests/unit/test_cli_integer.cpp
     tests/unit/test_matrix_target.cpp
     tests/unit/test_generated_address.cpp

@@ -28,6 +28,11 @@ def main() -> None:
     for option in ('--m', '--output-ld-padding'):
         for value in ('', '1junk', '9223372036854775808', '-9223372036854775809'):
             run(args.benchmark, ['--backend', 'hip-direct', option, value, '--help'], 2)
+    run(args.benchmark, ['--json-output'], 2)
+    run(args.benchmark, ['--json-output', '--help'], 2)
+    run(args.benchmark, ['--json-output', '', '--help'], 2)
+    run(args.benchmark, ['--json-output', 'temp/native-json-output.json', '--help'], 0)
+    run(args.benchmark, ['--json-output', 'first.json', '--json-output', 'second.json', '--help'], 2)
 
 
 if __name__ == '__main__':

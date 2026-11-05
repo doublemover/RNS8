@@ -84,6 +84,7 @@ struct Args {
   uint32_t sustained_batches = 0, sustained_min_calls = 16, sustained_max_calls = 4096, sustained_min_ms = 250;
   std::string cpu_reference_mode = "timed-baseline";
   std::string reference_cache_directory;
+  std::string json_output;
   bool populate_reference_cache = false;
   bool verify_native_output = false;
   uint64_t seed = 1;

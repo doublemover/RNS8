@@ -137,7 +137,8 @@ def code_object_digest(
 
 
 def _profile_pair(
-    production: dict, profiled: dict, declared_environment: JsonValue
+    production: dict, profiled: dict, declared_environment: JsonValue, *,
+    native_output: Path | None = None,
 ) -> None:
     if not isinstance(declared_environment, dict) or any(
         key not in PROFILER_ENVIRONMENT for key in declared_environment
@@ -153,6 +154,17 @@ def _profile_pair(
         if error:
             raise ValueError(error)
         identities.append(common_identity(capture))
+    arguments = identities[1]["execution_request"]["arguments"]
+    if native_output is not None:
+        if arguments.count("--json-output") != 1 or "--json-output" in identities[0]["execution_request"]["arguments"]:
+            raise ValueError("one declared native JSON output is required for this profiler relation")
+        position = arguments.index("--json-output")
+        if (position+1 >= len(arguments) or not Path(arguments[position+1]).is_absolute()
+                or Path(arguments[position+1]).resolve(strict=True) != native_output):
+            raise ValueError("profiled JSON output path differs from the retained raw native artifact")
+        del arguments[position:position+2]
+    elif "--json-output" in arguments:
+        raise ValueError("profiled file output has no retained raw native artifact")
     if production.get("external_instrumentation") is not None:
         raise ValueError("production capture is already externally instrumented")
     marker = profiled.get("external_instrumentation")
@@ -213,7 +225,17 @@ def validate_dispatch_receipt(
     base = receipt_path.parent
     _, profiled = store.json(receipt.get("profiled_capture"), base)
     validate_capture(profiled)
-    _profile_pair(capture, profiled, receipt.get("profiler_environment"))
+    native_output = None
+    if receipt.get("native_benchmark_output") is not None:
+        native_output, native_capture = store.json(receipt["native_benchmark_output"], base)
+        validate_capture(native_capture)
+        added = {"request_identity", "artifact_capture", "execution_id", "external_instrumentation"}
+        if (set(native_capture).intersection(added)
+                or set(profiled) != set(native_capture) | added
+                or not same_evidence_value(native_capture,
+                    {key: value for key, value in profiled.items() if key not in added})):
+            raise ValueError("bound profiler capture differs from its untouched native output")
+    _profile_pair(capture, profiled, receipt.get("profiler_environment"), native_output=native_output)
     process_id = _integer(profiled.get("process_id"))
     if process_id == 0:
         raise ValueError("profiled benchmark must emit its actual OS process ID")

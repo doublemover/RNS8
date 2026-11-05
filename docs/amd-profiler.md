@@ -66,6 +66,19 @@ native output digest, selected static ISA, profiler executable/version receipt
 and original acquisition argv. rocpd selected agent/queue/dispatch IDs refer to
 its database namespace, not the JSON handle namespace.
 
+For automated collection, rns8-bench accepts --json-output NEW_FILE. It
+exclusively reserves the destination after argument validation and before
+work, writes native JSON after all measurement intervals, and preserves
+stdout/stderr for tool logs. Existing files are never overwritten. Failures
+retain an empty/partial native artifact for diagnosis.
+
+A profiled file-output relation additionally retains native_benchmark_output
+as an immutable raw-file reference. Validation requires the separately bound
+profiled capture to equal that raw output apart from the four declared
+collector attachments, and requires its absolute --json-output argument to
+name that exact artifact. File-output plumbing is an explicit observation
+difference; arbitrary argument changes still fail the common work contract.
+
     python tools/gpu_counter_report.py temp/production.json --dispatch-receipt temp/dispatch-receipt.json --out-dir temp/counter-review
 
 For multiple captures use per-capture dispatch_receipts entries in the existing

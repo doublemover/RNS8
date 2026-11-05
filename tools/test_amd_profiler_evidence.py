@@ -12,9 +12,43 @@ from target_qualification import EvidenceStore
 from test_target_qualification_support import QualificationFixture, reference, write
 from timing_eligibility import phase_blockers
 from diagnostic_companion import production_evidence
+from compiled_binary_identity import canonical_digest
 
 
 class NativeProfilerEvidence(unittest.TestCase):
+    def test_native_file_output_is_an_explicit_raw_bound_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            native = copy.deepcopy(fixture.profiled)
+            for key in ("execution_id", "request_identity", "artifact_capture", "external_instrumentation"):
+                native.pop(key)
+            native_path = write(fixture.root / "native-benchmark.json", native)
+            profiled = copy.deepcopy(fixture.profiled)
+            request = profiled["request_identity"]
+            request["arguments"].extend(["--json-output", str(native_path)])
+            request["identity_sha256"] = canonical_digest(
+                {key: value for key, value in request.items() if key != "identity_sha256"})
+            write(fixture.profiled_path, profiled)
+            receipt = copy.deepcopy(fixture.dispatch)
+            receipt["profiled_capture"] = reference(fixture.profiled_path)
+            receipt["native_benchmark_output"] = reference(native_path)
+            receipt["acquisition_command"].extend(["--json-output", str(native_path)])
+            write(fixture.dispatch_path, receipt)
+            store = EvidenceStore()
+            result = validate_dispatch_receipt(reference(fixture.dispatch_path),
+                capture=fixture.capture, store=store, parent=fixture.root)
+            store.finish()
+            self.assertTrue(result["qualified_selected_dispatches"])
+            # Rehashing a substituted native file cannot change the bound
+            # capture's math or runtime observations.
+            native["seed"] += 1
+            write(native_path, native)
+            receipt["native_benchmark_output"] = reference(native_path)
+            write(fixture.dispatch_path, receipt)
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(reference(fixture.dispatch_path),
+                    capture=fixture.capture, store=EvidenceStore(), parent=fixture.root)
+
     def test_requested_or_active_ranges_cannot_enter_production_latency(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = QualificationFixture(Path(directory))

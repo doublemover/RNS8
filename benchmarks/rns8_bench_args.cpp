@@ -262,6 +262,11 @@ Args parse_args(int argc, char** argv) {
     } else if (arg == "--reference-cache-dir" && i + 1 < argc) {
       args.reference_cache_directory = argv[++i];
       if (args.reference_cache_directory.empty()) usage_error("reference cache directory must not be empty");
+    } else if (arg == "--json-output" && i + 1 < argc) {
+      if (!args.json_output.empty()) usage_error("--json-output may be supplied once");
+      args.json_output = argv[++i];
+      if (args.json_output.empty() || args.json_output.rfind("--", 0) == 0)
+        usage_error("--json-output needs a nonempty file path");
     } else if (arg == "--populate-reference-cache") {
       args.populate_reference_cache = true;
     } else if (arg == "--verify-native-output") {
@@ -479,6 +484,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--cpu-small-shape-selector NAME]\n"
           << "                  [--incremental-result-cache NAME]\n"
           << "                  [--verify-native-output] [--reference-cache-dir PATH] [--populate-reference-cache]\n"
+          << "                  [--json-output NEW_FILE] (JSON only; logs remain on stdout/stderr)\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"
