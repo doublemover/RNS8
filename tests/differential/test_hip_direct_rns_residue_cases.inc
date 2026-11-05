@@ -10,22 +10,21 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     const int64_t rows = 3;
     const int64_t cols = 4;
     const int64_t ld = 5;
-    const std::vector<int64_t> src = {
-        0,
-        1,
-        -1,
-        127,
-        999,
-        128,
-        -128,
-        -129,
-        std::numeric_limits<int64_t>::max(),
-        999,
-        -std::numeric_limits<int64_t>::max(),
-        std::numeric_limits<int64_t>::min(),
-        251,
-        -251,
-        999};
+    const std::vector<int64_t> src = {0,
+                                      1,
+                                      -1,
+                                      127,
+                                      999,
+                                      128,
+                                      -128,
+                                      -129,
+                                      std::numeric_limits<int64_t>::max(),
+                                      999,
+                                      -std::numeric_limits<int64_t>::max(),
+                                      std::numeric_limits<int64_t>::min(),
+                                      251,
+                                      -251,
+                                      999};
     auto desc = matrix_desc(rows, cols, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
     rns8_matrix* cpu_matrix = nullptr;
     rns8_matrix* hip_matrix = nullptr;
@@ -39,9 +38,7 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK(hip_matrix->device_residues_current);
     CHECK_FALSE(hip_matrix->host_residues_current);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 11);
@@ -56,18 +53,14 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK_FALSE(has_timing_label(same_source_events, "pack_h2d"));
     CHECK_FALSE(has_timing_label(same_source_events, "pack_kernel"));
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == original_residues);
 
     CHECK(rns8_pack_i64(cpu, cpu_matrix, changed_src.data(), ld, 12) == RNS8_SUCCESS);
     CHECK(rns8_pack_i64(hip, hip_matrix, changed_src.data(), ld, 12) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 12);
@@ -79,19 +72,18 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     const int64_t rows = 2;
     const int64_t cols = 5;
     const int64_t ld = 6;
-    const std::vector<uint64_t> src = {
-        0,
-        1,
-        127,
-        128,
-        255,
-        999,
-        256,
-        257,
-        std::numeric_limits<uint64_t>::max(),
-        std::numeric_limits<uint64_t>::max() - 1,
-        251,
-        999};
+    const std::vector<uint64_t> src = {0,
+                                       1,
+                                       127,
+                                       128,
+                                       255,
+                                       999,
+                                       256,
+                                       257,
+                                       std::numeric_limits<uint64_t>::max(),
+                                       std::numeric_limits<uint64_t>::max() - 1,
+                                       251,
+                                       999};
     auto desc = matrix_desc(rows, cols, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     rns8_matrix* cpu_matrix = nullptr;
     rns8_matrix* hip_matrix = nullptr;
@@ -105,9 +97,7 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK(hip_matrix->device_residues_current);
     CHECK_FALSE(hip_matrix->host_residues_current);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 19);
@@ -122,18 +112,14 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK_FALSE(has_timing_label(same_source_events, "pack_h2d"));
     CHECK_FALSE(has_timing_label(same_source_events, "pack_kernel"));
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == original_residues);
 
     CHECK(rns8_pack_u64(cpu, cpu_matrix, changed_src.data(), ld, 20) == RNS8_SUCCESS);
     CHECK(rns8_pack_u64(hip, hip_matrix, changed_src.data(), ld, 20) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 20);
@@ -145,15 +131,14 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     const int64_t rows = 2;
     const int64_t cols = 3;
     const int64_t ld = 4;
-    const std::vector<int64_t> src = {
-        std::numeric_limits<int64_t>::min(),
-        -9223372036854775807LL,
-        -257,
-        999,
-        -1,
-        0,
-        std::numeric_limits<int64_t>::max(),
-        999};
+    const std::vector<int64_t> src = {std::numeric_limits<int64_t>::min(),
+                                      -9223372036854775807LL,
+                                      -257,
+                                      999,
+                                      -1,
+                                      0,
+                                      std::numeric_limits<int64_t>::max(),
+                                      999};
     auto desc = matrix_desc(rows, cols, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
     rns8_matrix* cpu_matrix = nullptr;
     rns8_matrix* hip_matrix = nullptr;
@@ -163,9 +148,7 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK(rns8_pack_i64(cpu, cpu_matrix, src.data(), ld, 23) == RNS8_SUCCESS);
     CHECK(rns8_pack_i64(hip, hip_matrix, src.data(), ld, 23) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 23);
@@ -177,15 +160,14 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     const int64_t rows = 2;
     const int64_t cols = 3;
     const int64_t ld = 4;
-    const std::vector<uint64_t> src = {
-        0,
-        1,
-        257,
-        999,
-        std::numeric_limits<uint64_t>::max() - 1,
-        std::numeric_limits<uint64_t>::max(),
-        1234567890123456789ull,
-        999};
+    const std::vector<uint64_t> src = {0,
+                                       1,
+                                       257,
+                                       999,
+                                       std::numeric_limits<uint64_t>::max() - 1,
+                                       std::numeric_limits<uint64_t>::max(),
+                                       1234567890123456789ull,
+                                       999};
     auto desc = matrix_desc(rows, cols, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
     rns8_matrix* cpu_matrix = nullptr;
     rns8_matrix* hip_matrix = nullptr;
@@ -195,9 +177,7 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK(rns8_pack_u64(cpu, cpu_matrix, src.data(), ld, 29) == RNS8_SUCCESS);
     CHECK(rns8_pack_u64(hip, hip_matrix, src.data(), ld, 29) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
-              hip_matrix->hip_device_id,
-              hip_matrix_audit.data(),
-              hip_matrix->hip_residues,
+              hip_matrix->hip_device_id, hip_matrix_audit.data(), hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 29);
@@ -243,7 +223,8 @@ TEST_CASE("direct HIP persistent RNS matrices keep device storage through GEMM")
   REQUIRE(rns8_get_plan_packing_info(plan, &packing) == RNS8_SUCCESS);
   CHECK((packing.flags & RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS) != 0);
   CHECK((packing.flags & RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION) != 0);
-  CHECK(std::string(packing.detail).find("same nonzero source-version imports") != std::string::npos);
+  CHECK(std::string(packing.detail).find("same nonzero source-version imports") !=
+        std::string::npos);
   auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
   auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
   auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
@@ -345,7 +326,8 @@ TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RN
 
     auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
     auto auto_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_DIRECT);
-    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) ==
+            RNS8_SUCCESS);
 
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;
@@ -372,7 +354,8 @@ TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RN
     rns8::test::set_device_residues_current(*b_matrix, false);
     const uint64_t a_source_version = a_matrix->source_version;
     a_matrix->source_version = 0;
-    CHECK(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK_FALSE(a_matrix->device_residues_current);
     CHECK_FALSE(c_matrix->device_residues_current);
     a_matrix->source_version = a_source_version;
@@ -403,7 +386,8 @@ TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RN
 
     auto cpu_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_CPU_REFERENCE);
     auto auto_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_HIP_DIRECT);
-    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) ==
+            RNS8_SUCCESS);
 
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;
@@ -448,9 +432,10 @@ TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RN
   rns8_destroy_context(cpu);
 }
 
-
-TEST_CASE("public selected fixed-prefix and generic signed pack controls agree for every prefix and padding") {
-  if (!hip_available()) SKIP("no HIP device for signed pack selector controls");
+TEST_CASE(
+    "public selected fixed-prefix and generic signed pack controls agree for every prefix and padding") {
+  if (!hip_available())
+    SKIP("no HIP device for signed pack selector controls");
   using namespace rns8::detail;
   for (int64_t cols : {1, 127, 128, 129, 2048, 2049}) {
     constexpr int64_t rows = 2;
@@ -464,7 +449,8 @@ TEST_CASE("public selected fixed-prefix and generic signed pack controls agree f
         }
       hip_direct_device_buffer input;
       REQUIRE(input.allocate(0, source.size() * sizeof(int64_t)) == RNS8_SUCCESS);
-      REQUIRE(hip_direct_copy_host_to_device(0, input.get(), source.data(), source.size() * sizeof(int64_t)) == RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0, input.get(), source.data(),
+                                             source.size() * sizeof(int64_t)) == RNS8_SUCCESS);
       for (uint32_t prefix = 1; prefix <= RNS8_MAX_SUPPORTED_PREFIX; ++prefix) {
         const size_t cells = rows * cols, bytes = cells * prefix + 64;
         std::vector<int8_t> expected(bytes, 99), observed(bytes), poison(bytes, 99);
@@ -475,10 +461,14 @@ TEST_CASE("public selected fixed-prefix and generic signed pack controls agree f
                   boost::multiprecision::cpp_int(source[row * ld + col]), kDefaultModuli[p]);
         hip_direct_device_buffer output;
         REQUIRE(output.allocate(0, bytes) == RNS8_SUCCESS);
-        for (auto variant : {SignedPackVariant::public_selected, SignedPackVariant::fixed_prefix, SignedPackVariant::generic}) {
-          REQUIRE(hip_direct_copy_host_to_device(0, output.get(), poison.data(), bytes) == RNS8_SUCCESS);
-          REQUIRE(hip_direct_pack_i64_variant_device(0, input.get(), output.get(), rows, cols, ld, prefix, variant) == RNS8_SUCCESS);
-          REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), output.get(), bytes) == RNS8_SUCCESS);
+        for (auto variant : {SignedPackVariant::public_selected, SignedPackVariant::fixed_prefix,
+                             SignedPackVariant::generic}) {
+          REQUIRE(hip_direct_copy_host_to_device(0, output.get(), poison.data(), bytes) ==
+                  RNS8_SUCCESS);
+          REQUIRE(hip_direct_pack_i64_variant_device(0, input.get(), output.get(), rows, cols, ld,
+                                                     prefix, variant) == RNS8_SUCCESS);
+          REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), output.get(), bytes) ==
+                  RNS8_SUCCESS);
           CHECK(observed == expected);
         }
         REQUIRE(output.reset() == RNS8_SUCCESS);

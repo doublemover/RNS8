@@ -30,7 +30,9 @@ FIXTURE_DIR = ROOT / "tests" / "fixtures" / "benchmark_schema"
 
 
 def starfoundry_capture() -> dict:
-    capture = add_helper_lane_fields(copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_hipblaslt.json")))
+    capture = add_helper_lane_fields(
+        copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_hipblaslt.json"))
+    )
     capture.setdefault("target_id", "gfx1100")
     capture.setdefault("selected_prefix", capture["prefix"])
     capture.setdefault("requested_max_prefix", capture["prefix"])
@@ -192,7 +194,8 @@ def starfoundry_capture() -> dict:
         * capture["schedule_metadata"]["max_selected_prefix"],
         "aggregate_launch_count_model": 1,
         "launch_reduction_ratio": float(
-            capture["schedule_metadata"]["tile_count"] * capture["schedule_metadata"]["max_selected_prefix"]
+            capture["schedule_metadata"]["tile_count"]
+            * capture["schedule_metadata"]["max_selected_prefix"]
         ),
         "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat",
         "selected_prefix_histogram": "min=9;max=9",
@@ -218,14 +221,19 @@ def starfoundry_capture() -> dict:
         "suballocation_count": 5,
         "measured_repeat_allocation_free": True,
         "setup_allocation_delta": {"allocate_calls": 1, "free_calls": 0, "allocated_bytes": 4096},
-        "measured_repeat_allocation_delta": {"allocate_calls": 0, "free_calls": 0, "allocated_bytes": 0},
+        "measured_repeat_allocation_delta": {
+            "allocate_calls": 0,
+            "free_calls": 0,
+            "allocated_bytes": 0,
+        },
         "source_version_policy": "plan_target_backend_semantic_shape_prefix_output_policy",
         "stream_safety": "single_stream_owner",
         "promotion_eligible": False,
     }
     for counters in ("setup_allocation_delta", "measured_repeat_allocation_delta"):
         capture["workspace_arena"][counters].update(
-            h2d_calls=0, h2d_bytes=0, d2h_calls=0, d2h_bytes=0, d2d_calls=0, d2d_bytes=0)
+            h2d_calls=0, h2d_bytes=0, d2h_calls=0, d2h_bytes=0, d2d_calls=0, d2d_bytes=0
+        )
     capture["streaming_overlap"] = {
         "requested": True,
         "pipeline": "pack_next_gemm_current_export_previous",
@@ -323,7 +331,12 @@ def main() -> int:
         capture_path.write_text(json.dumps(capture), encoding="utf-8")
         cache_path = tmp / "cache.json"
         cache_path.write_text(
-            json.dumps({"schema_version": 1, "entries": [{"key": capture["backend_metadata"]["autotune_key"]}]}),
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "entries": [{"key": capture["backend_metadata"]["autotune_key"]}],
+                }
+            ),
             encoding="utf-8",
         )
         assert reuse_contract_report.build_report([capture_path])["capture_count"] == 1
@@ -381,21 +394,39 @@ def main() -> int:
         assert shadow_ledger["shape_family_shadow_summary"]["recommendation_count"] == 1
         assert shadow_ledger["shape_family_shadow_summary"]["non_exact_recommendation_count"] == 1
         assert shadow_ledger["shape_family_shadow_summary"]["blocked_recommendation_count"] == 1
-        assert shadow_ledger["shape_family_shadow_summary"]["boundary_rejected_recommendation_count"] == 1
-        assert shadow_entry["shape_family_recommendation_status"] == "exact_cache_entry_shadow_basis_non_routing"
+        assert (
+            shadow_ledger["shape_family_shadow_summary"]["boundary_rejected_recommendation_count"]
+            == 1
+        )
+        assert (
+            shadow_entry["shape_family_recommendation_status"]
+            == "exact_cache_entry_shadow_basis_non_routing"
+        )
         assert shadow_entry["shape_family_shadow_query_count"] == 1
         assert "exact_query_not_reviewed" in shadow_entry["shape_family_shadow_blockers"]
         assert target_validation_report.build_report([capture_path])["capture_count"] == 1
         tile_report = tile_shape_report.build_report([capture_path])
         assert tile_report["capture_count"] == 1
         assert tile_report["candidate_count"] == 0
-        assert many_small_grouped_report.build_report([capture_path])["groups"][0]["rows"][0]["mode"] == "grouped_dispatch"
-        assert fhe_workload_report.build_report([capture_path])["groups"][0]["rows"][0]["family"] == "fhe_lattice_proxy"
+        assert (
+            many_small_grouped_report.build_report([capture_path])["groups"][0]["rows"][0]["mode"]
+            == "grouped_dispatch"
+        )
+        assert (
+            fhe_workload_report.build_report([capture_path])["groups"][0]["rows"][0]["family"]
+            == "fhe_lattice_proxy"
+        )
         resident_report = resident_workspace_report.build_report([capture_path])
         assert resident_report["rows"][0]["arena_enabled"] is True
         assert resident_report["arena_ready_count"] == 1
-        assert "measured_repeat_allocation_delta_nonzero" not in resident_report["rows"][0]["promotion_blockers"]
-        assert scheduler_overlap_report.build_report([capture_path])["rows"][0]["overlap_requested"] is True
+        assert (
+            "measured_repeat_allocation_delta_nonzero"
+            not in resident_report["rows"][0]["promotion_blockers"]
+        )
+        assert (
+            scheduler_overlap_report.build_report([capture_path])["rows"][0]["overlap_requested"]
+            is True
+        )
         release_report = release_gate_report.build_report([capture_path])
         assert release_report["schema"] == "rns8_release_gate_report_v2"
         assert release_report["blocker_counts"]["reviewed_summary_missing"] == 1
@@ -456,7 +487,9 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
-        reviewed_ledger = promotion_ledger.build_ledger([reviewed_path], cache_path, [review_report_path])
+        reviewed_ledger = promotion_ledger.build_ledger(
+            [reviewed_path], cache_path, [review_report_path]
+        )
         reviewed_entry = reviewed_ledger["entries"][0]
         assert reviewed_entry["review_report_promotable"] is True
         assert reviewed_entry["performance_validated"] is True
@@ -467,15 +500,25 @@ def main() -> int:
         selector_review_capture = copy.deepcopy(reviewed_capture)
         selector_review_capture["export_variant"]["name"] = "compact-d2h-export-candidate"
         selector_review_capture["export_variant"]["promotion_eligible"] = False
-        selector_review_capture["export_variant"]["promotion_blocker"] = "experimental_export_variant"
-        selector_review_capture["export_variant"]["selector_key"] += ";export_variant=compact-d2h-export-candidate"
+        selector_review_capture["export_variant"]["promotion_blocker"] = (
+            "experimental_export_variant"
+        )
+        selector_review_capture["export_variant"]["selector_key"] += (
+            ";export_variant=compact-d2h-export-candidate"
+        )
         selector_review_path = tmp / "selector-review-only.json"
         selector_review_path.write_text(json.dumps(selector_review_capture), encoding="utf-8")
         selector_review_ledger = promotion_ledger.build_ledger([selector_review_path], cache_path)
         selector_review_entry = selector_review_ledger["entries"][0]
         assert selector_review_entry["cache_scope"] == "selector_review_only_non_default"
-        assert "selector_review_only_not_runtime_cache_route" in selector_review_entry["promotion_blockers"]
-        assert "export_selector_contract_mismatch" in selector_review_entry["stale_invalidation_reasons"]
+        assert (
+            "selector_review_only_not_runtime_cache_route"
+            in selector_review_entry["promotion_blockers"]
+        )
+        assert (
+            "export_selector_contract_mismatch"
+            in selector_review_entry["stale_invalidation_reasons"]
+        )
         failure_path = tmp / "starfoundry-cpu.failed.json"
         failure_path.write_text(
             json.dumps(
@@ -516,7 +559,9 @@ def main() -> int:
         assert failed_release_report["failed_rows"][0]["backend"] == "cpu-reference"
         assert failed_release_report["failed_rows"][0]["failure_kind"] == "timeout"
         assert failed_release_report["blocker_counts"]["failed_required_baselines"] == 1
-        assert failed_release_report["blocker_counts"]["required_baseline_release_review_missing"] == 1
+        assert (
+            failed_release_report["blocker_counts"]["required_baseline_release_review_missing"] == 1
+        )
         assert failed_release_report["blocker_counts"]["required_baseline_timeout"] == 1
         failed_group = failed_release_report["groups"][0]
         assert failed_group["failed_capture_count"] == 1
@@ -536,7 +581,10 @@ def main() -> int:
         assert failed_group["historical_failed_required_baselines"] == ["cpu-reference"]
         assert failed_group["historical_timed_out_required_baselines"] == ["cpu-reference"]
         assert failed_group["superseded_required_baseline_failures"] == []
-        assert failed_group["unattempted_required_baselines"] == ["hip-direct", "hip-vector-alu-int64"]
+        assert failed_group["unattempted_required_baselines"] == [
+            "hip-direct",
+            "hip-vector-alu-int64",
+        ]
         assert failed_group["required_baselines_complete"] is False
         assert failed_group["required_baselines_release_review_complete"] is False
         assert failed_group["required_baseline_attempts_complete"] is False
@@ -554,7 +602,9 @@ def main() -> int:
                 return loaded
 
             release_gate_report._load = fake_load
-            superseded_report = release_gate_report.build_report([completed_required_path, failure_path])
+            superseded_report = release_gate_report.build_report(
+                [completed_required_path, failure_path]
+            )
         finally:
             release_gate_report._load = original_load
 
@@ -564,7 +614,10 @@ def main() -> int:
         assert superseded_group["timed_out_required_baselines"] == []
         assert superseded_group["historical_failed_required_baselines"] == ["cpu-reference"]
         assert superseded_group["historical_timed_out_required_baselines"] == ["cpu-reference"]
-        assert superseded_group["superseded_required_baseline_failures"][0]["backend"] == "cpu-reference"
+        assert (
+            superseded_group["superseded_required_baseline_failures"][0]["backend"]
+            == "cpu-reference"
+        )
         assert "failed_required_baselines" not in superseded_group["blockers"]
         assert "required_baseline_timeout" not in superseded_group["blockers"]
 

@@ -9,6 +9,7 @@ from test_benchmark_schema_support_metadata import (
     with_accumulator_key_fields,
 )
 
+
 def as_grouped_dispatch_capture(capture: dict) -> dict:
     grouped = copy.deepcopy(capture)
     task_count = 8
@@ -42,7 +43,9 @@ def as_grouped_dispatch_capture(capture: dict) -> dict:
         ),
         grouped,
     )
-    grouped["command_line"] = f'{grouped["command_line"]} --backend hip-direct --grouped-dispatch {task_count}'
+    grouped["command_line"] = (
+        f"{grouped['command_line']} --backend hip-direct --grouped-dispatch {task_count}"
+    )
     grouped["timing_note"] = (
         "host wall-clock timings for benchmark-owned grouped dispatch evidence; raw timings are aggregate grouped totals"
     )
@@ -149,4 +152,3 @@ def as_grouped_dispatch_capture(capture: dict) -> dict:
         "per-repeat aggregate grouped-dispatch pack plus rns_gemm plus crt_export host timing for independent grouped tasks"
     )
     return grouped
-

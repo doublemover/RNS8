@@ -129,7 +129,11 @@ def _skinny_gemv_pair_key(capture: dict[str, Any]) -> tuple[str, str, int, int, 
     metadata = _scenario_metadata_payload(capture)
     scenario_name = scenario.get("name")
     control_for = metadata.get("control_for")
-    name = str(control_for) if isinstance(control_for, str) and control_for else str(scenario_name or "unknown")
+    name = (
+        str(control_for)
+        if isinstance(control_for, str) and control_for
+        else str(scenario_name or "unknown")
+    )
     return name, semantics, m, n, k
 
 
@@ -145,7 +149,9 @@ def _skinny_gemv_pair_role(capture: dict[str, Any]) -> str | None:
     return None
 
 
-def _best_skinny_pair_capture(rows: list[tuple[Path, dict[str, Any]]]) -> tuple[Path, dict[str, Any]] | None:
+def _best_skinny_pair_capture(
+    rows: list[tuple[Path, dict[str, Any]]],
+) -> tuple[Path, dict[str, Any]] | None:
     if not rows:
         return None
     return min(
@@ -186,7 +192,11 @@ def _skinny_gemv_tiled_control_line(
     specialized_e2e = _capture_median_end_to_end(specialized_payload)
     control_e2e = _capture_median_end_to_end(control_payload)
     speedup = None
-    if isinstance(specialized_e2e, float) and specialized_e2e > 0 and isinstance(control_e2e, float):
+    if (
+        isinstance(specialized_e2e, float)
+        and specialized_e2e > 0
+        and isinstance(control_e2e, float)
+    ):
         speedup = control_e2e / specialized_e2e
     line = (
         "  "
@@ -256,7 +266,11 @@ def _histogram_text(
     histogram = _candidate_histogram(candidate, isa_index)
     if not histogram:
         return "none"
-    items = sorted((str(key), value) for key, value in histogram.items() if isinstance(value, int) and value > 0)
+    items = sorted(
+        (str(key), value)
+        for key, value in histogram.items()
+        if isinstance(value, int) and value > 0
+    )
     if not items:
         return "none"
     return ",".join(f"{key}:{value}" for key, value in items[:8])
@@ -365,7 +379,9 @@ def _group_backends(group: dict[str, Any]) -> list[str]:
     candidates = group.get("candidates")
     if not isinstance(candidates, list):
         return []
-    return sorted(str(candidate.get("backend")) for candidate in candidates if isinstance(candidate, dict))
+    return sorted(
+        str(candidate.get("backend")) for candidate in candidates if isinstance(candidate, dict)
+    )
 
 
 def _blocker_text(values: Any) -> str:
@@ -464,7 +480,10 @@ def _candidate_underperformance_score(candidate: dict[str, Any]) -> float:
 
     prepack = candidate.get("prepacked_reuse_review")
     if isinstance(prepack, dict):
-        for key in ("speedup_vs_same_backend_setup_inclusive", "speedup_vs_best_nonreuse_setup_inclusive"):
+        for key in (
+            "speedup_vs_same_backend_setup_inclusive",
+            "speedup_vs_best_nonreuse_setup_inclusive",
+        ):
             speedup = _positive_number(prepack.get(key))
             if speedup is not None and speedup < 1.0:
                 score = max(score, 1.0 / speedup)
@@ -488,13 +507,20 @@ def _candidate_setup_blocked(candidate: dict[str, Any]) -> bool:
     return any(blocker in SETUP_BLOCKERS for blocker in blockers)
 
 
-def _candidate_sort_key(row: tuple[str, str, dict[str, Any], dict[str, Any]]) -> tuple[int, float, str, str]:
+def _candidate_sort_key(
+    row: tuple[str, str, dict[str, Any], dict[str, Any]],
+) -> tuple[int, float, str, str]:
     _report_path, _contract_key, group, candidate = row
     setup_rank = 1 if _candidate_setup_blocked(candidate) else 0
     phase = str(candidate.get("primary_loss_phase_vs_direct_hip") or "")
     backend = str(candidate.get("backend") or "")
     semantics = str(group.get("semantics") or "")
-    return (setup_rank, _candidate_underperformance_score(candidate), phase, f"{semantics}:{backend}")
+    return (
+        setup_rank,
+        _candidate_underperformance_score(candidate),
+        phase,
+        f"{semantics}:{backend}",
+    )
 
 
 def _top_actionable_line(
@@ -636,7 +662,10 @@ def _export_route_active(candidate: dict[str, Any]) -> bool:
     if isinstance(export, dict) and export.get("name") not in (None, "default"):
         return True
     reconstruction = candidate.get("reconstruction_variant")
-    if isinstance(reconstruction, dict) and reconstruction.get("name") not in (None, "default_garner"):
+    if isinstance(reconstruction, dict) and reconstruction.get("name") not in (
+        None,
+        "default_garner",
+    ):
         return True
     return False
 
@@ -657,7 +686,11 @@ def _pack_diagnostic_line(
     group: dict[str, Any],
     candidate: dict[str, Any],
 ) -> str:
-    diagnostics = candidate.get("pack_diagnostics") if isinstance(candidate.get("pack_diagnostics"), dict) else {}
+    diagnostics = (
+        candidate.get("pack_diagnostics")
+        if isinstance(candidate.get("pack_diagnostics"), dict)
+        else {}
+    )
     return (
         "  "
         f"review={report_path} "
@@ -772,7 +805,11 @@ def _native_handoff_pair_disposition(
         blockers.append("checksum_mismatch")
 
     speedup = None
-    if isinstance(fused_e2e, (int, float)) and fused_e2e > 0 and isinstance(control_e2e, (int, float)):
+    if (
+        isinstance(fused_e2e, (int, float))
+        and fused_e2e > 0
+        and isinstance(control_e2e, (int, float))
+    ):
         speedup = float(control_e2e) / float(fused_e2e)
 
     if blockers:
@@ -791,18 +828,22 @@ def _native_handoff_pair_line(
     fused_row: tuple[str, dict[str, Any], dict[str, Any]] | None,
     control_row: tuple[str, dict[str, Any], dict[str, Any]] | None,
 ) -> tuple[str, str, list[str]]:
-    group = fused_row[1] if fused_row is not None else control_row[1] if control_row is not None else {}
+    group = (
+        fused_row[1] if fused_row is not None else control_row[1] if control_row is not None else {}
+    )
     fused = fused_row[2] if fused_row is not None else None
     control = control_row[2] if control_row is not None else None
     disposition, blockers, speedup = _native_handoff_pair_disposition(fused, control)
     fused_diag = (
         fused.get("native_to_rns_handoff_diagnostics")
-        if isinstance(fused, dict) and isinstance(fused.get("native_to_rns_handoff_diagnostics"), dict)
+        if isinstance(fused, dict)
+        and isinstance(fused.get("native_to_rns_handoff_diagnostics"), dict)
         else {}
     )
     control_diag = (
         control.get("native_to_rns_handoff_diagnostics")
-        if isinstance(control, dict) and isinstance(control.get("native_to_rns_handoff_diagnostics"), dict)
+        if isinstance(control, dict)
+        and isinstance(control.get("native_to_rns_handoff_diagnostics"), dict)
         else {}
     )
     line = (
@@ -832,13 +873,23 @@ def _export_route_line(
     group: dict[str, Any],
     candidate: dict[str, Any],
 ) -> str:
-    medians = candidate.get("phase_medians_us") if isinstance(candidate.get("phase_medians_us"), dict) else {}
-    export = candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
+    medians = (
+        candidate.get("phase_medians_us")
+        if isinstance(candidate.get("phase_medians_us"), dict)
+        else {}
+    )
+    export = (
+        candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
+    )
     reconstruction = (
-        candidate.get("reconstruction_variant") if isinstance(candidate.get("reconstruction_variant"), dict) else {}
+        candidate.get("reconstruction_variant")
+        if isinstance(candidate.get("reconstruction_variant"), dict)
+        else {}
     )
     exact_output = (
-        candidate.get("exact_output_contract") if isinstance(candidate.get("exact_output_contract"), dict) else {}
+        candidate.get("exact_output_contract")
+        if isinstance(candidate.get("exact_output_contract"), dict)
+        else {}
     )
     blockers = _blocker_text(candidate.get("promotion_blockers"))
     return (
@@ -881,7 +932,11 @@ def _sparse_a_route_line(
     candidate: dict[str, Any],
     isa_index: dict[str, list[dict[str, Any]]] | None = None,
 ) -> str:
-    medians = candidate.get("phase_medians_us") if isinstance(candidate.get("phase_medians_us"), dict) else {}
+    medians = (
+        candidate.get("phase_medians_us")
+        if isinstance(candidate.get("phase_medians_us"), dict)
+        else {}
+    )
     blockers = _blocker_text(candidate.get("promotion_blockers"))
     return (
         "  "
@@ -914,7 +969,11 @@ def _matrix_core_route_active(candidate: dict[str, Any]) -> bool:
         return True
     histogram = candidate.get("matrix_instruction_histogram")
     if isinstance(histogram, dict):
-        return any(str(key).startswith(MATRIX_CORE_MNEMONIC_PREFIXES) for key, value in histogram.items() if value)
+        return any(
+            str(key).startswith(MATRIX_CORE_MNEMONIC_PREFIXES)
+            for key, value in histogram.items()
+            if value
+        )
     return False
 
 
@@ -925,7 +984,11 @@ def _matrix_core_route_line(
     candidate: dict[str, Any],
     isa_index: dict[str, list[dict[str, Any]]] | None = None,
 ) -> str:
-    medians = candidate.get("phase_medians_us") if isinstance(candidate.get("phase_medians_us"), dict) else {}
+    medians = (
+        candidate.get("phase_medians_us")
+        if isinstance(candidate.get("phase_medians_us"), dict)
+        else {}
+    )
     blockers = _blocker_text(candidate.get("promotion_blockers"))
     return (
         "  "
@@ -972,7 +1035,9 @@ def build_summary(
     ] = defaultdict(lambda: defaultdict(list))
     for path in capture_paths:
         payload = _load_json(path)
-        groups[capture_contract_key(payload)].append((backend_id(payload), capture_checksum(payload), path))
+        groups[capture_contract_key(payload)].append(
+            (backend_id(payload), capture_checksum(payload), path)
+        )
         skinny_key = _skinny_gemv_pair_key(payload)
         skinny_role = _skinny_gemv_pair_role(payload) if skinny_key is not None else None
         if skinny_key is not None and skinny_role is not None:
@@ -1054,10 +1119,16 @@ def build_summary(
             if isinstance(production, dict):
                 production_routes.append((group, production))
                 production_route_counts.update([str(production.get("backend"))])
-                bottleneck = production.get("bottleneck") if isinstance(production.get("bottleneck"), dict) else {}
+                bottleneck = (
+                    production.get("bottleneck")
+                    if isinstance(production.get("bottleneck"), dict)
+                    else {}
+                )
                 bottleneck_counts.update([str(bottleneck.get("class") or "unknown")])
                 if production.get("backend") == "hip-direct":
-                    direct_hip_production_wins.append((str(path.relative_to(out)), group, production))
+                    direct_hip_production_wins.append(
+                        (str(path.relative_to(out)), group, production)
+                    )
             accelerator = group.get("fastest_accelerator_route")
             if isinstance(accelerator, dict):
                 accelerator_routes.append((group, accelerator))
@@ -1067,18 +1138,28 @@ def build_summary(
                 blockers = _actionable_blockers(candidate)
                 prepack = candidate.get("prepacked_reuse_review")
                 if isinstance(prepack, dict):
-                    prepack_reuse_rows.append((str(path.relative_to(out)), group, candidate, prepack))
-                    prepack_reuse_blockers.update(str(item) for item in prepack.get("blockers", []) if item)
+                    prepack_reuse_rows.append(
+                        (str(path.relative_to(out)), group, candidate, prepack)
+                    )
+                    prepack_reuse_blockers.update(
+                        str(item) for item in prepack.get("blockers", []) if item
+                    )
                     prepack_setup_primary_phase_counts.update(
                         [str(prepack.get("prepack_setup_primary_phase") or "unknown")]
                     )
                 graph = candidate.get("hip_graph_replay_review")
                 if isinstance(graph, dict):
                     graph_replay_rows.append((str(path.relative_to(out)), group, candidate, graph))
-                    graph_replay_blockers.update(str(item) for item in graph.get("blockers", []) if item)
+                    graph_replay_blockers.update(
+                        str(item) for item in graph.get("blockers", []) if item
+                    )
                 diagnostics = candidate.get("pack_diagnostics")
                 if isinstance(diagnostics, dict):
-                    split_state = "split_available" if diagnostics.get("split_available") is True else "split_missing"
+                    split_state = (
+                        "split_available"
+                        if diagnostics.get("split_available") is True
+                        else "split_missing"
+                    )
                     pack_split_counts.update([split_state])
                     dominant = diagnostics.get("dominant_operand")
                     if isinstance(dominant, str) and dominant:
@@ -1091,29 +1172,53 @@ def build_summary(
                     diagnostics = candidate.get("native_to_rns_handoff_diagnostics")
                     if isinstance(diagnostics, dict):
                         control_mode = diagnostics.get("control_mode")
-                        if control_mode in {"fused_device_native_to_rns", "host_export_repack_control"}:
+                        if control_mode in {
+                            "fused_device_native_to_rns",
+                            "host_export_repack_control",
+                        }:
                             native_handoff_pair_rows[_native_handoff_pair_key(report_path, group)][
                                 str(control_mode)
                             ] = (report_path, group, candidate)
                 if _export_route_active(candidate):
                     export_route_rows.append((str(path.relative_to(out)), group, candidate))
-                    export = candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
+                    export = (
+                        candidate.get("export_variant")
+                        if isinstance(candidate.get("export_variant"), dict)
+                        else {}
+                    )
                     exact = (
                         candidate.get("exact_output_contract")
                         if isinstance(candidate.get("exact_output_contract"), dict)
                         else {}
                     )
-                    export_kernel_counts.update([str(export.get("selected_kernel") or exact.get("kernel_identity") or "unknown")])
+                    export_kernel_counts.update(
+                        [
+                            str(
+                                export.get("selected_kernel")
+                                or exact.get("kernel_identity")
+                                or "unknown"
+                            )
+                        ]
+                    )
                 if _sparse_a_route_active(group, candidate):
                     sparse_a_route_rows.append((str(path.relative_to(out)), group, candidate))
                     sparse_a_route_counts.update([str(candidate.get("backend") or "unknown")])
                 if _matrix_core_route_active(candidate):
                     matrix_core_route_rows.append((str(path.relative_to(out)), group, candidate))
-                    matrix_core_family_counts.update([str(candidate.get("matrix_instruction_family") or "unknown")])
+                    matrix_core_family_counts.update(
+                        [str(candidate.get("matrix_instruction_family") or "unknown")]
+                    )
                     matrix_core_backend_counts.update([str(candidate.get("backend") or "unknown")])
                 if blockers:
                     actionable_counts.update(blockers)
-                    actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
+                    actionable_rows.append(
+                        (
+                            str(path.relative_to(out)),
+                            str(group.get("contract_key", "")),
+                            group,
+                            candidate,
+                        )
+                    )
                     phase = candidate.get("primary_loss_phase_vs_direct_hip")
                     if isinstance(phase, str) and phase:
                         backend = str(candidate.get("backend") or "unknown")
@@ -1123,8 +1228,14 @@ def build_summary(
                         loss_phase_by_backend.update([(backend, phase)])
                         loss_phase_by_semantics.update([(semantics, phase)])
                         loss_phase_by_shape_family.update([(shape_family, phase)])
-                        loss_phase_by_scenario_family.update((family, phase) for family in _scenario_families(group))
-                    bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
+                        loss_phase_by_scenario_family.update(
+                            (family, phase) for family in _scenario_families(group)
+                        )
+                    bottleneck = (
+                        candidate.get("bottleneck")
+                        if isinstance(candidate.get("bottleneck"), dict)
+                        else {}
+                    )
                     bottleneck_counts.update([str(bottleneck.get("class") or "unknown")])
     lines.append(f"REVIEW_REPORTS {review_report_count}")
     lines.append("REVIEW_BLOCKER_COUNTS")
@@ -1273,7 +1384,9 @@ def build_summary(
     pack_diagnostic_rows.sort(
         key=lambda row: (
             row[2].get("pack_diagnostics", {}).get("pack_share_of_end_to_end")
-            if isinstance(row[2].get("pack_diagnostics", {}).get("pack_share_of_end_to_end"), (int, float))
+            if isinstance(
+                row[2].get("pack_diagnostics", {}).get("pack_share_of_end_to_end"), (int, float)
+            )
             else 0.0
         ),
         reverse=True,
@@ -1464,7 +1577,12 @@ def clean_gate_failures(lines: list[str]) -> list[str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("out", nargs="?", type=Path, help="sweep output directory; defaults to latest temp/cdna-*mi300x-*")
+    parser.add_argument(
+        "out",
+        nargs="?",
+        type=Path,
+        help="sweep output directory; defaults to latest temp/cdna-*mi300x-*",
+    )
     parser.add_argument("--temp-root", type=Path, default=Path("temp"))
     parser.add_argument("--max-route-rows", type=int, default=DEFAULT_MAX_ROUTE_ROWS)
     parser.add_argument("--max-detail-rows", type=int, default=DEFAULT_MAX_DETAIL_ROWS)
@@ -1482,7 +1600,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     out = args.out if args.out is not None else _latest_cdna_out(args.temp_root)
-    lines = build_summary(out, max_route_rows=args.max_route_rows, max_detail_rows=args.max_detail_rows)
+    lines = build_summary(
+        out, max_route_rows=args.max_route_rows, max_detail_rows=args.max_detail_rows
+    )
     for line in lines:
         print(line)
     if args.require_clean:

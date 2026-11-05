@@ -8,7 +8,15 @@ from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
 from benchmark_cases import case_root
 from review_contract import REVIEW_SCHEMA_VERSION, RELEASE_MIN_WARMUPS, RELEASE_MIN_REPEATS
 
-BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
+BOUNDED_BACKENDS = [
+    "cpu",
+    "hip-direct",
+    "hip-vector-alu-int64",
+    "hipblaslt",
+    "ck",
+    "rocwmma",
+    "amdgpu-builtins",
+]
 HOST_API_BATCH_BACKENDS = ["hip-direct"]
 PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
@@ -33,6 +41,8 @@ ADAPTIVE_WORKLOAD_CASES = [
 ]
 DEFAULT_FINITE_RING_MODULI = [251, 255]
 DEFAULT_FINITE_FIELD_MODULI = [251]
+
+
 def scenario_data_dir() -> Path:
     return case_root() / "scenarios"
 
@@ -111,7 +121,6 @@ class ScenarioItem:
     metadata: dict[str, Any] | None = None
 
 
-
 @dataclass(frozen=True)
 class SweepCommand:
     name: str
@@ -119,5 +128,3 @@ class SweepCommand:
     output: Path
     scenario: dict[str, Any] | None = None
     env: dict[str, str] | None = None
-
-

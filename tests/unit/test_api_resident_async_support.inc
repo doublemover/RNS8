@@ -1,11 +1,13 @@
 #include "core/hip_resources.hpp"
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-static void exercise_resident_async_submission(
-    rns8_resident_graph *graph, rns8_matrix *a, rns8_matrix *b, rns8_matrix *c,
-    rns8_matrix *d, rns8_matrix *e, rns8_workspace *workspace,
-    rns8_graph_execution_info &info, bool replay = false) {
+static void exercise_resident_async_submission(rns8_resident_graph* graph, rns8_matrix* a,
+                                               rns8_matrix* b, rns8_matrix* c, rns8_matrix* d,
+                                               rns8_matrix* e, rns8_workspace* workspace,
+                                               rns8_graph_execution_info& info,
+                                               bool replay = false) {
   rns8_async_support_info support{};
-  support.struct_size = sizeof(support); support.abi_version = RNS8_ABI_VERSION;
+  support.struct_size = sizeof(support);
+  support.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_resident_graph_hip_support(graph, &support) == RNS8_SUCCESS);
   REQUIRE(support.support_status == RNS8_SUCCESS);
   REQUIRE(support.max_in_flight_epochs == 1);
@@ -15,10 +17,8 @@ static void exercise_resident_async_submission(
   REQUIRE(rns8_prepare_resident_graph_hip(graph) == RNS8_SUCCESS);
   rns8::detail::hip_unique_stream stream;
   REQUIRE(stream.create_non_blocking() == hipSuccess);
-  const auto cg = c->content_generation, dg = d->content_generation,
-             eg = e->content_generation;
-  const auto submit =
-      replay ? rns8_replay_resident_graph_hip : rns8_submit_resident_graph_hip;
+  const auto cg = c->content_generation, dg = d->content_generation, eg = e->content_generation;
+  const auto submit = replay ? rns8_replay_resident_graph_hip : rns8_submit_resident_graph_hip;
   if (replay) {
     REQUIRE(rns8_capture_resident_graph_hip(graph) == RNS8_SUCCESS);
     REQUIRE(rns8_capture_resident_graph_hip(graph) == RNS8_SUCCESS);
@@ -29,8 +29,8 @@ static void exercise_resident_async_submission(
     rns8::detail::hip_direct_device_buffer replacement;
     REQUIRE(replacement.allocate(0, c->hip_residue_bytes) == RNS8_SUCCESS);
     struct Restore {
-      void *&target;
-      void *prior;
+      void*& target;
+      void* prior;
       ~Restore() { target = prior; }
     } restore{c->hip_residues, c->hip_residues};
     c->hip_residues = replacement.get();
@@ -47,8 +47,7 @@ static void exercise_resident_async_submission(
   REQUIRE(token.epoch == 88);
   REQUIRE(c->content_generation == cg);
   REQUIRE(d->content_generation == dg);
-  REQUIRE(hipStreamBeginCapture(stream.get(),
-                                hipStreamCaptureModeThreadLocal) == hipSuccess);
+  REQUIRE(hipStreamBeginCapture(stream.get(), hipStreamCaptureModeThreadLocal) == hipSuccess);
   REQUIRE(submit(graph, stream.get(), &token) == RNS8_UNSUPPORTED_BACKEND);
   hipGraph_t empty = nullptr;
   REQUIRE(hipStreamEndCapture(stream.get(), &empty) == hipSuccess);
@@ -57,7 +56,8 @@ static void exercise_resident_async_submission(
   REQUIRE_FALSE(workspace->in_flight);
   REQUIRE(a->in_flight_readers == 0);
   REQUIRE(b->in_flight_readers == 0);
-  for (auto* output : {c, d, e}) REQUIRE_FALSE(output->in_flight_writer);
+  for (auto* output : {c, d, e})
+    REQUIRE_FALSE(output->in_flight_writer);
   for (auto special : {hipStreamLegacy, hipStreamPerThread}) {
     REQUIRE(submit(graph, special, &token) == RNS8_INVALID_ARGUMENT);
     REQUIRE(token.epoch == 88);
@@ -79,7 +79,8 @@ static void exercise_resident_async_submission(
   REQUIRE(d->content_generation == dg);
   REQUIRE(e->content_generation == eg);
   rns8_async_failure_info failure{};
-  failure.struct_size = sizeof(failure); failure.abi_version = RNS8_ABI_VERSION;
+  failure.struct_size = sizeof(failure);
+  failure.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_resident_graph_async_failure(graph, token, &failure) == RNS8_SUCCESS);
   REQUIRE(failure.stage == RNS8_ASYNC_FAILURE_NONE);
   REQUIRE(failure.failed_node == UINT32_MAX);
@@ -106,12 +107,10 @@ static void exercise_resident_async_submission(
   REQUIRE(unused.epoch == token.epoch);
   auto stale = token;
   --stale.epoch;
-  REQUIRE(rns8_query_resident_graph_hip(graph, stale, &info) ==
-          RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_query_resident_graph_hip(graph, stale, &info) == RNS8_INVALID_ARGUMENT);
   auto wrong = token;
   ++wrong.graph_id;
-  REQUIRE(rns8_wait_resident_graph_hip(graph, wrong, &info) ==
-          RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_wait_resident_graph_hip(graph, wrong, &info) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_wait_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
   REQUIRE(info.operation_status == RNS8_SUCCESS);
   REQUIRE(info.epoch == token.epoch);
@@ -122,9 +121,7 @@ static void exercise_resident_async_submission(
   REQUIRE(a->in_flight_readers == 0);
   REQUIRE(b->in_flight_readers == 0);
   REQUIRE_FALSE(workspace->in_flight);
-  REQUIRE(
-      rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls ==
-      0);
+  REQUIRE(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls == 0);
   REQUIRE(rns8_query_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
 }
 #endif

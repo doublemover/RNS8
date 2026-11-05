@@ -16,10 +16,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_PATHS = [
     REPO_ROOT / "README.md",
-    *[REPO_ROOT / "docs" / name for name in (
-        "backend-notes.md", "performance.md", "platform-linux.md",
-        "platform-readiness.md", "roadmap.md", "gpu-qualification.md",
-    )],
+    *[
+        REPO_ROOT / "docs" / name
+        for name in (
+            "backend-notes.md",
+            "performance.md",
+            "platform-linux.md",
+            "platform-readiness.md",
+            "roadmap.md",
+            "gpu-qualification.md",
+        )
+    ],
 ]
 
 TARGET_RE = re.compile(r"\b(linux|rocm|instinct|cdna[0-9]*|rdna4)\b", re.IGNORECASE)
@@ -66,11 +73,15 @@ def validate_registry_claim_labels() -> list[str]:
     required_labels = {"windows_gfx1100_local", "linux_rocm_required", "instinct_required"}
     missing = sorted(required_labels.difference(registry.TARGET_CLAIM_LABELS))
     if missing:
-        return [f"metadata claim labels missing required target boundary labels: {', '.join(missing)}"]
+        return [
+            f"metadata claim labels missing required target boundary labels: {', '.join(missing)}"
+        ]
     return []
 
 
-def validate_line(path: Path, line_number: int, line: str, file_has_reviewed_local_context: bool) -> list[ClaimViolation]:
+def validate_line(
+    path: Path, line_number: int, line: str, file_has_reviewed_local_context: bool
+) -> list[ClaimViolation]:
     text = line.strip()
     if not text:
         return []
@@ -100,7 +111,13 @@ def validate_line(path: Path, line_number: int, line: str, file_has_reviewed_loc
                 text,
             )
         )
-    if has_target and has_speed and "windows" in text.lower() and not has_boundary and "gfx1100" not in text.lower():
+    if (
+        has_target
+        and has_speed
+        and "windows" in text.lower()
+        and not has_boundary
+        and "gfx1100" not in text.lower()
+    ):
         violations.append(
             ClaimViolation(
                 path,
@@ -119,7 +136,9 @@ def validate_paths(paths: list[Path]) -> list[ClaimViolation]:
         normalized = text.lower()
         file_has_reviewed_local_context = "reviewed" in normalized and "gfx1100" in normalized
         for line_number, line in enumerate(text.splitlines(), start=1):
-            violations.extend(validate_line(path, line_number, line, file_has_reviewed_local_context))
+            violations.extend(
+                validate_line(path, line_number, line, file_has_reviewed_local_context)
+            )
     return violations
 
 

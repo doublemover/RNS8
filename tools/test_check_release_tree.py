@@ -10,7 +10,9 @@ from pathlib import Path
 import check_release_tree as release_tree
 
 
-MIT_LICENSE = "MIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\n"
+MIT_LICENSE = (
+    "MIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\n"
+)
 MIT_NOTICE = "RNS8\n\nRNS8 is licensed under the MIT License. See LICENSE.\n"
 
 
@@ -19,7 +21,9 @@ def expect(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
-def write_metadata(root: Path, license_text: str = MIT_LICENSE, notice_text: str = MIT_NOTICE) -> None:
+def write_metadata(
+    root: Path, license_text: str = MIT_LICENSE, notice_text: str = MIT_NOTICE
+) -> None:
     (root / "LICENSE").write_text(license_text, encoding="utf-8")
     (root / "NOTICE").write_text(notice_text, encoding="utf-8")
     (root / "vcpkg.json").write_text(
@@ -47,7 +51,10 @@ def main() -> int:
         release_tree.normalize_path("temp/local-smoke.exe"),
         release_tree.normalize_path("build/cpu-debug/CMakeCache.txt"),
     ]
-    expect(not release_tree.path_violations(clean_paths), "ignored work areas should not fail path checks")
+    expect(
+        not release_tree.path_violations(clean_paths),
+        "ignored work areas should not fail path checks",
+    )
 
     bad_paths = [
         release_tree.normalize_path("src/leaked.obj"),
@@ -61,7 +68,9 @@ def main() -> int:
         write_metadata(root)
         expect(not release_tree.metadata_violations(root), "valid MIT metadata should pass")
 
-        write_metadata(root, notice_text="RNS8 is licensed under the " + "Apa" + "che License, Version 2.0.\n")
+        write_metadata(
+            root, notice_text="RNS8 is licensed under the " + "Apa" + "che License, Version 2.0.\n"
+        )
         expect(release_tree.metadata_violations(root), "stale non-MIT notice should fail")
 
         write_metadata(root)

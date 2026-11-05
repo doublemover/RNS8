@@ -39,8 +39,8 @@ typedef struct rns8_integer_split_i64_info {
  * has magnitude at most1. This format contains no floating encodings/scales.
  * All buffers are caller-owned; calls allocate nothing and retain no pointers.
  * ABI/shape/format/span failure leaves query output unchanged. */
-RNS8_API rns8_status rns8_query_integer_split_i64(
-    const rns8_integer_split_i64_desc*, rns8_integer_split_i64_info*);
+RNS8_API rns8_status rns8_query_integer_split_i64(const rns8_integer_split_i64_desc*,
+                                                  rns8_integer_split_i64_info*);
 
 /* Synchronous split/merge of host-accessible buffers. native_ld counts int64
  * elements; component addresses are s*plane_stride + row*component_ld + col.
@@ -55,12 +55,10 @@ RNS8_API rns8_status rns8_query_integer_split_i64(
  * Callers must keep descriptors/input bytes stable throughout the call.
  * These functions neither execute GEMM nor approximate floating-point Ozaki.
  */
-RNS8_API rns8_status rns8_split_i64(
-    const rns8_integer_split_i64_desc*, const int64_t* native,
-    int8_t* components, uint64_t component_capacity_bytes);
-RNS8_API rns8_status rns8_merge_i64(
-    const rns8_integer_split_i64_desc*, const int8_t* components,
-    uint64_t component_capacity_bytes, int64_t* native);
+RNS8_API rns8_status rns8_split_i64(const rns8_integer_split_i64_desc*, const int64_t* native,
+                                    int8_t* components, uint64_t component_capacity_bytes);
+RNS8_API rns8_status rns8_merge_i64(const rns8_integer_split_i64_desc*, const int8_t* components,
+                                    uint64_t component_capacity_bytes, int64_t* native);
 
 #ifdef __cplusplus
 }

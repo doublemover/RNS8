@@ -14,7 +14,9 @@ from metadata_registry_constants import (
 )
 
 
-CK_PREFIX_EVENT_RE = re.compile(r"^ck_prefix_(\d{2})_(pack_a|pack_b|matmul|copy_centered|add_centered)$")
+CK_PREFIX_EVENT_RE = re.compile(
+    r"^ck_prefix_(\d{2})_(pack_a|pack_b|matmul|copy_centered|add_centered)$"
+)
 ROCWMMA_PREFIX_EVENT_RE = re.compile(
     r"^rocwmma_prefix_(\d{2})_(pack_a|pack_b|matmul|pack_a_prepacked_b|matmul_prepacked_b)$"
 )
@@ -108,12 +110,14 @@ def amdgpu_builtin_gpu_event_label(selected_kernel: object, semantics: object = 
     kernel = selected_kernel if isinstance(selected_kernel, str) else ""
     finite = text_choice(semantics, {"finite_ring_u8", "finite_field_u8"})
     for row in AMDGPU_BUILTIN_EVENT_FAMILIES:
-        if row['family'] in kernel:
-            return row['finite_event'] if finite or '_finite' in kernel else row['integer_event']
+        if row["family"] in kernel:
+            return row["finite_event"] if finite or "_finite" in kernel else row["integer_event"]
     return "amdgpu_builtin_rns_matrix_core_kernel"
 
 
-def amdgpu_builtin_deep_gpu_event_phases(selected_kernel: object, semantics: object = None) -> list[str]:
+def amdgpu_builtin_deep_gpu_event_phases(
+    selected_kernel: object, semantics: object = None
+) -> list[str]:
     return [amdgpu_builtin_gpu_event_label(selected_kernel, semantics)]
 
 

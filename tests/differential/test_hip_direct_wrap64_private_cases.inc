@@ -6,33 +6,31 @@ TEST_CASE("private HIP wrap64 byte-limb GEMM matches CPU reference") {
   constexpr int64_t m = 2;
   constexpr int64_t n = 3;
   constexpr int64_t k = 5;
-  const std::vector<uint64_t> A = {
-      0,
-      1,
-      std::numeric_limits<uint64_t>::max(),
-      0x8080808080808080ull,
-      0x0102030405060708ull,
-      255,
-      256,
-      std::numeric_limits<uint64_t>::max() - 1,
-      0x7f7f7f7f7f7f7f7full,
-      17};
-  const std::vector<uint64_t> B = {
-      3,
-      std::numeric_limits<uint64_t>::max(),
-      0x1112131415161718ull,
-      29,
-      0x8080808080808080ull,
-      31,
-      0x0101010101010101ull,
-      0xfefdfcfbfaf9f8f7ull,
-      37,
-      41,
-      43,
-      47,
-      53,
-      59,
-      61};
+  const std::vector<uint64_t> A = {0,
+                                   1,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x8080808080808080ull,
+                                   0x0102030405060708ull,
+                                   255,
+                                   256,
+                                   std::numeric_limits<uint64_t>::max() - 1,
+                                   0x7f7f7f7f7f7f7f7full,
+                                   17};
+  const std::vector<uint64_t> B = {3,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x1112131415161718ull,
+                                   29,
+                                   0x8080808080808080ull,
+                                   31,
+                                   0x0101010101010101ull,
+                                   0xfefdfcfbfaf9f8f7ull,
+                                   37,
+                                   41,
+                                   43,
+                                   47,
+                                   53,
+                                   59,
+                                   61};
   std::vector<uint8_t> a_limbs(static_cast<std::size_t>(m * k * 8));
   std::vector<uint8_t> b_limbs(static_cast<std::size_t>(k * n * 8));
   std::vector<uint8_t> c_limbs(static_cast<std::size_t>(m * n * 8), 0xff);
@@ -47,7 +45,8 @@ TEST_CASE("private HIP wrap64 byte-limb GEMM matches CPU reference") {
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t expected = rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), k, B.data(), n, row, col, k);
+      const uint64_t expected =
+          rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), k, B.data(), n, row, col, k);
       CHECK(load_u64_limbs(c_limbs, row * n + col) == expected);
     }
   }
@@ -79,8 +78,8 @@ TEST_CASE("private HIP wrap64 byte-limb GEMM matches CPU reference for carry-hea
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t expected =
-          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), k, B.data(), n, row, col, k);
+      const uint64_t expected = rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(
+          A.data(), k, B.data(), n, row, col, k);
       CHECK(load_u64_limbs(c_limbs, row * n + col) == expected);
     }
   }
@@ -138,10 +137,11 @@ TEST_CASE("private HIP wrap64 byte-limb GEMM covers tile tails and signed-int8 c
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t expected =
-          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), k, B.data(), n, row, col, k);
+      const uint64_t expected = rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(
+          A.data(), k, B.data(), n, row, col, k);
       CHECK(load_u64_limbs(c_limbs, row * n + col) == expected);
-      CHECK(expected == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), k, B.data(), n, row, col, k));
+      CHECK(expected ==
+            rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), k, B.data(), n, row, col, k));
     }
   }
 }
@@ -150,35 +150,26 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
   std::vector<uint8_t> limbs(8, 0);
   uint64_t src = 0;
   uint64_t dst = 0;
-  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, nullptr, limbs.data(), limbs.data(), 1, 1, 1) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), nullptr, limbs.data(), 1, 1, 1) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0, nullptr, limbs.data(), limbs.data(), 1, 1, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0, limbs.data(), nullptr, limbs.data(), 1, 1, 1) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
             0, limbs.data(), limbs.data(), limbs.data(), -1, 1, 1) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), limbs.data(), 0, 1, 1) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), limbs.data(), 1, 0, 1) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), limbs.data(), 1, 1, 0) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), nullptr, 1, 1, 1) ==
-        RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
-            0,
-            limbs.data(),
-            limbs.data(),
-            limbs.data(),
-            static_cast<int64_t>(std::numeric_limits<int>::max()) + 1,
-            1,
+            0, limbs.data(), limbs.data(), limbs.data(), 0, 1, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0, limbs.data(), limbs.data(), limbs.data(), 1, 0, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0, limbs.data(), limbs.data(), limbs.data(), 1, 1, 0) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0, limbs.data(), limbs.data(), nullptr, 1, 1, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0, limbs.data(), limbs.data(), limbs.data(),
+            static_cast<int64_t>(std::numeric_limits<int>::max()) + 1, 1,
             1) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
-            0,
-            limbs.data(),
-            limbs.data(),
-            limbs.data(),
-            1,
-            1,
+            0, limbs.data(), limbs.data(), limbs.data(), 1, 1,
             static_cast<int64_t>(std::numeric_limits<int>::max()) + 1) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, nullptr, limbs.data(), 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
@@ -191,13 +182,9 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, nullptr, 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_pack_u64_device(
-            0,
-            &src,
-            limbs.data(),
-            2,
-            1,
-            std::numeric_limits<int64_t>::max()) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, limbs.data(), 2, 1,
+                                                 std::numeric_limits<int64_t>::max()) ==
+        RNS8_INVALID_ARGUMENT);
 
   CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), 1, 1, nullptr, 1) ==
         RNS8_INVALID_ARGUMENT);
@@ -209,13 +196,9 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_export_u64_device(0, nullptr, 1, 1, &dst, 1) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8::detail::wrap64_hip_export_u64_device(
-            0,
-            limbs.data(),
-            2,
-            1,
-            &dst,
-            std::numeric_limits<int64_t>::max()) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), 2, 1, &dst,
+                                                   std::numeric_limits<int64_t>::max()) ==
+        RNS8_INVALID_ARGUMENT);
 }
 
 TEST_CASE("private HIP wrap64 pack and export helpers preserve compact device byte-limb layout") {
@@ -239,7 +222,8 @@ TEST_CASE("private HIP wrap64 pack and export helpers preserve compact device by
   std::vector<uint8_t> expected_limbs(static_cast<std::size_t>(rows * cols * 8), 0);
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
-      store_u64_limbs(expected_limbs, row * cols + col, src[static_cast<std::size_t>(row * ld + col)]);
+      store_u64_limbs(expected_limbs, row * cols + col,
+                      src[static_cast<std::size_t>(row * ld + col)]);
     }
   }
 
@@ -248,36 +232,21 @@ TEST_CASE("private HIP wrap64 pack and export helpers preserve compact device by
   REQUIRE(rns8::detail::hip_direct_allocate(0, compact_bytes, &device_limbs) == RNS8_SUCCESS);
   rns8::detail::hip_direct_allocation_counters_reset();
 
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              0,
-              src.data(),
-              device_limbs,
-              rows,
-              cols,
-              ld) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
-  std::vector<uint8_t> device_copy(compact_bytes, 0);
-  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs, compact_bytes) ==
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(0, src.data(), device_limbs, rows, cols, ld) ==
           RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls == 0);
+  std::vector<uint8_t> device_copy(compact_bytes, 0);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs,
+                                                       compact_bytes) == RNS8_SUCCESS);
   CHECK(device_copy == expected_limbs);
 
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              0,
-              src.data(),
-              device_limbs,
-              rows,
-              cols,
-              ld) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(0, src.data(), device_limbs, rows, cols, ld) ==
+          RNS8_SUCCESS);
 
   std::fill(src.begin(), src.end(), 0x1111111111111111ull);
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              0,
-              device_limbs,
-              rows,
-              cols,
-              out.data(),
-              ld) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(0, device_limbs, rows, cols, out.data(), ld) ==
+          RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls == 0);
 
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
@@ -290,13 +259,8 @@ TEST_CASE("private HIP wrap64 pack and export helpers preserve compact device by
   }
 
   std::fill(out.begin(), out.end(), sentinel);
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              0,
-              device_limbs,
-              rows,
-              cols,
-              out.data(),
-              ld) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(0, device_limbs, rows, cols, out.data(), ld) ==
+          RNS8_SUCCESS);
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
       CHECK(out[static_cast<std::size_t>(row * ld + col)] ==
@@ -348,7 +312,8 @@ TEST_CASE("private HIP wrap64 pack and export helpers cover tile-tail padded lay
     std::fill(expected_limbs.begin(), expected_limbs.end(), 0);
     for (int64_t row = 0; row < rows; ++row) {
       for (int64_t col = 0; col < cols; ++col) {
-        store_u64_limbs(expected_limbs, row * cols + col, src[static_cast<std::size_t>(row * ld + col)]);
+        store_u64_limbs(expected_limbs, row * cols + col,
+                        src[static_cast<std::size_t>(row * ld + col)]);
       }
     }
   };
@@ -360,41 +325,26 @@ TEST_CASE("private HIP wrap64 pack and export helpers cover tile-tail padded lay
 
   fill_src(0x1111);
   refresh_expected_limbs();
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              0,
-              src.data(),
-              device_limbs,
-              rows,
-              cols,
-              ld) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
-  std::vector<uint8_t> device_copy(compact_bytes, 0);
-  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs, compact_bytes) ==
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(0, src.data(), device_limbs, rows, cols, ld) ==
           RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls == 0);
+  std::vector<uint8_t> device_copy(compact_bytes, 0);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs,
+                                                       compact_bytes) == RNS8_SUCCESS);
   CHECK(device_copy == expected_limbs);
 
   fill_src(0x2222);
   refresh_expected_limbs();
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              0,
-              src.data(),
-              device_limbs,
-              rows,
-              cols,
-              ld) == RNS8_SUCCESS);
-  std::fill(device_copy.begin(), device_copy.end(), 0);
-  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs, compact_bytes) ==
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(0, src.data(), device_limbs, rows, cols, ld) ==
           RNS8_SUCCESS);
+  std::fill(device_copy.begin(), device_copy.end(), 0);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, device_copy.data(), device_limbs,
+                                                       compact_bytes) == RNS8_SUCCESS);
   CHECK(device_copy == expected_limbs);
 
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              0,
-              device_limbs,
-              rows,
-              cols,
-              out.data(),
-              ld) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(0, device_limbs, rows, cols, out.data(), ld) ==
+          RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls == 0);
 
   auto check_export = [&]() {
     for (int64_t row = 0; row < rows; ++row) {
@@ -410,13 +360,8 @@ TEST_CASE("private HIP wrap64 pack and export helpers cover tile-tail padded lay
   check_export();
 
   std::fill(out.begin(), out.end(), sentinel);
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              0,
-              device_limbs,
-              rows,
-              cols,
-              out.data(),
-              ld) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(0, device_limbs, rows, cols, out.data(), ld) ==
+          RNS8_SUCCESS);
   check_export();
 
   CHECK(rns8::detail::hip_direct_free(0, device_limbs) == RNS8_SUCCESS);
@@ -439,7 +384,8 @@ TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path
   std::mt19937_64 rng(0x7772617036345f73ull);
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
-      uint64_t value = rng() ^ (static_cast<uint64_t>(row) << 32u) ^ static_cast<uint64_t>(col * 37);
+      uint64_t value =
+          rng() ^ (static_cast<uint64_t>(row) << 32u) ^ static_cast<uint64_t>(col * 37);
       if ((row + col) % 29 == 0) {
         value = std::numeric_limits<uint64_t>::max();
       } else if ((row + col) % 29 == 1) {
@@ -456,34 +402,25 @@ TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path
   const std::size_t compact_bytes = expected_limbs.size();
   REQUIRE(rns8::detail::hip_direct_allocate(0, compact_bytes, &device_limbs) == RNS8_SUCCESS);
   rns8::detail::hip_direct_allocation_counters_reset();
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              0,
-              src.data(),
-              device_limbs,
-              rows,
-              cols,
-              ld) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(0, src.data(), device_limbs, rows, cols, ld) ==
+          RNS8_SUCCESS);
 
   rns8::detail::hip_direct_timing_set_enabled(true);
   rns8::detail::hip_direct_timing_reset();
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              0,
-              device_limbs,
-              rows,
-              cols,
-              out.data(),
-              ld) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(0, device_limbs, rows, cols, out.data(), ld) ==
+          RNS8_SUCCESS);
   auto export_events = rns8::detail::hip_direct_timing_snapshot();
   rns8::detail::hip_direct_timing_set_enabled(false);
 
   CHECK_FALSE(has_timing_label(export_events, "wrap64_export_kernel"));
   CHECK(has_timing_label(export_events, "wrap64_export_d2h"));
   CHECK(has_timing_label(export_events, "export_host_staging_copy"));
-  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
+  CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls == 0);
 
   for (int64_t row = 0; row < rows; ++row) {
     for (int64_t col = 0; col < cols; ++col) {
-      CHECK(out[static_cast<std::size_t>(row * ld + col)] == load_u64_limbs(expected_limbs, row * cols + col));
+      CHECK(out[static_cast<std::size_t>(row * ld + col)] ==
+            load_u64_limbs(expected_limbs, row * cols + col));
     }
     for (int64_t col = cols; col < ld; ++col) {
       CHECK(out[static_cast<std::size_t>(row * ld + col)] == sentinel);
@@ -493,180 +430,256 @@ TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path
   CHECK(rns8::detail::hip_direct_free(0, device_limbs) == RNS8_SUCCESS);
 }
 
-
 TEST_CASE("signed radix and native unsigned WMMA wrap64 agree with independent oracles") {
-  if (!hip_available()) SKIP("no HIP device for wrap64 matrix candidates");
+  if (!hip_available())
+    SKIP("no HIP device for wrap64 matrix candidates");
   using namespace rns8::detail;
-  for(int k : {1,15,16,17,4095,4096,4097,33025,33026,65535,65536,65537,131071,131072}) {
-    const int m=k<32?17:1,n=k<32?19:1;
-    std::vector<uint64_t> av(m*k),bv(k*n);
-    const uint64_t edge[]={0,1,127,128,255,256,UINT64_MAX,UINT64_C(1)<<63,
-      UINT64_C(0x7f7f7f7f7f7f7f7f),UINT64_C(0x8080808080808080)};
-    for(size_t i=0;i<av.size();++i) av[i]=edge[i%10];
-    for(size_t i=0;i<bv.size();++i) bv[i]=edge[(i*7+3)%10];
-    std::vector<uint8_t> ah(av.size()*8),bh(bv.size()*8),actual(m*n*8+16,0xa5);
-    for(size_t i=0;i<av.size();++i) store_u64_limbs(ah,i,av[i]);
-    for(size_t i=0;i<bv.size();++i) store_u64_limbs(bh,i,bv[i]);
-    hip_direct_device_buffer a,b,c;
-    REQUIRE(a.allocate(0,ah.size())==RNS8_SUCCESS);
-    REQUIRE(b.allocate(0,bh.size())==RNS8_SUCCESS);
-    REQUIRE(c.allocate(0,actual.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,a.get(),ah.data(),ah.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,b.get(),bh.data(),bh.size())==RNS8_SUCCESS);
-    for(bool signed_digits:{false,true}) {
-      std::fill(actual.begin(),actual.end(),0xa5);
-      REQUIRE(hip_direct_copy_host_to_device(0,c.get(),actual.data(),actual.size())==RNS8_SUCCESS);
-      bool started=true;
-      CHECK(hip_direct_wrap_radix_wmma_device(0,a.get(),b.get(),c.get(),m,n,k,signed_digits,0,started)
-            ==RNS8_WORKSPACE_TOO_SMALL);
+  for (int k :
+       {1, 15, 16, 17, 4095, 4096, 4097, 33025, 33026, 65535, 65536, 65537, 131071, 131072}) {
+    const int m = k < 32 ? 17 : 1, n = k < 32 ? 19 : 1;
+    std::vector<uint64_t> av(m * k), bv(k * n);
+    const uint64_t edge[] = {0,
+                             1,
+                             127,
+                             128,
+                             255,
+                             256,
+                             UINT64_MAX,
+                             UINT64_C(1) << 63,
+                             UINT64_C(0x7f7f7f7f7f7f7f7f),
+                             UINT64_C(0x8080808080808080)};
+    for (size_t i = 0; i < av.size(); ++i)
+      av[i] = edge[i % 10];
+    for (size_t i = 0; i < bv.size(); ++i)
+      bv[i] = edge[(i * 7 + 3) % 10];
+    std::vector<uint8_t> ah(av.size() * 8), bh(bv.size() * 8), actual(m * n * 8 + 16, 0xa5);
+    for (size_t i = 0; i < av.size(); ++i)
+      store_u64_limbs(ah, i, av[i]);
+    for (size_t i = 0; i < bv.size(); ++i)
+      store_u64_limbs(bh, i, bv[i]);
+    hip_direct_device_buffer a, b, c;
+    REQUIRE(a.allocate(0, ah.size()) == RNS8_SUCCESS);
+    REQUIRE(b.allocate(0, bh.size()) == RNS8_SUCCESS);
+    REQUIRE(c.allocate(0, actual.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, a.get(), ah.data(), ah.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, b.get(), bh.data(), bh.size()) == RNS8_SUCCESS);
+    for (bool signed_digits : {false, true}) {
+      std::fill(actual.begin(), actual.end(), 0xa5);
+      REQUIRE(hip_direct_copy_host_to_device(0, c.get(), actual.data(), actual.size()) ==
+              RNS8_SUCCESS);
+      bool started = true;
+      CHECK(hip_direct_wrap_radix_wmma_device(0, a.get(), b.get(), c.get(), m, n, k, signed_digits,
+                                              0, started) == RNS8_WORKSPACE_TOO_SMALL);
       CHECK_FALSE(started);
-      CHECK(hip_direct_wrap_radix_wmma_device(0,a.get(),b.get(),a.get(),m,n,k,signed_digits,4,started)
-            ==RNS8_INVALID_ARGUMENT);
+      CHECK(hip_direct_wrap_radix_wmma_device(0, a.get(), b.get(), a.get(), m, n, k, signed_digits,
+                                              4, started) == RNS8_INVALID_ARGUMENT);
       CHECK_FALSE(started);
-      const auto status=hip_direct_wrap_radix_wmma_device(0,a.get(),b.get(),c.get(),m,n,k,
-                                                         signed_digits,4,started);
-      if(status==RNS8_UNSUPPORTED_BACKEND) {
+      const auto status = hip_direct_wrap_radix_wmma_device(0, a.get(), b.get(), c.get(), m, n, k,
+                                                            signed_digits, 4, started);
+      if (status == RNS8_UNSUPPORTED_BACKEND) {
         CHECK_FALSE(started);
         SKIP("target lacks RDNA3 native IU8 WMMA");
       }
-      REQUIRE(status==RNS8_SUCCESS); REQUIRE(started);
-      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),c.get(),actual.size())==RNS8_SUCCESS);
-      for(int row=0;row<m;++row) for(int col=0;col<n;++col) {
-        uint64_t native=0,bytes=0;
-        boost::multiprecision::cpp_int wide=0;
-        for(int q=0;q<k;++q) {
-          native+=av[row*k+q]*bv[q*n+col];
-          bytes+=wrap64_byte_limb_product(av[row*k+q],bv[q*n+col]);
-          wide+=boost::multiprecision::cpp_int(av[row*k+q])*bv[q*n+col];
+      REQUIRE(status == RNS8_SUCCESS);
+      REQUIRE(started);
+      REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), c.get(), actual.size()) ==
+              RNS8_SUCCESS);
+      for (int row = 0; row < m; ++row)
+        for (int col = 0; col < n; ++col) {
+          uint64_t native = 0, bytes = 0;
+          boost::multiprecision::cpp_int wide = 0;
+          for (int q = 0; q < k; ++q) {
+            native += av[row * k + q] * bv[q * n + col];
+            bytes += wrap64_byte_limb_product(av[row * k + q], bv[q * n + col]);
+            wide += boost::multiprecision::cpp_int(av[row * k + q]) * bv[q * n + col];
+          }
+          REQUIRE(load_u64_limbs(actual, row * n + col) == native);
+          REQUIRE(native == bytes);
+          REQUIRE(native ==
+                  static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1) << 64) - 1)));
         }
-        REQUIRE(load_u64_limbs(actual,row*n+col)==native);
-        REQUIRE(native==bytes);
-        REQUIRE(native==static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1)<<64)-1)));
-      }
-      for(size_t i=m*n*8;i<actual.size();++i) REQUIRE(actual[i]==0xa5);
+      for (size_t i = m * n * 8; i < actual.size(); ++i)
+        REQUIRE(actual[i] == 0xa5);
     }
   }
 }
 
 TEST_CASE("CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles") {
-  if (!hip_available()) SKIP("no HIP device for wrap64 matrix candidates");
+  if (!hip_available())
+    SKIP("no HIP device for wrap64 matrix candidates");
   using namespace rns8::detail;
-  for(int k : {1,15,16,17,31,32,33,63,64,65,4095,4096,4097,33025,33026,65535,65536,65537,131071,131072}) {
-    const int m=k<32?17:1,n=k<32?19:1;
-    std::vector<uint64_t> av(m*k),bv(k*n);
-    const uint64_t edge[]={0,1,127,128,255,256,UINT64_MAX,UINT64_C(1)<<63,
-      UINT64_C(0x7f7f7f7f7f7f7f7f),UINT64_C(0x8080808080808080)};
-    for(size_t i=0;i<av.size();++i) av[i]=edge[i%10];
-    for(size_t i=0;i<bv.size();++i) bv[i]=edge[(i*7+3)%10];
-    std::vector<uint8_t> ah(av.size()*8),bh(bv.size()*8),actual(m*n*8+16,0xa5);
-    for(size_t i=0;i<av.size();++i) store_u64_limbs(ah,i,av[i]);
-    for(size_t i=0;i<bv.size();++i) store_u64_limbs(bh,i,bv[i]);
-    hip_direct_device_buffer a,b,c;
-    REQUIRE(a.allocate(0,ah.size())==RNS8_SUCCESS);
-    REQUIRE(b.allocate(0,bh.size())==RNS8_SUCCESS);
-    REQUIRE(c.allocate(0,actual.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,a.get(),ah.data(),ah.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,b.get(),bh.data(),bh.size())==RNS8_SUCCESS);
-    for(int repetition=0;repetition<2;++repetition) {
-      std::fill(actual.begin(),actual.end(),0xa5);
-      REQUIRE(hip_direct_copy_host_to_device(0,c.get(),actual.data(),actual.size())==RNS8_SUCCESS);
-      bool started=true;
-      CHECK(hip_direct_wrap_radix_mfma_device(0,a.get(),b.get(),c.get(),m,n,k,0,started)
-            ==RNS8_WORKSPACE_TOO_SMALL);
+  for (int k : {1,    15,   16,   17,    31,    32,    33,    63,    64,     65,
+                4095, 4096, 4097, 33025, 33026, 65535, 65536, 65537, 131071, 131072}) {
+    const int m = k < 32 ? 17 : 1, n = k < 32 ? 19 : 1;
+    std::vector<uint64_t> av(m * k), bv(k * n);
+    const uint64_t edge[] = {0,
+                             1,
+                             127,
+                             128,
+                             255,
+                             256,
+                             UINT64_MAX,
+                             UINT64_C(1) << 63,
+                             UINT64_C(0x7f7f7f7f7f7f7f7f),
+                             UINT64_C(0x8080808080808080)};
+    for (size_t i = 0; i < av.size(); ++i)
+      av[i] = edge[i % 10];
+    for (size_t i = 0; i < bv.size(); ++i)
+      bv[i] = edge[(i * 7 + 3) % 10];
+    std::vector<uint8_t> ah(av.size() * 8), bh(bv.size() * 8), actual(m * n * 8 + 16, 0xa5);
+    for (size_t i = 0; i < av.size(); ++i)
+      store_u64_limbs(ah, i, av[i]);
+    for (size_t i = 0; i < bv.size(); ++i)
+      store_u64_limbs(bh, i, bv[i]);
+    hip_direct_device_buffer a, b, c;
+    REQUIRE(a.allocate(0, ah.size()) == RNS8_SUCCESS);
+    REQUIRE(b.allocate(0, bh.size()) == RNS8_SUCCESS);
+    REQUIRE(c.allocate(0, actual.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, a.get(), ah.data(), ah.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, b.get(), bh.data(), bh.size()) == RNS8_SUCCESS);
+    for (int repetition = 0; repetition < 2; ++repetition) {
+      std::fill(actual.begin(), actual.end(), 0xa5);
+      REQUIRE(hip_direct_copy_host_to_device(0, c.get(), actual.data(), actual.size()) ==
+              RNS8_SUCCESS);
+      bool started = true;
+      CHECK(hip_direct_wrap_radix_mfma_device(0, a.get(), b.get(), c.get(), m, n, k, 0, started) ==
+            RNS8_WORKSPACE_TOO_SMALL);
       CHECK_FALSE(started);
-      CHECK(hip_direct_wrap_radix_mfma_device(0,a.get(),b.get(),a.get(),m,n,k,4,started)
-            ==RNS8_INVALID_ARGUMENT);
+      CHECK(hip_direct_wrap_radix_mfma_device(0, a.get(), b.get(), a.get(), m, n, k, 4, started) ==
+            RNS8_INVALID_ARGUMENT);
       CHECK_FALSE(started);
-      const auto status=hip_direct_wrap_radix_mfma_device(0,a.get(),b.get(),c.get(),m,n,k,4,started);
-      if(status==RNS8_UNSUPPORTED_BACKEND) {
+      const auto status =
+          hip_direct_wrap_radix_mfma_device(0, a.get(), b.get(), c.get(), m, n, k, 4, started);
+      if (status == RNS8_UNSUPPORTED_BACKEND) {
         CHECK_FALSE(started);
         SKIP("target lacks compiled CDNA2/3/4 signed INT8 MFMA");
       }
-      REQUIRE(status==RNS8_SUCCESS); REQUIRE(started);
-      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),c.get(),actual.size())==RNS8_SUCCESS);
-      for(int row=0;row<m;++row) for(int col=0;col<n;++col) {
-        uint64_t native=0,bytes=0;
-        boost::multiprecision::cpp_int wide=0;
-        for(int q=0;q<k;++q) {
-          native+=av[row*k+q]*bv[q*n+col];
-          bytes+=wrap64_byte_limb_product(av[row*k+q],bv[q*n+col]);
-          wide+=boost::multiprecision::cpp_int(av[row*k+q])*bv[q*n+col];
+      REQUIRE(status == RNS8_SUCCESS);
+      REQUIRE(started);
+      REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), c.get(), actual.size()) ==
+              RNS8_SUCCESS);
+      for (int row = 0; row < m; ++row)
+        for (int col = 0; col < n; ++col) {
+          uint64_t native = 0, bytes = 0;
+          boost::multiprecision::cpp_int wide = 0;
+          for (int q = 0; q < k; ++q) {
+            native += av[row * k + q] * bv[q * n + col];
+            bytes += wrap64_byte_limb_product(av[row * k + q], bv[q * n + col]);
+            wide += boost::multiprecision::cpp_int(av[row * k + q]) * bv[q * n + col];
+          }
+          REQUIRE(load_u64_limbs(actual, row * n + col) == native);
+          REQUIRE(native == bytes);
+          REQUIRE(native ==
+                  static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1) << 64) - 1)));
         }
-        REQUIRE(load_u64_limbs(actual,row*n+col)==native);
-        REQUIRE(native==bytes);
-        REQUIRE(native==static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1)<<64)-1)));
-      }
-      for(size_t i=m*n*8;i<actual.size();++i) REQUIRE(actual[i]==0xa5);
+      for (size_t i = m * n * 8; i < actual.size(); ++i)
+        REQUIRE(actual[i] == 0xa5);
     }
   }
 }
 
 TEST_CASE("native U64 vector wrap64 agrees with independent byte and Boost oracles") {
-  if (!hip_available()) SKIP("no HIP device for wrap64 matrix candidates");
+  if (!hip_available())
+    SKIP("no HIP device for wrap64 matrix candidates");
   using namespace rns8::detail;
-  for(int k : {1,15,16,17,31,32,33,63,64,65,4095,4096,4097,33025,33026,65535,65536,65537,131071,131072}) {
-    const int m=k<32?17:1,n=k<32?19:1;
-    std::vector<uint64_t> av(m*k),bv(k*n);
-    const uint64_t edge[]={0,1,127,128,255,256,UINT64_MAX,UINT64_C(1)<<63,
-      UINT64_C(0x7f7f7f7f7f7f7f7f),UINT64_C(0x8080808080808080)};
-    for(size_t i=0;i<av.size();++i) av[i]=edge[i%10];
-    for(size_t i=0;i<bv.size();++i) bv[i]=edge[(i*7+3)%10];
-    std::vector<uint8_t> ah(av.size()*8),bh(bv.size()*8),actual(m*n*8+16,0xa5);
-    for(size_t i=0;i<av.size();++i) store_u64_limbs(ah,i,av[i]);
-    for(size_t i=0;i<bv.size();++i) store_u64_limbs(bh,i,bv[i]);
-    hip_direct_device_buffer a,b,c;
-    REQUIRE(a.allocate(0,ah.size())==RNS8_SUCCESS);
-    REQUIRE(b.allocate(0,bh.size())==RNS8_SUCCESS);
-    REQUIRE(c.allocate(0,actual.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,a.get(),ah.data(),ah.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,b.get(),bh.data(),bh.size())==RNS8_SUCCESS);
-    for(int repetition=0;repetition<2;++repetition) {
-      std::fill(actual.begin(),actual.end(),0xa5);
-      REQUIRE(hip_direct_copy_host_to_device(0,c.get(),actual.data(),actual.size())==RNS8_SUCCESS);
-      bool started=true;
-      CHECK(hip_direct_wrap_native_u64_device(0,a.get(),b.get(),a.get(),m,n,k,started)
-            ==RNS8_INVALID_ARGUMENT);
+  for (int k : {1,    15,   16,   17,    31,    32,    33,    63,    64,     65,
+                4095, 4096, 4097, 33025, 33026, 65535, 65536, 65537, 131071, 131072}) {
+    const int m = k < 32 ? 17 : 1, n = k < 32 ? 19 : 1;
+    std::vector<uint64_t> av(m * k), bv(k * n);
+    const uint64_t edge[] = {0,
+                             1,
+                             127,
+                             128,
+                             255,
+                             256,
+                             UINT64_MAX,
+                             UINT64_C(1) << 63,
+                             UINT64_C(0x7f7f7f7f7f7f7f7f),
+                             UINT64_C(0x8080808080808080)};
+    for (size_t i = 0; i < av.size(); ++i)
+      av[i] = edge[i % 10];
+    for (size_t i = 0; i < bv.size(); ++i)
+      bv[i] = edge[(i * 7 + 3) % 10];
+    std::vector<uint8_t> ah(av.size() * 8), bh(bv.size() * 8), actual(m * n * 8 + 16, 0xa5);
+    for (size_t i = 0; i < av.size(); ++i)
+      store_u64_limbs(ah, i, av[i]);
+    for (size_t i = 0; i < bv.size(); ++i)
+      store_u64_limbs(bh, i, bv[i]);
+    hip_direct_device_buffer a, b, c;
+    REQUIRE(a.allocate(0, ah.size()) == RNS8_SUCCESS);
+    REQUIRE(b.allocate(0, bh.size()) == RNS8_SUCCESS);
+    REQUIRE(c.allocate(0, actual.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, a.get(), ah.data(), ah.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, b.get(), bh.data(), bh.size()) == RNS8_SUCCESS);
+    for (int repetition = 0; repetition < 2; ++repetition) {
+      std::fill(actual.begin(), actual.end(), 0xa5);
+      REQUIRE(hip_direct_copy_host_to_device(0, c.get(), actual.data(), actual.size()) ==
+              RNS8_SUCCESS);
+      bool started = true;
+      CHECK(hip_direct_wrap_native_u64_device(0, a.get(), b.get(), a.get(), m, n, k, started) ==
+            RNS8_INVALID_ARGUMENT);
       CHECK_FALSE(started);
-      const auto status=hip_direct_wrap_native_u64_device(0,a.get(),b.get(),c.get(),m,n,k,started);
-      REQUIRE(status==RNS8_SUCCESS); REQUIRE(started);
-      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),c.get(),actual.size())==RNS8_SUCCESS);
-      for(int row=0;row<m;++row) for(int col=0;col<n;++col) {
-        uint64_t native=0,bytes=0;
-        boost::multiprecision::cpp_int wide=0;
-        for(int q=0;q<k;++q) {
-          native+=av[row*k+q]*bv[q*n+col];
-          bytes+=wrap64_byte_limb_product(av[row*k+q],bv[q*n+col]);
-          wide+=boost::multiprecision::cpp_int(av[row*k+q])*bv[q*n+col];
+      const auto status =
+          hip_direct_wrap_native_u64_device(0, a.get(), b.get(), c.get(), m, n, k, started);
+      REQUIRE(status == RNS8_SUCCESS);
+      REQUIRE(started);
+      REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), c.get(), actual.size()) ==
+              RNS8_SUCCESS);
+      for (int row = 0; row < m; ++row)
+        for (int col = 0; col < n; ++col) {
+          uint64_t native = 0, bytes = 0;
+          boost::multiprecision::cpp_int wide = 0;
+          for (int q = 0; q < k; ++q) {
+            native += av[row * k + q] * bv[q * n + col];
+            bytes += wrap64_byte_limb_product(av[row * k + q], bv[q * n + col]);
+            wide += boost::multiprecision::cpp_int(av[row * k + q]) * bv[q * n + col];
+          }
+          REQUIRE(load_u64_limbs(actual, row * n + col) == native);
+          REQUIRE(native == bytes);
+          REQUIRE(native ==
+                  static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1) << 64) - 1)));
         }
-        REQUIRE(load_u64_limbs(actual,row*n+col)==native);
-        REQUIRE(native==bytes);
-        REQUIRE(native==static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1)<<64)-1)));
-      }
-      for(size_t i=m*n*8;i<actual.size();++i) REQUIRE(actual[i]==0xa5);
+      for (size_t i = m * n * 8; i < actual.size(); ++i)
+        REQUIRE(actual[i] == 0xa5);
     }
   }
 }
 
 TEST_CASE("CDNA MFMA single-hot operands distinguish wave-register coordinate ownership") {
-  if(!hip_available())SKIP("HIP unavailable");
+  if (!hip_available())
+    SKIP("HIP unavailable");
   using namespace rns8::detail;
-  uint32_t width=0;const auto supported=hip_direct_wrap_radix_mfma_query(0,width);
-  if(supported==RNS8_UNSUPPORTED_BACKEND)SKIP("compiled signed MFMA unavailable");
-  REQUIRE(supported==RNS8_SUCCESS);
-  const int m=17,n=19,k=65;
-  std::vector<uint8_t> a(m*k*8),b(k*n*8),out(m*n*8+64,0xa5);
-  hip_direct_device_buffer da,db,dc;
-  REQUIRE(da.allocate(0,a.size())==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size())==RNS8_SUCCESS);REQUIRE(dc.allocate(0,out.size())==RNS8_SUCCESS);
-  for(int q:{0,1,3,4,7,8,15,16,31,32,63,64}){
-    const int row=(q*5+3)%m,col=(q*7+2)%n;
-    std::fill(a.begin(),a.end(),0);std::fill(b.begin(),b.end(),0);std::fill(out.begin(),out.end(),0xa5);
-    store_u64_limbs(a,row*k+q,255);store_u64_limbs(b,q*n+col,(UINT64_C(1)<<63)+1);
-    REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size())==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),out.data(),out.size())==RNS8_SUCCESS);
-    bool started=false;REQUIRE(hip_direct_wrap_radix_mfma_device(0,da.get(),db.get(),dc.get(),m,n,k,4,started)==RNS8_SUCCESS);REQUIRE(started);
-    REQUIRE(hip_direct_copy_device_to_host(0,out.data(),dc.get(),out.size())==RNS8_SUCCESS);
-    for(int r=0;r<m;++r)for(int c=0;c<n;++c)REQUIRE(load_u64_limbs(out,r*n+c)==(r==row && c==col?UINT64_C(255)*((UINT64_C(1)<<63)+1):0));
-    for(size_t i=m*n*8;i<out.size();++i)REQUIRE(out[i]==0xa5);
+  uint32_t width = 0;
+  const auto supported = hip_direct_wrap_radix_mfma_query(0, width);
+  if (supported == RNS8_UNSUPPORTED_BACKEND)
+    SKIP("compiled signed MFMA unavailable");
+  REQUIRE(supported == RNS8_SUCCESS);
+  const int m = 17, n = 19, k = 65;
+  std::vector<uint8_t> a(m * k * 8), b(k * n * 8), out(m * n * 8 + 64, 0xa5);
+  hip_direct_device_buffer da, db, dc;
+  REQUIRE(da.allocate(0, a.size()) == RNS8_SUCCESS);
+  REQUIRE(db.allocate(0, b.size()) == RNS8_SUCCESS);
+  REQUIRE(dc.allocate(0, out.size()) == RNS8_SUCCESS);
+  for (int q : {0, 1, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64}) {
+    const int row = (q * 5 + 3) % m, col = (q * 7 + 2) % n;
+    std::fill(a.begin(), a.end(), 0);
+    std::fill(b.begin(), b.end(), 0);
+    std::fill(out.begin(), out.end(), 0xa5);
+    store_u64_limbs(a, row * k + q, 255);
+    store_u64_limbs(b, q * n + col, (UINT64_C(1) << 63) + 1);
+    REQUIRE(hip_direct_copy_host_to_device(0, da.get(), a.data(), a.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, db.get(), b.data(), b.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, dc.get(), out.data(), out.size()) == RNS8_SUCCESS);
+    bool started = false;
+    REQUIRE(hip_direct_wrap_radix_mfma_device(0, da.get(), db.get(), dc.get(), m, n, k, 4,
+                                              started) == RNS8_SUCCESS);
+    REQUIRE(started);
+    REQUIRE(hip_direct_copy_device_to_host(0, out.data(), dc.get(), out.size()) == RNS8_SUCCESS);
+    for (int r = 0; r < m; ++r)
+      for (int c = 0; c < n; ++c)
+        REQUIRE(load_u64_limbs(out, r * n + c) ==
+                (r == row && c == col ? UINT64_C(255) * ((UINT64_C(1) << 63) + 1) : 0));
+    for (size_t i = m * n * 8; i < out.size(); ++i)
+      REQUIRE(out[i] == 0xa5);
   }
 }

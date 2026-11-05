@@ -55,7 +55,9 @@ def capture(
         "timing_metadata": {
             "gpu_event_timing": events,
             "gpu_event_timing_status": "available" if events else "not_available",
-            "gpu_event_phase_order": ["pack", "rns_gemm_kernel_group", "crt_export"] if events else None,
+            "gpu_event_phase_order": ["pack", "rns_gemm_kernel_group", "crt_export"]
+            if events
+            else None,
             "gpu_event_timing_source": "hipEventElapsedTime" if events else None,
         },
         "gpu_event_timings_us": {"rns_gemm_kernel_group": [rns_gemm_us] * 9} if events else None,
@@ -104,7 +106,9 @@ def main() -> int:
         path="layout-prototype.json",
         redesign=redesign_metadata(),
     )
-    result = report.build_direct_hip_resident_redesign_report([baseline, colpair_loss, route_candidate])
+    result = report.build_direct_hip_resident_redesign_report(
+        [baseline, colpair_loss, route_candidate]
+    )
     summary = result["summary"]
     assert summary["candidate_count"] == 2
     assert summary["resident_default_baseline_count"] == 1
@@ -113,13 +117,21 @@ def main() -> int:
     assert summary["deprioritized_count"] == 1
     assert summary["gemm_only_win_blocked_count"] == 1
 
-    colpair_row = next(item for item in result["comparisons"] if item["candidate_kernel"] == report.REJECTED_COLPAIR_KERNEL)
+    colpair_row = next(
+        item
+        for item in result["comparisons"]
+        if item["candidate_kernel"] == report.REJECTED_COLPAIR_KERNEL
+    )
     assert colpair_row["decision"] == "drop/deprioritize"
     assert colpair_row["speedup_vs_resident_default_rns_gemm"] == 1.25
     assert "gemm_only_win_end_to_end_loss" in colpair_row["blockers"]
     assert "end_to_end_not_faster" in colpair_row["blockers"]
 
-    route_row = next(item for item in result["comparisons"] if item["candidate"] == "layout_tile_export_prototype")
+    route_row = next(
+        item
+        for item in result["comparisons"]
+        if item["candidate"] == "layout_tile_export_prototype"
+    )
     assert route_row["decision"] == "route_candidate"
     assert route_row["promotion_eligible"] is True
     assert route_row["blockers"] == []
@@ -130,7 +142,9 @@ def main() -> int:
 
     missing_resource = copy.deepcopy(route_candidate)
     missing_resource["resident_redesign"].pop("resource_summary")
-    missing_resource_report = report.build_direct_hip_resident_redesign_report([baseline, missing_resource])
+    missing_resource_report = report.build_direct_hip_resident_redesign_report(
+        [baseline, missing_resource]
+    )
     assert missing_resource_report["summary"]["rank51_gate_complete"] is False
     assert "missing_resource_explanation" in missing_resource_report["comparisons"][0]["blockers"]
 
@@ -138,7 +152,9 @@ def main() -> int:
     mismatch["checksum_u64"] = 999
     mismatch_report = report.build_direct_hip_resident_redesign_report([baseline, mismatch])
     assert mismatch_report["summary"]["rank51_gate_complete"] is False
-    assert "checksum_mismatch_with_resident_default" in mismatch_report["comparisons"][0]["blockers"]
+    assert (
+        "checksum_mismatch_with_resident_default" in mismatch_report["comparisons"][0]["blockers"]
+    )
 
     with tempfile.TemporaryDirectory() as tmp_name:
         outputs = report.write_outputs(result, Path(tmp_name))

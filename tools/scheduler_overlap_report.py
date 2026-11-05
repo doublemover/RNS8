@@ -25,14 +25,26 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for path in paths:
         capture = _load(path)
-        grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+        grouped = (
+            capture.get("grouped_dispatch")
+            if isinstance(capture.get("grouped_dispatch"), dict)
+            else {}
+        )
         adaptive = (
             capture.get("adaptive_grouped_scheduler")
             if isinstance(capture.get("adaptive_grouped_scheduler"), dict)
             else {}
         )
-        graph = capture.get("hip_graph_replay") if isinstance(capture.get("hip_graph_replay"), dict) else {}
-        overlap = capture.get("streaming_overlap") if isinstance(capture.get("streaming_overlap"), dict) else {}
+        graph = (
+            capture.get("hip_graph_replay")
+            if isinstance(capture.get("hip_graph_replay"), dict)
+            else {}
+        )
+        overlap = (
+            capture.get("streaming_overlap")
+            if isinstance(capture.get("streaming_overlap"), dict)
+            else {}
+        )
         rows.append(
             {
                 "capture_path": str(path),
@@ -45,8 +57,12 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                 "adaptive_group_count": adaptive.get("group_count"),
                 "adaptive_active_prefix_count": adaptive.get("active_prefix_count"),
                 "adaptive_active_entry_count": adaptive.get("active_entry_count"),
-                "adaptive_independent_launch_count_model": adaptive.get("independent_launch_count_model"),
-                "adaptive_aggregate_launch_count_model": adaptive.get("aggregate_launch_count_model"),
+                "adaptive_independent_launch_count_model": adaptive.get(
+                    "independent_launch_count_model"
+                ),
+                "adaptive_aggregate_launch_count_model": adaptive.get(
+                    "aggregate_launch_count_model"
+                ),
                 "adaptive_launch_reduction_ratio": adaptive.get("launch_reduction_ratio"),
                 "adaptive_event_scope": adaptive.get("event_scope"),
                 "adaptive_status": adaptive.get("capture_status"),

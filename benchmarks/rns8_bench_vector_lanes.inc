@@ -22,7 +22,8 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
 
   const std::size_t a_bytes = checked_bytes(A.size(), sizeof(int64_t), "A");
   const std::size_t b_bytes = checked_bytes(B.size(), sizeof(int64_t), "B");
-  const std::size_t c_bytes = checked_bytes(checked_elements(args.m, args.n, "device C"), sizeof(int64_t), "C");
+  const std::size_t c_bytes =
+      checked_bytes(checked_elements(args.m, args.n, "device C"), sizeof(int64_t), "C");
   const std::size_t status_bytes = sizeof(uint32_t);
   DeviceBuffer d_a;
   DeviceBuffer d_b;
@@ -36,7 +37,8 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   fill_vector_alu_backend_info(args, result, vector_alu_workspace_bytes<int64_t>(args));
-  result.gpu_events.requested = gpu_event_capture_requested(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+  result.gpu_events.requested =
+      gpu_event_capture_requested(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
 
   const auto run_iteration = [&](TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
@@ -47,16 +49,20 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     begin_gpu_event_phase(collect_gpu_events);
     const auto pack_a_start = std::chrono::steady_clock::now();
     rns8_status status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
-      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(), a_bytes);
+      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(),
+                                                          a_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_host_to_device(vector A)", status);
     const auto pack_a_end = std::chrono::steady_clock::now();
     pack_a_us = elapsed_us(pack_a_start, pack_a_end);
     const auto pack_b_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
-      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(), b_bytes);
+      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(),
+                                                          b_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_host_to_device(vector B)", status);
     const auto pack_b_end = std::chrono::steady_clock::now();
     pack_b_us = elapsed_us(pack_b_start, pack_b_end);
     if (collect_gpu_events) {
@@ -70,22 +76,20 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     status = run_timed_status_operation("vector_alu_status_memset", [&]() {
       return rns8::detail::hip_direct_zero(args.device_id, d_status.ptr, status_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_zero(vector status)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_zero(vector status)", status);
     const char* kernel_label = vector_to_rns_chain_kernel_label(args);
     const int kernel_status = rns8::detail::run_timed_device_code(kernel_label, [&]() {
       return rns8_bench_vector_i64_gemm_device(
-          args.device_id,
-          static_cast<const int64_t*>(d_a.ptr),
-          static_cast<const int64_t*>(d_b.ptr),
-          static_cast<int64_t*>(d_c.ptr),
-          static_cast<uint32_t*>(d_status.ptr),
-          args.m,
-          args.n,
-          args.k);
+          args.device_id, static_cast<const int64_t*>(d_a.ptr),
+          static_cast<const int64_t*>(d_b.ptr), static_cast<int64_t*>(d_c.ptr),
+          static_cast<uint32_t*>(d_status.ptr), args.m, args.n, args.k);
     });
-    if (kernel_status != 0) fail_hip_runtime("rns8_bench_vector_i64_gemm_device", kernel_status);
+    if (kernel_status != 0)
+      fail_hip_runtime("rns8_bench_vector_i64_gemm_device", kernel_status);
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result,
+                                  result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -94,17 +98,22 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     begin_gpu_event_phase(collect_gpu_events);
     uint32_t range_status = 0;
     status = run_timed_status_operation("vector_alu_status_d2h", [&]() {
-      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, &range_status, d_status.ptr, status_bytes);
+      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, &range_status,
+                                                          d_status.ptr, status_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector status)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_device_to_host(vector status)", status);
     if (range_status != 0) {
       fail_status("hip-vector-alu-int64 range check", RNS8_RANGE_ERROR);
     }
     status = run_timed_status_operation("vector_alu_output_d2h", [&]() {
-      void* destination = ldc == args.n ? static_cast<void*>(C.data()) : static_cast<void*>(compact_C.data());
-      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, destination, d_c.ptr, c_bytes);
+      void* destination =
+          ldc == args.n ? static_cast<void*>(C.data()) : static_cast<void*>(compact_C.data());
+      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, destination, d_c.ptr,
+                                                          c_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_device_to_host(vector C)", status);
     if (ldc != args.n) {
       copy_compact_to_output(compact_C, C, args.m, args.n, ldc, "vector C");
     }
@@ -124,16 +133,21 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     run_iteration(nullptr);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
-  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  run_public_sustained(args, result, [&](uint64_t version) {
+    (void)version;
+    run_iteration(nullptr);
+  });
   verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
@@ -152,7 +166,8 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint64_t> C(output_elements(args, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
-  std::vector<uint64_t> compact_C(ldc == args.n ? 0 : checked_elements(args.m, args.n, "compact C"));
+  std::vector<uint64_t> compact_C(ldc == args.n ? 0
+                                                : checked_elements(args.m, args.n, "compact C"));
   fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
@@ -164,7 +179,8 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
 
   const std::size_t a_bytes = checked_bytes(A.size(), sizeof(uint64_t), "A");
   const std::size_t b_bytes = checked_bytes(B.size(), sizeof(uint64_t), "B");
-  const std::size_t c_bytes = checked_bytes(checked_elements(args.m, args.n, "device C"), sizeof(uint64_t), "C");
+  const std::size_t c_bytes =
+      checked_bytes(checked_elements(args.m, args.n, "device C"), sizeof(uint64_t), "C");
   const std::size_t status_bytes = sizeof(uint32_t);
   DeviceBuffer d_a;
   DeviceBuffer d_b;
@@ -178,7 +194,8 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   fill_vector_alu_backend_info(args, result, vector_alu_workspace_bytes<uint64_t>(args));
-  result.gpu_events.requested = gpu_event_capture_requested(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+  result.gpu_events.requested =
+      gpu_event_capture_requested(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
 
   const auto run_iteration = [&](TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
@@ -189,16 +206,20 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     begin_gpu_event_phase(collect_gpu_events);
     const auto pack_a_start = std::chrono::steady_clock::now();
     rns8_status status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
-      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(), a_bytes);
+      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(),
+                                                          a_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_host_to_device(vector A)", status);
     const auto pack_a_end = std::chrono::steady_clock::now();
     pack_a_us = elapsed_us(pack_a_start, pack_a_end);
     const auto pack_b_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
-      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(), b_bytes);
+      return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(),
+                                                          b_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_host_to_device(vector B)", status);
     const auto pack_b_end = std::chrono::steady_clock::now();
     pack_b_us = elapsed_us(pack_b_start, pack_b_end);
     if (collect_gpu_events) {
@@ -212,22 +233,20 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     status = run_timed_status_operation("vector_alu_status_memset", [&]() {
       return rns8::detail::hip_direct_zero(args.device_id, d_status.ptr, status_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_zero(vector status)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_zero(vector status)", status);
     const char* kernel_label = vector_to_rns_chain_kernel_label(args);
     const int kernel_status = rns8::detail::run_timed_device_code(kernel_label, [&]() {
       return rns8_bench_vector_u64_gemm_device(
-          args.device_id,
-          static_cast<const uint64_t*>(d_a.ptr),
-          static_cast<const uint64_t*>(d_b.ptr),
-          static_cast<uint64_t*>(d_c.ptr),
-          static_cast<uint32_t*>(d_status.ptr),
-          args.m,
-          args.n,
-          args.k);
+          args.device_id, static_cast<const uint64_t*>(d_a.ptr),
+          static_cast<const uint64_t*>(d_b.ptr), static_cast<uint64_t*>(d_c.ptr),
+          static_cast<uint32_t*>(d_status.ptr), args.m, args.n, args.k);
     });
-    if (kernel_status != 0) fail_hip_runtime("rns8_bench_vector_u64_gemm_device", kernel_status);
+    if (kernel_status != 0)
+      fail_hip_runtime("rns8_bench_vector_u64_gemm_device", kernel_status);
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result,
+                                  result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -236,17 +255,22 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     begin_gpu_event_phase(collect_gpu_events);
     uint32_t range_status = 0;
     status = run_timed_status_operation("vector_alu_status_d2h", [&]() {
-      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, &range_status, d_status.ptr, status_bytes);
+      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, &range_status,
+                                                          d_status.ptr, status_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector status)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_device_to_host(vector status)", status);
     if (range_status != 0) {
       fail_status("hip-vector-alu-int64 range check", RNS8_RANGE_ERROR);
     }
     status = run_timed_status_operation("vector_alu_output_d2h", [&]() {
-      void* destination = ldc == args.n ? static_cast<void*>(C.data()) : static_cast<void*>(compact_C.data());
-      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, destination, d_c.ptr, c_bytes);
+      void* destination =
+          ldc == args.n ? static_cast<void*>(C.data()) : static_cast<void*>(compact_C.data());
+      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, destination, d_c.ptr,
+                                                          c_bytes);
     });
-    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("hip_direct_copy_device_to_host(vector C)", status);
     if (ldc != args.n) {
       copy_compact_to_output(compact_C, C, args.m, args.n, ldc, "vector C");
     }
@@ -266,16 +290,21 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     run_iteration(nullptr);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
-  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  run_public_sustained(args, result, [&](uint64_t version) {
+    (void)version;
+    run_iteration(nullptr);
+  });
   verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;

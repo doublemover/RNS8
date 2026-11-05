@@ -14,6 +14,7 @@ class EvidencePrimitives(unittest.TestCase):
     def test_integer_bounds_reject_boolean_and_numeric_subclasses(self):
         class AuthoredInt(int):
             pass
+
         for value in (True, False, 1.0, "1", None, AuthoredInt(1)):
             self.assertFalse(integer(value, 0, 2))
         self.assertTrue(integer(0, 0, 2))
@@ -27,8 +28,15 @@ class EvidencePrimitives(unittest.TestCase):
         self.assertTrue(positive(0.25))
 
     def test_json_rejects_duplicate_constants_and_overflowing_exponents(self):
-        for text in ('{"x":1,"x":2}', '{"nested":{"x":1,"x":2}}',
-                     '[NaN]', '[Infinity]', '[-Infinity]', '[1e999]', '[-1e999]'):
+        for text in (
+            '{"x":1,"x":2}',
+            '{"nested":{"x":1,"x":2}}',
+            "[NaN]",
+            "[Infinity]",
+            "[-Infinity]",
+            "[1e999]",
+            "[-1e999]",
+        ):
             with self.assertRaises(ValueError):
                 parse_evidence_json(text)
         value = parse_evidence_json('{"integer":18446744073709551615,"zero":0,"null":null}')
@@ -47,8 +55,13 @@ class EvidencePrimitives(unittest.TestCase):
         self.assertFalse(text_choice("unknown", choices))
 
     def test_structural_comparison_keeps_type_null_and_missing_distinct(self):
-        for left, right in ((True, 1), (1, 1.0), ({}, {"x": None}),
-                            ({"x": None}, {"x": 0}), ([1], [True])):
+        for left, right in (
+            (True, 1),
+            (1, 1.0),
+            ({}, {"x": None}),
+            ({"x": None}, {"x": 0}),
+            ([1], [True]),
+        ):
             self.assertFalse(same_evidence_value(left, right))
         self.assertTrue(same_evidence_value({"x": [1, None, "bytes"]}, {"x": [1, None, "bytes"]}))
         with self.assertRaisesRegex(ValueError, "authored reason"):

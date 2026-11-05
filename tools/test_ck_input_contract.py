@@ -1,4 +1,5 @@
 """Offline selected-header WMMA signedness contracts; no GPU qualification."""
+
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,16 +21,27 @@ class Contract(unittest.TestCase):
             root = Path(folder)
             header = root / "wmma.hpp"
             script = root / "probe.cmake"
-            script.write_text('include("' + (ROOT / "cmake/modules/RNS8CKInputContract.cmake").as_posix() + '")\n'
-                + 'rns8_ck_wmma_input_contract("' + header.as_posix() + '" mode)\nmessage(STATUS "MODE=${mode}")\n')
-            cases = (("bool neg_a = true,\nbool neg_b = true,", "1"),
-                     ("bool neg_a = false,\nbool neg_b = false,", "0"),
-                     ("bool neg_a = true,\nbool neg_b = false,", None),
-                     ("bool neg_a = true,", None), ("unknown declaration", None))
+            script.write_text(
+                'include("'
+                + (ROOT / "cmake/modules/RNS8CKInputContract.cmake").as_posix()
+                + '")\n'
+                + 'rns8_ck_wmma_input_contract("'
+                + header.as_posix()
+                + '" mode)\nmessage(STATUS "MODE=${mode}")\n'
+            )
+            cases = (
+                ("bool neg_a = true,\nbool neg_b = true,", "1"),
+                ("bool neg_a = false,\nbool neg_b = false,", "0"),
+                ("bool neg_a = true,\nbool neg_b = false,", None),
+                ("bool neg_a = true,", None),
+                ("unknown declaration", None),
+            )
             for source, expected in cases:
                 with self.subTest(source=source):
                     header.write_text(source)
-                    result = subprocess.run([cmake, "-P", str(script)], capture_output=True, text=True, check=False)
+                    result = subprocess.run(
+                        [cmake, "-P", str(script)], capture_output=True, text=True, check=False
+                    )
                     if expected is None:
                         self.assertNotEqual(result.returncode, 0)
                     else:

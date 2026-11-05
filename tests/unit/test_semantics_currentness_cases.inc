@@ -1,4 +1,5 @@
-TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspaces and matrix tiles") {
+TEST_CASE(
+    "persistent bounded RNS GEMM rejects same-shape stale schedule workspaces and matrix tiles") {
   rns8_context* ctx = create_cpu();
   constexpr int64_t m = 65;
   constexpr int64_t n = 65;
@@ -52,9 +53,12 @@ TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspa
   REQUIRE(rns8_create_workspace(ctx, plan_b, &workspace_b) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(ctx, plan_tile, &workspace_tile) == RNS8_SUCCESS);
 
-  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
-  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
-  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED,
+                            RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED,
+                            RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED,
+                            RNS8_DEFAULT_BOUNDED_PREFIX);
   a_desc.tile_m = b_desc.tile_m = c_desc.tile_m = 64;
   a_desc.tile_n = b_desc.tile_n = c_desc.tile_n = 64;
   REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
@@ -64,8 +68,10 @@ TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspa
   REQUIRE(rns8_pack_u64(ctx, b_matrix, B.data(), n, 1) == RNS8_SUCCESS);
 
   CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_a) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_b) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_tile) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_b) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_tile) ==
+        RNS8_INVALID_ARGUMENT);
 
   auto wrong_a_desc = a_desc;
   wrong_a_desc.tile_m = 128;
@@ -75,8 +81,10 @@ TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspa
   wrong_c_desc.tile_n = 128;
   REQUIRE(rns8_create_matrix(ctx, &wrong_a_desc, &wrong_a_tile) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &wrong_c_desc, &wrong_c_tile) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(ctx, plan_a, wrong_a_tile, b_matrix, c_matrix, workspace_a) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, wrong_c_tile, workspace_a) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan_a, wrong_a_tile, b_matrix, c_matrix, workspace_a) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, wrong_c_tile, workspace_a) ==
+        RNS8_INVALID_ARGUMENT);
   uint64_t out[4] = {};
   CHECK(rns8_export_u64(ctx, plan_a, wrong_c_tile, out, n) == RNS8_INVALID_ARGUMENT);
 
@@ -171,7 +179,8 @@ TEST_CASE("persistent bounded export rejects output matrices outside the plan co
   CHECK(rns8_export_u64(ctx, plan, wrong_c_prefix, dst, 2) == RNS8_INVALID_ARGUMENT);
 
   rns8_matrix* wrong_c_bound_kind = nullptr;
-  auto wrong_c_bound_kind_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  auto wrong_c_bound_kind_desc =
+      matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
   REQUIRE(rns8_create_matrix(ctx, &wrong_c_bound_kind_desc, &wrong_c_bound_kind) == RNS8_SUCCESS);
   CHECK(rns8_export_u64(ctx, plan, wrong_c_bound_kind, dst, 2) == RNS8_INVALID_ARGUMENT);
 

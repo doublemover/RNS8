@@ -22,7 +22,7 @@ extern thread_local bool algorithm_observations_enabled;
 extern thread_local HipblasLtAlgorithmInventory algorithm_inventory;
 extern thread_local HipblasLtPrepackPolicy prepack_policy;
 extern thread_local HipblasLtPrepackCounters prepack_counters;
-}
+} // namespace hipblaslt_metadata_state
 void hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy policy);
 HipblasLtMetadataPolicy hipblaslt_metadata_policy();
 void hipblaslt_metadata_counters_reset();
@@ -49,12 +49,9 @@ inline bool hipblaslt_round_up_aligned(uint64_t value, uint64_t& rounded) {
   return rounded <= static_cast<uint64_t>(std::numeric_limits<int>::max());
 }
 
-inline bool hipblaslt_baseline_workspace_requirements(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    std::size_t& int32_scratch_bytes,
-    std::size_t& workspace_bytes) {
+inline bool hipblaslt_baseline_workspace_requirements(int64_t m, int64_t n, int64_t k,
+                                                      std::size_t& int32_scratch_bytes,
+                                                      std::size_t& workspace_bytes) {
   int32_scratch_bytes = 0;
   workspace_bytes = 0;
   if (m <= 0 || n <= 0 || k <= 0) {
@@ -102,51 +99,29 @@ bool hipblaslt_compiled();
 // Retained full/tail descriptors and selected algorithms. Preparation may warm
 // the library using zeroed private workspace; enqueue never runs heuristics,
 // constructs descriptors, allocates payload or observes completion.
-rns8_status hipblaslt_prepare_async(rns8_context*,const rns8_plan*,rns8_workspace*,void**);
-rns8_status hipblaslt_enqueue_async(void*,const void*,const void*,void*,int64_t,int64_t,int64_t,void* stream);
+rns8_status hipblaslt_prepare_async(rns8_context*, const rns8_plan*, rns8_workspace*, void**);
+rns8_status hipblaslt_enqueue_async(void*, const void*, const void*, void*, int64_t, int64_t,
+                                    int64_t, void* stream);
 rns8_status hipblaslt_destroy_async(void*);
-rns8_status hipblaslt_create_context(int device_id, rns8_device_info& out, void** handle, std::string& version);
+rns8_status hipblaslt_create_context(int device_id, rns8_device_info& out, void** handle,
+                                     std::string& version);
 rns8_status hipblaslt_destroy_context(int device_id, void* handle);
-rns8_status hipblaslt_gemm_rns_device(
-    int device_id,
-    void* handle,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* int32_scratch,
-    std::size_t int32_scratch_bytes,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint32_t prefix,
-    rns8_workspace* workspace_state,
-    uint64_t a_generation,
-    uint64_t b_generation,
-    uint64_t a_instance_id,
-    uint64_t b_instance_id);
-rns8_status hipblaslt_gemm_finite_u8_device(
-    int device_id,
-    void* handle,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* int32_scratch,
-    std::size_t int32_scratch_bytes,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus);
+rns8_status hipblaslt_gemm_rns_device(int device_id, void* handle, const void* device_a_residues,
+                                      const void* device_b_residues, void* device_c_residues,
+                                      void* int32_scratch, std::size_t int32_scratch_bytes,
+                                      void* workspace, std::size_t workspace_bytes, int64_t m,
+                                      int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+                                      uint32_t prefix, rns8_workspace* workspace_state,
+                                      uint64_t a_generation, uint64_t b_generation,
+                                      uint64_t a_instance_id, uint64_t b_instance_id);
+rns8_status hipblaslt_gemm_finite_u8_device(int device_id, void* handle,
+                                            const void* device_a_residues,
+                                            const void* device_b_residues, void* device_c_residues,
+                                            void* int32_scratch, std::size_t int32_scratch_bytes,
+                                            void* workspace, std::size_t workspace_bytes, int64_t m,
+                                            int64_t n, int64_t k, int64_t lda, int64_t ldb,
+                                            int64_t ldc, uint16_t modulus);
 
-}  // namespace rns8::detail
+} // namespace rns8::detail
 
 #endif

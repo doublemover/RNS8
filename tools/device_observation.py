@@ -60,10 +60,7 @@ def _uint32(value: JsonValue) -> int:
 
 
 def runtime_identity(value: JsonValue) -> RuntimeDeviceIdentity:
-    if (
-        not isinstance(value, dict)
-        or value.get("schema") != "rns8_runtime_device_identity_v1"
-    ):
+    if not isinstance(value, dict) or value.get("schema") != "rns8_runtime_device_identity_v1":
         raise IdentityUnavailable("versioned_runtime_identity_missing")
     expected = {
         "schema",
@@ -118,9 +115,7 @@ def runtime_identity(value: JsonValue) -> RuntimeDeviceIdentity:
     return RuntimeDeviceIdentity(ordinal, bdf, uuid)
 
 
-def identity_relation(
-    left: RuntimeDeviceIdentity, right: RuntimeDeviceIdentity
-) -> DeviceRelation:
+def identity_relation(left: RuntimeDeviceIdentity, right: RuntimeDeviceIdentity) -> DeviceRelation:
     shared = []
     for field in ("uuid", "pci_bdf"):
         first, second = getattr(left, field), getattr(right, field)
@@ -134,9 +129,7 @@ def identity_relation(
     return DeviceRelation("verified", ())
 
 
-def _observation(
-    device: JsonValue, identity: RuntimeDeviceIdentity
-) -> DeviceObservation:
+def _observation(device: JsonValue, identity: RuntimeDeviceIdentity) -> DeviceObservation:
     if not isinstance(device, dict):
         raise IdentityUnavailable("runtime_device_observation_missing")
     available = device.get("hip_available")
@@ -173,10 +166,7 @@ def capture_observation(capture: JsonValue) -> DeviceObservation:
     if not isinstance(capture, dict):
         raise IdentityUnavailable("runtime_capture_missing")
     witness = capture.get("device_identity_witness")
-    if (
-        not isinstance(witness, dict)
-        or witness.get("schema") != "rns8_device_identity_witness_v1"
-    ):
+    if not isinstance(witness, dict) or witness.get("schema") != "rns8_device_identity_witness_v1":
         raise IdentityUnavailable("runtime_capture_identity_witness_missing")
     if set(witness) != {"schema", "binding_state", "before", "after"}:
         raise IdentityMismatch("runtime_capture_identity_witness_fields_unknown")
@@ -198,9 +188,7 @@ def capture_observation(capture: JsonValue) -> DeviceObservation:
     return _observation(capture.get("device"), before)
 
 
-def observation_relation(
-    left: DeviceObservation, right: DeviceObservation
-) -> DeviceRelation:
+def observation_relation(left: DeviceObservation, right: DeviceObservation) -> DeviceRelation:
     for field in (
         "architecture",
         "name",
@@ -209,22 +197,16 @@ def observation_relation(
         "memory_bytes",
     ):
         if getattr(left, field) != getattr(right, field):
-            return DeviceRelation(
-                "mismatch", ("observed_device_" + field + "_mismatch",)
-            )
+            return DeviceRelation("mismatch", ("observed_device_" + field + "_mismatch",))
     return identity_relation(left.identity, right.identity)
 
 
-def distinct_execution_devices(
-    left: DeviceObservation, right: DeviceObservation
-) -> bool:
+def distinct_execution_devices(left: DeviceObservation, right: DeviceObservation) -> bool:
     """Distinct UUIDs can identify partitions sharing the same PCI function."""
     return distinct_runtime_identities(left.identity, right.identity)
 
 
-def distinct_runtime_identities(
-    left: RuntimeDeviceIdentity, right: RuntimeDeviceIdentity
-) -> bool:
+def distinct_runtime_identities(left: RuntimeDeviceIdentity, right: RuntimeDeviceIdentity) -> bool:
     if left.uuid is not None and right.uuid is not None:
         return left.uuid != right.uuid
     if left.pci_bdf is not None and right.pci_bdf is not None:

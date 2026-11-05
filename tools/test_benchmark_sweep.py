@@ -1,4 +1,5 @@
 """Aggregate independently runnable sweep contract tests."""
+
 from __future__ import annotations
 
 import unittest
@@ -40,7 +41,9 @@ def load_tests(loader, tests, pattern):
 def main() -> int:
     if not __debug__:
         raise RuntimeError("contract assertions require non-optimized Python")
-    result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromName(__name__))
+    result = unittest.TextTestRunner(verbosity=2).run(
+        unittest.defaultTestLoader.loadTestsFromName(__name__)
+    )
     return 0 if result.wasSuccessful() else 1
 
 

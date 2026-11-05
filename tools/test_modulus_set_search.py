@@ -9,7 +9,9 @@ from pathlib import Path
 
 
 def main() -> int:
-    source = (Path(__file__).resolve().parents[1] / "src/core/internal.hpp").read_text(encoding="utf-8")
+    source = (Path(__file__).resolve().parents[1] / "src/core/internal.hpp").read_text(
+        encoding="utf-8"
+    )
     ladder = re.search(r"kDefaultModuli\[[^]]+\]\s*=\s*\{([^}]+)\}", source)
     assert ladder
     actual = [int(value) for value in re.findall(r"\d+", ladder.group(1))]
@@ -55,18 +57,32 @@ def main() -> int:
     assert generated["minimum_product_bits_is_semantic_proof"] is False
     for item in generated["candidates"]:
         for name, contract in generated["range_contracts"].items():
-            expected = next((i for i in range(1, len(item["moduli"]) + 1)
-                             if modulus_set_search.is_coprime_set(item["moduli"][:i]) and
-                             modulus_set_search.product(item["moduli"][:i]) > contract["strict_product_threshold"]), None)
+            expected = next(
+                (
+                    i
+                    for i in range(1, len(item["moduli"]) + 1)
+                    if modulus_set_search.is_coprime_set(item["moduli"][:i])
+                    and modulus_set_search.product(item["moduli"][:i])
+                    > contract["strict_product_threshold"]
+                ),
+                None,
+            )
             assert item["required_prefixes"][name] == expected
     # Equality is insufficient. Equal bit lengths can lie on either side of B.
-    profiles = {"unsigned": {"bound": 15, "signed": False},
-                "signed": {"bound": 8, "signed": True}}
+    profiles = {"unsigned": {"bound": 15, "signed": False}, "signed": {"bound": 8, "signed": True}}
     assert modulus_set_search.required_prefixes([3, 5, 7], profiles) == {"unsigned": 3, "signed": 3}
-    assert modulus_set_search.required_prefixes([4, 4, 7], profiles) == {"unsigned": None, "signed": None}
+    assert modulus_set_search.required_prefixes([4, 4, 7], profiles) == {
+        "unsigned": None,
+        "signed": None,
+    }
     assert modulus_set_search.required_prefixes([16, 17], profiles) == {"unsigned": 1, "signed": 2}
-    assert generated["range_contracts"]["exact_wide_signed_512"]["strict_product_threshold"] == 512 * (1 << 127)
-    assert generated["range_contracts"]["exact_wide_unsigned_512"]["strict_product_threshold"] == 512 * ((1 << 64) - 1) ** 2
+    assert generated["range_contracts"]["exact_wide_signed_512"][
+        "strict_product_threshold"
+    ] == 512 * (1 << 127)
+    assert (
+        generated["range_contracts"]["exact_wide_unsigned_512"]["strict_product_threshold"]
+        == 512 * ((1 << 64) - 1) ** 2
+    )
 
     print("modulus-set search self-test: PASS")
     return 0

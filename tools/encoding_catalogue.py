@@ -4,6 +4,7 @@ The positional construction is described at https://arxiv.org/abs/2608.06812.
 This implementation independently derives its digit map; it is not an AMD
 floating-instruction qualification or an imported AWE coefficient catalogue.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -16,8 +17,10 @@ from arithmetic_certificate import ArithmeticCertificate, InstructionContract, P
 
 
 E2M1_SCALED_ALPHABET = (0, 1, 2, 3, 4, 6, 8, 12, -1, -2, -3, -4, -6, -8, -12)
-DIGITS = tuple(min((v for v in E2M1_SCALED_ALPHABET if v % 13 == r), key=lambda v: (abs(v), v))
-               for r in range(13))
+DIGITS = tuple(
+    min((v for v in E2M1_SCALED_ALPHABET if v % 13 == r), key=lambda v: (abs(v), v))
+    for r in range(13)
+)
 
 # Mathematical construction, independently enumerated below. Source document:
 # https://github.com/FP4-is-All-you-Need/BLAS/blob/main/AWE/Solutions/SIX_PRODUCT.md
@@ -49,14 +52,24 @@ def awe_encode(value: int) -> tuple[int, ...]:
 def awe_certificate(modulus: int, safe_k: int = 65536) -> ArithmeticCertificate:
     if type(modulus) is not int or not 2 <= modulus <= 256:
         raise ValueError("expected byte modulus")
-    encoded = [awe_encode(x - modulus if x >= (modulus + 1) // 2 else x)
-               for x in range(modulus)]
-    planes = tuple(ProductPlane(tuple(v[i] for v in encoded), tuple(v[i] for v in encoded), weight)
-                   for i, weight in enumerate(AWE_COEFFICIENTS))
-    instruction = InstructionContract("host-algebra-only", "scaled_e2m1_awe6_integer_model",
-                                      -4, 4, -(1 << 24), 1 << 24, "unqualified",
-                                      operand_alphabet=E2M1_SCALED_ALPHABET)
-    return ArithmeticCertificate(modulus, planes, 1, safe_k, 0, 0, -(1 << 63), (1 << 63) - 1, instruction)
+    encoded = [awe_encode(x - modulus if x >= (modulus + 1) // 2 else x) for x in range(modulus)]
+    planes = tuple(
+        ProductPlane(tuple(v[i] for v in encoded), tuple(v[i] for v in encoded), weight)
+        for i, weight in enumerate(AWE_COEFFICIENTS)
+    )
+    instruction = InstructionContract(
+        "host-algebra-only",
+        "scaled_e2m1_awe6_integer_model",
+        -4,
+        4,
+        -(1 << 24),
+        1 << 24,
+        "unqualified",
+        operand_alphabet=E2M1_SCALED_ALPHABET,
+    )
+    return ArithmeticCertificate(
+        modulus, planes, 1, safe_k, 0, 0, -(1 << 63), (1 << 63) - 1, instruction
+    )
 
 
 def encode(value: int, width: int = 3) -> tuple[int, ...]:
@@ -75,7 +88,7 @@ def encode(value: int, width: int = 3) -> tuple[int, ...]:
 def decode(digits: tuple[int, ...]) -> int:
     if any(d not in E2M1_SCALED_ALPHABET for d in digits):
         raise ValueError("stored digit is outside scaled E2M1")
-    return sum(d * 13 ** i for i, d in enumerate(digits))
+    return sum(d * 13**i for i, d in enumerate(digits))
 
 
 def schoolbook_certificate(modulus: int, safe_k: int = 65536) -> ArithmeticCertificate:
@@ -83,29 +96,50 @@ def schoolbook_certificate(modulus: int, safe_k: int = 65536) -> ArithmeticCerti
         raise ValueError("expected byte modulus")
     centered = [x - modulus if x >= (modulus + 1) // 2 else x for x in range(modulus)]
     encoded = [encode(value) for value in centered]
-    planes = tuple(ProductPlane(tuple(v[i] for v in encoded), tuple(v[j] for v in encoded), 13 ** (i + j))
-                   for i in range(3) for j in range(3))
+    planes = tuple(
+        ProductPlane(tuple(v[i] for v in encoded), tuple(v[j] for v in encoded), 13 ** (i + j))
+        for i in range(3)
+        for j in range(3)
+    )
     # The integer model is deliberately separate from any hardware's internal
     # floating accumulation. Numeric scale 2 is part of the stored alphabet.
-    instruction = InstructionContract("host-algebra-only", "scaled_e2m1_schoolbook_integer_model",
-                                      -12, 12, -(1 << 24), 1 << 24, "unqualified",
-                                      operand_alphabet=E2M1_SCALED_ALPHABET)
-    return ArithmeticCertificate(modulus, planes, 1, safe_k, 0, 0, -(1 << 63), (1 << 63) - 1, instruction)
+    instruction = InstructionContract(
+        "host-algebra-only",
+        "scaled_e2m1_schoolbook_integer_model",
+        -12,
+        12,
+        -(1 << 24),
+        1 << 24,
+        "unqualified",
+        operand_alphabet=E2M1_SCALED_ALPHABET,
+    )
+    return ArithmeticCertificate(
+        modulus, planes, 1, safe_k, 0, 0, -(1 << 63), (1 << 63) - 1, instruction
+    )
 
 
 def generate_header(certificate: ArithmeticCertificate, symbol: str | None = None) -> str:
     import re
+
     result = verify(certificate)
     if not result["algebraically_verified"]:
         raise ValueError(result["proof_failures"])
     c = certificate
-    if (c.prior_min != 0 or c.prior_max != 0 or not 1 <= c.safe_k <= (1 << 32) - 1
-            or c.recombination_min < -(1 << 63) or c.recombination_max >= (1 << 63)
-            or c.instruction.accumulator_min < -(1 << 63) or c.instruction.accumulator_max >= (1 << 63)
-            or not 1 <= c.denominator < (1 << 63)
-            or any(not -(1 << 63) < p.weight < (1 << 63) for p in c.planes)
-            or any(not -128 <= x <= 127 for p in c.planes for x in p.lhs + p.rhs)):
-        raise ValueError("generated scalar implementation requires zero prior and proven byte/int64 intermediates")
+    if (
+        c.prior_min != 0
+        or c.prior_max != 0
+        or not 1 <= c.safe_k <= (1 << 32) - 1
+        or c.recombination_min < -(1 << 63)
+        or c.recombination_max >= (1 << 63)
+        or c.instruction.accumulator_min < -(1 << 63)
+        or c.instruction.accumulator_max >= (1 << 63)
+        or not 1 <= c.denominator < (1 << 63)
+        or any(not -(1 << 63) < p.weight < (1 << 63) for p in c.planes)
+        or any(not -128 <= x <= 127 for p in c.planes for x in p.lhs + p.rhs)
+    ):
+        raise ValueError(
+            "generated scalar implementation requires zero prior and proven byte/int64 intermediates"
+        )
     symbol = symbol or "encoding_" + result["sha256"]
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", symbol) or "__" in symbol:
         raise ValueError("invalid generated C++ symbol")
@@ -113,7 +147,11 @@ def generate_header(certificate: ArithmeticCertificate, symbol: str | None = Non
     arrays = []
     for operand in ("lhs", "rhs"):
         rows = ["{" + ",".join(str(v) for v in getattr(p, operand)) + "}" for p in c.planes]
-        arrays.append(f"  inline static constexpr int8_t {operand}[{len(c.planes)}][{c.modulus}] = {{" + ",".join(rows) + "};")
+        arrays.append(
+            f"  inline static constexpr int8_t {operand}[{len(c.planes)}][{c.modulus}] = {{"
+            + ",".join(rows)
+            + "};"
+        )
     weights = ",".join(str(p.weight) + "LL" for p in c.planes)
     return f"""// Generated exact scalar integer model; no floating instruction qualification.
 #pragma once
@@ -122,7 +160,7 @@ def generate_header(certificate: ArithmeticCertificate, symbol: str | None = Non
 #include <type_traits>
 namespace rns8_encoding_reference {{
 struct {symbol} {{
-  inline static constexpr char certificate_sha256[] = "{result['sha256']}";
+  inline static constexpr char certificate_sha256[] = "{result["sha256"]}";
   inline static constexpr uint32_t modulus = {c.modulus};
   inline static constexpr uint32_t safe_k = {c.safe_k};
   inline static constexpr uint32_t plane_count = {len(c.planes)};
@@ -182,19 +220,24 @@ def main() -> int:
     result["format"] = {"name": "E2M1", "numeric_scale": 2, "hardware_scale_bits": None}
     result["construction"] = args.construction
     if args.construction == "awe6":
-        result["source"] = {"repository": "FP4-is-All-you-Need/BLAS",
-                            "path": "AWE/Solutions/SIX_PRODUCT.md",
-                            "git_blob_sha1": "3c1b45655c4cf72a04cc5b9ddbace11e2b96cfe7",
-                            "encoding": "independently enumerated; no upstream verifier executed"}
+        result["source"] = {
+            "repository": "FP4-is-All-you-Need/BLAS",
+            "path": "AWE/Solutions/SIX_PRODUCT.md",
+            "git_blob_sha1": "3c1b45655c4cf72a04cc5b9ddbace11e2b96cfe7",
+            "encoding": "independently enumerated; no upstream verifier executed",
+        }
     header = generate_header(certificate, args.symbol) if args.header else None
     if header is not None:
         import hashlib
+
         result["generated_source_sha256"] = hashlib.sha256(header.encode("utf-8")).hexdigest()
         result["generated_kind"] = "scalar_integer_dot_model"
         args.header.parent.mkdir(parents=True, exist_ok=True)
         args.header.write_text(header, encoding="utf-8", newline="\n")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    args.output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
     return 0 if result["algebraically_verified"] else 1
 
 

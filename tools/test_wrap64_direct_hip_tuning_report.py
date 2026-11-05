@@ -6,7 +6,10 @@ from __future__ import annotations
 import copy
 
 import wrap64_direct_hip_tuning_report as report
-from test_benchmark_schema_support import as_hip_graph_full_wrap64_capture, as_wrap64_rocwmma_candidate_capture
+from test_benchmark_schema_support import (
+    as_hip_graph_full_wrap64_capture,
+    as_wrap64_rocwmma_candidate_capture,
+)
 from test_benchmark_sweep_support import mark_reused_pack, wrap64_capture
 
 
@@ -59,9 +62,13 @@ def main() -> int:
     matrix_candidate["raw_timings_us"]["end_to_end"] = [2500] * matrix_candidate["repeats"]
     matrix_candidate["timing_summary_us"]["end_to_end"]["median"] = 2500
     matrix_candidate["avg_end_to_end_us"] = 2500.0
-    k_block = mark_k_block_candidate(with_shape(wrap64_capture("hip-direct", 1500), 512), "cdna-wrap64-512-kblock")
+    k_block = mark_k_block_candidate(
+        with_shape(wrap64_capture("hip-direct", 1500), 512), "cdna-wrap64-512-kblock"
+    )
 
-    result = report.build_report_from_captures([cpu, direct, reuse, graph, matrix_candidate, k_block])
+    result = report.build_report_from_captures(
+        [cpu, direct, reuse, graph, matrix_candidate, k_block]
+    )
     summary = result["summary"]
     assert result["schema"] == "rns8_wrap64_direct_hip_tuning_report_v1"
     assert summary["capture_count"] == 6
@@ -74,11 +81,19 @@ def main() -> int:
     assert by_role["direct_hip_reuse_candidate"]["decision"] == "candidate_workload_win"
     assert by_role["hip_graph_full_path"]["decision"] == "candidate_workload_win"
     assert by_role["direct_hip_k_block_candidate"]["decision"] == "candidate_workload_win"
-    assert by_role["direct_hip_k_block_candidate"]["k_block_policy"] == "fixed-safe-kblock-cdna-candidate"
-    assert "single_gpu_k_block_candidate_only" in by_role["direct_hip_k_block_candidate"]["blockers"]
+    assert (
+        by_role["direct_hip_k_block_candidate"]["k_block_policy"]
+        == "fixed-safe-kblock-cdna-candidate"
+    )
+    assert (
+        "single_gpu_k_block_candidate_only" in by_role["direct_hip_k_block_candidate"]["blockers"]
+    )
     assert "benchmark_only_graph_replay" in by_role["hip_graph_full_path"]["blockers"]
     assert by_role["matrix_engine_candidate"]["decision"] == "drop/deprioritize"
-    assert "matrix_engine_candidate_not_default_route" in by_role["matrix_engine_candidate"]["blockers"]
+    assert (
+        "matrix_engine_candidate_not_default_route"
+        in by_role["matrix_engine_candidate"]["blockers"]
+    )
 
     missing_direct = report.build_report_from_captures([cpu, reuse])
     missing_row = missing_direct["groups"][0]["comparisons"][1]
@@ -89,7 +104,11 @@ def main() -> int:
     bad_checksum = copy.deepcopy(reuse)
     bad_checksum["checksum_u64"] = int(bad_checksum["checksum_u64"]) + 1
     mismatch = report.build_report_from_captures([cpu, direct, bad_checksum])
-    mismatch_row = next(item for item in mismatch["groups"][0]["comparisons"] if item["role"] == "direct_hip_reuse_candidate")
+    mismatch_row = next(
+        item
+        for item in mismatch["groups"][0]["comparisons"]
+        if item["role"] == "direct_hip_reuse_candidate"
+    )
     assert mismatch_row["decision"] == "keep_experimental"
     assert "checksum_mismatch_vs_wrap64_reference" in mismatch_row["critical_blockers"]
 

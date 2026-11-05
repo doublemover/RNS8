@@ -20,13 +20,15 @@ TEST_CASE("direct HIP wrap64 colpair path matches CPU for odd column tail") {
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
       A[static_cast<std::size_t>(row * lda + col)] =
-          (static_cast<uint64_t>(row + 1) << 48u) ^ (static_cast<uint64_t>(col + 3) * 0x0101010101010101ull);
+          (static_cast<uint64_t>(row + 1) << 48u) ^
+          (static_cast<uint64_t>(col + 3) * 0x0101010101010101ull);
     }
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       B[static_cast<std::size_t>(row * ldb + col)] =
-          (static_cast<uint64_t>(col + 5) << 40u) ^ (static_cast<uint64_t>(row + 7) * 0x1111111111111111ull);
+          (static_cast<uint64_t>(col + 5) << 40u) ^
+          (static_cast<uint64_t>(row + 7) * 0x1111111111111111ull);
     }
   }
   A[0] = std::numeric_limits<uint64_t>::max();
@@ -178,17 +180,17 @@ TEST_CASE("direct HIP public wrap64 path matches CPU for carry-heavy tiled expor
   REQUIRE(rns8_gemm_wrap_u64(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_wrap_u64(cpu, cpu_plan, cpu_out, cpu_c.data(), ldc) == RNS8_SUCCESS);
   REQUIRE(rns8_export_wrap_u64(hip, hip_plan, hip_out, hip_c.data(), ldc) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_wrap_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_oneshot.data(), ldc) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_wrap_u64_oneshot(hip, &hip_desc, A.data(), lda, B.data(), ldb, hip_oneshot.data(), ldc) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_wrap_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb,
+                                     cpu_oneshot.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_wrap_u64_oneshot(hip, &hip_desc, A.data(), lda, B.data(), ldb,
+                                     hip_oneshot.data(), ldc) == RNS8_SUCCESS);
   CHECK(hip_c == cpu_c);
   CHECK(hip_oneshot == cpu_oneshot);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t expected =
-          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t expected = rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(
+          A.data(), lda, B.data(), ldb, row, col, k);
       const std::size_t out_index = static_cast<std::size_t>(row * ldc + col);
       CHECK(hip_c[out_index] == expected);
       CHECK(hip_oneshot[out_index] == expected);
@@ -351,14 +353,17 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   CHECK(rns8_gemm_rns(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_export_i64(hip, valid_plan, wrap_c, signed_out, n) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_export_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_export_exact_wide_signed_limbs(hip, valid_plan, wrap_c, limbs, n, 1) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_export_exact_wide_unsigned_limbs(hip, valid_plan, wrap_c, limbs, n, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_exact_wide_signed_limbs(hip, valid_plan, wrap_c, limbs, n, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_exact_wide_unsigned_limbs(hip, valid_plan, wrap_c, limbs, n, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   REQUIRE(rns8_pack_u64(hip, wrap_a, A, k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, wrap_b, B, n, 2) == RNS8_SUCCESS);
 
   rns8::test::set_host_byte_limbs_current(*wrap_a, true);
-  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) ==
+        RNS8_INVALID_ARGUMENT);
   rns8::test::set_host_byte_limbs_current(*wrap_a, false);
 
   auto bounded_workspace_desc = unsigned_desc(m, n, k, 2, RNS8_BACKEND_HIP_DIRECT);
@@ -366,22 +371,26 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   rns8_workspace* bounded_workspace = nullptr;
   REQUIRE(rns8_create_plan(hip, &bounded_workspace_desc, &bounded_plan) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(hip, bounded_plan, &bounded_workspace) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, bounded_workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, bounded_workspace) ==
+        RNS8_INVALID_ARGUMENT);
   rns8_destroy_workspace(bounded_workspace);
   rns8_destroy_plan(bounded_plan);
 
   rns8::test::set_host_residues_current(*wrap_a, true);
   CHECK(rns8_pack_u64(hip, wrap_a, A, k, 3) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) ==
+        RNS8_INVALID_ARGUMENT);
   rns8::test::set_host_residues_current(*wrap_a, false);
 
   rns8::test::set_device_residues_current(*wrap_b, true);
-  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) ==
+        RNS8_INVALID_ARGUMENT);
   rns8::test::set_device_residues_current(*wrap_b, false);
 
   rns8::test::set_host_byte_limbs_current(*wrap_a, true);
   rns8::test::set_device_byte_limbs_current(*wrap_a, false);
-  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) ==
+        RNS8_INVALID_ARGUMENT);
   rns8::test::set_host_byte_limbs_current(*wrap_a, false);
   rns8::test::set_device_byte_limbs_current(*wrap_a, true);
 
@@ -399,58 +408,58 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   auto check_rejects_plan_mutation = [&](auto mutate, auto restore) {
     valid_plan->validated_contract.reset(); // Force exhaustive corruption diagnostics.
     mutate();
-    CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
     restore();
   };
-  check_rejects_plan_mutation(
-      [&] { valid_plan->desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED; },
-      [&] { valid_plan->desc.bound_kind = RNS8_BOUND_NONE; });
-  check_rejects_plan_mutation([&] { valid_plan->desc.bound = 1; }, [&] { valid_plan->desc.bound = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX; },
-      [&] { valid_plan->desc.max_prefix = 0; });
-  check_rejects_plan_mutation([&] { valid_plan->desc.flags = 1; }, [&] { valid_plan->desc.flags = 0; });
-  check_rejects_plan_mutation([&] { valid_plan->desc.tile_m = 64; }, [&] { valid_plan->desc.tile_m = original_tile_m; });
-  check_rejects_plan_mutation([&] { valid_plan->desc.tile_n = 64; }, [&] { valid_plan->desc.tile_n = original_tile_n; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED; },
+                              [&] { valid_plan->desc.bound_kind = RNS8_BOUND_NONE; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.bound = 1; },
+                              [&] { valid_plan->desc.bound = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX; },
+                              [&] { valid_plan->desc.max_prefix = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.flags = 1; },
+                              [&] { valid_plan->desc.flags = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.tile_m = 64; },
+                              [&] { valid_plan->desc.tile_m = original_tile_m; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.tile_n = 64; },
+                              [&] { valid_plan->desc.tile_n = original_tile_n; });
   check_rejects_plan_mutation([&] { valid_plan->prefix = 1; }, [&] { valid_plan->prefix = 0; });
-  check_rejects_plan_mutation([&] { valid_plan->modulus_product = 1; }, [&] { valid_plan->modulus_product = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->desc.tile_bounds = &tile_bound; },
-      [&] { valid_plan->desc.tile_bounds = nullptr; });
-  check_rejects_plan_mutation([&] { valid_plan->desc.tile_bounds_count = 1; }, [&] { valid_plan->desc.tile_bounds_count = 0; });
-  check_rejects_plan_mutation([&] { valid_plan->tile_bounds.push_back(1); }, [&] { valid_plan->tile_bounds.clear(); });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->tile_schedule.push_back(stale_entry); },
-      [&] { valid_plan->tile_schedule.clear(); });
-  check_rejects_plan_mutation([&] { ++valid_plan->schedule_tile_rows; }, [&] { --valid_plan->schedule_tile_rows; });
-  check_rejects_plan_mutation([&] { ++valid_plan->schedule_tile_cols; }, [&] { --valid_plan->schedule_tile_cols; });
-  check_rejects_plan_mutation([&] { ++valid_plan->schedule_tile_count; }, [&] { --valid_plan->schedule_tile_count; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_min_required_prefix = 1; },
-      [&] { valid_plan->schedule_min_required_prefix = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_max_required_prefix = 1; },
-      [&] { valid_plan->schedule_max_required_prefix = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_min_selected_prefix = 1; },
-      [&] { valid_plan->schedule_min_selected_prefix = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_max_selected_prefix = 1; },
-      [&] { valid_plan->schedule_max_selected_prefix = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_prefix_group_count = 1; },
-      [&] { valid_plan->schedule_prefix_group_count = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_range_bit_length = 64; },
-      [&] { valid_plan->schedule_range_bit_length = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_adaptive_prefix_active = 1; },
-      [&] { valid_plan->schedule_adaptive_prefix_active = 0; });
-  check_rejects_plan_mutation(
-      [&] { valid_plan->schedule_adaptive_skip_active = 1; },
-      [&] { valid_plan->schedule_adaptive_skip_active = 0; });
-  check_rejects_plan_mutation([&] { valid_plan->schedule_flags = 1; }, [&] { valid_plan->schedule_flags = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->modulus_product = 1; },
+                              [&] { valid_plan->modulus_product = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.tile_bounds = &tile_bound; },
+                              [&] { valid_plan->desc.tile_bounds = nullptr; });
+  check_rejects_plan_mutation([&] { valid_plan->desc.tile_bounds_count = 1; },
+                              [&] { valid_plan->desc.tile_bounds_count = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->tile_bounds.push_back(1); },
+                              [&] { valid_plan->tile_bounds.clear(); });
+  check_rejects_plan_mutation([&] { valid_plan->tile_schedule.push_back(stale_entry); },
+                              [&] { valid_plan->tile_schedule.clear(); });
+  check_rejects_plan_mutation([&] { ++valid_plan->schedule_tile_rows; },
+                              [&] { --valid_plan->schedule_tile_rows; });
+  check_rejects_plan_mutation([&] { ++valid_plan->schedule_tile_cols; },
+                              [&] { --valid_plan->schedule_tile_cols; });
+  check_rejects_plan_mutation([&] { ++valid_plan->schedule_tile_count; },
+                              [&] { --valid_plan->schedule_tile_count; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_min_required_prefix = 1; },
+                              [&] { valid_plan->schedule_min_required_prefix = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_max_required_prefix = 1; },
+                              [&] { valid_plan->schedule_max_required_prefix = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_min_selected_prefix = 1; },
+                              [&] { valid_plan->schedule_min_selected_prefix = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_max_selected_prefix = 1; },
+                              [&] { valid_plan->schedule_max_selected_prefix = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_prefix_group_count = 1; },
+                              [&] { valid_plan->schedule_prefix_group_count = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_range_bit_length = 64; },
+                              [&] { valid_plan->schedule_range_bit_length = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_adaptive_prefix_active = 1; },
+                              [&] { valid_plan->schedule_adaptive_prefix_active = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_adaptive_skip_active = 1; },
+                              [&] { valid_plan->schedule_adaptive_skip_active = 0; });
+  check_rejects_plan_mutation([&] { valid_plan->schedule_flags = 1; },
+                              [&] { valid_plan->schedule_flags = 0; });
 
   REQUIRE(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_SUCCESS);
@@ -481,7 +490,8 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   REQUIRE(rns8_create_matrix(hip, &residue_c_desc, &residue_c) == RNS8_SUCCESS);
   CHECK(residue_a->hip_residues != nullptr);
   CHECK(residue_a->hip_byte_limbs == nullptr);
-  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, residue_a, residue_b, residue_c, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, residue_a, residue_b, residue_c, workspace) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(rns8_export_wrap_u64(hip, valid_plan, residue_c, C, n) == RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(residue_c);
@@ -495,4 +505,3 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
 
   rns8_destroy_context(hip);
 }
-

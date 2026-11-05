@@ -51,10 +51,26 @@ def _contract_key(capture: dict[str, Any]) -> tuple[str, str, str, str, str, str
         return (
             str(scenario.get("family") or "ad_hoc"),
             str(contract_name),
-            str(scenario_metadata.get("source_identity") or cache.get("source_identity_policy") or "missing"),
-            str(scenario_metadata.get("source_version") or cache.get("source_version_policy") or "missing"),
-            str(scenario_metadata.get("dirty_region_shape") or cache.get("dirty_region_policy") or "missing"),
-            str(scenario_metadata.get("result_lifetime") or cache.get("result_lifetime_policy") or "missing"),
+            str(
+                scenario_metadata.get("source_identity")
+                or cache.get("source_identity_policy")
+                or "missing"
+            ),
+            str(
+                scenario_metadata.get("source_version")
+                or cache.get("source_version_policy")
+                or "missing"
+            ),
+            str(
+                scenario_metadata.get("dirty_region_shape")
+                or cache.get("dirty_region_policy")
+                or "missing"
+            ),
+            str(
+                scenario_metadata.get("result_lifetime")
+                or cache.get("result_lifetime_policy")
+                or "missing"
+            ),
         )
     return (
         str(scenario.get("family") or "ad_hoc"),
@@ -88,7 +104,9 @@ def _has_gpu_events(capture: dict[str, Any]) -> bool:
     return isinstance(timing, dict) and timing.get("gpu_event_timing") is True
 
 
-def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | None = None) -> dict[str, Any]:
+def row_for_capture(
+    capture: dict[str, Any], references: CPUReferenceIndex | None = None
+) -> dict[str, Any]:
     cache = _cache(capture)
     scenario = _scenario(capture)
     numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
@@ -181,14 +199,17 @@ def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | Non
     }
 
 
-def _public_group_decision(rows: list[dict[str, Any]], captures: list[dict[str, Any]]) -> tuple[str, list[str], dict[str, Any]]:
+def _public_group_decision(
+    rows: list[dict[str, Any]], captures: list[dict[str, Any]]
+) -> tuple[str, list[str], dict[str, Any]]:
     blockers: list[str] = []
     cpu_rows = [capture for capture in captures if backend_id(capture) in {"cpu", "cpu-reference"}]
     full_rows = [
         capture
         for capture in captures
         if backend_id(capture) == "hip-direct"
-        and _candidate_role(capture) in {"same_backend_full_recompute_baseline", "full_recompute_baseline"}
+        and _candidate_role(capture)
+        in {"same_backend_full_recompute_baseline", "full_recompute_baseline"}
     ]
     candidate_rows = [
         capture
@@ -230,7 +251,13 @@ def _public_group_decision(rows: list[dict[str, Any]], captures: list[dict[str, 
         "speedup_threshold": PROMOTION_SPEEDUP_THRESHOLD,
     }
     if blockers:
-        return "blocked" if "public_result_cache_candidate_missing" in blockers else "keep experimental", blockers, details
+        return (
+            "blocked"
+            if "public_result_cache_candidate_missing" in blockers
+            else "keep experimental",
+            blockers,
+            details,
+        )
     return "promote", blockers, details
 
 
@@ -242,7 +269,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         and capture.get("incremental_result_cache", {}).get("enabled") is True
     ]
     grouped: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
-    grouped_captures: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    grouped_captures: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(
+        list
+    )
     references = CPUReferenceIndex(captures)
     for capture in captures:
         key = _contract_key(capture)
@@ -254,7 +283,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         blockers = sorted({blocker for row in rows for blocker in row["blockers"]})
         public_group = any(row["public_contract_available"] for row in rows)
         if public_group:
-            decision, promotion_blockers, details = _public_group_decision(rows, grouped_captures[key])
+            decision, promotion_blockers, details = _public_group_decision(
+                rows, grouped_captures[key]
+            )
             promotion_scope = "public_result_cache_contract_candidate"
             status = decision
         else:
@@ -290,7 +321,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         if decision == "promote":
             promotable.append(group)
     blocker_counts = Counter(blocker for group in groups for blocker in group["blockers"])
-    promotion_blocker_counts = Counter(blocker for group in groups for blocker in group["promotion_blockers"])
+    promotion_blocker_counts = Counter(
+        blocker for group in groups for blocker in group["promotion_blockers"]
+    )
     any_public_group = any(group["public_contract_available"] for group in groups)
     promotion_status = (
         "promote"
@@ -311,7 +344,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             {
                 "family": group["family"],
                 "name": group["name"],
-                "best_speedup_vs_full_recompute": group["details"].get("best_speedup_vs_full_recompute"),
+                "best_speedup_vs_full_recompute": group["details"].get(
+                    "best_speedup_vs_full_recompute"
+                ),
             }
             for group in promotable
         ],

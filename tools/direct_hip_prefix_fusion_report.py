@@ -28,7 +28,9 @@ RESIDENT_DEFAULT_KERNEL = "direct_hip_tiled_active_prefix_rns_gemm_v2"
 PREFIX20_EXPORT_VARIANT = "prefix20-fixed-export-candidate"
 
 
-def _timing_summary_value(capture: dict[str, Any] | None, phase: str, statistic: str) -> float | None:
+def _timing_summary_value(
+    capture: dict[str, Any] | None, phase: str, statistic: str
+) -> float | None:
     if capture is None:
         return None
     summary = capture.get("timing_summary_us")
@@ -102,21 +104,33 @@ def _bounded_one_shot_capture(capture: dict[str, Any]) -> bool:
 
 def _selected_prefix(capture: dict[str, Any]) -> Any:
     value = capture.get("selected_prefix", capture.get("prefix"))
-    if value is None and _bounded_one_shot_capture(capture) and _selected_kernel(capture) == ONESHOT_V1_KERNEL:
+    if (
+        value is None
+        and _bounded_one_shot_capture(capture)
+        and _selected_kernel(capture) == ONESHOT_V1_KERNEL
+    ):
         return 9
     return value
 
 
 def _requested_prefix(capture: dict[str, Any]) -> Any:
     value = capture.get("requested_max_prefix", capture.get("prefix"))
-    if value is None and _bounded_one_shot_capture(capture) and _selected_kernel(capture) == ONESHOT_V1_KERNEL:
+    if (
+        value is None
+        and _bounded_one_shot_capture(capture)
+        and _selected_kernel(capture) == ONESHOT_V1_KERNEL
+    ):
         return 9
     return value
 
 
 def _prefix_policy(capture: dict[str, Any]) -> Any:
     value = capture.get("contract_prefix_policy")
-    if value is None and _bounded_one_shot_capture(capture) and _selected_kernel(capture) == ONESHOT_V1_KERNEL:
+    if (
+        value is None
+        and _bounded_one_shot_capture(capture)
+        and _selected_kernel(capture) == ONESHOT_V1_KERNEL
+    ):
         return "fixed_requested"
     return value
 
@@ -211,7 +225,9 @@ def _resident_capture(capture: dict[str, Any]) -> bool:
     )
 
 
-def compare_one_shot(candidate: dict[str, Any], baseline: dict[str, Any] | None, resident: dict[str, Any] | None) -> dict[str, Any]:
+def compare_one_shot(
+    candidate: dict[str, Any], baseline: dict[str, Any] | None, resident: dict[str, Any] | None
+) -> dict[str, Any]:
     candidate_median = _timing_summary_value(candidate, "end_to_end", "median")
     baseline_median = _timing_summary_value(baseline, "end_to_end", "median")
     resident_median = _timing_summary_value(resident, "end_to_end", "median")
@@ -240,7 +256,11 @@ def compare_one_shot(candidate: dict[str, Any], baseline: dict[str, Any] | None,
         or "checksum_mismatch_with_v1_baseline" in blockers
     ):
         decision = "keep_experimental"
-    elif speedup is not None and speedup > 1.0 and "checksum_mismatch_with_v1_baseline" not in blockers:
+    elif (
+        speedup is not None
+        and speedup > 1.0
+        and "checksum_mismatch_with_v1_baseline" not in blockers
+    ):
         decision = "candidate_one_shot_win"
     elif speedup is None:
         decision = "keep_experimental"
@@ -265,8 +285,13 @@ def compare_one_shot(candidate: dict[str, Any], baseline: dict[str, Any] | None,
         "resident_reference_median_end_to_end_us": resident_median,
         "speedup_vs_legacy_v1": speedup,
         "resident_reference_speedup_vs_candidate": _speedup(candidate_median, resident_median),
-        "resident_reference_faster": bool(resident_median is not None and candidate_median is not None and resident_median < candidate_median),
-        "release_review_satisfied": _release_capture_satisfied(candidate) and _release_capture_satisfied(baseline),
+        "resident_reference_faster": bool(
+            resident_median is not None
+            and candidate_median is not None
+            and resident_median < candidate_median
+        ),
+        "release_review_satisfied": _release_capture_satisfied(candidate)
+        and _release_capture_satisfied(baseline),
         "candidate_gpu_events_available": _gpu_events_available(candidate),
         "checksum_match": _same_checksum(candidate, baseline),
         "decision": decision,
@@ -275,7 +300,9 @@ def compare_one_shot(candidate: dict[str, Any], baseline: dict[str, Any] | None,
     }
 
 
-def compare_resident_colpair(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> dict[str, Any]:
+def compare_resident_colpair(
+    candidate: dict[str, Any], baseline: dict[str, Any] | None
+) -> dict[str, Any]:
     candidate_median = _timing_summary_value(candidate, "end_to_end", "median")
     baseline_median = _timing_summary_value(baseline, "end_to_end", "median")
     speedup = _speedup(baseline_median, candidate_median)
@@ -317,7 +344,8 @@ def compare_resident_colpair(candidate: dict[str, Any], baseline: dict[str, Any]
         "candidate_median_end_to_end_us": candidate_median,
         "baseline_median_end_to_end_us": baseline_median,
         "speedup_vs_resident_default": speedup,
-        "release_review_satisfied": _release_capture_satisfied(candidate) and _release_capture_satisfied(baseline),
+        "release_review_satisfied": _release_capture_satisfied(candidate)
+        and _release_capture_satisfied(baseline),
         "candidate_gpu_events_available": _gpu_events_available(candidate),
         "checksum_match": _same_checksum(candidate, baseline),
         "decision": decision,
@@ -354,7 +382,9 @@ def summarize_prefix20_export_selector(report: dict[str, Any]) -> list[dict[str,
                     "median_end_to_end_us": row.get("median_end_to_end_us"),
                     "median_export_us": row.get("median_export_us"),
                     "selector_promotion_eligible": row.get("selector_promotion_eligible"),
-                    "promotion_blockers": row.get("promotion_blockers") if isinstance(row.get("promotion_blockers"), list) else [],
+                    "promotion_blockers": row.get("promotion_blockers")
+                    if isinstance(row.get("promotion_blockers"), list)
+                    else [],
                     "decision": "keep_experimental",
                     "promotion_eligible": False,
                 }
@@ -385,16 +415,28 @@ def build_direct_hip_prefix_fusion_report(
             resident_references.setdefault(_resident_key(capture), []).append(capture)
 
     comparisons: list[dict[str, Any]] = []
-    for candidate in sorted(oneshot_v2, key=lambda item: (_shape_label(item), str(item.get("semantics")))):
-        baselines = sorted(oneshot_v1.get(_comparison_key(candidate), []), key=_one_shot_baseline_sort_key)
+    for candidate in sorted(
+        oneshot_v2, key=lambda item: (_shape_label(item), str(item.get("semantics")))
+    ):
+        baselines = sorted(
+            oneshot_v1.get(_comparison_key(candidate), []), key=_one_shot_baseline_sort_key
+        )
         resident = None
-        references = resident_references.get(_resident_key(candidate), []) + resident_defaults.get(_resident_key(candidate), [])
+        references = resident_references.get(_resident_key(candidate), []) + resident_defaults.get(
+            _resident_key(candidate), []
+        )
         if references:
             resident = sorted(references, key=_resident_baseline_sort_key)[0]
-        comparisons.append(compare_one_shot(candidate, baselines[0] if baselines else None, resident))
+        comparisons.append(
+            compare_one_shot(candidate, baselines[0] if baselines else None, resident)
+        )
 
-    for candidate in sorted(resident_colpairs, key=lambda item: (_shape_label(item), str(item.get("semantics")))):
-        baselines = sorted(resident_defaults.get(_resident_key(candidate), []), key=_resident_baseline_sort_key)
+    for candidate in sorted(
+        resident_colpairs, key=lambda item: (_shape_label(item), str(item.get("semantics")))
+    ):
+        baselines = sorted(
+            resident_defaults.get(_resident_key(candidate), []), key=_resident_baseline_sort_key
+        )
         comparisons.append(compare_resident_colpair(candidate, baselines[0] if baselines else None))
 
     prefix20_rows: list[dict[str, Any]] = []
@@ -405,7 +447,9 @@ def build_direct_hip_prefix_fusion_report(
     prefix20_decisions = Counter(str(item["decision"]) for item in prefix20_rows)
     summary = {
         "capture_count": len(captures),
-        "one_shot_colpair_comparisons": sum(1 for item in comparisons if item["kind"] == "prefix9_public_one_shot_colpair"),
+        "one_shot_colpair_comparisons": sum(
+            1 for item in comparisons if item["kind"] == "prefix9_public_one_shot_colpair"
+        ),
         "resident_colpair_comparisons": sum(
             1 for item in comparisons if item["kind"] == "prefix9_resident_selected_prefix_colpair"
         ),
@@ -413,9 +457,14 @@ def build_direct_hip_prefix_fusion_report(
         "candidate_one_shot_wins": decision_counts.get("candidate_one_shot_win", 0),
         "candidate_resident_wins": decision_counts.get("candidate_resident_win", 0),
         "deprioritized": decision_counts.get("deprioritize", 0),
-        "experimental": decision_counts.get("keep_experimental", 0) + prefix20_decisions.get("keep_experimental", 0),
-        "legacy_before_captures": sum(1 for item in captures if _schema_status(item) == "legacy_schema"),
-        "valid_current_schema_captures": sum(1 for item in captures if _schema_status(item) == "valid"),
+        "experimental": decision_counts.get("keep_experimental", 0)
+        + prefix20_decisions.get("keep_experimental", 0),
+        "legacy_before_captures": sum(
+            1 for item in captures if _schema_status(item) == "legacy_schema"
+        ),
+        "valid_current_schema_captures": sum(
+            1 for item in captures if _schema_status(item) == "valid"
+        ),
         "promotion_eligible": False,
         "decisions": dict(sorted((decision_counts + prefix20_decisions).items())),
     }
@@ -435,7 +484,8 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
             expanded.extend(
                 item
                 for item in sorted(path.rglob("*.json"))
-                if item.name not in NON_CAPTURE_JSON_NAMES and not item.name.endswith("-report.json")
+                if item.name not in NON_CAPTURE_JSON_NAMES
+                and not item.name.endswith("-report.json")
             )
         else:
             expanded.append(path)
@@ -462,7 +512,9 @@ def load_json_file(path: Path) -> dict[str, Any]:
     return data
 
 
-def build_report(paths: list[Path], export_selector_report_paths: list[Path] | None = None) -> dict[str, Any]:
+def build_report(
+    paths: list[Path], export_selector_report_paths: list[Path] | None = None
+) -> dict[str, Any]:
     captures = [load_capture_with_schema_status(path) for path in expand_inputs(paths)]
     selector_reports = [load_json_file(path) for path in export_selector_report_paths or []]
     return build_direct_hip_prefix_fusion_report(captures, selector_reports)
@@ -553,15 +605,21 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("captures", type=Path, nargs="*", help="schema-v4 benchmark JSON captures or directories")
-    parser.add_argument("--capture", type=Path, action="append", help="additional capture file or directory")
+    parser.add_argument(
+        "captures", type=Path, nargs="*", help="schema-v4 benchmark JSON captures or directories"
+    )
+    parser.add_argument(
+        "--capture", type=Path, action="append", help="additional capture file or directory"
+    )
     parser.add_argument(
         "--export-selector-report",
         type=Path,
         action="append",
         help="export-selector-report.json to summarize prefix-20 selector rows",
     )
-    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="write JSON and Markdown reports here")
+    parser.add_argument(
+        "--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="write JSON and Markdown reports here"
+    )
     parser.add_argument("--json", action="store_true", help="print report JSON")
     return parser.parse_args()
 
@@ -570,7 +628,9 @@ def main() -> int:
     args = parse_args()
     paths = [*(args.capture or []), *args.captures]
     if not paths and not args.export_selector_report:
-        raise SystemExit("direct_hip_prefix_fusion_report requires at least one capture path or export selector report")
+        raise SystemExit(
+            "direct_hip_prefix_fusion_report requires at least one capture path or export selector report"
+        )
     report = build_report(paths, args.export_selector_report)
     outputs = write_outputs(report, args.out_dir)
     if args.json:

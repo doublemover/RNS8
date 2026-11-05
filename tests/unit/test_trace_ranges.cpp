@@ -12,7 +12,7 @@ nlohmann::json range_snapshot() {
   rns8::detail::trace::write_snapshot(out);
   return nlohmann::json::parse(out.str());
 }
-}
+} // namespace
 
 TEST_CASE("profiler ranges distinguish disabled and unavailable providers", "[cpu][trace]") {
   const auto snapshot = range_snapshot();
@@ -23,28 +23,30 @@ TEST_CASE("profiler ranges distinguish disabled and unavailable providers", "[cp
   CHECK(snapshot.at("records").empty());
 #else
   const auto status = snapshot.at("provider_status").get<std::string>();
-  CHECK((status == "disabled_at_runtime" || status == "requested_provider_unavailable" || status == "active"));
+  CHECK((status == "disabled_at_runtime" || status == "requested_provider_unavailable" ||
+         status == "active"));
 #endif
 }
 
-TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops", "[cpu][trace][roctx]") {
+TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops",
+          "[cpu][trace][roctx]") {
 #if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
   using namespace rns8::detail::trace;
   if (std::string(provider_status()) != "active")
     SKIP("requires explicit RNS8_PROFILE_RANGES=1 and a current ROCTx provider");
   const auto before = range_snapshot().at("claimed").get<uint64_t>();
-  if (before + 3 > 4096) SKIP("bounded trace metadata capacity already consumed");
+  if (before + 3 > 4096)
+    SKIP("bounded trace metadata capacity already consumed");
   try {
     Scope outer(Phase::public_call, {1234, 7, Role::measured});
     Scope inner(Phase::proof);
     throw std::runtime_error("authored scope unwind");
-  } catch (const std::runtime_error&) {}
+  } catch (const std::runtime_error&) {
+  }
   AsyncRange operation;
   operation.start(Phase::completion, {1234, 7, Role::measured});
   AsyncRange moved(std::move(operation));
-  std::thread worker([range = std::move(moved)]() mutable {
-    range.complete(Outcome::completed);
-  });
+  std::thread worker([range = std::move(moved)]() mutable { range.complete(Outcome::completed); });
   worker.join();
   const auto after = range_snapshot();
   REQUIRE(after.at("claimed") == before + 3);

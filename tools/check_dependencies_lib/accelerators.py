@@ -18,6 +18,7 @@ from .config import *
 from .discovery import *
 from .system import *
 
+
 def accelerator_components() -> dict[str, dict[str, object]]:
     roots = hip_roots() + vcpkg_roots()
     modules = repo_root() / "cmake" / "modules"
@@ -29,7 +30,9 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             repo_root() / "src" / "backend_amdgpu_builtins" / "amdgpu_builtins_backend.cpp",
         ]
     )
-    hipblaslt_header = find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"])
+    hipblaslt_header = find_under_roots(
+        roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"]
+    )
     hipblaslt_cmake_config = find_under_roots(
         roots,
         [
@@ -37,13 +40,19 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "lib64/cmake/hipblaslt/hipblaslt-config.cmake",
         ],
     )
-    hipblaslt_msvc_import_library = find_under_roots(roots, ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"])
+    hipblaslt_msvc_import_library = find_under_roots(
+        roots, ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"]
+    )
     hipblaslt_import_archive = find_under_roots(
         roots,
         ["lib/libhipblaslt.dll.a", "lib64/libhipblaslt.dll.a"],
     )
-    hipblaslt_shared_library = find_under_roots(roots, ["lib/libhipblaslt.so", "lib64/libhipblaslt.so"])
-    hipblaslt_runtime_library = find_under_roots(roots, ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"])
+    hipblaslt_shared_library = find_under_roots(
+        roots, ["lib/libhipblaslt.so", "lib64/libhipblaslt.so"]
+    )
+    hipblaslt_runtime_library = find_under_roots(
+        roots, ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"]
+    )
     hipblaslt_library = (
         hipblaslt_msvc_import_library
         or hipblaslt_import_archive
@@ -138,24 +147,39 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             item = components[name]
             if chosen:
                 include = Path(chosen["paths"]["include"])
-                names = {"ck": ("ck/ck.hpp",), "rocwmma": ("rocwmma/rocwmma.hpp",),
-                         "hipblaslt": ("hipblaslt/hipblaslt.h", "hipblaslt.h")}[name]
+                names = {
+                    "ck": ("ck/ck.hpp",),
+                    "rocwmma": ("rocwmma/rocwmma.hpp",),
+                    "hipblaslt": ("hipblaslt/hipblaslt.h", "hipblaslt.h"),
+                }[name]
                 item["header"] = first_existing([include / value for value in names])
                 item["library"] = chosen["paths"].get("library")
             else:
-                item["header"] = None; item["library"] = None
+                item["header"] = None
+                item["library"] = None
             if name == "hipblaslt":
                 roots_selected = [Path(chosen["canonical_root"])] if chosen else []
                 for field, paths in {
-                    "cmake_config": ["lib/cmake/hipblaslt/hipblaslt-config.cmake", "lib64/cmake/hipblaslt/hipblaslt-config.cmake"],
+                    "cmake_config": [
+                        "lib/cmake/hipblaslt/hipblaslt-config.cmake",
+                        "lib64/cmake/hipblaslt/hipblaslt-config.cmake",
+                    ],
                     "msvc_import_library": ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"],
                     "import_archive": ["lib/libhipblaslt.dll.a", "lib64/libhipblaslt.dll.a"],
                     "runtime_library": ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"],
                     "tool": ["bin/hipblaslt-bench.exe", "bin/hipblaslt-bench"],
-                }.items(): item[field] = find_under_roots(roots_selected, paths)
+                }.items():
+                    item[field] = find_under_roots(roots_selected, paths)
                 item["cmake_target"] = "roc::hipblaslt" if item["cmake_config"] else None
-                item["library_format"] = ("msvc_import_library" if item["msvc_import_library"] else "gnu_import_archive"
-                    if item["import_archive"] else "shared_library" if item["library"] else "not_found")
+                item["library_format"] = (
+                    "msvc_import_library"
+                    if item["msvc_import_library"]
+                    else "gnu_import_archive"
+                    if item["import_archive"]
+                    else "shared_library"
+                    if item["library"]
+                    else "not_found"
+                )
     return {
         name: {
             "ok": bool(item["header"] or item["library"] or item["tool"]),
@@ -191,7 +215,8 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
+            "can_enable_correctness_backend": name
+            in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
             and bool(item["header"] or item["library"] or item["tool"]),
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
@@ -257,7 +282,12 @@ def include_root_for_header(header: str | None) -> str | None:
     return str(parent)
 
 
-def write_ck_generated_headers(root: Path, commit_id: str = "unknown", source_root: Path | None = None, include_root: Path | None = None) -> Path:
+def write_ck_generated_headers(
+    root: Path,
+    commit_id: str = "unknown",
+    source_root: Path | None = None,
+    include_root: Path | None = None,
+) -> Path:
     include_dir = root / "generated" / "ck" / "include"
     ck_dir = include_dir / "ck"
     ck_dir.mkdir(parents=True, exist_ok=True)
@@ -291,31 +321,53 @@ def write_ck_generated_headers(root: Path, commit_id: str = "unknown", source_ro
     else:
         cmake = source_root / "CMakeLists.txt"
         if not cmake.is_file():
-            raise ValueError("selected CK requires an installed ck/version.h or source CMakeLists.txt")
-        match = re.search(r'^\s*set\s*\(\s*version\s+"?(\d+)\.(\d+)\.(\d+)"?\s*\)', cmake.read_text(encoding="utf-8"), re.M | re.I)
-        if not match: raise ValueError("cannot determine selected CK source version")
+            raise ValueError(
+                "selected CK requires an installed ck/version.h or source CMakeLists.txt"
+            )
+        match = re.search(
+            r'^\s*set\s*\(\s*version\s+"?(\d+)\.(\d+)\.(\d+)"?\s*\)',
+            cmake.read_text(encoding="utf-8"),
+            re.M | re.I,
+        )
+        if not match:
+            raise ValueError("cannot determine selected CK source version")
         major, minor, patch = match.groups()
         (ck_dir / "version.h").write_text(
             "#ifndef CK_VERSION_H_\n#define CK_VERSION_H_\n"
             + f"#define CK_VERSION {major}.{minor}.{patch}\n"
             + f"#define CK_VERSION_MAJOR {major}\n#define CK_VERSION_MINOR {minor}\n#define CK_VERSION_PATCH {patch}\n"
-            + f"#define CK_COMMIT_ID {commit_id or 'unknown'}\n#endif\n", encoding="utf-8")
+            + f"#define CK_COMMIT_ID {commit_id or 'unknown'}\n#endif\n",
+            encoding="utf-8",
+        )
     return include_dir
 
 
-def include_roots_for_component(name: str, component: dict[str, object], probe_dir: Path) -> list[str]:
+def include_roots_for_component(
+    name: str, component: dict[str, object], probe_dir: Path
+) -> list[str]:
     header = component.get("header")
     include_root = include_root_for_header(header if isinstance(header, str) else None)
     roots: list[str] = []
     if name == "ck":
-        source_root = Path(include_root).parent if include_root else repo_local_accelerator_roots("ck")[0]
+        source_root = (
+            Path(include_root).parent if include_root else repo_local_accelerator_roots("ck")[0]
+        )
         dependency = component.get("repo_local_dependency")
         commit_id = ""
-        if isinstance(dependency, dict) and dependency.get("path") and Path(str(dependency["path"])).resolve() == source_root.resolve():
+        if (
+            isinstance(dependency, dict)
+            and dependency.get("path")
+            and Path(str(dependency["path"])).resolve() == source_root.resolve()
+        ):
             commit_value = dependency.get("actual_sha")
             commit_id = str(commit_value) if commit_value else ""
-        roots.append(str(write_ck_generated_headers(probe_dir, commit_id, source_root,
-                                                  Path(include_root) if include_root else None)))
+        roots.append(
+            str(
+                write_ck_generated_headers(
+                    probe_dir, commit_id, source_root, Path(include_root) if include_root else None
+                )
+            )
+        )
         roots.append(str(repo_root() / "src" / "backend_common"))
     if include_root:
         roots.append(include_root)
@@ -336,10 +388,20 @@ def primitive_probe_object_path(probe_dir: Path, name: str) -> Path:
     return probe_dir / f"{name}_primitive_probe{suffix}"
 
 
-def primitive_probe_not_run_fields(name: str, probe_dir: Path, status: str, detail: str, requested: bool) -> dict[str, object]:
+def primitive_probe_not_run_fields(
+    name: str, probe_dir: Path, status: str, detail: str, requested: bool
+) -> dict[str, object]:
     applicable = name in ACCELERATOR_PRIMITIVE_PROBE_SOURCES
-    primitive_status = status if requested and applicable else ("NOT_REQUESTED" if applicable else "NOT_APPLICABLE")
-    primitive_detail = detail if applicable else "no matrix-engine primitive dependency probe is defined for this accelerator"
+    primitive_status = (
+        status
+        if requested and applicable
+        else ("NOT_REQUESTED" if applicable else "NOT_APPLICABLE")
+    )
+    primitive_detail = (
+        detail
+        if applicable
+        else "no matrix-engine primitive dependency probe is defined for this accelerator"
+    )
     return {
         "primitive_probe_requested": requested and applicable,
         "primitive_probe_status": primitive_status,
@@ -391,7 +453,8 @@ def not_run_probe(
             else ACCELERATOR_ENABLE_POLICY
         ),
         "validated_correctness_backend": False,
-        "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"} and requested,
+        "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
+        and requested,
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "readiness_effect": "none",
@@ -527,10 +590,14 @@ def accelerator_compile_probes(
         library = component.get("library") if isinstance(component, dict) else None
         runtime_library = component.get("runtime_library") if isinstance(component, dict) else None
         if not isinstance(header, str) or not header:
-            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True)
+            items[name] = not_run_probe(
+                name, root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True
+            )
             continue
         if name == "hipblaslt" and (not isinstance(library, str) or not library):
-            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_LIBRARY", "hipBLASLt library not discovered", True)
+            items[name] = not_run_probe(
+                name, root, "NOT_RUN_MISSING_LIBRARY", "hipBLASLt library not discovered", True
+            )
             continue
 
         source = root / f"{name}_probe.cpp"
@@ -538,7 +605,9 @@ def accelerator_compile_probes(
         source.write_text(ACCELERATOR_PROBE_SOURCES[name], encoding="utf-8")
         include_roots = include_roots_for_component(name, component, root)
         if name == "hipblaslt" and platform.system() == "Windows" and isinstance(library, str):
-            command = msvc_probe_command(source, binary, include_roots[0] if include_roots else "", library)
+            command = msvc_probe_command(
+                source, binary, include_roots[0] if include_roots else "", library
+            )
             if not command:
                 items[name] = not_run_probe(
                     name,
@@ -550,7 +619,9 @@ def accelerator_compile_probes(
                 continue
         else:
             if not hipcc:
-                items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True)
+                items[name] = not_run_probe(
+                    name, root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True
+                )
                 continue
             command = [hipcc, "-std=c++17"]
             if offload_target:
@@ -574,7 +645,11 @@ def accelerator_compile_probes(
                 True,
             )
             continue
-        code, output = run(actual_command, timeout=60, logical_command=command if isinstance(command,list) else None)
+        code, output = run(
+            actual_command,
+            timeout=60,
+            logical_command=command if isinstance(command, list) else None,
+        )
         run_command: list[str] = []
         run_code: int | None = None
         run_output = ""
@@ -583,7 +658,9 @@ def accelerator_compile_probes(
             run_env = None
             if isinstance(runtime_library, str) and runtime_library:
                 run_env = os.environ.copy()
-                run_env["PATH"] = str(Path(runtime_library).parent) + os.pathsep + run_env.get("PATH", "")
+                run_env["PATH"] = (
+                    str(Path(runtime_library).parent) + os.pathsep + run_env.get("PATH", "")
+                )
             run_code, run_output = run(run_command, timeout=30, env=run_env)
         compiled = code == 0
         runtime_ok = run_code == 0
@@ -593,7 +670,9 @@ def accelerator_compile_probes(
             status = "COMPILE_LINK_PASS_RUN_PASS"
         else:
             status = "COMPILE_LINK_PASS_RUN_FAIL"
-        primitive_probe = compile_accelerator_primitive_probe(name, component, root, offload_target, hipcc)
+        primitive_probe = compile_accelerator_primitive_probe(
+            name, component, root, offload_target, hipcc
+        )
         items[name] = {
             "probe_requested": True,
             "requested": True,
@@ -624,7 +703,8 @@ def accelerator_compile_probes(
                 else ACCELERATOR_ENABLE_POLICY
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
+            "can_enable_correctness_backend": name
+            in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
             and compiled
             and runtime_ok,
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
@@ -656,5 +736,3 @@ def accelerator_compile_probes(
         "candidate_evidence_is_correctness_validation": False,
         "items": items,
     }
-
-

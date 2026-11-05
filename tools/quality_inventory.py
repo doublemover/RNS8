@@ -26,17 +26,14 @@ def classify(paths: Iterable[str], policy: dict) -> tuple[SourceFile, ...]:
     seen = set()
     for name in sorted(paths):
         path = PurePosixPath(name)
-        if (
-            not name
-            or path.is_absolute()
-            or ".." in path.parts
-            or "\\" in name
-            or name in seen
-        ):
+        if not name or path.is_absolute() or ".." in path.parts or "\\" in name or name in seen:
             raise ValueError("invalid or duplicate tracked inventory path: " + name)
         seen.add(name)
-        if (path.parts[0] in policy["excluded_roots"] or name in policy["generated"]
-                or name in policy.get("checker_negative_inputs", {})):
+        if (
+            path.parts[0] in policy["excluded_roots"]
+            or name in policy["generated"]
+            or name in policy.get("checker_negative_inputs", {})
+        ):
             continue
         if name.startswith(".github/workflows/") and path.suffix in {".yml", ".yaml"}:
             result.append(SourceFile(name, "workflow"))
@@ -60,9 +57,7 @@ def classify(paths: Iterable[str], policy: dict) -> tuple[SourceFile, ...]:
 
 
 def inventory(root: Path = ROOT) -> tuple[SourceFile, ...]:
-    policy = json.loads(
-        (root / "metadata/first-party-inventory.json").read_text(encoding="utf-8")
-    )
+    policy = json.loads((root / "metadata/first-party-inventory.json").read_text(encoding="utf-8"))
     output = subprocess.run(
         ["git", "ls-files", "-z"],
         cwd=root,
@@ -75,9 +70,7 @@ def inventory(root: Path = ROOT) -> tuple[SourceFile, ...]:
         raise ValueError("tracked file inventory is empty or not NUL-delimited")
     records = classify(output[:-1].decode("utf-8", errors="strict").split("\0"), policy)
     if any(not any(row.role == role for row in records) for role in ROLES):
-        raise ValueError(
-            "first-party inventory unexpectedly omits a required source role"
-        )
+        raise ValueError("first-party inventory unexpectedly omits a required source role")
     for row in records:
         path = root / row.path
         if (
@@ -86,15 +79,12 @@ def inventory(root: Path = ROOT) -> tuple[SourceFile, ...]:
             or not path.resolve().is_relative_to(root.resolve())
         ):
             raise ValueError(
-                "first-party source is missing, linked or outside repository: "
-                + row.path
+                "first-party source is missing, linked or outside repository: " + row.path
             )
     return records
 
 
-def batches(
-    paths: Iterable[str], *, maximum_bytes=16000
-) -> tuple[tuple[str, ...], ...]:
+def batches(paths: Iterable[str], *, maximum_bytes=16000) -> tuple[tuple[str, ...], ...]:
     """Conservative UTF-16 Windows command limit, also safe for POSIX argv."""
     result: list[tuple[str, ...]] = []
     current: list[str] = []

@@ -41,8 +41,12 @@ def selector_capture(backend: str, median_us: int, *, name: str = "bounded-i64-3
     }
     if backend != "cpu-reference":
         if backend == "hip-direct":
-            capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
-            capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
+            capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+                "direct_hip_default_stream_backend_operation_groups"
+            )
+            capture["timing_metadata"]["gpu_event_timing_reason"] = (
+                "captured_by_direct_hip_backend_hooks"
+            )
         add_target_variant_fields(capture)
     set_phase(capture, median_us)
     return add_synthetic_full_reference(capture)
@@ -74,8 +78,12 @@ def finite_selector_capture(backend: str, median_us: int) -> dict:
     }
     if backend != "cpu-reference":
         if backend == "hip-direct":
-            capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
-            capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
+            capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+                "direct_hip_default_stream_backend_operation_groups"
+            )
+            capture["timing_metadata"]["gpu_event_timing_reason"] = (
+                "captured_by_direct_hip_backend_hooks"
+            )
         add_target_variant_fields(capture)
     set_phase(capture, median_us)
     return add_synthetic_full_reference(capture)
@@ -86,7 +94,9 @@ def write(path: Path, capture: dict) -> Path:
     if capture.get("per_modulus_gemm_estimate_applicable") is False:
         capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"])
     else:
-        capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(prefix)
+        capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(
+            prefix
+        )
     validate_capture(capture, path)
     path.write_text(json.dumps(capture, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
@@ -99,7 +109,9 @@ def main() -> int:
         direct = write(tmp / "direct.json", selector_capture("hip-direct", 1200))
         report = cpu_small_shape_selector_report.build_report([cpu, direct])
         assert report["schema"] == "rns8_cpu_small_shape_selector_report_v1"
-        assert report["rank69_gate_complete"] is True, json.dumps(report["blocker_counts"], indent=2)
+        assert report["rank69_gate_complete"] is True, json.dumps(
+            report["blocker_counts"], indent=2
+        )
         assert report["groups"][0]["recommendation"] == "cpu_wins"
         assert report["groups"][0]["promotion_decision"] == "promote_cpu_selector_threshold"
         assert report["groups"][0]["promoted_backend"] == "cpu-reference"

@@ -3,6 +3,7 @@
 Order-dependent and overlapping pipeline costs are deliberately not represented
 by this objective. A measured optimum is only as applicable as its cost cohort.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -11,7 +12,13 @@ import json
 import math
 from pathlib import Path
 
-from arithmetic_certificate import ArithmeticCertificate, certificate_hash, from_json, verify, exact_form_admissible
+from arithmetic_certificate import (
+    ArithmeticCertificate,
+    certificate_hash,
+    from_json,
+    verify,
+    exact_form_admissible,
+)
 
 
 @dataclass(frozen=True)
@@ -24,13 +31,24 @@ class Form:
     cost_cohort: str
 
     def cost(self, k: int) -> int:
-        return self.conversion_ps + ((k + self.certificate.safe_k - 1) // self.certificate.safe_k) * (
-            self.slab_ps + self.epilogue_ps) + self.reconstruction_ps
+        return (
+            self.conversion_ps
+            + ((k + self.certificate.safe_k - 1) // self.certificate.safe_k)
+            * (self.slab_ps + self.epilogue_ps)
+            + self.reconstruction_ps
+        )
 
 
 def optimize(forms: list[Form], bound: int, signed: bool, k: int, max_nodes: int = 1000000) -> dict:
-    if (type(bound) is not int or bound < 0 or type(k) is not int or k <= 0
-            or type(signed) is not bool or type(max_nodes) is not int or max_nodes < 1):
+    if (
+        type(bound) is not int
+        or bound < 0
+        or type(k) is not int
+        or k <= 0
+        or type(signed) is not bool
+        or type(max_nodes) is not int
+        or max_nodes < 1
+    ):
         raise ValueError("invalid exact output bound, K or search budget")
     if not forms or len(forms) > 24:
         raise ValueError("search domain must contain 1..24 explicitly supplied forms")
@@ -40,8 +58,10 @@ def optimize(forms: list[Form], bound: int, signed: bool, k: int, max_nodes: int
     for form in forms:
         if not exact_form_admissible(verify(form.certificate)):
             raise ValueError("unverified arithmetic form")
-        if any(type(cost) is not int or cost < 0 for cost in
-               (form.conversion_ps, form.slab_ps, form.epilogue_ps, form.reconstruction_ps)):
+        if any(
+            type(cost) is not int or cost < 0
+            for cost in (form.conversion_ps, form.slab_ps, form.epilogue_ps, form.reconstruction_ps)
+        ):
             raise ValueError("costs must be known nonnegative integer picoseconds")
         identity = certificate_hash(form.certificate)
         if identity in unique:
@@ -84,17 +104,28 @@ def optimize(forms: list[Form], bound: int, signed: bool, k: int, max_nodes: int
     for form in chosen:
         product *= form.certificate.modulus
         products.append(product)
-    return {"schema": "rns8_modulus_scheme_search_v1", "objective": "additive_pipeline_picoseconds",
-            "order_policy": "input_order_additive_cost_is_order_invariant", "cost_cohort": forms[0].cost_cohort,
-            "bound": bound, "signed": signed, "k": k, "strict_product_threshold": target,
-            "visited_nodes": visited, "search_complete": not exhausted,
-            "optimal_within_declared_domain": not exhausted and best is not None,
-            "lower_bound_ps": best_cost if not exhausted and best is not None else 0,
-            "feasible_upper_bound_ps": best_cost, "feasible": best is not None,
-            "ordered_moduli": [f.certificate.modulus for f in chosen], "prefix_products": products,
-            "form_hashes": [certificate_hash(f.certificate) for f in chosen],
-            "domain_hashes": [certificate_hash(f.certificate) for f in forms],
-            "runtime_ladder_changed": False, "promotion_eligible": False}
+    return {
+        "schema": "rns8_modulus_scheme_search_v1",
+        "objective": "additive_pipeline_picoseconds",
+        "order_policy": "input_order_additive_cost_is_order_invariant",
+        "cost_cohort": forms[0].cost_cohort,
+        "bound": bound,
+        "signed": signed,
+        "k": k,
+        "strict_product_threshold": target,
+        "visited_nodes": visited,
+        "search_complete": not exhausted,
+        "optimal_within_declared_domain": not exhausted and best is not None,
+        "lower_bound_ps": best_cost if not exhausted and best is not None else 0,
+        "feasible_upper_bound_ps": best_cost,
+        "feasible": best is not None,
+        "ordered_moduli": [f.certificate.modulus for f in chosen],
+        "prefix_products": products,
+        "form_hashes": [certificate_hash(f.certificate) for f in chosen],
+        "domain_hashes": [certificate_hash(f.certificate) for f in forms],
+        "runtime_ladder_changed": False,
+        "promotion_eligible": False,
+    }
 
 
 def main() -> int:
@@ -103,14 +134,32 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     request = json.loads(args.input.read_text(encoding="utf-8"))
-    forms = [Form(certificate=from_json(item["certificate"]), **item["costs"]) for item in request["forms"]]
+    forms = [
+        Form(certificate=from_json(item["certificate"]), **item["costs"])
+        for item in request["forms"]
+    ]
     if "joint_schedule" in request:
         from joint_scheme_optimizer import ScheduledForm, joint_optimize
-        scheduled = [ScheduledForm(form, **item["resources"]) for form, item in zip(forms, request["forms"])]
-        result = joint_optimize(scheduled, request["bound"], request["signed"], request["k"],
-                                max_nodes=request.get("max_nodes", 1000000), **request["joint_schedule"])
+
+        scheduled = [
+            ScheduledForm(form, **item["resources"]) for form, item in zip(forms, request["forms"])
+        ]
+        result = joint_optimize(
+            scheduled,
+            request["bound"],
+            request["signed"],
+            request["k"],
+            max_nodes=request.get("max_nodes", 1000000),
+            **request["joint_schedule"],
+        )
     else:
-        result = optimize(forms, request["bound"], request["signed"], request["k"], request.get("max_nodes", 1000000))
+        result = optimize(
+            forms,
+            request["bound"],
+            request["signed"],
+            request["k"],
+            request.get("max_nodes", 1000000),
+        )
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0 if result.get("feasible", result.get("best") is not None) else 1
 

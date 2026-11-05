@@ -28,14 +28,10 @@ def _passed(result: dict) -> None:
         raise ValueError("observation stage did not complete successfully")
 
 
-def _stdout(
-    item: dict, result: dict, results_parent: Path, store: EvidenceStore
-) -> dict:
+def _stdout(item: dict, result: dict, results_parent: Path, store: EvidenceStore) -> dict:
     _passed(result)
     output = text(result.get("stdout"))
-    path = (results_parent / (text(item.get("name")) + ".stdout.log")).resolve(
-        strict=True
-    )
+    path = (results_parent / (text(item.get("name")) + ".stdout.log")).resolve(strict=True)
     store.verify(path, object_value(result.get("artifacts")).get(str(path)))
     if path.read_text(encoding="utf-8") != output:
         raise ValueError("session observation differs from its raw stdout artifact")
@@ -54,19 +50,11 @@ def _stdout(
 def _environment(result: dict, *, selected: int | None, rank: int, world: int) -> dict:
     environment = object_value(result.get("execution_environment"))
     if set(environment) != set(RUNTIME_MAPPING_KEYS):
-        raise ValueError(
-            "observation has no complete versioned runtime mapping environment"
-        )
+        raise ValueError("observation has no complete versioned runtime mapping environment")
     for key in VISIBILITY_KEYS:
-        expected = (
-            str(selected)
-            if key == "HIP_VISIBLE_DEVICES" and selected is not None
-            else None
-        )
+        expected = str(selected) if key == "HIP_VISIBLE_DEVICES" and selected is not None else None
         if environment[key] != expected:
-            raise ValueError(
-                "observed visibility differs from its explicit parent/child namespace"
-            )
+            raise ValueError("observed visibility differs from its explicit parent/child namespace")
     if selected is not None:
         for key, expected in dict(
             RNS8_RANK=str(rank),
@@ -74,9 +62,7 @@ def _environment(result: dict, *, selected: int | None, rank: int, world: int) -
             RNS8_MULTI_GPU_MODE="embarrassingly_parallel_shards",
         ).items():
             if environment[key] != expected:
-                raise ValueError(
-                    "observed rank/world/mode differs from the session allocation"
-                )
+                raise ValueError("observed rank/world/mode differs from the session allocation")
     return environment
 
 
@@ -94,9 +80,7 @@ def _query_receipt(
         raise ValueError("compiled query stage is absent")
     item, result = pair
     if item.get("compiled_identity") is not True:
-        raise ValueError(
-            "observation binary was not queried through its compiled identity API"
-        )
+        raise ValueError("observation binary was not queried through its compiled identity API")
     document = _stdout(item, result, directory, store)
     receipt = store.binary(result.get("compiled_binary_identity"), backend)
     arguments = item.get("argv")
@@ -104,14 +88,11 @@ def _query_receipt(
         not isinstance(arguments, list)
         or len(arguments) != 2
         or arguments[1] != "--build-identity"
-        or (cwd / text(arguments[0])).resolve(strict=True)
-        != Path(receipt["executable"])
+        or (cwd / text(arguments[0])).resolve(strict=True) != Path(receipt["executable"])
     ):
         raise ValueError("query executable/arguments differ from the compiled receipt")
     if receipt["build_manifest_sha256"] != manifest_sha:
-        raise ValueError(
-            "observation binary comes from a different build/configuration"
-        )
+        raise ValueError("observation binary comes from a different build/configuration")
     _, stored = store.json(
         dict(
             path=receipt["identity_document"],
@@ -120,9 +101,7 @@ def _query_receipt(
         cwd,
     )
     if not same_evidence_value(stored, document):
-        raise ValueError(
-            "compiled query document differs from its actual process output"
-        )
+        raise ValueError("compiled query document differs from its actual process output")
     return receipt
 
 
@@ -146,37 +125,23 @@ def _observe(
         or any(type(value) is not int or value < 0 for value in devices)
         or len(set(devices)) != len(devices)
     ):
-        raise ValueError(
-            "session has no explicit unique parent runtime ordinal allocation"
-        )
+        raise ValueError("session has no explicit unique parent runtime ordinal allocation")
     selected = item.get("selected_device")
-    if (
-        type(selected) is not int
-        or selected not in devices
-        or item.get("device") != selected
-    ):
-        raise ValueError(
-            "capture device is not in the session's declared visibility allocation"
-        )
+    if type(selected) is not int or selected not in devices or item.get("device") != selected:
+        raise ValueError("capture device is not in the session's declared visibility allocation")
     rank, world = devices.index(selected), len(devices)
-    if (cwd / text(item.get("capture"))).resolve(strict=True) != capture_path.resolve(
-        strict=True
-    ):
+    if (cwd / text(item.get("capture"))).resolve(strict=True) != capture_path.resolve(strict=True):
         raise ValueError("session capture stage names a different raw file")
     if (
         object_value(result.get("artifacts")).get(str(capture_path.resolve()))
         != binding["capture_sha256"]
     ):
-        raise ValueError(
-            "capture bytes are not an immutable output of that session stage"
-        )
+        raise ValueError("capture bytes are not an immutable output of that session stage")
     environment = _environment(result, selected=selected, rank=rank, world=world)
     request = object_value(capture.get("request_identity"))
     for key in RUNTIME_MAPPING_KEYS:
         if object_value(request.get("environment")).get(key) != environment[key]:
-            raise ValueError(
-                "capture request and actual child mapping environments differ"
-            )
+            raise ValueError("capture request and actual child mapping environments differ")
     emitted = object_value(capture.get("runtime_environment"))
     for key in (
         "HIP_VISIBLE_DEVICES",
@@ -187,9 +152,7 @@ def _observe(
         "RNS8_MULTI_GPU_MODE",
     ):
         if emitted.get(key) != environment[key]:
-            raise ValueError(
-                "benchmark-observed environment contradicts its subprocess request"
-            )
+            raise ValueError("benchmark-observed environment contradicts its subprocess request")
     arguments = item.get("argv")
     if (
         not isinstance(arguments, list)
@@ -201,9 +164,7 @@ def _observe(
     if type(result.get("process_id")) is not int or result["process_id"] != capture.get(
         "process_id"
     ):
-        raise ValueError(
-            "capture process identity differs from its actual launched benchmark"
-        )
+        raise ValueError("capture process identity differs from its actual launched benchmark")
     benchmark = _query_receipt(
         text(proof.get("binary_identity_stage")),
         stages,
@@ -216,39 +177,25 @@ def _observe(
     if (cwd / text(arguments[0])).resolve(strict=True) != Path(
         benchmark["executable"]
     ) or benchmark["executable_sha256"] != identity["executable_sha256"]:
-        raise ValueError(
-            "capture executed an artifact other than the queried benchmark"
-        )
+        raise ValueError("capture executed an artifact other than the queried benchmark")
     parent_name, child_name = (
         text(item.get("observation_parent_stage")),
         text(item.get("observation_child_stage")),
     )
-    if (
-        proof.get("parent_stage") != parent_name
-        or proof.get("child_stage") != child_name
-    ):
+    if proof.get("parent_stage") != parent_name or proof.get("child_stage") != child_name:
         raise ValueError("capture mapping substituted another observation stage")
     if parent_name not in stages or child_name not in stages:
-        raise ValueError(
-            "capture has no completed parent and isolated child inspection"
-        )
+        raise ValueError("capture has no completed parent and isolated child inspection")
     positions = {name: index for index, name in enumerate(stages)}
     if not positions[parent_name] < positions[child_name] < positions[item["name"]]:
-        raise ValueError(
-            "capture did not follow its parent and isolated-child inspections"
-        )
+        raise ValueError("capture did not follow its parent and isolated-child inspections")
     if (
         positions[text(proof.get("binary_identity_stage"))] >= positions[item["name"]]
-        or positions[text(proof.get("inspector_identity_stage"))]
-        >= positions[parent_name]
+        or positions[text(proof.get("inspector_identity_stage"))] >= positions[parent_name]
     ):
-        raise ValueError(
-            "compiled identity admission did not precede device observations"
-        )
+        raise ValueError("compiled identity admission did not precede device observations")
     if manifest.get("requested_architecture") != item.get("expected_target"):
-        raise ValueError(
-            "capture target labels contradict the session's requested architecture"
-        )
+        raise ValueError("capture target labels contradict the session's requested architecture")
     parent_item, parent_result = stages[parent_name]
     child_item, child_result = stages[child_name]
     if (
@@ -295,14 +242,10 @@ def _observe(
                 str(inspection_item.get("inspect_device")),
                 "--json",
             ]
-            or object_value(inspection_result.get("artifacts")).get(
-                inspector["executable"]
-            )
+            or object_value(inspection_result.get("artifacts")).get(inspector["executable"])
             != inspector["executable_sha256"]
         ):
-            raise ValueError(
-                "runtime inspection did not use the queried inspector artifact"
-            )
+            raise ValueError("runtime inspection did not use the queried inspector artifact")
         observed = inspection_observation(info)
         if (
             observed.identity.runtime_ordinal != inspection_item.get("inspect_device")
@@ -315,9 +258,7 @@ def _observe(
     if capture.get("backend_requested") != item.get("expected_backend") or identity[
         "target_id"
     ] != item.get("expected_target"):
-        raise ValueError(
-            "capture backend/target contradicts the requested session case"
-        )
+        raise ValueError("capture backend/target contradicts the requested session case")
     relation = capture_relation(capture, parent_info, child_info)
     if relation["state"] != "verified":
         raise ValueError(
@@ -378,9 +319,7 @@ def make_binding(
     if not isinstance(commands, list):
         raise ValueError("session command inventory is missing")
     selected = [
-        item
-        for item in commands
-        if isinstance(item, dict) and item.get("name") == stage_name
+        item for item in commands if isinstance(item, dict) and item.get("name") == stage_name
     ]
     if len(selected) != 1 or "capture" not in selected[0]:
         raise ValueError("one actual capture stage required")
@@ -398,16 +337,13 @@ def make_binding(
             == (cwd / executable).resolve(strict=True)
         ]
         if len(candidates) != 1:
-            raise ValueError(
-                "one compiled identity query is required for each observed executable"
-            )
+            raise ValueError("one compiled identity query is required for each observed executable")
         return text(candidates[0].get("name"))
 
     parent_names = [
         command
         for command in commands
-        if isinstance(command, dict)
-        and command.get("name") == item.get("observation_parent_stage")
+        if isinstance(command, dict) and command.get("name") == item.get("observation_parent_stage")
     ]
     if len(parent_names) != 1:
         raise ValueError("capture's parent inspection is absent")
@@ -445,9 +381,7 @@ def validate_binding(
 
     owned = store is None
     store = store if store is not None else EvidenceStore()
-    if value.get("schema") != SCHEMA or value.get(
-        "identity_sha256"
-    ) != canonical_digest(
+    if value.get("schema") != SCHEMA or value.get("identity_sha256") != canonical_digest(
         {key: item for key, item in value.items() if key != "identity_sha256"}
     ):
         raise ValueError("versioned sealed multi-GPU observation binding required")
@@ -455,26 +389,20 @@ def validate_binding(
     validate_capture(capture, capture_path)
     binding = candidate_binding(capture_path, capture, capture_target(capture_path))
     if not same_evidence_value(value.get("candidate"), binding):
-        raise ValueError(
-            "multi-GPU binding belongs to another capture/artifact/execution"
-        )
+        raise ValueError("multi-GPU binding belongs to another capture/artifact/execution")
     proof = object_value(value.get("proof"))
-    manifest_path = Path(
-        text(object_value(proof.get("session_manifest")).get("path"))
-    ).resolve(strict=True)
+    manifest_path = Path(text(object_value(proof.get("session_manifest")).get("path"))).resolve(
+        strict=True
+    )
     facts = _observe(capture_path, capture, binding, proof, manifest_path.parent, store)
     if not same_evidence_value(value.get("facts"), facts):
-        raise ValueError(
-            "multi-GPU observation summary differs from its raw session evidence"
-        )
+        raise ValueError("multi-GPU observation summary differs from its raw session evidence")
     if owned:
         store.finish()
     return facts
 
 
-def emit_session_bindings(
-    manifest_path: Path, results_path: Path, output: Path
-) -> dict:
+def emit_session_bindings(manifest_path: Path, results_path: Path, output: Path) -> dict:
     import json
 
     manifest = object_value(load_evidence_json(manifest_path))
@@ -485,9 +413,7 @@ def emit_session_bindings(
     output.mkdir(parents=True, exist_ok=False)
     store = EvidenceStore()
     receipts, errors = [], []
-    planned = [
-        item for item in commands if isinstance(item, dict) and "capture" in item
-    ]
+    planned = [item for item in commands if isinstance(item, dict) and "capture" in item]
     for index, item in enumerate(planned):
         try:
             capture_path = (cwd / text(item.get("capture"))).resolve(strict=True)
@@ -547,9 +473,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        result = emit_session_bindings(
-            args.session_manifest, args.session_results, args.out_dir
-        )
+        result = emit_session_bindings(args.session_manifest, args.session_results, args.out_dir)
         print(json.dumps(result, sort_keys=True, allow_nan=False))
         return 0 if result["complete"] else 2
     except (OSError, ValueError, TypeError, KeyError) as error:

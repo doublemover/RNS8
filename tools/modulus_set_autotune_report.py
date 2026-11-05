@@ -104,7 +104,9 @@ def _timing_median(capture: dict[str, Any]) -> float | None:
             return float(end_to_end["median"])
     raw = capture.get("raw_timings_us")
     if isinstance(raw, dict) and isinstance(raw.get("end_to_end"), list):
-        values = sorted(float(value) for value in raw["end_to_end"] if isinstance(value, (int, float)))
+        values = sorted(
+            float(value) for value in raw["end_to_end"] if isinstance(value, (int, float))
+        )
         if values:
             return values[len(values) // 2]
     return None
@@ -152,7 +154,10 @@ def _anchor_for(capture: dict[str, Any], captures: list[dict[str, Any]]) -> dict
     rows = same_backend or default_rows
     if not rows:
         return None
-    return min(rows, key=lambda item: _timing_median(item) if _timing_median(item) is not None else float("inf"))
+    return min(
+        rows,
+        key=lambda item: _timing_median(item) if _timing_median(item) is not None else float("inf"),
+    )
 
 
 def _speedup(candidate: dict[str, Any], anchor: dict[str, Any] | None) -> float | None:
@@ -221,13 +226,20 @@ def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> di
     summary = Counter()
     for capture in captures:
         blockers, search_candidate = _candidate_blockers(capture, search_candidates, captures)
-        if _modulus_name(capture) != "default" and search_report["semantic_range_evidence_status"] != "strict_products_verified":
+        if (
+            _modulus_name(capture) != "default"
+            and search_report["semantic_range_evidence_status"] != "strict_products_verified"
+        ):
             blockers.append("legacy_search_missing_strict_semantic_range_proof")
         anchor = _anchor_for(capture, captures) if _modulus_name(capture) != "default" else None
         evidence_blockers = [
             blocker
             for blocker in blockers
-            if blocker not in {"runtime_ladder_not_selectable", "default_change_requires_spec_cache_schema_proof"}
+            if blocker
+            not in {
+                "runtime_ladder_not_selectable",
+                "default_change_requires_spec_cache_schema_proof",
+            }
         ]
         if _modulus_name(capture) == "default" and capture.get("_schema_status") == "valid":
             decision = "comparison_anchor"
@@ -254,8 +266,12 @@ def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> di
             "selected_prefix": capture.get("selected_prefix"),
             "requested_prefix": capture.get("requested_max_prefix"),
             "residue_autotune_scope": _nested(capture, "residue_count_policy.autotune_scope"),
-            "search_candidate": search_candidate.get("name") if isinstance(search_candidate, dict) else None,
-            "search_disposition": search_candidate.get("disposition") if isinstance(search_candidate, dict) else None,
+            "search_candidate": search_candidate.get("name")
+            if isinstance(search_candidate, dict)
+            else None,
+            "search_disposition": search_candidate.get("disposition")
+            if isinstance(search_candidate, dict)
+            else None,
             "anchor_path": anchor.get("_path") if isinstance(anchor, dict) else None,
             "anchor_backend": _backend(anchor) if isinstance(anchor, dict) else None,
             "median_end_to_end_us": _timing_median(capture),

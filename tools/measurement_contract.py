@@ -1,4 +1,5 @@
 """Normalized workload identities shared by comparisons and execution cohorts."""
+
 from __future__ import annotations
 from typing import Any
 from graph_caller_contract import full_path_graph, SCHEMA as GRAPH_CALLER_SCHEMA
@@ -6,9 +7,11 @@ from graph_caller_contract import full_path_graph, SCHEMA as GRAPH_CALLER_SCHEMA
 
 def profile_ranges_instrumented(capture: dict[str, Any]) -> bool:
     ranges = capture.get("profiler_ranges")
-    return ranges is not None and (not isinstance(ranges, dict)
+    return ranges is not None and (
+        not isinstance(ranges, dict)
         or ranges.get("schema") != "rns8_profiler_ranges_v1"
-        or ranges.get("provider_status") not in ("disabled_at_build", "disabled_at_runtime"))
+        or ranges.get("provider_status") not in ("disabled_at_build", "disabled_at_runtime")
+    )
 
 
 def exact_proof_policy(capture: dict[str, Any]) -> str:
@@ -24,10 +27,13 @@ def host_batch_contract(capture: dict[str, Any]) -> dict[str, Any]:
     timing = capture.get("timing_metadata") or {}
     size = batch.get("batch_size", 1)
     tasks = batch.get("tasks_per_measured_repeat", size)
-    return {"batch_size": size, "tasks_per_measured_repeat": tasks,
-            "inner_repetitions": timing.get("inner_repetitions", size),
-            "aggregate_units": "microseconds_per_measured_repeat",
-            "per_task_units": "microseconds_per_task"}
+    return {
+        "batch_size": size,
+        "tasks_per_measured_repeat": tasks,
+        "inner_repetitions": timing.get("inner_repetitions", size),
+        "aggregate_units": "microseconds_per_measured_repeat",
+        "per_task_units": "microseconds_per_task",
+    }
 
 
 def host_instrumentation(capture: dict[str, Any]) -> str:
@@ -36,7 +42,9 @@ def host_instrumentation(capture: dict[str, Any]) -> str:
     # production observations when this newly explicit field is absent.
     state = timing.get("host_instrumentation_state")
     if state is None:
-        return "diagnostic_gpu_events" if timing.get("gpu_event_timing") is True else "hooks_disabled"
+        return (
+            "diagnostic_gpu_events" if timing.get("gpu_event_timing") is True else "hooks_disabled"
+        )
     if state not in ("diagnostic_gpu_events", "hooks_disabled"):
         raise ValueError("unknown host instrumentation state")
     if state == "hooks_disabled" and timing.get("gpu_event_timing") is True:
@@ -47,8 +55,11 @@ def host_instrumentation(capture: dict[str, Any]) -> str:
 def output_completion_boundary(capture: dict[str, Any]) -> str:
     if full_path_graph(capture):
         transaction = capture["hip_graph_replay"].get("caller_transaction")
-        if (not isinstance(transaction, dict) or transaction.get("schema") != GRAPH_CALLER_SCHEMA
-                or transaction.get("completion_boundary") != "per_task_host_destinations"):
+        if (
+            not isinstance(transaction, dict)
+            or transaction.get("schema") != GRAPH_CALLER_SCHEMA
+            or transaction.get("completion_boundary") != "per_task_host_destinations"
+        ):
             return "legacy_prepared_pinned_graph_output"
     policy = capture.get("output_policy") or {}
     value = policy.get("completion_boundary")
@@ -60,34 +71,51 @@ def output_completion_boundary(capture: dict[str, Any]) -> str:
     timing = capture.get("timing_metadata") or {}
     # Legacy grouped slab captures completed the compact slab during timing,
     # even when their old destination_layout field incorrectly promised padding.
-    if grouped.get("batched_export_enabled") is True or timing.get("grouped_dispatch_batched_export_enabled") is True:
+    if (
+        grouped.get("batched_export_enabled") is True
+        or timing.get("grouped_dispatch_batched_export_enabled") is True
+    ):
         return "compact_task_major_host_slab"
     return "per_task_host_destinations"
 
 
 def streaming_executed(capture: dict[str, Any]) -> bool:
-    overlap=capture.get("streaming_overlap") or {}
-    return overlap.get("requested") is True and overlap.get("capture_status")=="executed"
+    overlap = capture.get("streaming_overlap") or {}
+    return overlap.get("requested") is True and overlap.get("capture_status") == "executed"
 
 
 def host_observation_contract(capture: dict[str, Any]) -> dict[str, Any]:
-    if not streaming_executed(capture): return {"unit":"completed_call_or_task_batch"}
-    overlap=capture["streaming_overlap"]
-    if overlap.get("observation_contract_version")!=2:
-        return {"unit":"legacy_single_pipeline_batch_repeated_quotient","calls":overlap.get("measured_repeat_count")}
-    return {"unit":"completed_pipeline_batch_mean_per_call_v2","calls_per_batch":capture.get("repeats"),
-            "fill_drain_policy":overlap.get("fill_drain_policy"),"per_call_latency_available":False}
+    if not streaming_executed(capture):
+        return {"unit": "completed_call_or_task_batch"}
+    overlap = capture["streaming_overlap"]
+    if overlap.get("observation_contract_version") != 2:
+        return {
+            "unit": "legacy_single_pipeline_batch_repeated_quotient",
+            "calls": overlap.get("measured_repeat_count"),
+        }
+    return {
+        "unit": "completed_pipeline_batch_mean_per_call_v2",
+        "calls_per_batch": capture.get("repeats"),
+        "fill_drain_policy": overlap.get("fill_drain_policy"),
+        "per_call_latency_available": False,
+    }
 
 
 def host_observation_count(capture: dict[str, Any]) -> int:
     import math
+
     if streaming_executed(capture):
-        overlap=capture["streaming_overlap"]
-        if overlap.get("observation_contract_version")!=2:
-            return int(type(overlap.get("batch_wall_us")) in (int,float) and math.isfinite(overlap["batch_wall_us"]) and overlap["batch_wall_us"]>0)
-        batches=overlap.get("batches")
-        return len(batches) if isinstance(batches,list) else 0
-    values=(capture.get("raw_timings_us") or {}).get("end_to_end")
-    if isinstance(values,list):return sum(type(v) in (int,float) and math.isfinite(v) for v in values)
-    repeats=capture.get("repeats")
-    return repeats if type(repeats) is int and repeats>=0 else 0
+        overlap = capture["streaming_overlap"]
+        if overlap.get("observation_contract_version") != 2:
+            return int(
+                type(overlap.get("batch_wall_us")) in (int, float)
+                and math.isfinite(overlap["batch_wall_us"])
+                and overlap["batch_wall_us"] > 0
+            )
+        batches = overlap.get("batches")
+        return len(batches) if isinstance(batches, list) else 0
+    values = (capture.get("raw_timings_us") or {}).get("end_to_end")
+    if isinstance(values, list):
+        return sum(type(v) in (int, float) and math.isfinite(v) for v in values)
+    repeats = capture.get("repeats")
+    return repeats if type(repeats) is int and repeats >= 0 else 0

@@ -23,9 +23,7 @@ from test_review_reference_support import add_synthetic_full_reference
 
 def write(path: Path, value) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
 
 
@@ -55,9 +53,7 @@ class QualificationFixture:
             hip_root="/synthetic/rocm", hipcc_path="/synthetic/rocm/bin/hipcc"
         )
         key = self.capture["backend_metadata"]["autotune_key"]
-        self.capture["backend_metadata"]["autotune_key"] = key.replace(
-            "gfx1100", target
-        )
+        self.capture["backend_metadata"]["autotune_key"] = key.replace("gfx1100", target)
         timing = self.capture["timing_metadata"]
         timing.update(
             host_instrumentation_state="hooks_disabled",
@@ -71,9 +67,7 @@ class QualificationFixture:
             "gpu_event_timing_source_scope",
         ):
             timing[name] = None
-        self.capture["gpu_event_timings_us"] = self.capture[
-            "gpu_event_timing_summary_us"
-        ] = None
+        self.capture["gpu_event_timings_us"] = self.capture["gpu_event_timing_summary_us"] = None
         synthetic_identity(self.capture)
         self.capture["process_id"] = 111
         self.capture["request_identity"]["executable_sha256"] = file_digest(
@@ -118,20 +112,22 @@ class QualificationFixture:
         request = self.profiled["request_identity"]
         request["arguments"].append("--record-execution-environment")
         request["identity_sha256"] = canonical_digest(
-            {key: value for key, value in request.items() if key != "identity_sha256"})
+            {key: value for key, value in request.items() if key != "identity_sha256"}
+        )
         self.profiled["execution_environment_witness"] = dict(
-            schema="rns8_execution_environment_witness_v1", state="stable",
-            arguments=copy.deepcopy(request["arguments"]), before=copy.deepcopy(request["environment"]),
-            after=copy.deepcopy(request["environment"]))
+            schema="rns8_execution_environment_witness_v1",
+            state="stable",
+            arguments=copy.deepcopy(request["arguments"]),
+            before=copy.deepcopy(request["environment"]),
+            after=copy.deepcopy(request["environment"]),
+        )
         self.profiled_path = write(self.root / "profiled.json", self.profiled)
         symbol = "synthetic_selected_symbol"
         self.native = {
             "rocprofiler-sdk-tool": [
                 dict(
                     metadata=dict(pid=222, init_time=1, fini_time=100),
-                    agents=[
-                        dict(id=dict(handle=3), name=self.capture["device"]["gcn_arch"])
-                    ],
+                    agents=[dict(id=dict(handle=3), name=self.capture["device"]["gcn_arch"])],
                     code_objects=[
                         dict(
                             code_object_id=7,
@@ -142,9 +138,7 @@ class QualificationFixture:
                             + str(len(self.code)),
                         )
                     ],
-                    kernel_symbols=[
-                        dict(kernel_id=13, code_object_id=7, kernel_name=symbol)
-                    ],
+                    kernel_symbols=[dict(kernel_id=13, code_object_id=7, kernel_name=symbol)],
                     buffer_records=dict(
                         kernel_dispatch=[
                             dict(
@@ -199,9 +193,7 @@ class QualificationFixture:
         )
         self.dispatch_path = write(self.root / "dispatch-receipt.json", self.dispatch)
 
-    def qualification(
-        self, name="passing", *, failing=None, missing=(), supersedes=()
-    ) -> Path:
+    def qualification(self, name="passing", *, failing=None, missing=(), supersedes=()) -> Path:
         directory = self.root / name
         directory.mkdir()
         cache = directory / "CMakeCache.txt"
@@ -217,10 +209,7 @@ class QualificationFixture:
                 returncode=1 if label == failing else 0,
                 timed_out=False,
                 validation_errors=["authored failure"] if label == failing else [],
-                artifacts={
-                    str(path.resolve()): file_digest(path)
-                    for path in [*artifacts, stdout]
-                },
+                artifacts={str(path.resolve()): file_digest(path) for path in [*artifacts, stdout]},
             )
             commands.append(command)
             rows.append(row)
@@ -298,8 +287,7 @@ class QualificationFixture:
             [self.native_path, self.profiled_path, self.dispatch_path],
         )
         profiler["fresh_evidence_outputs"] = {
-            str(path): file_digest(path)
-            for path in (self.native_path, self.profiled_path)
+            str(path): file_digest(path) for path in (self.native_path, self.profiled_path)
         }
         manifest = dict(
             schema_version=2,

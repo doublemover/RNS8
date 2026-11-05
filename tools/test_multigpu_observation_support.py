@@ -54,9 +54,7 @@ class ObservationFixture:
             ):
                 template[key] = copy.deepcopy(base.capture[key])
 
-        def stage(
-            name, executable, arguments, document, environment, artifacts=(), **extra
-        ):
+        def stage(name, executable, arguments, document, environment, artifacts=(), **extra):
             command = dict(name=name, argv=[str(executable), *arguments], **extra)
             raw = write(self.root / (name + ".stdout.log"), document)
             row = dict(
@@ -68,8 +66,7 @@ class ObservationFixture:
                 process_id=document["process_id"],
                 execution_environment=environment,
                 artifacts={
-                    str(path.resolve()): file_digest(path)
-                    for path in [executable, raw, *artifacts]
+                    str(path.resolve()): file_digest(path) for path in [executable, raw, *artifacts]
                 },
             )
             self.commands.append(command)
@@ -156,9 +153,7 @@ class ObservationFixture:
                         "finite_modulus=255;", f"finite_modulus={modulus};"
                     )
                 capture["checksum_u64"] = (
-                    1000
-                    + index
-                    + (1 if changed_checksum and rank == 3 and index == 0 else 0)
+                    1000 + index + (1 if changed_checksum and rank == 3 and index == 0 else 0)
                 )
                 capture["execution_id"] = str(uuid.uuid4())
                 if first_execution is None:
@@ -177,11 +172,7 @@ class ObservationFixture:
                 if swapped_device and rank == 3 and index == 0:
                     request["environment"]["HIP_VISIBLE_DEVICES"] = "4"
                 request["identity_sha256"] = canonical_digest(
-                    {
-                        key: value
-                        for key, value in request.items()
-                        if key != "identity_sha256"
-                    }
+                    {key: value for key, value in request.items() if key != "identity_sha256"}
                 )
                 add_synthetic_full_reference(capture)
                 path = write(

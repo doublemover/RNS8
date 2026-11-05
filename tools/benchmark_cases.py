@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Expand compact benchmark catalogs into byte-checked, untracked case files."""
+
 from __future__ import annotations
 
 import argparse
@@ -20,8 +21,18 @@ def safe_relative(name: str) -> Path:
     if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_./-]+", name):
         raise ValueError("invalid case path")
     parts = name.split("/")
-    reserved = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
-    if PurePosixPath(name).is_absolute() or any(p in ("", ".", "..") or p.endswith(".") or p.split(".")[0].upper() in reserved for p in parts):
+    reserved = {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{i}" for i in range(1, 10)),
+        *(f"LPT{i}" for i in range(1, 10)),
+    }
+    if PurePosixPath(name).is_absolute() or any(
+        p in ("", ".", "..") or p.endswith(".") or p.split(".")[0].upper() in reserved
+        for p in parts
+    ):
         raise ValueError("unsafe case path")
     return Path(*parts)
 
@@ -36,18 +47,33 @@ def expand_value(value, depth=0):
     if set(value) == {"$rns8_records"}:
         table = value["$rns8_records"]
         layouts, defaults, rows = (table[k] for k in ("layouts", "defaults", "rows"))
-        if len(rows) > 100000 or not layouts or any(len(set(keys)) != len(keys) or not set(defaults).issubset(keys) for keys in layouts):
+        if (
+            len(rows) > 100000
+            or not layouts
+            or any(
+                len(set(keys)) != len(keys) or not set(defaults).issubset(keys) for keys in layouts
+            )
+        ):
             raise ValueError("invalid record layouts")
         output = []
         for row in rows:
             repeat = 1
             if isinstance(row, dict):
-                if set(row) != {'repeat', 'row'} or type(row['repeat']) is not int or not 1 <= row['repeat'] <= 4096:
-                    raise ValueError('invalid bounded record repetition')
-                repeat, row = row['repeat'], row['row']
+                if (
+                    set(row) != {"repeat", "row"}
+                    or type(row["repeat"]) is not int
+                    or not 1 <= row["repeat"] <= 4096
+                ):
+                    raise ValueError("invalid bounded record repetition")
+                repeat, row = row["repeat"], row["row"]
             if len(output) + repeat > 100000:
-                raise ValueError('expanded record count exceeds limit')
-            if not isinstance(row,list) or not row or type(row[0]) is not int or not 0 <= row[0] < len(layouts):
+                raise ValueError("expanded record count exceeds limit")
+            if (
+                not isinstance(row, list)
+                or not row
+                or type(row[0]) is not int
+                or not 0 <= row[0] < len(layouts)
+            ):
                 raise ValueError("invalid record layout index")
             keys = layouts[row[0]]
             columns = [key for key in keys if key not in defaults]
@@ -68,14 +94,23 @@ def catalog_documents(catalog: dict):
         raise ValueError("catalog family must be one directory")
     for group in catalog["groups"]:
         keys, columns, defaults = (group[k] for k in ("keys", "columns", "defaults"))
-        if len(set(keys)) != len(keys) or len(set(columns)) != len(columns) or set(defaults) & set(columns) or set(keys) != set(defaults) | set(columns):
+        if (
+            len(set(keys)) != len(keys)
+            or len(set(columns)) != len(columns)
+            or set(defaults) & set(columns)
+            or set(keys) != set(defaults) | set(columns)
+        ):
             raise ValueError("invalid document columns")
         for row in group["rows"]:
             if len(row) != len(columns) + 2:
                 raise ValueError("invalid document row")
             name, expected, *values = row
             relative = family / safe_relative(name)
-            if relative.suffix != ".json" or not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+            if (
+                relative.suffix != ".json"
+                or not isinstance(expected, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", expected)
+            ):
                 raise ValueError("invalid document identity")
             fields = {**defaults, **dict(zip(columns, values))}
             value = {key: expand_value(fields[key]) for key in keys}
@@ -95,7 +130,9 @@ def source_files(root: Path):
     catalogs = sorted((root / "benchmarks/cases").glob("*.json"))
     if not catalogs:
         raise ValueError("no benchmark catalogs found")
-    retained = sorted(p for p in (root / "benchmarks").rglob("*.json") if p.parent != root / "benchmarks/cases")
+    retained = sorted(
+        p for p in (root / "benchmarks").rglob("*.json") if p.parent != root / "benchmarks/cases"
+    )
     return catalogs, retained
 
 
@@ -130,7 +167,10 @@ def materialize(output: Path, root: Path = ROOT) -> dict:
     if len(documents) > 20000 or sum(map(len, documents.values())) > 64 * 1024 * 1024:
         raise ValueError("benchmark corpus size limit")
     output = output.resolve()
-    if output.is_relative_to(root.resolve()) and (output == root.resolve() or output.relative_to(root.resolve()).parts[0] not in ("temp", "build", "out")):
+    if output.is_relative_to(root.resolve()) and (
+        output == root.resolve()
+        or output.relative_to(root.resolve()).parts[0] not in ("temp", "build", "out")
+    ):
         raise ValueError("in-repository case output must use temp/, build/ or out/")
     output.mkdir(parents=True, exist_ok=True)
     parents = {}
@@ -169,7 +209,12 @@ def materialize(output: Path, root: Path = ROOT) -> dict:
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
-    return dict(cases=len(documents), catalogs=len(catalogs), retained_files=len(retained), output=str(output))
+    return dict(
+        cases=len(documents),
+        catalogs=len(catalogs),
+        retained_files=len(retained),
+        output=str(output),
+    )
 
 
 @lru_cache(maxsize=1)

@@ -7,9 +7,7 @@ struct DeviceBuffer {
   DeviceBuffer(const DeviceBuffer&) = delete;
   DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
-  ~DeviceBuffer() {
-    reset();
-  }
+  ~DeviceBuffer() { reset(); }
 
   void allocate(int device, std::size_t requested_bytes, const char* label) {
     reset();
@@ -76,13 +74,10 @@ void destroy_hip_graph_replay_state(HipGraphReplayState& state) {
 #endif
 }
 
-rns8_status capture_hip_graph_replay(
-    int device_id,
-    const std::function<rns8_status(void*)>& capture_body,
-    HipGraphReplayState& state,
-    double& capture_us,
-    double& instantiate_us,
-    std::string& error_text) {
+rns8_status capture_hip_graph_replay(int device_id,
+                                     const std::function<rns8_status(void*)>& capture_body,
+                                     HipGraphReplayState& state, double& capture_us,
+                                     double& instantiate_us, std::string& error_text) {
 #if RNS8_CONFIGURED_HIP_ENABLED
   destroy_hip_graph_replay_state(state);
   const auto stream_prepare_start = std::chrono::steady_clock::now();
@@ -115,7 +110,8 @@ rns8_status capture_hip_graph_replay(
     if (captured_graph) {
       (void)hipGraphDestroy(captured_graph);
     }
-    error_text = std::string("captured Direct-HIP graph body returned ") + rns8_status_string(body_status);
+    error_text =
+        std::string("captured Direct-HIP graph body returned ") + rns8_status_string(body_status);
     return body_status;
   }
   if (status != hipSuccess) {
@@ -148,7 +144,8 @@ rns8_status capture_hip_graph_replay(
 #endif
 }
 
-rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, std::string& error_text) {
+rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state,
+                                    std::string& error_text) {
 #if RNS8_CONFIGURED_HIP_ENABLED
   if (!state.executable) {
     error_text = "hip graph executable is not instantiated";
@@ -179,15 +176,15 @@ rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, s
 #endif
 }
 
-template <typename T>
-uint64_t vector_alu_workspace_bytes(const Args& args) {
+template <typename T> uint64_t vector_alu_workspace_bytes(const Args& args) {
   const std::size_t a_bytes = checked_bytes(checked_elements(args.m, args.k, "A"), sizeof(T), "A");
   const std::size_t b_bytes = checked_bytes(checked_elements(args.k, args.n, "B"), sizeof(T), "B");
   const std::size_t c_bytes = checked_bytes(checked_elements(args.m, args.n, "C"), sizeof(T), "C");
   const std::size_t status_bytes = sizeof(uint32_t);
   const std::size_t ab_bytes = checked_add_bytes(a_bytes, b_bytes, "vector workspace A+B");
   const std::size_t abc_bytes = checked_add_bytes(ab_bytes, c_bytes, "vector workspace A+B+C");
-  const std::size_t total = checked_add_bytes(abc_bytes, status_bytes, "vector workspace A+B+C+status");
+  const std::size_t total =
+      checked_add_bytes(abc_bytes, status_bytes, "vector workspace A+B+C+status");
   return static_cast<uint64_t>(total);
 }
 
@@ -244,4 +241,3 @@ double percentile_double(std::vector<double> values, double p) {
   const auto index = static_cast<std::size_t>(scaled + 0.999999);
   return values[index];
 }
-

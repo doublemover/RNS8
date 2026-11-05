@@ -27,7 +27,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -44,11 +45,14 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   const bool use_sparse_a_4_to_2 = rns_sparse_a_4_to_2_path(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
   const bool use_native_b_reuse_a = bounded_native_b_reuse_a_large_colpair_path(args, result);
-  const bool use_uniform_small_i8_ab_reuse_a = bounded_uniform_small_i8_ab_reuse_a_path(args, result);
+  const bool use_uniform_small_i8_ab_reuse_a =
+      bounded_uniform_small_i8_ab_reuse_a_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_b =
       use_native_a_reuse_b && bounded_native_a_reuse_b_uniform_small_a(args);
-  const bool use_uniform_small_i8_ab_transient = bounded_uniform_small_i8_ab_transient_path(args, result);
-  const bool use_uniform_small_i8_ab_reuse = use_uniform_small_i8_ab_reuse_a || use_uniform_small_i8_ab_reuse_b;
+  const bool use_uniform_small_i8_ab_transient =
+      bounded_uniform_small_i8_ab_transient_path(args, result);
+  const bool use_uniform_small_i8_ab_reuse =
+      use_uniform_small_i8_ab_reuse_a || use_uniform_small_i8_ab_reuse_b;
   const bool use_uniform_small_i8_ab_device_inputs =
       use_uniform_small_i8_ab_reuse || use_uniform_small_i8_ab_transient;
   const bool use_direct_hip_skinny_gemv_n1 = bounded_direct_hip_skinny_gemv_n1_path(args, result);
@@ -63,7 +67,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = create_benchmark_workspace(ctx, plan, args, result, &workspace);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_workspace", status);
   capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
@@ -85,10 +90,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
-  const std::size_t native_a_bytes =
-      use_native_a_reuse_b && !use_uniform_small_i8_ab_reuse_b
-          ? checked_bytes(A.size(), sizeof(uint64_t), "native A")
-          : 0;
+  const std::size_t native_a_bytes = use_native_a_reuse_b && !use_uniform_small_i8_ab_reuse_b
+                                         ? checked_bytes(A.size(), sizeof(uint64_t), "native A")
+                                         : 0;
   const std::size_t native_b_bytes =
       use_native_b_reuse_a ? checked_bytes(B.size(), sizeof(uint64_t), "native B") : 0;
   const std::size_t uniform_small_a_bytes =
@@ -102,27 +106,34 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   if (use_sparse_a_4_to_2) {
     rns8_sparse_matrix_desc sparse_desc = sparse_a_4_to_2_rns_desc(args, matrix_prefix);
     status = rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_sparse_matrix(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_sparse_matrix(A)", status);
   } else if (use_uniform_small_i8_ab_device_inputs) {
-    uniform_small_a_device.allocate(args.device_id, uniform_small_a_bytes, "hip_direct_allocate(bounded u64 i8 A)");
-    uniform_small_b_device.allocate(args.device_id, uniform_small_b_bytes, "hip_direct_allocate(bounded u64 i8 B)");
+    uniform_small_a_device.allocate(args.device_id, uniform_small_a_bytes,
+                                    "hip_direct_allocate(bounded u64 i8 A)");
+    uniform_small_b_device.allocate(args.device_id, uniform_small_b_bytes,
+                                    "hip_direct_allocate(bounded u64 i8 B)");
   } else if (use_native_a_reuse_b) {
     native_a.allocate(args.device_id, native_a_bytes, "hip_direct_allocate(bounded u64 native A)");
   } else {
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(A)", status);
   }
   if (use_native_b_reuse_a) {
     native_b.allocate(args.device_id, native_b_bytes, "hip_direct_allocate(bounded u64 native B)");
   } else if (!use_uniform_small_i8_ab_device_inputs) {
     status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(B)", status);
   }
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(C)", status);
   if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(chain scratch)", status);
   }
   const bool skip_all_zero_direct_hip_input_pack =
       all_zero_direct_hip_input_pack_elided(args, result, selected_backend);
@@ -133,27 +144,34 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       !skip_all_zero_direct_hip_input_pack;
   if (streaming_overlap_path) {
     status = rns8_create_matrix(ctx, &a_desc, &a_stream_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A streaming buffer)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(A streaming buffer)", status);
     status = rns8_create_matrix(ctx, &c_desc, &c_stream_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C streaming buffer)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(C streaming buffer)", status);
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_a_input = [&](uint64_t source_version) {
     if (use_sparse_a_4_to_2) {
-      const std::vector<uint8_t> sparse_planes = make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
-      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(), args.k, source_version);
-      if (status != RNS8_SUCCESS) fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
+      const std::vector<uint8_t> sparse_planes =
+          make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
+      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(),
+                                                   args.k, source_version);
+      if (status != RNS8_SUCCESS)
+        fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
       return;
     }
     if (use_uniform_small_i8_ab_reuse_a || use_uniform_small_i8_ab_transient) {
       (void)source_version;
       status = run_timed_status_operation("bounded_uniform_small_i8_a_h2d", [&]() {
         return rns8::detail::hip_direct_copy_host_to_device(
-            args.device_id, uniform_small_a_device.ptr, uniform_small_a.data(), uniform_small_a_bytes);
+            args.device_id, uniform_small_a_device.ptr, uniform_small_a.data(),
+            uniform_small_a_bytes);
       });
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 uniform-small A)", status);
+      if (status != RNS8_SUCCESS)
+        fail_status("hip_direct_copy_host_to_device(bounded u64 uniform-small A)", status);
       return;
     }
     if (use_native_a_reuse_b) {
@@ -166,16 +184,19 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     } else {
       status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     }
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(A)", status);
   };
   const auto pack_b_input = [&](uint64_t source_version) {
     if (use_uniform_small_i8_ab_device_inputs) {
       (void)source_version;
       status = run_timed_status_operation(bounded_native_a_reuse_b_b_h2d_label(args), [&]() {
         return rns8::detail::hip_direct_copy_host_to_device(
-            args.device_id, uniform_small_b_device.ptr, uniform_small_b.data(), uniform_small_b_bytes);
+            args.device_id, uniform_small_b_device.ptr, uniform_small_b.data(),
+            uniform_small_b_bytes);
       });
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 uniform-small B)", status);
+      if (status != RNS8_SUCCESS)
+        fail_status("hip_direct_copy_host_to_device(bounded u64 uniform-small B)", status);
       return;
     }
     if (use_native_b_reuse_a) {
@@ -188,7 +209,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     } else {
       status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
     }
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
@@ -196,10 +218,12 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     PackOperandTiming setup_pack_timing{};
     double setup_runtime_cache_us = 0;
     const bool use_native_b_cache_constructor =
-        !args.reuse_packed_a && !use_native_a_reuse_b && should_probe_reusable_b_prepack_cache(args, selected_backend);
+        !args.reuse_packed_a && !use_native_a_reuse_b &&
+        should_probe_reusable_b_prepack_cache(args, selected_backend);
     if (use_native_b_cache_constructor) {
       const auto cache_start = std::chrono::steady_clock::now();
-      if (maybe_create_native_b_prepack_cache(ctx, plan, B.data(), args.n, 1, &b_prepack_cache, result)) {
+      if (maybe_create_native_b_prepack_cache(ctx, plan, B.data(), args.n, 1, &b_prepack_cache,
+                                              result)) {
         result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
       }
       const auto cache_end = std::chrono::steady_clock::now();
@@ -217,8 +241,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       setup_runtime_cache_us = elapsed_us(cache_start, cache_end);
     }
     const auto prepack_end = std::chrono::steady_clock::now();
-    record_prepack_setup_timing(
-        result, elapsed_us(prepack_start, prepack_end), setup_pack_timing, setup_runtime_cache_us);
+    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing,
+                                setup_runtime_cache_us);
   }
 
   rns8_matrix* latest_output_matrix = c_matrix;
@@ -245,7 +269,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
         phase_start = std::chrono::steady_clock::now();
-        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr, c_matrix, workspace);
+        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr,
+                                                    c_matrix, workspace);
         if (status != RNS8_SUCCESS) {
           fail_status("rns8_gemm_rns(independent final-output chain)", status);
         }
@@ -254,14 +279,16 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 
         phase_start = std::chrono::steady_clock::now();
         status = rns8_export_u64(ctx, plan, c_matrix, C.data(), ldc);
-        if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(independent final-output chain)", status);
+        if (status != RNS8_SUCCESS)
+          fail_status("rns8_export_u64(independent final-output chain)", status);
         phase_end = std::chrono::steady_clock::now();
         export_total_us += elapsed_us(phase_start, phase_end);
 
         if (chain_index + 1 < args.residue_chain_length) {
           phase_start = std::chrono::steady_clock::now();
           status = rns8_pack_u64(ctx, a_matrix, C.data(), ldc, source_version + chain_index + 2);
-          if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(intermediate chain output)", status);
+          if (status != RNS8_SUCCESS)
+            fail_status("rns8_pack_u64(intermediate chain output)", status);
           phase_end = std::chrono::steady_clock::now();
           const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
@@ -294,7 +321,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       }
     } else if (use_uniform_small_i8_ab_transient) {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing =
+          pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_bounded_uniform_small_i8_ab_transient_pack_gpu_events(result.gpu_events);
       }
@@ -314,10 +342,13 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     } else if (use_native_b_reuse_a) {
       begin_gpu_event_phase(collect_gpu_events);
       const auto pack_b_start = std::chrono::steady_clock::now();
-      status = run_timed_status_operation(bounded_native_b_reuse_a_large_colpair_pack_h2d_label(), [&]() {
-        return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_b.ptr, B.data(), native_b_bytes);
-      });
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 native B)", status);
+      status = run_timed_status_operation(
+          bounded_native_b_reuse_a_large_colpair_pack_h2d_label(), [&]() {
+            return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_b.ptr,
+                                                                B.data(), native_b_bytes);
+          });
+      if (status != RNS8_SUCCESS)
+        fail_status("hip_direct_copy_host_to_device(bounded u64 native B)", status);
       const auto pack_b_end = std::chrono::steady_clock::now();
       pack_operand_timing.b_us = elapsed_us(pack_b_start, pack_b_end);
       if (collect_gpu_events) {
@@ -330,11 +361,14 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       const auto pack_a_start = std::chrono::steady_clock::now();
       status = run_timed_status_operation(bounded_native_a_reuse_b_pack_h2d_label(args), [&]() {
         return use_uniform_small_i8_ab_reuse_b
-            ? rns8::detail::hip_direct_copy_host_to_device(
-                  args.device_id, uniform_small_a_device.ptr, uniform_small_a.data(), uniform_small_a_bytes)
-            : rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr, A.data(), native_a_bytes);
+                   ? rns8::detail::hip_direct_copy_host_to_device(
+                         args.device_id, uniform_small_a_device.ptr, uniform_small_a.data(),
+                         uniform_small_a_bytes)
+                   : rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr,
+                                                                  A.data(), native_a_bytes);
       });
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 native A)", status);
+      if (status != RNS8_SUCCESS)
+        fail_status("hip_direct_copy_host_to_device(bounded u64 native A)", status);
       const auto pack_a_end = std::chrono::steady_clock::now();
       pack_operand_timing.a_us = elapsed_us(pack_a_start, pack_a_end);
       if (collect_gpu_events) {
@@ -344,7 +378,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       pack_end = std::chrono::steady_clock::now();
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing =
+          pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       force_native_to_rns_bridge_after_pack(args, a_matrix, b_matrix);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
@@ -362,89 +397,50 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
         use_native_a_reuse_b || use_native_b_reuse_a) {
       if (use_uniform_small_i8_ab_transient) {
         status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix(
-            args.device_id,
-            uniform_small_a_device.ptr,
-            uniform_small_b_device.ptr,
-            c_matrix,
-            args.m,
-            args.n,
-            args.k,
-            args.k,
-            args.n,
-            source_version);
+            args.device_id, uniform_small_a_device.ptr, uniform_small_b_device.ptr, c_matrix,
+            args.m, args.n, args.k, args.k, args.n, source_version);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix", status);
+          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix",
+                      status);
         }
       } else if (use_uniform_small_i8_ab_reuse_a) {
-        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix(
-            args.device_id,
-            uniform_small_a_device.ptr,
-            uniform_small_b_device.ptr,
-            c_matrix,
-            args.m,
-            args.n,
-            args.k,
-            args.k,
-            args.n,
-            source_version);
+        status =
+            rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix(
+                args.device_id, uniform_small_a_device.ptr, uniform_small_b_device.ptr, c_matrix,
+                args.m, args.n, args.k, args.k, args.n, source_version);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix", status);
+          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix",
+                      status);
         }
       } else if (use_uniform_small_i8_ab_reuse_b) {
-        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix(
-            args.device_id,
-            uniform_small_a_device.ptr,
-            uniform_small_b_device.ptr,
-            c_matrix,
-            args.m,
-            args.n,
-            args.k,
-            args.k,
-            args.n,
-            source_version);
+        status =
+            rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix(
+                args.device_id, uniform_small_a_device.ptr, uniform_small_b_device.ptr, c_matrix,
+                args.m, args.n, args.k, args.k, args.n, source_version);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix", status);
+          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix",
+                      status);
         }
       } else if (use_native_a_reuse_b && bounded_native_a_reuse_b_large_colpair(args)) {
         status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix(
-            args.device_id,
-            native_a.ptr,
-            b_matrix,
-            c_matrix,
-            args.m,
-            args.n,
-            args.k,
-            args.k,
+            args.device_id, native_a.ptr, b_matrix, c_matrix, args.m, args.n, args.k, args.k,
             source_version);
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix", status);
         }
       } else if (use_native_b_reuse_a) {
         status = rns8::detail::hip_direct_gemm_u64_resident_a_native_b_prefix9_colpair_matrix(
-            args.device_id,
-            a_matrix,
-            native_b.ptr,
-            c_matrix,
-            args.m,
-            args.n,
-            args.k,
-            args.n,
+            args.device_id, a_matrix, native_b.ptr, c_matrix, args.m, args.n, args.k, args.n,
             source_version);
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_u64_resident_a_native_b_prefix9_colpair_matrix", status);
         }
       } else {
         status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
-            args.device_id,
-            native_a.ptr,
-            b_matrix,
-            c_matrix,
-            args.m,
-            args.n,
-            args.k,
-            args.k,
+            args.device_id, native_a.ptr, b_matrix, c_matrix, args.m, args.n, args.k, args.k,
             source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix", status);
+        if (status != RNS8_SUCCESS)
+          fail_status("hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix", status);
       }
       final_output_matrix = c_matrix;
       if (collect_gpu_events) {
@@ -460,29 +456,18 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       }
     } else if (use_direct_hip_skinny_gemv_n1) {
       status = rns8::detail::hip_direct_gemv_n1_rns_prefix9_matrix(
-          args.device_id,
-          a_matrix,
-          b_matrix,
-          c_matrix,
-          args.m,
-          args.k,
-          source_version);
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_gemv_n1_rns_prefix9_matrix", status);
+          args.device_id, a_matrix, b_matrix, c_matrix, args.m, args.k, source_version);
+      if (status != RNS8_SUCCESS)
+        fail_status("hip_direct_gemv_n1_rns_prefix9_matrix", status);
       final_output_matrix = c_matrix;
       if (collect_gpu_events) {
         collect_bounded_direct_hip_skinny_gemv_n1_gpu_events(result.gpu_events);
       }
     } else if (use_direct_hip_skinny_gemv_small_n) {
       status = rns8::detail::hip_direct_gemv_small_n_rns_prefix9_matrix(
-          args.device_id,
-          a_matrix,
-          b_matrix,
-          c_matrix,
-          args.m,
-          args.n,
-          args.k,
-          source_version);
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_gemv_small_n_rns_prefix9_matrix", status);
+          args.device_id, a_matrix, b_matrix, c_matrix, args.m, args.n, args.k, source_version);
+      if (status != RNS8_SUCCESS)
+        fail_status("hip_direct_gemv_small_n_rns_prefix9_matrix", status);
       final_output_matrix = c_matrix;
       if (collect_gpu_events) {
         collect_bounded_direct_hip_skinny_gemv_small_n_gpu_events(result.gpu_events);
@@ -490,23 +475,25 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     } else {
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
         if (use_sparse_a_4_to_2) {
-          status = rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
+          status =
+              rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
         } else {
-          status = run_rns_gemm_with_optional_b_cache(
-              ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+          status = run_rns_gemm_with_optional_b_cache(ctx, plan, lhs_matrix, b_matrix,
+                                                      b_prepack_cache, out_matrix, workspace);
         }
         if (status != RNS8_SUCCESS) {
-          fail_status(
-              use_sparse_a_4_to_2 ? "rns8_gemm_rns_sparse_a"
-                                  : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
-              status);
+          fail_status(use_sparse_a_4_to_2
+                          ? "rns8_gemm_rns_sparse_a"
+                          : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+                      status);
         }
         final_output_matrix = out_matrix;
         lhs_matrix = out_matrix;
         out_matrix = out_matrix == c_matrix ? scratch_matrix : c_matrix;
       }
       if (collect_gpu_events) {
-        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events,
+                                    b_prepack_cache != nullptr);
       }
     }
     latest_output_matrix = final_output_matrix;
@@ -519,7 +506,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
       status = rns8_export_u64(ctx, plan, final_output_matrix, C.data(), ldc);
-      if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
+      if (status != RNS8_SUCCESS)
+        fail_status("rns8_export_u64", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
       }
@@ -529,8 +517,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 
     if (samples) {
       samples->pack_us.push_back(
-          (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) ? 0
-                                                                                  : elapsed_us(pack_start, pack_end));
+          (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack)
+              ? 0
+              : elapsed_us(pack_start, pack_end));
       record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
@@ -539,53 +528,61 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   };
 
   if (hip_graph_replay_full_bounded_pack_export_requested(args)) {
-    run_hip_graph_replay_bounded_pack_gemm_export(
-        args, result, plan, a_matrix, b_matrix, c_matrix, A, B, C, bound, latest_output_matrix);
+    run_hip_graph_replay_bounded_pack_gemm_export(args, result, plan, a_matrix, b_matrix, c_matrix,
+                                                  A, B, C, bound, latest_output_matrix);
   } else if (hip_graph_replay_requested(args)) {
-    run_hip_graph_replay_resident_chain(
-        args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+    run_hip_graph_replay_resident_chain(args, result, plan, a_matrix, b_matrix, c_matrix,
+                                        scratch_matrix, latest_output_matrix);
   } else if (streaming_overlap_path) {
     rns8::bench::StreamingMeasurementPlan measurement;
-    if(!rns8::bench::streaming_measurement_plan(args.warmups,args.repeats,args.streaming_batches,measurement))
-      fail_status("invalid streaming measurement controls",RNS8_INVALID_ARGUMENT);
-    uint64_t version=1;
-    for(uint32_t batch=0;batch<args.warmups;++batch) {
-      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, batch);
-      run_bounded_streaming_overlap_pipeline(args,result,plan,a_matrix,a_stream_matrix,b_matrix,c_matrix,c_stream_matrix,
-          A,C,bound,version,measurement.warmup_calls,false,false);
-      version+=measurement.warmup_calls;
+    if (!rns8::bench::streaming_measurement_plan(args.warmups, args.repeats, args.streaming_batches,
+                                                 measurement))
+      fail_status("invalid streaming measurement controls", RNS8_INVALID_ARGUMENT);
+    uint64_t version = 1;
+    for (uint32_t batch = 0; batch < args.warmups; ++batch) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+          rns8::detail::trace::Role::warmup, batch);
+      run_bounded_streaming_overlap_pipeline(args, result, plan, a_matrix, a_stream_matrix,
+                                             b_matrix, c_matrix, c_stream_matrix, A, C, bound,
+                                             version, measurement.warmup_calls, false, false);
+      version += measurement.warmup_calls;
     }
     record_allocation_after_warmups(result);
-    for(uint32_t batch=0;batch<measurement.batches;++batch) {
-      run_bounded_streaming_overlap_pipeline(args,result,plan,a_matrix,a_stream_matrix,b_matrix,c_matrix,c_stream_matrix,
-          A,C,bound,version,measurement.measured_calls,result.gpu_events.requested,true);
-      version+=measurement.measured_calls;
+    for (uint32_t batch = 0; batch < measurement.batches; ++batch) {
+      run_bounded_streaming_overlap_pipeline(
+          args, result, plan, a_matrix, a_stream_matrix, b_matrix, c_matrix, c_stream_matrix, A, C,
+          bound, version, measurement.measured_calls, result.gpu_events.requested, true);
+      version += measurement.measured_calls;
     }
     record_allocation_after_repeats(result);
-    latest_output_matrix=(measurement.measured_calls&1u)?c_matrix:c_stream_matrix;
+    latest_output_matrix = (measurement.measured_calls & 1u) ? c_matrix : c_stream_matrix;
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
-      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+          rns8::detail::trace::Role::warmup, r);
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
     }
     record_allocation_after_warmups(result);
     for (uint32_t r = 0; r < args.repeats; ++r) {
-      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+          rns8::detail::trace::Role::measured, r);
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
-  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
+    run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
     status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), ldc);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(final chain checksum)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_export_u64(final chain checksum)", status);
   }
   verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
-    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_destroy_prepack_cache(B)", status);
   }
   if (scratch_matrix) {
     rns8_destroy_matrix(scratch_matrix);

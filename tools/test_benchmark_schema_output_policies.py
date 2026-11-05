@@ -20,7 +20,9 @@ def main() -> int:
     validate_capture(capture)
 
     invalid_layout = copy.deepcopy(capture)
-    invalid_layout["timing_metadata"]["benchmark_output_destination_layout"] = "contiguous_row_major"
+    invalid_layout["timing_metadata"]["benchmark_output_destination_layout"] = (
+        "contiguous_row_major"
+    )
     expect_invalid(invalid_layout, "benchmark_output_destination_layout must be padded_row_major")
     return 0
 

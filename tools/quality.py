@@ -118,9 +118,7 @@ def selected_tools(lock: dict, *, tool_bin: Path | None = None) -> dict[str, str
     for tool in lock["tools"]:
         name = tool["name"]
         suffix = ".exe" if os.name == "nt" else ""
-        path = (
-            (tool_bin / (name + suffix)) if tool_bin is not None else shutil.which(name)
-        )
+        path = (tool_bin / (name + suffix)) if tool_bin is not None else shutil.which(name)
         if path is None or not Path(path).is_file():
             raise ValueError("missing locked developer tool: " + name)
         binary = Path(path).resolve(strict=True)
@@ -134,12 +132,7 @@ def selected_tools(lock: dict, *, tool_bin: Path | None = None) -> dict[str, str
             check=True,
         )
         output = result.stdout + "\n" + result.stderr
-        if (
-            re.search(
-                r"(?<![\w.])" + re.escape(tool["version"]) + r"(?![\w.+-])", output
-            )
-            is None
-        ):
+        if re.search(r"(?<![\w.])" + re.escape(tool["version"]) + r"(?![\w.+-])", output) is None:
             raise ValueError(name + " must match locked version " + tool["version"])
         tools[name] = str(binary)
         print(
@@ -162,6 +155,7 @@ def main(argv=None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments and arguments[0] == "analyze":
         from static_analysis import main as analysis_main
+
         return analysis_main(arguments[1:])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("check", "fix", "inventory", "types", "analyze"))
@@ -171,7 +165,10 @@ def main(argv=None) -> int:
     try:
         if args.mode == "types":
             from typecheck import main as typecheck_main
-            return typecheck_main(["--self-test", *(["--tool-bin", str(args.tool_bin)] if args.tool_bin else [])])
+
+            return typecheck_main(
+                ["--self-test", *(["--tool-bin", str(args.tool_bin)] if args.tool_bin else [])]
+            )
         if not 0 < args.timeout_seconds < float("inf"):
             raise ValueError("positive finite per-command timeout required")
         sources = inventory()

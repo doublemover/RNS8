@@ -25,7 +25,9 @@ def main() -> int:
     expect_invalid(invalid_reuse, "pack_mode must describe a prepacked reuse mode")
     reused = as_reused_pack_capture(expect_valid("v4_bounded_i64_ck.json"))
     reused["prepack_setup_us"] = reused["avg_prepack_setup_us"] = 0.375
-    reused["prepack_setup_breakdown_us"] = dict(pack_a=0.125, pack_b=0.25, runtime_cache=0.0, unclassified=0.0)
+    reused["prepack_setup_breakdown_us"] = dict(
+        pack_a=0.125, pack_b=0.25, runtime_cache=0.0, unclassified=0.0
+    )
     validate_capture(reused)
     for value in (True, -0.25, float("inf"), float("nan")):
         invalid = copy.deepcopy(reused)

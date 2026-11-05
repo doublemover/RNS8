@@ -8,6 +8,7 @@ from test_benchmark_schema_support_core import (
     zero_summary,
 )
 
+
 def add_output_padding_fields(capture: dict, padding: int) -> dict:
     output_ld = capture["n"] + padding
     capture["output_logical_ld"] = output_ld
@@ -49,7 +50,9 @@ def add_target_variant_fields(capture: dict, target_id: str = "gfx1100") -> dict
         "configured_amdgpu_targets": capture.get("configured_amdgpu_targets", ""),
         "device_index": device.get("device_id", -1),
         "device_name": device.get("name", ""),
-        "visible_device_count": device.get("visible_device_count", 1 if device.get("hip_available") else 0),
+        "visible_device_count": device.get(
+            "visible_device_count", 1 if device.get("hip_available") else 0
+        ),
         "node_gpu_count": device.get("node_gpu_count", 1 if device.get("hip_available") else 0),
         "hip_enabled": capture.get("hip_toolchain", {}).get("enabled", False),
         "hip_runtime_version": device.get("hip_runtime_version", 0),
@@ -112,8 +115,20 @@ def add_output_policy_fields(
 
 
 def add_device_allocation_fields(capture: dict) -> dict:
-    zero = {key: 0 for key in ("allocate_calls", "free_calls", "allocated_bytes",
-        "h2d_calls", "h2d_bytes", "d2h_calls", "d2h_bytes", "d2d_calls", "d2d_bytes")}
+    zero = {
+        key: 0
+        for key in (
+            "allocate_calls",
+            "free_calls",
+            "allocated_bytes",
+            "h2d_calls",
+            "h2d_bytes",
+            "d2h_calls",
+            "d2h_bytes",
+            "d2d_calls",
+            "d2d_bytes",
+        )
+    }
     capture["device_allocation"] = {
         "tracking_available": True,
         "source": "hip_direct_allocation_counters_snapshot",
@@ -188,7 +203,9 @@ def int32_accumulator_safety(capture: dict, cap: int = 65536) -> dict:
     k_block = min(capture["k"], cap)
     finite = capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
     return {
-        "input_domain": "centered_i8_finite_u8_residues" if finite else "centered_i8_rns_residue_planes",
+        "input_domain": "centered_i8_finite_u8_residues"
+        if finite
+        else "centered_i8_rns_residue_planes",
         "signedness": "signed_i8x_signed_i8",
         "accumulator_type": "int32",
         "modulus_policy": "finite_u8_modulus" if finite else "selected_rns_modulus_ladder",
@@ -240,7 +257,9 @@ def with_accumulator_key_fields(key: str, capture: dict) -> str:
         target = "cpu"
     insert_target_at = 1 if parts and parts[0].startswith("backend=") else 0
     parts = parts[:insert_target_at] + [f"target_id={target}"] + parts[insert_target_at:]
-    insert_at = next((index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts))
+    insert_at = next(
+        (index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts)
+    )
     additions = [
         f"accumulator_type={safety['accumulator_type']}",
         f"accumulator_signedness={safety['signedness']}",
@@ -273,10 +292,10 @@ def as_direct_hip_finite_capture(
     apply_int32_accumulator_contract(direct)
     metadata["autotune_key"] = with_accumulator_key_fields(
         (
-        f"backend=hip-direct;semantics={direct['semantics']};m={direct['m']};n={direct['n']};k={direct['k']};"
-        f"finite_modulus={modulus};prefix=0;tile_m={direct['tile_m']};tile_n={direct['tile_n']};"
-        f"groups=0;adaptive_prefix=0;adaptive_skip=0;kernel={kernel};"
-        "epilogue=fused_centered_residue_then_canonical_u8_export"
+            f"backend=hip-direct;semantics={direct['semantics']};m={direct['m']};n={direct['n']};k={direct['k']};"
+            f"finite_modulus={modulus};prefix=0;tile_m={direct['tile_m']};tile_n={direct['tile_n']};"
+            f"groups=0;adaptive_prefix=0;adaptive_skip=0;kernel={kernel};"
+            "epilogue=fused_centered_residue_then_canonical_u8_export"
         ),
         direct,
     )
@@ -326,9 +345,9 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
     apply_int32_accumulator_contract(oneshot)
     oneshot["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;execution=public_oneshot_transient_native_inputs;"
-        f"kernel={kernel};epilogue={epilogue}"
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;"
+            "groups=1;adaptive_prefix=0;adaptive_skip=0;execution=public_oneshot_transient_native_inputs;"
+            f"kernel={kernel};epilogue={epilogue}"
         ),
         oneshot,
     )
@@ -341,9 +360,15 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
         "host wall-clock timings for the public bounded one-shot API; raw_timings_us.rns_gemm and "
         "raw_timings_us.end_to_end both measure one complete call"
     )
-    oneshot["timing_metadata"]["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
-    oneshot["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_oneshot_api_hooks"
-    oneshot["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_oneshot_default_stream_operation_groups"
+    oneshot["timing_metadata"]["benchmark_execution_mode"] = (
+        "public_oneshot_transient_native_inputs"
+    )
+    oneshot["timing_metadata"]["gpu_event_timing_reason"] = (
+        "captured_by_direct_hip_oneshot_api_hooks"
+    )
+    oneshot["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "direct_hip_oneshot_default_stream_operation_groups"
+    )
     oneshot["timing_metadata"]["gpu_event_phase_order"] = [
         "oneshot_native_input_h2d",
         "rns_gemm_kernel_group",
@@ -400,7 +425,9 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
         "oneshot_api_gpu": [139.0, 154.0],
     }
     oneshot["gpu_event_timings_us"] = event_values
-    oneshot["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    oneshot["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     return oneshot
 
 
@@ -475,17 +502,19 @@ def as_direct_hip_resident_fallback_oneshot_capture(capture: dict) -> dict:
         "host wall-clock timings for the public bounded one-shot API; raw_timings_us.rns_gemm and "
         "raw_timings_us.end_to_end both measure one complete call"
     )
-    fallback["timing_metadata"]["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
+    fallback["timing_metadata"]["benchmark_execution_mode"] = (
+        "public_oneshot_transient_native_inputs"
+    )
     fallback["timing_metadata"]["pack_mode"] = "per_repeat_repack"
     fallback["timing_metadata"]["gpu_event_timing"] = True
-    fallback["timing_metadata"][
-        "gpu_event_timing_reason"
-    ] = "captured_by_direct_hip_oneshot_resident_fallback_api_hooks"
+    fallback["timing_metadata"]["gpu_event_timing_reason"] = (
+        "captured_by_direct_hip_oneshot_resident_fallback_api_hooks"
+    )
     fallback["timing_metadata"]["gpu_event_timing_status"] = "available"
     fallback["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
-    fallback["timing_metadata"][
-        "gpu_event_timing_source_scope"
-    ] = "direct_hip_oneshot_resident_fallback_default_stream_operation_groups"
+    fallback["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "direct_hip_oneshot_resident_fallback_default_stream_operation_groups"
+    )
     fallback["timing_metadata"]["gpu_event_timing_caveat"] = (
         "HIP event timings record the public bounded one-shot API's resident fallback pack, direct-HIP GEMM "
         "kernel group, and logical export operation groups; host wall-clock timings remain required"
@@ -551,7 +580,7 @@ def as_direct_hip_resident_fallback_oneshot_capture(capture: dict) -> dict:
         "oneshot_api_gpu": [151.5, 165.5][:repeats],
     }
     fallback["gpu_event_timings_us"] = event_values
-    fallback["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    fallback["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     return fallback
-
-

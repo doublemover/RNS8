@@ -73,9 +73,7 @@ class ExecutionObservations(unittest.TestCase):
             elif mode == "extra":
                 witness["invented"] = True
             else:
-                witness.update(
-                    state="not_requested", arguments=None, before=None, after=None
-                )
+                witness.update(state="not_requested", arguments=None, before=None, after=None)
             with self.subTest(mode=mode), self.assertRaises(ValueError):
                 validate_execution_request(value, request, required=True)
 
@@ -111,10 +109,14 @@ class ExecutionObservations(unittest.TestCase):
     def test_requested_or_changed_witness_cannot_be_hidden_from_timing_admission(self):
         value = capture()
         witness = value["execution_environment_witness"]
-        value["request_identity"] = dict(arguments=witness["arguments"], environment=witness["before"])
+        value["request_identity"] = dict(
+            arguments=witness["arguments"], environment=witness["before"]
+        )
         witness["state"] = "changed"
         self.assertIn("native_execution_observation_unqualified", phase_blockers(value))
-        self.assertIn("native_execution_observation_unqualified", production_evidence(value)["blockers"])
+        self.assertIn(
+            "native_execution_observation_unqualified", production_evidence(value)["blockers"]
+        )
 
 
 if __name__ == "__main__":

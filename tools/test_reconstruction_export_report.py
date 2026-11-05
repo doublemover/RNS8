@@ -10,7 +10,10 @@ from pathlib import Path
 
 import reconstruction_export_report
 from test_export_selector_report import reviewable_fixed_limb_capture
-from test_review_reference_support import add_synthetic_full_reference, write_variant_review as write_review_report
+from test_review_reference_support import (
+    add_synthetic_full_reference,
+    write_variant_review as write_review_report,
+)
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -86,8 +89,6 @@ def as_candidate(capture: dict, name: str, *, reconstruction: str = "default_gar
     return capture
 
 
-
-
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -101,11 +102,19 @@ def main() -> int:
             ),
             (
                 "status.json",
-                set_medians(as_candidate(base, "status-elided-exact-proof-export-candidate"), 105.0, 42.0),
+                set_medians(
+                    as_candidate(base, "status-elided-exact-proof-export-candidate"), 105.0, 42.0
+                ),
             ),
             (
                 "tree.json",
-                set_medians(as_candidate(base, "tree-crt-export-candidate", reconstruction="tree_crt_candidate"), 90.0, 20.0),
+                set_medians(
+                    as_candidate(
+                        base, "tree-crt-export-candidate", reconstruction="tree_crt_candidate"
+                    ),
+                    90.0,
+                    20.0,
+                ),
             ),
         ]
         prefix_base = as_default(base)
@@ -116,7 +125,9 @@ def main() -> int:
                 ("prefix-baseline.json", set_medians(prefix_base, 100.0, 50.0)),
                 (
                     "prefix-candidate.json",
-                    set_medians(as_candidate(prefix_base, "prefix20-fixed-export-candidate"), 98.0, 45.0),
+                    set_medians(
+                        as_candidate(prefix_base, "prefix20-fixed-export-candidate"), 98.0, 45.0
+                    ),
                 ),
             ]
         )
@@ -142,7 +153,9 @@ def main() -> int:
         assert report["variant_class_summary"]["status_elided_exact_proof"]["ready"] is True
         assert report["variant_class_summary"]["prefix20_fixed_export"]["ready"] is True
         assert report["variant_class_summary"]["tree_crt_reconstruction"]["ready"] is True
-        dispositions = {item["variant_class"]: item["disposition"] for item in report["comparisons"]}
+        dispositions = {
+            item["variant_class"]: item["disposition"] for item in report["comparisons"]
+        }
         assert dispositions["compact_d2h_host_scatter"] == "drop/deprioritize"
         assert dispositions["status_elided_exact_proof"] == "drop/deprioritize"
         assert dispositions["prefix20_fixed_export"] == "keep experimental"
@@ -155,10 +168,16 @@ def main() -> int:
         write_review_report(tmp / "review_report.json", capture_paths)
         rejected = reconstruction_export_report.build_report([tmp])
         assert rejected["variant_class_summary"]["compact_d2h_host_scatter"]["ready"] is False
-        assert any("checksum" in reason for item in rejected["comparisons"]
-                   if item["variant_class"] == "compact_d2h_host_scatter" for reason in item["blockers"])
+        assert any(
+            "checksum" in reason
+            for item in rejected["comparisons"]
+            if item["variant_class"] == "compact_d2h_host_scatter"
+            for reason in item["blockers"]
+        )
 
-        no_review_report = reconstruction_export_report.build_report([capture_paths[0], capture_paths[2]])
+        no_review_report = reconstruction_export_report.build_report(
+            [capture_paths[0], capture_paths[2]]
+        )
         assert no_review_report["rank33_classification_complete"] is False
         blocked = no_review_report["comparisons"][0]
         assert blocked["disposition"] == "blocked"

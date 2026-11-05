@@ -16,36 +16,41 @@
 
 #include "rns8/rns8.h"
 #include "cpu/cpu_amx.hpp"
-namespace rns8::detail {struct ExperimentalBasis;}
+namespace rns8::detail {
+struct ExperimentalBasis;
+}
 
 struct rns8_synchronous_lease {
-  const rns8_matrix* a=nullptr;const rns8_matrix* b=nullptr;rns8_matrix* c=nullptr;rns8_workspace* workspace=nullptr;
-  bool input_writers=false;
-  bool unary=false,read_only=false;
+  const rns8_matrix* a = nullptr;
+  const rns8_matrix* b = nullptr;
+  rns8_matrix* c = nullptr;
+  rns8_workspace* workspace = nullptr;
+  bool input_writers = false;
+  bool unary = false, read_only = false;
   uint64_t* owner_holds[2]{};
   // Ragged construction retains payload, directory, proof status and staging.
   rns8::detail::hip_direct_device_buffer* buffer_holds[4]{};
-  bool owner_only=false;
+  bool owner_only = false;
 };
 // Private deterministic completion seam for host state-machine tests. Null in
 // ordinary contexts; it never changes target admission or executes faulty HIP.
 struct rns8_synchronous_test_hooks {
-  void* state=nullptr;
-  rns8_status (*dispatch)(void*,const char*,bool*)=nullptr;
-  rns8_status (*drain)(void*) noexcept=nullptr;
+  void* state = nullptr;
+  rns8_status (*dispatch)(void*, const char*, bool*) = nullptr;
+  rns8_status (*drain)(void*) noexcept = nullptr;
 };
 struct rns8_cpu_export_test_hooks {
-  void* state=nullptr;
-  void (*cell)(void*,int64_t,uint32_t)=nullptr;
+  void* state = nullptr;
+  void (*cell)(void*, int64_t, uint32_t) = nullptr;
 };
 struct rns8_cleanup_test_hooks {
-  void* state=nullptr;
-  rns8_status (*release)(void*,const char*,const void*) noexcept=nullptr;
+  void* state = nullptr;
+  rns8_status (*release)(void*, const char*, const void*) noexcept = nullptr;
 };
 struct rns8_context {
-  const rns8_cleanup_test_hooks* cleanup_test_hooks=nullptr;
-  const rns8_synchronous_test_hooks* synchronous_test_hooks=nullptr;
-  const rns8_cpu_export_test_hooks* cpu_export_test_hooks=nullptr;
+  const rns8_cleanup_test_hooks* cleanup_test_hooks = nullptr;
+  const rns8_synchronous_test_hooks* synchronous_test_hooks = nullptr;
+  const rns8_cpu_export_test_hooks* cpu_export_test_hooks = nullptr;
   std::vector<rns8_synchronous_lease> failed_work_leases;
   // Intrusive ownership requires no allocation while recovering construction failure.
   rns8_matrix* failed_matrix_cleanup = nullptr;
@@ -85,7 +90,7 @@ struct rns8_validated_plan_contract {
 };
 
 struct rns8_plan {
-  rns8_plan* failed_cleanup_next=nullptr;
+  rns8_plan* failed_cleanup_next = nullptr;
   uint32_t cpu_amx_prepared_threads = 1;
   rns8_auto_trace_info auto_trace{};
   std::vector<rns8_auto_decision> auto_decisions;
@@ -232,7 +237,7 @@ struct rns8_matrix {
 };
 
 struct rns8_sparse_matrix {
-  mutable uint64_t in_flight_readers=0,in_flight_writers=0;
+  mutable uint64_t in_flight_readers = 0, in_flight_writers = 0;
   rns8::detail::hip_direct_device_buffer packed_values_owner;
   rns8::detail::hip_direct_device_buffer packed_indices_owner;
   rns8_sparse_matrix_desc desc{};
@@ -258,7 +263,7 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
-  rns8_workspace* failed_cleanup_next=nullptr;
+  rns8_workspace* failed_cleanup_next = nullptr;
   std::shared_ptr<rns8::detail::CpuAmxWorkspace> cpu_amx;
   rns8::detail::hip_direct_device_buffer arena_owner;
   rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;
@@ -372,9 +377,9 @@ struct rns8_workspace {
 };
 
 struct rns8_prepack_cache {
-  rns8_prepack_cache* failed_cleanup_next=nullptr;
-  bool failed_cleanup_retired=false;
-  mutable uint64_t in_flight_readers=0;
+  rns8_prepack_cache* failed_cleanup_next = nullptr;
+  bool failed_cleanup_retired = false;
+  mutable uint64_t in_flight_readers = 0;
   mutable rns8::detail::hip_direct_device_buffer data_owner;
   rns8::detail::hip_direct_device_buffer native_upload_owner;
   std::vector<uint64_t> native_staging_words;
@@ -410,7 +415,7 @@ struct rns8_prepack_cache {
 };
 
 struct rns8_result_cache {
-  uint64_t in_flight_uses=0;
+  uint64_t in_flight_uses = 0;
   rns8::detail::hip_direct_device_buffer snapshot_owner;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
@@ -457,10 +462,11 @@ namespace rns8::detail {
 using boost::multiprecision::cpp_int;
 
 // Descriptor admission and immutable schedule sealing must accept the same flags.
-constexpr uint32_t kSupportedPlanFlags = RNS8_PLAN_FORCE_FIXED_PREFIX |
-    RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS | RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS |
-    RNS8_PLAN_EXACT_SCALAR_FIRST | RNS8_PLAN_DIRECT_RNS_PARALLEL |
-    RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH | RNS8_PLAN_EXACT_VALUE_BOUND;
+constexpr uint32_t kSupportedPlanFlags =
+    RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
+    RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS | RNS8_PLAN_EXACT_SCALAR_FIRST |
+    RNS8_PLAN_DIRECT_RNS_PARALLEL | RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH |
+    RNS8_PLAN_EXACT_VALUE_BOUND;
 
 constexpr uint16_t kDefaultModuli[RNS8_DEFAULT_MODULUS_COUNT] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
@@ -482,11 +488,8 @@ uint32_t default_prefix_for_semantics(rns8_semantics semantics);
 bool input_range_output_bound(const rns8_gemm_desc& desc, uint64_t& output_bound);
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix);
 rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix);
-rns8_status validate_bound_contract(
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint64_t bound,
-    uint32_t prefix);
+rns8_status validate_bound_contract(rns8_semantics semantics, rns8_bound_kind bound_kind,
+                                    uint64_t bound, uint32_t prefix);
 
 uint32_t canonical_residue(const cpp_int& value, uint16_t modulus);
 uint32_t canonical_from_centered(int8_t residue, uint16_t modulus);
@@ -506,7 +509,8 @@ uint64_t cpu_parallel_saturating_mul(uint64_t lhs, uint64_t rhs);
 uint64_t cpu_parallel_saturating_mul3(uint64_t lhs, uint64_t rhs, uint64_t rhs2);
 bool cpu_parallel_should_use(uint64_t work_estimate);
 
-std::size_t residue_index(const rns8_matrix& matrix, uint32_t modulus_index, int64_t row, int64_t col);
+std::size_t residue_index(const rns8_matrix& matrix, uint32_t modulus_index, int64_t row,
+                          int64_t col);
 void pack_i64_matrix(rns8_matrix& matrix, const int64_t* src, int64_t ld);
 void pack_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld);
 void pack_finite_u8_matrix(rns8_matrix& matrix, const uint8_t* src, int64_t ld, uint16_t modulus);
@@ -519,65 +523,41 @@ void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, i
                        int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus);
 // Private serial primitive; caller provides exactly n INT32 elements. Reuse
 // across rows, K blocks and modulus planes performs no internal allocation.
-void ring_gemm_modulus_serial(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
-                              int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus,
+void ring_gemm_modulus_serial(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n,
+                              int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus,
                               std::vector<int32_t>& row_accumulator);
 
-rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C);
-rns8_status cpu_gemm_finite_u8(
-    const rns8_plan& plan,
-    uint16_t modulus,
-    const rns8_matrix& A,
-    const rns8_matrix& B,
-    rns8_matrix& C);
-rns8_status cpu_gemm_wrap_u64(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C);
+rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B,
+                         rns8_matrix& C);
+rns8_status cpu_gemm_finite_u8(const rns8_plan& plan, uint16_t modulus, const rns8_matrix& A,
+                               const rns8_matrix& B, rns8_matrix& C);
+rns8_status cpu_gemm_wrap_u64(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B,
+                              rns8_matrix& C);
 
-rns8_status reconstruct_unsigned(
-    const std::vector<int8_t>& residues,
-    uint32_t prefix,
-    uint64_t bound,
-    uint64_t& out);
+rns8_status reconstruct_unsigned(const std::vector<int8_t>& residues, uint32_t prefix,
+                                 uint64_t bound, uint64_t& out);
 
-rns8_status reconstruct_signed(
-    const std::vector<int8_t>& residues,
-    uint32_t prefix,
-    uint64_t bound,
-    int64_t& out);
+rns8_status reconstruct_signed(const std::vector<int8_t>& residues, uint32_t prefix, uint64_t bound,
+                               int64_t& out);
 cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t prefix);
-rns8_status export_exact_wide_unsigned_limbs(
-    const std::vector<int8_t>& residues,
-    uint32_t prefix,
-    uint64_t* out,
-    uint32_t limb_count);
-rns8_status export_exact_wide_signed_limbs(
-    const std::vector<int8_t>& residues,
-    uint32_t prefix,
-    uint64_t* out,
-    uint32_t limb_count);
+rns8_status export_exact_wide_unsigned_limbs(const std::vector<int8_t>& residues, uint32_t prefix,
+                                             uint64_t* out, uint32_t limb_count);
+rns8_status export_exact_wide_signed_limbs(const std::vector<int8_t>& residues, uint32_t prefix,
+                                           uint64_t* out, uint32_t limb_count);
 
-cpp_int exact_i64_gemm_cell(const int64_t* A, int64_t lda, const int64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);
-cpp_int exact_u64_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);
+cpp_int exact_i64_gemm_cell(const int64_t* A, int64_t lda, const int64_t* B, int64_t ldb,
+                            int64_t row, int64_t col, int64_t k);
+cpp_int exact_u64_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B, int64_t ldb,
+                            int64_t row, int64_t col, int64_t k);
 int32_t wrap64_signed_i8_lane_value(uint8_t value);
 int32_t wrap64_signed_i8_product_correction(uint8_t a, uint8_t b);
 uint32_t wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b);
 uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b);
-uint64_t wrap64_low_diagonal_byte_pair_gemm_cell(
-    const uint64_t* A,
-    int64_t lda,
-    const uint64_t* B,
-    int64_t ldb,
-    int64_t row,
-    int64_t col,
-    int64_t k);
-uint64_t wrap64_byte_limb_gemm_cell(
-    const uint64_t* A,
-    int64_t lda,
-    const uint64_t* B,
-    int64_t ldb,
-    int64_t row,
-    int64_t col,
-    int64_t k);
+uint64_t wrap64_low_diagonal_byte_pair_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B,
+                                                 int64_t ldb, int64_t row, int64_t col, int64_t k);
+uint64_t wrap64_byte_limb_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B, int64_t ldb,
+                                    int64_t row, int64_t col, int64_t k);
 
-}  // namespace rns8::detail
+} // namespace rns8::detail
 
 #endif

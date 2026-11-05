@@ -15,7 +15,8 @@ constexpr uint64_t kReciprocalScale = 1ull << 32u;
 struct ByteModulusReciprocals {
   uint32_t values[257]{};
   constexpr ByteModulusReciprocals() {
-    for(uint32_t q=2;q<=256;++q)values[q]=uint32_t(kReciprocalScale/q);
+    for (uint32_t q = 2; q <= 256; ++q)
+      values[q] = uint32_t(kReciprocalScale / q);
   }
 };
 
@@ -25,51 +26,51 @@ RNS8_FINITE_U8_INLINE uint32_t modulus_reciprocal_u32(uint32_t modulus) {
 
 RNS8_FINITE_U8_INLINE bool static_byte_modulus_supported(uint32_t modulus) {
   switch (modulus) {
-    case 256:
-    case 255:
-    case 253:
-    case 251:
-    case 247:
-    case 243:
-    case 241:
-    case 239:
-    case 233:
-    case 229:
-    case 227:
-    case 223:
-    case 217:
-    case 211:
-    case 199:
-    case 197:
-    case 193:
-    case 191:
-    case 181:
-    case 179:
-    case 173:
-    case 167:
-    case 163:
-    case 157:
-    case 151:
-    case 149:
-    case 139:
-    case 137:
-    case 131:
-    case 127:
-      return true;
-    default:
-      return false;
+  case 256:
+  case 255:
+  case 253:
+  case 251:
+  case 247:
+  case 243:
+  case 241:
+  case 239:
+  case 233:
+  case 229:
+  case 227:
+  case 223:
+  case 217:
+  case 211:
+  case 199:
+  case 197:
+  case 193:
+  case 191:
+  case 181:
+  case 179:
+  case 173:
+  case 167:
+  case 163:
+  case 157:
+  case 151:
+  case 149:
+  case 139:
+  case 137:
+  case 131:
+  case 127:
+    return true;
+  default:
+    return false;
   }
 }
 
 RNS8_FINITE_U8_INLINE uint32_t abs_i32_to_u32(int32_t value) {
-  return value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
+  return value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value))
+                   : static_cast<uint32_t>(value);
 }
 
-RNS8_FINITE_U8_INLINE uint32_t reduce_u32_small_modulus(
-    uint32_t value,
-    uint32_t modulus,
-    uint32_t reciprocal) {
-  const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
+RNS8_FINITE_U8_INLINE uint32_t reduce_u32_small_modulus(uint32_t value, uint32_t modulus,
+                                                        uint32_t reciprocal) {
+  const uint32_t quotient =
+      static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
   uint32_t residue = value - quotient * modulus;
   // With R=2^32 and reciprocal=floor(R/m), 0 <= x/m-x*reciprocal/R < 1
   // for every uint32 x and 2<=m<=256. The estimated quotient is exact or
@@ -95,31 +96,38 @@ RNS8_FINITE_U8_INLINE Native64Reducer native64_reducer(uint32_t modulus) {
   return {modulus, reciprocal, radix32, signed_bias};
 }
 
-RNS8_FINITE_U8_INLINE uint32_t canonical_native_u64(uint64_t value, const Native64Reducer& reducer) {
-  const uint32_t low = reduce_u32_small_modulus(static_cast<uint32_t>(value), reducer.modulus, reducer.reciprocal);
-  const uint32_t high = reduce_u32_small_modulus(static_cast<uint32_t>(value >> 32), reducer.modulus, reducer.reciprocal);
-  return reduce_u32_small_modulus(high * reducer.radix32 + low, reducer.modulus, reducer.reciprocal);
+RNS8_FINITE_U8_INLINE uint32_t canonical_native_u64(uint64_t value,
+                                                    const Native64Reducer& reducer) {
+  const uint32_t low =
+      reduce_u32_small_modulus(static_cast<uint32_t>(value), reducer.modulus, reducer.reciprocal);
+  const uint32_t high = reduce_u32_small_modulus(static_cast<uint32_t>(value >> 32),
+                                                 reducer.modulus, reducer.reciprocal);
+  return reduce_u32_small_modulus(high * reducer.radix32 + low, reducer.modulus,
+                                  reducer.reciprocal);
 }
 
 RNS8_FINITE_U8_INLINE int8_t center_native_u64(uint64_t value, const Native64Reducer& reducer) {
   const uint32_t residue = canonical_native_u64(value, reducer);
-  return static_cast<int8_t>(static_cast<int32_t>(residue) -
+  return static_cast<int8_t>(
+      static_cast<int32_t>(residue) -
       static_cast<int32_t>(reducer.modulus * (residue >= (reducer.modulus + 1) / 2)));
 }
 
 RNS8_FINITE_U8_INLINE int8_t center_native_i64(int64_t value, const Native64Reducer& reducer) {
   // Conversion to unsigned is defined modulo 2^64, including INT64_MIN.
   // Subtract 2^64 mod m for negative inputs without taking a signed absolute.
-  int32_t residue = static_cast<int32_t>(canonical_native_u64(static_cast<uint64_t>(value), reducer)) -
+  int32_t residue =
+      static_cast<int32_t>(canonical_native_u64(static_cast<uint64_t>(value), reducer)) -
       static_cast<int32_t>(reducer.signed_bias * (value < 0));
   residue += static_cast<int32_t>(reducer.modulus) * (residue < 0);
-  residue -= static_cast<int32_t>(reducer.modulus) * (residue >= static_cast<int32_t>((reducer.modulus + 1) / 2));
+  residue -= static_cast<int32_t>(reducer.modulus) *
+             (residue >= static_cast<int32_t>((reducer.modulus + 1) / 2));
   return static_cast<int8_t>(residue);
 }
 
 RNS8_FINITE_U8_INLINE uint32_t reduce_u32_mod255(uint32_t value) {
-  uint32_t residue =
-      (value & 0xffu) + ((value >> 8u) & 0xffu) + ((value >> 16u) & 0xffu) + ((value >> 24u) & 0xffu);
+  uint32_t residue = (value & 0xffu) + ((value >> 8u) & 0xffu) + ((value >> 16u) & 0xffu) +
+                     ((value >> 24u) & 0xffu);
   residue = (residue & 0xffu) + (residue >> 8u);
   residue -= 255u & (0u - static_cast<uint32_t>(residue >= 255u));
   return residue;
@@ -149,8 +157,7 @@ RNS8_FINITE_U8_INLINE uint32_t reduce_u32(uint32_t value, uint32_t modulus, uint
   return reduce_u32_small_modulus(value, modulus, reciprocal);
 }
 
-template <uint32_t Modulus>
-RNS8_FINITE_U8_INLINE uint32_t reduce_u32_fixed(uint32_t value) {
+template <uint32_t Modulus> RNS8_FINITE_U8_INLINE uint32_t reduce_u32_fixed(uint32_t value) {
   if constexpr (Modulus == 256u) {
     return value & 0xffu;
   } else if constexpr (Modulus == 255u) {
@@ -190,10 +197,8 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_mod251_i32(int32_t value) {
   return center_unsigned_residue(residue, 251u);
 }
 
-RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_i32(
-    int32_t value,
-    uint32_t modulus,
-    uint32_t reciprocal) {
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_i32(int32_t value, uint32_t modulus,
+                                                    uint32_t reciprocal) {
   if (modulus == 256u) {
     return reduce_to_centered_mod256_i32(value);
   }
@@ -212,17 +217,13 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_i32(
   return center_unsigned_residue(residue, modulus);
 }
 
-RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_accelerator_i32(
-    int32_t value,
-    uint32_t modulus,
-    uint32_t reciprocal) {
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_accelerator_i32(int32_t value, uint32_t modulus,
+                                                                uint32_t reciprocal) {
   return reduce_to_centered_i32(value, modulus, reciprocal);
 }
 
-RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_ck_i32(
-    int32_t value,
-    uint32_t modulus,
-    uint32_t reciprocal) {
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_ck_i32(int32_t value, uint32_t modulus,
+                                                       uint32_t reciprocal) {
   return reduce_to_centered_accelerator_i32(value, modulus, reciprocal);
 }
 
@@ -245,78 +246,81 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_fixed_i32(int32_t value) {
   }
 }
 
-RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_static_byte_modulus_i32(int32_t value, uint32_t modulus) {
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_static_byte_modulus_i32(int32_t value,
+                                                                        uint32_t modulus) {
   switch (modulus) {
-    case 256:
-      return reduce_to_centered_fixed_i32<256>(value);
-    case 255:
-      return reduce_to_centered_fixed_i32<255>(value);
-    case 253:
-      return reduce_to_centered_fixed_i32<253>(value);
-    case 251:
-      return reduce_to_centered_fixed_i32<251>(value);
-    case 247:
-      return reduce_to_centered_fixed_i32<247>(value);
-    case 243:
-      return reduce_to_centered_fixed_i32<243>(value);
-    case 241:
-      return reduce_to_centered_fixed_i32<241>(value);
-    case 239:
-      return reduce_to_centered_fixed_i32<239>(value);
-    case 233:
-      return reduce_to_centered_fixed_i32<233>(value);
-    case 229:
-      return reduce_to_centered_fixed_i32<229>(value);
-    case 227:
-      return reduce_to_centered_fixed_i32<227>(value);
-    case 223:
-      return reduce_to_centered_fixed_i32<223>(value);
-    case 217:
-      return reduce_to_centered_fixed_i32<217>(value);
-    case 211:
-      return reduce_to_centered_fixed_i32<211>(value);
-    case 199:
-      return reduce_to_centered_fixed_i32<199>(value);
-    case 197:
-      return reduce_to_centered_fixed_i32<197>(value);
-    case 193:
-      return reduce_to_centered_fixed_i32<193>(value);
-    case 191:
-      return reduce_to_centered_fixed_i32<191>(value);
-    case 181:
-      return reduce_to_centered_fixed_i32<181>(value);
-    case 179:
-      return reduce_to_centered_fixed_i32<179>(value);
-    case 173:
-      return reduce_to_centered_fixed_i32<173>(value);
-    case 167:
-      return reduce_to_centered_fixed_i32<167>(value);
-    case 163:
-      return reduce_to_centered_fixed_i32<163>(value);
-    case 157:
-      return reduce_to_centered_fixed_i32<157>(value);
-    case 151:
-      return reduce_to_centered_fixed_i32<151>(value);
-    case 149:
-      return reduce_to_centered_fixed_i32<149>(value);
-    case 139:
-      return reduce_to_centered_fixed_i32<139>(value);
-    case 137:
-      return reduce_to_centered_fixed_i32<137>(value);
-    case 131:
-      return reduce_to_centered_fixed_i32<131>(value);
-    case 127:
-      return reduce_to_centered_fixed_i32<127>(value);
-    default:
-      return 0;
+  case 256:
+    return reduce_to_centered_fixed_i32<256>(value);
+  case 255:
+    return reduce_to_centered_fixed_i32<255>(value);
+  case 253:
+    return reduce_to_centered_fixed_i32<253>(value);
+  case 251:
+    return reduce_to_centered_fixed_i32<251>(value);
+  case 247:
+    return reduce_to_centered_fixed_i32<247>(value);
+  case 243:
+    return reduce_to_centered_fixed_i32<243>(value);
+  case 241:
+    return reduce_to_centered_fixed_i32<241>(value);
+  case 239:
+    return reduce_to_centered_fixed_i32<239>(value);
+  case 233:
+    return reduce_to_centered_fixed_i32<233>(value);
+  case 229:
+    return reduce_to_centered_fixed_i32<229>(value);
+  case 227:
+    return reduce_to_centered_fixed_i32<227>(value);
+  case 223:
+    return reduce_to_centered_fixed_i32<223>(value);
+  case 217:
+    return reduce_to_centered_fixed_i32<217>(value);
+  case 211:
+    return reduce_to_centered_fixed_i32<211>(value);
+  case 199:
+    return reduce_to_centered_fixed_i32<199>(value);
+  case 197:
+    return reduce_to_centered_fixed_i32<197>(value);
+  case 193:
+    return reduce_to_centered_fixed_i32<193>(value);
+  case 191:
+    return reduce_to_centered_fixed_i32<191>(value);
+  case 181:
+    return reduce_to_centered_fixed_i32<181>(value);
+  case 179:
+    return reduce_to_centered_fixed_i32<179>(value);
+  case 173:
+    return reduce_to_centered_fixed_i32<173>(value);
+  case 167:
+    return reduce_to_centered_fixed_i32<167>(value);
+  case 163:
+    return reduce_to_centered_fixed_i32<163>(value);
+  case 157:
+    return reduce_to_centered_fixed_i32<157>(value);
+  case 151:
+    return reduce_to_centered_fixed_i32<151>(value);
+  case 149:
+    return reduce_to_centered_fixed_i32<149>(value);
+  case 139:
+    return reduce_to_centered_fixed_i32<139>(value);
+  case 137:
+    return reduce_to_centered_fixed_i32<137>(value);
+  case 131:
+    return reduce_to_centered_fixed_i32<131>(value);
+  case 127:
+    return reduce_to_centered_fixed_i32<127>(value);
+  default:
+    return 0;
   }
 }
 
 // The runtime-basis path also admits small/composite channels outside the
 // specialized default-ladder switch. The reciprocal proof covers every byte q.
-RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_byte_modulus_i32(int32_t value,uint32_t modulus,uint32_t reciprocal) {
-  if(static_byte_modulus_supported(modulus))return reduce_to_centered_static_byte_modulus_i32(value,modulus);
-  return reduce_to_centered_i32(value,modulus,reciprocal);
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_byte_modulus_i32(int32_t value, uint32_t modulus,
+                                                                 uint32_t reciprocal) {
+  if (static_byte_modulus_supported(modulus))
+    return reduce_to_centered_static_byte_modulus_i32(value, modulus);
+  return reduce_to_centered_i32(value, modulus, reciprocal);
 }
 
 RNS8_FINITE_U8_INLINE int8_t center_u8(uint8_t value, uint32_t modulus) {
@@ -332,8 +336,7 @@ RNS8_FINITE_U8_INLINE int8_t center_u8(uint8_t value, uint32_t modulus) {
   return center_unsigned_residue(static_cast<uint32_t>(value) % modulus, modulus);
 }
 
-template <uint32_t Modulus>
-RNS8_FINITE_U8_INLINE int8_t center_u8_fixed(uint8_t value) {
+template <uint32_t Modulus> RNS8_FINITE_U8_INLINE int8_t center_u8_fixed(uint8_t value) {
   if constexpr (Modulus == 256u) {
     return static_cast<int8_t>(value);
   } else if constexpr (Modulus == 255u) {
@@ -347,15 +350,17 @@ RNS8_FINITE_U8_INLINE int8_t center_u8_fixed(uint8_t value) {
 
 RNS8_FINITE_U8_INLINE uint32_t canonical_from_centered(int8_t residue, uint32_t modulus) {
   const int32_t value = static_cast<int32_t>(residue);
-  return static_cast<uint32_t>(value + (static_cast<int32_t>(modulus) & -static_cast<int32_t>(value < 0)));
+  return static_cast<uint32_t>(value +
+                               (static_cast<int32_t>(modulus) & -static_cast<int32_t>(value < 0)));
 }
 
 template <uint32_t Modulus>
 RNS8_FINITE_U8_INLINE uint32_t canonical_from_centered_fixed(int8_t residue) {
   const int32_t value = static_cast<int32_t>(residue);
-  return static_cast<uint32_t>(value + (static_cast<int32_t>(Modulus) & -static_cast<int32_t>(value < 0)));
+  return static_cast<uint32_t>(value +
+                               (static_cast<int32_t>(Modulus) & -static_cast<int32_t>(value < 0)));
 }
 
-}  // namespace rns8::detail::finite_u8
+} // namespace rns8::detail::finite_u8
 
 #undef RNS8_FINITE_U8_INLINE

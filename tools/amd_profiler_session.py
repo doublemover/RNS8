@@ -90,9 +90,7 @@ def _production(value: dict, store: EvidenceStore) -> Path:
         raise ValueError("collection needs a hook-disabled production observation")
     if not numerical_observation(value).get("full_output_reference_covered"):
         raise ValueError("collection requires completed full-output numerical evidence")
-    if not manifest_provenance_complete(
-        value.get("build_manifest"), value.get("backend_selected")
-    ):
+    if not manifest_provenance_complete(value.get("build_manifest"), value.get("backend_selected")):
         raise ValueError("production compiled manifest is incomplete")
     artifact = value.get("artifact_capture") or {}
     if (
@@ -101,20 +99,14 @@ def _production(value: dict, store: EvidenceStore) -> Path:
         or artifact.get("executable_sha256") != request["executable_sha256"]
     ):
         raise ValueError("production has no stable static executable association")
-    binary = store.verify(
-        Path(artifact["executable_path"]), artifact["executable_sha256"]
-    )
+    binary = store.verify(Path(artifact["executable_path"]), artifact["executable_sha256"])
     if any(
         key.startswith(("ROCP_", "ROCPROF")) or key == "LD_PRELOAD"
         for key in request["environment"]
     ):
         raise ValueError("production environment already contains profiler injection")
-    if any(
-        flag in request["arguments"] for flag in ("--json-output", "--build-identity")
-    ):
-        raise ValueError(
-            "production arguments contain an acquisition-only output/query option"
-        )
+    if any(flag in request["arguments"] for flag in ("--json-output", "--build-identity")):
+        raise ValueError("production arguments contain an acquisition-only output/query option")
     capture_observation(value)  # No physical-identity-free collection admission.
     return binary
 
@@ -158,24 +150,18 @@ def timeline_libraries(tool: Path) -> tuple[Path, ...]:
     )
 
 
-def timeline_environment(
-    baseline: dict[str, str], tool: Path, directory: Path
-) -> dict[str, str]:
+def timeline_environment(baseline: dict[str, str], tool: Path, directory: Path) -> dict[str, str]:
     """Pinned 1.4.1 single-pass launcher contract, not a permissive prefix mask."""
     root = tool.resolve(strict=True).parent.parent
     libraries = timeline_libraries(tool)
     for library in libraries:
         if not library.is_file():
-            raise ValueError(
-                "required profiler injection library is absent: " + str(library)
-            )
+            raise ValueError("required profiler injection library is absent: " + str(library))
     result = dict(baseline)
     result.update(
         LD_PRELOAD=":".join(str(path) for path in libraries),
         ROCP_TOOL_LIBRARIES=str(libraries[0]),
-        LD_LIBRARY_PATH=(
-            baseline.get("LD_LIBRARY_PATH", "") + ":" + str(root / "lib")
-        ).strip(":"),
+        LD_LIBRARY_PATH=(baseline.get("LD_LIBRARY_PATH", "") + ":" + str(root / "lib")).strip(":"),
         ROCPROFILER_LIBRARY_CTOR="1",
         ROCPROF_OUTPUT_PATH=str(directory),
         ROCPROF_OUTPUT_FILE_NAME="rns8",
@@ -203,20 +189,13 @@ def plan_capture(
         if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
             raise ValueError("positive finite acquisition time budgets required")
     if total_seconds <= timeout_seconds + 30:
-        raise ValueError(
-            "session budget must include query stages and a 30-second export reserve"
-        )
+        raise ValueError("session budget must include query stages and a 30-second export reserve")
     for value in (max_artifact_bytes, max_output_bytes, minimum_free_bytes):
         if type(value) is not int or value < 1:
             raise ValueError("positive byte budgets required")
     out = out.resolve()
-    if (
-        not out.is_relative_to((ROOT / "temp").resolve())
-        or out == (ROOT / "temp").resolve()
-    ):
-        raise ValueError(
-            "profiler sessions must use an ignored child of repository temp/"
-        )
+    if not out.is_relative_to((ROOT / "temp").resolve()) or out == (ROOT / "temp").resolve():
+        raise ValueError("profiler sessions must use an ignored child of repository temp/")
     if out.exists() and not _review_existing:
         raise ValueError("profiler session output must be previously absent")
     store = EvidenceStore()
@@ -255,12 +234,8 @@ def plan_capture(
     if len(help_rows) != 1 or any(
         flag not in help_rows[0]["result"]["stdout"] for flag in TRACE_FLAGS
     ):
-        raise ValueError(
-            "selected rocprofv3 help does not advertise the maintained timeline flags"
-        )
-    version_rows = [
-        row for row in raw_preflight["observations"] if row["name"] == "version"
-    ]
+        raise ValueError("selected rocprofv3 help does not advertise the maintained timeline flags")
+    version_rows = [row for row in raw_preflight["observations"] if row["name"] == "version"]
     if len(version_rows) != 1:
         raise ValueError("one retained tool version probe required")
     version_path = Path(inputs["capabilities"]["path"]).parent / "version.stdout.log"
@@ -365,24 +340,17 @@ def _rebuild(plan: dict, *, review_existing=False) -> dict:
     )
 
 
-def validate_acquisition(
-    receipt: dict, capture: dict, store: EvidenceStore, parent: Path
-) -> dict:
+def validate_acquisition(receipt: dict, capture: dict, store: EvidenceStore, parent: Path) -> dict:
     """Bind acquisition claims to the maintained plan and its actual raw stages."""
     proof = receipt["acquisition_session"]
     manifest_path, plan = store.json(proof["session_manifest"], parent)
     out = manifest_path.parent
     if not same_evidence_value(plan, _rebuild(plan, review_existing=True)):
-        raise ValueError(
-            "retained profiler acquisition differs from maintained command policy"
-        )
+        raise ValueError("retained profiler acquisition differs from maintained command policy")
     if plan["production_capture_identity"] != capture_identity(capture):
         raise ValueError("acquisition session belongs to another production capture")
     item, row, _, identity_row, stages = session_stage(proof, parent, store)
-    if (
-        proof["stage"] != "timeline"
-        or proof["binary_identity_stage"] != "benchmark-identity"
-    ):
+    if proof["stage"] != "timeline" or proof["binary_identity_stage"] != "benchmark-identity":
         raise ValueError("profiler receipt selects unrelated acquisition stages")
     if set(stages) != {command["name"] for command in plan["commands"]}:
         raise ValueError("acquisition stages are incomplete")
@@ -396,17 +364,11 @@ def validate_acquisition(
         binary = store.binary(
             stages[name][1]["compiled_binary_identity"], capture["backend_selected"]
         )
-        if binary["build_manifest_sha256"] != canonical_digest(
-            capture["build_manifest"]
-        ):
-            raise ValueError(
-                "acquisition executable/library differs from production manifest"
-            )
+        if binary["build_manifest_sha256"] != canonical_digest(capture["build_manifest"]):
+            raise ValueError("acquisition executable/library differs from production manifest")
         if documents[name].get("process_id") != stages[name][1]["process_id"]:
             raise ValueError("acquisition compiled query belongs to another process")
-    binary = store.binary(
-        identity_row["compiled_binary_identity"], capture["backend_selected"]
-    )
+    binary = store.binary(identity_row["compiled_binary_identity"], capture["backend_selected"])
     if binary["executable_sha256"] != capture["artifact_capture"]["executable_sha256"]:
         raise ValueError("acquisition benchmark differs from production executable")
     live = inspection_observation(documents["device-inspection"])
@@ -422,24 +384,16 @@ def validate_acquisition(
     if (
         profiled.get("process_id") != row["process_id"]
         or observation_relation(capture_observation(profiled), live).state != "verified"
-        or not same_evidence_value(
-            observed.environment, plan["expected_native_environment"]
-        )
+        or not same_evidence_value(observed.environment, plan["expected_native_environment"])
     ):
-        raise ValueError(
-            "profiled process/device/environment differs from acquired observations"
-        )
+        raise ValueError("profiled process/device/environment differs from acquired observations")
     for key in ("native_trace", "native_benchmark_output"):
         path = store.reference(receipt[key], parent)
         if row["artifacts"].get(str(path)) != receipt[key]["sha256"]:
-            raise ValueError(
-                "native artifact was not retained by the acquisition stage"
-            )
+            raise ValueError("native artifact was not retained by the acquisition stage")
     for key in ("capabilities", "selected_static_isa", "tool_version_output"):
         if receipt[key] != plan[key]:
-            raise ValueError(
-                "dispatch attachment differs from admitted acquisition input"
-            )
+            raise ValueError("dispatch attachment differs from admitted acquisition input")
     if receipt["tool_executable"] != plan["profiler_tool"]:
         raise ValueError("dispatch tool differs from admitted acquisition tool")
     for item in [
@@ -483,10 +437,7 @@ def selected_dispatches(native: dict, symbols: set[str], target: str) -> list[di
         info = record["dispatch_info"]
         agent_id = info["agent_id"]["handle"]
         kernel = kernels.get(info["kernel_id"], {})
-        if (
-            kernel.get("kernel_name") in symbols
-            and agents.get(agent_id, {}).get("name") == target
-        ):
+        if kernel.get("kernel_name") in symbols and agents.get(agent_id, {}).get("name") == target:
             result.append(
                 dict(
                     agent_id=agent_id,
@@ -495,9 +446,7 @@ def selected_dispatches(native: dict, symbols: set[str], target: str) -> list[di
                 )
             )
     if not result:
-        raise ValueError(
-            "native capture contains no selected static mangled symbol on the target"
-        )
+        raise ValueError("native capture contains no selected static mangled symbol on the target")
     return result
 
 
@@ -537,17 +486,13 @@ def finalize(manifest_path: Path) -> dict:
         binary = store.binary(
             stages[name][1]["compiled_binary_identity"], capture["backend_selected"]
         )
-        if binary["build_manifest_sha256"] != canonical_digest(
-            capture["build_manifest"]
-        ):
+        if binary["build_manifest_sha256"] != canonical_digest(capture["build_manifest"]):
             raise ValueError(
                 "live companion executable/library differs from production compiled manifest"
             )
         if documents[name].get("process_id") != stages[name][1]["process_id"]:
             raise ValueError("compiled query identity belongs to another process")
-    binary = store.binary(
-        identity_row["compiled_binary_identity"], capture["backend_selected"]
-    )
+    binary = store.binary(identity_row["compiled_binary_identity"], capture["backend_selected"])
     if binary["executable_sha256"] != capture["artifact_capture"]["executable_sha256"]:
         raise ValueError("profiled binary differs from production")
     live = inspection_observation(documents["device-inspection"])
@@ -557,27 +502,17 @@ def finalize(manifest_path: Path) -> dict:
     ):
         raise ValueError("live runtime inspection belongs to another process")
     if observation_relation(capture_observation(capture), live).state != "verified":
-        raise ValueError(
-            "live device differs from production physical execution device"
-        )
+        raise ValueError("live device differs from production physical execution device")
     raw_path = out / "native/benchmark.json"
     raw_reference = dict(path=str(raw_path), sha256=row["artifacts"][str(raw_path)])
     _, raw = store.json(raw_reference, ROOT)
     observed = execution_observation(raw, required=True)
     if raw.get("process_id") != row["process_id"]:
-        raise ValueError(
-            "single-pass rocprofv3 did not exec the observed benchmark process"
-        )
+        raise ValueError("single-pass rocprofv3 did not exec the observed benchmark process")
     if observation_relation(capture_observation(raw), live).state != "verified":
-        raise ValueError(
-            "profiled benchmark device differs from live device inspection"
-        )
-    if not same_evidence_value(
-        observed.environment, plan["expected_native_environment"]
-    ):
-        raise ValueError(
-            "native environment differs from pinned timeline launcher contract"
-        )
+        raise ValueError("profiled benchmark device differs from live device inspection")
+    if not same_evidence_value(observed.environment, plan["expected_native_environment"]):
+        raise ValueError("native environment differs from pinned timeline launcher contract")
     separator = item["argv"].index("--")
     workload = item["argv"][separator + 1 :]
     if list(observed.arguments) != workload[1:]:
@@ -589,9 +524,7 @@ def finalize(manifest_path: Path) -> dict:
         {k: v for k, v in request.items() if k != "identity_sha256"}
     )
     profiled = copy.deepcopy(raw)
-    attach_capture_identity(
-        profiled, request, executable, execution_id=str(uuid.uuid4())
-    )
+    attach_capture_identity(profiled, request, executable, execution_id=str(uuid.uuid4()))
     profiled["external_instrumentation"] = dict(
         schema="rns8_external_instrumentation_v1",
         kind="amd_profiler",
@@ -603,11 +536,7 @@ def finalize(manifest_path: Path) -> dict:
         name for name in row["artifacts"] if Path(name).is_relative_to(out / "native")
     }:
         raise ValueError("native artifact inventory changed after acquisition")
-    databases = [
-        path
-        for path in outputs
-        if path.suffix.lower() in {".db", ".sqlite", ".sqlite3"}
-    ]
+    databases = [path for path in outputs if path.suffix.lower() in {".db", ".sqlite", ".sqlite3"}]
     if len(databases) != 1:
         raise ValueError("one unambiguous finalized native rocpd database required")
     native_path = databases[0]
@@ -671,9 +600,7 @@ def execute_capture(plan: dict, *, environment=None, runner=None) -> int:
         raise ValueError("acquisition plan changed after admission")
     child = {
         key: value
-        for key, value in dict(
-            os.environ if environment is None else environment
-        ).items()
+        for key, value in dict(os.environ if environment is None else environment).items()
         if not relevant_environment_key(key)
     }
     child.update(plan["inherited_environment"])

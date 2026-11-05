@@ -19,12 +19,16 @@
 
 namespace {
 
-constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_s8_i32_v4_default_moduli_centered_epilogue";
+constexpr const char* kCkBoundedKernel =
+    "ck_wmma_cshuffle_s8_i32_v4_default_moduli_centered_epilogue";
 constexpr const char* kCkBoundedOldKernel = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
 constexpr const char* kCkBoundedEpilogue = "ck_fused_i32_to_centered_residue_then_crt_export";
-constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_s8_i32_v4_finite_u8_mod251_centered_epilogue";
-constexpr const char* kCkFiniteGenericKernel = "ck_wmma_cshuffle_s8_i32_v4_finite_u8_static_modulus_centered_epilogue";
-constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
+constexpr const char* kCkFiniteKernel =
+    "ck_wmma_cshuffle_s8_i32_v4_finite_u8_mod251_centered_epilogue";
+constexpr const char* kCkFiniteGenericKernel =
+    "ck_wmma_cshuffle_s8_i32_v4_finite_u8_static_modulus_centered_epilogue";
+constexpr const char* kCkFiniteEpilogue =
+    "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
 constexpr const char* kVectorI64Kernel = "hip_vector_alu_i64_exact_192b_v1";
 constexpr const char* kVectorI64GemvKernel = "hip_vector_alu_i64_gemv_n1_exact_192b_v1";
 constexpr const char* kVectorI64SmallNGemvKernel = "hip_vector_alu_i64_gemv_small_n_exact_192b_v1";
@@ -33,37 +37,41 @@ constexpr const char* kVectorU64SmallNGemvKernel = "hip_vector_alu_u64_gemv_smal
 constexpr const char* kVectorEpilogue = "direct_int64_export";
 constexpr const char* kRocwmmaBoundedKernel = "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2";
 constexpr const char* kRocwmmaBoundedOldKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
-constexpr const char* kRocwmmaBoundedEpilogue = "rocwmma_fused_i32_to_centered_residue_then_crt_export";
-constexpr const char* kAmdgpuCdnaFiniteKernel = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
+constexpr const char* kRocwmmaBoundedEpilogue =
+    "rocwmma_fused_i32_to_centered_residue_then_crt_export";
+constexpr const char* kAmdgpuCdnaFiniteKernel =
+    "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
 constexpr const char* kAmdgpuCdnaWideFiniteKernel =
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1";
 constexpr const char* kAmdgpuCdnaCenteredKernel =
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1";
 constexpr const char* kAmdgpuCdnaWideCenteredKernel =
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
-constexpr const char* kAmdgpuCdnaSparseKernel = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1";
+constexpr const char* kAmdgpuCdnaSparseKernel =
+    "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1";
 constexpr const char* kAmdgpuRdna3FiniteKernel =
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
 constexpr const char* kAmdgpuRdna3CenteredKernel =
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
-constexpr const char* kAmdgpuRdna3ResearchKernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1";
+constexpr const char* kAmdgpuRdna3ResearchKernel =
+    "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1";
 constexpr const char* kAmdgpuRdna4FiniteKernel =
     "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
 constexpr const char* kAmdgpuRdna4CenteredKernel =
     "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
-constexpr const char* kAmdgpuRdna4SparseKernel = "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1";
+constexpr const char* kAmdgpuRdna4SparseKernel =
+    "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1";
 constexpr const char* kAmdgpuFiniteEpilogue =
     "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export";
-constexpr const char* kAmdgpuRnsEpilogue = "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
+constexpr const char* kAmdgpuRnsEpilogue =
+    "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
 constexpr const char* kAmdgpuBoundedEpilogue =
     "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
 
-rns8::detail::AutotuneCacheEntry cache_entry(
-    const char* key,
-    const char* backend,
-    bool performance_validated,
-    const char* validation_status,
-    uint32_t schema_version = 1) {
+rns8::detail::AutotuneCacheEntry cache_entry(const char* key, const char* backend,
+                                             bool performance_validated,
+                                             const char* validation_status,
+                                             uint32_t schema_version = 1) {
   rns8::detail::AutotuneCacheEntry entry{};
   entry.key = key;
   entry.selected_backend = backend;
@@ -88,50 +96,35 @@ rns8::detail::AutotuneCacheEntry cache_entry(
   return entry;
 }
 
-std::string reviewed_key(
-    const char* backend = "ck",
-    const char* target = "gfx1100",
-    const char* version = "7.1",
-    const char* semantics = "bounded_u64",
-    int64_t m = 512,
-    int64_t n = 512,
-    int64_t k = 512,
-    const char* layout = "row_major",
-    int64_t k_block_size = 512,
-    uint32_t tile_m = 128,
-    uint32_t tile_n = 128,
-    const char* kernel = kCkBoundedKernel,
-    const char* epilogue = kCkBoundedEpilogue) {
+std::string reviewed_key(const char* backend = "ck", const char* target = "gfx1100",
+                         const char* version = "7.1", const char* semantics = "bounded_u64",
+                         int64_t m = 512, int64_t n = 512, int64_t k = 512,
+                         const char* layout = "row_major", int64_t k_block_size = 512,
+                         uint32_t tile_m = 128, uint32_t tile_n = 128,
+                         const char* kernel = kCkBoundedKernel,
+                         const char* epilogue = kCkBoundedEpilogue) {
   const std::string backend_text = backend;
   const std::string semantics_text = semantics;
   const bool vector_backend = backend_text == "hip-vector-alu-int64";
-  const bool finite_semantics = semantics_text == "finite_ring_u8" || semantics_text == "finite_field_u8";
+  const bool finite_semantics =
+      semantics_text == "finite_ring_u8" || semantics_text == "finite_field_u8";
   const char* accumulator_type = vector_backend ? "software_192bit_limb" : "int32";
-  const char* accumulator_signedness =
-      vector_backend && semantics_text == "bounded_u64" ? "unsigned_u64x_unsigned_u64"
-      : vector_backend                                  ? "signed_i64x_signed_i64"
+  const char* accumulator_signedness = vector_backend && semantics_text == "bounded_u64"
+                                           ? "unsigned_u64x_unsigned_u64"
+                                       : vector_backend ? "signed_i64x_signed_i64"
                                                         : "signed_i8x_signed_i8";
-  const char* accumulator_modulus_policy =
-      vector_backend ? "native_exact_integer_output" : finite_semantics ? "finite_u8_modulus"
-                                                                        : "selected_rns_modulus_ladder";
+  const char* accumulator_modulus_policy = vector_backend     ? "native_exact_integer_output"
+                                           : finite_semantics ? "finite_u8_modulus"
+                                                              : "selected_rns_modulus_ladder";
   const int64_t k_block_cap = vector_backend ? 0 : backend_text == "ck" ? 32768 : 65536;
-  return std::string("backend=") + backend +
-         ";target_id=" + target +
-         ";version=" + version +
-         ";semantics=" + semantics +
-         ";m=" + std::to_string(m) +
-         ";n=" + std::to_string(n) +
-         ";k=" + std::to_string(k) +
-         ";layout=" + layout +
-         ";accumulator_type=" + accumulator_type +
+  return std::string("backend=") + backend + ";target_id=" + target + ";version=" + version +
+         ";semantics=" + semantics + ";m=" + std::to_string(m) + ";n=" + std::to_string(n) +
+         ";k=" + std::to_string(k) + ";layout=" + layout + ";accumulator_type=" + accumulator_type +
          ";accumulator_signedness=" + accumulator_signedness +
          ";accumulator_modulus_policy=" + accumulator_modulus_policy +
          ";k_block_size=" + std::to_string(k_block_size) +
-         ";k_block_cap=" + std::to_string(k_block_cap) +
-         ";tile_m=" + std::to_string(tile_m) +
-         ";tile_n=" + std::to_string(tile_n) +
-         ";kernel=" + kernel +
-         ";epilogue=" + epilogue;
+         ";k_block_cap=" + std::to_string(k_block_cap) + ";tile_m=" + std::to_string(tile_m) +
+         ";tile_n=" + std::to_string(tile_n) + ";kernel=" + kernel + ";epilogue=" + epilogue;
 }
 
 void set_autotune_cache_path_for_test(const std::filesystem::path& path) {
@@ -151,13 +144,16 @@ void clear_autotune_cache_path_for_test() {
 }
 
 struct ScopedAutotuneCachePath {
-  explicit ScopedAutotuneCachePath(const std::filesystem::path& path) { set_autotune_cache_path_for_test(path); }
+  explicit ScopedAutotuneCachePath(const std::filesystem::path& path) {
+    set_autotune_cache_path_for_test(path);
+  }
   ~ScopedAutotuneCachePath() { clear_autotune_cache_path_for_test(); }
 };
 
 std::filesystem::path unique_cache_fixture_path(const char* stem) {
   const auto tick = std::chrono::steady_clock::now().time_since_epoch().count();
-  return std::filesystem::temp_directory_path() / (std::string(stem) + "-" + std::to_string(tick) + ".json");
+  return std::filesystem::temp_directory_path() /
+         (std::string(stem) + "-" + std::to_string(tick) + ".json");
 }
 
 void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bool entry_schema) {
@@ -194,54 +190,62 @@ void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bo
   output << "}]}";
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("autotune cache exposes only reviewed validated entries for selection") {
   rns8::detail::AutotuneCacheSnapshot snapshot{};
   snapshot.loaded = true;
   snapshot.exists = true;
   const std::string validated_key = reviewed_key().c_str();
-  const std::string unvalidated_key = reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 513);
-  const std::string bad_schema_key = reviewed_key("rocwmma", "gfx1100", "7.1", "bounded_u64", 512, 513, 512);
+  const std::string unvalidated_key =
+      reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 513);
+  const std::string bad_schema_key =
+      reviewed_key("rocwmma", "gfx1100", "7.1", "bounded_u64", 512, 513, 512);
   const std::string bad_status_key =
-      reviewed_key(
-          "rocwmma", "gfx1100", "7.1", "bounded_u64", 513, 512, 512, "row_major", 512, 128, 128,
-          kRocwmmaBoundedKernel, kRocwmmaBoundedEpilogue);
-  const std::string old_reviewed_status_key = reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 514, 512, 512);
-  snapshot.entries.push_back(
-      cache_entry(validated_key.c_str(), "ck", true, "reviewed_release_same_contract_fastest_windows_gfx1100"));
+      reviewed_key("rocwmma", "gfx1100", "7.1", "bounded_u64", 513, 512, 512, "row_major", 512, 128,
+                   128, kRocwmmaBoundedKernel, kRocwmmaBoundedEpilogue);
+  const std::string old_reviewed_status_key =
+      reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 514, 512, 512);
+  snapshot.entries.push_back(cache_entry(validated_key.c_str(), "ck", true,
+                                         "reviewed_release_same_contract_fastest_windows_gfx1100"));
   snapshot.entries.push_back(
       cache_entry(unvalidated_key.c_str(), "ck", false, "schema_v4_capture_emitted_unreviewed"));
   snapshot.entries.back().k = 513;
-  snapshot.entries.push_back(
-      cache_entry(bad_schema_key.c_str(), "rocwmma", true, "reviewed_release_same_contract_fastest_windows_gfx1100", 99));
+  snapshot.entries.push_back(cache_entry(bad_schema_key.c_str(), "rocwmma", true,
+                                         "reviewed_release_same_contract_fastest_windows_gfx1100",
+                                         99));
   snapshot.entries.back().n = 513;
-  snapshot.entries.push_back(cache_entry(bad_status_key.c_str(), "rocwmma", true, "raw_capture_fastest"));
+  snapshot.entries.push_back(
+      cache_entry(bad_status_key.c_str(), "rocwmma", true, "raw_capture_fastest"));
   snapshot.entries.back().m = 513;
   snapshot.entries.back().selected_kernel = kRocwmmaBoundedKernel;
   snapshot.entries.back().epilogue = kRocwmmaBoundedEpilogue;
   snapshot.entries.back().kernel_family = kRocwmmaBoundedKernel;
-  snapshot.entries.push_back(
-      cache_entry(old_reviewed_status_key.c_str(), "ck", true, "reviewed_same_contract_fastest_windows_gfx1100"));
+  snapshot.entries.push_back(cache_entry(old_reviewed_status_key.c_str(), "ck", true,
+                                         "reviewed_same_contract_fastest_windows_gfx1100"));
   snapshot.entries.back().m = 514;
 
   CHECK(rns8::detail::find_exact_autotune_entry(snapshot, validated_key) != nullptr);
   REQUIRE(rns8::detail::find_validated_autotune_entry(snapshot, validated_key) != nullptr);
-  CHECK(rns8::detail::find_validated_autotune_entry(snapshot, validated_key)->selected_backend == "ck");
+  CHECK(rns8::detail::find_validated_autotune_entry(snapshot, validated_key)->selected_backend ==
+        "ck");
   rns8::detail::AutotuneRuntimeIdentity runtime{};
   runtime.target_id = "gfx1100";
   runtime.hip_sdk_or_library_version = "7.1";
-  REQUIRE(rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, validated_key, runtime) != nullptr);
+  REQUIRE(rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, validated_key,
+                                                                  runtime) != nullptr);
 
   runtime.target_id = "gfx1101";
-  CHECK(rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, validated_key, runtime) == nullptr);
+  CHECK(rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, validated_key, runtime) ==
+        nullptr);
   CHECK(
       rns8::detail::autotune_selection_rationale(snapshot, validated_key, "hip-direct", runtime) ==
       "exact_cache_hit_rejected_identity:runtime_target_id_mismatch:gfx1100!=gfx1101");
 
   runtime.target_id = "gfx1100";
   runtime.hip_sdk_or_library_version = "7.2";
-  CHECK(rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, validated_key, runtime) == nullptr);
+  CHECK(rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, validated_key, runtime) ==
+        nullptr);
   CHECK(
       rns8::detail::autotune_selection_rationale(snapshot, validated_key, "hip-direct", runtime) ==
       "exact_cache_hit_rejected_identity:runtime_version_mismatch:7.1!=7.2");
@@ -251,39 +255,30 @@ TEST_CASE("autotune cache exposes only reviewed validated entries for selection"
   CHECK(rns8::detail::find_validated_autotune_entry(snapshot, bad_schema_key) == nullptr);
   CHECK(rns8::detail::find_validated_autotune_entry(snapshot, bad_status_key) == nullptr);
 
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, validated_key, "hip-direct") ==
-      std::string("exact_cache_hit_validated:ck/") + kCkBoundedKernel);
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, unvalidated_key, "hip-direct") ==
-      std::string("exact_cache_hit_rejected_unvalidated:ck/") + kCkBoundedKernel);
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, bad_schema_key, "hip-direct") ==
-      "exact_cache_hit_rejected_schema_version:99");
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, bad_status_key, "hip-direct") ==
-      "exact_cache_hit_rejected_validation_status:raw_capture_fastest");
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, validated_key, "hip-direct") ==
+        std::string("exact_cache_hit_validated:ck/") + kCkBoundedKernel);
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, unvalidated_key, "hip-direct") ==
+        std::string("exact_cache_hit_rejected_unvalidated:ck/") + kCkBoundedKernel);
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, bad_schema_key, "hip-direct") ==
+        "exact_cache_hit_rejected_schema_version:99");
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, bad_status_key, "hip-direct") ==
+        "exact_cache_hit_rejected_validation_status:raw_capture_fastest");
   CHECK(
       rns8::detail::autotune_selection_rationale(snapshot, old_reviewed_status_key, "hip-direct") ==
       "exact_cache_hit_rejected_validation_status:reviewed_same_contract_fastest_windows_gfx1100");
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, "missing", "hip-direct") ==
-      "missing_cache_using_direct_hip_correctness");
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, "missing", "cpu-reference") ==
-      "missing_cache_using_cpu_reference");
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, "missing", "wrap64-byte-limb") ==
-      "missing_cache_using_wrap64_byte_limb_correctness");
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, "missing", "hip-direct") ==
+        "missing_cache_using_direct_hip_correctness");
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, "missing", "cpu-reference") ==
+        "missing_cache_using_cpu_reference");
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, "missing", "wrap64-byte-limb") ==
+        "missing_cache_using_wrap64_byte_limb_correctness");
 
   snapshot.schema_version = 99;
   CHECK(rns8::detail::find_validated_autotune_entry(snapshot, validated_key) == nullptr);
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, validated_key, "hip-direct") ==
-      "exact_cache_hit_rejected_cache_schema_version:99");
-  CHECK(
-      rns8::detail::autotune_selection_rationale(snapshot, "missing", "hip-direct") ==
-      "cache_unavailable_schema_version:99");
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, validated_key, "hip-direct") ==
+        "exact_cache_hit_rejected_cache_schema_version:99");
+  CHECK(rns8::detail::autotune_selection_rationale(snapshot, "missing", "hip-direct") ==
+        "cache_unavailable_schema_version:99");
 }
 
 TEST_CASE("autotune cache rejects stale identity fields even with reviewed status") {
@@ -294,75 +289,47 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   };
 
   auto entry = [](const std::string& key) {
-    return cache_entry(key.c_str(), "ck", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
+    return cache_entry(key.c_str(), "ck", true,
+                       "reviewed_release_same_contract_fastest_windows_gfx1100");
   };
 
   std::vector<Case> cases;
   {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1", "bounded_u64"));
     item.finite_modulus = 251;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unexpected_entry_finite_modulus"});
+    cases.push_back(
+        {item.key, item, "exact_cache_hit_rejected_identity:unexpected_entry_finite_modulus"});
   }
   {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1", "bounded_u64") + ";finite_modulus=251");
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unexpected_key_finite_modulus"});
+    cases.push_back(
+        {item.key, item, "exact_cache_hit_rejected_identity:unexpected_key_finite_modulus"});
   }
   {
-    auto item = entry(reviewed_key(
-        "ck",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kCkBoundedOldKernel,
-        kCkBoundedEpilogue));
+    auto item =
+        entry(reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major", 512,
+                           128, 128, kCkBoundedOldKernel, kCkBoundedEpilogue));
     item.selected_kernel = kCkBoundedOldKernel;
     item.kernel_family = kCkBoundedOldKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    auto item = entry(reviewed_key(
-        "rocwmma",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kRocwmmaBoundedOldKernel,
-        kRocwmmaBoundedEpilogue));
+    auto item =
+        entry(reviewed_key("rocwmma", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major",
+                           512, 128, 128, kRocwmmaBoundedOldKernel, kRocwmmaBoundedEpilogue));
     item.selected_backend = "rocwmma";
     item.selected_kernel = kRocwmmaBoundedOldKernel;
     item.semantic_contract = "bounded_u64";
     item.epilogue = kRocwmmaBoundedEpilogue;
     item.kernel_family = kRocwmmaBoundedOldKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "hip-vector-alu-int64",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kVectorU64Kernel,
-        kVectorEpilogue);
+    std::string key =
+        reviewed_key("hip-vector-alu-int64", "gfx1100", "7.1", "bounded_u64", 512, 512, 512,
+                     "row_major", 512, 128, 128, kVectorU64Kernel, kVectorEpilogue);
     auto item = entry(key);
     item.selected_backend = "hip-vector-alu-int64";
     item.selected_kernel = kVectorU64Kernel;
@@ -371,20 +338,9 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
-    std::string key = reviewed_key(
-        "hip-vector-alu-int64",
-        "gfx1100",
-        "7.1",
-        "bounded_i64",
-        256,
-        1,
-        4096,
-        "row_major",
-        4096,
-        128,
-        128,
-        kVectorI64GemvKernel,
-        kVectorEpilogue);
+    std::string key =
+        reviewed_key("hip-vector-alu-int64", "gfx1100", "7.1", "bounded_i64", 256, 1, 4096,
+                     "row_major", 4096, 128, 128, kVectorI64GemvKernel, kVectorEpilogue);
     auto item = entry(key);
     item.selected_backend = "hip-vector-alu-int64";
     item.selected_kernel = kVectorI64GemvKernel;
@@ -398,20 +354,9 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
-    std::string key = reviewed_key(
-        "hip-vector-alu-int64",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        8,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kVectorU64SmallNGemvKernel,
-        kVectorEpilogue);
+    std::string key =
+        reviewed_key("hip-vector-alu-int64", "gfx1100", "7.1", "bounded_u64", 512, 8, 512,
+                     "row_major", 512, 128, 128, kVectorU64SmallNGemvKernel, kVectorEpilogue);
     auto item = entry(key);
     item.selected_backend = "hip-vector-alu-int64";
     item.selected_kernel = kVectorU64SmallNGemvKernel;
@@ -425,20 +370,9 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
-    std::string key = reviewed_key(
-        "hip-vector-alu-int64",
-        "gfx1100",
-        "7.1",
-        "bounded_i64",
-        256,
-        1,
-        4096,
-        "row_major",
-        4096,
-        128,
-        128,
-        kVectorI64Kernel,
-        kVectorEpilogue);
+    std::string key =
+        reviewed_key("hip-vector-alu-int64", "gfx1100", "7.1", "bounded_i64", 256, 1, 4096,
+                     "row_major", 4096, 128, 128, kVectorI64Kernel, kVectorEpilogue);
     auto item = entry(key);
     item.selected_backend = "hip-vector-alu-int64";
     item.selected_kernel = kVectorI64Kernel;
@@ -449,23 +383,13 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.k_block_size = 4096;
     item.epilogue = kVectorEpilogue;
     item.kernel_family = kVectorI64Kernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "hip-vector-alu-int64",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        4,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kVectorU64Kernel,
-        kVectorEpilogue);
+    std::string key =
+        reviewed_key("hip-vector-alu-int64", "gfx1100", "7.1", "bounded_u64", 512, 4, 512,
+                     "row_major", 512, 128, 128, kVectorU64Kernel, kVectorEpilogue);
     auto item = entry(key);
     item.selected_backend = "hip-vector-alu-int64";
     item.selected_kernel = kVectorU64Kernel;
@@ -476,14 +400,13 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.k_block_size = 512;
     item.epilogue = kVectorEpilogue;
     item.kernel_family = kVectorU64Kernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    std::string key =
-        reviewed_key(
-            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
-            kCkFiniteKernel, kCkFiniteEpilogue) +
-        ";finite_modulus=251";
+    std::string key = reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512,
+                                   "row_major", 512, 128, 128, kCkFiniteKernel, kCkFiniteEpilogue) +
+                      ";finite_modulus=251";
     auto item = entry(key);
     item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
@@ -494,9 +417,8 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   }
   {
     std::string key =
-        reviewed_key(
-            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
-            kCkFiniteGenericKernel, kCkFiniteEpilogue) +
+        reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128,
+                     128, kCkFiniteGenericKernel, kCkFiniteEpilogue) +
         ";finite_modulus=251";
     auto item = entry(key);
     item.selected_kernel = kCkFiniteGenericKernel;
@@ -504,54 +426,52 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.finite_modulus = 251;
     item.epilogue = kCkFiniteEpilogue;
     item.kernel_family = kCkFiniteGenericKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    auto item = entry(
-        reviewed_key(
-            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
-            kCkFiniteKernel, kCkFiniteEpilogue));
+    auto item = entry(reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512,
+                                   "row_major", 512, 128, 128, kCkFiniteKernel, kCkFiniteEpilogue));
     item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 251;
     item.epilogue = kCkFiniteEpilogue;
     item.kernel_family = kCkFiniteKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:missing_or_invalid_key_finite_modulus"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:missing_or_invalid_key_finite_modulus"});
   }
   {
-    std::string key =
-        reviewed_key(
-            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
-            kCkFiniteKernel, kCkFiniteEpilogue) +
-        ";finite_modulus=251";
+    std::string key = reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512,
+                                   "row_major", 512, 128, 128, kCkFiniteKernel, kCkFiniteEpilogue) +
+                      ";finite_modulus=251";
     auto item = entry(key);
     item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.epilogue = kCkFiniteEpilogue;
     item.kernel_family = kCkFiniteKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:missing_entry_finite_modulus"});
+    cases.push_back(
+        {item.key, item, "exact_cache_hit_rejected_identity:missing_entry_finite_modulus"});
   }
   {
-    std::string key =
-        reviewed_key(
-            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
-            kCkFiniteKernel, kCkFiniteEpilogue) +
-        ";finite_modulus=251";
+    std::string key = reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512,
+                                   "row_major", 512, 128, 128, kCkFiniteKernel, kCkFiniteEpilogue) +
+                      ";finite_modulus=251";
     auto item = entry(key);
     item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 255;
     item.epilogue = kCkFiniteEpilogue;
     item.kernel_family = kCkFiniteKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_finite_modulus_mismatch"});
+    cases.push_back(
+        {item.key, item, "exact_cache_hit_rejected_identity:key_finite_modulus_mismatch"});
   }
   {
     std::string key =
-        reviewed_key(
-            "amdgpu-builtins", "gfx942", "7.2", "finite_field_u8", 512, 512, 512, "row_major", 512, 128,
-            128, kAmdgpuCdnaFiniteKernel, kAmdgpuFiniteEpilogue) +
+        reviewed_key("amdgpu-builtins", "gfx942", "7.2", "finite_field_u8", 512, 512, 512,
+                     "row_major", 512, 128, 128, kAmdgpuCdnaFiniteKernel, kAmdgpuFiniteEpilogue) +
         ";finite_modulus=251";
-    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_linux_gfx942");
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_linux_gfx942");
     item.selected_kernel = kAmdgpuCdnaFiniteKernel;
     item.target_id = "gfx942";
     item.hip_sdk_or_library_version = "7.2";
@@ -562,12 +482,12 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
-    std::string key =
-        reviewed_key(
-            "amdgpu-builtins", "gfx942", "7.2", "finite_field_u8", 2048, 2048, 2048, "row_major",
-            2048, 128, 128, kAmdgpuCdnaWideFiniteKernel, kAmdgpuFiniteEpilogue) +
-        ";finite_modulus=251";
-    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_linux_gfx942");
+    std::string key = reviewed_key("amdgpu-builtins", "gfx942", "7.2", "finite_field_u8", 2048,
+                                   2048, 2048, "row_major", 2048, 128, 128,
+                                   kAmdgpuCdnaWideFiniteKernel, kAmdgpuFiniteEpilogue) +
+                      ";finite_modulus=251";
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_linux_gfx942");
     item.selected_kernel = kAmdgpuCdnaWideFiniteKernel;
     item.target_id = "gfx942";
     item.hip_sdk_or_library_version = "7.2";
@@ -582,21 +502,11 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
-    std::string key = reviewed_key(
-        "amdgpu-builtins",
-        "gfx942",
-        "7.2",
-        "bounded_u64",
-        2048,
-        2048,
-        2048,
-        "row_major",
-        2048,
-        128,
-        128,
-        kAmdgpuCdnaWideCenteredKernel,
-        kAmdgpuBoundedEpilogue);
-    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_linux_gfx942");
+    std::string key = reviewed_key("amdgpu-builtins", "gfx942", "7.2", "bounded_u64", 2048, 2048,
+                                   2048, "row_major", 2048, 128, 128, kAmdgpuCdnaWideCenteredKernel,
+                                   kAmdgpuBoundedEpilogue);
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_linux_gfx942");
     item.selected_kernel = kAmdgpuCdnaWideCenteredKernel;
     item.target_id = "gfx942";
     item.hip_sdk_or_library_version = "7.2";
@@ -611,12 +521,11 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   }
   {
     std::string key =
-        reviewed_key(
-            "amdgpu-builtins", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512,
-            128, 128, kAmdgpuRdna3FiniteKernel, kAmdgpuFiniteEpilogue) +
+        reviewed_key("amdgpu-builtins", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512,
+                     "row_major", 512, 128, 128, kAmdgpuRdna3FiniteKernel, kAmdgpuFiniteEpilogue) +
         ";finite_modulus=255";
-    auto item =
-        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_windows_gfx1100");
     item.selected_kernel = kAmdgpuRdna3FiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 255;
@@ -625,22 +534,11 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
-    std::string key = reviewed_key(
-        "amdgpu-builtins",
-        "gfx1100",
-        "7.1",
-        "bounded_i64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kAmdgpuRdna3CenteredKernel,
-        kAmdgpuBoundedEpilogue);
-    auto item =
-        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
+    std::string key =
+        reviewed_key("amdgpu-builtins", "gfx1100", "7.1", "bounded_i64", 512, 512, 512, "row_major",
+                     512, 128, 128, kAmdgpuRdna3CenteredKernel, kAmdgpuBoundedEpilogue);
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_windows_gfx1100");
     item.selected_kernel = kAmdgpuRdna3CenteredKernel;
     item.semantic_contract = "bounded_i64";
     item.epilogue = kAmdgpuBoundedEpilogue;
@@ -648,21 +546,11 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
-    std::string key = reviewed_key(
-        "amdgpu-builtins",
-        "gfx1201",
-        "7.2",
-        "exact_wide_unsigned",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kAmdgpuRdna4CenteredKernel,
-        kAmdgpuRnsEpilogue);
-    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_target_gfx1201");
+    std::string key =
+        reviewed_key("amdgpu-builtins", "gfx1201", "7.2", "exact_wide_unsigned", 512, 512, 512,
+                     "row_major", 512, 128, 128, kAmdgpuRdna4CenteredKernel, kAmdgpuRnsEpilogue);
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_target_gfx1201");
     item.selected_kernel = kAmdgpuRdna4CenteredKernel;
     item.target_id = "gfx1201";
     item.hip_sdk_or_library_version = "7.2";
@@ -673,11 +561,11 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   }
   {
     std::string key =
-        reviewed_key(
-            "amdgpu-builtins", "gfx1201", "7.2", "finite_ring_u8", 512, 512, 512, "row_major", 512,
-            128, 128, kAmdgpuRdna4FiniteKernel, kAmdgpuFiniteEpilogue) +
+        reviewed_key("amdgpu-builtins", "gfx1201", "7.2", "finite_ring_u8", 512, 512, 512,
+                     "row_major", 512, 128, 128, kAmdgpuRdna4FiniteKernel, kAmdgpuFiniteEpilogue) +
         ";finite_modulus=256";
-    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_target_gfx1201");
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_target_gfx1201");
     item.selected_kernel = kAmdgpuRdna4FiniteKernel;
     item.target_id = "gfx1201";
     item.hip_sdk_or_library_version = "7.2";
@@ -689,85 +577,65 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   }
   {
     std::string key =
-        reviewed_key(
-            "amdgpu-builtins", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512,
-            128, 128, kAmdgpuCdnaFiniteKernel, kAmdgpuFiniteEpilogue) +
+        reviewed_key("amdgpu-builtins", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512,
+                     "row_major", 512, 128, 128, kAmdgpuCdnaFiniteKernel, kAmdgpuFiniteEpilogue) +
         ";finite_modulus=251";
-    auto item =
-        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_windows_gfx1100");
     item.selected_kernel = kAmdgpuCdnaFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 251;
     item.epilogue = kAmdgpuFiniteEpilogue;
     item.kernel_family = kAmdgpuCdnaFiniteKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    std::string key =
-        reviewed_key(
-            "amdgpu-builtins", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512,
-            128, 128, kAmdgpuCdnaWideFiniteKernel, kAmdgpuFiniteEpilogue) +
-        ";finite_modulus=251";
-    auto item =
-        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
+    std::string key = reviewed_key("amdgpu-builtins", "gfx1100", "7.1", "finite_ring_u8", 512, 512,
+                                   512, "row_major", 512, 128, 128, kAmdgpuCdnaWideFiniteKernel,
+                                   kAmdgpuFiniteEpilogue) +
+                      ";finite_modulus=251";
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_windows_gfx1100");
     item.selected_kernel = kAmdgpuCdnaWideFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 251;
     item.epilogue = kAmdgpuFiniteEpilogue;
     item.kernel_family = kAmdgpuCdnaWideFiniteKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
-  }
-  {
-    std::string key = reviewed_key(
-        "amdgpu-builtins",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kAmdgpuCdnaCenteredKernel,
-        kAmdgpuBoundedEpilogue);
-    auto item =
-        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
-    item.selected_kernel = kAmdgpuCdnaCenteredKernel;
-    item.epilogue = kAmdgpuBoundedEpilogue;
-    item.kernel_family = kAmdgpuCdnaCenteredKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
-  }
-  {
-    std::string key = reviewed_key(
-        "amdgpu-builtins",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kAmdgpuCdnaSparseKernel,
-        kAmdgpuBoundedEpilogue);
-    auto item =
-        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
-    item.selected_kernel = kAmdgpuCdnaSparseKernel;
-    item.epilogue = kAmdgpuBoundedEpilogue;
-    item.kernel_family = kAmdgpuCdnaSparseKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
     std::string key =
-        reviewed_key(
-            "amdgpu-builtins", "gfx1201", "7.2", "finite_ring_u8", 512, 512, 512, "row_major", 512,
-            128, 128, kAmdgpuRdna4SparseKernel, kAmdgpuFiniteEpilogue) +
+        reviewed_key("amdgpu-builtins", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major",
+                     512, 128, 128, kAmdgpuCdnaCenteredKernel, kAmdgpuBoundedEpilogue);
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_windows_gfx1100");
+    item.selected_kernel = kAmdgpuCdnaCenteredKernel;
+    item.epilogue = kAmdgpuBoundedEpilogue;
+    item.kernel_family = kAmdgpuCdnaCenteredKernel;
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+  }
+  {
+    std::string key =
+        reviewed_key("amdgpu-builtins", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major",
+                     512, 128, 128, kAmdgpuCdnaSparseKernel, kAmdgpuBoundedEpilogue);
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_windows_gfx1100");
+    item.selected_kernel = kAmdgpuCdnaSparseKernel;
+    item.epilogue = kAmdgpuBoundedEpilogue;
+    item.kernel_family = kAmdgpuCdnaSparseKernel;
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+  }
+  {
+    std::string key =
+        reviewed_key("amdgpu-builtins", "gfx1201", "7.2", "finite_ring_u8", 512, 512, 512,
+                     "row_major", 512, 128, 128, kAmdgpuRdna4SparseKernel, kAmdgpuFiniteEpilogue) +
         ";finite_modulus=251";
-    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_target_gfx1201");
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_target_gfx1201");
     item.selected_kernel = kAmdgpuRdna4SparseKernel;
     item.target_id = "gfx1201";
     item.hip_sdk_or_library_version = "7.2";
@@ -775,45 +643,25 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.finite_modulus = 251;
     item.epilogue = kAmdgpuFiniteEpilogue;
     item.kernel_family = kAmdgpuRdna4SparseKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "amdgpu-builtins",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kAmdgpuRdna3ResearchKernel,
-        kAmdgpuBoundedEpilogue);
-    auto item =
-        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
+    std::string key =
+        reviewed_key("amdgpu-builtins", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major",
+                     512, 128, 128, kAmdgpuRdna3ResearchKernel, kAmdgpuBoundedEpilogue);
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true,
+                            "reviewed_release_same_contract_fastest_windows_gfx1100");
     item.selected_kernel = kAmdgpuRdna3ResearchKernel;
     item.epilogue = kAmdgpuBoundedEpilogue;
     item.kernel_family = kAmdgpuRdna3ResearchKernel;
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "wmma",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kRocwmmaBoundedKernel,
-        kRocwmmaBoundedEpilogue);
+    std::string key =
+        reviewed_key("wmma", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major", 512, 128,
+                     128, kRocwmmaBoundedKernel, kRocwmmaBoundedEpilogue);
     auto item = entry(key);
     item.selected_backend = "wmma";
     item.selected_kernel = kRocwmmaBoundedKernel;
@@ -821,23 +669,13 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.epilogue = kRocwmmaBoundedEpilogue;
     item.kernel_family = kRocwmmaBoundedKernel;
     cases.push_back(
-        {item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
+        {item.key, item,
+         "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "rocwmma",
-        "gfx1100",
-        "7.1",
-        "wrap_u64_mod_2_64",
-        64,
-        64,
-        64,
-        "row_major",
-        64,
-        16,
-        16,
-        "rocwmma_wrap64_byte_gemm36_candidate_v0",
-        "low64_wrap_export");
+    std::string key =
+        reviewed_key("rocwmma", "gfx1100", "7.1", "wrap_u64_mod_2_64", 64, 64, 64, "row_major", 64,
+                     16, 16, "rocwmma_wrap64_byte_gemm36_candidate_v0", "low64_wrap_export");
     auto item = entry(key);
     item.selected_backend = "rocwmma";
     item.selected_kernel = "rocwmma_wrap64_byte_gemm36_candidate_v0";
@@ -851,23 +689,13 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.epilogue = "low64_wrap_export";
     item.kernel_family = "rocwmma_wrap64_byte_gemm36_candidate_v0";
     cases.push_back(
-        {item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
+        {item.key, item,
+         "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "hip-direct",
-        "gfx1100",
-        "HIP runtime",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        "direct_hip_tiled_rns_gemm_v1",
-        "fused_centered_residue_then_crt_export");
+    std::string key = reviewed_key("hip-direct", "gfx1100", "HIP runtime", "bounded_u64", 512, 512,
+                                   512, "row_major", 512, 128, 128, "direct_hip_tiled_rns_gemm_v1",
+                                   "fused_centered_residue_then_crt_export");
     auto item = entry(key);
     item.selected_backend = "hip-direct";
     item.selected_kernel = "direct_hip_tiled_rns_gemm_v1";
@@ -875,46 +703,28 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.epilogue = "fused_centered_residue_then_crt_export";
     item.kernel_family = "direct_hip_tiled_rns_gemm_v1";
     cases.push_back(
-        {item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
+        {item.key, item,
+         "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "ck",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        "rocwmma_wrap64_byte_gemm36_candidate_v0",
-        kCkBoundedEpilogue);
+    std::string key =
+        reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major", 512, 128,
+                     128, "rocwmma_wrap64_byte_gemm36_candidate_v0", kCkBoundedEpilogue);
     auto item = entry(key);
     item.selected_kernel = "rocwmma_wrap64_byte_gemm36_candidate_v0";
     item.kernel_family = "rocwmma_wrap64_byte_gemm36_candidate_v0";
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+    cases.push_back({item.key, item,
+                     "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
-    std::string key = reviewed_key(
-        "ck",
-        "gfx1100",
-        "7.1",
-        "bounded_u64",
-        512,
-        512,
-        512,
-        "row_major",
-        512,
-        128,
-        128,
-        kCkBoundedKernel,
-        "low64_wrap_export");
+    std::string key =
+        reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major", 512, 128,
+                     128, kCkBoundedKernel, "low64_wrap_export");
     auto item = entry(key);
     item.epilogue = "low64_wrap_export";
-    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_epilogue_for_contract"});
+    cases.push_back(
+        {item.key, item,
+         "exact_cache_hit_rejected_identity:unsupported_autotune_epilogue_for_contract"});
   }
   {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1"));
@@ -923,10 +733,8 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   }
   {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1"));
-    item.key.replace(
-        item.key.find(";target_id=gfx1100;"),
-        std::string(";target_id=gfx1100;").size(),
-        ";target=gfx1100;");
+    item.key.replace(item.key.find(";target_id=gfx1100;"),
+                     std::string(";target_id=gfx1100;").size(), ";target=gfx1100;");
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:missing_key_target_id"});
   }
   {
@@ -949,7 +757,8 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_n_mismatch"});
   }
   {
-    auto item = entry(reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major"));
+    auto item =
+        entry(reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 512, "row_major"));
     item.layout = "column_major";
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_layout_mismatch"});
   }
@@ -967,18 +776,20 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     CHECK(rns8::detail::find_exact_autotune_entry(snapshot, item.key) != nullptr);
     if (std::string(item.expected).empty()) {
       CHECK(rns8::detail::find_validated_autotune_entry(snapshot, item.key) != nullptr);
-      CHECK(
-          rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") ==
-          std::string("exact_cache_hit_validated:") + item.entry.selected_backend + "/" + item.entry.selected_kernel);
+      CHECK(rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") ==
+            std::string("exact_cache_hit_validated:") + item.entry.selected_backend + "/" +
+                item.entry.selected_kernel);
     } else {
       CHECK(rns8::detail::find_validated_autotune_entry(snapshot, item.key) == nullptr);
-      CHECK(rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") == item.expected);
+      CHECK(rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") ==
+            item.expected);
     }
   }
 }
 
 TEST_CASE("autotune cache reader requires explicit root and entry schema versions") {
-  const std::filesystem::path path = unique_cache_fixture_path("rns8-autotune-cache-schema-fixture");
+  const std::filesystem::path path =
+      unique_cache_fixture_path("rns8-autotune-cache-schema-fixture");
   const std::string key = reviewed_key();
   ScopedAutotuneCachePath scoped_path(path);
 
@@ -989,9 +800,8 @@ TEST_CASE("autotune cache reader requires explicit root and entry schema version
     CHECK(snapshot.schema_version == 0);
     CHECK(rns8::detail::find_exact_autotune_entry(snapshot, key) != nullptr);
     CHECK(rns8::detail::find_validated_autotune_entry(snapshot, key) == nullptr);
-    CHECK(
-        rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
-        "exact_cache_hit_rejected_cache_schema_version:0");
+    CHECK(rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
+          "exact_cache_hit_rejected_cache_schema_version:0");
   }
 
   write_cache_fixture(path, true, false);
@@ -1001,9 +811,8 @@ TEST_CASE("autotune cache reader requires explicit root and entry schema version
     CHECK(snapshot.schema_version == 1);
     CHECK(rns8::detail::find_exact_autotune_entry(snapshot, key) != nullptr);
     CHECK(rns8::detail::find_validated_autotune_entry(snapshot, key) == nullptr);
-    CHECK(
-        rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
-        "exact_cache_hit_rejected_schema_version:0");
+    CHECK(rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
+          "exact_cache_hit_rejected_schema_version:0");
   }
 
   write_cache_fixture(path, true, true);
@@ -1016,15 +825,15 @@ TEST_CASE("autotune cache reader requires explicit root and entry schema version
     CHECK(hit->measured_median_pack_us == 1.0);
     CHECK(hit->measured_median_pack_a_us == 0.4);
     CHECK(hit->measured_median_pack_b_us == 0.6);
-    CHECK(
-        rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
-        std::string("exact_cache_hit_validated:ck/") + kCkBoundedKernel);
+    CHECK(rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
+          std::string("exact_cache_hit_validated:ck/") + kCkBoundedKernel);
   }
 
   std::filesystem::remove(path);
 }
 
-TEST_CASE("autotune cache rejects malformed numeric and ambiguous records transactionally", "[autotune-transaction]") {
+TEST_CASE("autotune cache rejects malformed numeric and ambiguous records transactionally",
+          "[autotune-transaction]") {
   using json = nlohmann::ordered_json;
   const auto path = unique_cache_fixture_path("rns8-cache-strict");
   ScopedAutotuneCachePath scoped(path);
@@ -1032,14 +841,25 @@ TEST_CASE("autotune cache rejects malformed numeric and ambiguous records transa
   std::ifstream input(path);
   const json valid = json::parse(input);
   input.close();
-  struct Mutation { const char* pointer; json value; };
+  struct Mutation {
+    const char* pointer;
+    json value;
+  };
   const std::vector<Mutation> mutations{
-      {"/shape/m", 512.5}, {"/shape/n", uint64_t{1} << 63}, {"/shape/k", "512"},
-      {"/k_block_size", 512.0}, {"/tile_m", (uint64_t{1} << 32) + 128},
-      {"/tile_n", -1}, {"/workspace_bytes", -1}, {"/workspace_bytes", 0.5},
-      {"/shape", json::array()}, {"/measured_medians_us", json::array()},
-      {"/measured_medians_us/pack", -1.0}, {"/measured_medians_us/end_to_end", "4.0"},
-      {"/measured_medians_us/rns_gemm", nullptr}, {"/performance_validated", 1},
+      {"/shape/m", 512.5},
+      {"/shape/n", uint64_t{1} << 63},
+      {"/shape/k", "512"},
+      {"/k_block_size", 512.0},
+      {"/tile_m", (uint64_t{1} << 32) + 128},
+      {"/tile_n", -1},
+      {"/workspace_bytes", -1},
+      {"/workspace_bytes", 0.5},
+      {"/shape", json::array()},
+      {"/measured_medians_us", json::array()},
+      {"/measured_medians_us/pack", -1.0},
+      {"/measured_medians_us/end_to_end", "4.0"},
+      {"/measured_medians_us/rns_gemm", nullptr},
+      {"/performance_validated", 1},
   };
   for (const auto& mutation : mutations) {
     INFO(mutation.pointer << " = " << mutation.value);
@@ -1048,7 +868,10 @@ TEST_CASE("autotune cache rejects malformed numeric and ambiguous records transa
     bad["key"] = "different-key";
     bad[json::json_pointer(mutation.pointer)] = mutation.value;
     root["entries"].push_back(bad); // An earlier valid entry must not leak through.
-    { std::ofstream out(path); out << root; }
+    {
+      std::ofstream out(path);
+      out << root;
+    }
     auto snapshot = rns8::detail::read_autotune_cache();
     CHECK_FALSE(snapshot.loaded);
     CHECK(snapshot.entries.empty());
@@ -1056,16 +879,20 @@ TEST_CASE("autotune cache rejects malformed numeric and ambiguous records transa
     CHECK(rns8::detail::find_exact_autotune_entry(snapshot, reviewed_key()) == nullptr);
   }
   for (const std::string malformed : {
-      std::string("{\"schema_version\":1,\"schema_version\":1,\"entries\":[]}"),
-      std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"a\",\"shape\":{\"m\":1,\"m\":2}}]}"),
-      std::string("{\"schema_version\":1,\"entries\":[null]}"),
-      std::string("{\"schema_version\":1,\"entries\":{}}"),
-      std::string("{\"schema_version\":1}"),
-      std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"a\"},{\"key\":\"a\"}]}"),
-      std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"\"}]}"),
-  }) {
+           std::string("{\"schema_version\":1,\"schema_version\":1,\"entries\":[]}"),
+           std::string(
+               "{\"schema_version\":1,\"entries\":[{\"key\":\"a\",\"shape\":{\"m\":1,\"m\":2}}]}"),
+           std::string("{\"schema_version\":1,\"entries\":[null]}"),
+           std::string("{\"schema_version\":1,\"entries\":{}}"),
+           std::string("{\"schema_version\":1}"),
+           std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"a\"},{\"key\":\"a\"}]}"),
+           std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"\"}]}"),
+       }) {
     INFO(malformed);
-    { std::ofstream out(path); out << malformed; }
+    {
+      std::ofstream out(path);
+      out << malformed;
+    }
     const auto snapshot = rns8::detail::read_autotune_cache();
     CHECK_FALSE(snapshot.loaded);
     CHECK(snapshot.entries.empty());
@@ -1073,10 +900,11 @@ TEST_CASE("autotune cache rejects malformed numeric and ambiguous records transa
   std::filesystem::remove(path);
 }
 
-TEST_CASE("autotune selection rejects invalid timing and duplicate key identities", "[autotune-transaction]") {
+TEST_CASE("autotune selection rejects invalid timing and duplicate key identities",
+          "[autotune-transaction]") {
   const auto key = reviewed_key();
   const auto valid = cache_entry(key.c_str(), "ck", true,
-      "reviewed_release_same_contract_fastest_windows_gfx1100");
+                                 "reviewed_release_same_contract_fastest_windows_gfx1100");
   rns8::detail::AutotuneCacheSnapshot snapshot{};
   snapshot.loaded = true;
   for (double bad : {-1.0, 0.0, std::numeric_limits<double>::infinity(),
@@ -1096,14 +924,15 @@ TEST_CASE("autotune selection rejects invalid timing and duplicate key identitie
   }
 }
 
-TEST_CASE("autotune persistence preserves prior bytes on rejected writes", "[autotune-transaction]") {
+TEST_CASE("autotune persistence preserves prior bytes on rejected writes",
+          "[autotune-transaction]") {
   const auto directory = unique_cache_fixture_path("rns8-cache-write");
   REQUIRE(std::filesystem::create_directory(directory));
   const auto path = directory / "cache.json";
   ScopedAutotuneCachePath scoped(path);
   const auto key = reviewed_key();
   auto entry = cache_entry(key.c_str(), "ck", true,
-      "reviewed_release_same_contract_fastest_windows_gfx1100");
+                           "reviewed_release_same_contract_fastest_windows_gfx1100");
   std::string error = "stale error";
   REQUIRE(rns8::detail::write_autotune_cache_entry(entry, error));
   CHECK(error.empty());
@@ -1133,8 +962,8 @@ TEST_CASE("autotune persistence preserves prior bytes on rejected writes", "[aut
 #if defined(_WIN32)
   // Allow reading, but deny deletion/replacement. Staging must succeed and the
   // commit must fail without changing the original or leaking staging files.
-  HANDLE locked = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  HANDLE locked = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
   REQUIRE(locked != INVALID_HANDLE_VALUE);
   entry.measured_median_end_to_end_us = 2;
   const bool locked_write = rns8::detail::write_autotune_cache_entry(entry, error);
@@ -1148,9 +977,12 @@ TEST_CASE("autotune persistence preserves prior bytes on rejected writes", "[aut
   REQUIRE(snapshot.loaded);
   REQUIRE(snapshot.entries.size() == 1);
   CHECK(snapshot.entries[0].measured_median_end_to_end_us == 3);
-  for (const auto fixture : {"{\"schema_version\":2,\"entries\":[]}",
-                              "{\"entries\":[]}", "{broken"}) {
-    { std::ofstream out(path); out << fixture; }
+  for (const auto fixture :
+       {"{\"schema_version\":2,\"entries\":[]}", "{\"entries\":[]}", "{broken"}) {
+    {
+      std::ofstream out(path);
+      out << fixture;
+    }
     CHECK_FALSE(rns8::detail::write_autotune_cache_entry(entry, error));
     CHECK(read_bytes() == fixture);
   }

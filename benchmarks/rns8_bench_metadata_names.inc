@@ -107,7 +107,7 @@ const char* exact_wide_export_status_check_name(const Args& args) {
     return nullptr;
   }
   return exact_wide_export_status_check_required(args) ? "required_for_range_check"
-                                                      : "elided_full_width_device_reconstruction";
+                                                       : "elided_full_width_device_reconstruction";
 }
 
 const char* packed_layout_version(const Args& args) {
@@ -115,20 +115,28 @@ const char* packed_layout_version(const Args& args) {
     return "byte_limb_v1";
   }
   if (runtime_vector_alu_backend(args)) {
-    return args.semantics == BenchSemantics::BoundedI64 ? "native_i64_rowmajor_v1" : "native_u64_rowmajor_v1";
+    return args.semantics == BenchSemantics::BoundedI64 ? "native_i64_rowmajor_v1"
+                                                        : "native_u64_rowmajor_v1";
   }
   return nullptr;
 }
 
 const char* input_distribution(const Args& args) {
   switch (args.input_profile) {
-    case InputProfile::WideTwoLimbConstant: return "native_constant_2pow40";
-    case InputProfile::WideThreeLimbConstant: return "native_constant_2pow62";
-    case InputProfile::WideTwoLimbMixed: return args.semantics == BenchSemantics::ExactWideSigned ?
-        "signed_seeded_2pow40_plus_10bit_jitter_mixed_sign" : "unsigned_seeded_2pow40_plus_10bit_jitter";
-    case InputProfile::WideThreeLimbMixed: return args.semantics == BenchSemantics::ExactWideSigned ?
-        "signed_seeded_2pow62_plus_10bit_jitter_mixed_sign" : "unsigned_seeded_2pow62_plus_10bit_jitter";
-    default: break;
+  case InputProfile::WideTwoLimbConstant:
+    return "native_constant_2pow40";
+  case InputProfile::WideThreeLimbConstant:
+    return "native_constant_2pow62";
+  case InputProfile::WideTwoLimbMixed:
+    return args.semantics == BenchSemantics::ExactWideSigned
+               ? "signed_seeded_2pow40_plus_10bit_jitter_mixed_sign"
+               : "unsigned_seeded_2pow40_plus_10bit_jitter";
+  case InputProfile::WideThreeLimbMixed:
+    return args.semantics == BenchSemantics::ExactWideSigned
+               ? "signed_seeded_2pow62_plus_10bit_jitter_mixed_sign"
+               : "unsigned_seeded_2pow62_plus_10bit_jitter";
+  default:
+    break;
   }
   if (args.input_profile == InputProfile::AdaptiveBands) {
     return args.semantics == BenchSemantics::BoundedI64 ? "signed_adaptive_bands_-16_16"
@@ -151,68 +159,66 @@ const char* input_distribution(const Args& args) {
       return "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group";
     }
     switch (args.input_profile) {
-      case InputProfile::FiniteBinary:
-        return "u8_binary_0_1";
-      case InputProfile::FiniteSparse:
-        return "u8_sparse_90pct_zero_uniform_nonzero";
-      case InputProfile::FiniteLowHamming:
-        return "u8_low_hamming_powers_of_two_mod_q";
-      case InputProfile::FiniteSmallCentered:
-        return "u8_small_centered_minus2_2_mod_q";
-      case InputProfile::FiniteFullUniform:
-      case InputProfile::UniformSmall:
-        return "u8_full_uniform_0_modulus_minus_1";
-      default: return "invalid_finite_input_profile";
+    case InputProfile::FiniteBinary:
+      return "u8_binary_0_1";
+    case InputProfile::FiniteSparse:
+      return "u8_sparse_90pct_zero_uniform_nonzero";
+    case InputProfile::FiniteLowHamming:
+      return "u8_low_hamming_powers_of_two_mod_q";
+    case InputProfile::FiniteSmallCentered:
+      return "u8_small_centered_minus2_2_mod_q";
+    case InputProfile::FiniteFullUniform:
+    case InputProfile::UniformSmall:
+      return "u8_full_uniform_0_modulus_minus_1";
+    default:
+      return "invalid_finite_input_profile";
     }
   }
   switch (args.semantics) {
-    case BenchSemantics::BoundedI64:
-    case BenchSemantics::ExactWideSigned:
-      return "signed_uniform_-16_16";
-    case BenchSemantics::BoundedU64:
-    case BenchSemantics::ExactWideUnsigned:
-      return "unsigned_uniform_0_16";
-    case BenchSemantics::WrapU64Mod2_64:
-      return "unsigned_rng_u64_full_range";
-    case BenchSemantics::FiniteRingU8:
-    case BenchSemantics::FiniteFieldU8:
-      return "u8_uniform_0_modulus_minus_1";
+  case BenchSemantics::BoundedI64:
+  case BenchSemantics::ExactWideSigned:
+    return "signed_uniform_-16_16";
+  case BenchSemantics::BoundedU64:
+  case BenchSemantics::ExactWideUnsigned:
+    return "unsigned_uniform_0_16";
+  case BenchSemantics::WrapU64Mod2_64:
+    return "unsigned_rng_u64_full_range";
+  case BenchSemantics::FiniteRingU8:
+  case BenchSemantics::FiniteFieldU8:
+    return "u8_uniform_0_modulus_minus_1";
   }
   return "unknown";
 }
 
 const char* tile_bound_pattern(const Args& args) {
   switch (args.semantics) {
-    case BenchSemantics::BoundedI64:
-      return "exact_output_tile_max_abs_v1";
-    case BenchSemantics::BoundedU64:
-      return "exact_output_tile_max_unsigned_v1";
-    case BenchSemantics::ExactWideSigned:
-    case BenchSemantics::ExactWideUnsigned:
-    case BenchSemantics::WrapU64Mod2_64:
-    case BenchSemantics::FiniteRingU8:
-    case BenchSemantics::FiniteFieldU8:
-      return "none";
+  case BenchSemantics::BoundedI64:
+    return "exact_output_tile_max_abs_v1";
+  case BenchSemantics::BoundedU64:
+    return "exact_output_tile_max_unsigned_v1";
+  case BenchSemantics::ExactWideSigned:
+  case BenchSemantics::ExactWideUnsigned:
+  case BenchSemantics::WrapU64Mod2_64:
+  case BenchSemantics::FiniteRingU8:
+  case BenchSemantics::FiniteFieldU8:
+    return "none";
   }
   return "unknown";
 }
 
-bool adaptive_execution_applied(
-    const Args& args,
-    const rns8_device_info& info,
-    const BenchmarkResult& result) {
+bool adaptive_execution_applied(const Args& args, const rns8_device_info& info,
+                                const BenchmarkResult& result) {
   const rns8_backend_kind selected_backend =
       result.backend_info_available ? result.backend_info.backend : info.backend;
   return args.bound_mode == BoundMode::PerTile &&
-         (selected_backend == RNS8_BACKEND_CPU_REFERENCE || selected_backend == RNS8_BACKEND_HIP_DIRECT ||
-          selected_backend == RNS8_BACKEND_CK || selected_backend == RNS8_BACKEND_ROCWMMA) &&
+         (selected_backend == RNS8_BACKEND_CPU_REFERENCE ||
+          selected_backend == RNS8_BACKEND_HIP_DIRECT || selected_backend == RNS8_BACKEND_CK ||
+          selected_backend == RNS8_BACKEND_ROCWMMA) &&
          schedule_uses_adaptive_work(result);
 }
 
-const char* selected_kernel_name(
-    const Args& args,
-    const rns8_device_info& info,
-    const BenchmarkResult& result) {
+const char* selected_kernel_name(const Args& args, const rns8_device_info& info,
+                                 const BenchmarkResult& result) {
   if (result.backend_info_available && result.backend_info.selected_kernel[0] != '\0') {
     return result.backend_info.selected_kernel;
   }
@@ -298,7 +304,8 @@ const char* amdgpu_builtin_matrix_sparsity(const char* selected_kernel) {
 }
 
 bool benchmark_semantics_are_finite_u8(const Args& args) {
-  return args.semantics == BenchSemantics::FiniteRingU8 || args.semantics == BenchSemantics::FiniteFieldU8;
+  return args.semantics == BenchSemantics::FiniteRingU8 ||
+         args.semantics == BenchSemantics::FiniteFieldU8;
 }
 
 const char* amdgpu_builtin_matrix_operand_signedness(const char* selected_kernel) {
@@ -321,7 +328,8 @@ const char* amdgpu_builtin_matrix_operand_signedness(const char* selected_kernel
 
 const char* amdgpu_builtin_matrix_sparse_contract(const char* selected_kernel) {
   const char* sparsity = amdgpu_builtin_matrix_sparsity(selected_kernel);
-  return sparsity && std::string(sparsity) == "structured_4_2" ? "a_4_to_2_structured_k_v1" : nullptr;
+  return sparsity && std::string(sparsity) == "structured_4_2" ? "a_4_to_2_structured_k_v1"
+                                                               : nullptr;
 }
 
 const char* amdgpu_builtin_matrix_sparse_dense_operand(const char* selected_kernel) {
@@ -330,8 +338,8 @@ const char* amdgpu_builtin_matrix_sparse_dense_operand(const char* selected_kern
 
 const char* amdgpu_builtin_matrix_sparse_index_layout(const char* selected_kernel) {
   return amdgpu_builtin_matrix_sparse_contract(selected_kernel)
-      ? "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
-      : nullptr;
+             ? "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+             : nullptr;
 }
 
 const char* amdgpu_builtin_matrix_a_value_contract(const Args& args, const char* selected_kernel) {
@@ -339,8 +347,9 @@ const char* amdgpu_builtin_matrix_a_value_contract(const Args& args, const char*
     return nullptr;
   }
   if (amdgpu_builtin_matrix_sparse_contract(selected_kernel)) {
-    return benchmark_semantics_are_finite_u8(args) ? "unsigned_u8_public_values_centered_for_matrix_core"
-                                                   : "signed_i8_centered_residue_planes";
+    return benchmark_semantics_are_finite_u8(args)
+               ? "unsigned_u8_public_values_centered_for_matrix_core"
+               : "signed_i8_centered_residue_planes";
   }
   return benchmark_semantics_are_finite_u8(args) ? "dense_a_public_u8_centered_for_matrix_core"
                                                  : "dense_a_centered_i8_residue_planes";
@@ -365,7 +374,8 @@ bool amdgpu_builtin_matrix_uses_rdna_integer_modifiers(const char* selected_kern
 
 int64_t benchmark_k_block_size(const Args& args, const BenchmarkResult& result) {
   if (result.backend_info_available && result.backend_info.accumulator_k_block_size > 0 &&
-      result.backend_info.accumulator_k_block_size <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+      result.backend_info.accumulator_k_block_size <=
+          static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     return static_cast<int64_t>(result.backend_info.accumulator_k_block_size);
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
@@ -376,14 +386,15 @@ int64_t benchmark_k_block_size(const Args& args, const BenchmarkResult& result) 
 
 std::string schedule_hash_string(const Args& args, const BenchmarkResult& result) {
   std::ostringstream out;
-  out << "tile_rows=" << result.schedule_info.tile_rows << ";tile_cols=" << result.schedule_info.tile_cols
+  out << "tile_rows=" << result.schedule_info.tile_rows
+      << ";tile_cols=" << result.schedule_info.tile_cols
       << ";selected_prefix=" << selected_execution_prefix(args, result)
       << ";requested_max_prefix=" << benchmark_prefix(args)
       << ";prefix_policy=" << prefix_policy_name(args, result)
       << ";groups=" << result.schedule_info.prefix_group_count
       << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
-      << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
-      << ";tile_bound_hash=" << (args.bound_mode == BoundMode::PerTile ? result.tile_bound_hash : 0);
+      << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active << ";tile_bound_hash="
+      << (args.bound_mode == BoundMode::PerTile ? result.tile_bound_hash : 0);
   return out.str();
 }
 
@@ -426,7 +437,8 @@ const char* output_status_handling(const Args& args) {
                                             !exact_wide_export_status_check_required(args))) {
     return "structurally_elided";
   }
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+      finite_benchmark_semantics(args.semantics)) {
     return "not_applicable";
   }
   return "required";
@@ -474,8 +486,7 @@ std::string target_visibility_key() {
 
 std::string target_cache_key(const rns8_device_info& info, const BenchmarkResult& result) {
   std::ostringstream out;
-  out << "arch=" << benchmark_key_target_id(result)
-      << ";device_name=" << info.name
+  out << "arch=" << benchmark_key_target_id(result) << ";device_name=" << info.name
       << ";hip_sdk_or_rocm=" << RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION
       << ";hip_runtime=" << info.hip_runtime_version;
   return out.str();
@@ -483,25 +494,18 @@ std::string target_cache_key(const rns8_device_info& info, const BenchmarkResult
 
 std::string target_instance_id(const rns8_device_info& info, const BenchmarkResult& result) {
   std::ostringstream out;
-  out << target_cache_key(info, result)
-      << ";device_index=" << info.device_id
+  out << target_cache_key(info, result) << ";device_index=" << info.device_id
       << ";visibility=" << target_visibility_key();
   return out.str();
 }
 
-std::string target_review_group_key(
-    const Args& args,
-    const rns8_device_info& info,
-    const BenchmarkResult& result,
-    const char* selected_backend) {
+std::string target_review_group_key(const Args& args, const rns8_device_info& info,
+                                    const BenchmarkResult& result, const char* selected_backend) {
   const std::string target_id = benchmark_key_target_id(result);
   std::ostringstream out;
-  out << target_namespace_for_id(target_id)
-      << "/target=" << target_id
-      << "/backend=" << selected_backend
-      << "/semantics=" << semantics_name(args.semantics)
-      << "/device_index=" << info.device_id
-      << "/device_name=" << info.name
+  out << target_namespace_for_id(target_id) << "/target=" << target_id
+      << "/backend=" << selected_backend << "/semantics=" << semantics_name(args.semantics)
+      << "/device_index=" << info.device_id << "/device_name=" << info.name
       << "/target_instance=" << target_instance_id(info, result)
       << "/visibility=" << target_visibility_key()
       << "/configured=" << RNS8_CONFIGURED_AMDGPU_TARGETS
@@ -517,13 +521,15 @@ std::string benchmark_pack_layout(const Args& args, const BenchmarkResult& resul
     return "finite_u8_centered_residue";
   }
   if (runtime_vector_alu_backend(args) || args.vector_alu_baseline) {
-    return args.semantics == BenchSemantics::BoundedI64 ? "native_i64_row_major" : "native_u64_row_major";
+    return args.semantics == BenchSemantics::BoundedI64 ? "native_i64_row_major"
+                                                        : "native_u64_row_major";
   }
   if (bounded_residue_channel_fusion_requested(args)) {
     return "native_i8_row_major_residue_channel_width3";
   }
   if (bounded_uniform_small_i8_ab_transient_requested(args) ||
-      (bounded_native_a_reuse_b_requested(args) && bounded_native_a_reuse_b_uniform_small_a(args)) ||
+      (bounded_native_a_reuse_b_requested(args) &&
+       bounded_native_a_reuse_b_uniform_small_a(args)) ||
       bounded_uniform_small_i8_ab_reuse_a_requested(args)) {
     return "native_i8_row_major_uniform_small";
   }
@@ -538,8 +544,8 @@ std::string benchmark_pack_layout(const Args& args, const BenchmarkResult& resul
 
 const char* benchmark_fusion_mode(const Args& args) {
   return bounded_residue_channel_fusion_requested(args)
-      ? "residue_channel_width3_experimental_benchmark_only"
-      : "none";
+             ? "residue_channel_width3_experimental_benchmark_only"
+             : "none";
 }
 
 uint32_t benchmark_residue_group_width(const Args& args) {
@@ -548,15 +554,15 @@ uint32_t benchmark_residue_group_width(const Args& args) {
 
 const char* benchmark_residue_group_layout(const Args& args) {
   return bounded_residue_channel_fusion_requested(args)
-      ? "first_prefix9_moduli_contiguous_width3_groups"
-      : "one_modulus_per_residue_plane";
+             ? "first_prefix9_moduli_contiguous_width3_groups"
+             : "one_modulus_per_residue_plane";
 }
 
 std::string generated_reducer_identity(const Args& args, const BenchmarkResult& result) {
   const uint32_t selected_prefix = selected_execution_prefix(args, result);
-  if (bounded_benchmark_semantics(args.semantics) &&
-      selected_prefix > 0 && selected_prefix <= RNS8_DEFAULT_BOUNDED_PREFIX &&
-      result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
+  if (bounded_benchmark_semantics(args.semantics) && selected_prefix > 0 &&
+      selected_prefix <= RNS8_DEFAULT_BOUNDED_PREFIX && result.backend_info_available &&
+      result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
     return "direct_hip_fixed_prefix_" + std::to_string(selected_prefix) + "_generated_reducer_v1";
   }
   if (exact_wide_benchmark_semantics(args.semantics) &&
@@ -564,7 +570,7 @@ std::string generated_reducer_identity(const Args& args, const BenchmarkResult& 
       result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
     return "direct_hip_fixed_prefix_" + std::to_string(selected_prefix) + "_generated_reducer_v1";
   }
-  if (finite_benchmark_semantics(args.semantics) &&
-      result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
+  if (finite_benchmark_semantics(args.semantics) && result.backend_info_available &&
+      result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
     return "direct_hip_finite_modulus_" + std::to_string(args.finite_modulus) + "_fixed_reducer_v1";
   }

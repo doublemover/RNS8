@@ -31,12 +31,22 @@ class BackendCapability:
 
 
 BACKEND_CAPABILITIES: dict[str, BackendCapability] = {
-    "cpu-reference": BackendCapability(False, False, False, "CPU reference validates correctness only"),
-    "hip-direct": BackendCapability(True, True, True, "Direct-HIP has device masks and row/column product skips"),
-    "hip-vector-alu-int64": BackendCapability(False, False, False, "native vector path has no tiled RNS proof-mask lane"),
-    "hipblaslt": BackendCapability(False, False, False, "hipBLASLt rejects scheduled/adaptive tiled RNS plans"),
+    "cpu-reference": BackendCapability(
+        False, False, False, "CPU reference validates correctness only"
+    ),
+    "hip-direct": BackendCapability(
+        True, True, True, "Direct-HIP has device masks and row/column product skips"
+    ),
+    "hip-vector-alu-int64": BackendCapability(
+        False, False, False, "native vector path has no tiled RNS proof-mask lane"
+    ),
+    "hipblaslt": BackendCapability(
+        False, False, False, "hipBLASLt rejects scheduled/adaptive tiled RNS plans"
+    ),
     "ck": BackendCapability(True, True, False, "CK only handles whole zero-output tiles today"),
-    "rocwmma": BackendCapability(True, True, False, "rocWMMA only handles whole zero-output tiles today"),
+    "rocwmma": BackendCapability(
+        True, True, False, "rocWMMA only handles whole zero-output tiles today"
+    ),
 }
 
 
@@ -110,7 +120,9 @@ def classify_row_col_skip(capture: dict[str, Any]) -> tuple[str, list[str]]:
     count = int_value(schedule.get("zero_row_col_product_count"))
     capability = BACKEND_CAPABILITIES.get(
         backend,
-        BackendCapability(False, False, False, "unknown backend has no declared zero-skip capability"),
+        BackendCapability(
+            False, False, False, "unknown backend has no declared zero-skip capability"
+        ),
     )
     blockers: list[str] = []
     if count <= 0:
@@ -138,7 +150,9 @@ def classify_zero_output_skip(capture: dict[str, Any]) -> tuple[str, list[str]]:
     count = int_value(schedule.get("zero_output_tile_count"))
     capability = BACKEND_CAPABILITIES.get(
         backend,
-        BackendCapability(False, False, False, "unknown backend has no declared zero-skip capability"),
+        BackendCapability(
+            False, False, False, "unknown backend has no declared zero-skip capability"
+        ),
     )
     blockers: list[str] = []
     if count <= 0:
@@ -151,7 +165,9 @@ def classify_zero_output_skip(capture: dict[str, Any]) -> tuple[str, list[str]]:
         if backend == "hip-direct" and selected_kernel not in DIRECT_HIP_ZERO_OUTPUT_KERNELS:
             blockers.append("selected_kernel_does_not_encode_zero_output_skip")
             return "metadata_mismatch", blockers
-        return ("candidate_zero_output_skip" if not blockers else "experimental_zero_output_skip"), blockers
+        return (
+            "candidate_zero_output_skip" if not blockers else "experimental_zero_output_skip"
+        ), blockers
     blockers.append("backend_lacks_zero_output_tile_contract")
     return "unsupported", blockers
 
@@ -165,7 +181,9 @@ def compare_zero_skip_expansion(captures: list[dict[str, Any]]) -> dict[str, Any
         backend = backend_id(capture)
         capability = BACKEND_CAPABILITIES.get(
             backend,
-            BackendCapability(False, False, False, "unknown backend has no declared zero-skip capability"),
+            BackendCapability(
+                False, False, False, "unknown backend has no declared zero-skip capability"
+            ),
         )
         rows.append(
             {
@@ -197,17 +215,25 @@ def compare_zero_skip_expansion(captures: list[dict[str, Any]]) -> dict[str, Any
         )
     summary = {
         "captures": len(rows),
-        "caller_or_naturally_sparse_captures": sum(1 for row in rows if row["caller_or_naturally_sparse"]),
-        "scan_derived_or_unknown_captures": sum(1 for row in rows if not row["caller_or_naturally_sparse"]),
+        "caller_or_naturally_sparse_captures": sum(
+            1 for row in rows if row["caller_or_naturally_sparse"]
+        ),
+        "scan_derived_or_unknown_captures": sum(
+            1 for row in rows if not row["caller_or_naturally_sparse"]
+        ),
         "zero_output_requested": sum(1 for row in rows if row["zero_output_tile_count"] > 0),
         "row_col_requested": sum(1 for row in rows if row["zero_row_col_product_count"] > 0),
         "direct_hip_row_col_skip_candidates": sum(
-            1 for row in rows if row["backend"] == "hip-direct" and row["row_col_decision"] == "candidate_row_col_skip"
+            1
+            for row in rows
+            if row["backend"] == "hip-direct"
+            and row["row_col_decision"] == "candidate_row_col_skip"
         ),
         "experimental_direct_hip_row_col_skips": sum(
             1
             for row in rows
-            if row["backend"] == "hip-direct" and row["row_col_decision"] == "experimental_row_col_skip"
+            if row["backend"] == "hip-direct"
+            and row["row_col_decision"] == "experimental_row_col_skip"
         ),
         "accelerator_row_col_skip_candidates": sum(
             1
@@ -221,7 +247,9 @@ def compare_zero_skip_expansion(captures: list[dict[str, Any]]) -> dict[str, Any
             if row["backend"] in {"ck", "rocwmma"}
             and row["row_col_decision"] == "correct_full_tile_fallback"
         ),
-        "unsupported_row_col_captures": sum(1 for row in rows if row["row_col_decision"] == "unsupported"),
+        "unsupported_row_col_captures": sum(
+            1 for row in rows if row["row_col_decision"] == "unsupported"
+        ),
         "rank22_expansion_ready": False,
     }
     summary["rank22_expansion_ready"] = (
@@ -313,7 +341,9 @@ def main() -> int:
     report = compare_zero_skip_expansion(captures)
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
-        args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.out_json.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     else:
         print(json.dumps(report, indent=2, sort_keys=True))
     if args.out_md:

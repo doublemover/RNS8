@@ -70,12 +70,17 @@ def scan_disassembly(
         symbol = report["symbol"]
         if report["attribution_failures"]:
             raise RuntimeError(symbol + ": " + ", ".join(report["attribution_failures"]))
-        print(f"- {symbol}: {report['matrix_count']} attributed matrix instructions; {len(report['functions'])} function bodies")
+        print(
+            f"- {symbol}: {report['matrix_count']} attributed matrix instructions; {len(report['functions'])} function bodies"
+        )
         matrix_count += report["matrix_count"]
         for function in report["functions"]:
             disassembly = function["disassembly"]
             origin = symbol + " -> " + function["symbol"]
-            forbidden_stores.extend(f"{origin}: {line}" for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE))
+            forbidden_stores.extend(
+                f"{origin}: {line}"
+                for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE)
+            )
             forbidden_divides.extend(
                 f"{origin}: {line}"
                 for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
@@ -85,8 +90,12 @@ def scan_disassembly(
 
 
 def main() -> int:
-    config = parse_isa_tool_config(__doc__, "Compiled CK HIP host object containing .hip_fatbin", "CK HIP object")
-    with extracted_device_code_object(config, "rns8-ck-isa-", "ck_backend_kernels.fatbin") as code_object:
+    config = parse_isa_tool_config(
+        __doc__, "Compiled CK HIP host object containing .hip_fatbin", "CK HIP object"
+    )
+    with extracted_device_code_object(
+        config, "rns8-ck-isa-", "ck_backend_kernels.fatbin"
+    ) as code_object:
         symbols = ck_symbols(config.objdump, code_object, config.target)
         matrix_count, forbidden_stores, forbidden_divides = scan_disassembly(
             config.objdump,
@@ -96,7 +105,9 @@ def main() -> int:
         )
         required = required_matrix_mnemonics(config.target)
         if matrix_count <= 0:
-            raise RuntimeError(f"CK object does not contain required matrix instructions: {', '.join(required)}")
+            raise RuntimeError(
+                f"CK object does not contain required matrix instructions: {', '.join(required)}"
+            )
         if forbidden_divides:
             raise RuntimeError(
                 "CK object contains forbidden reciprocal/divide/remainder instructions:\n"
@@ -110,7 +121,9 @@ def main() -> int:
     print(f"- target matrix instructions: {matrix_count}")
     print(f"- global_store_dword/buffer_store_dword instructions: {len(forbidden_stores)}")
     if config.target.startswith("gfx9"):
-        print("- no data-path divide or remainder instructions; CK XDL block-map reciprocal is allowed")
+        print(
+            "- no data-path divide or remainder instructions; CK XDL block-map reciprocal is allowed"
+        )
     else:
         print("- no v/s reciprocal, divide, or remainder instructions")
     return 0

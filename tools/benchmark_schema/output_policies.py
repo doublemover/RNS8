@@ -6,7 +6,10 @@ from evidence_scalars import text_choice
 
 from typing import Any
 
-from metadata_registry_constants import DIRECT_HIP_EXPORT_STAGING_POLICIES, OUTPUT_DESTINATION_LAYOUTS
+from metadata_registry_constants import (
+    DIRECT_HIP_EXPORT_STAGING_POLICIES,
+    OUTPUT_DESTINATION_LAYOUTS,
+)
 
 
 def _is_int(value: Any) -> bool:
@@ -45,7 +48,9 @@ def validate_output_layout_metadata(self, metadata: dict[str, Any]) -> None:
     else:
         expected_layout = "contiguous_row_major" if padding == 0 else "padded_row_major"
         if layout != expected_layout:
-            self._error(f"timing_metadata.benchmark_output_destination_layout must be {expected_layout}")
+            self._error(
+                f"timing_metadata.benchmark_output_destination_layout must be {expected_layout}"
+            )
     if metadata.get("benchmark_output_logical_ld") != output_ld:
         self._error("timing_metadata.benchmark_output_logical_ld must match output_logical_ld")
     if metadata.get("benchmark_output_ld_padding") != padding:

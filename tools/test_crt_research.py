@@ -1,4 +1,5 @@
 """Exhaustive small-basis and full-ladder alternative CRT differentials."""
+
 import itertools
 import random
 
@@ -30,15 +31,28 @@ def main() -> int:
         plan = make_plan(tuple(DEFAULT_MODULI[:prefix]))
         certificate = width_certificate(plan)
         assert certificate["direct_sum_max"] < prefix * plan.product
-        temporary = max(max(stage["inverse_multiply_unsigned_bits"], stage["weighted_multiply_unsigned_bits"])
-                        for stage in certificate["direct_stages"])
-        values = [0, 1, plan.product - 1, plan.product // 2, (plan.product + 1) // 2,
-                  (1 << 63) - 1, 1 << 63, (1 << 64) - 1]
+        temporary = max(
+            max(stage["inverse_multiply_unsigned_bits"], stage["weighted_multiply_unsigned_bits"])
+            for stage in certificate["direct_stages"]
+        )
+        values = [
+            0,
+            1,
+            plan.product - 1,
+            plan.product // 2,
+            (plan.product + 1) // 2,
+            (1 << 63) - 1,
+            1 << 63,
+            (1 << 64) - 1,
+        ]
         values.extend(rng.randrange(plan.product) for _ in range(100))
         for value in values:
             residues = tuple(value % m for m in plan.moduli)
             assert direct(plan, residues) == value % plan.product
-            assert direct(plan, residues, plan.direct_accumulator_bits, temporary) == value % plan.product
+            assert (
+                direct(plan, residues, plan.direct_accumulator_bits, temporary)
+                == value % plan.product
+            )
             assert balanced(plan, residues) == value % plan.product
         try:
             direct(plan, tuple(0 for _ in plan.moduli), plan.direct_accumulator_bits - 1)

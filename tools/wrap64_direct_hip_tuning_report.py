@@ -18,6 +18,8 @@ RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 DIRECT_V4_KERNEL = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
 GRAPH_EXECUTION_MODE = "hip_graph_replay_wrap64_pack_gemm_export"
+
+
 def _number(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
@@ -29,7 +31,11 @@ def _number(value: Any) -> float | None:
 def _median(capture: dict[str, Any] | None, phase: str) -> float | None:
     if not capture:
         return None
-    summary = capture.get("timing_summary_us") if isinstance(capture.get("timing_summary_us"), dict) else {}
+    summary = (
+        capture.get("timing_summary_us")
+        if isinstance(capture.get("timing_summary_us"), dict)
+        else {}
+    )
     item = summary.get(phase)
     if isinstance(item, dict) and _number(item.get("median")) is not None:
         return float(item["median"])
@@ -57,7 +63,9 @@ def _execution_mode(capture: dict[str, Any]) -> str:
     value = capture.get("benchmark_execution_mode")
     if isinstance(value, str) and value:
         return value
-    metadata = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    metadata = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
     value = metadata.get("benchmark_execution_mode")
     return value if isinstance(value, str) and value else "unknown"
 
@@ -73,7 +81,9 @@ def _pack_mode(capture: dict[str, Any]) -> str:
     value = capture.get("pack_mode")
     if isinstance(value, str) and value:
         return value
-    metadata = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    metadata = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
     value = metadata.get("pack_mode")
     return value if isinstance(value, str) and value else "per_repeat_repack"
 
@@ -112,11 +122,16 @@ def _scenario_scope(capture: dict[str, Any]) -> str | None:
 
 
 def _release_reviewed(capture: dict[str, Any]) -> bool:
-    return int(capture.get("warmups", 0) or 0) >= RELEASE_MIN_WARMUPS and int(capture.get("repeats", 0) or 0) >= RELEASE_MIN_REPEATS
+    return (
+        int(capture.get("warmups", 0) or 0) >= RELEASE_MIN_WARMUPS
+        and int(capture.get("repeats", 0) or 0) >= RELEASE_MIN_REPEATS
+    )
 
 
 def _gpu_events_available(capture: dict[str, Any]) -> bool:
-    metadata = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    metadata = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
     events = capture.get("gpu_event_timings_us")
     phases = metadata.get("gpu_event_phase_order")
     return (
@@ -131,7 +146,9 @@ def _gpu_events_available(capture: dict[str, Any]) -> bool:
 
 
 def _isa_evidence(capture: dict[str, Any]) -> str | None:
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
     value = metadata.get("isa_evidence")
     return value if isinstance(value, str) and value else None
 
@@ -186,7 +203,13 @@ def _candidate_key(capture: dict[str, Any]) -> tuple[str, str, str, str, str]:
     variant = _tile_shape_variant(capture)
     variant_name = variant.get("name") if isinstance(variant.get("name"), str) else "default"
     policy = _k_block_policy(capture)
-    return (_role(capture), _backend_id(capture), str(capture.get("selected_kernel") or "unknown"), variant_name, policy)
+    return (
+        _role(capture),
+        _backend_id(capture),
+        str(capture.get("selected_kernel") or "unknown"),
+        variant_name,
+        policy,
+    )
 
 
 def _capture_row(capture: dict[str, Any]) -> dict[str, Any]:
@@ -227,7 +250,11 @@ def _comparison(
         blockers.append("missing_direct_hip_v4_baseline")
     if not row["release_reviewed"]:
         blockers.append("not_release_reviewed")
-    if role != "hip_graph_full_path" and row["backend"] not in {"wrap64-byte-limb"} and not row["gpu_events_available"]:
+    if (
+        role != "hip_graph_full_path"
+        and row["backend"] not in {"wrap64-byte-limb"}
+        and not row["gpu_events_available"]
+    ):
         blockers.append("missing_required_gpu_events")
     if row["backend"] not in {"wrap64-byte-limb"} and not row["isa_evidence"]:
         blockers.append("missing_isa_evidence")
@@ -262,7 +289,9 @@ def _comparison(
         {
             "speedup_vs_direct_hip_v4": speedup,
             "direct_hip_v4_median_end_to_end_us": direct_median,
-            "wrap64_reference_median_end_to_end_us": _median(reference, "end_to_end") if reference else None,
+            "wrap64_reference_median_end_to_end_us": _median(reference, "end_to_end")
+            if reference
+            else None,
             "blockers": blockers,
             "critical_blockers": critical,
             "decision": decision,
@@ -285,14 +314,27 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
             by_role[_role(item)].append(item)
         reference = by_role.get("cpu_byte_limb_reference", [None])[0]
         direct_baselines = by_role.get("direct_hip_v4_baseline", [])
-        direct = next((item for item in direct_baselines if _scenario_scope(item) == "release_review_candidate"), None)
+        direct = next(
+            (
+                item
+                for item in direct_baselines
+                if _scenario_scope(item) == "release_review_candidate"
+            ),
+            None,
+        )
         if direct is None:
             direct = direct_baselines[0] if direct_baselines else None
         candidate_rows = []
         seen: set[tuple[str, str, str, str, str]] = set()
-        for item in sorted(items, key=lambda capture: (_role(capture), _backend_id(capture), str(capture.get("_path")))):
+        for item in sorted(
+            items,
+            key=lambda capture: (_role(capture), _backend_id(capture), str(capture.get("_path"))),
+        ):
             key_for_item = _candidate_key(item)
-            if key_for_item in seen and _role(item) not in {"direct_hip_v4_baseline", "cpu_byte_limb_reference"}:
+            if key_for_item in seen and _role(item) not in {
+                "direct_hip_v4_baseline",
+                "cpu_byte_limb_reference",
+            }:
                 continue
             seen.add(key_for_item)
             row = _comparison(item, direct, reference)
@@ -307,7 +349,13 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
                     "k": key[3],
                     "output_logical_ld": key[4],
                     "output_ld_padding": key[5],
-                    "target_ids": sorted({_target_id(item) for item in items if _backend_id(item) != "wrap64-byte-limb"}),
+                    "target_ids": sorted(
+                        {
+                            _target_id(item)
+                            for item in items
+                            if _backend_id(item) != "wrap64-byte-limb"
+                        }
+                    ),
                 },
                 "capture_count": len(items),
                 "has_wrap64_reference": reference is not None,
@@ -325,7 +373,9 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
         "baselines": decisions.get("baseline", 0),
         "references": decisions.get("reference", 0),
         "missing_reference_groups": sum(1 for group in groups if not group["has_wrap64_reference"]),
-        "missing_direct_baseline_groups": sum(1 for group in groups if not group["has_direct_hip_v4_baseline"]),
+        "missing_direct_baseline_groups": sum(
+            1 for group in groups if not group["has_direct_hip_v4_baseline"]
+        ),
         "decisions": dict(sorted(decisions.items())),
     }
     return {
@@ -360,7 +410,15 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
         if key == "decisions":
             continue
         lines.append(f"| {key} | {value} |")
-    lines.extend(["", "## Comparisons", "", "| Shape | Role | Backend | Kernel | Median us | Speedup vs Direct-HIP v4 | Decision | Blockers |", "|---|---|---|---|---:|---:|---|---|"])
+    lines.extend(
+        [
+            "",
+            "## Comparisons",
+            "",
+            "| Shape | Role | Backend | Kernel | Median us | Speedup vs Direct-HIP v4 | Decision | Blockers |",
+            "|---|---|---|---|---:|---:|---|---|",
+        ]
+    )
     for group in report["groups"]:
         shape = group["key"]
         shape_text = f"{shape['m']}x{shape['n']}x{shape['k']}"
@@ -385,7 +443,9 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("captures", nargs="+", type=Path, help="schema-v4 capture files or directories")
+    parser.add_argument(
+        "captures", nargs="+", type=Path, help="schema-v4 capture files or directories"
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true", help="print report JSON")
     return parser.parse_args()

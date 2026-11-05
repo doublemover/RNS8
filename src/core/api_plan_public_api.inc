@@ -7,12 +7,14 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
-    if (ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+    if (ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (!rns8::detail::valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc))) {
       return RNS8_INVALID_ARGUMENT;
     }
-    const uint32_t prefix =
-        desc->max_prefix == 0 ? rns8::detail::default_prefix_for_semantics(desc->semantics) : desc->max_prefix;
+    const uint32_t prefix = desc->max_prefix == 0
+                                ? rns8::detail::default_prefix_for_semantics(desc->semantics)
+                                : desc->max_prefix;
     const rns8_status validation = rns8::detail::validate_gemm_desc(*desc, prefix);
     if (validation != RNS8_SUCCESS) {
       return validation;
@@ -25,14 +27,21 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (!host_rns_backend(requested) && requested != RNS8_BACKEND_HIP_DIRECT &&
         requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_CK &&
         requested != RNS8_BACKEND_ROCWMMA && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
-        requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 && requested != RNS8_BACKEND_AMDGPU_BUILTINS) {
+        requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 &&
+        requested != RNS8_BACKEND_AMDGPU_BUILTINS) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    rns8_operation_query operation{};operation.struct_size=sizeof(operation);operation.abi_version=RNS8_ABI_VERSION;
-    operation.operation=RNS8_OP_GEMM;operation.execution_modes=RNS8_EXEC_SYNC;operation.problem=*desc;
-    operation.scratch_budget=UINT64_MAX;operation.device_count=1;
-    const auto support=operation_support(*ctx,operation,requested);
-    if(support.status!=RNS8_SUCCESS)return support.status;
+    rns8_operation_query operation{};
+    operation.struct_size = sizeof(operation);
+    operation.abi_version = RNS8_ABI_VERSION;
+    operation.operation = RNS8_OP_GEMM;
+    operation.execution_modes = RNS8_EXEC_SYNC;
+    operation.problem = *desc;
+    operation.scratch_budget = UINT64_MAX;
+    operation.device_count = 1;
+    const auto support = operation_support(*ctx, operation, requested);
+    if (support.status != RNS8_SUCCESS)
+      return support.status;
     auto owner = std::make_unique<rns8_plan>();
     auto* plan = owner.get();
     plan->desc = *desc;
@@ -50,7 +59,8 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     plan->prefix = prefix;
     plan->modulus_product = prefix == 0 ? 0 : rns8::detail::modulus_product(prefix);
     plan->backend = requested;
-    if(requested==RNS8_BACKEND_CPU_AMX)plan->cpu_amx_prepared_threads=rns8::detail::cpu_amx_workers();
+    if (requested == RNS8_BACKEND_CPU_AMX)
+      plan->cpu_amx_prepared_threads = rns8::detail::cpu_amx_workers();
     const rns8_status schedule_status = configure_plan_schedule(*plan);
     if (schedule_status != RNS8_SUCCESS) {
       return schedule_status;
@@ -59,7 +69,8 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (desc->requested_backend == RNS8_BACKEND_AUTO) {
       select_auto_backend_from_reviewed_cache(*ctx, *plan);
     }
-    if (!seal_plan_contract(*plan)) return RNS8_INVALID_ARGUMENT;
+    if (!seal_plan_contract(*plan))
+      return RNS8_INVALID_ARGUMENT;
     *out = owner.release();
     return RNS8_SUCCESS;
   });
@@ -67,14 +78,16 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
 
 rns8_status rns8_destroy_plan(rns8_plan* plan) {
   [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::cleanup);
-  if (plan && plan->prepared_references) return RNS8_BUSY;
+  if (plan && plan->prepared_references)
+    return RNS8_BUSY;
   delete plan;
   return RNS8_SUCCESS;
 }
 
 rns8_status rns8_get_plan_schedule_info(const rns8_plan* plan, rns8_plan_schedule_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out ||
+        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -111,11 +124,9 @@ rns8_status rns8_get_plan_schedule_info(const rns8_plan* plan, rns8_plan_schedul
   });
 }
 
-rns8_status rns8_get_plan_tile_schedule(
-    const rns8_plan* plan,
-    rns8_plan_tile_schedule_entry* entries,
-    uint64_t capacity,
-    uint64_t* written) {
+rns8_status rns8_get_plan_tile_schedule(const rns8_plan* plan,
+                                        rns8_plan_tile_schedule_entry* entries, uint64_t capacity,
+                                        uint64_t* written) {
   return guard_api([&]() -> rns8_status {
     if (!plan || !written) {
       return RNS8_INVALID_ARGUMENT;
@@ -138,25 +149,16 @@ rns8_status rns8_get_plan_tile_schedule(
       if (is_per_tile_bound_kind(plan->desc.bound_kind) &&
           static_cast<uint64_t>(plan->tile_bounds.size()) == plan->schedule_tile_count) {
         const uint64_t bound = plan->tile_bounds[static_cast<std::size_t>(index)];
-        const boost::multiprecision::cpp_int range = bounded_range_from_bound(plan->desc.semantics, bound);
+        const boost::multiprecision::cpp_int range =
+            bounded_range_from_bound(plan->desc.semantics, bound);
         entries[index] = make_tile_schedule_entry(
-            *plan,
-            index,
-            rns8::detail::required_prefix_for_range(range),
-            plan->schedule_min_selected_prefix,
-            0,
-            rns8::detail::bit_length(range),
-            0);
+            *plan, index, rns8::detail::required_prefix_for_range(range),
+            plan->schedule_min_selected_prefix, 0, rns8::detail::bit_length(range), 0);
         continue;
       }
-      entries[index] = make_tile_schedule_entry(
-          *plan,
-          index,
-          plan->schedule_min_required_prefix,
-          plan->schedule_min_selected_prefix,
-          0,
-          plan->schedule_range_bit_length,
-          0);
+      entries[index] = make_tile_schedule_entry(*plan, index, plan->schedule_min_required_prefix,
+                                                plan->schedule_min_selected_prefix, 0,
+                                                plan->schedule_range_bit_length, 0);
     }
     return RNS8_SUCCESS;
   });
@@ -164,7 +166,8 @@ rns8_status rns8_get_plan_tile_schedule(
 
 rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out ||
+        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -200,26 +203,23 @@ rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_
     out->accumulator_safe_for_k_block = plan->backend_accumulator_safe_for_k_block;
     set_text(out->selected_kernel, sizeof(out->selected_kernel), plan->backend_selected_kernel);
     set_text(out->accelerator_library, sizeof(out->accelerator_library), plan->backend_library);
-    set_text(out->accelerator_version, sizeof(out->accelerator_version), plan->backend_library_version);
-    set_text(out->capability_status, sizeof(out->capability_status), plan->backend_capability_status);
+    set_text(out->accelerator_version, sizeof(out->accelerator_version),
+             plan->backend_library_version);
+    set_text(out->capability_status, sizeof(out->capability_status),
+             plan->backend_capability_status);
     set_text(out->epilogue_mode, sizeof(out->epilogue_mode), plan->backend_epilogue_mode);
     set_text(out->workspace_mode, sizeof(out->workspace_mode), plan->backend_workspace_mode);
     set_text(out->isa_evidence, sizeof(out->isa_evidence), plan->backend_isa_evidence);
     set_text(out->autotune_key, sizeof(out->autotune_key), plan->backend_autotune_key);
-    set_text(
-        out->accumulator_input_domain,
-        sizeof(out->accumulator_input_domain),
-        plan->backend_accumulator_input_domain);
-    set_text(out->accumulator_signedness, sizeof(out->accumulator_signedness), plan->backend_accumulator_signedness);
+    set_text(out->accumulator_input_domain, sizeof(out->accumulator_input_domain),
+             plan->backend_accumulator_input_domain);
+    set_text(out->accumulator_signedness, sizeof(out->accumulator_signedness),
+             plan->backend_accumulator_signedness);
     set_text(out->accumulator_type, sizeof(out->accumulator_type), plan->backend_accumulator_type);
-    set_text(
-        out->accumulator_modulus_policy,
-        sizeof(out->accumulator_modulus_policy),
-        plan->backend_accumulator_modulus_policy);
-    set_text(
-        out->accumulator_safety_status,
-        sizeof(out->accumulator_safety_status),
-        plan->backend_accumulator_safety_status);
+    set_text(out->accumulator_modulus_policy, sizeof(out->accumulator_modulus_policy),
+             plan->backend_accumulator_modulus_policy);
+    set_text(out->accumulator_safety_status, sizeof(out->accumulator_safety_status),
+             plan->backend_accumulator_safety_status);
     return RNS8_SUCCESS;
   });
 }
@@ -232,27 +232,26 @@ bool grouped_dispatch_contract_semantics_supported(rns8_semantics semantics) {
 
 const char* grouped_dispatch_contract_output_domain(rns8_semantics semantics) {
   switch (semantics) {
-    case RNS8_BOUNDED_I64:
-    case RNS8_BOUNDED_U64:
-      return "native_i64_u64_host";
-    case RNS8_EXACT_WIDE_SIGNED:
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      return "exact_wide_limb_host";
-    case RNS8_FINITE_FIELD_U8:
-    case RNS8_FINITE_RING_U8:
-      return "finite_u8_host";
-    case RNS8_WRAP_U64_MOD_2_64:
-      return "wrap64_u64_host";
+  case RNS8_BOUNDED_I64:
+  case RNS8_BOUNDED_U64:
+    return "native_i64_u64_host";
+  case RNS8_EXACT_WIDE_SIGNED:
+  case RNS8_EXACT_WIDE_UNSIGNED:
+    return "exact_wide_limb_host";
+  case RNS8_FINITE_FIELD_U8:
+  case RNS8_FINITE_RING_U8:
+    return "finite_u8_host";
+  case RNS8_WRAP_U64_MOD_2_64:
+    return "wrap64_u64_host";
   }
   return "unknown";
 }
 
-rns8_status rns8_get_grouped_dispatch_contract_info(
-    const rns8_plan* plan,
-    uint32_t task_count,
-    rns8_grouped_dispatch_contract_info* out) {
+rns8_status rns8_get_grouped_dispatch_contract_info(const rns8_plan* plan, uint32_t task_count,
+                                                    rns8_grouped_dispatch_contract_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out ||
+        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -293,52 +292,40 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
                  RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_EXPORT_EXPLICIT |
                  RNS8_GROUPED_DISPATCH_CONTRACT_GENERIC_BUCKETING_UNAVAILABLE |
                  RNS8_GROUPED_DISPATCH_CONTRACT_AUTO_ROUTING_DISABLED;
-    set_text(out->descriptor_layout, sizeof(out->descriptor_layout), "same_shape_resident_task_triplets_v1");
+    set_text(out->descriptor_layout, sizeof(out->descriptor_layout),
+             "same_shape_resident_task_triplets_v1");
     set_text(out->bucket_policy, sizeof(out->bucket_policy), "single_same_shape_bucket");
-    set_text(
-        out->source_version_policy,
-        sizeof(out->source_version_policy),
-        "per_task_monotonic_source_version_repack");
-    set_text(out->workspace_policy, sizeof(out->workspace_policy), "one_workspace_per_task_shared_plan");
-    set_text(
-        out->matrix_ownership_policy,
-        sizeof(out->matrix_ownership_policy),
-        "caller_owns_unique_task_triplets_until_grouped_call_returns");
-    set_text(
-        out->descriptor_reuse_policy,
-        sizeof(out->descriptor_reuse_policy),
-        "reuse_after_shape_workspace_source_validation");
-    set_text(
-        out->stride_policy,
-        sizeof(out->stride_policy),
-        "matrix_ld_matches_logical_shape_host_output_ld_explicit");
-    set_text(
-        out->output_currentness_policy,
-        sizeof(out->output_currentness_policy),
-        "device_residue_current_after_grouped_gemm_host_output_after_export");
-    set_text(
-        out->lifetime_policy,
-        sizeof(out->lifetime_policy),
-        "task_matrices_and_workspaces_valid_until_grouped_call_returns");
+    set_text(out->source_version_policy, sizeof(out->source_version_policy),
+             "per_task_monotonic_source_version_repack");
+    set_text(out->workspace_policy, sizeof(out->workspace_policy),
+             "one_workspace_per_task_shared_plan");
+    set_text(out->matrix_ownership_policy, sizeof(out->matrix_ownership_policy),
+             "caller_owns_unique_task_triplets_until_grouped_call_returns");
+    set_text(out->descriptor_reuse_policy, sizeof(out->descriptor_reuse_policy),
+             "reuse_after_shape_workspace_source_validation");
+    set_text(out->stride_policy, sizeof(out->stride_policy),
+             "matrix_ld_matches_logical_shape_host_output_ld_explicit");
+    set_text(out->output_currentness_policy, sizeof(out->output_currentness_policy),
+             "device_residue_current_after_grouped_gemm_host_output_after_export");
+    set_text(out->lifetime_policy, sizeof(out->lifetime_policy),
+             "task_matrices_and_workspaces_valid_until_grouped_call_returns");
     set_text(out->checksum_policy, sizeof(out->checksum_policy), "combined_per_task_checksum_u64");
     set_text(out->status_policy, sizeof(out->status_policy), "fail_fast_per_task_operation_status");
-    set_text(
-        out->device_descriptor_policy,
-        sizeof(out->device_descriptor_policy),
-        "device_pointer_tables_and_compact_slabs");
-    set_text(
-        out->output_domain,
-        sizeof(out->output_domain),
-        grouped_dispatch_contract_output_domain(plan->desc.semantics));
+    set_text(out->device_descriptor_policy, sizeof(out->device_descriptor_policy),
+             "device_pointer_tables_and_compact_slabs");
+    set_text(out->output_domain, sizeof(out->output_domain),
+             grouped_dispatch_contract_output_domain(plan->desc.semantics));
 
     if (plan->backend != RNS8_BACKEND_HIP_DIRECT) {
       set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "backend_not_hip_direct");
     } else if (!direct_hip_compiled()) {
       set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "direct_hip_not_compiled");
     } else if (task_count <= 1) {
-      set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "task_count_must_exceed_one");
+      set_text(out->unsupported_reason, sizeof(out->unsupported_reason),
+               "task_count_must_exceed_one");
     } else if (!grouped_dispatch_contract_semantics_supported(plan->desc.semantics)) {
-      set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "unsupported_grouped_semantics");
+      set_text(out->unsupported_reason, sizeof(out->unsupported_reason),
+               "unsupported_grouped_semantics");
     } else if (plan->desc.m <= 0 || plan->desc.n <= 0 || plan->desc.k <= 0) {
       set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "invalid_plan_shape");
     } else {
@@ -348,14 +335,12 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
 
     if (out->descriptor_contract_supported) {
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "Direct-HIP same-shape grouped resident GEMM is public for this plan; callers must pack inputs before the grouped call and export outputs after it; generic bucketing and AUTO routing remain disabled.");
     } else {
       out->flags |= RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION;
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "Grouped dispatch remains unavailable for this plan; public pack/export batching, generic bucketing, and AUTO routing are not exposed.");
     }
     return RNS8_SUCCESS;
@@ -364,7 +349,8 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
 
 rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out ||
+        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -388,40 +374,48 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     out->output_device_current = plan_output_device_current(*plan) ? 1u : 0u;
     out->next_op_flags = next_op_flags_for_plan(*plan);
     out->reserved0 = 0;
-    set_text(out->input_domain_name, sizeof(out->input_domain_name), output_domain_name(out->input_domain));
-    set_text(out->output_domain_name, sizeof(out->output_domain_name), output_domain_name(out->output_domain));
+    set_text(out->input_domain_name, sizeof(out->input_domain_name),
+             output_domain_name(out->input_domain));
+    set_text(out->output_domain_name, sizeof(out->output_domain_name),
+             output_domain_name(out->output_domain));
     set_text(out->next_op_hint, sizeof(out->next_op_hint), next_op_hint_for_plan(*plan));
 
-    if(plan->backend==RNS8_BACKEND_CPU_AMX){
-      out->uses_transient_pack_workspace=1;out->uses_matrix_engine_pack_layout=1;
-      out->reusable_prepack_cache_available=1;
-      out->flags|=RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS;
-      set_text(out->a_layout_version,sizeof(out->a_layout_version),"amx_a_centered_i8_16x64_v1");
-      set_text(out->b_layout_version,sizeof(out->b_layout_version),"amx_b_centered_i8_k4_interleave_16x64_v1");
-      set_text(out->output_layout_version,sizeof(out->output_layout_version),persistent_layout_version_for_plan(*plan));
-      set_text(out->prepack_cache_scope,sizeof(out->prepack_cache_scope),"workspace_owned_matrix_instance_generation_layout_keyed_b");
-      set_text(out->detail,sizeof(out->detail),"Per-worker A packing and local INT32 reduction; repeated B retained in this workspace, never shared with the scalar oracle. Qualification deferred.");
+    if (plan->backend == RNS8_BACKEND_CPU_AMX) {
+      out->uses_transient_pack_workspace = 1;
+      out->uses_matrix_engine_pack_layout = 1;
+      out->reusable_prepack_cache_available = 1;
+      out->flags |= RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS;
+      set_text(out->a_layout_version, sizeof(out->a_layout_version), "amx_a_centered_i8_16x64_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version),
+               "amx_b_centered_i8_k4_interleave_16x64_v1");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version),
+               persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "workspace_owned_matrix_instance_generation_layout_keyed_b");
+      set_text(
+          out->detail, sizeof(out->detail),
+          "Per-worker A packing and local INT32 reduction; repeated B retained in this workspace, never shared with the scalar oracle. Qualification deferred.");
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
       out->uses_transient_pack_workspace = 1;
       out->uses_matrix_engine_pack_layout = 1;
       if (!hipblaslt_pack_workspace_breakdown(
-              *plan,
-              out->a_pack_workspace_bytes,
-              out->b_pack_workspace_bytes,
-              out->accumulator_workspace_bytes,
-              out->library_workspace_bytes,
+              *plan, out->a_pack_workspace_bytes, out->b_pack_workspace_bytes,
+              out->accumulator_workspace_bytes, out->library_workspace_bytes,
               out->total_transient_workspace_bytes)) {
         return RNS8_RANGE_ERROR;
       }
-      set_text(out->a_layout_version, sizeof(out->a_layout_version), "hipblaslt_a_transposed_centered_i8_mk16_v1");
-      set_text(out->b_layout_version, sizeof(out->b_layout_version), "hipblaslt_b_transposed_centered_i8_nk16_v1");
-      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+      set_text(out->a_layout_version, sizeof(out->a_layout_version),
+               "hipblaslt_a_transposed_centered_i8_mk16_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version),
+               "hipblaslt_b_transposed_centered_i8_nk16_v1");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version),
+               persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "transient_per_dispatch_workspace");
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "hipBLASLt uses aligned INT8 matrix-engine pack layouts, INT32 scratch, and workspace-local repeated-operand caches; no reusable production prepack cache.");
       return RNS8_SUCCESS;
     }
@@ -430,34 +424,37 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       out->uses_transient_pack_workspace = 1;
       out->uses_matrix_engine_pack_layout = 1;
       if (!ck_pack_workspace_breakdown(
-              *plan,
-              out->a_pack_workspace_bytes,
-              out->b_pack_workspace_bytes,
-              out->accumulator_workspace_bytes,
-              out->total_transient_workspace_bytes)) {
+              *plan, out->a_pack_workspace_bytes, out->b_pack_workspace_bytes,
+              out->accumulator_workspace_bytes, out->total_transient_workspace_bytes)) {
         return RNS8_RANGE_ERROR;
       }
 #if RNS8_CK_USE_XDL
-      set_text(out->a_layout_version, sizeof(out->a_layout_version), "ck_a_centered_rowmajor_i8_m128_kblock32768_v1");
-      set_text(out->b_layout_version, sizeof(out->b_layout_version), "ck_b_centered_colmajor_i8_n128_kblock32768_v1");
+      set_text(out->a_layout_version, sizeof(out->a_layout_version),
+               "ck_a_centered_rowmajor_i8_m128_kblock32768_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version),
+               "ck_b_centered_colmajor_i8_n128_kblock32768_v1");
 #elif RNS8_CK_SHAPE_ALIGNMENT == 128
-      set_text(out->a_layout_version, sizeof(out->a_layout_version), "ck_a_canonical_rowmajor_i8_m128_kblock32768_v1");
-      set_text(out->b_layout_version, sizeof(out->b_layout_version), "ck_b_canonical_colmajor_i8_n128_kblock32768_v1");
+      set_text(out->a_layout_version, sizeof(out->a_layout_version),
+               "ck_a_canonical_rowmajor_i8_m128_kblock32768_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version),
+               "ck_b_canonical_colmajor_i8_n128_kblock32768_v1");
 #else
-      set_text(out->a_layout_version, sizeof(out->a_layout_version), "ck_a_canonical_rowmajor_i8_m64_kblock32768_v1");
-      set_text(out->b_layout_version, sizeof(out->b_layout_version), "ck_b_canonical_colmajor_i8_n64_kblock32768_v1");
+      set_text(out->a_layout_version, sizeof(out->a_layout_version),
+               "ck_a_canonical_rowmajor_i8_m64_kblock32768_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version),
+               "ck_b_canonical_colmajor_i8_n64_kblock32768_v1");
 #endif
-      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version),
+               persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "transient_per_dispatch_workspace");
 #if RNS8_CK_USE_XDL
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "CK packs A/B into transient centered signed INT8 workspaces and uses temporary centered output storage; no reusable production prepack cache.");
 #else
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "CK packs A/B into transient canonical INT8 workspaces and uses temporary centered output storage; no reusable production prepack cache.");
 #endif
       return RNS8_SUCCESS;
@@ -466,35 +463,33 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     if (plan->backend == RNS8_BACKEND_ROCWMMA) {
       out->uses_transient_pack_workspace = 1;
       out->uses_matrix_engine_pack_layout = 1;
-      if (!rocwmma_pack_workspace_breakdown(
-              *plan,
-              out->a_pack_workspace_bytes,
-              out->b_pack_workspace_bytes,
-              out->total_transient_workspace_bytes)) {
+      if (!rocwmma_pack_workspace_breakdown(*plan, out->a_pack_workspace_bytes,
+                                            out->b_pack_workspace_bytes,
+                                            out->total_transient_workspace_bytes)) {
         return RNS8_RANGE_ERROR;
       }
-      set_text(out->a_layout_version, sizeof(out->a_layout_version), "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
+      set_text(out->a_layout_version, sizeof(out->a_layout_version),
+               "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
       set_text(out->b_layout_version, sizeof(out->b_layout_version), "rns_i8_tile_swizzled_b_v1");
-      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
+      set_text(out->output_layout_version, sizeof(out->output_layout_version),
+               persistent_layout_version_for_plan(*plan));
       if (rocwmma_b_prepack_cache_supported(*plan)) {
         const bool production_cache = rocwmma_b_prepack_cache_production_supported(*plan);
         out->reusable_prepack_cache_available = 1;
         out->production_prepack_cache_available = production_cache ? 1u : 0u;
+        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+                 production_cache ? "production_reusable_b_prepack_cache"
+                                  : "reusable_b_prepack_cache_evidence_only");
         set_text(
-            out->prepack_cache_scope,
-            sizeof(out->prepack_cache_scope),
-            production_cache ? "production_reusable_b_prepack_cache" : "reusable_b_prepack_cache_evidence_only");
-        set_text(
-            out->detail,
-            sizeof(out->detail),
+            out->detail, sizeof(out->detail),
             production_cache
                 ? "rocWMMA supports the production B-side prepack cache for this bounded non-tiled RNS plan; A remains transient per dispatch and cache keys reject stale source versions, target, shape, prefix, and layout mismatches."
                 : "rocWMMA supports a reusable B-side prepack cache for this RNS plan, but production cache promotion is deferred until same-contract setup-inclusive evidence exists for this semantic contract.");
       } else {
-        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+                 "transient_per_dispatch_workspace");
         set_text(
-            out->detail,
-            sizeof(out->detail),
+            out->detail, sizeof(out->detail),
             "rocWMMA packs A/B into transient INT8 matrix-engine workspaces; no reusable production prepack cache.");
       }
       return RNS8_SUCCESS;
@@ -505,103 +500,148 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       out->uses_matrix_engine_pack_layout = 1;
       out->flags |= RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS |
                     RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION;
-      set_text(out->a_layout_version, sizeof(out->a_layout_version), "amdgpu_builtin_a_centered_i8_matrix_core_v1");
-      set_text(out->b_layout_version, sizeof(out->b_layout_version), "amdgpu_builtin_b_centered_i8_matrix_core_v1");
-      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "resident_dense_direct_or_explicit_sparse_a_handle");
+      set_text(out->a_layout_version, sizeof(out->a_layout_version),
+               "amdgpu_builtin_a_centered_i8_matrix_core_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version),
+               "amdgpu_builtin_b_centered_i8_matrix_core_v1");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version),
+               persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "resident_dense_direct_or_explicit_sparse_a_handle");
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "AMDGPU builtin dense kernels read resident RNS/finite byte planes directly; sparse-A uses a separate public sparse handle and is not inferred from dense inputs.");
       return RNS8_SUCCESS;
     }
 
     if (plan->backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
-      set_text(out->a_layout_version, sizeof(out->a_layout_version), native_layout_version_for_semantics(plan->desc.semantics));
-      set_text(out->b_layout_version, sizeof(out->b_layout_version), native_layout_version_for_semantics(plan->desc.semantics));
+      set_text(out->a_layout_version, sizeof(out->a_layout_version),
+               native_layout_version_for_semantics(plan->desc.semantics));
+      set_text(out->b_layout_version, sizeof(out->b_layout_version),
+               native_layout_version_for_semantics(plan->desc.semantics));
+      set_text(out->output_layout_version, sizeof(out->output_layout_version),
+               native_layout_version_for_semantics(plan->desc.semantics));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "native_device_no_prepack_cache");
       set_text(
-          out->output_layout_version,
-          sizeof(out->output_layout_version),
-          native_layout_version_for_semantics(plan->desc.semantics));
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "native_device_no_prepack_cache");
-      set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "Native vector-ALU backend consumes compact bounded i64/u64 device storage directly and exports native C without CRT reconstruction.");
       return RNS8_SUCCESS;
     }
 
-    set_text(out->a_layout_version, sizeof(out->a_layout_version), persistent_layout_version_for_plan(*plan));
-    set_text(out->b_layout_version, sizeof(out->b_layout_version), persistent_layout_version_for_plan(*plan));
-    set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
+    set_text(out->a_layout_version, sizeof(out->a_layout_version),
+             persistent_layout_version_for_plan(*plan));
+    set_text(out->b_layout_version, sizeof(out->b_layout_version),
+             persistent_layout_version_for_plan(*plan));
+    set_text(out->output_layout_version, sizeof(out->output_layout_version),
+             persistent_layout_version_for_plan(*plan));
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
       out->flags |= RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS |
                     RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION;
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "device_resident_no_prepack_cache");
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "device_resident_no_prepack_cache");
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "Direct HIP consumes persistent device-resident matrix storage directly; same nonzero source-version imports can elide repeated device packs when resident storage is already current; no transient matrix-engine pack workspace or reusable prepack cache.");
     } else if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "host_byte_limb_no_prepack_cache");
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "host_byte_limb_no_prepack_cache");
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "Strict wrap64 byte-limb reference consumes persistent byte-limb storage directly; no matrix-engine prepack cache.");
     } else {
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "host_resident_no_prepack_cache");
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope),
+               "host_resident_no_prepack_cache");
       set_text(
-          out->detail,
-          sizeof(out->detail),
+          out->detail, sizeof(out->detail),
           "CPU reference consumes persistent host-resident storage directly; no matrix-engine prepack cache.");
     }
     return RNS8_SUCCESS;
   });
 }
 
-rns8_status rns8_get_plan_arithmetic_certificate(const rns8_plan* plan, rns8_arithmetic_certificate_info* out) {
+rns8_status rns8_get_plan_arithmetic_certificate(const rns8_plan* plan,
+                                                 rns8_arithmetic_certificate_info* out) {
   return guard_api([&]() -> rns8_status {
-    if(!plan || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)) ||
-       !plan_schedule_contract_matches(*plan) || !plan->arithmetic_guard)return RNS8_INVALID_ARGUMENT;
-    const auto& guard=*plan->arithmetic_guard;const auto& c=guard.certificate;const auto& checked=guard.checked;
-    *out={};out->struct_size=sizeof(*out);out->abi_version=RNS8_ABI_VERSION;out->certificate_version=c.version;
-    out->representation=uint32_t(c.representation);out->algebraic_verdict=uint32_t(checked.algebra);
-    out->finite_exact_verdict=uint32_t(checked.finite_exact);out->layout_verdict=uint32_t(checked.layout);
-    out->target_execution_verdict=uint32_t(checked.target);out->floating_rewrite_verdict=uint32_t(checked.floating_rewrite);
-    out->requires_current_range_guard=checked.requires_range_guard;out->safe_k=checked.safe_k;
-    out->prior_absolute_bound=c.instruction.prior_abs;out->operand_bits=c.instruction.operand_bits;
-    out->accumulator_bits=c.instruction.accumulator_bits;out->basis_count=static_cast<uint32_t>(c.basis.size());
-    std::copy(c.basis.begin(),c.basis.end(),out->ordered_basis);
-    std::copy(checked.sha256.begin(),checked.sha256.end(),out->certificate_sha256);
-    std::copy(checked.lowering_sha256.begin(),checked.lowering_sha256.end(),out->lowering_sha256);
+    if (!plan || !out ||
+        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)) ||
+        !plan_schedule_contract_matches(*plan) || !plan->arithmetic_guard)
+      return RNS8_INVALID_ARGUMENT;
+    const auto& guard = *plan->arithmetic_guard;
+    const auto& c = guard.certificate;
+    const auto& checked = guard.checked;
+    *out = {};
+    out->struct_size = sizeof(*out);
+    out->abi_version = RNS8_ABI_VERSION;
+    out->certificate_version = c.version;
+    out->representation = uint32_t(c.representation);
+    out->algebraic_verdict = uint32_t(checked.algebra);
+    out->finite_exact_verdict = uint32_t(checked.finite_exact);
+    out->layout_verdict = uint32_t(checked.layout);
+    out->target_execution_verdict = uint32_t(checked.target);
+    out->floating_rewrite_verdict = uint32_t(checked.floating_rewrite);
+    out->requires_current_range_guard = checked.requires_range_guard;
+    out->safe_k = checked.safe_k;
+    out->prior_absolute_bound = c.instruction.prior_abs;
+    out->operand_bits = c.instruction.operand_bits;
+    out->accumulator_bits = c.instruction.accumulator_bits;
+    out->basis_count = static_cast<uint32_t>(c.basis.size());
+    std::copy(c.basis.begin(), c.basis.end(), out->ordered_basis);
+    std::copy(checked.sha256.begin(), checked.sha256.end(), out->certificate_sha256);
+    std::copy(checked.lowering_sha256.begin(), checked.lowering_sha256.end(), out->lowering_sha256);
     return RNS8_SUCCESS;
   });
 }
 
-rns8_status rns8_get_plan_auto_decisions(const rns8_plan* plan,rns8_auto_trace_info* info,
-    rns8_auto_decision* entries,uint32_t capacity,uint32_t* required) {
+rns8_status rns8_get_plan_auto_decisions(const rns8_plan* plan, rns8_auto_trace_info* info,
+                                         rns8_auto_decision* entries, uint32_t capacity,
+                                         uint32_t* required) {
   return guard_api([&]() -> rns8_status {
-  if(!plan || !info || !required || (capacity && !entries) ||
-      !rns8::detail::valid_abi(info->struct_size,info->abi_version,sizeof(*info)) || !plan_schedule_contract_matches(*plan))return RNS8_INVALID_ARGUMENT;
-  *required=static_cast<uint32_t>(plan->auto_decisions.size());*info=plan->auto_trace;
-  info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;
-  if(plan->desc.requested_backend!=RNS8_BACKEND_AUTO)set_text(info->decision,sizeof(info->decision),"explicit backend; AUTO not evaluated");
-  if(capacity && *required)std::copy_n(plan->auto_decisions.begin(),std::min(capacity,*required),entries);return RNS8_SUCCESS;
+    if (!plan || !info || !required || (capacity && !entries) ||
+        !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)) ||
+        !plan_schedule_contract_matches(*plan))
+      return RNS8_INVALID_ARGUMENT;
+    *required = static_cast<uint32_t>(plan->auto_decisions.size());
+    *info = plan->auto_trace;
+    info->struct_size = sizeof(*info);
+    info->abi_version = RNS8_ABI_VERSION;
+    if (plan->desc.requested_backend != RNS8_BACKEND_AUTO)
+      set_text(info->decision, sizeof(info->decision), "explicit backend; AUTO not evaluated");
+    if (capacity && *required)
+      std::copy_n(plan->auto_decisions.begin(), std::min(capacity, *required), entries);
+    return RNS8_SUCCESS;
   });
 }
 
-rns8_status rns8_query_operation_support(const rns8_context* ctx,const rns8_operation_query* query,
-    rns8_operation_support* results,uint32_t capacity,uint32_t* required) {
+rns8_status rns8_query_operation_support(const rns8_context* ctx, const rns8_operation_query* query,
+                                         rns8_operation_support* results, uint32_t capacity,
+                                         uint32_t* required) {
   return guard_api([&]() -> rns8_status {
-    if(!ctx || !query || !required || (capacity && !results) || !rns8::detail::valid_abi(query->struct_size,query->abi_version,sizeof(*query)))return RNS8_INVALID_ARGUMENT;
-    if(query->operation>=RNS8_OP_COUNT || !query->execution_modes || (query->execution_modes&~127u) ||
-       (query->proof_flags&~15u) || query->device_count>64 || query->output_limbs>32 || query->input_domain>5 || query->output_domain>5)
+    if (!ctx || !query || !required || (capacity && !results) ||
+        !rns8::detail::valid_abi(query->struct_size, query->abi_version, sizeof(*query)))
       return RNS8_INVALID_ARGUMENT;
-    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
-      RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_CPU_AMX};
-    const bool all=query->problem.requested_backend==RNS8_BACKEND_AUTO;*required=all?static_cast<uint32_t>(std::size(backends)):1;
-    if(!all && std::find(std::begin(backends),std::end(backends),query->problem.requested_backend)==std::end(backends))return RNS8_INVALID_ARGUMENT;
-    for(uint32_t index=0;index<std::min(capacity,*required);++index)results[index]=operation_support(*ctx,*query,all?backends[index]:query->problem.requested_backend);
+    if (query->operation >= RNS8_OP_COUNT || !query->execution_modes ||
+        (query->execution_modes & ~127u) || (query->proof_flags & ~15u) ||
+        query->device_count > 64 || query->output_limbs > 32 || query->input_domain > 5 ||
+        query->output_domain > 5)
+      return RNS8_INVALID_ARGUMENT;
+    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,
+                                           RNS8_BACKEND_HIP_DIRECT,
+                                           RNS8_BACKEND_HIPBLASLT,
+                                           RNS8_BACKEND_CK,
+                                           RNS8_BACKEND_ROCWMMA,
+                                           RNS8_BACKEND_WRAP64_BYTE_LIMB,
+                                           RNS8_BACKEND_HIP_VECTOR_ALU_INT64,
+                                           RNS8_BACKEND_AMDGPU_BUILTINS,
+                                           RNS8_BACKEND_CPU_AMX};
+    const bool all = query->problem.requested_backend == RNS8_BACKEND_AUTO;
+    *required = all ? static_cast<uint32_t>(std::size(backends)) : 1;
+    if (!all && std::find(std::begin(backends), std::end(backends),
+                          query->problem.requested_backend) == std::end(backends))
+      return RNS8_INVALID_ARGUMENT;
+    for (uint32_t index = 0; index < std::min(capacity, *required); ++index)
+      results[index] =
+          operation_support(*ctx, *query, all ? backends[index] : query->problem.requested_backend);
     return RNS8_SUCCESS;
   });
 }

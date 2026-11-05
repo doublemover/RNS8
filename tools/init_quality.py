@@ -39,9 +39,7 @@ def archive_executable(path: Path, member: str) -> bytes:
             entry = entries[0]
             mode = entry.external_attr >> 16
             if entry.is_dir() or stat.S_ISLNK(mode) or entry.file_size > BINARY_LIMIT:
-                raise ValueError(
-                    "native archive member is not a bounded regular executable"
-                )
+                raise ValueError("native archive member is not a bounded regular executable")
             return archive.read(entry)
     payload, count, expanded = None, 0, 0
     with tarfile.open(path, "r|gz") as archive:
@@ -49,15 +47,11 @@ def archive_executable(path: Path, member: str) -> bytes:
             count += 1
             expanded += max(0, entry.size) + 512
             if count > 4096 or expanded > 2 * BINARY_LIMIT:
-                raise ValueError(
-                    "quality archive exceeds expanded byte or entry budget"
-                )
+                raise ValueError("quality archive exceeds expanded byte or entry budget")
             if entry.name != member:
                 continue
             if payload is not None or not entry.isfile() or entry.size > BINARY_LIMIT:
-                raise ValueError(
-                    "native archive member is not one bounded regular executable"
-                )
+                raise ValueError("native archive member is not one bounded regular executable")
             stream = archive.extractfile(entry)
             if stream is None:
                 raise ValueError("native executable cannot be read")
@@ -71,21 +65,19 @@ def archive_executable(path: Path, member: str) -> bytes:
 def install(out: Path) -> Path:
     system, machine = platform.system(), platform.machine().lower()
     if system not in {"Windows", "Linux"} or machine not in {"amd64", "x86_64"}:
-        raise ValueError(
-            "quality artifact lock supports Windows AMD64 and Linux x86_64"
-        )
+        raise ValueError("quality artifact lock supports Windows AMD64 and Linux x86_64")
     out = out.resolve()
     if (
         not out.is_relative_to((ROOT / "temp").resolve())
         or out == (ROOT / "temp").resolve()
         or out.exists()
     ):
-        raise ValueError(
-            "quality environment needs a previously absent child of repository temp/"
-        )
+        raise ValueError("quality environment needs a previously absent child of repository temp/")
     lock = load_quality_lock(ROOT)
     if sys.version_info[:2] != (3, 15):
-        raise ValueError("locked quality/type-tool wheels require the selected CPython 3.15 development lane")
+        raise ValueError(
+            "locked quality/type-tool wheels require the selected CPython 3.15 development lane"
+        )
     out.parent.mkdir(parents=True, exist_ok=True)
     venv.EnvBuilder(with_pip=True, clear=False).create(out)
     binary_dir = out / ("Scripts" if system == "Windows" else "bin")
@@ -117,9 +109,7 @@ def install(out: Path) -> Path:
     for tool in lock["tools"]:
         if tool["distribution"] != "native_archive":
             continue
-        artifact = next(
-            row for row in tool["artifacts"] if row["platform"] == platform_key
-        )
+        artifact = next(row for row in tool["artifacts"] if row["platform"] == platform_key)
         destination = downloads / artifact["filename"]
         digest = hashlib.sha256()
         size = 0

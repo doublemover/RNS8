@@ -39,8 +39,7 @@ inline bool wrap64_hip_colpair_experiment_enabled() {
 
 inline bool wrap64_hip_uses_colpair_kernel(int64_t m, int64_t n, int64_t k) {
   return wrap64_hip_colpair_experiment_enabled() && wrap64_hip_uses_u32_accumulator(k) &&
-         m >= kWrap64HipColPairMinDimension &&
-         n >= kWrap64HipColPairMinDimension;
+         m >= kWrap64HipColPairMinDimension && n >= kWrap64HipColPairMinDimension;
 }
 
 inline const char* wrap64_hip_gemm_event_label_for_shape(int64_t m, int64_t n, int64_t k) {
@@ -54,11 +53,12 @@ inline const char* wrap64_hip_selected_kernel_for_k(int64_t k) {
 
 inline const char* wrap64_hip_selected_kernel_for_shape(int64_t m, int64_t n, int64_t k) {
   return wrap64_hip_uses_colpair_kernel(m, n, k) ? kWrap64HipU32ColPairKernel
-                                                : wrap64_hip_selected_kernel_for_k(k);
+                                                 : wrap64_hip_selected_kernel_for_k(k);
 }
 
 inline bool wrap64_hip_uses_vectorized_pack_export(int64_t rows, int64_t cols) {
-  return rows >= kWrap64HipVectorizedPackExportMinDimension && cols >= kWrap64HipVectorizedPackExportMinDimension;
+  return rows >= kWrap64HipVectorizedPackExportMinDimension &&
+         cols >= kWrap64HipVectorizedPackExportMinDimension;
 }
 
 inline bool wrap64_hip_uses_contiguous4_pack_export(int64_t rows, int64_t cols) {
@@ -66,6 +66,6 @@ inline bool wrap64_hip_uses_contiguous4_pack_export(int64_t rows, int64_t cols) 
          rows * cols >= kWrap64HipContiguous4PackExportCells;
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail
 
 #endif

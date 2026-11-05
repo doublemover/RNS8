@@ -8,8 +8,8 @@
 #include "rns8/rns8.h"
 #include "rns8/pipeline_recipe.h"
 #include "tool_common/build_identity.hpp"
-static_assert(sizeof(rns8_allocation_domain_observation)==56);
-static_assert(sizeof(rns8_allocation_observation)==136);
+static_assert(sizeof(rns8_allocation_domain_observation) == 56);
+static_assert(sizeof(rns8_allocation_observation) == 136);
 static_assert(std::is_standard_layout_v<rns8_allocation_observation>);
 
 #define CHECK_ENUM_ABI(type) \
@@ -62,13 +62,15 @@ static_assert(sizeof(rns8_integer_split_i64_info) == 72);
 static_assert(std::is_standard_layout_v<rns8_integer_split_i64_desc>);
 static_assert(std::is_standard_layout_v<rns8_integer_split_i64_info>);
 
-TEST_CASE("research APIs reject unsupported or malformed calls without changing outputs", "[qualification][cpu]") {
+TEST_CASE("research APIs reject unsupported or malformed calls without changing outputs",
+          "[qualification][cpu]") {
   double overhead = -1.0;
-  CHECK(rns8_strassen_gemm_research(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 1, &overhead) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_strassen_gemm_research(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 1,
+                                    &overhead) == RNS8_INVALID_ARGUMENT);
   CHECK(overhead == -1.0);
-  CHECK(rns8_gemm_bilinear_exact(nullptr,nullptr,nullptr,nullptr,nullptr,
-      RNS8_BILINEAR_RANK23_SLP,UINT64_MAX,nullptr,&overhead)==RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_bilinear_exact(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                 RNS8_BILINEAR_RANK23_SLP, UINT64_MAX, nullptr,
+                                 &overhead) == RNS8_INVALID_ARGUMENT);
   CHECK(overhead == -1.0);
   double failure_probability = -1.0;
   CHECK(rns8_freivalds_verify(nullptr, nullptr, nullptr, nullptr, 1, 2, &failure_probability) ==
@@ -76,7 +78,8 @@ TEST_CASE("research APIs reject unsupported or malformed calls without changing 
   CHECK(failure_probability == -1.0);
 }
 
-TEST_CASE("compiled ABI inspection preserves rejected outputs and borrows a stable sorted table", "[abi][cpu]") {
+TEST_CASE("compiled ABI inspection preserves rejected outputs and borrows a stable sorted table",
+          "[abi][cpu]") {
   CHECK(rns8_get_public_abi_info(nullptr) == RNS8_INVALID_ARGUMENT);
   rns8_public_abi_info info{};
   info.struct_size = sizeof(info);
@@ -120,18 +123,24 @@ TEST_CASE("compiled ABI inspection preserves rejected outputs and borrows a stab
   CHECK(second.declaration_sha256 == info.declaration_sha256);
   for (unsigned mode = 0; mode != 3; ++mode) {
     auto rejected = info;
-    if (mode == 0) rejected.struct_size = sizeof(rejected) - 1;
-    else if (mode == 1) rejected.struct_size = sizeof(rejected) + 8;
-    else rejected.abi_version = UINT32_MAX;
+    if (mode == 0)
+      rejected.struct_size = sizeof(rejected) - 1;
+    else if (mode == 1)
+      rejected.struct_size = sizeof(rejected) + 8;
+    else
+      rejected.abi_version = UINT32_MAX;
     unsigned char before[sizeof(rejected)];
     std::memcpy(before, &rejected, sizeof(rejected));
     CHECK(rns8_get_public_abi_info(&rejected) == RNS8_INVALID_ARGUMENT);
     CHECK(std::memcmp(before, &rejected, sizeof(rejected)) == 0);
   }
   // This is a real, aligned short allocation, not a full struct with a fake size.
-  struct alignas(rns8_public_abi_info) Header { uint64_t struct_size; };
+  struct alignas(rns8_public_abi_info) Header {
+    uint64_t struct_size;
+  };
   Header header{sizeof(Header)};
-  CHECK(rns8_get_public_abi_info(reinterpret_cast<rns8_public_abi_info*>(&header)) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_public_abi_info(reinterpret_cast<rns8_public_abi_info*>(&header)) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(header.struct_size == sizeof(Header));
 }
 

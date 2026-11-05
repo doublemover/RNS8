@@ -124,20 +124,38 @@ class BoundedProcessCapture(unittest.TestCase):
             return value
 
         def wait(value, timeout=None):
-            if events and value is events[0] and threading.current_thread() is threading.main_thread():
+            if (
+                events
+                and value is events[0]
+                and threading.current_thread() is threading.main_thread()
+            ):
                 if not original_wait(value, 5):
                     raise AssertionError("authored child output did not arrive")
                 raise KeyboardInterrupt
             return original_wait(value, timeout)
 
-        with patch("process_progress.threading.Event", side_effect=event), patch.object(original_event, "wait", new=wait):
-            result = run_capture([sys.executable, "-c", "import time; print('retained before interrupt',flush=True); time.sleep(30)"],
-                cwd=Path.cwd(), label="authored-interrupt", timeout_seconds=10, return_on_interrupt=True)
+        with (
+            patch("process_progress.threading.Event", side_effect=event),
+            patch.object(original_event, "wait", new=wait),
+        ):
+            result = run_capture(
+                [
+                    sys.executable,
+                    "-c",
+                    "import time; print('retained before interrupt',flush=True); time.sleep(30)",
+                ],
+                cwd=Path.cwd(),
+                label="authored-interrupt",
+                timeout_seconds=10,
+                return_on_interrupt=True,
+            )
         self.assertTrue(result["interrupted"])
         self.assertIn("retained before interrupt", result["stdout"])
         self.assertFalse(capture_succeeded(result))
         for malformed in (0, "false", True):
-            self.assertFalse(capture_succeeded(dict(returncode=0, timed_out=False, interrupted=malformed)))
+            self.assertFalse(
+                capture_succeeded(dict(returncode=0, timed_out=False, interrupted=malformed))
+            )
 
     def test_nonfinite_and_missing_budgets_fail_before_launch(self):
         for kwargs in (

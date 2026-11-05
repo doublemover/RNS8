@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Fetch and verify the full research archive, then restore it outside sources."""
+
 from __future__ import annotations
 
 import argparse
@@ -23,20 +24,29 @@ def restore(archive: Path, output: Path, manifest: dict) -> dict:
         if hashlib.file_digest(stream, "sha256").hexdigest() != manifest["sha256"]:
             raise ValueError("archive SHA256 mismatch")
     output = output.resolve()
-    if output.is_relative_to(ROOT) and (output == ROOT or output.relative_to(ROOT).parts[0] not in ("temp", "build", "out")):
+    if output.is_relative_to(ROOT) and (
+        output == ROOT or output.relative_to(ROOT).parts[0] not in ("temp", "build", "out")
+    ):
         raise ValueError("in-repository restore must use temp/, build/ or out/")
     with zipfile.ZipFile(archive) as container:
         infos = container.infolist()
         if len(infos) > 10000 or sum(info.file_size for info in infos) > 128 * 1024 * 1024:
             raise ValueError("archive expansion limit")
         names = [info.filename for info in infos]
-        if len(names) != len(set(names)) or any(info.is_dir() or ((info.external_attr >> 16) & 0o170000) == 0o120000 for info in infos):
+        if len(names) != len(set(names)) or any(
+            info.is_dir() or ((info.external_attr >> 16) & 0o170000) == 0o120000 for info in infos
+        ):
             raise ValueError("archive contains duplicate or non-file entries")
         index = json.loads(container.read(manifest["index_member"]))
-        if index.get("schema") != "rns8_research_archive_index_v1" or index.get("source_commit") != manifest["source_commit"]:
+        if (
+            index.get("schema") != "rns8_research_archive_index_v1"
+            or index.get("source_commit") != manifest["source_commit"]
+        ):
             raise ValueError("archive source/index mismatch")
         records = index["files"]
-        if len(records) != len(names) - 1 or {r["path"] for r in records} != set(names) - {manifest["index_member"]}:
+        if len(records) != len(names) - 1 or {r["path"] for r in records} != set(names) - {
+            manifest["index_member"]
+        }:
             raise ValueError("archive index membership mismatch")
         # Validate every member before writing any restored file.
         verified = []
@@ -60,16 +70,28 @@ def restore(archive: Path, output: Path, manifest: dict) -> dict:
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
-    return dict(files=len(verified), source_commit=manifest["source_commit"], output=str(output), archive_sha256=manifest["sha256"])
+    return dict(
+        files=len(verified),
+        source_commit=manifest["source_commit"],
+        output=str(output),
+        archive_sha256=manifest["sha256"],
+    )
 
 
 def fetch(manifest: dict, destination: Path):
     expected = manifest["bytes"]
-    if type(expected) is not int or not 0 < expected <= 128 * 1024 * 1024 or not manifest["url"].startswith("https://github.com/doublemover/RNS8/releases/download/"):
+    if (
+        type(expected) is not int
+        or not 0 < expected <= 128 * 1024 * 1024
+        or not manifest["url"].startswith("https://github.com/doublemover/RNS8/releases/download/")
+    ):
         raise ValueError("invalid research archive download")
     temporary = None
     try:
-        with urlopen(manifest["url"], timeout=30) as response, tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as stream:
+        with (
+            urlopen(manifest["url"], timeout=30) as response,
+            tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as stream,
+        ):
             temporary = Path(stream.name)
             if not response.geturl().startswith("https://"):
                 raise ValueError("archive download left HTTPS")
@@ -91,8 +113,12 @@ def fetch(manifest: dict, destination: Path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", type=Path, default=ROOT / "metadata/research-evidence-20261026.json")
-    parser.add_argument("--archive", type=Path, help="use an existing archive without network access")
+    parser.add_argument(
+        "--manifest", type=Path, default=ROOT / "metadata/research-evidence-20261026.json"
+    )
+    parser.add_argument(
+        "--archive", type=Path, help="use an existing archive without network access"
+    )
     parser.add_argument("--output", type=Path, default=ROOT / "temp/restored-pr15-evidence")
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))

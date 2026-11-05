@@ -10,11 +10,8 @@ namespace rns8::detail {
 // X=sum(d_i*product_{j<i} m_j). Signed negative values represent X-P,
 // so subtract P modulo the new modulus; reducing X alone is not a signed lift.
 template <typename Modulus>
-RNS8_LIFT_INLINE uint32_t mixed_radix_lift_residue(const uint32_t *digits,
-                                                   const Modulus *moduli,
-                                                   uint32_t count,
-                                                   uint32_t target,
-                                                   bool negative) {
+RNS8_LIFT_INLINE uint32_t mixed_radix_lift_residue(const uint32_t* digits, const Modulus* moduli,
+                                                   uint32_t count, uint32_t target, bool negative) {
   uint32_t residue = 0;
   for (uint32_t i = count; i-- > 0;)
     residue = (residue * moduli[i] + digits[i]) % target;

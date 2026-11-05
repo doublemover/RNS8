@@ -215,10 +215,15 @@ Available instructions in the CDNA3 architecture:
 
     recommendations = report._dense_recommendations([dense_32, dense_16, sparse])
     assert recommendations[0]["instruction"] == "v_mfma_i32_16x16x32_i8"
-    assert recommendations[0]["reason"] == "highest_dense_integer_throughput_lowest_accumulator_register_pressure"
+    assert (
+        recommendations[0]["reason"]
+        == "highest_dense_integer_throughput_lowest_accumulator_register_pressure"
+    )
     assert recommendations[0]["ops_per_cycle"] == 4096
     sparse_notes = report._sparse_notes([dense_32, dense_16, sparse, rdna4_sparse])
-    assert sparse_notes[0]["eligibility"] == "requires_explicit_4_to_2_A_matrix_compression_contract"
+    assert (
+        sparse_notes[0]["eligibility"] == "requires_explicit_4_to_2_A_matrix_compression_contract"
+    )
 
     assert report.instruction_category("v_wmma_i32_16x16x16_iu4") == "dense_i4_i32_matrix_core"
     assert report.instruction_category("v_swmmac_i32_16x16x32_iu4") == "sparse_i4_i32_matrix_core"
@@ -232,7 +237,10 @@ Available instructions in the CDNA3 architecture:
         assert generated["schema_version"] == 2
         assert arch["sparse_integer_i32_instruction_count"] == 1
         artifacts = arch["sparse_integer_i32_instructions"][0]["layout_artifacts"]
-        assert any(item["matrix"] == "compression" and item["kind"] == "register_layout_csv" for item in artifacts)
+        assert any(
+            item["matrix"] == "compression" and item["kind"] == "register_layout_csv"
+            for item in artifacts
+        )
         assert any(item["kind"] == "d_output_calculation" for item in artifacts)
         for item in artifacts:
             assert (root / item["path"]).exists()

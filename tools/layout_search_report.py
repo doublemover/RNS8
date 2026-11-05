@@ -11,7 +11,15 @@ from pathlib import Path
 from typing import Any
 
 from report_capture_inputs import load_report_captures
-from observation_cohorts import aggregate_captures, canonical_work, comparison_environment, phase_median, evidence, qualified, best_implementation
+from observation_cohorts import (
+    aggregate_captures,
+    canonical_work,
+    comparison_environment,
+    phase_median,
+    evidence,
+    qualified,
+    best_implementation,
+)
 
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.02
@@ -100,9 +108,21 @@ def contract_key(capture: dict[str, Any], baseline_name: str | None = None) -> t
     scenario = scenario_metadata(capture)
     return (
         baseline_name or scenario.get("name"),
-        canonical_work(capture, exclude=("export_variant.name", "export_variant.selector_status_policy", "export_variant.d2h_policy",
-            "export_variant.selector_key", "reconstruction_variant.name", "output_logical_ld", "output_ld_padding",
-            "output_policy.destination_layout", "export_variant.output_layout", "requested_next_op.resolved")),
+        canonical_work(
+            capture,
+            exclude=(
+                "export_variant.name",
+                "export_variant.selector_status_policy",
+                "export_variant.d2h_policy",
+                "export_variant.selector_key",
+                "reconstruction_variant.name",
+                "output_logical_ld",
+                "output_ld_padding",
+                "output_policy.destination_layout",
+                "export_variant.output_layout",
+                "requested_next_op.resolved",
+            ),
+        ),
         comparison_environment(capture),
         backend_id(capture),
         target_id(capture),
@@ -126,12 +146,24 @@ def actual_layout_deltas(candidate: dict[str, Any], baseline: dict[str, Any]) ->
     base_scenario = scenario_metadata(baseline)
     comparisons = [
         ("pack_layout_changed", cand_timing.get("pack_layout"), base_timing.get("pack_layout")),
-        ("residue_group_layout_changed", cand_timing.get("residue_group_layout"), base_timing.get("residue_group_layout")),
-        ("output_destination_changed", cand_output.get("destination_layout"), base_output.get("destination_layout")),
+        (
+            "residue_group_layout_changed",
+            cand_timing.get("residue_group_layout"),
+            base_timing.get("residue_group_layout"),
+        ),
+        (
+            "output_destination_changed",
+            cand_output.get("destination_layout"),
+            base_output.get("destination_layout"),
+        ),
         ("output_ld_changed", cand_output.get("logical_ld"), base_output.get("logical_ld")),
         ("output_padding_changed", cand_output.get("ld_padding"), base_output.get("ld_padding")),
         ("next_op_changed", cand_scenario.get("next_op_hint"), base_scenario.get("next_op_hint")),
-        ("export_variant_changed", cand_scenario.get("export_variant"), base_scenario.get("export_variant")),
+        (
+            "export_variant_changed",
+            cand_scenario.get("export_variant"),
+            base_scenario.get("export_variant"),
+        ),
         (
             "reconstruction_variant_changed",
             cand_scenario.get("reconstruction_variant"),
@@ -141,9 +173,13 @@ def actual_layout_deltas(candidate: dict[str, Any], baseline: dict[str, Any]) ->
     for name, candidate_value, baseline_value in comparisons:
         if candidate_value != baseline_value:
             deltas.append(name)
-    if int(cand_scenario.get("residue_chain_length") or 1) != int(base_scenario.get("residue_chain_length") or 1):
+    if int(cand_scenario.get("residue_chain_length") or 1) != int(
+        base_scenario.get("residue_chain_length") or 1
+    ):
         deltas.append("residue_chain_layout_changed")
-    if cand_scenario.get("residue_chain_final_export") != base_scenario.get("residue_chain_final_export"):
+    if cand_scenario.get("residue_chain_final_export") != base_scenario.get(
+        "residue_chain_final_export"
+    ):
         deltas.append("residue_chain_final_export_policy_changed")
     if cand_scenario.get("residue_chain_independent_final_export") != base_scenario.get(
         "residue_chain_independent_final_export"
@@ -175,7 +211,9 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         baseline_options = baselines.get(contract_key(capture, baseline_name=baseline_name), [])
         baseline = best_implementation(baseline_options, candidate=capture)
         numerical = reference_verdict(capture, baseline_options)
-        baseline_numerical = reference_verdict(baseline, [capture]) if baseline is not None else None
+        baseline_numerical = (
+            reference_verdict(baseline, [capture]) if baseline is not None else None
+        )
         blockers: list[str] = list(evidence(capture)["blockers"]) + list(numerical.blockers)
         if baseline_numerical is not None:
             blockers.extend("baseline:" + item for item in baseline_numerical.blockers)
@@ -188,7 +226,9 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
             deltas = actual_layout_deltas(capture, baseline)
             if not deltas:
                 blockers.append("metadata_only_layout_candidate")
-            if scenario_metadata(capture).get("output_domain") != scenario_metadata(baseline).get("output_domain"):
+            if scenario_metadata(capture).get("output_domain") != scenario_metadata(baseline).get(
+                "output_domain"
+            ):
                 blockers.append("output_contract_mismatch")
             if int(scenario_metadata(capture).get("residue_chain_length") or 1) != int(
                 scenario_metadata(baseline).get("residue_chain_length") or 1
@@ -200,7 +240,12 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
             blockers.append("missing_candidate_end_to_end_timing")
         if baseline is not None and baseline_median is None:
             blockers.append("missing_baseline_end_to_end_timing")
-        if qualified(capture) and candidate_median is not None and baseline_median and baseline_median > 0:
+        if (
+            qualified(capture)
+            and candidate_median is not None
+            and baseline_median
+            and baseline_median > 0
+        ):
             speedup = baseline_median / candidate_median
         if not release_reviewed(capture):
             blockers.append("candidate_not_release_reviewed")
@@ -235,15 +280,19 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "capture": capture.get("_path"),
                 "measurement_cohort": evidence(capture),
                 "numerical_reference": numerical.to_json(),
-                "baseline_numerical_reference": baseline_numerical.to_json() if baseline_numerical else None,
+                "baseline_numerical_reference": baseline_numerical.to_json()
+                if baseline_numerical
+                else None,
                 "baseline_observation_cohorts": [evidence(c) for c in baseline_options],
                 "baseline_capture": baseline.get("_path") if baseline else None,
-                "layout_variant_name": metadata.get("layout_variant_name") or scenario_metadata(capture).get("name"),
+                "layout_variant_name": metadata.get("layout_variant_name")
+                or scenario_metadata(capture).get("name"),
                 "layout_role": metadata.get("layout_role"),
                 "baseline_name": baseline_name or None,
                 "backend": backend_id(capture),
                 "target_id": target_id(capture),
-                "semantics": scenario_metadata(capture).get("semantics") or capture.get("semantics"),
+                "semantics": scenario_metadata(capture).get("semantics")
+                or capture.get("semantics"),
                 "shape": shape(capture),
                 "modulus": scenario_metadata(capture).get("modulus"),
                 "exact_wide_limb_count": scenario_metadata(capture).get("exact_wide_limb_count"),
@@ -275,7 +324,11 @@ def build_report(captures: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "schema": "rns8_layout_search_report_v1",
         "capture_count": len(captures),
-        "baseline_count": sum(1 for capture in captures if layout_metadata(capture).get("layout_variant_role") == "baseline"),
+        "baseline_count": sum(
+            1
+            for capture in captures
+            if layout_metadata(capture).get("layout_variant_role") == "baseline"
+        ),
         "candidate_count": len(rows),
         "decision_counts": decisions,
         "rows": rows,
@@ -316,7 +369,9 @@ def main() -> int:
     report = build_report(captures)
     if args.out_dir:
         args.out_dir.mkdir(parents=True, exist_ok=True)
-        (args.out_dir / "layout-search-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        (args.out_dir / "layout-search-report.json").write_text(
+            json.dumps(report, indent=2) + "\n", encoding="utf-8"
+        )
         write_markdown(report, args.out_dir / "layout-search-report.md")
     if args.print_json or not args.out_dir:
         print(json.dumps(report, indent=2))

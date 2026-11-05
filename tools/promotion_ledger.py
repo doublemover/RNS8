@@ -23,7 +23,6 @@ DEFAULT_OUT_DIR = Path("temp") / "promotion-ledgers"
 MIN_SPEEDUP_MARGIN = 1.02
 
 
-
 PRODUCTION_BACKENDS = {"cpu-reference", "hip-direct", "hip-vector-alu-int64"}
 ACCELERATOR_BACKENDS = {"ck", "rocwmma", "hipblaslt", "amdgpu-builtins"}
 
@@ -88,8 +87,6 @@ def load_variance_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
     return entries
 
 
-
-
 def load_counter_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
     counted: dict[str, dict[str, Any]] = {}
     for path in paths:
@@ -119,6 +116,7 @@ def counter_resource_summary(entry: dict[str, Any] | None) -> dict[str, Any] | N
         "global_memory_traffic_bytes": entry.get("global_memory_traffic_bytes"),
     }
 
+
 def load_target_validation_candidates(paths: list[Path]) -> dict[str, dict[str, Any]]:
     candidates = {}
     for path in paths:
@@ -136,9 +134,15 @@ def load_target_validation_candidates(paths: list[Path]) -> dict[str, dict[str, 
                     continue
                 digest = candidate.get("capture_sha256") if isinstance(candidate, dict) else None
                 receipts = verdict.get("input_receipt_paths")
-                if not isinstance(digest, str) or not isinstance(receipts, list) or any(not isinstance(item, str) for item in receipts):
+                if (
+                    not isinstance(digest, str)
+                    or not isinstance(receipts, list)
+                    or any(not isinstance(item, str) for item in receipts)
+                ):
                     raise ValueError("candidate qualification input identity is incomplete")
-                entry = candidates.setdefault(digest, dict(candidate=candidate, input_receipt_paths=[]))
+                entry = candidates.setdefault(
+                    digest, dict(candidate=candidate, input_receipt_paths=[])
+                )
                 if not same_evidence_value(entry["candidate"], candidate):
                     raise ValueError("conflicting target report candidate identities")
                 entry["input_receipt_paths"] = sorted(set(entry["input_receipt_paths"] + receipts))
@@ -170,13 +174,15 @@ def shape_family_shadow_summary(reports: list[dict[str, Any]]) -> dict[str, Any]
     non_exact = [
         item
         for item in recommendations
-        if item.get("would_recommend") is True and item.get("recommendation_is_exact_cache_hit") is not True
+        if item.get("would_recommend") is True
+        and item.get("recommendation_is_exact_cache_hit") is not True
     ]
     missing = [item for item in recommendations if item.get("would_recommend") is not True]
     blocked = [
         item
         for item in recommendations
-        if item.get("promotion_eligible") is not True or item.get("runtime_routing_allowed") is not True
+        if item.get("promotion_eligible") is not True
+        or item.get("runtime_routing_allowed") is not True
     ]
     boundary_rejected = [
         item
@@ -197,7 +203,9 @@ def shape_family_shadow_summary(reports: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-def shape_family_recommendation_index(reports: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def shape_family_recommendation_index(
+    reports: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
     by_basis: dict[str, list[dict[str, Any]]] = {}
     for report in reports:
         for recommendation in report.get("recommendations", []):
@@ -238,11 +246,21 @@ def capture_entry(
     capture = load_capture(path)
     validate_capture(capture, path)
     target_row = target_validation_report.capture_target(path)
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
-    baseline = capture.get("comparison_baseline") if isinstance(capture.get("comparison_baseline"), dict) else {}
-    export_variant = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
+    baseline = (
+        capture.get("comparison_baseline")
+        if isinstance(capture.get("comparison_baseline"), dict)
+        else {}
+    )
+    export_variant = (
+        capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    )
     reconstruction_variant = (
-        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+        capture.get("reconstruction_variant")
+        if isinstance(capture.get("reconstruction_variant"), dict)
+        else {}
     )
     export_variant_name = str(export_variant.get("name") or "default")
     reconstruction_variant_name = str(reconstruction_variant.get("name") or "default_garner")
@@ -258,17 +276,31 @@ def capture_entry(
         blockers.append("experimental_locality_workspace_not_runtime_auto_route")
     if host_instrumentation(capture) != "hooks_disabled":
         blockers.append("diagnostic_instrumented_host_time_not_production_evidence")
-    companion=production_evidence(capture,diagnostic_binding or ((reviewed_entry or {}).get("production_timing_evidence") or {}).get("binding"))
+    companion = production_evidence(
+        capture,
+        diagnostic_binding
+        or ((reviewed_entry or {}).get("production_timing_evidence") or {}).get("binding"),
+    )
     blockers.extend(companion["blockers"])
-    comparison = (reviewed_entry or {}).get("timing_comparison") or baseline.get("timing_comparison")
+    comparison = (reviewed_entry or {}).get("timing_comparison") or baseline.get(
+        "timing_comparison"
+    )
     blockers.extend(bound_comparison_blockers(comparison, capture))
-    if isinstance(comparison,dict) and comparison.get("baseline_capture"):
+    if isinstance(comparison, dict) and comparison.get("baseline_capture"):
         try:
-            baseline_path=Path(comparison["baseline_capture"])
-            compared=load_capture(baseline_path)
-            baseline_binding=(diagnostic_binding_index or {}).get(path_key(baseline_path)) or (((reviewed_entry or {}).get("baseline_production_timing_evidence") or {}).get("binding"))
-            blockers.extend("baseline:"+reason for reason in production_evidence(compared,baseline_binding)["blockers"])
-        except (OSError,ValueError,TypeError):blockers.append("baseline_companion_unreadable")
+            baseline_path = Path(comparison["baseline_capture"])
+            compared = load_capture(baseline_path)
+            baseline_binding = (diagnostic_binding_index or {}).get(path_key(baseline_path)) or (
+                ((reviewed_entry or {}).get("baseline_production_timing_evidence") or {}).get(
+                    "binding"
+                )
+            )
+            blockers.extend(
+                "baseline:" + reason
+                for reason in production_evidence(compared, baseline_binding)["blockers"]
+            )
+        except (OSError, ValueError, TypeError):
+            blockers.append("baseline_companion_unreadable")
     key = metadata.get("autotune_key")
     if not key:
         blockers.append("missing_autotune_key")
@@ -307,11 +339,15 @@ def capture_entry(
         blockers.append("missing_variance_gate_entry")
     elif variance_entry is not None:
         from perf_variance_report import capture_digest, execution_cohort, execution_id
+
         cohort, run = execution_cohort(capture), execution_id(capture)
-        if (cohort is None or run is None
-                or variance_entry.get("capture_sha256") != capture_digest(capture)
-                or variance_entry.get("execution_id") != run
-                or variance_entry.get("execution_cohort") != cohort):
+        if (
+            cohort is None
+            or run is None
+            or variance_entry.get("capture_sha256") != capture_digest(capture)
+            or variance_entry.get("execution_id") != run
+            or variance_entry.get("execution_cohort") != cohort
+        ):
             blockers.append("variance_capture_provenance_mismatch")
         variance_ready = variance_entry.get("promotion_ready") is True
         variance_required_margin = variance_entry.get("required_speedup_margin")
@@ -339,9 +375,13 @@ def capture_entry(
             if not same_evidence_value(target_validation_entry.get("candidate"), binding):
                 raise ValueError("target report names a different candidate")
             receipt_paths = target_validation_entry.get("input_receipt_paths")
-            if not isinstance(receipt_paths, list) or any(not isinstance(item, str) for item in receipt_paths):
+            if not isinstance(receipt_paths, list) or any(
+                not isinstance(item, str) for item in receipt_paths
+            ):
                 raise ValueError("target report has no raw candidate phase receipts")
-            target_qualification = candidate_verdict(binding, capture, [Path(item) for item in receipt_paths])
+            target_qualification = candidate_verdict(
+                binding, capture, [Path(item) for item in receipt_paths]
+            )
             target_cache_eligible = target_qualification["eligible"] is True
             target_cache_blockers = list(target_qualification["blockers"])
         except (OSError, ValueError, TypeError, KeyError):
@@ -371,7 +411,11 @@ def capture_entry(
             and (object_name not in feature_scoped_non_promoting or feature_lane_requested(item))
         ):
             blockers.append(f"{object_name}_non_promoting")
-        if object_name == "modulus_set" and isinstance(item, dict) and item.get("cache_promotion_blocker"):
+        if (
+            object_name == "modulus_set"
+            and isinstance(item, dict)
+            and item.get("cache_promotion_blocker")
+        ):
             blockers.append(str(item.get("cache_promotion_blocker")))
         if object_name == "export_variant" and isinstance(item, dict):
             if not item.get("selector_key"):
@@ -415,7 +459,11 @@ def capture_entry(
         "path": str(path),
         "production_timing_evidence": companion,
         "autotune_key": key,
-        "backend_class": "production" if _is_production_backend(capture.get("backend_selected")) else "accelerator" if _is_accelerator_backend(capture.get("backend_selected")) else "unknown",
+        "backend_class": "production"
+        if _is_production_backend(capture.get("backend_selected"))
+        else "accelerator"
+        if _is_accelerator_backend(capture.get("backend_selected"))
+        else "unknown",
         "backend_selected": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "semantic_contract": capture.get("semantics"),
@@ -503,9 +551,15 @@ def cache_coverage(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         groups.setdefault(key, []).append(entry)
     rows: list[dict[str, Any]] = []
-    for (semantic, shape_family, backend, target_class, target_id, export_variant, reconstruction_variant), grouped in sorted(
-        groups.items()
-    ):
+    for (
+        semantic,
+        shape_family,
+        backend,
+        target_class,
+        target_id,
+        export_variant,
+        reconstruction_variant,
+    ), grouped in sorted(groups.items()):
         rows.append(
             {
                 "semantic_contract": semantic,
@@ -516,7 +570,9 @@ def cache_coverage(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "export_variant": export_variant,
                 "reconstruction_variant": reconstruction_variant,
                 "entry_count": len(grouped),
-                "installed_count": sum(1 for item in grouped if item.get("installed_cache_entry") is True),
+                "installed_count": sum(
+                    1 for item in grouped if item.get("installed_cache_entry") is True
+                ),
                 "eligible_count": sum(1 for item in grouped if not item.get("promotion_blockers")),
                 "blocked_count": sum(1 for item in grouped if item.get("promotion_blockers")),
             }
@@ -538,8 +594,11 @@ def build_ledger(
     generated_logical_reports: list[tuple[Path, Path]] | None = None,
 ) -> dict[str, Any]:
     from check_native_wmma_logic import load_bound_report
-    logical = [load_bound_report(directory, path) for directory, path in (generated_logical_reports or [])]
-    diagnostic_bindings=load_bindings(diagnostic_binding_paths or [])
+
+    logical = [
+        load_bound_report(directory, path) for directory, path in (generated_logical_reports or [])
+    ]
+    diagnostic_bindings = load_bindings(diagnostic_binding_paths or [])
     reviewed = load_review_entries(review_reports or [])
     variance = load_variance_entries(variance_reports or [])
     target_candidates = load_target_validation_candidates(target_validation_reports or [])
@@ -549,7 +608,11 @@ def build_ledger(
     shape_recommendations_by_path: dict[str, list[dict[str, Any]]] = {}
     for path in captures:
         capture = load_capture(path)
-        metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+        metadata = (
+            capture.get("backend_metadata")
+            if isinstance(capture.get("backend_metadata"), dict)
+            else {}
+        )
         autotune_key = metadata.get("autotune_key")
         shape_recommendations_by_path[path_key(path)] = (
             shape_recommendations.get(autotune_key, []) if isinstance(autotune_key, str) else []
@@ -603,8 +666,14 @@ def build_ledger(
         "blocked_count": sum(1 for entry in entries if entry["promotion_blockers"]),
         "production_route_count": sum(1 for e in entries if e["backend_class"] == "production"),
         "accelerator_route_count": sum(1 for e in entries if e["backend_class"] == "accelerator"),
-        "production_promotable_count": sum(1 for e in entries if e["backend_class"] == "production" and not e["promotion_blockers"]),
-        "accelerator_promotable_count": sum(1 for e in entries if e["backend_class"] == "accelerator" and not e["promotion_blockers"]),
+        "production_promotable_count": sum(
+            1 for e in entries if e["backend_class"] == "production" and not e["promotion_blockers"]
+        ),
+        "accelerator_promotable_count": sum(
+            1
+            for e in entries
+            if e["backend_class"] == "accelerator" and not e["promotion_blockers"]
+        ),
     }
 
 
@@ -668,7 +737,9 @@ def write_outputs(ledger: dict[str, Any], out_dir: Path) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("captures", type=Path, nargs="+", help="reviewed schema-v4 benchmark captures")
+    parser.add_argument(
+        "captures", type=Path, nargs="+", help="reviewed schema-v4 benchmark captures"
+    )
     parser.add_argument("--cache", type=Path, help="installed or candidate autotune cache JSON")
     parser.add_argument(
         "--review-report",
@@ -703,9 +774,15 @@ def main() -> int:
         default=[],
         help="shape_family_shadow_report.py output; recorded as non-routing recommendation/blocker metadata",
     )
-    parser.add_argument("--diagnostic-binding",type=Path,action="append",default=[])
-    parser.add_argument("--generated-logical-report", type=Path, nargs=2, action="append", default=[],
-                        metavar=("GENERATED_DIR", "REPORT"))
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--generated-logical-report",
+        type=Path,
+        nargs=2,
+        action="append",
+        default=[],
+        metavar=("GENERATED_DIR", "REPORT"),
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

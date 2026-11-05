@@ -89,7 +89,9 @@ def first_clean_version(value: str | None) -> str | None:
 def rocm_version_from_logs(hipconfig: str, version_files: str, package_versions: str) -> str | None:
     return first_clean_version(
         first_match(hipconfig, [r"ROCm Version:\s*([^\n\r]+)"])
-        or first_match(version_files, [r"^[^=\n\r]*[/\\]\.info[/\\]version(?:-[A-Za-z0-9_-]+)?=([^\n\r]+)"])
+        or first_match(
+            version_files, [r"^[^=\n\r]*[/\\]\.info[/\\]version(?:-[A-Za-z0-9_-]+)?=([^\n\r]+)"]
+        )
         or first_match(package_versions, [r"^rocm-core\s+([^\s]+)"])
     )
 
@@ -98,7 +100,11 @@ def hip_version_from_logs(hipconfig: str, hipcc: str, package_versions: str) -> 
     return first_clean_version(
         first_match(
             hipconfig + "\n" + hipcc,
-            [r"HIP version:\s*([^\n\r]+)", r"HIP_VERSION\s*:\s*([^\n\r]+)", r"HIP version\s+([^\n\r]+)"],
+            [
+                r"HIP version:\s*([^\n\r]+)",
+                r"HIP_VERSION\s*:\s*([^\n\r]+)",
+                r"HIP version\s+([^\n\r]+)",
+            ],
         )
         or first_match(package_versions, [r"^hipcc\s+([^\s]+)", r"^hip-runtime-amd\s+([^\s]+)"])
     )
@@ -125,6 +131,7 @@ def parse_indexed_smi_records(smi_text: str) -> dict[int, dict[str, Any]]:
         r"Device Name:\s*([^\n\r|]+)",
         r"ASIC:\s*([^\n\r|]+)",
     ]
+
     def assign(record, key, value):
         if key in record.get("conflicting_fields", []):
             return
@@ -217,7 +224,8 @@ def build_summary(
                 "device_name": record.get("device_name"),
                 "bdf": record.get("bdf"),
                 "numa_node": record.get("numa_node"),
-                "visible": None, "visibility_index": None,
+                "visible": None,
+                "visibility_index": None,
                 "topology_source": "per_device_smi_log",
                 "conflicting_fields": record.get("conflicting_fields", []),
             }
@@ -227,7 +235,11 @@ def build_summary(
     rccl_library = first_match(rccl, [r"^(/.*librccl\.so)$"])
     rccl_tests = {
         name: path
-        for name, path in re.findall(r"^(all_[a-z_]+_perf|broadcast_perf|reduce_scatter_perf)=(.+)$", rccl, flags=re.MULTILINE)
+        for name, path in re.findall(
+            r"^(all_[a-z_]+_perf|broadcast_perf|reduce_scatter_perf)=(.+)$",
+            rccl,
+            flags=re.MULTILINE,
+        )
         if path != "not-found"
     }
     rocm_version = rocm_version_from_logs(hipconfig, rocm_version_files, rocm_package_versions)
@@ -235,7 +247,9 @@ def build_summary(
     matrix_instruction_log = read_log(log_dir, "amd_matrix_instruction_report")
     matrix_instruction_dir = log_dir / "amd-matrix-instructions"
     matrix_instruction_reports = sorted(
-        path.relative_to(log_dir).as_posix() for path in matrix_instruction_dir.rglob("*") if path.is_file()
+        path.relative_to(log_dir).as_posix()
+        for path in matrix_instruction_dir.rglob("*")
+        if path.is_file()
     )
 
     return {
@@ -269,7 +283,8 @@ def build_summary(
         "rccl_ready": bool(rccl_header and rccl_library),
         "rccl_tests_ready": bool(rccl_tests),
         "rccl_tests": rccl_tests,
-        "amd_matrix_instruction_calculator_ready": "AMD matrix instruction report: PASS" in matrix_instruction_log,
+        "amd_matrix_instruction_calculator_ready": "AMD matrix instruction report: PASS"
+        in matrix_instruction_log,
         "amd_matrix_instruction_reports": matrix_instruction_reports,
         "raw_logs": sorted(str(path.name) for path in log_dir.glob("*.log")),
     }

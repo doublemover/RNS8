@@ -17,7 +17,11 @@ ROOT = Path(__file__).resolve().parents[1]
 class FuzzInstrumentation(unittest.TestCase):
     def test_library_object_has_feedback_and_ordinary_library_does_not(self):
         name = "clang-cl.exe" if os.name == "nt" else "clang++"
-        selected = Path(os.environ["LLVM_ROOT"]) / "bin" / name if os.environ.get("LLVM_ROOT") else shutil.which(name)
+        selected = (
+            Path(os.environ["LLVM_ROOT"]) / "bin" / name
+            if os.environ.get("LLVM_ROOT")
+            else shutil.which(name)
+        )
         if not selected or not Path(selected).is_file():
             self.skipTest("native LLVM compiler unavailable for fuzz instrumentation control")
         compiler = Path(selected).resolve()
@@ -26,8 +30,10 @@ class FuzzInstrumentation(unittest.TestCase):
             self.skipTest("matching llvm-nm unavailable for real object instrumentation inspection")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "branch.cpp").write_text("int branch(int x) { return x == 19 ? x + 3 : x - 7; }\n")
-            text = r'''
+            (root / "branch.cpp").write_text(
+                "int branch(int x) { return x == 19 ? x + 3 : x - 7; }\n"
+            )
+            text = r"""
 cmake_minimum_required(VERSION 3.22)
 project(authored_fuzz_instrumentation LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -48,17 +54,32 @@ if(public)
 endif()
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/archives.json"
   CONTENT "[\"$<TARGET_FILE:rns8_fuzz_library>\",\"$<TARGET_FILE:ordinary>\"]")
-'''.replace("@ROOT@", ROOT.as_posix())
+""".replace("@ROOT@", ROOT.as_posix())
             (root / "CMakeLists.txt").write_text(text)
             build = root / "build"
-            wrapper = [sys.executable, str(ROOT / "tools/windows_dev.py")] if os.name == "nt" else []
+            wrapper = (
+                [sys.executable, str(ROOT / "tools/windows_dev.py")] if os.name == "nt" else []
+            )
 
             def command(argv):
-                value = subprocess.run([*wrapper, *argv], capture_output=True, text=True, timeout=90)
+                value = subprocess.run(
+                    [*wrapper, *argv], capture_output=True, text=True, timeout=90
+                )
                 self.assertEqual(value.returncode, 0, value.stdout + value.stderr)
                 return value.stdout
 
-            command(["cmake", "-S", str(root), "-B", str(build), "-G", "Ninja", "-DCMAKE_CXX_COMPILER=" + str(compiler)])
+            command(
+                [
+                    "cmake",
+                    "-S",
+                    str(root),
+                    "-B",
+                    str(build),
+                    "-G",
+                    "Ninja",
+                    "-DCMAKE_CXX_COMPILER=" + str(compiler),
+                ]
+            )
             commands = json.loads((build / "compile_commands.json").read_text())
             self.assertEqual(len(commands), 2)
             fuzz = next(row for row in commands if "rns8_fuzz_library.dir" in row["command"])

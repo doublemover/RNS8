@@ -84,7 +84,9 @@ def _target_id(capture: dict[str, Any]) -> str | None:
 
 
 def _gpu_events_available(capture: dict[str, Any]) -> bool:
-    timing = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    timing = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
     return (
         timing.get("gpu_event_timing") is True
         and timing.get("gpu_event_timing_status") == "available"
@@ -130,7 +132,9 @@ def _load_finite_capture(path: Path, *, from_directory: bool) -> dict[str, Any] 
 
 
 def _row(capture: dict[str, Any]) -> dict[str, Any]:
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
     backend = backend_id(capture)
     end_to_end = median_phase(capture, "end_to_end")
     return {
@@ -143,7 +147,9 @@ def _row(capture: dict[str, Any]) -> dict[str, Any]:
         "target_id": _target_id(capture) if backend != "cpu-reference" else "cpu",
         "release_ready": _release_ready(capture),
         "gpu_events_required": backend not in {"cpu-reference"},
-        "gpu_events_available": True if backend == "cpu-reference" else _gpu_events_available(capture),
+        "gpu_events_available": True
+        if backend == "cpu-reference"
+        else _gpu_events_available(capture),
         "median_end_to_end_us": end_to_end,
         "median_pack_us": median_phase(capture, "pack"),
         "median_gemm_us": median_phase(capture, "rns_gemm"),
@@ -175,9 +181,12 @@ def _group_key(capture: dict[str, Any]) -> tuple[str, int, int, int, int]:
     )
 
 
-def _winner(rows: list[dict[str, Any]], direct_median: float | None, cpu_median: float | None) -> dict[str, Any] | None:
+def _winner(
+    rows: list[dict[str, Any]], direct_median: float | None, cpu_median: float | None
+) -> dict[str, Any] | None:
     best = best_row(rows)
-    if best is None: return None
+    if best is None:
+        return None
     median = float(best["median_end_to_end_us"])
     return {
         "backend": best.get("backend"),
@@ -199,8 +208,12 @@ def build_report(
     expected_backends: list[str] | None = None,
 ) -> dict[str, Any]:
     expected_shapes = DEFAULT_SHAPES if expected_shapes is None else expected_shapes
-    expected_ring_moduli = DEFAULT_RING_MODULI if expected_ring_moduli is None else expected_ring_moduli
-    expected_field_moduli = DEFAULT_FIELD_MODULI if expected_field_moduli is None else expected_field_moduli
+    expected_ring_moduli = (
+        DEFAULT_RING_MODULI if expected_ring_moduli is None else expected_ring_moduli
+    )
+    expected_field_moduli = (
+        DEFAULT_FIELD_MODULI if expected_field_moduli is None else expected_field_moduli
+    )
     expected_backends = DEFAULT_BACKENDS if expected_backends is None else expected_backends
 
     loaded = [
@@ -214,7 +227,9 @@ def build_report(
     for capture in loaded:
         grouped[_group_key(capture)].append(_row(capture))
 
-    expected_keys = _expected_group_keys(expected_shapes, expected_ring_moduli, expected_field_moduli)
+    expected_keys = _expected_group_keys(
+        expected_shapes, expected_ring_moduli, expected_field_moduli
+    )
     missing_expected_groups = []
     groups = []
     for key in expected_keys:
@@ -222,15 +237,23 @@ def build_report(
         all_rows = grouped.get(key, [])
         for partition_key, rows in partition_rows(all_rows) or [(None, [])]:
             present = {str(row["backend"]) for row in rows}
-            by_backend = {backend: best for backend in sorted(present) if (best := best_row(rows, backend)) is not None}
+            by_backend = {
+                backend: best
+                for backend in sorted(present)
+                if (best := best_row(rows, backend)) is not None
+            }
             unqualified = sorted(present - set(by_backend))
-            missing_backends = [backend for backend in expected_backends if backend not in by_backend]
+            missing_backends = [
+                backend for backend in expected_backends if backend not in by_backend
+            ]
             missing_gpu_events = [
                 backend
                 for backend, row in by_backend.items()
                 if row.get("gpu_events_required") and not row.get("gpu_events_available")
             ]
-            release_not_ready = sorted({row["backend"] for row in rows if not row.get("release_ready")})
+            release_not_ready = sorted(
+                {row["backend"] for row in rows if not row.get("release_ready")}
+            )
             cpu_median = by_backend.get("cpu-reference", {}).get("median_end_to_end_us")
             direct_median = by_backend.get("hip-direct", {}).get("median_end_to_end_us")
             if not rows:
@@ -256,11 +279,17 @@ def build_report(
                     "work_contract": rows[0]["work_contract"] if rows else None,
                     "missing_backends": missing_backends,
                     "missing_required_baselines": [
-                        backend for backend in ("cpu-reference", "hip-direct") if backend not in by_backend
+                        backend
+                        for backend in ("cpu-reference", "hip-direct")
+                        if backend not in by_backend
                     ],
                     "missing_gpu_events": sorted(missing_gpu_events),
                     "release_not_ready": sorted(release_not_ready),
-                    "map_group_ready": bool(rows) and not missing_backends and not missing_gpu_events and not release_not_ready and not unqualified,
+                    "map_group_ready": bool(rows)
+                    and not missing_backends
+                    and not missing_gpu_events
+                    and not release_not_ready
+                    and not unqualified,
                     "winner": _winner(rows, direct_median, cpu_median),
                     "rows": rows,
                     "promotion_eligible": False,
@@ -285,7 +314,9 @@ def build_report(
             "ready_groups": ready_groups,
             "missing_expected_groups": len(missing_expected_groups),
             "groups_with_missing_backends": sum(1 for group in groups if group["missing_backends"]),
-            "groups_with_missing_gpu_events": sum(1 for group in groups if group["missing_gpu_events"]),
+            "groups_with_missing_gpu_events": sum(
+                1 for group in groups if group["missing_gpu_events"]
+            ),
             "groups_not_release_ready": sum(1 for group in groups if group["release_not_ready"]),
             "map_complete": ready_groups == len(groups),
             "promotion_eligible": False,
@@ -340,8 +371,12 @@ def main() -> int:
     parser.add_argument("captures", nargs="+", type=Path)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--expected-shapes", default=",".join(str(item) for item in DEFAULT_SHAPES))
-    parser.add_argument("--expected-ring-moduli", default=",".join(str(item) for item in DEFAULT_RING_MODULI))
-    parser.add_argument("--expected-field-moduli", default=",".join(str(item) for item in DEFAULT_FIELD_MODULI))
+    parser.add_argument(
+        "--expected-ring-moduli", default=",".join(str(item) for item in DEFAULT_RING_MODULI)
+    )
+    parser.add_argument(
+        "--expected-field-moduli", default=",".join(str(item) for item in DEFAULT_FIELD_MODULI)
+    )
     parser.add_argument("--expected-backends", default=",".join(DEFAULT_BACKENDS))
     parser.add_argument("--require-complete-map", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -351,7 +386,9 @@ def main() -> int:
         expected_shapes=_parse_csv_ints(args.expected_shapes),
         expected_ring_moduli=_parse_csv_ints(args.expected_ring_moduli),
         expected_field_moduli=_parse_csv_ints(args.expected_field_moduli),
-        expected_backends=[item.strip() for item in args.expected_backends.split(",") if item.strip()],
+        expected_backends=[
+            item.strip() for item in args.expected_backends.split(",") if item.strip()
+        ],
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

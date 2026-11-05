@@ -56,14 +56,8 @@ cpp_int abs_cpp(cpp_int value) {
   return value < 0 ? -value : value;
 }
 
-cpp_int exact_i64_cell(
-    const std::vector<int64_t>& A,
-    int64_t lda,
-    const std::vector<int64_t>& B,
-    int64_t ldb,
-    int64_t row,
-    int64_t col,
-    int64_t k) {
+cpp_int exact_i64_cell(const std::vector<int64_t>& A, int64_t lda, const std::vector<int64_t>& B,
+                       int64_t ldb, int64_t row, int64_t col, int64_t k) {
   cpp_int acc = 0;
   for (int64_t kk = 0; kk < k; ++kk) {
     acc += cpp_int(A[static_cast<std::size_t>(row * lda + kk)]) *
@@ -72,14 +66,8 @@ cpp_int exact_i64_cell(
   return acc;
 }
 
-cpp_int exact_u64_cell(
-    const std::vector<uint64_t>& A,
-    int64_t lda,
-    const std::vector<uint64_t>& B,
-    int64_t ldb,
-    int64_t row,
-    int64_t col,
-    int64_t k) {
+cpp_int exact_u64_cell(const std::vector<uint64_t>& A, int64_t lda, const std::vector<uint64_t>& B,
+                       int64_t ldb, int64_t row, int64_t col, int64_t k) {
   cpp_int acc = 0;
   for (int64_t kk = 0; kk < k; ++kk) {
     acc += cpp_int(A[static_cast<std::size_t>(row * lda + kk)]) *
@@ -94,15 +82,9 @@ uint64_t checked_u64_bound(const cpp_int& value) {
   return static_cast<uint64_t>(value);
 }
 
-void assert_i64_public_matches_exact(
-    rns8_context* ctx,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<int64_t>& A,
-    int64_t lda,
-    const std::vector<int64_t>& B,
-    int64_t ldb) {
+void assert_i64_public_matches_exact(rns8_context* ctx, int64_t m, int64_t n, int64_t k,
+                                     const std::vector<int64_t>& A, int64_t lda,
+                                     const std::vector<int64_t>& B, int64_t ldb) {
   std::vector<cpp_int> exact(static_cast<std::size_t>(m * n));
   cpp_int max_abs = 0;
   for (int64_t row = 0; row < m; ++row) {
@@ -115,7 +97,8 @@ void assert_i64_public_matches_exact(
 
   std::vector<int64_t> C(static_cast<std::size_t>(m * n), 0);
   auto desc = i64_desc(m, n, k, checked_u64_bound(max_abs));
-  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) ==
+          RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
@@ -125,15 +108,9 @@ void assert_i64_public_matches_exact(
   }
 }
 
-void assert_u64_public_matches_exact(
-    rns8_context* ctx,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<uint64_t>& A,
-    int64_t lda,
-    const std::vector<uint64_t>& B,
-    int64_t ldb) {
+void assert_u64_public_matches_exact(rns8_context* ctx, int64_t m, int64_t n, int64_t k,
+                                     const std::vector<uint64_t>& A, int64_t lda,
+                                     const std::vector<uint64_t>& B, int64_t ldb) {
   std::vector<cpp_int> exact(static_cast<std::size_t>(m * n));
   cpp_int max_value = 0;
   for (int64_t row = 0; row < m; ++row) {
@@ -146,7 +123,8 @@ void assert_u64_public_matches_exact(
 
   std::vector<uint64_t> C(static_cast<std::size_t>(m * n), 0);
   auto desc = u64_desc(m, n, k, checked_u64_bound(max_value));
-  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) ==
+          RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
@@ -156,7 +134,7 @@ void assert_u64_public_matches_exact(
   }
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("bounded i64 CPU reference covers all tiny dimensions 1 through 8") {
   rns8_context* ctx = create_cpu();
@@ -191,12 +169,14 @@ TEST_CASE("bounded u64 CPU reference covers all tiny dimensions 1 through 8") {
         std::vector<uint64_t> B(static_cast<std::size_t>(k * n));
         for (int64_t row = 0; row < m; ++row) {
           for (int64_t col = 0; col < k; ++col) {
-            A[static_cast<std::size_t>(row * k + col)] = static_cast<uint64_t>((row * 19 + col * 3 + m + 1) % 17);
+            A[static_cast<std::size_t>(row * k + col)] =
+                static_cast<uint64_t>((row * 19 + col * 3 + m + 1) % 17);
           }
         }
         for (int64_t row = 0; row < k; ++row) {
           for (int64_t col = 0; col < n; ++col) {
-            B[static_cast<std::size_t>(row * n + col)] = static_cast<uint64_t>((row * 5 + col * 11 + n + 2) % 19);
+            B[static_cast<std::size_t>(row * n + col)] =
+                static_cast<uint64_t>((row * 5 + col * 11 + n + 2) % 19);
           }
         }
         assert_u64_public_matches_exact(ctx, m, n, k, A, k, B, n);
@@ -312,7 +292,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves full-width u64 output
   CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
   rns8_destroy_plan(plan);
 
-  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+          RNS8_SUCCESS);
   CHECK(C[0] == std::numeric_limits<uint64_t>::max());
   CHECK(C[1] == std::numeric_limits<uint64_t>::max() - 1u);
   CHECK(C[2] == sentinel);
@@ -356,7 +337,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves full-width i64 output
   CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
   rns8_destroy_plan(plan);
 
-  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+          RNS8_SUCCESS);
   CHECK(C[0] == std::numeric_limits<int64_t>::min());
   CHECK(C[1] == std::numeric_limits<int64_t>::max());
   CHECK(C[2] == sentinel);
@@ -366,7 +348,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves full-width i64 output
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around every K split edge") {
+TEST_CASE(
+    "phase 2 fixed 9-modulus CPU reference preserves padded outputs around every K split edge") {
   rns8_context* ctx = create_cpu();
   for (int64_t k : {static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) - 1,
                     static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK),
@@ -410,7 +393,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around
       CHECK(info.adaptive_prefix_active == 0);
       rns8_destroy_plan(plan);
 
-      REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+              RNS8_SUCCESS);
       for (int64_t row = 0; row < m; ++row) {
         for (int64_t col = 0; col < n; ++col) {
           CHECK(cpp_int(C[static_cast<std::size_t>(row * ldc + col)]) ==
@@ -459,7 +443,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around
       CHECK(info.adaptive_prefix_active == 0);
       rns8_destroy_plan(plan);
 
-      REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+              RNS8_SUCCESS);
       for (int64_t row = 0; row < m; ++row) {
         for (int64_t col = 0; col < n; ++col) {
           CHECK(cpp_int(C[static_cast<std::size_t>(row * ldc + col)]) ==

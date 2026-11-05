@@ -99,13 +99,17 @@ def _gpu_events_available(capture: dict[str, Any] | None) -> bool:
     )
 
 
-def _timing_value(capture: dict[str, Any] | None, phase: str, statistic: str = "median") -> float | None:
+def _timing_value(
+    capture: dict[str, Any] | None, phase: str, statistic: str = "median"
+) -> float | None:
     if capture is None:
         return None
     summary = capture.get("timing_summary_us")
     if isinstance(summary, dict):
         phase_summary = summary.get(phase)
-        if isinstance(phase_summary, dict) and isinstance(phase_summary.get(statistic), (int, float)):
+        if isinstance(phase_summary, dict) and isinstance(
+            phase_summary.get(statistic), (int, float)
+        ):
             return float(phase_summary[statistic])
     raw = capture.get("raw_timings_us")
     if isinstance(raw, dict) and isinstance(raw.get(phase), list) and raw[phase]:
@@ -168,7 +172,9 @@ def _resident_direct_capture(capture: dict[str, Any]) -> bool:
 
 
 def _comparison_key(capture: dict[str, Any]) -> tuple[Any, ...]:
-    output_policy = capture.get("output_policy") if isinstance(capture.get("output_policy"), dict) else {}
+    output_policy = (
+        capture.get("output_policy") if isinstance(capture.get("output_policy"), dict) else {}
+    )
     return (
         capture.get("semantics"),
         capture.get("m"),
@@ -214,7 +220,9 @@ def _redesign_dimensions(capture: dict[str, Any]) -> set[str]:
     return set()
 
 
-def _resource_report(capture: dict[str, Any], counter_reports: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+def _resource_report(
+    capture: dict[str, Any], counter_reports: dict[str, dict[str, Any]]
+) -> dict[str, Any] | None:
     report = counter_reports.get(path_key(str(capture.get("_path", ""))))
     if isinstance(report, dict):
         summary = report.get("resource_summary")
@@ -252,7 +260,11 @@ def _candidate_capture(capture: dict[str, Any]) -> bool:
 
 
 def _baseline_capture(capture: dict[str, Any]) -> bool:
-    return _resident_direct_capture(capture) and _selected_kernel(capture) == DEFAULT_KERNEL and not _candidate_capture(capture)
+    return (
+        _resident_direct_capture(capture)
+        and _selected_kernel(capture) == DEFAULT_KERNEL
+        and not _candidate_capture(capture)
+    )
 
 
 def _counter_reports(path: Path | None) -> dict[str, dict[str, Any]]:
@@ -353,7 +365,8 @@ def compare_candidate(
         "candidate_median_crt_export_us": candidate_export,
         "baseline_median_crt_export_us": baseline_export,
         "speedup_vs_resident_default_export": export_speedup,
-        "release_review_satisfied": _release_capture_satisfied(candidate) and _release_capture_satisfied(baseline),
+        "release_review_satisfied": _release_capture_satisfied(candidate)
+        and _release_capture_satisfied(baseline),
         "candidate_gpu_events_available": _gpu_events_available(candidate),
         "baseline_gpu_events_available": _gpu_events_available(baseline),
         "checksum_match": _same_checksum(candidate, baseline),
@@ -387,10 +400,18 @@ def build_direct_hip_resident_redesign_report(
             ignored += 1
 
     comparisons = []
-    for candidate in sorted(candidates, key=lambda item: (_comparison_key(item), _candidate_label(item))):
+    for candidate in sorted(
+        candidates, key=lambda item: (_comparison_key(item), _candidate_label(item))
+    ):
         baseline_list = baselines.get(_comparison_key(candidate), [])
-        baseline = sorted(baseline_list, key=lambda item: str(_capture_path(item) or ""))[0] if baseline_list else None
-        comparisons.append(compare_candidate(candidate, baseline, counter_reports=counters, margin=margin))
+        baseline = (
+            sorted(baseline_list, key=lambda item: str(_capture_path(item) or ""))[0]
+            if baseline_list
+            else None
+        )
+        comparisons.append(
+            compare_candidate(candidate, baseline, counter_reports=counters, margin=margin)
+        )
 
     decisions = Counter(str(item["decision"]) for item in comparisons)
     summary = {
@@ -408,8 +429,11 @@ def build_direct_hip_resident_redesign_report(
         "gemm_only_win_blocked_count": sum(
             1 for item in comparisons if "gemm_only_win_end_to_end_loss" in item.get("blockers", [])
         ),
-        "evidence_complete_count": sum(1 for item in comparisons if item.get("evidence_complete") is True),
-        "rank51_gate_complete": bool(comparisons) and all(item.get("evidence_complete") is True for item in comparisons),
+        "evidence_complete_count": sum(
+            1 for item in comparisons if item.get("evidence_complete") is True
+        ),
+        "rank51_gate_complete": bool(comparisons)
+        and all(item.get("evidence_complete") is True for item in comparisons),
         "decisions": dict(sorted(decisions.items())),
     }
     return {
@@ -429,7 +453,8 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
             expanded.extend(
                 item
                 for item in sorted(path.rglob("*.json"))
-                if item.name not in NON_CAPTURE_JSON_NAMES and not item.name.endswith("-report.json")
+                if item.name not in NON_CAPTURE_JSON_NAMES
+                and not item.name.endswith("-report.json")
             )
         else:
             expanded.append(path)
@@ -449,7 +474,9 @@ def load_capture_with_schema_status(path: Path) -> dict[str, Any]:
     return capture
 
 
-def build_report(paths: list[Path], *, counter_report: Path | None = None, margin: float = DEFAULT_MARGIN) -> dict[str, Any]:
+def build_report(
+    paths: list[Path], *, counter_report: Path | None = None, margin: float = DEFAULT_MARGIN
+) -> dict[str, Any]:
     captures = [load_capture_with_schema_status(path) for path in expand_inputs(paths)]
     return build_direct_hip_resident_redesign_report(
         captures, counter_reports=_counter_reports(counter_report), margin=margin

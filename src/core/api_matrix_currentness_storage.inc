@@ -1,18 +1,15 @@
-bool matrix_descriptor_matches(
-    const rns8_matrix& matrix,
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    int64_t rows,
-    int64_t cols,
-    uint32_t prefix,
-    uint32_t tile_m,
-    uint32_t tile_n) {
-  if (matrix.experimental_basis || matrix.desc.semantics != semantics || matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
+bool matrix_descriptor_matches(const rns8_matrix& matrix, rns8_semantics semantics,
+                               rns8_bound_kind bound_kind, int64_t rows, int64_t cols,
+                               uint32_t prefix, uint32_t tile_m, uint32_t tile_n) {
+  if (matrix.experimental_basis || matrix.desc.semantics != semantics ||
+      matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
       matrix.desc.cols != cols || matrix.desc.logical_layout != RNS8_LAYOUT_ROW_MAJOR ||
-      matrix.desc.logical_ld < matrix.desc.cols || (matrix.desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
+      matrix.desc.logical_ld < matrix.desc.cols ||
+      (matrix.desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
       (matrix.desc.flags && (matrix.backend != RNS8_BACKEND_HIP_DIRECT ||
-       (matrix.desc.semantics != RNS8_EXACT_WIDE_SIGNED && matrix.desc.semantics != RNS8_EXACT_WIDE_UNSIGNED))) || matrix.prefix < prefix ||
-      matrix.desc.max_prefix < prefix) {
+                             (matrix.desc.semantics != RNS8_EXACT_WIDE_SIGNED &&
+                              matrix.desc.semantics != RNS8_EXACT_WIDE_UNSIGNED))) ||
+      matrix.prefix < prefix || matrix.desc.max_prefix < prefix) {
     return false;
   }
   if (prefix == 0 && (matrix.prefix != 0 || matrix.desc.max_prefix != 0)) {
@@ -57,12 +54,10 @@ bool matrix_cell_count(int64_t rows, int64_t cols, std::size_t& cells) {
   return true;
 }
 
-bool build_active_prefix_tile_schedule(
-    const rns8_plan& plan,
-    std::vector<rns8_plan_tile_schedule_entry>& active_entries,
-    uint64_t* active_offsets,
-    uint64_t* active_counts,
-    uint32_t& active_prefix_count) {
+bool build_active_prefix_tile_schedule(const rns8_plan& plan,
+                                       std::vector<rns8_plan_tile_schedule_entry>& active_entries,
+                                       uint64_t* active_offsets, uint64_t* active_counts,
+                                       uint32_t& active_prefix_count) {
   if (plan.tile_schedule.empty() || plan.schedule_max_selected_prefix == 0 ||
       plan.schedule_max_selected_prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return false;
@@ -87,7 +82,8 @@ bool build_active_prefix_tile_schedule(
   return true;
 }
 
-bool active_prefix_tile_schedule_matches_workspace(const rns8_plan& plan, const rns8_workspace& workspace) {
+bool active_prefix_tile_schedule_matches_workspace(const rns8_plan& plan,
+                                                   const rns8_workspace& workspace) {
   if (plan.tile_schedule.empty()) {
     if (workspace.hip_tile_schedule_active_entries != nullptr ||
         workspace.hip_tile_schedule_active_entries_bytes != 0 ||
@@ -110,7 +106,8 @@ bool active_prefix_tile_schedule_matches_workspace(const rns8_plan& plan, const 
   }
   uint64_t running_offset = 0;
   for (uint32_t p = 0; p < workspace.hip_tile_schedule_active_prefix_count; ++p) {
-    uint64_t expected_count = plan.validated_contract ? plan.validated_contract->active_counts[p] : 0;
+    uint64_t expected_count =
+        plan.validated_contract ? plan.validated_contract->active_counts[p] : 0;
     if (!plan.validated_contract) {
       for (const auto& entry : plan.tile_schedule) {
         if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
@@ -124,7 +121,8 @@ bool active_prefix_tile_schedule_matches_workspace(const rns8_plan& plan, const 
     }
     running_offset += expected_count;
   }
-  for (uint32_t p = workspace.hip_tile_schedule_active_prefix_count; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+  for (uint32_t p = workspace.hip_tile_schedule_active_prefix_count; p < RNS8_MAX_SUPPORTED_PREFIX;
+       ++p) {
     if (workspace.hip_tile_schedule_active_offsets[p] != 0 ||
         workspace.hip_tile_schedule_active_counts[p] != 0) {
       return false;
@@ -174,11 +172,8 @@ bool native_matrix_bytes(int64_t rows, int64_t cols, std::size_t element_size, s
   return true;
 }
 
-bool bounded_native_storage_matches(
-    const rns8_matrix& matrix,
-    rns8_semantics semantics,
-    int64_t rows,
-    int64_t cols) {
+bool bounded_native_storage_matches(const rns8_matrix& matrix, rns8_semantics semantics,
+                                    int64_t rows, int64_t cols) {
   if (semantics != RNS8_BOUNDED_I64 && semantics != RNS8_BOUNDED_U64) {
     return false;
   }
@@ -188,10 +183,12 @@ bool bounded_native_storage_matches(
   }
   if (semantics == RNS8_BOUNDED_I64) {
     return matrix.hip_native_i64 != nullptr && matrix.hip_native_i64_bytes == expected_bytes &&
-           matrix.hip_native_u64 == nullptr && matrix.hip_native_u64_bytes == 0 && matrix.native_u64.empty();
+           matrix.hip_native_u64 == nullptr && matrix.hip_native_u64_bytes == 0 &&
+           matrix.native_u64.empty();
   }
   return matrix.hip_native_u64 != nullptr && matrix.hip_native_u64_bytes == expected_bytes &&
-         matrix.hip_native_i64 == nullptr && matrix.hip_native_i64_bytes == 0 && matrix.native_i64.empty();
+         matrix.hip_native_i64 == nullptr && matrix.hip_native_i64_bytes == 0 &&
+         matrix.native_i64.empty();
 }
 
 bool bounded_native_state_current(const rns8_matrix& matrix) {
@@ -200,7 +197,8 @@ bool bounded_native_state_current(const rns8_matrix& matrix) {
 
 bool matrix_has_native_storage(const rns8_matrix& matrix) {
   return !matrix.native_i64.empty() || !matrix.native_u64.empty() || matrix.hip_native_i64 ||
-         matrix.hip_native_u64 || matrix.hip_native_i64_bytes != 0 || matrix.hip_native_u64_bytes != 0;
+         matrix.hip_native_u64 || matrix.hip_native_i64_bytes != 0 ||
+         matrix.hip_native_u64_bytes != 0;
 }
 
 void clear_native_current(rns8_matrix& matrix) {
@@ -243,15 +241,17 @@ void publish_matrix_value(rns8_matrix& matrix, bool imported, uint64_t source_ve
   else
     ++matrix.content_generation;
   matrix.imported_source = imported;
-  matrix.source_version = matrix.generation_exhausted ? 0 :
-      (imported ? source_version : matrix.content_generation);
+  matrix.source_version =
+      matrix.generation_exhausted ? 0 : (imported ? source_version : matrix.content_generation);
 }
 
 void MatrixWriteGuard::invalidate() {
-  if(reservation) {
-    const auto status=reservation->begin_write();
-    if(status!=RNS8_SUCCESS)throw ApiStatusFailure{status};
-  } else invalidate_output_currentness(matrix);
+  if (reservation) {
+    const auto status = reservation->begin_write();
+    if (status != RNS8_SUCCESS)
+      throw ApiStatusFailure{status};
+  } else
+    invalidate_output_currentness(matrix);
 }
 
 void invalidate_output_currentness(rns8_matrix& matrix) {
@@ -267,25 +267,29 @@ bool bounded_residue_semantics(rns8_semantics semantics) {
 
 bool materialized_rns_prefix_covers(const rns8_matrix& matrix, uint32_t prefix) {
   return !bounded_residue_semantics(matrix.desc.semantics) ||
-      (prefix != 0 && matrix.materialized_rns_prefix >= prefix && matrix.materialized_rns_prefix <= matrix.prefix);
+         (prefix != 0 && matrix.materialized_rns_prefix >= prefix &&
+          matrix.materialized_rns_prefix <= matrix.prefix);
 }
 
 bool materialized_rns_export_covers(const rns8_matrix& matrix, const rns8_plan& plan) {
-  if (materialized_rns_prefix_covers(matrix, rns_storage_prefix_for_plan(plan))) return true;
+  if (materialized_rns_prefix_covers(matrix, rns_storage_prefix_for_plan(plan)))
+    return true;
   const auto& written = matrix.materialized_rns_schedule;
   const auto& requested = plan.validated_contract;
   // A hash is only a fast rejection. Compare the complete owned structural key;
   // neither plan destruction nor a fingerprint collision authorizes new planes.
   return !plan.tile_schedule.empty() && written && requested &&
-      written->fingerprint == requested->fingerprint &&
-      written->canonical_workspace_key == requested->canonical_workspace_key &&
-      matrix.materialized_rns_prefix == plan.schedule_min_selected_prefix;
+         written->fingerprint == requested->fingerprint &&
+         written->canonical_workspace_key == requested->canonical_workspace_key &&
+         matrix.materialized_rns_prefix == plan.schedule_min_selected_prefix;
 }
 
 void record_materialized_rns_output(rns8_matrix& matrix, const rns8_plan* plan) {
   matrix.materialized_rns_schedule.reset();
   if (!bounded_residue_semantics(matrix.desc.semantics)) {
-    matrix.materialized_rns_prefix = plan && rns8::detail::exact_wide_semantics(matrix.desc.semantics) ? plan->prefix : matrix.prefix;
+    matrix.materialized_rns_prefix =
+        plan && rns8::detail::exact_wide_semantics(matrix.desc.semantics) ? plan->prefix
+                                                                          : matrix.prefix;
     return;
   }
   // Missing publication provenance fails closed rather than promoting capacity.
@@ -377,14 +381,16 @@ bool rns_residue_count(int64_t rows, int64_t cols, uint32_t prefix, std::size_t&
   return true;
 }
 
-bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols, uint32_t prefix) {
-  if(matrix.experimental_basis)return false;
+bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows,
+                                int64_t cols, uint32_t prefix) {
+  if (matrix.experimental_basis)
+    return false;
   std::size_t expected_residues = 0;
   if (matrix.prefix < prefix || !rns_residue_count(rows, cols, matrix.prefix, expected_residues)) {
     return false;
   }
-  if (!matrix.byte_limbs.empty() || matrix.hip_byte_limbs ||
-      matrix.hip_byte_limb_bytes != 0 || matrix.host_byte_limbs_current || matrix.device_byte_limbs_current) {
+  if (!matrix.byte_limbs.empty() || matrix.hip_byte_limbs || matrix.hip_byte_limb_bytes != 0 ||
+      matrix.host_byte_limbs_current || matrix.device_byte_limbs_current) {
     return false;
   }
   const std::size_t expected_bytes = expected_residues * sizeof(int8_t);
@@ -397,13 +403,14 @@ bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind bac
          matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
 }
 
-bool finite_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols) {
+bool finite_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend,
+                                   int64_t rows, int64_t cols) {
   std::size_t expected_cells = 0;
   if (!matrix_cell_count(rows, cols, expected_cells)) {
     return false;
   }
-  if (matrix.prefix != 0 || !matrix.byte_limbs.empty() ||
-      matrix.hip_byte_limbs || matrix.hip_byte_limb_bytes != 0 || matrix.host_byte_limbs_current ||
+  if (matrix.prefix != 0 || !matrix.byte_limbs.empty() || matrix.hip_byte_limbs ||
+      matrix.hip_byte_limb_bytes != 0 || matrix.host_byte_limbs_current ||
       matrix.device_byte_limbs_current) {
     return false;
   }
@@ -423,4 +430,3 @@ bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backe
   }
   return matrix.host_residues_current && !matrix.device_residues_current;
 }
-

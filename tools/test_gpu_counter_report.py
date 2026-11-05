@@ -58,7 +58,14 @@ def write_counter_csv(path: Path) -> None:
 
 def write_counter_json(path: Path) -> None:
     path.write_text(
-        json.dumps({"records": [{"LDS_BANK_CONFLICT": 2, "WAIT_COUNT": 1}, {"LDS_BANK_CONFLICT": 4, "WAIT_COUNT": 3}]}),
+        json.dumps(
+            {
+                "records": [
+                    {"LDS_BANK_CONFLICT": 2, "WAIT_COUNT": 1},
+                    {"LDS_BANK_CONFLICT": 4, "WAIT_COUNT": 3},
+                ]
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -137,9 +144,15 @@ def main() -> int:
         assert report["resource_summary"]["vgpr"] is None
         assert report["counter_observation_metrics"]["ACHIEVED_OCCUPANCY"] == 0.5625
         assert report["resource_summary"]["occupancy"] is None
-        assert report["resource_summary"]["counter_scope"] == "flat_labels_inventory_only_native_dispatch_receipt_required"
+        assert (
+            report["resource_summary"]["counter_scope"]
+            == "flat_labels_inventory_only_native_dispatch_receipt_required"
+        )
         assert report["native_profiler_evidence"] == []
-        assert report["native_profiler_review"]["conclusion"] == "inconclusive_for_whole_workload_bottleneck"
+        assert (
+            report["native_profiler_review"]["conclusion"]
+            == "inconclusive_for_whole_workload_bottleneck"
+        )
         assert report["evidence_status"]["profiler_counter_status"] == "present"
         assert report["evidence_status"]["isa_resource_status"] == "missing"
         assert not report["isa_selected_association"]["isa_association"]["qualified"]
@@ -163,14 +176,21 @@ def main() -> int:
         missing_report = gpu_counter_report.report_for_capture(second_capture, [], [], top_limit=3)
         assert missing_report["evidence_status"]["profiler_counter_status"] == "missing"
         assert missing_report["evidence_status"]["isa_resource_status"] == "missing"
-        assert "missing_profiler_counter_export" in missing_report["evidence_status"]["missing_evidence"]
+        assert (
+            "missing_profiler_counter_export"
+            in missing_report["evidence_status"]["missing_evidence"]
+        )
         assert "missing_isa_summary" in missing_report["evidence_status"]["missing_evidence"]
 
-        partial_report = gpu_counter_report.report_for_capture(capture, [counter_csv], [partial_isa_summary], 3)
+        partial_report = gpu_counter_report.report_for_capture(
+            capture, [counter_csv], [partial_isa_summary], 3
+        )
         assert partial_report["evidence_status"]["isa_resource_status"] == "missing"
         assert "missing_isa_summary" in partial_report["evidence_status"]["missing_evidence"]
 
-        isa_only_report = gpu_counter_report.report_for_capture(capture, [], [isa_summary], top_limit=3)
+        isa_only_report = gpu_counter_report.report_for_capture(
+            capture, [], [isa_summary], top_limit=3
+        )
         assert isa_only_report["resource_summary"]["vgpr"] is None
         assert isa_only_report["resource_summary"]["sgpr"] is None
         assert isa_only_report["resource_summary"]["lds_bytes"] is None

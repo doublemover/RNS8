@@ -44,7 +44,7 @@ void fuzz_metadata_json(const uint8_t* data, std::size_t size) {
   }
 }
 
-}  // namespace
+} // namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) {
   fuzz_metadata_json(data, size);

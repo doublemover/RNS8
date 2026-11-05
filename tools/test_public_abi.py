@@ -54,18 +54,14 @@ def ast_fixture():
                 name="rns8_record",
                 tagUsed="struct",
                 completeDefinition=True,
-                inner=[
-                    dict(kind="FieldDecl", name="value", type=dict(qualType="uint64_t"))
-                ],
+                inner=[dict(kind="FieldDecl", name="value", type=dict(qualType="uint64_t"))],
             ),
             dict(kind="RecordDecl", name="rns8_owner", tagUsed="struct"),
             dict(
                 kind="TypedefDecl",
                 name="rns8_callback",
                 type=dict(qualType="void (*)(void *)"),
-                inner=[
-                    dict(kind="PointerType", inner=[dict(kind="FunctionProtoType")])
-                ],
+                inner=[dict(kind="PointerType", inner=[dict(kind="FunctionProtoType")])],
             ),
             dict(
                 kind="FunctionDecl",
@@ -154,9 +150,7 @@ class PublicABIInventory(unittest.TestCase):
             elif mutate == "foreign_export":
                 ast["inner"][-1]["name"] = "foreign_query"
             elif mutate == "missing_fold":
-                ast["inner"][0]["inner"][0]["inner"] = [
-                    dict(kind="IntegerLiteral", value="0")
-                ]
+                ast["inner"][0]["inner"][0]["inner"] = [dict(kind="IntegerLiteral", value="0")]
             else:
                 ast["inner"] = []
             with self.subTest(mutate=mutate), self.assertRaises(ValueError):
@@ -234,19 +228,13 @@ class PublicABIInventory(unittest.TestCase):
                 patch("check_public_abi.subprocess.run", return_value=failed),
                 self.assertRaises(ValueError),
             ):
-                run_negative_consumers(
-                    Path("cmake"), root, ["rns8_abi_negative_packing_c"], root
-                )
-            expected = subprocess.CompletedProcess(
-                [], 1, "static assertion failed: offsetof", ""
-            )
+                run_negative_consumers(Path("cmake"), root, ["rns8_abi_negative_packing_c"], root)
+            expected = subprocess.CompletedProcess([], 1, "static assertion failed: offsetof", "")
             with patch("check_public_abi.subprocess.run", return_value=expected):
                 result = run_negative_consumers(
                     Path("cmake"), root, ["rns8_abi_negative_packing_c"], root
                 )
-            self.assertTrue(
-                result["controls"]["rns8_abi_negative_packing_c"]["expected_rejection"]
-            )
+            self.assertTrue(result["controls"]["rns8_abi_negative_packing_c"]["expected_rejection"])
 
 
 if __name__ == "__main__":

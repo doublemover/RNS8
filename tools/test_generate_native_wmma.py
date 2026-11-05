@@ -1,4 +1,5 @@
 """Bounded family reproducibility, identity and fail-closed specification fixtures."""
+
 from dataclasses import replace
 import hashlib
 from pathlib import Path
@@ -26,7 +27,10 @@ def main():
             assert len(entry["composition_certificates"]) == 20
             assert entry["resource_plan"]["global_temporary_bytes"] == 0
             layout = entry["fragment_layout"]
-            assert layout["definition_sha256"] == entry["dependencies"]["src/backend_common/fragment_layout.hpp"]
+            assert (
+                layout["definition_sha256"]
+                == entry["dependencies"]["src/backend_common/fragment_layout.hpp"]
+            )
             assert layout["input_replicas"] == 2 and layout["output_replicas"] == 1
             assert not layout["hardware_qualified"]
             assert not entry["compatibility"]["cross_feature_runtime_qualified"]
@@ -49,12 +53,20 @@ def main():
             pass
         else:
             raise AssertionError("generated header drift accepted")
-        for bad in (replace(baseline, group=3), replace(baseline, target="gfx942"),
-                    replace(baseline, unsigned_inputs=1), replace(baseline, tile_m=32),
-                    replace(baseline, vector_width=4), replace(baseline, pipeline_depth=2),
-                    replace(baseline, safe_k=65537), replace(baseline, split_k=2),
-                    replace(baseline, output="wrap64"), replace(baseline, layout="column_major"),
-                    replace(baseline, tails="unmasked"), replace(baseline, lds_budget=1)):
+        for bad in (
+            replace(baseline, group=3),
+            replace(baseline, target="gfx942"),
+            replace(baseline, unsigned_inputs=1),
+            replace(baseline, tile_m=32),
+            replace(baseline, vector_width=4),
+            replace(baseline, pipeline_depth=2),
+            replace(baseline, safe_k=65537),
+            replace(baseline, split_k=2),
+            replace(baseline, output="wrap64"),
+            replace(baseline, layout="column_major"),
+            replace(baseline, tails="unmasked"),
+            replace(baseline, lds_budget=1),
+        ):
             try:
                 generate(root / "bad", [bad])
             except ValueError:

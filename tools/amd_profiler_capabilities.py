@@ -64,8 +64,7 @@ class Feature:
 def support_matrix(system: str, target: str) -> dict[str, Feature]:
     """Conservative documented tuples; installation is a separate observation."""
     result = {
-        name: Feature("unsupported", reason="no maintained official HIP tuple")
-        for name in FEATURES
+        name: Feature("unsupported", reason="no maintained official HIP tuple") for name in FEATURES
     }
     if system == "Linux" and target in CDNA | RDNA:
         for name in ("timeline", "counters"):
@@ -79,9 +78,7 @@ def support_matrix(system: str, target: str) -> dict[str, Feature]:
             if target in {"gfx942", "gfx950"}:
                 result["pc_stochastic"] = Feature("supported")
         elif target == "gfx1100":
-            result["att"] = Feature(
-                "trace_only", reason="no Radeon ATT performance counters"
-            )
+            result["att"] = Feature("trace_only", reason="no Radeon ATT performance counters")
     elif system == "Windows" and target == "gfx1100":
         for name in ("timeline", "counters", "att"):
             result[name] = Feature(
@@ -91,9 +88,7 @@ def support_matrix(system: str, target: str) -> dict[str, Feature]:
     return result
 
 
-def tool_inventory(
-    system: str, resolver: Callable[[str], str | None] = find_command
-) -> dict:
+def tool_inventory(system: str, resolver: Callable[[str], str | None] = find_command) -> dict:
     names = (
         ("rocprofv3", "rocprofv3-avail", "rocpd", "rocprof-compute")
         if system == "Linux"
@@ -128,15 +123,11 @@ def probe_plan(
     if (
         len(counters) > 8
         or len(set(counters)) != len(counters)
-        or any(
-            re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) is None for name in counters
-        )
+        or any(re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) is None for name in counters)
     ):
         raise ValueError("request at most eight unique explicit counter names")
     if counters and agent is None:
-        raise ValueError(
-            "counter collectability requires an explicit profiler agent selector"
-        )
+        raise ValueError("counter collectability requires an explicit profiler agent selector")
     tools = tool_inventory(system, resolver)
     commands = []
 
@@ -162,9 +153,7 @@ def probe_plan(
         add("pmc", "rocprofv3-avail", "info", "--pmc", *select)
         add("pc-sampling", "rocprofv3-avail", "info", "--pc-sampling")
         if counters:
-            add(
-                "pmc-check", "rocprofv3-avail", "pmc-check", "-d", str(agent), *counters
-            )
+            add("pmc-check", "rocprofv3-avail", "pmc-check", "-d", str(agent), *counters)
         add("converter-help", "rocpd", "convert", "--help")
         add("compute-version", "rocprof-compute", "--version")
     else:
@@ -177,10 +166,7 @@ def probe_plan(
         system=system,
         target=target,
         tools=tools,
-        features={
-            name: asdict(value)
-            for name, value in support_matrix(system, target).items()
-        },
+        features={name: asdict(value) for name, value in support_matrix(system, target).items()},
         commands=commands,
         profiler_agent_selector=agent,
         agent_namespace="rocprofiler_logical_node_selector_not_HIP_ordinal"
@@ -244,18 +230,13 @@ def _apply_availability(result: dict) -> None:
     agents = observations.get("agents", {})
     if agents.get("completed"):
         try:
-            result["runtime_agent_inventory"] = availability_inventory(
-                agents["result"]["stdout"]
-            )
+            result["runtime_agent_inventory"] = availability_inventory(agents["result"]["stdout"])
             selected = [
                 item
                 for item in result["runtime_agent_inventory"]
                 if item["selector"] == result["profiler_agent_selector"]
             ]
-            if (
-                len(selected) == 1
-                and selected[0]["architecture"].split(":")[0] == result["target"]
-            ):
+            if len(selected) == 1 and selected[0]["architecture"].split(":")[0] == result["target"]:
                 result["actual_runtime_agent"] = selected[0]
                 # This establishes a native profiler target, not a HIP mapping.
                 # Dispatch/device association is still required after capture.
@@ -299,9 +280,9 @@ def _apply_availability(result: dict) -> None:
                     r"(?mi)^\s*Counter_Name\s*:\s*([A-Za-z][A-Za-z0-9_]*)\s*$",
                     selected[0],
                 )
-                if len(names) == len(set(names)) and set(
-                    result["requested_counters"]
-                ) <= set(names):
+                if len(names) == len(set(names)) and set(result["requested_counters"]) <= set(
+                    names
+                ):
                     result["features"]["counters"]["advertised"] = "available"
     result["profiler_to_HIP_device_binding"] = "not_run"
 
@@ -380,9 +361,7 @@ def preflight(
             if command["name"] == "version":
                 tool = result["tools"][command["tool"]]
                 version = (
-                    _version(
-                        observed["stdout"] + "\n" + observed["stderr"], command["tool"]
-                    )
+                    _version(observed["stdout"] + "\n" + observed["stderr"], command["tool"])
                     if complete
                     else None
                 )
@@ -410,18 +389,14 @@ def preflight(
 def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) -> dict:
     """Recompute preflight decisions from retained probe bytes; never execute."""
     path, value = store.json(reference, parent)
-    if value.get("schema") != SCHEMA or value.get(
-        "identity_sha256"
-    ) != canonical_digest(
+    if value.get("schema") != SCHEMA or value.get("identity_sha256") != canonical_digest(
         {key: item for key, item in value.items() if key != "identity_sha256"}
     ):
         raise ValueError("sealed profiler preflight receipt required")
     if value.get("qualification") != "read_only_preflight_completed_no_capture":
         raise ValueError("profiler preflight did not complete its read-only phase")
     tools = value.get("tools")
-    if not isinstance(tools, dict) or any(
-        not isinstance(item, dict) for item in tools.values()
-    ):
+    if not isinstance(tools, dict) or any(not isinstance(item, dict) for item in tools.values()):
         raise ValueError("profiler tool inventory is malformed")
     plan = probe_plan(
         value["system"],
@@ -431,9 +406,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
         counters=tuple(value["requested_counters"]),
     )
     if value.get("commands") != plan["commands"] or set(tools) != set(plan["tools"]):
-        raise ValueError(
-            "profiler preflight differs from maintained read-only command policy"
-        )
+        raise ValueError("profiler preflight differs from maintained read-only command policy")
     if (
         value.get("output_capacity") != "available"
         or type(value.get("free_bytes")) is not int
@@ -461,11 +434,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
         if not isinstance(process, dict) or process.get("command") != command["argv"]:
             raise ValueError("preflight lacks actual launched process arguments")
         elapsed = process.get("elapsed_seconds")
-        if (
-            type(elapsed) not in (int, float)
-            or not math.isfinite(elapsed)
-            or elapsed < 0
-        ):
+        if type(elapsed) not in (int, float) or not math.isfinite(elapsed) or elapsed < 0:
             raise ValueError("preflight process timing is malformed")
         if type(process.get("timed_out")) is not bool:
             raise ValueError("preflight timeout state is malformed")
@@ -479,10 +448,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
         executable = Path(command["argv"][0]).resolve(strict=True)
         expected_hash = row.get("executable_sha256")
         store.verify(executable, expected_hash)
-        if (
-            executable in executable_hashes
-            and executable_hashes[executable] != expected_hash
-        ):
+        if executable in executable_hashes and executable_hashes[executable] != expected_hash:
             raise ValueError("profiler tool changed between preflight probes")
         executable_hashes[executable] = expected_hash
         if row.get("unchanged_during_probe") is not True:
@@ -495,9 +461,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
         if not isinstance(artifacts, dict) or set(artifacts) != expected_paths:
             raise ValueError("preflight raw stream inventory is incomplete")
         for stream in ("stdout", "stderr"):
-            raw = (path.parent / (command["name"] + "." + stream + ".log")).resolve(
-                strict=True
-            )
+            raw = (path.parent / (command["name"] + "." + stream + ".log")).resolve(strict=True)
             store.verify(raw, artifacts[str(raw)])
             if (
                 not isinstance(process.get(stream), str)
@@ -508,15 +472,11 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
                 )
         complete = capture_succeeded(process)
         if row.get("completed") is not complete:
-            raise ValueError(
-                "preflight completion label contradicts its process status"
-            )
+            raise ValueError("preflight completion label contradicts its process status")
         if command["name"] == "version":
             name = command["tool"]
             version = (
-                _version(process["stdout"] + "\n" + process["stderr"], name)
-                if complete
-                else None
+                _version(process["stdout"] + "\n" + process["stderr"], name) if complete else None
             )
             rebuilt["tools"][name].update(
                 version=version,
@@ -529,9 +489,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
             )
     _apply_availability(rebuilt)
     if rebuilt["tools"] != tools or rebuilt["features"] != value.get("features"):
-        raise ValueError(
-            "preflight tool/feature summary differs from raw probe evidence"
-        )
+        raise ValueError("preflight tool/feature summary differs from raw probe evidence")
     for key in (
         "actual_runtime_agent",
         "runtime_agent_inventory",
@@ -539,9 +497,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
         "profiler_to_HIP_device_binding",
     ):
         if rebuilt.get(key) != value.get(key):
-            raise ValueError(
-                "preflight native agent summary differs from retained probe output"
-            )
+            raise ValueError("preflight native agent summary differs from retained probe output")
     return dict(
         source=str(path),
         identity_sha256=value["identity_sha256"],
@@ -562,9 +518,7 @@ def main() -> int:
     import os
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--system", choices=("Windows", "Linux"), default=platform.system()
-    )
+    parser.add_argument("--system", choices=("Windows", "Linux"), default=platform.system())
     parser.add_argument("--target", required=True, choices=sorted(CDNA | RDNA))
     parser.add_argument("--agent", type=int)
     parser.add_argument("--counter", action="append", default=[])
@@ -576,9 +530,7 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path)
     args = parser.parse_args()
     try:
-        plan = probe_plan(
-            args.system, args.target, agent=args.agent, counters=tuple(args.counter)
-        )
+        plan = probe_plan(args.system, args.target, agent=args.agent, counters=tuple(args.counter))
         if args.preflight:
             if args.out_dir is None:
                 parser.error("--preflight requires a fresh --out-dir")

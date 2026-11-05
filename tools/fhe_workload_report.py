@@ -32,7 +32,6 @@ REQUIRED_PROXY_OPERATIONS = {
 }
 
 
-
 def _scenario(capture: dict[str, Any]) -> dict[str, Any]:
     value = capture.get("scenario_metadata")
     return value if isinstance(value, dict) else {}
@@ -82,7 +81,9 @@ def _group_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
-def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | None = None) -> dict[str, Any]:
+def row_for_capture(
+    capture: dict[str, Any], references: CPUReferenceIndex | None = None
+) -> dict[str, Any]:
     proxy = _proxy(capture)
     scenario = _scenario(capture)
     extra = _scenario_extra(capture)
@@ -109,7 +110,9 @@ def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | Non
         blockers.append("final_exact_comparison_pending")
     if verification.get("promotion_eligible") is not False:
         blockers.append("verification_amortization_promotable")
-    release_gate = capture.get("release_gate") if isinstance(capture.get("release_gate"), dict) else {}
+    release_gate = (
+        capture.get("release_gate") if isinstance(capture.get("release_gate"), dict) else {}
+    )
     if release_gate.get("cache_eligible") is True:
         blockers.append("release_gate_cache_eligible_for_proxy")
     operation = _operation(capture)
@@ -121,7 +124,10 @@ def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | Non
         **row_identity(capture, exclude=("export_variant.selector_key",)),
         "proxy_operation": operation,
         "family": family,
-        "tower_basis": extra.get("tower_basis") or extra.get("tower_role") or proxy.get("tower_role") or "unspecified",
+        "tower_basis": extra.get("tower_basis")
+        or extra.get("tower_role")
+        or proxy.get("tower_role")
+        or "unspecified",
         "reuse_mode": extra.get("reuse_mode") or proxy.get("reuse_profile") or "none",
         "output_domain_requirement": proxy.get("output_domain_requirement")
         or scenario.get("output_domain")
@@ -151,8 +157,11 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     for row in rows:
         groups[_group_key(row)].append(row)
 
-    groups = {(*key, *partition): members for key, items in groups.items()
-              for partition, members in partition_rows(items)}
+    groups = {
+        (*key, *partition): members
+        for key, items in groups.items()
+        for partition, members in partition_rows(items)
+    }
     group_rows: list[dict[str, Any]] = []
     for key, grouped_rows in sorted(groups.items(), key=lambda item: str(item[0])):
         backends = sorted({str(row["backend"]) for row in grouped_rows})
@@ -164,8 +173,10 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         cpu_best = best_row(cpu_rows)
         cpu_median = cpu_best["median_end_to_end_us"] if cpu_best else None
         fastest_gpu = best_row(gpu_rows)
-        if not cpu_best: blockers.append("qualified_cpu_process_cohort_missing")
-        if not fastest_gpu: blockers.append("qualified_gpu_process_cohort_missing")
+        if not cpu_best:
+            blockers.append("qualified_cpu_process_cohort_missing")
+        if not fastest_gpu:
+            blockers.append("qualified_gpu_process_cohort_missing")
         fastest_gpu_median = (
             float(fastest_gpu["median_end_to_end_us"])
             if fastest_gpu and isinstance(fastest_gpu.get("median_end_to_end_us"), (int, float))
@@ -187,7 +198,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                 "proxy_operation": key[0],
                 "work_contract": grouped_rows[0]["work_contract"],
                 "comparison_environment": key[-1],
-                "selected_gpu_cohort": fastest_gpu.get("measurement_cohort") if fastest_gpu else None,
+                "selected_gpu_cohort": fastest_gpu.get("measurement_cohort")
+                if fastest_gpu
+                else None,
                 "selected_cpu_cohort": cpu_best.get("measurement_cohort") if cpu_best else None,
                 "tower_basis": key[1],
                 "reuse_mode": key[2],
@@ -215,7 +228,11 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             blocker_counts[blocker] += 1
     for operation in missing_operations:
         blocker_counts[f"missing_proxy_operation:{operation}"] += 1
-    complete = bool(group_rows) and not missing_operations and not any(group["blockers"] for group in group_rows)
+    complete = (
+        bool(group_rows)
+        and not missing_operations
+        and not any(group["blockers"] for group in group_rows)
+    )
     promotable_profiles = [
         {
             "proxy_operation": group["proxy_operation"],

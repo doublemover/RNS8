@@ -12,7 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from report_capture_inputs import load_report_capture
-from observation_cohorts import aggregate_captures, canonical_work, phase_median, evidence, qualified, best_implementation
+from observation_cohorts import (
+    aggregate_captures,
+    canonical_work,
+    phase_median,
+    evidence,
+    qualified,
+    best_implementation,
+)
 
 
 DEFAULT_OUT_DIR = Path("temp") / "adaptive-grouped-scheduler-reports"
@@ -30,11 +37,18 @@ def _median(capture: dict[str, Any], phase: str = "end_to_end") -> float | None:
 
 
 def _same_contract_key(capture: dict[str, Any]) -> tuple[Any, ...]:
-    return (canonical_work(capture, exclude=("adaptive_grouped_scheduler.requested", "adaptive_grouped_scheduler.strategy")),)
+    return (
+        canonical_work(
+            capture,
+            exclude=("adaptive_grouped_scheduler.requested", "adaptive_grouped_scheduler.strategy"),
+        ),
+    )
 
 
 def _gpu_events_available(capture: dict[str, Any]) -> bool:
-    timing = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    timing = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
     events = capture.get("gpu_event_timings_us")
     phases = timing.get("gpu_event_phase_order")
     return (
@@ -50,7 +64,10 @@ def _gpu_events_available(capture: dict[str, Any]) -> bool:
 
 
 def _release_reviewed(capture: dict[str, Any]) -> bool:
-    return int(capture.get("warmups", 0) or 0) >= RELEASE_MIN_WARMUPS and int(capture.get("repeats", 0) or 0) >= RELEASE_MIN_REPEATS
+    return (
+        int(capture.get("warmups", 0) or 0) >= RELEASE_MIN_WARMUPS
+        and int(capture.get("repeats", 0) or 0) >= RELEASE_MIN_REPEATS
+    )
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -71,7 +88,9 @@ def _candidate(capture: dict[str, Any]) -> bool:
     )
 
 
-def _baseline_map(captures: list[dict[str, Any]]) -> dict[tuple[Any, ...], dict[str, dict[str, Any]]]:
+def _baseline_map(
+    captures: list[dict[str, Any]],
+) -> dict[tuple[Any, ...], dict[str, dict[str, Any]]]:
     baselines: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = {}
     for capture in captures:
         if _candidate(capture):
@@ -87,7 +106,8 @@ def _baseline_map(captures: list[dict[str, Any]]) -> dict[tuple[Any, ...], dict[
 
 
 def _speedup(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> float | None:
-    if not qualified(candidate) or not qualified(baseline): return None
+    if not qualified(candidate) or not qualified(baseline):
+        return None
     candidate_median = _median(candidate)
     baseline_median = _median(baseline) if baseline is not None else None
     if candidate_median is None or baseline_median is None or candidate_median <= 0:
@@ -95,9 +115,15 @@ def _speedup(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> floa
     return baseline_median / candidate_median
 
 
-def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]], references: CPUReferenceIndex) -> dict[str, Any]:
+def _row(
+    candidate: dict[str, Any], baselines: dict[str, dict[str, Any]], references: CPUReferenceIndex
+) -> dict[str, Any]:
     adaptive = _adaptive_metadata(candidate)
-    schedule = candidate.get("schedule_metadata") if isinstance(candidate.get("schedule_metadata"), dict) else {}
+    schedule = (
+        candidate.get("schedule_metadata")
+        if isinstance(candidate.get("schedule_metadata"), dict)
+        else {}
+    )
     cpu = best_implementation(baselines.get("cpu", []), candidate=candidate, cpu_anchor=True)
     direct = best_implementation(baselines.get("direct_hip", []), candidate=candidate)
     numerical = references.verdict(candidate)
@@ -127,7 +153,9 @@ def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]], refere
     if direct is not None and direct_speedup is None:
         blockers.append("missing_direct_hip_timing")
     launch_reduction_ratio = adaptive.get("launch_reduction_ratio")
-    if not isinstance(launch_reduction_ratio, (int, float)) or not math.isfinite(float(launch_reduction_ratio)):
+    if not isinstance(launch_reduction_ratio, (int, float)) or not math.isfinite(
+        float(launch_reduction_ratio)
+    ):
         blockers.append("missing_launch_reduction_ratio")
         launch_reduction_ratio = None
     elif float(launch_reduction_ratio) <= 1.0:
@@ -146,7 +174,9 @@ def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]], refere
         "measurement_cohort": evidence(candidate),
         "numerical_reference": numerical.to_json(),
         "direct_numerical_reference": direct_numerical.to_json() if direct_numerical else None,
-        "baseline_observation_cohorts": {name: [evidence(c) for c in values] for name, values in baselines.items()},
+        "baseline_observation_cohorts": {
+            name: [evidence(c) for c in values] for name, values in baselines.items()
+        },
         "selected_direct_cohort": evidence(direct),
         "semantics": candidate.get("semantics"),
         "shape": [candidate.get("m"), candidate.get("n"), candidate.get("k")],
@@ -178,7 +208,10 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     candidates = [capture for capture in captures if _candidate(capture)]
     baselines = _baseline_map(captures)
     references = CPUReferenceIndex(captures)
-    rows = [_row(candidate, baselines.get(_same_contract_key(candidate), {}), references) for candidate in candidates]
+    rows = [
+        _row(candidate, baselines.get(_same_contract_key(candidate), {}), references)
+        for candidate in candidates
+    ]
     return {
         "schema": "rns8_adaptive_grouped_scheduler_report_v1",
         "capture_count": len(raw),
@@ -241,7 +274,8 @@ def main() -> int:
     print(json_path)
     print(markdown_path)
     if args.require_complete and (
-        report["candidate_count"] == 0 or any(row["decision"] != "promote locally" for row in report["rows"])
+        report["candidate_count"] == 0
+        or any(row["decision"] != "promote locally" for row in report["rows"])
     ):
         return 1
     return 0

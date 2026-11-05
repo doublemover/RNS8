@@ -3,10 +3,7 @@
 
 #include "rns8/status.h"
 
-enum {
-  RNS8_DEVICE_IDENTITY_PCI_BDF = 1u,
-  RNS8_DEVICE_IDENTITY_UUID = 2u
-};
+enum { RNS8_DEVICE_IDENTITY_PCI_BDF = 1u, RNS8_DEVICE_IDENTITY_UUID = 2u };
 
 typedef struct rns8_runtime_device_identity {
   uint64_t struct_size;
@@ -32,8 +29,8 @@ extern "C" {
  * not proof of a physical-device association. UUID bytes are opaque HIP data.
  * No device switch, allocation, kernel launch or synchronization is requested.
  */
-RNS8_API rns8_status rns8_query_runtime_device_identity(
-    int device_ordinal, rns8_runtime_device_identity* out);
+RNS8_API rns8_status rns8_query_runtime_device_identity(int device_ordinal,
+                                                        rns8_runtime_device_identity* out);
 
 #ifdef __cplusplus
 }

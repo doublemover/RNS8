@@ -30,7 +30,9 @@ def cpu_reference_from(capture: dict) -> dict:
     metadata["workspace_mode"] = "host_reference_workspace"
     metadata["workspace_required_bytes"] = 0
     metadata["isa_evidence"] = "not_applicable_cpu"
-    metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=cpu-reference")
+    metadata["autotune_key"] = metadata["autotune_key"].replace(
+        "backend=ck", "backend=cpu-reference"
+    )
     cpu["device"] = {
         "device_id": -1,
         "name": "CPU reference",
@@ -59,6 +61,7 @@ def main() -> int:
     import host_api_batch_report
     import reuse_contract_report
     import rns_chain_report
+
     for semantics, q1, q2 in [("finite_ring_u8", 255, 251), ("finite_field_u8", 251, 241)]:
         left = copy.deepcopy(cpu)
         right = copy.deepcopy(cpu)
@@ -66,13 +69,22 @@ def main() -> int:
         left["finite_modulus"] = q1
         right["finite_modulus"] = q2
         for relaxed in (False, True):
-            report = result_compare.compare(left, right, Path("left.json"), Path("right.json"),
-                                            allow_export_selector_diff=relaxed)
+            report = result_compare.compare(
+                left,
+                right,
+                Path("left.json"),
+                Path("right.json"),
+                allow_export_selector_diff=relaxed,
+            )
             assert not report["matching_contract"]
             assert not report["contract"]["finite_modulus"]["match"]
         assert host_api_batch_report.contract_key(left) != host_api_batch_report.contract_key(right)
-        assert reuse_contract_report.normalized_contract_key(left) != reuse_contract_report.normalized_contract_key(right)
-        assert rns_chain_report.normalized_contract_key(left) != rns_chain_report.normalized_contract_key(right)
+        assert reuse_contract_report.normalized_contract_key(
+            left
+        ) != reuse_contract_report.normalized_contract_key(right)
+        assert rns_chain_report.normalized_contract_key(
+            left
+        ) != rns_chain_report.normalized_contract_key(right)
     missing = copy.deepcopy(cpu)
     missing.pop("finite_modulus", None)
     try:
@@ -105,7 +117,9 @@ def main() -> int:
 
     static_bound_gpu = copy.deepcopy(gpu)
     static_bound_gpu["bound_source"] = "static_profile"
-    legacy_vs_static = result_compare.compare(gpu, static_bound_gpu, Path("legacy.json"), Path("static.json"))
+    legacy_vs_static = result_compare.compare(
+        gpu, static_bound_gpu, Path("legacy.json"), Path("static.json")
+    )
     assert legacy_vs_static["matching_contract"] is True
     assert legacy_vs_static["contract"]["bound_source"]["match"] is True
 
@@ -115,7 +129,9 @@ def main() -> int:
     reused_gpu["prepack_reuse_operands"] = ["A", "B"]
     reused_gpu["timing_metadata"]["pack_mode"] = "prepacked_reuse"
     reused_gpu["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
-    repack_vs_reuse = result_compare.compare(gpu, reused_gpu, Path("gpu-repack.json"), Path("gpu-reuse.json"))
+    repack_vs_reuse = result_compare.compare(
+        gpu, reused_gpu, Path("gpu-repack.json"), Path("gpu-reuse.json")
+    )
     assert repack_vs_reuse["matching_contract"] is False
     assert repack_vs_reuse["contract"]["reuse_packed_inputs"]["match"] is False
     assert repack_vs_reuse["contract"]["pack_mode"]["match"] is False
@@ -147,7 +163,10 @@ def main() -> int:
     )
     assert strict_selector_compare["matching_contract"] is False
     assert strict_selector_compare["contract"]["export_variant.d2h_policy"]["match"] is False
-    assert strict_selector_compare["contract"]["export_variant.d2h_policy"]["ignored_for_contract"] is False
+    assert (
+        strict_selector_compare["contract"]["export_variant.d2h_policy"]["ignored_for_contract"]
+        is False
+    )
 
     review_selector_compare = result_compare.compare(
         selector_default,
@@ -159,7 +178,10 @@ def main() -> int:
     assert review_selector_compare["matching_contract"] is True
     assert review_selector_compare["comparison_mode"] == "export_selector_review"
     assert review_selector_compare["contract"]["export_variant.d2h_policy"]["match"] is False
-    assert review_selector_compare["contract"]["export_variant.d2h_policy"]["ignored_for_contract"] is True
+    assert (
+        review_selector_compare["contract"]["export_variant.d2h_policy"]["ignored_for_contract"]
+        is True
+    )
 
     invalid_selector_candidate = copy.deepcopy(selector_candidate)
     invalid_selector_candidate["export_variant"]["output_layout"] = "host_scalar_i64"
@@ -171,13 +193,18 @@ def main() -> int:
         allow_export_selector_diff=True,
     )
     assert invalid_selector_compare["matching_contract"] is False
-    assert invalid_selector_compare["contract"]["export_variant.output_layout"]["ignored_for_contract"] is False
+    assert (
+        invalid_selector_compare["contract"]["export_variant.output_layout"]["ignored_for_contract"]
+        is False
+    )
 
     layout_a = copy.deepcopy(gpu)
     layout_b = copy.deepcopy(gpu)
     layout_a["timing_metadata"]["pack_layout"] = "resident_rns_residue_planes"
     layout_b["timing_metadata"]["pack_layout"] = "matrix_engine_transient_pack_layout"
-    layout_compare = result_compare.compare(layout_a, layout_b, Path("layout-a.json"), Path("layout-b.json"))
+    layout_compare = result_compare.compare(
+        layout_a, layout_b, Path("layout-a.json"), Path("layout-b.json")
+    )
     assert layout_compare["matching_contract"] is True
     assert layout_compare["backend_evidence"]["timing_metadata.pack_layout"]["match"] is False
 
@@ -212,15 +239,21 @@ def main() -> int:
         "input_channel_count": 1,
         "output_channel_count": 1,
     }
-    native_compare = result_compare.compare(gpu, native_layout, Path("gpu.json"), Path("native.json"))
+    native_compare = result_compare.compare(
+        gpu, native_layout, Path("gpu.json"), Path("native.json")
+    )
     # Representation metadata may differ, but a changed next-operation
     # contract cannot be treated as the same complete pipeline boundary.
     assert native_compare["matching_contract"] is False
     assert native_compare["contract"]["requested_next_op.resolved"]["match"] is False
     relaxed_native_compare = result_compare.compare(
-        gpu, native_layout, Path("gpu.json"), Path("native.json"), allow_export_selector_diff=True)
+        gpu, native_layout, Path("gpu.json"), Path("native.json"), allow_export_selector_diff=True
+    )
     assert relaxed_native_compare["matching_contract"] is False
-    assert relaxed_native_compare["contract"]["requested_next_op.resolved"]["ignored_for_contract"] is False
+    assert (
+        relaxed_native_compare["contract"]["requested_next_op.resolved"]["ignored_for_contract"]
+        is False
+    )
     assert native_compare["backend_evidence"]["packed_layout_version"]["match"] is False
     assert native_compare["backend_evidence"]["requested_next_op.resolved"]["match"] is False
     assert native_compare["backend_evidence"]["plan_packing.input_domain_name"]["match"] is False
@@ -237,7 +270,9 @@ def main() -> int:
         "target_namespace": "gfx11xx",
         "review_group_key": "gfx11xx/target=gfx1100/backend=ck",
     }
-    target_compare = result_compare.compare(target_a, target_b, Path("target-a.json"), Path("target-b.json"))
+    target_compare = result_compare.compare(
+        target_a, target_b, Path("target-a.json"), Path("target-b.json")
+    )
     assert target_compare["gpu_compatibility_required"] is True
     assert target_compare["gpu_compatible"] is False
     assert target_compare["gpu_compatibility"]["target_variant.target_namespace"]["match"] is False
@@ -252,10 +287,13 @@ def main() -> int:
     from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
     from benchmark_sweep_lib.capture_metadata import capture_contract_key
     from perf_variance_report import execution_cohort, variance_group_key
+
     eager = as_exact_wide_capture(expect_valid("v4_bounded_i64_ck.json"))
-    synthetic_identity(eager); synthetic_host_measurements(eager)
+    synthetic_identity(eager)
+    synthetic_host_measurements(eager)
     eager["exact_proof_policy"] = "eager_moments_v1"
-    scalar = copy.deepcopy(eager); synthetic_identity(scalar)
+    scalar = copy.deepcopy(eager)
+    synthetic_identity(scalar)
     scalar["exact_proof_policy"] = "scalar_first_v1"
     scalar["backend_metadata"]["autotune_key"] += "/proof=scalar_first_v1"
     result_compare.validate_capture(eager, Path("eager"))
@@ -263,15 +301,21 @@ def main() -> int:
     strict = result_compare.compare(eager, scalar, Path("eager"), Path("scalar"))
     assert not strict["matching_contract"] and strict["changed_proof_policy"]
     assert not strict["timings"]["end_to_end"]["host_ratio_qualified"]
-    deliberate = result_compare.compare(eager, scalar, Path("eager"), Path("scalar"), allow_proof_policy_diff=True)
-    assert deliberate["matching_contract"] and deliberate["comparison_mode"] == "proof_policy_review"
+    deliberate = result_compare.compare(
+        eager, scalar, Path("eager"), Path("scalar"), allow_proof_policy_diff=True
+    )
+    assert (
+        deliberate["matching_contract"] and deliberate["comparison_mode"] == "proof_policy_review"
+    )
     assert not deliberate["same_proof_workload"]
     assert capture_contract_key(eager) != capture_contract_key(scalar)
     assert execution_cohort(eager) != execution_cohort(scalar)
     assert variance_group_key(eager) != variance_group_key(scalar)
-    legacy = copy.deepcopy(eager); legacy.pop("exact_proof_policy")
+    legacy = copy.deepcopy(eager)
+    legacy.pop("exact_proof_policy")
     assert capture_contract_key(legacy) == capture_contract_key(eager)
-    repeated = copy.deepcopy(eager); synthetic_identity(repeated)
+    repeated = copy.deepcopy(eager)
+    synthetic_identity(repeated)
     assert execution_cohort(eager) == execution_cohort(repeated)
     assert variance_group_key(eager) == variance_group_key(repeated)
 
@@ -282,18 +326,30 @@ def main() -> int:
     eight.setdefault("timing_metadata", {})["inner_repetitions"] = 8
     eight["host_api_batch"]["total_measured_tasks"] = 8 * eight["repeats"]
     eight["timing_metadata"]["host_api_batch_size"] = 8
-    eight["command_line"] = eight["command_line"].replace("--host-api-batch-size 4", "--host-api-batch-size 8")
-    for field in ("avg_pack_per_task_us", "avg_rns_gemm_per_task_us", "avg_crt_export_per_task_us", "avg_end_to_end_per_task_us"):
+    eight["command_line"] = eight["command_line"].replace(
+        "--host-api-batch-size 4", "--host-api-batch-size 8"
+    )
+    for field in (
+        "avg_pack_per_task_us",
+        "avg_rns_gemm_per_task_us",
+        "avg_crt_export_per_task_us",
+        "avg_end_to_end_per_task_us",
+    ):
         eight[field] = four[field] / 2
     for capture, size in ((four, 4), (eight, 8)):
-        synthetic_identity(capture); synthetic_host_measurements(capture)
-        capture["timing_metadata"].update(host_result_kind="amortized_batch", inner_repetitions=size)
+        synthetic_identity(capture)
+        synthetic_host_measurements(capture)
+        capture["timing_metadata"].update(
+            host_result_kind="amortized_batch", inner_repetitions=size
+        )
         result_compare.validate_capture(capture, Path(str(size)))
     batch = result_compare.compare(four, eight, Path("four"), Path("eight"))
     assert not batch["matching_contract"]
     assert not batch["contract"]["host_api_batch.work_contract"]["match"]
     assert not batch["timings"]["end_to_end"]["host_ratio_qualified"]
-    assert result_compare.compare(four, copy.deepcopy(four), Path("a"), Path("b"))["matching_contract"]
+    assert result_compare.compare(four, copy.deepcopy(four), Path("a"), Path("b"))[
+        "matching_contract"
+    ]
 
     print("result compare self-test: PASS")
     return 0

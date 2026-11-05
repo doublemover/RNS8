@@ -35,7 +35,10 @@ class EventsScheduleCases(unittest.TestCase):
 
         missing_event_phase_order = copy.deepcopy(bounded)
         del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]
-        expect_invalid(missing_event_phase_order, "gpu_event_phase_order must be an array of strings when events are available")
+        expect_invalid(
+            missing_event_phase_order,
+            "gpu_event_phase_order must be an array of strings when events are available",
+        )
 
         undeclared_event_phase = copy.deepcopy(bounded)
         undeclared_event_phase["gpu_event_timings_us"]["old_event_scope_phase"] = [1.0, 1.0, 1.0]
@@ -43,10 +46,14 @@ class EventsScheduleCases(unittest.TestCase):
 
         duplicate_event_phase_order = copy.deepcopy(v4_vector_i64)
         duplicate_event_phase_order["timing_metadata"]["gpu_event_phase_order"].append("crt_export")
-        expect_invalid(duplicate_event_phase_order, "gpu_event_phase_order must not contain duplicates")
+        expect_invalid(
+            duplicate_event_phase_order, "gpu_event_phase_order must not contain duplicates"
+        )
 
         incomplete_vector_events = copy.deepcopy(v4_vector_i64)
-        incomplete_vector_events["timing_metadata"]["gpu_event_phase_order"].remove("vector_alu_status_d2h")
+        incomplete_vector_events["timing_metadata"]["gpu_event_phase_order"].remove(
+            "vector_alu_status_d2h"
+        )
         del incomplete_vector_events["gpu_event_timings_us"]["vector_alu_status_d2h"]
         del incomplete_vector_events["gpu_event_timing_summary_us"]["vector_alu_status_d2h"]
         expect_invalid(incomplete_vector_events, "vector-ALU GPU event phase set is incomplete")
@@ -58,10 +65,16 @@ class EventsScheduleCases(unittest.TestCase):
         expect_invalid(stale_deep_scope, "deep accelerator GPU event labels require")
 
         undeclared_deep_phase = copy.deepcopy(v4_ck_adaptive_u64)
-        undeclared_deep_phase["timing_metadata"]["gpu_event_phase_order"].insert(6, "ck_prefix_99_fake_kernel")
+        undeclared_deep_phase["timing_metadata"]["gpu_event_phase_order"].insert(
+            6, "ck_prefix_99_fake_kernel"
+        )
         undeclared_deep_phase["gpu_event_timings_us"]["ck_prefix_99_fake_kernel"] = [1.0, 1.0]
-        undeclared_deep_phase["gpu_event_timing_summary_us"]["ck_prefix_99_fake_kernel"] = zero_summary()
-        expect_invalid(undeclared_deep_phase, "deep accelerator GPU event phase set contains undeclared phases")
+        undeclared_deep_phase["gpu_event_timing_summary_us"]["ck_prefix_99_fake_kernel"] = (
+            zero_summary()
+        )
+        expect_invalid(
+            undeclared_deep_phase, "deep accelerator GPU event phase set contains undeclared phases"
+        )
 
         zero_deep_phase = copy.deepcopy(v4_ck_adaptive_u64)
         zero_deep_count = zero_deep_phase["schedule_metadata"]["tile_count"]
@@ -75,16 +88,27 @@ class EventsScheduleCases(unittest.TestCase):
                 "zero_output_skip_active": True,
             }
         )
-        insert_at = zero_deep_phase["timing_metadata"]["gpu_event_phase_order"].index("ck_add_centered_kernel") + 1
-        zero_deep_phase["timing_metadata"]["gpu_event_phase_order"].insert(insert_at, "ck_zero_output_tile_memset")
+        insert_at = (
+            zero_deep_phase["timing_metadata"]["gpu_event_phase_order"].index(
+                "ck_add_centered_kernel"
+            )
+            + 1
+        )
+        zero_deep_phase["timing_metadata"]["gpu_event_phase_order"].insert(
+            insert_at, "ck_zero_output_tile_memset"
+        )
         repeats = zero_deep_phase["repeats"]
         zero_deep_phase["gpu_event_timings_us"]["ck_zero_output_tile_memset"] = [0.25] * repeats
-        zero_deep_phase["gpu_event_timing_summary_us"]["ck_zero_output_tile_memset"] = summary([0.25] * repeats)
+        zero_deep_phase["gpu_event_timing_summary_us"]["ck_zero_output_tile_memset"] = summary(
+            [0.25] * repeats
+        )
         validate_capture(zero_deep_phase)
 
         amdgpu_sparse_finite = copy.deepcopy(v4_finite_ring_ck)
         amdgpu_sparse_finite_kernel = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
-        amdgpu_sparse_finite["benchmark"] = "rns8_finite_u8_explicit_sparse_a_4_to_2_persistent_residue"
+        amdgpu_sparse_finite["benchmark"] = (
+            "rns8_finite_u8_explicit_sparse_a_4_to_2_persistent_residue"
+        )
         amdgpu_sparse_finite["benchmark_execution_mode"] = "persistent_resident_matrices"
         amdgpu_sparse_finite["backend_requested"] = "amdgpu-builtins"
         amdgpu_sparse_finite["backend_selected"] = "amdgpu-builtins"
@@ -138,7 +162,9 @@ class EventsScheduleCases(unittest.TestCase):
             }
         )
         amdgpu_sparse_finite["backend_metadata"]["accumulator_safety"]["k_block_cap"] = 65536
-        amdgpu_sparse_finite["timing_metadata"]["benchmark_execution_mode"] = "persistent_resident_matrices"
+        amdgpu_sparse_finite["timing_metadata"]["benchmark_execution_mode"] = (
+            "persistent_resident_matrices"
+        )
         amdgpu_sparse_finite["timing_metadata"]["gpu_event_timing_reason"] = (
             "captured_by_accelerator_backend_deep_kernel_hooks"
         )
@@ -161,7 +187,9 @@ class EventsScheduleCases(unittest.TestCase):
             "finite_export_d2h",
             "crt_export",
         ]
-        amdgpu_sparse_finite["timing_metadata"]["gpu_event_phase_order"] = amdgpu_sparse_finite_phases
+        amdgpu_sparse_finite["timing_metadata"]["gpu_event_phase_order"] = (
+            amdgpu_sparse_finite_phases
+        )
         amdgpu_sparse_finite["gpu_event_timings_us"] = {
             "sparse_a_values_h2d": [2.0, 2.0],
             "sparse_a_indices_h2d": [1.0, 1.0],
@@ -175,21 +203,26 @@ class EventsScheduleCases(unittest.TestCase):
             "crt_export": [6.0, 7.0],
         }
         amdgpu_sparse_finite["gpu_event_timing_summary_us"] = {
-            phase: summary(values) for phase, values in amdgpu_sparse_finite["gpu_event_timings_us"].items()
+            phase: summary(values)
+            for phase, values in amdgpu_sparse_finite["gpu_event_timings_us"].items()
         }
         validate_capture(amdgpu_sparse_finite)
 
         missing_sparse_matrix_index_layout = copy.deepcopy(amdgpu_sparse_finite)
-        del missing_sparse_matrix_index_layout["backend_metadata"]["matrix_sparse_a_compression_index_layout"]
+        del missing_sparse_matrix_index_layout["backend_metadata"][
+            "matrix_sparse_a_compression_index_layout"
+        ]
         expect_invalid(
             missing_sparse_matrix_index_layout,
             "backend_metadata.matrix_sparse_a_compression_index_layout=canonical_2bit_k_groups_v1_low2_first_value_high2_second_value",
         )
 
         missing_sparse_value_signedness_key = copy.deepcopy(amdgpu_sparse_finite)
-        missing_sparse_value_signedness_key["backend_metadata"]["autotune_key"] = missing_sparse_value_signedness_key[
-            "backend_metadata"
-        ]["autotune_key"].replace("sparse_value_signedness=unsigned_u8;", "")
+        missing_sparse_value_signedness_key["backend_metadata"]["autotune_key"] = (
+            missing_sparse_value_signedness_key["backend_metadata"]["autotune_key"].replace(
+                "sparse_value_signedness=unsigned_u8;", ""
+            )
+        )
         expect_invalid(
             missing_sparse_value_signedness_key,
             "sparse captures must include unsigned_u8 sparse-A contract tokens",
@@ -198,7 +231,9 @@ class EventsScheduleCases(unittest.TestCase):
         amdgpu_sparse_rns = copy.deepcopy(v4_rocwmma_i64)
         amdgpu_sparse_rns_kernel = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
         amdgpu_sparse_rns["benchmark"] = "rns8_bounded_explicit_sparse_a_4_to_2_persistent_rns"
-        amdgpu_sparse_rns["benchmark_execution_mode"] = "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns"
+        amdgpu_sparse_rns["benchmark_execution_mode"] = (
+            "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns"
+        )
         amdgpu_sparse_rns["backend_requested"] = "amdgpu-builtins"
         amdgpu_sparse_rns["backend_selected"] = "amdgpu-builtins"
         amdgpu_sparse_rns["selected_kernel"] = amdgpu_sparse_rns_kernel
@@ -294,14 +329,17 @@ class EventsScheduleCases(unittest.TestCase):
             "crt_export": [13.0, 15.0],
         }
         amdgpu_sparse_rns["gpu_event_timing_summary_us"] = {
-            phase: summary(values) for phase, values in amdgpu_sparse_rns["gpu_event_timings_us"].items()
+            phase: summary(values)
+            for phase, values in amdgpu_sparse_rns["gpu_event_timings_us"].items()
         }
         validate_capture(amdgpu_sparse_rns)
 
         amdgpu_sparse_exact = as_exact_wide_capture(v4_rocwmma_i64)
         amdgpu_sparse_exact_kernel = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
         amdgpu_sparse_exact["benchmark"] = "rns8_exact_wide_explicit_sparse_a_4_to_2_persistent_rns"
-        amdgpu_sparse_exact["benchmark_execution_mode"] = "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns"
+        amdgpu_sparse_exact["benchmark_execution_mode"] = (
+            "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns"
+        )
         amdgpu_sparse_exact["backend_requested"] = "amdgpu-builtins"
         amdgpu_sparse_exact["backend_selected"] = "amdgpu-builtins"
         amdgpu_sparse_exact["selected_kernel"] = amdgpu_sparse_exact_kernel
@@ -397,7 +435,8 @@ class EventsScheduleCases(unittest.TestCase):
             "crt_export": [12.0, 14.0],
         }
         amdgpu_sparse_exact["gpu_event_timing_summary_us"] = {
-            phase: summary(values) for phase, values in amdgpu_sparse_exact["gpu_event_timings_us"].items()
+            phase: summary(values)
+            for phase, values in amdgpu_sparse_exact["gpu_event_timings_us"].items()
         }
         validate_capture(amdgpu_sparse_exact)
 
@@ -405,27 +444,44 @@ class EventsScheduleCases(unittest.TestCase):
         # Replace the complete selected family in event keys/order, backend metadata and
         # autotune identity; retain each semantics' real pack/export event boundary.
         def _larger_sparse_family(value):
-            if isinstance(value,str):return value.replace('16x16x64','32x32x32').replace('m=64;','m=128;').replace('k=64;','k=128;').replace('k_block_size=64;','k_block_size=128;').replace('--m 64','--m 128').replace('--k 64','--k 128')
-            if isinstance(value,list):return [_larger_sparse_family(x) for x in value]
-            if isinstance(value,dict):return {_larger_sparse_family(k):_larger_sparse_family(v) for k,v in value.items()}
+            if isinstance(value, str):
+                return (
+                    value.replace("16x16x64", "32x32x32")
+                    .replace("m=64;", "m=128;")
+                    .replace("k=64;", "k=128;")
+                    .replace("k_block_size=64;", "k_block_size=128;")
+                    .replace("--m 64", "--m 128")
+                    .replace("--k 64", "--k 128")
+                )
+            if isinstance(value, list):
+                return [_larger_sparse_family(x) for x in value]
+            if isinstance(value, dict):
+                return {
+                    _larger_sparse_family(k): _larger_sparse_family(v) for k, v in value.items()
+                }
             return value
-        for smaller in (amdgpu_sparse_finite,amdgpu_sparse_rns,amdgpu_sparse_exact):
-            larger=_larger_sparse_family(copy.deepcopy(smaller))
-            larger.update(m=128,n=128,k=128)
-            larger['k_block_size']=128
-            larger['backend_metadata']['accumulator_safety']['k_block_size']=128
+
+        for smaller in (amdgpu_sparse_finite, amdgpu_sparse_rns, amdgpu_sparse_exact):
+            larger = _larger_sparse_family(copy.deepcopy(smaller))
+            larger.update(m=128, n=128, k=128)
+            larger["k_block_size"] = 128
+            larger["backend_metadata"]["accumulator_safety"]["k_block_size"] = 128
             validate_capture(larger)
-            mismatched=copy.deepcopy(larger)
-            phases=mismatched['timing_metadata']['gpu_event_phase_order']
-            index=next(i for i,p in enumerate(phases) if '32x32x32' in p)
-            phases[index]='amdgpu_builtin_rns_matrix_core_kernel'
-            expect_invalid(mismatched,'GPU event')
+            mismatched = copy.deepcopy(larger)
+            phases = mismatched["timing_metadata"]["gpu_event_phase_order"]
+            index = next(i for i, p in enumerate(phases) if "32x32x32" in p)
+            phases[index] = "amdgpu_builtin_rns_matrix_core_kernel"
+            expect_invalid(mismatched, "GPU event")
 
         missing_sparse_a_index_event = copy.deepcopy(amdgpu_sparse_finite)
-        missing_sparse_a_index_event["timing_metadata"]["gpu_event_phase_order"].remove("sparse_a_indices_h2d")
+        missing_sparse_a_index_event["timing_metadata"]["gpu_event_phase_order"].remove(
+            "sparse_a_indices_h2d"
+        )
         del missing_sparse_a_index_event["gpu_event_timings_us"]["sparse_a_indices_h2d"]
         del missing_sparse_a_index_event["gpu_event_timing_summary_us"]["sparse_a_indices_h2d"]
-        expect_invalid(missing_sparse_a_index_event, "deep accelerator GPU event phase set is incomplete")
+        expect_invalid(
+            missing_sparse_a_index_event, "deep accelerator GPU event phase set is incomplete"
+        )
 
         bad_schedule_tile = copy.deepcopy(bounded)
         bad_schedule_tile["tile_m"] = 96
@@ -433,7 +489,9 @@ class EventsScheduleCases(unittest.TestCase):
         expect_invalid(bad_schedule_tile, "tile_m must be a power of two")
 
         bad_schedule_prefix = copy.deepcopy(bounded)
-        bad_schedule_prefix["schedule_metadata"]["max_selected_prefix"] = bad_schedule_prefix["prefix"]
+        bad_schedule_prefix["schedule_metadata"]["max_selected_prefix"] = bad_schedule_prefix[
+            "prefix"
+        ]
         expect_invalid(bad_schedule_prefix, "adaptive_skip_active must match")
 
         bad_wrap_prefix = copy.deepcopy(wrap64)
@@ -450,25 +508,34 @@ class EventsScheduleCases(unittest.TestCase):
 
         bad_candidate_schedule_source = copy.deepcopy(v4_wrap64_rocwmma_candidate)
         bad_candidate_schedule_source["schedule_metadata"]["source"] = "rns8_get_plan_schedule_info"
-        expect_invalid(bad_candidate_schedule_source, "rns8_bench_wrap64_rocwmma_candidate_static_schedule")
+        expect_invalid(
+            bad_candidate_schedule_source, "rns8_bench_wrap64_rocwmma_candidate_static_schedule"
+        )
 
         bad_candidate_scope = copy.deepcopy(v4_wrap64_rocwmma_candidate)
         bad_candidate_scope["timing_metadata"]["gpu_event_timing_source_scope"] = (
             "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
         )
-        expect_invalid(bad_candidate_scope, "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups")
+        expect_invalid(
+            bad_candidate_scope,
+            "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups",
+        )
 
         bad_candidate_correctness_flag = copy.deepcopy(v4_wrap64_rocwmma_candidate)
         bad_candidate_correctness_flag["backend_metadata"]["correctness_backend"] = True
         expect_invalid(bad_candidate_correctness_flag, "correctness_backend=False")
 
         bad_baseline_prereq = copy.deepcopy(v4_adaptive_u64)
-        bad_baseline_prereq["comparison_baseline"]["required_before_speedup_claim"] = ["same_contract_cpu_reference"]
+        bad_baseline_prereq["comparison_baseline"]["required_before_speedup_claim"] = [
+            "same_contract_cpu_reference"
+        ]
         expect_invalid(bad_baseline_prereq, "same_contract_direct_hip_vector_alu_int64")
 
         bad_speedup_claim = copy.deepcopy(v4_ck_i64)
         bad_speedup_claim["comparison_baseline"]["speedup_claimed"] = True
-        expect_invalid(bad_speedup_claim, "speedup claims require a reviewed same-contract comparison baseline")
+        expect_invalid(
+            bad_speedup_claim, "speedup claims require a reviewed same-contract comparison baseline"
+        )
 
         legacy_reviewed_speedup = copy.deepcopy(v4_ck_i64)
         legacy_reviewed_speedup["comparison_baseline"]["status"] = "reviewed_same_contract_baseline"
@@ -484,7 +551,9 @@ class EventsScheduleCases(unittest.TestCase):
         )
 
         bad_legacy_performance_promotion = copy.deepcopy(v4_rocwmma_i64)
-        bad_legacy_performance_promotion["comparison_baseline"]["status"] = "reviewed_same_contract_baseline"
+        bad_legacy_performance_promotion["comparison_baseline"]["status"] = (
+            "reviewed_same_contract_baseline"
+        )
         bad_legacy_performance_promotion["comparison_baseline"]["selected_reference"] = "hip-direct"
         bad_legacy_performance_promotion["backend_metadata"]["performance_validated"] = True
         expect_invalid(
@@ -502,7 +571,9 @@ class EventsScheduleCases(unittest.TestCase):
         )
 
         release_performance_promotion = copy.deepcopy(v4_rocwmma_i64)
-        release_performance_promotion["comparison_baseline"]["status"] = "reviewed_release_same_contract_baseline"
+        release_performance_promotion["comparison_baseline"]["status"] = (
+            "reviewed_release_same_contract_baseline"
+        )
         release_performance_promotion["comparison_baseline"]["speedup_claimed"] = True
         release_performance_promotion["comparison_baseline"]["selected_reference"] = "hip-direct"
         release_performance_promotion["backend_metadata"]["performance_validated"] = True
@@ -514,9 +585,15 @@ class EventsScheduleCases(unittest.TestCase):
         release_performance_capture_without_speedup_claim["comparison_baseline"]["status"] = (
             "reviewed_release_same_contract_baseline"
         )
-        release_performance_capture_without_speedup_claim["comparison_baseline"]["speedup_claimed"] = False
-        release_performance_capture_without_speedup_claim["comparison_baseline"]["selected_reference"] = None
-        release_performance_capture_without_speedup_claim["backend_metadata"]["performance_validated"] = True
+        release_performance_capture_without_speedup_claim["comparison_baseline"][
+            "speedup_claimed"
+        ] = False
+        release_performance_capture_without_speedup_claim["comparison_baseline"][
+            "selected_reference"
+        ] = None
+        release_performance_capture_without_speedup_claim["backend_metadata"][
+            "performance_validated"
+        ] = True
         validate_capture(release_performance_capture_without_speedup_claim)
 
         bad_current_version = copy.deepcopy(v4_adaptive_u64)
@@ -533,10 +610,18 @@ class EventsScheduleCases(unittest.TestCase):
 
         split_pack_timing = copy.deepcopy(bounded)
         split_repeats = split_pack_timing["repeats"]
-        split_pack_timing["raw_timings_us"]["pack_a"] = [11 + 2 * index for index in range(split_repeats)]
-        split_pack_timing["raw_timings_us"]["pack_b"] = [7 + index for index in range(split_repeats)]
-        split_pack_timing["timing_summary_us"]["pack_a"] = summary(split_pack_timing["raw_timings_us"]["pack_a"])
-        split_pack_timing["timing_summary_us"]["pack_b"] = summary(split_pack_timing["raw_timings_us"]["pack_b"])
+        split_pack_timing["raw_timings_us"]["pack_a"] = [
+            11 + 2 * index for index in range(split_repeats)
+        ]
+        split_pack_timing["raw_timings_us"]["pack_b"] = [
+            7 + index for index in range(split_repeats)
+        ]
+        split_pack_timing["timing_summary_us"]["pack_a"] = summary(
+            split_pack_timing["raw_timings_us"]["pack_a"]
+        )
+        split_pack_timing["timing_summary_us"]["pack_b"] = summary(
+            split_pack_timing["raw_timings_us"]["pack_b"]
+        )
         split_pack_timing["avg_pack_a_us"] = split_pack_timing["timing_summary_us"]["pack_a"]["avg"]
         split_pack_timing["avg_pack_b_us"] = split_pack_timing["timing_summary_us"]["pack_b"]["avg"]
         validate_capture(split_pack_timing)
@@ -558,14 +643,18 @@ class EventsScheduleCases(unittest.TestCase):
         expect_invalid(bad_tile_bound_scan_summary, "timing_summary_us.tile_bound_scan.avg")
 
         bad_tile_bound_scan_availability = copy.deepcopy(v4_adaptive_u64)
-        del bad_tile_bound_scan_availability["timing_metadata"]["phase_availability"]["tile_bound_scan"]
+        del bad_tile_bound_scan_availability["timing_metadata"]["phase_availability"][
+            "tile_bound_scan"
+        ]
         expect_invalid(
             bad_tile_bound_scan_availability,
             "phase_availability.tile_bound_scan must be an object for per-tile captures",
         )
 
         bad_reduction_scope = copy.deepcopy(v4_wrap64_hip)
-        bad_reduction_scope["timing_metadata"]["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
+        bad_reduction_scope["timing_metadata"]["phase_availability"]["reduction"]["scope"] = (
+            "fused_into_rns_gemm"
+        )
         expect_invalid(bad_reduction_scope, "phase_availability.reduction.scope")
 
         bad_v4_bound = copy.deepcopy(v4_adaptive_u64)
@@ -583,7 +672,9 @@ class EventsScheduleCases(unittest.TestCase):
                 "flags": 1,
                 "zero_output_tile_count": 1,
                 "zero_output_tile_fraction": 1.0 / zero_tile_count,
-                "zero_output_selected_residue_planes": zero_skip_schedule["schedule_metadata"]["min_selected_prefix"],
+                "zero_output_selected_residue_planes": zero_skip_schedule["schedule_metadata"][
+                    "min_selected_prefix"
+                ],
                 "zero_output_skip_active": True,
             }
         )
@@ -592,18 +683,28 @@ class EventsScheduleCases(unittest.TestCase):
         zero_skip_schedule["selected_kernel"] = zero_skip_kernel
         zero_skip_schedule["backend_metadata"]["selected_kernel"] = zero_skip_kernel
         zero_skip_schedule["backend_metadata"]["workspace_required_bytes"] = 1040
-        zero_skip_schedule["backend_metadata"]["autotune_key"] = zero_skip_schedule["backend_metadata"][
-            "autotune_key"
-        ].replace(stale_zero_skip_kernel, zero_skip_kernel)
-        zero_insert_at = zero_skip_schedule["timing_metadata"]["gpu_event_phase_order"].index("rns_gemm_kernel_group") + 1
+        zero_skip_schedule["backend_metadata"]["autotune_key"] = zero_skip_schedule[
+            "backend_metadata"
+        ]["autotune_key"].replace(stale_zero_skip_kernel, zero_skip_kernel)
+        zero_insert_at = (
+            zero_skip_schedule["timing_metadata"]["gpu_event_phase_order"].index(
+                "rns_gemm_kernel_group"
+            )
+            + 1
+        )
         zero_skip_schedule["timing_metadata"]["gpu_event_phase_order"].insert(
             zero_insert_at, "direct_hip_zero_output_tile_memset"
         )
         repeats = zero_skip_schedule["repeats"]
-        zero_skip_schedule["gpu_event_timings_us"]["direct_hip_zero_output_tile_memset"] = [0.25] * repeats
-        zero_skip_schedule["gpu_event_timing_summary_us"]["direct_hip_zero_output_tile_memset"] = summary([0.25] * repeats)
+        zero_skip_schedule["gpu_event_timings_us"]["direct_hip_zero_output_tile_memset"] = [
+            0.25
+        ] * repeats
+        zero_skip_schedule["gpu_event_timing_summary_us"]["direct_hip_zero_output_tile_memset"] = (
+            summary([0.25] * repeats)
+        )
         zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"] = [
-            value + 0.25 for value in zero_skip_schedule["gpu_event_timings_us"]["rns_gemm_kernel_group"]
+            value + 0.25
+            for value in zero_skip_schedule["gpu_event_timings_us"]["rns_gemm_kernel_group"]
         ]
         zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm"] = summary(
             zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"]
@@ -635,14 +736,16 @@ class EventsScheduleCases(unittest.TestCase):
         )
         zero_row_col_schedule["selected_kernel"] = zero_row_col_kernel
         zero_row_col_schedule["backend_metadata"]["selected_kernel"] = zero_row_col_kernel
-        zero_row_col_schedule["backend_metadata"]["autotune_key"] = zero_row_col_schedule["backend_metadata"][
-            "autotune_key"
-        ].replace(stale_zero_skip_kernel, zero_row_col_kernel)
+        zero_row_col_schedule["backend_metadata"]["autotune_key"] = zero_row_col_schedule[
+            "backend_metadata"
+        ]["autotune_key"].replace(stale_zero_skip_kernel, zero_row_col_kernel)
         add_row_col_autotune_fields(zero_row_col_schedule)
         validate_capture(zero_row_col_schedule)
 
         zero_tile_row_col_schedule = copy.deepcopy(zero_skip_schedule)
-        zero_tile_row_col_kernel = "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1"
+        zero_tile_row_col_kernel = (
+            "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1"
+        )
         zero_tile_row_col_schedule["schedule_metadata"].update(
             {
                 "flags": 3,
@@ -682,18 +785,28 @@ class EventsScheduleCases(unittest.TestCase):
             all_zero_skip_schedule["gpu_event_timings_us"][phase] = [0.0] * repeats
             all_zero_skip_schedule["gpu_event_timing_summary_us"][phase] = zero_summary()
         all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm_kernel_group"] = [0.0] * repeats
-        all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = summary([0.0] * repeats)
+        all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = summary(
+            [0.0] * repeats
+        )
         all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"] = [0.25] * repeats
-        all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm"] = summary([0.25] * repeats)
+        all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm"] = summary(
+            [0.25] * repeats
+        )
         all_zero_skip_schedule["gpu_event_timings_us"]["crt_export_status_memset"] = [0.0] * repeats
-        all_zero_skip_schedule["gpu_event_timing_summary_us"]["crt_export_status_memset"] = summary([0.0] * repeats)
+        all_zero_skip_schedule["gpu_event_timing_summary_us"]["crt_export_status_memset"] = summary(
+            [0.0] * repeats
+        )
         all_zero_skip_schedule["gpu_event_timings_us"]["crt_export_status_d2h"] = [0.0] * repeats
-        all_zero_skip_schedule["gpu_event_timing_summary_us"]["crt_export_status_d2h"] = summary([0.0] * repeats)
+        all_zero_skip_schedule["gpu_event_timing_summary_us"]["crt_export_status_d2h"] = summary(
+            [0.0] * repeats
+        )
         validate_capture(all_zero_skip_schedule)
 
         bad_all_zero_pack_timing = copy.deepcopy(all_zero_skip_schedule)
         bad_all_zero_pack_timing["raw_timings_us"]["pack"][0] = 1
-        bad_all_zero_pack_timing["timing_summary_us"]["pack"] = summary(bad_all_zero_pack_timing["raw_timings_us"]["pack"])
+        bad_all_zero_pack_timing["timing_summary_us"]["pack"] = summary(
+            bad_all_zero_pack_timing["raw_timings_us"]["pack"]
+        )
         bad_all_zero_pack_timing["avg_pack_us"] = 1.0 / repeats
         expect_invalid(
             bad_all_zero_pack_timing,
@@ -713,17 +826,23 @@ class EventsScheduleCases(unittest.TestCase):
         bad_zero_skip_stale_kernel = copy.deepcopy(zero_skip_schedule)
         bad_zero_skip_stale_kernel["selected_kernel"] = stale_zero_skip_kernel
         bad_zero_skip_stale_kernel["backend_metadata"]["selected_kernel"] = stale_zero_skip_kernel
-        bad_zero_skip_stale_kernel["backend_metadata"]["autotune_key"] = bad_zero_skip_stale_kernel["backend_metadata"][
-            "autotune_key"
-        ].replace(zero_skip_kernel, stale_zero_skip_kernel)
-        expect_invalid(bad_zero_skip_stale_kernel, "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3")
+        bad_zero_skip_stale_kernel["backend_metadata"]["autotune_key"] = bad_zero_skip_stale_kernel[
+            "backend_metadata"
+        ]["autotune_key"].replace(zero_skip_kernel, stale_zero_skip_kernel)
+        expect_invalid(
+            bad_zero_skip_stale_kernel, "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3"
+        )
 
         bad_zero_row_col_stale_kernel = copy.deepcopy(zero_row_col_schedule)
         bad_zero_row_col_stale_kernel["selected_kernel"] = stale_zero_skip_kernel
-        bad_zero_row_col_stale_kernel["backend_metadata"]["selected_kernel"] = stale_zero_skip_kernel
-        bad_zero_row_col_stale_kernel["backend_metadata"]["autotune_key"] = bad_zero_row_col_stale_kernel[
-            "backend_metadata"
-        ]["autotune_key"].replace(zero_row_col_kernel, stale_zero_skip_kernel)
+        bad_zero_row_col_stale_kernel["backend_metadata"]["selected_kernel"] = (
+            stale_zero_skip_kernel
+        )
+        bad_zero_row_col_stale_kernel["backend_metadata"]["autotune_key"] = (
+            bad_zero_row_col_stale_kernel["backend_metadata"]["autotune_key"].replace(
+                zero_row_col_kernel, stale_zero_skip_kernel
+            )
+        )
         expect_invalid(
             bad_zero_row_col_stale_kernel,
             "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1",
@@ -731,10 +850,14 @@ class EventsScheduleCases(unittest.TestCase):
 
         bad_zero_row_col_product_count = copy.deepcopy(zero_row_col_schedule)
         bad_zero_row_col_product_count["schedule_metadata"]["zero_row_col_product_count"] = 128
-        bad_zero_row_col_product_count["schedule_metadata"]["planner_zero_row_col_product_count"] = 128
-        bad_zero_row_col_product_count["backend_metadata"]["autotune_key"] = bad_zero_row_col_product_count[
-            "backend_metadata"
-        ]["autotune_key"].replace("zero_row_col_products=129", "zero_row_col_products=128")
+        bad_zero_row_col_product_count["schedule_metadata"][
+            "planner_zero_row_col_product_count"
+        ] = 128
+        bad_zero_row_col_product_count["backend_metadata"]["autotune_key"] = (
+            bad_zero_row_col_product_count["backend_metadata"]["autotune_key"].replace(
+                "zero_row_col_products=129", "zero_row_col_products=128"
+            )
+        )
         expect_invalid(bad_zero_row_col_product_count, "zero_row_col_product_count must match")
 
         bad_zero_row_col_planner_mismatch = copy.deepcopy(zero_row_col_schedule)
@@ -742,10 +865,14 @@ class EventsScheduleCases(unittest.TestCase):
         expect_invalid(bad_zero_row_col_planner_mismatch, "planner_zero_a_row_count must match")
 
         bad_zero_row_col_missing_key = copy.deepcopy(zero_row_col_schedule)
-        bad_zero_row_col_missing_key["backend_metadata"]["autotune_key"] = bad_zero_row_col_missing_key[
-            "backend_metadata"
-        ]["autotune_key"].replace(";zero_row_col_products=129", "")
-        expect_invalid(bad_zero_row_col_missing_key, "autotune_key must include zero_row_col_products=129")
+        bad_zero_row_col_missing_key["backend_metadata"]["autotune_key"] = (
+            bad_zero_row_col_missing_key["backend_metadata"]["autotune_key"].replace(
+                ";zero_row_col_products=129", ""
+            )
+        )
+        expect_invalid(
+            bad_zero_row_col_missing_key, "autotune_key must include zero_row_col_products=129"
+        )
 
         bad_zero_skip_unknown_flag = copy.deepcopy(zero_skip_schedule)
         bad_zero_skip_unknown_flag["schedule_metadata"]["flags"] = 4
@@ -777,10 +904,14 @@ class EventsScheduleCases(unittest.TestCase):
 
         bad_v4_toolchain_enabled = copy.deepcopy(v4_adaptive_u64)
         bad_v4_toolchain_enabled["hip_toolchain"]["enabled"] = False
-        expect_invalid(bad_v4_toolchain_enabled, "HIP backend captures must set hip_toolchain.enabled=true")
+        expect_invalid(
+            bad_v4_toolchain_enabled, "HIP backend captures must set hip_toolchain.enabled=true"
+        )
 
         bad_v4_scope = copy.deepcopy(v4_adaptive_u64)
-        bad_v4_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
+        bad_v4_scope["timing_metadata"]["gpu_event_timing_source_scope"] = (
+            "direct_hip_default_stream_backend_operation_groups"
+        )
         expect_invalid(bad_v4_scope, "bounded_adaptive")
 
         bad_v4_wrap64_kernel = copy.deepcopy(v4_wrap64_hip)
@@ -789,10 +920,12 @@ class EventsScheduleCases(unittest.TestCase):
 
         stale_v3_wrap64_kernel = copy.deepcopy(v4_wrap64_hip)
         stale_v3_wrap64_kernel["selected_kernel"] = "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
-        stale_v3_wrap64_kernel["backend_metadata"]["selected_kernel"] = "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
-        stale_v3_wrap64_kernel["backend_metadata"]["autotune_key"] = stale_v3_wrap64_kernel["backend_metadata"][
-            "autotune_key"
-        ].replace(
+        stale_v3_wrap64_kernel["backend_metadata"]["selected_kernel"] = (
+            "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
+        )
+        stale_v3_wrap64_kernel["backend_metadata"]["autotune_key"] = stale_v3_wrap64_kernel[
+            "backend_metadata"
+        ]["autotune_key"].replace(
             "kernel=direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4",
             "kernel=direct_hip_wrap64_byte_gemm36_tiled_2d_v3",
         )
@@ -814,24 +947,38 @@ class EventsScheduleCases(unittest.TestCase):
         bad_event_phase_order_nullability["gpu_event_timing_summary_us"] = None
         expect_invalid(bad_event_phase_order_nullability, "gpu_event_phase_order must be null")
 
-
         # Event loss is a valid censored observation, never an event-timing success.
         from timing_diagnostics import is_censored_gpu_event_capture
         from test_benchmark_auto_backend import validate_gpu_timing
+
         for original in (v4_ck_adaptive_u64, v4_rocwmma_i64, v4_finite_ring_ck, bounded):
             censored = copy.deepcopy(original)
-            diagnostic = dict(label="operation", phase="synchronized_host_fallback", backend_status=-1)
+            diagnostic = dict(
+                label="operation", phase="synchronized_host_fallback", backend_status=-1
+            )
             censored["timing_metadata"].update(
-                gpu_event_timing=False, gpu_event_timing_status="unavailable_missing_expected_events",
-                gpu_event_timing_reason="backend_event_capture_incomplete", gpu_event_timing_source=None,
-                gpu_event_timing_source_scope=None, gpu_event_phase_order=None,
-                gpu_event_failure_diagnostics=[diagnostic], gpu_event_failure_observer_complete=True,
-                gpu_event_timing_unavailable_reasons=["HIP timing unavailable: operation synchronized_host_fallback status=-1"])
+                gpu_event_timing=False,
+                gpu_event_timing_status="unavailable_missing_expected_events",
+                gpu_event_timing_reason="backend_event_capture_incomplete",
+                gpu_event_timing_source=None,
+                gpu_event_timing_source_scope=None,
+                gpu_event_phase_order=None,
+                gpu_event_failure_diagnostics=[diagnostic],
+                gpu_event_failure_observer_complete=True,
+                gpu_event_timing_unavailable_reasons=[
+                    "HIP timing unavailable: operation synchronized_host_fallback status=-1"
+                ],
+            )
             censored["gpu_event_timings_us"] = censored["gpu_event_timing_summary_us"] = None
             validate_capture(censored)
             assert is_censored_gpu_event_capture(censored)
             validate_gpu_timing(censored)
-            for field, value in (("phase", []), ("phase", "invented"), ("label", ""), ("backend_status", True)):
+            for field, value in (
+                ("phase", []),
+                ("phase", "invented"),
+                ("label", ""),
+                ("backend_status", True),
+            ):
                 malformed = copy.deepcopy(censored)
                 malformed["timing_metadata"]["gpu_event_failure_diagnostics"][0][field] = value
                 expect_invalid(malformed, "censored GPU event diagnostics")
@@ -853,7 +1000,9 @@ class EventsScheduleCases(unittest.TestCase):
             overflow = copy.deepcopy(censored)
             overflow["timing_metadata"]["gpu_event_failure_diagnostics"] = []
             overflow["timing_metadata"]["gpu_event_failure_observer_complete"] = False
-            overflow["timing_metadata"]["gpu_event_timing_unavailable_reasons"] = ["HIP timing failure observer incomplete"]
+            overflow["timing_metadata"]["gpu_event_timing_unavailable_reasons"] = [
+                "HIP timing failure observer incomplete"
+            ]
             validate_capture(overflow)
             assert is_censored_gpu_event_capture(overflow)
 

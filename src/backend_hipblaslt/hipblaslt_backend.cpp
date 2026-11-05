@@ -16,43 +16,27 @@
 #include "backend_common/bounded_algorithm_directory.hpp"
 
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
-#  include <hip/hip_runtime_api.h>
-#  include "backend_hipblaslt/hipblaslt_headers.hpp"
-#  include "backend_hipblaslt/hipblaslt_handle_owner.hpp"
-#  if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
+#include <hip/hip_runtime_api.h>
+#include "backend_hipblaslt/hipblaslt_headers.hpp"
+#include "backend_hipblaslt/hipblaslt_handle_owner.hpp"
+#if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
 extern "C" int rns8_hipblaslt_algorithm_index(const hipblasLtMatmulAlgo_t*);
-#  endif
+#endif
 
-extern "C" int rns8_hipblaslt_reduce_i32_to_centered_device(
-    const int32_t* scratch,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int accumulate);
+extern "C" int rns8_hipblaslt_reduce_i32_to_centered_device(const int32_t* scratch,
+                                                            int8_t* residues, int rows, int cols,
+                                                            int ldc, int modulus,
+                                                            uint32_t modulus_reciprocal,
+                                                            int accumulate);
 
-extern "C" int rns8_hipblaslt_pack_transpose_centered_device(
-    const int8_t* src,
-    int8_t* dst,
-    int src_rows,
-    int src_cols,
-    int src_ld,
-    int dst_rows,
-    int dst_cols,
-    int dst_ld);
+extern "C" int rns8_hipblaslt_pack_transpose_centered_device(const int8_t* src, int8_t* dst,
+                                                             int src_rows, int src_cols, int src_ld,
+                                                             int dst_rows, int dst_cols,
+                                                             int dst_ld);
 
 extern "C" int rns8_hipblaslt_reduce_i32_to_centered_strided_device(
-    const int32_t* scratch,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int scratch_ld,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int accumulate);
+    const int32_t* scratch, int8_t* residues, int rows, int cols, int scratch_ld, int ldc,
+    int modulus, uint32_t modulus_reciprocal, int accumulate);
 #endif
 
 namespace rns8::detail {
@@ -78,7 +62,8 @@ struct HipblasLtContext {
 namespace rns8::detail {
 rns8_status hipblaslt_algorithm_directory_reset() {
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
-  matmul_algorithm_directory().reset();return RNS8_SUCCESS;
+  matmul_algorithm_directory().reset();
+  return RNS8_SUCCESS;
 #else
   return RNS8_UNSUPPORTED_BACKEND;
 #endif

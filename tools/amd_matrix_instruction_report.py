@@ -16,7 +16,9 @@ from typing import Any
 REPORT_POLICY = "matrix_instruction_calculator_evidence_only_not_a_correctness_or_performance_claim"
 DEFAULT_CALCULATOR = Path("temp") / "amd_matrix_instruction_calculator" / "matrix_calculator.py"
 DEFAULT_ARCHITECTURES = ("gfx942", "gfx1100", "gfx1200", "gfx1201")
-DETAIL_INT_RE = re.compile(r"^\s*(?P<key>M|N|K|blocks|Ops|Execution cycles|VALU co-execution cycles possible):\s*(?P<value>-?\d+)")
+DETAIL_INT_RE = re.compile(
+    r"^\s*(?P<key>M|N|K|blocks|Ops|Execution cycles|VALU co-execution cycles possible):\s*(?P<value>-?\d+)"
+)
 DETAIL_THROUGHPUT_RE = re.compile(r"^\s*Ops/(?P<scope>CU|WGP)/cycle:\s*(?P<value>\d+)")
 DETAIL_BOOL_RE = re.compile(
     r"^\s*(?P<key>Can co-execute with VALU|Sparse A matrix|CBSZ and ABID bits supported|BLGP bits supported|OPSEL supported|NEG bits supported):\s*(?P<value>True|False)"
@@ -73,7 +75,9 @@ class MatrixInstruction:
 
 def run_calculator(calculator: Path, args: list[str]) -> str:
     command = [sys.executable, str(calculator), *args]
-    completed = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    completed = subprocess.run(
+        command, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     return completed.stdout
 
 
@@ -114,10 +118,20 @@ def instruction_traits(instruction: str) -> dict[str, Any]:
     lowered = instruction.lower()
     family_match = INSTRUCTION_FAMILY_RE.match(lowered)
     family = family_match.group("family") if family_match else None
-    sparsity = "sparse" if family in {"smfmac", "swmmac"} else "dense" if family in {"mfma", "wmma"} else "other"
+    sparsity = (
+        "sparse"
+        if family in {"smfmac", "swmmac"}
+        else "dense"
+        if family in {"mfma", "wmma"}
+        else "other"
+    )
     operand = _operand_type(lowered)
     integer_bits = _integer_operand_bits(operand)
-    integer_candidate = "_i32_" in lowered and operand is not None and family in {"mfma", "smfmac", "wmma", "swmmac"}
+    integer_candidate = (
+        "_i32_" in lowered
+        and operand is not None
+        and family in {"mfma", "smfmac", "wmma", "swmmac"}
+    )
     if integer_candidate:
         bit_label = "i8" if integer_bits == 8 else "i4"
         category = f"{sparsity}_{bit_label}_i32_matrix_core"
@@ -155,8 +169,14 @@ def _rdna_integer_constraints(family: str | None, operand: str | None) -> dict[s
     }
 
 
-def _rns8_semantic_requirements(family: str | None, operand: str | None, sparsity: str) -> dict[str, str]:
-    centered_operand = "signed 4-bit A and B interpretation" if operand == "iu4" else "signed int8 A and B interpretation"
+def _rns8_semantic_requirements(
+    family: str | None, operand: str | None, sparsity: str
+) -> dict[str, str]:
+    centered_operand = (
+        "signed 4-bit A and B interpretation"
+        if operand == "iu4"
+        else "signed int8 A and B interpretation"
+    )
     wrap64_requirement = (
         "not a direct byte-limb wrap64 path; use only for explicit 4-bit experiments"
         if operand == "iu4"
@@ -167,13 +187,19 @@ def _rns8_semantic_requirements(family: str | None, operand: str | None, sparsit
         "wrap64_byte_limb_inputs": wrap64_requirement,
     }
     if family in {"mfma", "smfmac"} and operand == "i8":
-        requirements["cdna_wrap64_note"] = "CDNA i8 MFMA/SMFMAC is signed-input evidence; strict byte-limb wrap64 needs the dedicated byte-limb backend or correction"
+        requirements["cdna_wrap64_note"] = (
+            "CDNA i8 MFMA/SMFMAC is signed-input evidence; strict byte-limb wrap64 needs the dedicated byte-limb backend or correction"
+        )
     if sparsity == "sparse":
-        requirements["sparse_contract"] = "requires the explicit RNS8 sparse-A 4:2 structured-K contract, canonical A-side compression indices, dense B, and CPU sparse-reference parity; dense GEMM must not route here"
+        requirements["sparse_contract"] = (
+            "requires the explicit RNS8 sparse-A 4:2 structured-K contract, canonical A-side compression indices, dense B, and CPU sparse-reference parity; dense GEMM must not route here"
+        )
     return requirements
 
 
-def _preferred_register_usage(wavefront_usage: dict[str, dict[str, int]]) -> tuple[str | None, dict[str, int | None]]:
+def _preferred_register_usage(
+    wavefront_usage: dict[str, dict[str, int]],
+) -> tuple[str | None, dict[str, int | None]]:
     if "64" in wavefront_usage:
         chosen = "64"
     elif "32" in wavefront_usage:
@@ -291,7 +317,9 @@ def parse_detail(architecture: str, requested_instruction: str, text: str) -> Ma
             continue
         data_type_match = DETAIL_DATA_TYPE_RE.match(line) if in_data_types else None
         if data_type_match:
-            values["register_data_types"][data_type_match.group("field")] = data_type_match.group("value").strip()
+            values["register_data_types"][data_type_match.group("field")] = data_type_match.group(
+                "value"
+            ).strip()
             continue
         gpr_match = DETAIL_GPR_RE.match(line)
         if gpr_match:
@@ -554,7 +582,9 @@ def summarize_architecture(
     layout_root: Path | None = None,
     report_root: Path | None = None,
 ) -> dict[str, Any]:
-    list_output = run_calculator(calculator, ["--architecture", architecture, "--list-instructions"])
+    list_output = run_calculator(
+        calculator, ["--architecture", architecture, "--list-instructions"]
+    )
     listed = parse_instruction_list(list_output)
     selected = [
         instruction
@@ -565,13 +595,24 @@ def summarize_architecture(
         parse_detail(
             architecture,
             instruction,
-            run_calculator(calculator, ["--architecture", architecture, "--instruction", instruction, "--detail-instruction"]),
+            run_calculator(
+                calculator,
+                [
+                    "--architecture",
+                    architecture,
+                    "--instruction",
+                    instruction,
+                    "--detail-instruction",
+                ],
+            ),
         )
         for instruction in selected
     ]
     if layout_root is not None and report_root is not None:
         for item in details:
-            item.layout_artifacts = capture_layout_artifacts(calculator, item, layout_root, report_root)
+            item.layout_artifacts = capture_layout_artifacts(
+                calculator, item, layout_root, report_root
+            )
     dense = [item for item in details if item.matrix_sparsity == "dense"]
     sparse = [item for item in details if item.matrix_sparsity == "sparse"]
     dense_i8 = [item for item in dense if item.integer_operand_bits == 8]
@@ -589,7 +630,9 @@ def summarize_architecture(
         "dense_i4_i32_instruction_count": len(dense_i4),
         "sparse_i4_i32_instruction_count": len(sparse_i4),
         "dense_integer_i32_instructions": [asdict(item) for item in sorted(dense, key=_sort_score)],
-        "sparse_integer_i32_instructions": [asdict(item) for item in sorted(sparse, key=_sort_score)],
+        "sparse_integer_i32_instructions": [
+            asdict(item) for item in sorted(sparse, key=_sort_score)
+        ],
         "dense_i8_i32_instructions": [asdict(item) for item in sorted(dense_i8, key=_sort_score)],
         "sparse_i8_i32_instructions": [asdict(item) for item in sorted(sparse_i8, key=_sort_score)],
         "dense_integer_i32_recommendations": _dense_recommendations(details),
@@ -613,7 +656,9 @@ def build_report(
         version = None
     layout_root = (out_dir / "layouts") if out_dir is not None and capture_layouts else None
     summaries = [
-        summarize_architecture(calculator, architecture, layout_root=layout_root, report_root=out_dir)
+        summarize_architecture(
+            calculator, architecture, layout_root=layout_root, report_root=out_dir
+        )
         for architecture in architectures
     ]
     return {
@@ -666,7 +711,9 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                 f"{regs['a']}/{regs['b']}/{regs['c']}/{regs['d']} | {regs.get('wavefront')} | {row['reason']} |"
             )
         if arch["sparse_integer_i32_notes"]:
-            lines.extend(["", "Sparse instructions require explicit A-side compression metadata:", ""])
+            lines.extend(
+                ["", "Sparse instructions require explicit A-side compression metadata:", ""]
+            )
             for row in arch["sparse_integer_i32_notes"]:
                 tile = row["tile"]
                 lines.append(
@@ -696,9 +743,13 @@ def parse_args() -> argparse.Namespace:
         default=",".join(DEFAULT_ARCHITECTURES),
         help="comma-separated architecture aliases, for example gfx942,gfx1100,gfx1200,gfx1201",
     )
-    parser.add_argument("--out-dir", type=Path, default=Path("temp") / "amd-matrix-instruction-reports")
+    parser.add_argument(
+        "--out-dir", type=Path, default=Path("temp") / "amd-matrix-instruction-reports"
+    )
     parser.add_argument("--markdown", action="store_true", help="also write a Markdown summary")
-    parser.add_argument("--no-layouts", action="store_true", help="skip register/matrix layout artifact capture")
+    parser.add_argument(
+        "--no-layouts", action="store_true", help="skip register/matrix layout artifact capture"
+    )
     return parser.parse_args()
 
 
@@ -710,7 +761,9 @@ def main() -> int:
     if not architectures:
         raise RuntimeError("at least one architecture is required")
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    report = build_report(args.calculator, architectures, out_dir=args.out_dir, capture_layouts=not args.no_layouts)
+    report = build_report(
+        args.calculator, architectures, out_dir=args.out_dir, capture_layouts=not args.no_layouts
+    )
     json_path = args.out_dir / "amd-matrix-instruction-report.json"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print("AMD matrix instruction report: PASS")

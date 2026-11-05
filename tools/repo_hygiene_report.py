@@ -110,7 +110,11 @@ def duplicate_metadata_strings(files: list[Path], limit: int) -> list[dict[str, 
     counts: dict[str, Counter[str]] = {value: Counter() for value in metadata}
     for path in files:
         rel = repo_relative(path)
-        if rel in IGNORED_TRACKED_PATHS or not rel.startswith(SOURCE_PREFIXES) or path.suffix not in CODE_SUFFIXES:
+        if (
+            rel in IGNORED_TRACKED_PATHS
+            or not rel.startswith(SOURCE_PREFIXES)
+            or path.suffix not in CODE_SUFFIXES
+        ):
             continue
         text = source_text(path)
         for value in metadata:
@@ -136,7 +140,7 @@ def currentness_helper_write(rel: str, lines: list[str], index: int) -> bool:
         return True
     if rel != "src/core/api_matrix_workspace.cpp":
         return False
-    for line in reversed(lines[max(0, index - 16):index]):
+    for line in reversed(lines[max(0, index - 16) : index]):
         match = re.match(r"\s*void\s+([A-Za-z0-9_]+)\s*\(", line)
         if match:
             return match.group(1) in CURRENTNESS_HELPER_FUNCTIONS
@@ -166,7 +170,9 @@ def line_findings(
                     continue
                 if skip_match is not None and skip_match(rel, lines, index - 1):
                     continue
-                rows.append({"path": rel, "line": index, "match": match.group(1), "text": line.strip()})
+                rows.append(
+                    {"path": rel, "line": index, "match": match.group(1), "text": line.strip()}
+                )
                 if len(rows) >= limit:
                     return rows
     return rows
@@ -176,7 +182,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     files = tracked_files()
     large = large_files(files, args.large_file_bytes)
     duplicated = duplicate_metadata_strings(files, args.limit)
-    currentness = line_findings(files, CURRENTNESS_WRITE_RE, args.limit, skip_match=currentness_helper_write)
+    currentness = line_findings(
+        files, CURRENTNESS_WRITE_RE, args.limit, skip_match=currentness_helper_write
+    )
     raw_hip = line_findings(files, RAW_HIP_RESOURCE_RE, args.limit, skip_match=raw_hip_wrapper_call)
     return {
         "large_file_threshold_bytes": args.large_file_bytes,
@@ -207,7 +215,9 @@ def print_markdown(report: dict[str, Any]) -> None:
     print()
     print("## Duplicated Metadata Strings")
     for item in report["duplicated_metadata_strings"][:20]:
-        print(f"- `{item['value']}`: {item['occurrences']} occurrences across {len(item['files'])} files")
+        print(
+            f"- `{item['value']}`: {item['occurrences']} occurrences across {len(item['files'])} files"
+        )
     print()
     print("## Direct Currentness Flag Writes")
     for item in report["direct_currentness_flag_writes"][:20]:

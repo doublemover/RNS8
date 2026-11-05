@@ -12,12 +12,18 @@ import time
 from pathlib import Path
 
 from autotune_paths import default_autotune_cache_path
-from benchmark_request import request_identity, request_mismatch, attach_capture_identity, resolved_executable
+from benchmark_request import (
+    request_identity,
+    request_mismatch,
+    attach_capture_identity,
+    resolved_executable,
+)
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
 
 from .config import SweepCommand
+
 
 def cli_backend(backend: str) -> str:
     if backend == "hip-vector-alu-int64":
@@ -134,8 +140,12 @@ def run_command(
         )
         assert process.stdout is not None
         assert process.stderr is not None
-        stdout_thread = threading.Thread(target=read_stream, args=(process.stdout, stdout_chunks, False), daemon=True)
-        stderr_thread = threading.Thread(target=read_stream, args=(process.stderr, stderr_chunks, progress), daemon=True)
+        stdout_thread = threading.Thread(
+            target=read_stream, args=(process.stdout, stdout_chunks, False), daemon=True
+        )
+        stderr_thread = threading.Thread(
+            target=read_stream, args=(process.stderr, stderr_chunks, progress), daemon=True
+        )
         stdout_thread.start()
         stderr_thread.start()
         try:
@@ -159,7 +169,9 @@ def run_command(
             "stdout": _timeout_text(exc.stdout),
             "stderr": _timeout_text(exc.stderr),
         }
-        output.with_suffix(".failed.json").write_text(json.dumps(failure, indent=2), encoding="utf-8")
+        output.with_suffix(".failed.json").write_text(
+            json.dumps(failure, indent=2), encoding="utf-8"
+        )
         if progress:
             sys.stderr.write(f"[benchmark_sweep] timeout {output}: {duration:.3f}s\n")
             sys.stderr.flush()
@@ -178,7 +190,9 @@ def run_command(
             "stdout": stdout_text,
             "stderr": stderr_text,
         }
-        output.with_suffix(".failed.json").write_text(json.dumps(failure, indent=2), encoding="utf-8")
+        output.with_suffix(".failed.json").write_text(
+            json.dumps(failure, indent=2), encoding="utf-8"
+        )
         if progress:
             sys.stderr.write(f"[benchmark_sweep] timeout {output}: {duration:.3f}s\n")
             sys.stderr.flush()
@@ -193,14 +207,20 @@ def run_command(
             "stdout": stdout_text,
             "stderr": stderr_text,
         }
-        output.with_suffix(".failed.json").write_text(json.dumps(failure, indent=2), encoding="utf-8")
+        output.with_suffix(".failed.json").write_text(
+            json.dumps(failure, indent=2), encoding="utf-8"
+        )
         if progress:
-            sys.stderr.write(f"[benchmark_sweep] fail {output}: {duration:.3f}s returncode={returncode}\n")
+            sys.stderr.write(
+                f"[benchmark_sweep] fail {output}: {duration:.3f}s returncode={returncode}\n"
+            )
             sys.stderr.flush()
         return False
     try:
         capture = json.loads(stdout_text)
-        attach_capture_identity(capture, request, executable, execution_id=execution_id, hash_seconds=capture_overhead)
+        attach_capture_identity(
+            capture, request, executable, execution_id=execution_id, hash_seconds=capture_overhead
+        )
         stdout_text = json.dumps(capture, indent=2)
     except (ValueError, TypeError):
         pass  # Preserve malformed output for the schema diagnostic.
@@ -327,8 +347,8 @@ def execute_sweep_entries(
             rate = entry_index / elapsed if elapsed > 0 else 0
             remaining = total_entries - entry_index
             eta = remaining / rate if rate > 0 else 0
-            sys.stderr.write(f"[benchmark_sweep] progress: {entry_index}/{total_entries} ({entry_index*100//total_entries}%) elapsed={elapsed:.0f}s eta={eta:.0f}s remaining={remaining}\n")
+            sys.stderr.write(
+                f"[benchmark_sweep] progress: {entry_index}/{total_entries} ({entry_index * 100 // total_entries}%) elapsed={elapsed:.0f}s eta={eta:.0f}s remaining={remaining}\n"
+            )
             sys.stderr.flush()
     return stats
-
-

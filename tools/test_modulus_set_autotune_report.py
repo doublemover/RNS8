@@ -41,7 +41,9 @@ def with_default_modulus_metadata(capture: dict) -> dict:
     capture["residue_planes_requested"] = capture["requested_max_prefix"]
     capture["residue_planes_selected"] = capture["selected_prefix"]
     capture["residue_planes_skipped"] = capture["requested_max_prefix"] - capture["selected_prefix"]
-    capture["residue_plane_skip_fraction"] = capture["residue_planes_skipped"] / capture["requested_max_prefix"]
+    capture["residue_plane_skip_fraction"] = (
+        capture["residue_planes_skipped"] / capture["requested_max_prefix"]
+    )
     capture["modulus_set"] = {
         "name": "default",
         "source": "rns8_default_modulus_ladder",
@@ -58,7 +60,8 @@ def with_default_modulus_metadata(capture: dict) -> dict:
         "requested_prefix": capture["requested_max_prefix"],
         "selected_prefix": capture["selected_prefix"],
         "minimum_range_prefix": capture["schedule_metadata"]["min_required_prefix"],
-        "redundant_residue_count": capture["selected_prefix"] - capture["schedule_metadata"]["min_required_prefix"],
+        "redundant_residue_count": capture["selected_prefix"]
+        - capture["schedule_metadata"]["min_required_prefix"],
         "autotune_scope": "current_exact_cache",
         "cache_promotion_blocker": None,
     }
@@ -125,9 +128,15 @@ def main() -> int:
         report = modulus_set_autotune_report.build_report([default_path, candidate_path], search)
         rows = {row["modulus_set"]: row for row in report["rows"]}
         assert rows["default"]["decision"] == "comparison_anchor"
-        assert rows["experimental:prefix5-byte-ladder-search"]["decision"] == "ready_non_promoting_evidence"
+        assert (
+            rows["experimental:prefix5-byte-ladder-search"]["decision"]
+            == "ready_non_promoting_evidence"
+        )
         assert rows["experimental:prefix5-byte-ladder-search"]["speedup_vs_anchor"] == 2.0
-        assert "runtime_ladder_not_selectable" in rows["experimental:prefix5-byte-ladder-search"]["blockers"]
+        assert (
+            "runtime_ladder_not_selectable"
+            in rows["experimental:prefix5-byte-ladder-search"]["blockers"]
+        )
         assert report["runtime_ladder_changed"] is False
 
         missing_anchor = copy.deepcopy(candidate)
@@ -146,7 +155,9 @@ def main() -> int:
             search,
         )
         missing_search_row = next(
-            row for row in missing_search_report["rows"] if row["modulus_set"] == "experimental:not-in-search-report"
+            row
+            for row in missing_search_report["rows"]
+            if row["modulus_set"] == "experimental:not-in-search-report"
         )
         assert missing_search_row["decision"] == "blocked"
         assert "experimental_modulus_set_missing_search_candidate" in missing_search_row["blockers"]

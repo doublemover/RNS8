@@ -29,7 +29,9 @@ class ChainAdaptiveCases(unittest.TestCase):
                 timeout_output,
                 timeout_seconds=0.01,
             )
-            failure = json.loads(timeout_output.with_suffix(".failed.json").read_text(encoding="utf-8"))
+            failure = json.loads(
+                timeout_output.with_suffix(".failed.json").read_text(encoding="utf-8")
+            )
             assert ok is False
             assert timeout_output.exists() is False
             assert failure["timed_out"] is True
@@ -86,7 +88,10 @@ class ChainAdaptiveCases(unittest.TestCase):
         exact_chain_final_command = exact_chain_final_commands[0][1]
         assert "--residue-chain-final-export" in exact_chain_final_command
         assert "--next-op-hint" in exact_chain_final_command
-        assert exact_chain_final_command[exact_chain_final_command.index("--next-op-hint") + 1] == "final-export"
+        assert (
+            exact_chain_final_command[exact_chain_final_command.index("--next-op-hint") + 1]
+            == "final-export"
+        )
 
         bounded_independent_chain_args = copy.copy(exact_args)
         bounded_independent_chain_args.backends = ["cpu"]
@@ -94,7 +99,9 @@ class ChainAdaptiveCases(unittest.TestCase):
         bounded_independent_chain_args.residue_chain_length = 3
         bounded_independent_chain_args.residue_chain_independent_final_export = True
         bounded_independent_chain_args.next_op_hint = "final-export"
-        bounded_independent_chain_commands = benchmark_sweep.sweep_commands(bounded_independent_chain_args)
+        bounded_independent_chain_commands = benchmark_sweep.sweep_commands(
+            bounded_independent_chain_args
+        )
         assert [name for name, _command, _output in bounded_independent_chain_commands] == [
             "bounded-i64-small-16x16x16-chain3-indepfinalexport-cpu.json",
         ]
@@ -105,7 +112,9 @@ class ChainAdaptiveCases(unittest.TestCase):
         exact_independent_chain_args = copy.copy(exact_chain_args)
         exact_independent_chain_args.residue_chain_independent_final_export = True
         exact_independent_chain_args.next_op_hint = "final-export"
-        exact_independent_chain_commands = benchmark_sweep.sweep_commands(exact_independent_chain_args)
+        exact_independent_chain_commands = benchmark_sweep.sweep_commands(
+            exact_independent_chain_args
+        )
         assert [name for name, _command, _output in exact_independent_chain_commands] == [
             "exact-wide-signed-small-16x16x16-chain3-indepfinalexport-cpu.json",
         ]
@@ -121,7 +130,9 @@ class ChainAdaptiveCases(unittest.TestCase):
         vector_commands = benchmark_sweep.sweep_commands(vector_args)
         vector_name, vector_command, _vector_output = vector_commands[0]
         assert vector_name == "bounded-i64-small-16x16x16-hip-vector-alu-int64.json"
-        assert vector_command[vector_command.index("--backend") + 1] == "hip-vector-alu-int64-runtime"
+        assert (
+            vector_command[vector_command.index("--backend") + 1] == "hip-vector-alu-int64-runtime"
+        )
 
         padded_output_args = copy.copy(vector_args)
         padded_output_args.backends = ["hip-direct"]
@@ -233,7 +244,10 @@ class ChainAdaptiveCases(unittest.TestCase):
         assert "exact-wide-unsigned-small-16x16x16-amdgpu-builtins.json" in exact_include_names
         assert len(exact_include_commands) == 25
         assert not any(
-            "--semantics" in command and "bounded-u64" in command and "--backend" in command and "ck" in command
+            "--semantics" in command
+            and "bounded-u64" in command
+            and "--backend" in command
+            and "ck" in command
             for _name, command, _output in exact_include_commands
         )
 
@@ -270,8 +284,13 @@ class ChainAdaptiveCases(unittest.TestCase):
         )
         commands = benchmark_sweep.sweep_commands(adaptive_only_args)
         assert len(commands) == 2
-        assert all("--require-adaptive-execution" in command for _name, command, _output in commands)
-        assert all("--bound-mode" in command and "per-tile" in command for _name, command, _output in commands)
+        assert all(
+            "--require-adaptive-execution" in command for _name, command, _output in commands
+        )
+        assert all(
+            "--bound-mode" in command and "per-tile" in command
+            for _name, command, _output in commands
+        )
         assert [name for name, _command, _output in commands] == [
             "bounded-i64-tiny-adaptive-65x65x64-cpu.json",
             "bounded-i64-medium-adaptive-1024x1024x1024-cpu.json",
@@ -280,12 +299,17 @@ class ChainAdaptiveCases(unittest.TestCase):
         adaptive_input_scan_args.bound_source = "input-scan"
         adaptive_input_scan_commands = benchmark_sweep.sweep_commands(adaptive_input_scan_args)
         assert len(adaptive_input_scan_commands) == 2
-        assert all("--bound-source" in command for _name, command, _output in adaptive_input_scan_commands)
+        assert all(
+            "--bound-source" in command for _name, command, _output in adaptive_input_scan_commands
+        )
         assert all(
             command[command.index("--bound-source") + 1] == "input-scan"
             for _name, command, _output in adaptive_input_scan_commands
         )
-        assert all("--bound-mode" in command and "per-tile" in command for _name, command, _output in adaptive_input_scan_commands)
+        assert all(
+            "--bound-mode" in command and "per-tile" in command
+            for _name, command, _output in adaptive_input_scan_commands
+        )
 
         adaptive_only_args.include_default_adaptive = False
         try:
@@ -297,10 +321,12 @@ class ChainAdaptiveCases(unittest.TestCase):
         adaptive_only_args.include_adaptive_workloads = True
         workload_commands = benchmark_sweep.sweep_commands(adaptive_only_args)
         assert len(workload_commands) == len(benchmark_sweep.ADAPTIVE_WORKLOAD_CASES)
-        assert all("--input-profile" in command and "adaptive-bands" in command for _name, command, _output in workload_commands)
+        assert all(
+            "--input-profile" in command and "adaptive-bands" in command
+            for _name, command, _output in workload_commands
+        )
         assert workload_commands[0][0] == "bounded-i64-banded-adaptive-256-256x256x512-cpu.json"
         adaptive_only_args.include_adaptive_workloads = False
-
 
 
 if __name__ == "__main__":

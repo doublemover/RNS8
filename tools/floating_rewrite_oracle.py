@@ -3,6 +3,7 @@
 Two evaluators: rational IEEE rounding and host binary64 operations rounded through
 binary32 storage. Positive zero is the declared comparison policy. No FMA or FTZ.
 """
+
 from fractions import Fraction
 import hashlib
 import json
@@ -10,9 +11,9 @@ import math
 import struct
 
 VERSION = "rns8-floating-rewrite-v2"
-ALPHABET = tuple(Fraction(x, 2) for x in (0,1,2,3,4,6,8,12))
-INF = 0x7f800000
-NAN = 0x7fc00000
+ALPHABET = tuple(Fraction(x, 2) for x in (0, 1, 2, 3, 4, 6, 8, 12))
+INF = 0x7F800000
+NAN = 0x7FC00000
 
 
 def pow2(exponent):
@@ -36,14 +37,17 @@ def rational(bits):
     exponent = (bits >> 23) & 255
     if exponent == 255:
         return None
-    mantissa = bits & 0x7fffff
-    return sign * (Fraction(mantissa) * pow2(-149) if exponent == 0
-                   else Fraction((1 << 23) + mantissa) * pow2(exponent - 150))
+    mantissa = bits & 0x7FFFFF
+    return sign * (
+        Fraction(mantissa) * pow2(-149)
+        if exponent == 0
+        else Fraction((1 << 23) + mantissa) * pow2(exponent - 150)
+    )
 
 
 def _nearest_even(value):
     q, r = divmod(value.numerator, value.denominator)
-    return q + (2*r > value.denominator or (2*r == value.denominator and q & 1))
+    return q + (2 * r > value.denominator or (2 * r == value.denominator and q & 1))
 
 
 def round_binary32(value):
@@ -74,7 +78,7 @@ def _soft(op, a, b):
     if av is None or bv is None:
         # Exceptional behavior is shared only through IEEE category rules;
         # ordinary arithmetic and rounding use exact rationals above.
-        if (a & 0x7fffffff) > INF or (b & 0x7fffffff) > INF:
+        if (a & 0x7FFFFFFF) > INF or (b & 0x7FFFFFFF) > INF:
             return NAN
         if op == "add":
             if av is None and bv is None and (a ^ b) >> 31:
@@ -91,9 +95,9 @@ def _host_bits(value):
         bits = struct.unpack("<I", struct.pack("<f", value))[0]
     except OverflowError:
         return (0x80000000 if value < 0 else 0) | INF
-    if bits & 0x7fffffff > INF:
+    if bits & 0x7FFFFFFF > INF:
         return NAN
-    return 0 if bits & 0x7fffffff == 0 else bits
+    return 0 if bits & 0x7FFFFFFF == 0 else bits
 
 
 def _host(op, a, b):
@@ -113,8 +117,10 @@ def reduction_tree(k, topology):
     if topology == "balanced":
         layer = list(range(k))
         while len(layer) > 1:
-            layer = [(layer[i], layer[i+1]) if i+1 < len(layer) else layer[i]
-                     for i in range(0, len(layer), 2)]
+            layer = [
+                (layer[i], layer[i + 1]) if i + 1 < len(layer) else layer[i]
+                for i in range(0, len(layer), 2)
+            ]
         return layer[0]
     raise ValueError("unsupported reduction topology")
 
@@ -173,13 +179,22 @@ def reduction_contract(program, count):
     digest = hashlib.sha256(b"rns8-reduction-postorder-v1")
     for node in program:
         digest.update(struct.pack("<i", node))
-    return {"guard_version": "actual-proper-subtree-v2", "program_sha256": digest.hexdigest(),
-            "largest_proper_subtree_leaves": largest, "guard_subtree_leaves": subtree,
-            "upper_scale_exponent": 130 - (144 * subtree).bit_length()}
+    return {
+        "guard_version": "actual-proper-subtree-v2",
+        "program_sha256": digest.hexdigest(),
+        "largest_proper_subtree_leaves": largest,
+        "guard_subtree_leaves": subtree,
+        "upper_scale_exponent": 130 - (144 * subtree).bit_length(),
+    }
 
 
 def evaluate(lhs, rhs, scale_a, scale_b, topology="balanced", denominator=1, destination_bits=64):
-    if type(denominator) is not int or denominator <= 0 or type(destination_bits) is not int or not 1 <= destination_bits <= 256:
+    if (
+        type(denominator) is not int
+        or denominator <= 0
+        or type(destination_bits) is not int
+        or not 1 <= destination_bits <= 256
+    ):
         raise ValueError("positive exact denominator and bounded integer destination required")
     if len(lhs) != len(rhs):
         raise ValueError("operand length mismatch")
@@ -191,9 +206,15 @@ def evaluate(lhs, rhs, scale_a, scale_b, topology="balanced", denominator=1, des
     t = scale_a + scale_b - 254  # widened integers, never byte addition
     outputs = {}
     for name, operation in (("rational", _soft), ("host", _host)):
-        direct = [operation("mul", operation("mul", round_binary32(x), round_binary32(sa)),
-                            operation("mul", round_binary32(y), round_binary32(sb))) for x,y in zip(a,b)]
-        raw = [operation("mul", round_binary32(x), round_binary32(y)) for x,y in zip(a,b)]
+        direct = [
+            operation(
+                "mul",
+                operation("mul", round_binary32(x), round_binary32(sa)),
+                operation("mul", round_binary32(y), round_binary32(sb)),
+            )
+            for x, y in zip(a, b)
+        ]
+        raw = [operation("mul", round_binary32(x), round_binary32(y)) for x, y in zip(a, b)]
         root = _reduce_program(raw, program, operation)
         if name == "rational":
             value = rational(root)
@@ -202,36 +223,61 @@ def evaluate(lhs, rhs, scale_a, scale_b, topology="balanced", denominator=1, des
             value = struct.unpack("<f", struct.pack("<I", root))[0]
             hoisted = _host_bits(math.ldexp(value, t))
         outputs[name] = {"direct": _reduce_program(direct, program, operation), "hoisted": hoisted}
-    exact = sum((x*y for x,y in zip(a,b)), Fraction()) * sa * sb
+    exact = sum((x * y for x, y in zip(a, b)), Fraction()) * sa * sb
     observed = outputs["rational"]
     recovered = exact / denominator
-    finite_exact = (all(rational(bits) == exact for bits in observed.values())
-                    and recovered.denominator == 1
-                    and -(1 << (destination_bits-1)) <= recovered < (1 << (destination_bits-1)))
-    rewrite = ("unknown" if any((bits & 0x7fffffff) > INF for bits in observed.values())
-               else "proven" if observed["direct"] == observed["hoisted"] else "refuted")
+    finite_exact = (
+        all(rational(bits) == exact for bits in observed.values())
+        and recovered.denominator == 1
+        and -(1 << (destination_bits - 1)) <= recovered < (1 << (destination_bits - 1))
+    )
+    rewrite = (
+        "unknown"
+        if any((bits & 0x7FFFFFFF) > INF for bits in observed.values())
+        else "proven"
+        if observed["direct"] == observed["hoisted"]
+        else "refuted"
+    )
     # Sufficient guard uses the largest proper subtree for this topology.
     k = len(a)
     upper = topology_contract["upper_scale_exponent"]
-    guards = {"integer_product_domain": 144*k <= 1 << 24,
-              "rewrite_band": -147 <= t <= upper,
-              "finite_root": Fraction(144*k)*pow2(t-2) < pow2(128)}
-    identity = {"version": VERSION, "lhs": list(lhs), "rhs": list(rhs),
-                "scale_codes": [scale_a,scale_b], "topology": topology,
-                "topology_contract": topology_contract,
-                "rounding": "binary32-RNE-separate", "denormals": "gradual",
-                "zero_policy": "canonical-positive", "nan_policy": "canonical-unknown-equivalence",
-                "denominator": denominator, "destination_bits": destination_bits,
-                "outer_accumulation": "not-modeled"}
-    return {"schema": VERSION, "sha256": hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest(),
-            "assumptions": identity, "outputs": outputs, "guards": guards,
-            "evaluators_agree": outputs["rational"] == outputs["host"],
-            "verdict_scope": "supplied-input-block-only",
-            "verdicts": {"algebraic_value_equality": "proven",
-                         "floating_rewrite_equivalence": rewrite,
-                         "finite_exact_recoverability": "proven" if finite_exact else "refuted",
-                         "physical_layout_correctness": "not_run", "target_execution": "not_run"},
-            "runtime_dispatch_eligible": False}
+    guards = {
+        "integer_product_domain": 144 * k <= 1 << 24,
+        "rewrite_band": -147 <= t <= upper,
+        "finite_root": Fraction(144 * k) * pow2(t - 2) < pow2(128),
+    }
+    identity = {
+        "version": VERSION,
+        "lhs": list(lhs),
+        "rhs": list(rhs),
+        "scale_codes": [scale_a, scale_b],
+        "topology": topology,
+        "topology_contract": topology_contract,
+        "rounding": "binary32-RNE-separate",
+        "denormals": "gradual",
+        "zero_policy": "canonical-positive",
+        "nan_policy": "canonical-unknown-equivalence",
+        "denominator": denominator,
+        "destination_bits": destination_bits,
+        "outer_accumulation": "not-modeled",
+    }
+    return {
+        "schema": VERSION,
+        "sha256": hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest(),
+        "assumptions": identity,
+        "outputs": outputs,
+        "guards": guards,
+        "evaluators_agree": outputs["rational"] == outputs["host"],
+        "verdict_scope": "supplied-input-block-only",
+        "verdicts": {
+            "algebraic_value_equality": "proven",
+            "floating_rewrite_equivalence": rewrite,
+            "finite_exact_recoverability": "proven" if finite_exact else "refuted",
+            "physical_layout_correctness": "not_run",
+            "target_execution": "not_run",
+        },
+        "runtime_dispatch_eligible": False,
+    }
 
 
 def evaluate_sequence(blocks, initial_bits=0, denominator=1, destination_bits=64):
@@ -241,12 +287,19 @@ def evaluate_sequence(blocks, initial_bits=0, denominator=1, destination_bits=64
     new_block_rebase_exponent). Only the NEW block is rebased. The old
     accumulator remains in one fixed output grid throughout the sequence.
     """
-    if (type(initial_bits) is not int or not 0 <= initial_bits <= 0xffffffff
-            or type(denominator) is not int or denominator <= 0
-            or type(destination_bits) is not int or not 1 <= destination_bits <= 256
-            or not 1 <= len(blocks) <= 65536):
+    if (
+        type(initial_bits) is not int
+        or not 0 <= initial_bits <= 0xFFFFFFFF
+        or type(denominator) is not int
+        or denominator <= 0
+        or type(destination_bits) is not int
+        or not 1 <= destination_bits <= 256
+        or not 1 <= len(blocks) <= 65536
+    ):
         raise ValueError("invalid outer accumulation contract")
-    results = {name:{"direct":initial_bits,"hoisted":initial_bits} for name in ("rational","host")}
+    results = {
+        name: {"direct": initial_bits, "hoisted": initial_bits} for name in ("rational", "host")
+    }
     exact = rational(initial_bits)
     initial_finite = exact is not None
     exact = exact if initial_finite else Fraction()
@@ -254,38 +307,70 @@ def evaluate_sequence(blocks, initial_bits=0, denominator=1, destination_bits=64
     for block in blocks:
         if len(block) != 6 or type(block[5]) is not int or not -512 <= block[5] <= 512:
             raise ValueError("explicit bounded new-block rebase required")
-        lhs,rhs,sa,sb,topology,rebase = block
-        result = evaluate(lhs,rhs,sa,sb,topology,1,256)
-        identities.append({"block_sha256":result["sha256"],"new_block_rebase_exponent":rebase})
-        for name,operation in (("rational",_soft),("host",_host)):
-            for route in ("direct","hoisted"):
+        lhs, rhs, sa, sb, topology, rebase = block
+        result = evaluate(lhs, rhs, sa, sb, topology, 1, 256)
+        identities.append({"block_sha256": result["sha256"], "new_block_rebase_exponent": rebase})
+        for name, operation in (("rational", _soft), ("host", _host)):
+            for route in ("direct", "hoisted"):
                 bits = result["outputs"][name][route]
                 if name == "rational":
                     value = rational(bits)
-                    scaled = bits if value is None else round_binary32(value*pow2(rebase))
+                    scaled = bits if value is None else round_binary32(value * pow2(rebase))
                 else:
-                    value = struct.unpack("<f",struct.pack("<I",bits))[0]
+                    value = struct.unpack("<f", struct.pack("<I", bits))[0]
                     try:
-                        scaled = _host_bits(math.ldexp(value,rebase))
+                        scaled = _host_bits(math.ldexp(value, rebase))
                     except OverflowError:
                         scaled = (bits & 0x80000000) | INF
-                results[name][route] = operation("add",results[name][route],scaled)
-        exact += sum((decode_element(a)*decode_element(b) for a,b in zip(lhs,rhs)),Fraction())*decode_scale(sa)*decode_scale(sb)*pow2(rebase)
-        traces.append({name:dict(values) for name,values in results.items()})
-    observed=results["rational"]
-    recovered=exact/denominator
-    finite=(initial_finite and all(rational(bits)==exact for bits in observed.values())
-            and recovered.denominator==1 and -(1 << (destination_bits-1)) <= recovered < 1 << (destination_bits-1))
-    rewrite=("unknown" if any((bits & 0x7fffffff)>INF for bits in observed.values())
-             else "proven" if observed["direct"]==observed["hoisted"] else "refuted")
-    identity={"version":"rns8-floating-outer-v1","blocks":identities,"initial_bits":initial_bits,
-              "outer_schedule":"new_block_ldexp_then_left_fold_add","denormals":"gradual",
-              "rounding":"binary32-RNE-separate","denominator":denominator,"destination_bits":destination_bits}
-    return {"schema":"rns8-floating-outer-v1","assumptions":identity,
-            "sha256":hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(",",":")).encode()).hexdigest(),
-            "outputs":results,"outer_trace":traces,"evaluators_agree":results["rational"]==results["host"],
-            "verdict_scope":"supplied-complete-block-sequence-only",
-            "verdicts":{"algebraic_value_equality":"proven","floating_rewrite_equivalence":rewrite,
-                        "finite_exact_recoverability":"proven" if finite else "refuted",
-                        "physical_layout_correctness":"not_run","target_execution":"not_run"},
-            "runtime_dispatch_eligible":False}
+                results[name][route] = operation("add", results[name][route], scaled)
+        exact += (
+            sum((decode_element(a) * decode_element(b) for a, b in zip(lhs, rhs)), Fraction())
+            * decode_scale(sa)
+            * decode_scale(sb)
+            * pow2(rebase)
+        )
+        traces.append({name: dict(values) for name, values in results.items()})
+    observed = results["rational"]
+    recovered = exact / denominator
+    finite = (
+        initial_finite
+        and all(rational(bits) == exact for bits in observed.values())
+        and recovered.denominator == 1
+        and -(1 << (destination_bits - 1)) <= recovered < 1 << (destination_bits - 1)
+    )
+    rewrite = (
+        "unknown"
+        if any((bits & 0x7FFFFFFF) > INF for bits in observed.values())
+        else "proven"
+        if observed["direct"] == observed["hoisted"]
+        else "refuted"
+    )
+    identity = {
+        "version": "rns8-floating-outer-v1",
+        "blocks": identities,
+        "initial_bits": initial_bits,
+        "outer_schedule": "new_block_ldexp_then_left_fold_add",
+        "denormals": "gradual",
+        "rounding": "binary32-RNE-separate",
+        "denominator": denominator,
+        "destination_bits": destination_bits,
+    }
+    return {
+        "schema": "rns8-floating-outer-v1",
+        "assumptions": identity,
+        "sha256": hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "outputs": results,
+        "outer_trace": traces,
+        "evaluators_agree": results["rational"] == results["host"],
+        "verdict_scope": "supplied-complete-block-sequence-only",
+        "verdicts": {
+            "algebraic_value_equality": "proven",
+            "floating_rewrite_equivalence": rewrite,
+            "finite_exact_recoverability": "proven" if finite else "refuted",
+            "physical_layout_correctness": "not_run",
+            "target_execution": "not_run",
+        },
+        "runtime_dispatch_eligible": False,
+    }

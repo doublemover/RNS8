@@ -22,10 +22,19 @@ from .system import *
 from .resolution import ACTIVE_RESOLUTION, Request, resolve, selection_context
 from .version_policy import installed_vcpkg_receipt
 
-def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None,
-                 request: Request | None = None, installed_root: Path | None = None) -> tuple[dict[str, object], bool]:
-    requested = request or Request(platform.system(), require_hip=True, require_vcpkg=platform.system() == "Windows",
-                                   source_root=str(repo_root()))
+
+def build_report(
+    run_accelerator_probes: bool = False,
+    accelerator_probe_dir: Path | None = None,
+    request: Request | None = None,
+    installed_root: Path | None = None,
+) -> tuple[dict[str, object], bool]:
+    requested = request or Request(
+        platform.system(),
+        require_hip=True,
+        require_vcpkg=platform.system() == "Windows",
+        source_root=str(repo_root()),
+    )
     resolution = resolve(requested)
     with selection_context(resolution):
         report, ready = _build_report(run_accelerator_probes, accelerator_probe_dir, installed_root)
@@ -34,8 +43,11 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
     return report, ready and not resolution["errors"]
 
 
-def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None,
-                  installed_root: Path | None = None) -> tuple[dict[str, object], bool]:
+def _build_report(
+    run_accelerator_probes: bool = False,
+    accelerator_probe_dir: Path | None = None,
+    installed_root: Path | None = None,
+) -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
     host_system = platform.system()
@@ -72,8 +84,12 @@ def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: P
         selected = ACTIVE_RESOLUTION.get().get("vcpkg", {}).get("selected")
         triplet = selected.get("paths", {}).get("triplet") if selected else None
         receipt = installed_vcpkg_receipt(installed_root)
-        vcpkg_installed = {item["name"]: item["version"] + ("#" + str(item["port_version"]) if item["port_version"] else "")
-                          for item in receipt["packages"] if item["feature"] == "core" and item["triplet"] == triplet and item["version"]}
+        vcpkg_installed = {
+            item["name"]: item["version"]
+            + ("#" + str(item["port_version"]) if item["port_version"] else "")
+            for item in receipt["packages"]
+            if item["feature"] == "core" and item["triplet"] == triplet and item["version"]
+        }
         inventory_source = "configured_manifest_installation:" + str(installed_root)
     vcpkg_report = {}
     for package in vcpkg_packages:
@@ -87,7 +103,9 @@ def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: P
         missing_required = True
 
     hip_info = hip_info_report(find_command("hipInfo"))
-    offload_target_value = hip_info.get("target") if isinstance(hip_info.get("target"), str) else None
+    offload_target_value = (
+        hip_info.get("target") if isinstance(hip_info.get("target"), str) else None
+    )
     accelerators = accelerator_components()
     report: dict[str, object] = {
         "system": {
@@ -121,6 +139,6 @@ def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: P
     report["hard_cut_self_checks"] = hard_cut_self_checks(report)
     hard_cut_checks = report["hard_cut_self_checks"]
     assert isinstance(hard_cut_checks, dict)
-    return report, not missing_required and bool(readiness["host_readiness_ok"]) and bool(hard_cut_checks["ok"])
-
-
+    return report, not missing_required and bool(readiness["host_readiness_ok"]) and bool(
+        hard_cut_checks["ok"]
+    )

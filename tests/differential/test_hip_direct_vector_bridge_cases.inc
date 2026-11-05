@@ -17,7 +17,8 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
     auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
     auto vector_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
-    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) ==
+            RNS8_SUCCESS);
 
     rns8::detail::hip_direct_allocation_counters_reset();
     rns8_plan* plan = nullptr;
@@ -37,7 +38,8 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
     CHECK((packing_info.next_op_flags & RNS8_NEXT_OP_NATIVE_GEMM) != 0);
     CHECK((packing_info.next_op_flags & RNS8_NEXT_OP_NATIVE_TO_RNS_CONVERTIBLE) != 0);
     CHECK(std::string(packing_info.output_domain_name) == "native_i64_u64_current");
-    CHECK(std::string(packing_info.next_op_hint).find("native-to-RNS conversion") != std::string::npos);
+    CHECK(std::string(packing_info.next_op_hint).find("native-to-RNS conversion") !=
+          std::string::npos);
     REQUIRE(rns8_create_workspace(vector, plan, &workspace) == RNS8_SUCCESS);
     auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
     auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
@@ -129,7 +131,8 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
     auto cpu_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_CPU_REFERENCE);
     auto vector_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
-    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) ==
+            RNS8_SUCCESS);
 
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;
@@ -189,7 +192,8 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
     auto cpu_desc = signed_desc(m, n, k, 1000000, RNS8_BACKEND_CPU_REFERENCE);
     auto vector_desc = signed_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
-    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) ==
+            RNS8_SUCCESS);
 
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;
@@ -241,7 +245,8 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
     auto cpu_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_CPU_REFERENCE);
     auto vector_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
-    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) ==
+            RNS8_SUCCESS);
 
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;
@@ -282,12 +287,14 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
     std::vector<uint64_t> B(static_cast<std::size_t>(k * n));
     for (int64_t row = 0; row < m; ++row) {
       for (int64_t kk = 0; kk < k; ++kk) {
-        A[static_cast<std::size_t>(row * k + kk)] = static_cast<uint64_t>(((row * 3 + kk) % 17) + 1);
+        A[static_cast<std::size_t>(row * k + kk)] =
+            static_cast<uint64_t>(((row * 3 + kk) % 17) + 1);
       }
     }
     for (int64_t kk = 0; kk < k; ++kk) {
       for (int64_t col = 0; col < n; ++col) {
-        B[static_cast<std::size_t>(kk * n + col)] = static_cast<uint64_t>(((kk + col * 5) % 19) + 1);
+        B[static_cast<std::size_t>(kk * n + col)] =
+            static_cast<uint64_t>(((kk + col * 5) % 19) + 1);
       }
     }
     std::vector<uint64_t> cpu_c(static_cast<std::size_t>(m * n), 0);
@@ -295,7 +302,8 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
     auto cpu_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_CPU_REFERENCE);
     auto vector_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
-    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) ==
+            RNS8_SUCCESS);
 
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;
@@ -365,7 +373,8 @@ TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
       for (int64_t col = 0; col < bridge_k; ++col) {
         for (int64_t kk = 0; kk < k0; ++kk) {
           expected_first[static_cast<std::size_t>(row * bridge_k + col)] +=
-              A[static_cast<std::size_t>(row * k0 + kk)] * B[static_cast<std::size_t>(kk * bridge_k + col)];
+              A[static_cast<std::size_t>(row * k0 + kk)] *
+              B[static_cast<std::size_t>(kk * bridge_k + col)];
         }
       }
     }
@@ -409,7 +418,8 @@ TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
     REQUIRE(rns8_create_matrix(hip, &hip_c_desc, &hip_c) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_i64(vector, vector_a, A.data(), k0, 1) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_i64(vector, vector_b, B.data(), bridge_k, 2) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_rns(vector, vector_plan, vector_a, vector_b, vector_c, vector_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, vector_plan, vector_a, vector_b, vector_c, vector_workspace) ==
+            RNS8_SUCCESS);
     REQUIRE(vector_c->device_native_current);
     CHECK_FALSE(vector_c->device_residues_current);
     const uint64_t produced_source_version = vector_c->source_version;
@@ -420,7 +430,8 @@ TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
     CHECK_FALSE(hip_a->device_residues_current);
     CHECK(hip_a->source_version == 0);
     vector_c->source_version = produced_source_version;
-    REQUIRE(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) ==
+            RNS8_SUCCESS);
     CHECK(hip_a->device_residues_current);
     CHECK_FALSE(hip_a->device_native_current);
     CHECK(hip_a->source_version == vector_c->source_version);
@@ -456,7 +467,8 @@ TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
       for (int64_t col = 0; col < bridge_k; ++col) {
         for (int64_t kk = 0; kk < k0; ++kk) {
           expected_first[static_cast<std::size_t>(row * bridge_k + col)] +=
-              A[static_cast<std::size_t>(row * k0 + kk)] * B[static_cast<std::size_t>(kk * bridge_k + col)];
+              A[static_cast<std::size_t>(row * k0 + kk)] *
+              B[static_cast<std::size_t>(kk * bridge_k + col)];
         }
       }
     }
@@ -487,7 +499,8 @@ TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
     REQUIRE(rns8_create_workspace(vector, vector_plan, &vector_workspace) == RNS8_SUCCESS);
     REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
     auto vector_a_desc = matrix_desc(m, k0, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
-    auto vector_b_desc = matrix_desc(k0, bridge_k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto vector_b_desc =
+        matrix_desc(k0, bridge_k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     auto vector_c_desc = matrix_desc(m, bridge_k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     auto hip_a_desc = matrix_desc(m, bridge_k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     auto hip_b_desc = matrix_desc(bridge_k, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
@@ -500,10 +513,12 @@ TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
     REQUIRE(rns8_create_matrix(hip, &hip_c_desc, &hip_c) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_u64(vector, vector_a, A.data(), k0, 11) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_u64(vector, vector_b, B.data(), bridge_k, 12) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_rns(vector, vector_plan, vector_a, vector_b, vector_c, vector_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, vector_plan, vector_a, vector_b, vector_c, vector_workspace) ==
+            RNS8_SUCCESS);
     REQUIRE(vector_c->device_native_current);
     CHECK_FALSE(vector_c->device_residues_current);
-    REQUIRE(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) ==
+            RNS8_SUCCESS);
     CHECK(hip_a->device_residues_current);
     CHECK_FALSE(hip_a->device_native_current);
     CHECK(hip_a->source_version == vector_c->source_version);
@@ -562,7 +577,8 @@ TEST_CASE("vector ALU native export range errors leave destination unchanged") {
 
     std::vector<int64_t> out(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212));
     CHECK(rns8_export_i64(vector, plan, c_matrix, out.data(), n) == RNS8_RANGE_ERROR);
-    CHECK(out == std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
+    CHECK(out ==
+          std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
     CHECK(c_matrix->device_native_current);
 
     rns8_destroy_matrix(c_matrix);
@@ -598,7 +614,8 @@ TEST_CASE("vector ALU native export range errors leave destination unchanged") {
 
     std::vector<uint64_t> out(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe));
     CHECK(rns8_export_u64(vector, plan, c_matrix, out.data(), n) == RNS8_RANGE_ERROR);
-    CHECK(out == std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
+    CHECK(out ==
+          std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
     CHECK(c_matrix->device_native_current);
 
     rns8_destroy_matrix(c_matrix);
@@ -611,21 +628,48 @@ TEST_CASE("vector ALU native export range errors leave destination unchanged") {
   rns8_destroy_context(vector);
 }
 
-
 TEST_CASE("full-width vector exact-N control preserves cancellation and unsigned overflow status") {
-  if(!hip_available())SKIP("no HIP device for UInt192 exact-width controls");
+  if (!hip_available())
+    SKIP("no HIP device for UInt192 exact-width controls");
   using namespace rns8::detail;
-  for(int n:{2,3,4,7,8})for(int k:{511,512,513,4096}){
-    constexpr int m=3;std::vector<int64_t> a(m*k,INT64_MIN),b(k*n),c(m*n);
-    for(int q=0;q<k;++q)for(int col=0;col<n;++col)b[q*n+col]=(q&1)?-1:1;
-    hip_direct_device_buffer da,db,dc,ds;REQUIRE(da.allocate(0,a.size()*8)==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size()*8)==RNS8_SUCCESS);
-    REQUIRE(dc.allocate(0,c.size()*8)==RNS8_SUCCESS);REQUIRE(ds.allocate(0,4)==RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8)==RNS8_SUCCESS);
-    for(bool exact:{false,true}){REQUIRE(hip_direct_zero(0,ds.get(),4)==RNS8_SUCCESS);REQUIRE(vector_alu_gemm_i64_device(0,da.get(),db.get(),dc.get(),ds.get(),m,n,k,exact)==RNS8_SUCCESS);
-      uint32_t status=99;REQUIRE(hip_direct_copy_device_to_host(0,&status,ds.get(),4)==RNS8_SUCCESS);CHECK(status==0);
-      REQUIRE(hip_direct_copy_device_to_host(0,c.data(),dc.get(),c.size()*8)==RNS8_SUCCESS);for(auto value:c)CHECK(value==((k&1)?INT64_MIN:0));}
-    std::vector<uint64_t> ua(m*k,UINT64_MAX),ub(k*n,2);REQUIRE(hip_direct_copy_host_to_device(0,da.get(),ua.data(),ua.size()*8)==RNS8_SUCCESS);REQUIRE(hip_direct_copy_host_to_device(0,db.get(),ub.data(),ub.size()*8)==RNS8_SUCCESS);
-    for(bool exact:{false,true}){REQUIRE(hip_direct_zero(0,ds.get(),4)==RNS8_SUCCESS);REQUIRE(vector_alu_gemm_u64_device(0,da.get(),db.get(),dc.get(),ds.get(),m,n,k,exact)==RNS8_SUCCESS);
-      uint32_t status=0;REQUIRE(hip_direct_copy_device_to_host(0,&status,ds.get(),4)==RNS8_SUCCESS);CHECK(status!=0);}
-  }
+  for (int n : {2, 3, 4, 7, 8})
+    for (int k : {511, 512, 513, 4096}) {
+      constexpr int m = 3;
+      std::vector<int64_t> a(m * k, INT64_MIN), b(k * n), c(m * n);
+      for (int q = 0; q < k; ++q)
+        for (int col = 0; col < n; ++col)
+          b[q * n + col] = (q & 1) ? -1 : 1;
+      hip_direct_device_buffer da, db, dc, ds;
+      REQUIRE(da.allocate(0, a.size() * 8) == RNS8_SUCCESS);
+      REQUIRE(db.allocate(0, b.size() * 8) == RNS8_SUCCESS);
+      REQUIRE(dc.allocate(0, c.size() * 8) == RNS8_SUCCESS);
+      REQUIRE(ds.allocate(0, 4) == RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0, da.get(), a.data(), a.size() * 8) == RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0, db.get(), b.data(), b.size() * 8) == RNS8_SUCCESS);
+      for (bool exact : {false, true}) {
+        REQUIRE(hip_direct_zero(0, ds.get(), 4) == RNS8_SUCCESS);
+        REQUIRE(vector_alu_gemm_i64_device(0, da.get(), db.get(), dc.get(), ds.get(), m, n, k,
+                                           exact) == RNS8_SUCCESS);
+        uint32_t status = 99;
+        REQUIRE(hip_direct_copy_device_to_host(0, &status, ds.get(), 4) == RNS8_SUCCESS);
+        CHECK(status == 0);
+        REQUIRE(hip_direct_copy_device_to_host(0, c.data(), dc.get(), c.size() * 8) ==
+                RNS8_SUCCESS);
+        for (auto value : c)
+          CHECK(value == ((k & 1) ? INT64_MIN : 0));
+      }
+      std::vector<uint64_t> ua(m * k, UINT64_MAX), ub(k * n, 2);
+      REQUIRE(hip_direct_copy_host_to_device(0, da.get(), ua.data(), ua.size() * 8) ==
+              RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0, db.get(), ub.data(), ub.size() * 8) ==
+              RNS8_SUCCESS);
+      for (bool exact : {false, true}) {
+        REQUIRE(hip_direct_zero(0, ds.get(), 4) == RNS8_SUCCESS);
+        REQUIRE(vector_alu_gemm_u64_device(0, da.get(), db.get(), dc.get(), ds.get(), m, n, k,
+                                           exact) == RNS8_SUCCESS);
+        uint32_t status = 0;
+        REQUIRE(hip_direct_copy_device_to_host(0, &status, ds.get(), 4) == RNS8_SUCCESS);
+        CHECK(status != 0);
+      }
+    }
 }

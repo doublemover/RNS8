@@ -10,7 +10,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from test_sweep_contract_support import assert_reuse, assert_scenario_commands, assert_unique_destinations, assert_visibility, option
+from test_sweep_contract_support import (
+    assert_reuse,
+    assert_scenario_commands,
+    assert_unique_destinations,
+    assert_visibility,
+    option,
+)
 from pathlib import (
     Path,
 )
@@ -57,7 +63,10 @@ class CommandMatrixCases(unittest.TestCase):
         assert len(wrap64_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 2
         assert wrap64_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-wrap64-byte-limb.json"
         assert wrap64_commands[1][0] == "wrap-u64-wrap64-64-64x64x64-hip-direct.json"
-        assert all(not ({"--reuse-packed-inputs", "--reuse-packed-a", "--reuse-packed-b"} & set(command)) for _, command, _ in wrap64_commands)
+        assert all(
+            not ({"--reuse-packed-inputs", "--reuse-packed-a", "--reuse-packed-b"} & set(command))
+            for _, command, _ in wrap64_commands
+        )
         wrap64_args.include_wrap64_rocwmma_candidate = True
         candidate_commands = benchmark_sweep.sweep_commands(wrap64_args)
         assert len(candidate_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 3
@@ -68,19 +77,27 @@ class CommandMatrixCases(unittest.TestCase):
         wrap64_args.include_wrap64_rocwmma_candidate = False
         wrap64_args.reuse_packed_inputs = True
         reuse_commands = benchmark_sweep.sweep_commands(wrap64_args)
-        assert reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
+        assert (
+            reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
+        )
         for _, command, _ in reuse_commands:
             assert_reuse(command, "prepacked_reuse")
         wrap64_args.reuse_packed_inputs = False
         wrap64_args.reuse_packed_a = True
         reuse_a_commands = benchmark_sweep.sweep_commands(wrap64_args)
-        assert reuse_a_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-a-wrap64-byte-limb.json"
+        assert (
+            reuse_a_commands[0][0]
+            == "wrap-u64-wrap64-64-64x64x64-reuse-packed-a-wrap64-byte-limb.json"
+        )
         for _, command, _ in reuse_a_commands:
             assert_reuse(command, "prepacked_reuse_a")
         wrap64_args.reuse_packed_a = False
         wrap64_args.reuse_packed_b = True
         reuse_b_commands = benchmark_sweep.sweep_commands(wrap64_args)
-        assert reuse_b_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-b-wrap64-byte-limb.json"
+        assert (
+            reuse_b_commands[0][0]
+            == "wrap-u64-wrap64-64-64x64x64-reuse-packed-b-wrap64-byte-limb.json"
+        )
         for _, command, _ in reuse_b_commands:
             assert_reuse(command, "prepacked_reuse_b")
         wrap64_args.reuse_packed_b = False
@@ -90,7 +107,9 @@ class CommandMatrixCases(unittest.TestCase):
         except SystemExit as exc:
             assert "--adaptive-only requires" in str(exc)
         else:
-            raise AssertionError("adaptive-only without adaptive cases should fail even when wrap64 is requested")
+            raise AssertionError(
+                "adaptive-only without adaptive cases should fail even when wrap64 is requested"
+            )
         wrap64_args.adaptive_only = False
 
         exact_args = argparse.Namespace(
@@ -129,8 +148,14 @@ class CommandMatrixCases(unittest.TestCase):
             "exact-wide-signed-small-16x16x16-cpu.json",
             "exact-wide-signed-small-16x16x16-hip-direct.json",
         ]
-        assert all(option(command, "--semantics") == "exact-wide-signed" for _, command, _ in exact_commands)
-        assert [option(command, "--backend") for _, command, _ in exact_commands] == ["cpu-reference", "hip-direct"]
+        assert all(
+            option(command, "--semantics") == "exact-wide-signed"
+            for _, command, _ in exact_commands
+        )
+        assert [option(command, "--backend") for _, command, _ in exact_commands] == [
+            "cpu-reference",
+            "hip-direct",
+        ]
 
         anchor_args = copy.copy(exact_args)
         anchor_args.cpu_reference_mode = "correctness-anchor"
@@ -146,7 +171,10 @@ class CommandMatrixCases(unittest.TestCase):
         assert anchor_gpu_command[anchor_gpu_command.index("--repeats") + 1] == "2"
         assert "--cpu-threads" in anchor_cpu_command and "4" in anchor_cpu_command
         assert "--cpu-parallel-threshold" in anchor_cpu_command and "0" in anchor_cpu_command
-        assert "--cpu-reference-mode" in anchor_cpu_command and "correctness-anchor" in anchor_cpu_command
+        assert (
+            "--cpu-reference-mode" in anchor_cpu_command
+            and "correctness-anchor" in anchor_cpu_command
+        )
         assert "--progress" in anchor_cpu_command and "--progress" in anchor_gpu_command
 
         for mask in ["0", "0,1", "0,1,2,3", "0,1,2,3,4,5,6,7"]:
@@ -159,7 +187,9 @@ class CommandMatrixCases(unittest.TestCase):
             assert visible_entries
             assert_visibility(visible_entries, {"HIP_VISIBLE_DEVICES": mask})
             assert_unique_destinations(visible_entries)
-            assert [entry.command for entry in visible_entries] == [command for _, command, _ in exact_commands]
+            assert [entry.command for entry in visible_entries] == [
+                command for _, command, _ in exact_commands
+            ]
 
         sharded_args = copy.copy(exact_args)
         sharded_args.hip_visible_devices = None
@@ -169,12 +199,22 @@ class CommandMatrixCases(unittest.TestCase):
         sharded_entries = benchmark_sweep.sweep_command_entries(sharded_args)
         assert len(sharded_entries) == len(exact_commands) * 4
         assert_unique_destinations(sharded_entries)
-        assert {entry.name for entry in sharded_entries} == {f"gpu{shard}-{name}" for shard in "0123" for name, _, _ in exact_commands}
-        assert {entry.output for entry in sharded_entries} == {output.parent / f"gpu{shard}" / output.name for shard in "0123" for _, _, output in exact_commands}
+        assert {entry.name for entry in sharded_entries} == {
+            f"gpu{shard}-{name}" for shard in "0123" for name, _, _ in exact_commands
+        }
+        assert {entry.output for entry in sharded_entries} == {
+            output.parent / f"gpu{shard}" / output.name
+            for shard in "0123"
+            for _, _, output in exact_commands
+        }
         for shard in "0123":
             selected = [entry for entry in sharded_entries if entry.name.startswith(f"gpu{shard}-")]
-            assert_visibility(selected, {"HIP_VISIBLE_DEVICES": shard, "ROCR_VISIBLE_DEVICES": shard})
-            assert [entry.command for entry in selected] == [command for _, command, _ in exact_commands]
+            assert_visibility(
+                selected, {"HIP_VISIBLE_DEVICES": shard, "ROCR_VISIBLE_DEVICES": shard}
+            )
+            assert [entry.command for entry in selected] == [
+                command for _, command, _ in exact_commands
+            ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -211,7 +251,9 @@ class CommandMatrixCases(unittest.TestCase):
             assert stats["new_captures_completed"] == 1
             assert stats["deduped_cpu_captures"] == 1
             assert capture_paths == [entry.output for entry in entries]
-            assert entries[0].output.read_text(encoding="utf-8") == entries[1].output.read_text(encoding="utf-8")
+            assert entries[0].output.read_text(encoding="utf-8") == entries[1].output.read_text(
+                encoding="utf-8"
+            )
 
         from benchmark_sweep_lib.cli import load_required_isa_index, review_capture_paths
 
@@ -225,9 +267,13 @@ class CommandMatrixCases(unittest.TestCase):
             capture["_path"] = str(capture_path)
             capture_path.write_text(json.dumps(capture), encoding="utf-8")
             (scenario_root / "bounded-hip-direct.failed.json").write_text("{}", encoding="utf-8")
-            default_args = argparse.Namespace(capture=[], capture_root=[], review_only=True, out_root=out_root)
+            default_args = argparse.Namespace(
+                capture=[], capture_root=[], review_only=True, out_root=out_root
+            )
             assert review_capture_paths(default_args) == [capture_path]
-            explicit_args = argparse.Namespace(capture=[], capture_root=[scenario_root], review_only=True, out_root=root / "unused")
+            explicit_args = argparse.Namespace(
+                capture=[], capture_root=[scenario_root], review_only=True, out_root=root / "unused"
+            )
             assert review_capture_paths(explicit_args) == [capture_path]
             try:
                 load_required_isa_index([root / "missing-isa"])
@@ -276,7 +322,9 @@ class CommandMatrixCases(unittest.TestCase):
                 ("bounded-ck.json", "v4_bounded_i64_ck.json"),
             ]:
                 path = scenario_root / name
-                path.write_text((FIXTURE_DIR / fixture).read_text(encoding="utf-8"), encoding="utf-8")
+                path.write_text(
+                    (FIXTURE_DIR / fixture).read_text(encoding="utf-8"), encoding="utf-8"
+                )
 
             review_completed = subprocess.run(
                 [
@@ -317,8 +365,18 @@ class CommandMatrixCases(unittest.TestCase):
             "exact-wide-signed-small-16x16x16-limbs16-cpu.json",
             "exact-wide-signed-small-16x16x16-limbs32-cpu.json",
         ]
-        assert exact_variant_commands[0][1][exact_variant_commands[0][1].index("--exact-wide-limbs") + 1] == "1"
-        assert exact_variant_commands[-1][1][exact_variant_commands[-1][1].index("--exact-wide-limbs") + 1] == "32"
+        assert (
+            exact_variant_commands[0][1][
+                exact_variant_commands[0][1].index("--exact-wide-limbs") + 1
+            ]
+            == "1"
+        )
+        assert (
+            exact_variant_commands[-1][1][
+                exact_variant_commands[-1][1].index("--exact-wide-limbs") + 1
+            ]
+            == "32"
+        )
 
         scenario_args = copy.copy(exact_args)
         scenario_args.out_root = Path("temp") / "scenario"
@@ -330,16 +388,22 @@ class CommandMatrixCases(unittest.TestCase):
         assert_scenario_commands(scenario_entries)
         assert {entry.scenario["family"] for entry in scenario_entries} == {"repeated-b"}
         assert sum(1 for entry in scenario_entries if "--reuse-packed-b" in entry.command) >= 1
-        assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-production-baselines-")
+        assert scenario_entries[0].name.startswith(
+            "repeated-b-bounded-i64-512-production-baselines-"
+        )
 
         fused_pack_args = copy.copy(scenario_args)
         fused_pack_args.backends = None
         fused_pack_args.scenario = ["fused-pack-gemm-small"]
         fused_pack_entries = benchmark_sweep.sweep_command_entries(fused_pack_args)
         assert_scenario_commands(fused_pack_entries)
-        assert {entry.scenario["family"] for entry in fused_pack_entries} == {"fused-pack-gemm-small"}
+        assert {entry.scenario["family"] for entry in fused_pack_entries} == {
+            "fused-pack-gemm-small"
+        }
         assert {entry.scenario["oneshot"] for entry in fused_pack_entries} == {False, True}
-        assert all(entry.scenario["pack_mode"] == "per_repeat_repack" for entry in fused_pack_entries)
+        assert all(
+            entry.scenario["pack_mode"] == "per_repeat_repack" for entry in fused_pack_entries
+        )
 
 
 if __name__ == "__main__":

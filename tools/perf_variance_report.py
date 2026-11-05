@@ -16,7 +16,14 @@ from benchmark_schema import load_capture, validate_capture
 from build_manifest import manifest_provenance_complete
 from benchmark_request import request_environment_identity
 from timing_eligibility import phase_blockers
-from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, host_observation_contract, host_observation_count, streaming_executed
+from measurement_contract import (
+    exact_proof_policy,
+    host_batch_contract,
+    host_instrumentation,
+    host_observation_contract,
+    host_observation_count,
+    streaming_executed,
+)
 from benchmark_sweep_lib.capture_metadata import (
     backend_id,
     capture_contract_key,
@@ -58,45 +65,92 @@ def _export_kernel(capture: dict[str, Any]) -> str:
 
 
 def capture_digest(capture: dict[str, Any]) -> str:
-    return hashlib.sha256(json.dumps(capture, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(capture, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def execution_cohort(capture: dict[str, Any]) -> str | None:
     artifact = capture.get("artifact_capture") or {}
     manifest = capture.get("build_manifest") or {}
+
     def sha256(value: Any) -> bool:
         return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
-    if (not manifest_provenance_complete(manifest, backend_id(capture)) or not isinstance(artifact, dict)
-            or manifest.get("source_commit") != capture.get("git_commit")
-            or not sha256(artifact.get("executable_sha256"))
-            or artifact.get("rns8_linkage") not in {"static", "shared"}
-            or (artifact.get("rns8_linkage") == "shared" and not sha256(artifact.get("shared_library_sha256")))
-            or artifact.get("unchanged_during_run") is not True):
+
+    if (
+        not manifest_provenance_complete(manifest, backend_id(capture))
+        or not isinstance(artifact, dict)
+        or manifest.get("source_commit") != capture.get("git_commit")
+        or not sha256(artifact.get("executable_sha256"))
+        or artifact.get("rns8_linkage") not in {"static", "shared"}
+        or (
+            artifact.get("rns8_linkage") == "shared"
+            and not sha256(artifact.get("shared_library_sha256"))
+        )
+        or artifact.get("unchanged_during_run") is not True
+    ):
         return None
-    identity = {key: capture.get(key) for key in
-                ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
-                 "device", "cpu_parallel", "clock_policy", "warmups")}
+    identity = {
+        key: capture.get(key)
+        for key in (
+            "build_manifest",
+            "compiler",
+            "hip_toolchain",
+            "configured_amdgpu_targets",
+            "device",
+            "cpu_parallel",
+            "clock_policy",
+            "warmups",
+        )
+    }
     timing = capture.get("timing_metadata") or {}
     environment, environment_error = request_environment_identity(capture.get("request_identity"))
-    if environment_error or capture["request_identity"]["executable_sha256"] != artifact["executable_sha256"]:
+    if (
+        environment_error
+        or capture["request_identity"]["executable_sha256"] != artifact["executable_sha256"]
+    ):
         return None
     identity["captured_environment_identity"] = environment
     identity["host_instrumentation_state"] = host_instrumentation(capture)
     identity["host_observation_contract"] = host_observation_contract(capture)
-    identity["streaming_schedule"] = (capture.get("streaming_overlap") or {}).get("schedule") if streaming_executed(capture) else None
+    identity["streaming_schedule"] = (
+        (capture.get("streaming_overlap") or {}).get("schedule")
+        if streaming_executed(capture)
+        else None
+    )
     identity["locality_schedule"] = capture.get("locality_schedule")
-    identity["hipblaslt_metadata_policy"] = (capture.get("hipblaslt_metadata") or {}).get("policy", "legacy_per_block") if backend_id(capture)=="hipblaslt" else None
-    identity["hipblaslt_prepack_policy"] = (capture.get("hipblaslt_operand_prepack") or {}).get("policy","both") if backend_id(capture)=="hipblaslt" else None
+    identity["hipblaslt_metadata_policy"] = (
+        (capture.get("hipblaslt_metadata") or {}).get("policy", "legacy_per_block")
+        if backend_id(capture) == "hipblaslt"
+        else None
+    )
+    identity["hipblaslt_prepack_policy"] = (
+        (capture.get("hipblaslt_operand_prepack") or {}).get("policy", "both")
+        if backend_id(capture) == "hipblaslt"
+        else None
+    )
     from benchmark_schema.rocwmma_packing import packing_policy
-    identity["rocwmma_packing_policy"]=packing_policy(capture)
+
+    identity["rocwmma_packing_policy"] = packing_policy(capture)
     identity["exact_proof_policy"] = exact_proof_policy(capture)
     identity["host_batch_contract"] = host_batch_contract(capture)
-    identity["timing_contract"] = {key: timing.get(key) for key in
-                                   ("host_timing_contract_version", "host_result_kind", "source", "source_scope",
-                                    "clock_period_numerator", "clock_period_denominator",
-                                    "inner_repetitions", "amortization_policy")}
-    identity["artifact"] = {key: artifact.get(key) for key in
-                            ("executable_sha256", "rns8_linkage", "shared_library_sha256")}
+    identity["timing_contract"] = {
+        key: timing.get(key)
+        for key in (
+            "host_timing_contract_version",
+            "host_result_kind",
+            "source",
+            "source_scope",
+            "clock_period_numerator",
+            "clock_period_denominator",
+            "inner_repetitions",
+            "amortization_policy",
+        )
+    }
+    identity["artifact"] = {
+        key: artifact.get(key)
+        for key in ("executable_sha256", "rns8_linkage", "shared_library_sha256")
+    }
     return capture_digest(identity)
 
 
@@ -130,7 +184,11 @@ def _relative_spread(values: list[float]) -> float | None:
 
 
 def _within_capture_rel_spread(capture: dict[str, Any]) -> float | None:
-    if host_observation_contract(capture)["unit"]=="legacy_single_pipeline_batch_repeated_quotient":return None
+    if (
+        host_observation_contract(capture)["unit"]
+        == "legacy_single_pipeline_batch_repeated_quotient"
+    ):
+        return None
     median = median_phase(capture, "end_to_end")
     if median is None or median <= 0.0:
         return None
@@ -186,7 +244,11 @@ def _capture_entry(
         blockers.append("high_within_capture_variance")
     if require_multi_run and group_count < min_runs:
         blockers.append("multi_run_variance_missing")
-    if group_count >= min_runs and group_rel_spread is not None and group_rel_spread > max_run_to_run_rel_spread:
+    if (
+        group_count >= min_runs
+        and group_rel_spread is not None
+        and group_rel_spread > max_run_to_run_rel_spread
+    ):
         blockers.append("high_run_to_run_variance")
 
     observed_noise = max(
@@ -255,8 +317,11 @@ def build_report(
                 runs.setdefault(run, capture)
         for run in conflicting_runs:
             runs.pop(run, None)
-        medians = [value for capture in runs.values()
-                   if (value := median_phase(capture, "end_to_end")) is not None and value > 0.0]
+        medians = [
+            value
+            for capture in runs.values()
+            if (value := median_phase(capture, "end_to_end")) is not None and value > 0.0
+        ]
         group_stats[key] = {
             "capture_count": len(items),
             "unique_capture_count": len({capture_digest(capture) for _, capture in items}),
@@ -347,9 +412,15 @@ def main() -> int:
     parser.add_argument("--min-repeats", type=int, default=DEFAULT_MIN_REPEATS)
     parser.add_argument("--min-runs", type=int, default=DEFAULT_MIN_RUNS)
     parser.add_argument("--require-multi-run", action="store_true")
-    parser.add_argument("--max-within-capture-rel-spread", type=float, default=DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD)
-    parser.add_argument("--max-run-to-run-rel-spread", type=float, default=DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD)
-    parser.add_argument("--min-noise-speedup-margin", type=float, default=DEFAULT_MIN_NOISE_SPEEDUP_MARGIN)
+    parser.add_argument(
+        "--max-within-capture-rel-spread", type=float, default=DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD
+    )
+    parser.add_argument(
+        "--max-run-to-run-rel-spread", type=float, default=DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD
+    )
+    parser.add_argument(
+        "--min-noise-speedup-margin", type=float, default=DEFAULT_MIN_NOISE_SPEEDUP_MARGIN
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     report = build_report(

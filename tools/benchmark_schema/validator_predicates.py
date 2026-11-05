@@ -7,6 +7,7 @@ from .core_shared import (
     _is_int,
 )
 
+
 class ValidatorPredicatesMixin:
     def _is_wrap64_rocwmma_candidate(self) -> bool:
         return (
@@ -63,7 +64,10 @@ class ValidatorPredicatesMixin:
             return "hip_graph_replay_exact_wide_pack_gemm_export"
         if self.data.get("benchmark") == "rns8_hip_graph_replay_wrap64_pack_gemm_export":
             return "hip_graph_replay_wrap64_pack_gemm_export"
-        if text_choice(self.data.get("benchmark"), {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}):
+        if text_choice(
+            self.data.get("benchmark"),
+            {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"},
+        ):
             return "public_oneshot_transient_native_inputs"
         if self.data.get("backend_selected") == "hip-vector-alu-int64":
             if self._is_vector_alu_gemv_n1_capture():
@@ -94,7 +98,9 @@ class ValidatorPredicatesMixin:
         selected = self.data.get("selected_prefix")
         requested = self.data.get("prefix")
         schedule = self.data.get("schedule_metadata")
-        schedule_selected = schedule.get("max_selected_prefix") if isinstance(schedule, dict) else None
+        schedule_selected = (
+            schedule.get("max_selected_prefix") if isinstance(schedule, dict) else None
+        )
         return (
             self._is_bounded_oneshot_capture()
             and self.data.get("backend_selected") == "hip-direct"
@@ -120,15 +126,20 @@ class ValidatorPredicatesMixin:
             and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("pack_mode") == "prepacked_reuse_b"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
-            and text_choice(self._benchmark_execution_mode(), {"transient_native_a_resident_b_reuse", "transient_uniform_small_i8_a_resident_i8_b_reuse"})
+            and text_choice(
+                self._benchmark_execution_mode(),
+                {
+                    "transient_native_a_resident_b_reuse",
+                    "transient_uniform_small_i8_a_resident_i8_b_reuse",
+                },
+            )
         )
 
     def _is_direct_hip_bounded_native_a_reuse_b_uniform_small(self) -> bool:
         semantics = self.data.get("semantics")
         distribution = self.data.get("input_distribution")
-        return (
-            (semantics == "bounded_i64" and distribution == "signed_uniform_-16_16")
-            or (semantics == "bounded_u64" and distribution == "unsigned_uniform_0_16")
+        return (semantics == "bounded_i64" and distribution == "signed_uniform_-16_16") or (
+            semantics == "bounded_u64" and distribution == "unsigned_uniform_0_16"
         )
 
     def _is_direct_hip_bounded_native_a_reuse_b_large_colpair(self) -> bool:
@@ -149,7 +160,8 @@ class ValidatorPredicatesMixin:
             and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
             and self.data.get("pack_mode") == "prepacked_reuse_a"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
-            and self._benchmark_execution_mode() == "transient_uniform_small_i8_b_resident_i8_a_reuse"
+            and self._benchmark_execution_mode()
+            == "transient_uniform_small_i8_b_resident_i8_a_reuse"
             and self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
         )
 
@@ -174,17 +186,21 @@ class ValidatorPredicatesMixin:
         return (
             self.data.get("backend_selected") == "hip-direct"
             and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
-            and text_choice(self._benchmark_execution_mode(), {
-                "vector_native_to_direct_rns_chain",
-                "vector_native_host_export_repack_direct_rns_chain",
-            })
+            and text_choice(
+                self._benchmark_execution_mode(),
+                {
+                    "vector_native_to_direct_rns_chain",
+                    "vector_native_host_export_repack_direct_rns_chain",
+                },
+            )
         )
 
     def _is_direct_hip_vector_to_rns_host_repack_control_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
             and text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
-            and self._benchmark_execution_mode() == "vector_native_host_export_repack_direct_rns_chain"
+            and self._benchmark_execution_mode()
+            == "vector_native_host_export_repack_direct_rns_chain"
         )
 
     def _is_direct_hip_bounded_residue_channel_fusion_capture(self) -> bool:
@@ -204,13 +220,16 @@ class ValidatorPredicatesMixin:
         return self._benchmark_execution_mode() == "benchmark_grouped_dispatch_evidence"
 
     def _is_hip_graph_replay_capture(self) -> bool:
-        return text_choice(self._benchmark_execution_mode(), {
-            "hip_graph_replay_resident_rns_chain",
-            "hip_graph_replay_bounded_pack_gemm_export",
-            "hip_graph_replay_finite_u8_pack_gemm_export",
-            "hip_graph_replay_exact_wide_pack_gemm_export",
-            "hip_graph_replay_wrap64_pack_gemm_export",
-        })
+        return text_choice(
+            self._benchmark_execution_mode(),
+            {
+                "hip_graph_replay_resident_rns_chain",
+                "hip_graph_replay_bounded_pack_gemm_export",
+                "hip_graph_replay_finite_u8_pack_gemm_export",
+                "hip_graph_replay_exact_wide_pack_gemm_export",
+                "hip_graph_replay_wrap64_pack_gemm_export",
+            },
+        )
 
     def _is_streaming_overlap_capture(self) -> bool:
         overlap = self.data.get("streaming_overlap")
@@ -225,7 +244,10 @@ class ValidatorPredicatesMixin:
             self._residue_chain_length() > 1
             and self._residue_output_mode() == "host_export"
             and self.data.get("residue_chain_final_export") is True
-            and text_choice(self._benchmark_execution_mode(), {"residue_chain_final_host_export", "residue_chain_independent_final_host_export"})
+            and text_choice(
+                self._benchmark_execution_mode(),
+                {"residue_chain_final_host_export", "residue_chain_independent_final_host_export"},
+            )
         )
 
     def _is_residue_chain_independent_final_export_capture(self) -> bool:
@@ -283,4 +305,3 @@ class ValidatorPredicatesMixin:
             and self.data.get("pack_mode") == "prepacked_reuse_b"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
         )
-

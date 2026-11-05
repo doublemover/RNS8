@@ -10,12 +10,12 @@ enum class ComplexProductMethod { three_real, four_real };
 struct ComplexResidueBasis {
   ComplexResidueDomain domain = ComplexResidueDomain::wide_signed;
   uint32_t version = 1, prefix = 0, modulus = 0;
-  bool operator==(const ComplexResidueBasis &b) const {
+  bool operator==(const ComplexResidueBasis& b) const {
     return domain == b.domain && version == b.version && prefix == b.prefix && modulus == b.modulus;
   }
 };
 template <class Byte> struct ComplexResidueView {
-  Byte *data = nullptr;
+  Byte* data = nullptr;
   int64_t rows = 0, cols = 0, ld = 0;
   ComplexResidueBasis basis;
 };
@@ -31,18 +31,18 @@ struct ComplexMagnitudeBounds {
 struct ComplexResidueScratch {
   uint64_t sum_a_bytes = 0, sum_b_bytes = 0, product_bytes = 0, scratch_bytes = 0;
   uint32_t products = 0;
-  static constexpr uint32_t layout_version=2;
-  uint64_t products_offset() const {return sum_a_bytes+sum_b_bytes;}
-  uint64_t staged_real_offset() const {return products_offset();}
-  uint64_t staged_imag_offset() const {return products_offset()+product_bytes;}
+  static constexpr uint32_t layout_version = 2;
+  uint64_t products_offset() const { return sum_a_bytes + sum_b_bytes; }
+  uint64_t staged_real_offset() const { return products_offset(); }
+  uint64_t staged_imag_offset() const { return products_offset() + product_bytes; }
   // p0/p1 die after each cell's register loads; public outputs stay distinct.
-  uint64_t reused_stage_capacity_bytes() const {return 2*product_bytes;}
+  uint64_t reused_stage_capacity_bytes() const { return 2 * product_bytes; }
 };
 struct ComplexResiduePlan : ComplexResidueScratch {
   rns8_status status = RNS8_INVALID_ARGUMENT;
   boost::multiprecision::cpp_int real_bound, imag_bound;
 };
-inline bool valid_complex_basis(const ComplexResidueBasis &basis) {
+inline bool valid_complex_basis(const ComplexResidueBasis& basis) {
   if (basis.version != 1)
     return false;
   if (basis.domain == ComplexResidueDomain::finite_ring)
@@ -51,10 +51,10 @@ inline bool valid_complex_basis(const ComplexResidueBasis &basis) {
           basis.domain == ComplexResidueDomain::wide_signed) &&
          basis.prefix >= 1 && basis.prefix <= 20 && basis.modulus == 0;
 }
-inline ComplexResiduePlan plan_complex_residue_product(const ComplexResiduePair<const int8_t> &a,
-                                                       const ComplexResiduePair<const int8_t> &b,
-                                                       const ComplexResiduePair<int8_t> &c,
-                                                       const ComplexMagnitudeBounds &bounds,
+inline ComplexResiduePlan plan_complex_residue_product(const ComplexResiduePair<const int8_t>& a,
+                                                       const ComplexResiduePair<const int8_t>& b,
+                                                       const ComplexResiduePair<int8_t>& c,
+                                                       const ComplexMagnitudeBounds& bounds,
                                                        ComplexProductMethod method,
                                                        uint64_t budget) {
   using boost::multiprecision::cpp_int;
@@ -62,8 +62,8 @@ inline ComplexResiduePlan plan_complex_residue_product(const ComplexResiduePair<
   if ((method != ComplexProductMethod::three_real && method != ComplexProductMethod::four_real) ||
       !valid_complex_basis(a.real.basis))
     return plan;
-  const auto &basis = a.real.basis;
-  const auto same_pair = [&](const auto &pair) {
+  const auto& basis = a.real.basis;
+  const auto same_pair = [&](const auto& pair) {
     return pair.real.rows == pair.imag.rows && pair.real.cols == pair.imag.cols &&
            pair.real.basis == basis && pair.imag.basis == basis;
   };
@@ -71,12 +71,12 @@ inline ComplexResiduePlan plan_complex_residue_product(const ComplexResiduePair<
       c.real.rows != a.real.rows || c.real.cols != b.real.cols)
     return plan;
   struct Span {
-    const void *data;
+    const void* data;
     uint64_t bytes;
   };
   std::array<Span, 6> spans{};
   std::size_t index = 0;
-  const auto admit = [&](const auto &view) {
+  const auto admit = [&](const auto& view) {
     AddressDomain domain{};
     if (!view.data || view.rows <= 0 || view.cols <= 0 || view.ld < view.cols)
       return false;
@@ -117,8 +117,7 @@ inline ComplexResiduePlan plan_complex_residue_product(const ComplexResiduePair<
   }
   // All per-matrix extents are i32-qualified. Still prove host-size accumulation.
   uint64_t total = 0;
-  for (uint64_t bytes :
-       {plan.sum_a_bytes, plan.sum_b_bytes, plan.product_bytes * plan.products}) {
+  for (uint64_t bytes : {plan.sum_a_bytes, plan.sum_b_bytes, plan.product_bytes * plan.products}) {
     if (bytes > SIZE_MAX - total) {
       plan.status = RNS8_RANGE_ERROR;
       return plan;

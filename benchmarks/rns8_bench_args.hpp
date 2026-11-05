@@ -6,4 +6,4 @@ namespace rns8::bench {
 
 Args parse_args(int argc, char** argv);
 
-}  // namespace rns8::bench
+} // namespace rns8::bench

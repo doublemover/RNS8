@@ -77,7 +77,9 @@ def hip_sdk_tool_candidates(hipcc: Path | None, name: str) -> list[Path]:
             parent = candidate_hipcc.parent
             if parent.name == "bin" and parent.parent.name == "llvm":
                 llvm_parent = parent.parent.parent
-                append_hip_root(str(llvm_parent.parent if llvm_parent.name == "lib" else llvm_parent))
+                append_hip_root(
+                    str(llvm_parent.parent if llvm_parent.name == "lib" else llvm_parent)
+                )
             elif parent.name == "bin":
                 append_hip_root(str(parent.parent))
 
@@ -179,15 +181,21 @@ def extract_code_object(
     return outputs[targets.index(device_target)]
 
 
-def parse_isa_tool_config(description: str | None, object_help: str, missing_label: str) -> IsaToolConfig:
+def parse_isa_tool_config(
+    description: str | None, object_help: str, missing_label: str
+) -> IsaToolConfig:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--object", required=True, type=Path, help=object_help)
     parser.add_argument("--target", required=True, help="AMDGPU target id, for example gfx1100")
-    parser.add_argument("--hipcc", type=Path, help="HIP compiler path; sibling LLVM tools are preferred")
+    parser.add_argument(
+        "--hipcc", type=Path, help="HIP compiler path; sibling LLVM tools are preferred"
+    )
     parser.add_argument("--llvm-objcopy", help="Override llvm-objcopy path")
     parser.add_argument("--llvm-objdump", help="Override llvm-objdump path")
     parser.add_argument("--clang-offload-bundler", help="Override clang-offload-bundler path")
-    parser.add_argument("--scratch-root", type=Path, default=Path("temp"), help="Ignored scratch directory")
+    parser.add_argument(
+        "--scratch-root", type=Path, default=Path("temp"), help="Ignored scratch directory"
+    )
     args = parser.parse_args()
 
     host_object = args.object
@@ -236,16 +244,20 @@ def device_function_sizes(objdump: str, code_object: Path) -> dict[str, dict]:
             continue
         fields = line.split()
         position = fields.index("F")
-        tail = fields[position+1:]
-        if (position<2 or len(tail) not in (3,4) or not tail[0].startswith(".text") or
-                not re.fullmatch(r"[0-9a-fA-F]+",fields[0]) or
-                not re.fullmatch(r"[0-9a-fA-F]+",tail[1]) or
-                (len(tail)==4 and tail[2] not in (".hidden",".protected",".internal"))):
-            raise RuntimeError("unsupported native function symbol-table record: "+line)
+        tail = fields[position + 1 :]
+        if (
+            position < 2
+            or len(tail) not in (3, 4)
+            or not tail[0].startswith(".text")
+            or not re.fullmatch(r"[0-9a-fA-F]+", fields[0])
+            or not re.fullmatch(r"[0-9a-fA-F]+", tail[1])
+            or (len(tail) == 4 and tail[2] not in (".hidden", ".protected", ".internal"))
+        ):
+            raise RuntimeError("unsupported native function symbol-table record: " + line)
         name = tail[-1]
         if name in result:
-            raise RuntimeError("ambiguous native function extent: "+name)
-        result[name] = dict(address=int(fields[0],16), bytes=int(tail[1],16), section=tail[0])
+            raise RuntimeError("ambiguous native function extent: " + name)
+        result[name] = dict(address=int(fields[0], 16), bytes=int(tail[1], 16), section=tail[0])
     return result
 
 
@@ -304,26 +316,27 @@ def selected_function_body(disassembly: str, symbol: str) -> str:
         raise RuntimeError("native disassembly has missing/ambiguous selected function: " + symbol)
     index = matches[0]
     start = headers[index].end()
-    end = headers[index+1].start() if index+1 < len(headers) else len(disassembly)
+    end = headers[index + 1].start() if index + 1 < len(headers) else len(disassembly)
     return disassembly[start:end]
 
 
-def matrix_symbol_reports(objdump: str, code_object: Path, target: str,
-                          entries: list[str], required: list[str]) -> list[dict]:
+def matrix_symbol_reports(
+    objdump: str, code_object: Path, target: str, entries: list[str], required: list[str]
+) -> list[dict]:
     """Attribute instructions to each entry and only explicitly resolved callees.
 
     Register-indirect calls without a native symbol target remain unsupported.
     No nearby relocation or unrelated matrix-bearing function is guessed to be
     their target. This is static attribution, never a runtime execution claim.
     """
-    if not entries or len(entries)>4096 or len(set(entries)) != len(entries) or not required:
+    if not entries or len(entries) > 4096 or len(set(entries)) != len(entries) or not required:
         raise RuntimeError("nonempty unique matrix entrypoint/requirement inventory required")
     known = set(device_function_symbols(objdump, code_object))
     cache = {}
 
     def inspect(symbol):
         if symbol not in cache:
-            if len(cache)>=4096:
+            if len(cache) >= 4096:
                 raise RuntimeError("matrix attribution function inventory exceeds its budget")
             native = disassemble_code_object(objdump, code_object, target, symbol)
             body = selected_function_body(native, symbol)
@@ -337,19 +350,29 @@ def matrix_symbol_reports(objdump: str, code_object: Path, target: str,
                 match = re.search(r"<([^>]+)>", line)
                 label = match.group(1) if match else None
                 name = re.sub(r"\+0x[0-9a-fA-F]+$", "", label) if label else None
-                offset = label[len(name):] if label and name else ""
+                offset = label[len(name) :] if label and name else ""
                 if tail and (name == symbol or name not in known):
                     continue  # Intra-function branch/local label, not a call.
-                if name not in known or (offset and int(offset[1:],16)!=0):
+                if name not in known or (offset and int(offset[1:], 16) != 0):
                     if call or name in known:
                         unresolved.append(line)
                 else:
                     callees.add(name)
-            counts = {expected:sum(mnemonic == expected or mnemonic.startswith(expected+"_")
-                                  for _,mnemonic in instructions) for expected in required}
-            cache[symbol] = dict(symbol=symbol, disassembly=body,
+            counts = {
+                expected: sum(
+                    mnemonic == expected or mnemonic.startswith(expected + "_")
+                    for _, mnemonic in instructions
+                )
+                for expected in required
+            }
+            cache[symbol] = dict(
+                symbol=symbol,
+                disassembly=body,
                 disassembly_sha256=hashlib.sha256(body.encode()).hexdigest(),
-                matrix_instructions=counts, callees=sorted(callees), unresolved_calls=unresolved)
+                matrix_instructions=counts,
+                callees=sorted(callees),
+                unresolved_calls=unresolved,
+            )
         return cache[symbol]
 
     reports = []
@@ -368,7 +391,8 @@ def matrix_symbol_reports(objdump: str, code_object: Path, target: str,
             if symbol not in known:
                 failures.append("selected_symbol_missing:" + symbol)
                 return
-            visited.add(symbol); active.add(symbol)
+            visited.add(symbol)
+            active.add(symbol)
             function = inspect(symbol)
             if function["unresolved_calls"]:
                 failures.append("unresolved_device_call:" + symbol)
@@ -381,6 +405,13 @@ def matrix_symbol_reports(objdump: str, code_object: Path, target: str,
         count = sum(sum(function["matrix_instructions"].values()) for function in functions)
         if count == 0:
             failures.append("selected_entry_has_no_attributed_matrix_instructions")
-        reports.append(dict(symbol=entry, target=target, matrix_count=count,
-                            functions=functions, attribution_failures=failures))
+        reports.append(
+            dict(
+                symbol=entry,
+                target=target,
+                matrix_count=count,
+                functions=functions,
+                attribution_failures=failures,
+            )
+        )
     return reports

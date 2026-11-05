@@ -82,7 +82,8 @@ class LargeResumeCases(unittest.TestCase):
             and entry.scenario["backend"] == "cpu"
         ) == [251, 255, 256]
         assert all(
-            entry.scenario.get("metadata", {}).get("workflow_name") == "large_shape_release_validation"
+            entry.scenario.get("metadata", {}).get("workflow_name")
+            == "large_shape_release_validation"
             for entry in large_validation_entries
         )
         assert any("--reuse-packed-b" in entry.command for entry in large_validation_entries)
@@ -95,7 +96,9 @@ class LargeResumeCases(unittest.TestCase):
         large_4096_budgeted_args = copy.copy(scenario_args)
         large_4096_budgeted_args.backends = None
         large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
-        large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(large_4096_budgeted_args)
+        large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(
+            large_4096_budgeted_args
+        )
         assert_scenario_commands(large_4096_budgeted_entries)
         assert {
             entry.scenario["backend"]
@@ -149,11 +152,13 @@ class LargeResumeCases(unittest.TestCase):
             if entry.scenario["name"] == "wrap64-4096-budgeted-baselines"
         } == {"wrap64-byte-limb", "hip-direct"}
         assert all(
-            entry.scenario.get("metadata", {}).get("promotion_scope") == "non_promoting_budgeted_dry_run"
+            entry.scenario.get("metadata", {}).get("promotion_scope")
+            == "non_promoting_budgeted_dry_run"
             for entry in large_4096_budgeted_entries
         )
         assert all(
-            "--release-gate" in entry.command and "large-release-validation-4096-budgeted" in entry.command
+            "--release-gate" in entry.command
+            and "large-release-validation-4096-budgeted" in entry.command
             for entry in large_4096_budgeted_entries
         )
 
@@ -179,7 +184,8 @@ class LargeResumeCases(unittest.TestCase):
         )
         assert any(
             entry.scenario["shape"]["m"] == 2048
-            and entry.scenario.get("metadata", {}).get("large_shape_role") == "finite_generic_modulus_probe"
+            and entry.scenario.get("metadata", {}).get("large_shape_role")
+            == "finite_generic_modulus_probe"
             for entry in finite_generic_entries
         )
 
@@ -230,7 +236,8 @@ class LargeResumeCases(unittest.TestCase):
             for entry in bridge_entries
         )
         assert any(
-            entry.scenario.get("metadata", {}).get("conversion_event_required") == "native_u64_to_rns_kernel"
+            entry.scenario.get("metadata", {}).get("conversion_event_required")
+            == "native_u64_to_rns_kernel"
             for entry in bridge_entries
         )
 
@@ -246,18 +253,22 @@ class LargeResumeCases(unittest.TestCase):
             for entry in vector_chain_entries
         } == {"fused_device_native_to_rns", "host_export_repack_control"}
         assert any("--vector-to-rns-chain" in entry.command for entry in vector_chain_entries)
-        assert any("--vector-to-rns-chain-host-repack-control" in entry.command for entry in vector_chain_entries)
+        assert any(
+            "--vector-to-rns-chain-host-repack-control" in entry.command
+            for entry in vector_chain_entries
+        )
         assert {
             entry.scenario["vector_to_rns_chain_host_repack_control"]
             for entry in vector_chain_entries
         } == {False, True}
-        assert {
-            entry.scenario["pack_mode"]
-            for entry in vector_chain_entries
-        } == {"per_repeat_repack", "prepacked_reuse_b"}
+        assert {entry.scenario["pack_mode"] for entry in vector_chain_entries} == {
+            "per_repeat_repack",
+            "prepacked_reuse_b",
+        }
         assert any("--reuse-packed-b" in entry.command for entry in vector_chain_entries)
         assert any(
-            entry.scenario.get("metadata", {}).get("reuse_contract") == "consumer_b_prepacked_before_warmups"
+            entry.scenario.get("metadata", {}).get("reuse_contract")
+            == "consumer_b_prepacked_before_warmups"
             for entry in vector_chain_entries
         )
         assert all(
@@ -265,11 +276,13 @@ class LargeResumeCases(unittest.TestCase):
             for entry in vector_chain_entries
         )
         assert any(
-            entry.scenario.get("metadata", {}).get("conversion_event_required") == "native_u64_to_rns_kernel"
+            entry.scenario.get("metadata", {}).get("conversion_event_required")
+            == "native_u64_to_rns_kernel"
             for entry in vector_chain_entries
         )
         assert any(
-            entry.scenario.get("metadata", {}).get("host_repack_event_required") == "vector_to_rns_host_repack_a"
+            entry.scenario.get("metadata", {}).get("host_repack_event_required")
+            == "vector_to_rns_host_repack_a"
             for entry in vector_chain_entries
         )
 
@@ -279,10 +292,13 @@ class LargeResumeCases(unittest.TestCase):
         algebra_entries = benchmark_sweep.sweep_command_entries(algebra_args)
         assert_scenario_commands(algebra_entries)
         assert all(option(entry.command, "--backend") == "ck" for entry in algebra_entries)
-        assert {entry.scenario.get("metadata", {}).get("source_role") for entry in algebra_entries} == {
-            "computational_algebra_proxy"
-        }
-        assert any(entry.scenario.get("metadata", {}).get("workflow_name") == "F4" for entry in algebra_entries)
+        assert {
+            entry.scenario.get("metadata", {}).get("source_role") for entry in algebra_entries
+        } == {"computational_algebra_proxy"}
+        assert any(
+            entry.scenario.get("metadata", {}).get("workflow_name") == "F4"
+            for entry in algebra_entries
+        )
         assert any(entry.scenario["semantics"] == "exact-wide-signed" for entry in algebra_entries)
 
         fhe_args = copy.copy(scenario_args)
@@ -294,18 +310,33 @@ class LargeResumeCases(unittest.TestCase):
         assert {entry.scenario.get("metadata", {}).get("source_role") for entry in fhe_entries} == {
             "fhe_lattice_proxy"
         }
-        assert any(entry.scenario.get("metadata", {}).get("workflow_name") == "ntt_intt_pressure" for entry in fhe_entries)
+        assert any(
+            entry.scenario.get("metadata", {}).get("workflow_name") == "ntt_intt_pressure"
+            for entry in fhe_entries
+        )
         assert any("--reuse-packed-b" in entry.command for entry in fhe_entries)
-        assert any("--residue-chain-length" in entry.command and "4" in entry.command for entry in fhe_entries)
+        assert any(
+            "--residue-chain-length" in entry.command and "4" in entry.command
+            for entry in fhe_entries
+        )
 
         with tempfile.TemporaryDirectory() as tmp:
-            manifest_paths = benchmark_sweep.write_scenario_manifest(scenario_entries, scenario_args, Path(tmp))
+            manifest_paths = benchmark_sweep.write_scenario_manifest(
+                scenario_entries, scenario_args, Path(tmp)
+            )
             assert manifest_paths is not None
-            manifest = json.loads(Path(manifest_paths["scenario_manifest"]).read_text(encoding="utf-8"))
+            manifest = json.loads(
+                Path(manifest_paths["scenario_manifest"]).read_text(encoding="utf-8")
+            )
             assert manifest["schema_version"] == 1
-            assert manifest["scenario_families"] == sorted({entry.scenario["family"] for entry in scenario_entries})
+            assert manifest["scenario_families"] == sorted(
+                {entry.scenario["family"] for entry in scenario_entries}
+            )
             assert manifest["capture_count"] == len(scenario_entries)
-            assert [(item["capture_name"], item["capture_path"], item["command"]) for item in manifest["entries"]] == [(entry.name, str(entry.output), entry.command) for entry in scenario_entries]
+            assert [
+                (item["capture_name"], item["capture_path"], item["command"])
+                for item in manifest["entries"]
+            ] == [(entry.name, str(entry.output), entry.command) for entry in scenario_entries]
             assert manifest["entries"][0]["output_domain"] == "host_export"
             assert Path(manifest_paths["scenario_markdown"]).exists()
 
@@ -335,7 +366,16 @@ class LargeResumeCases(unittest.TestCase):
             assert capture_paths == []
             assert stats["stale_existing_captures"] == 1
             assert str(existing) in stats["stale_existing_reasons"]
-            assert {key: value for key, value in stats.items() if key not in {"stale_existing_captures", "stale_existing_reasons", "matched_existing_captures"}} == {
+            assert {
+                key: value
+                for key, value in stats.items()
+                if key
+                not in {
+                    "stale_existing_captures",
+                    "stale_existing_reasons",
+                    "matched_existing_captures",
+                }
+            } == {
                 "planned_captures": 2,
                 "skipped_existing_captures": 0,
                 "new_captures_attempted": 0,
@@ -343,7 +383,6 @@ class LargeResumeCases(unittest.TestCase):
                 "deduped_cpu_captures": 0,
                 "deferred_captures": 2,
             }
-
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 """Shared Python spelling of the runtime's platform cache-location contract."""
+
 from __future__ import annotations
 
 import os
@@ -6,8 +7,9 @@ from pathlib import Path
 from collections.abc import Mapping
 
 
-def default_autotune_cache_path(environ: Mapping[str, str] | None = None,
-                               platform: str | None = None) -> Path:
+def default_autotune_cache_path(
+    environ: Mapping[str, str] | None = None, platform: str | None = None
+) -> Path:
     env = os.environ if environ is None else environ
     platform = os.name if platform is None else platform
     override = env.get("RNS8_AUTOTUNE_CACHE_PATH")

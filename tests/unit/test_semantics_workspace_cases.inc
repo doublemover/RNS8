@@ -53,22 +53,27 @@ TEST_CASE("persistent RNS GEMM rejects incompatible matrix and workspace contrac
   rns8_workspace* wrong_workspace = nullptr;
   REQUIRE(rns8_create_plan(ctx, &smaller_desc, &smaller_plan) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(ctx, smaller_plan, &wrong_workspace) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, wrong_workspace) == RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, wrong_workspace) ==
+        RNS8_WORKSPACE_TOO_SMALL);
 
   rns8_matrix* wrong_b_shape = nullptr;
   auto wrong_b_shape_desc = matrix_desc(3, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
   REQUIRE(rns8_create_matrix(ctx, &wrong_b_shape_desc, &wrong_b_shape) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, wrong_b_shape, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, wrong_b_shape, c_matrix, workspace) ==
+        RNS8_INVALID_ARGUMENT);
 
   rns8_matrix* wrong_c_prefix = nullptr;
   auto wrong_c_prefix_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, 1);
   REQUIRE(rns8_create_matrix(ctx, &wrong_c_prefix_desc, &wrong_c_prefix) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, wrong_c_prefix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, wrong_c_prefix, workspace) ==
+        RNS8_INVALID_ARGUMENT);
 
   rns8_matrix* wrong_a_bound_kind = nullptr;
-  auto wrong_a_bound_kind_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  auto wrong_a_bound_kind_desc =
+      matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
   REQUIRE(rns8_create_matrix(ctx, &wrong_a_bound_kind_desc, &wrong_a_bound_kind) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(ctx, plan, wrong_a_bound_kind, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan, wrong_a_bound_kind, b_matrix, c_matrix, workspace) ==
+        RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(wrong_a_bound_kind);
   rns8_destroy_matrix(wrong_c_prefix);
@@ -132,7 +137,8 @@ TEST_CASE("persistent bounded RNS GEMM advances output content generations") {
   CHECK(second_output_version != 0);
   CHECK(second_output_version != first_output_version);
 
-  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, wrong_workspace) == RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, wrong_workspace) ==
+        RNS8_WORKSPACE_TOO_SMALL);
   CHECK(c_matrix->source_version == second_output_version);
 
   rns8_destroy_matrix(c_matrix);
@@ -188,16 +194,22 @@ TEST_CASE("persistent RNS GEMM rejects same-shape workspaces from different sema
   REQUIRE(rns8_create_workspace(ctx, exact_plan, &exact_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(ctx, per_tile_plan, &per_tile_workspace) == RNS8_SUCCESS);
 
-  auto a_desc = matrix_desc(2, 1, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_MAX_SUPPORTED_PREFIX);
-  auto b_desc = matrix_desc(1, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_MAX_SUPPORTED_PREFIX);
-  auto c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_MAX_SUPPORTED_PREFIX);
+  auto a_desc = matrix_desc(2, 1, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+                            RNS8_MAX_SUPPORTED_PREFIX);
+  auto b_desc = matrix_desc(1, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+                            RNS8_MAX_SUPPORTED_PREFIX);
+  auto c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+                            RNS8_MAX_SUPPORTED_PREFIX);
   REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
 
-  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, bounded_workspace) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, exact_workspace) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, per_tile_workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, bounded_workspace) ==
+        RNS8_SUCCESS);
+  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, exact_workspace) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, per_tile_workspace) ==
+        RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -228,9 +240,12 @@ TEST_CASE("persistent bounded CPU matrices preserve source versions and currentn
 
   REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
-  auto a_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
-  auto b_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
-  auto c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto a_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+                            RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto b_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+                            RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+                            RNS8_DEFAULT_BOUNDED_PREFIX);
   REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
@@ -279,4 +294,3 @@ TEST_CASE("persistent bounded CPU matrices preserve source versions and currentn
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
 }
-

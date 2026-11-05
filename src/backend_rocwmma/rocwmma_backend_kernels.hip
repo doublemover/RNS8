@@ -13,9 +13,9 @@
 #include "rocwmma_packing_policy.hpp"
 
 struct RocwmmaPackingState {
-  uint32_t policy=0;
-  rns8::detail::RocwmmaPackingStats* stats=nullptr;
-  rns8::detail::RocwmmaPanelKey a,b;
+  uint32_t policy = 0;
+  rns8::detail::RocwmmaPackingStats* stats = nullptr;
+  rns8::detail::RocwmmaPanelKey a, b;
 };
 
 struct rns8_plan_tile_schedule_entry {
@@ -38,9 +38,10 @@ namespace rns8::detail {
 bool hip_direct_timing_enabled();
 void hip_direct_timing_flush_pending_events();
 void hip_direct_timing_record_sample(const char* label, double microseconds);
-void hip_direct_timing_record_failure(const char* label, const char* phase, int backend_status) noexcept;
+void hip_direct_timing_record_failure(const char* label, const char* phase,
+                                      int backend_status) noexcept;
 
-}  // namespace rns8::detail
+} // namespace rns8::detail
 
 #include "rocwmma_backend_timing_workspace.inc"
 #include "rocwmma_backend_rns_kernels.inc"
@@ -51,6 +52,7 @@ void hip_direct_timing_record_failure(const char* label, const char* phase, int 
 
 extern "C" int rns8_rocwmma_runtime_wave_contract(int device_id) {
   hipDeviceProp_t prop{};
-  if(hipGetDeviceProperties(&prop,device_id)!=hipSuccess)return 3;
-  return prop.warpSize==kRns8WmmaWaveThreads?0:2;
+  if (hipGetDeviceProperties(&prop, device_id) != hipSuccess)
+    return 3;
+  return prop.warpSize == kRns8WmmaWaveThreads ? 0 : 2;
 }

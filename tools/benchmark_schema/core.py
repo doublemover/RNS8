@@ -19,6 +19,7 @@ from .validator_predicates import ValidatorPredicatesMixin
 from .validator_schedule import ValidatorScheduleMixin
 from .validator_timing_events import ValidatorTimingEventsMixin
 
+
 class BenchmarkSchemaError(ValueError):
     """Raised when a benchmark capture does not match the expected schema."""
 
@@ -61,7 +62,6 @@ def validate_capture_file(path: Path) -> dict[str, Any]:
     return validate_capture(load_capture(path), path)
 
 
-
 class _Validator(
     ValidatorPredicatesMixin,
     ValidatorBaseFieldsMixin,
@@ -100,18 +100,30 @@ class _Validator(
         if manifest is not None:
             if not isinstance(manifest, dict):
                 self._error("build_manifest must be an object")
-            elif (type(manifest.get("version")) is not int or manifest["version"] not in (1, 2, 3) or
-                  (manifest["version"] >= 2 and not isinstance(manifest.get("external_dependencies"), dict)) or
-                  (manifest["version"] == 3 and (not isinstance(manifest.get('dependency_identity'), dict) or
-                    not isinstance(manifest.get('external_files'), dict) or not isinstance(manifest.get('dependency_receipts'), dict))) or
-                  type(manifest.get("source_dirty")) is not bool or
-                  not isinstance(manifest.get("configuration"), str) or
-                  not isinstance(manifest.get("source_digest"), str) or
-                  len(manifest["source_digest"]) != 64 or
-                  manifest.get("source_commit") != self.data.get("git_commit")):
+            elif (
+                type(manifest.get("version")) is not int
+                or manifest["version"] not in (1, 2, 3)
+                or (
+                    manifest["version"] >= 2
+                    and not isinstance(manifest.get("external_dependencies"), dict)
+                )
+                or (
+                    manifest["version"] == 3
+                    and (
+                        not isinstance(manifest.get("dependency_identity"), dict)
+                        or not isinstance(manifest.get("external_files"), dict)
+                        or not isinstance(manifest.get("dependency_receipts"), dict)
+                    )
+                )
+                or type(manifest.get("source_dirty")) is not bool
+                or not isinstance(manifest.get("configuration"), str)
+                or not isinstance(manifest.get("source_digest"), str)
+                or len(manifest["source_digest"]) != 64
+                or manifest.get("source_commit") != self.data.get("git_commit")
+            ):
                 self._error("build_manifest has incomplete or inconsistent source identity")
-            elif manifest['version'] == 3 and not manifest_diagnostic_shape_valid(manifest):
-                self._error('build_manifest has inconsistent selected dependency content identity')
+            elif manifest["version"] == 3 and not manifest_diagnostic_shape_valid(manifest):
+                self._error("build_manifest has inconsistent selected dependency content identity")
 
     def _error(self, message: str) -> None:
         self.errors.append(f"{self.path}: {message}")

@@ -14,7 +14,9 @@ def with_scenario_metadata(item: dict, *, profile: str, role: str) -> dict:
     result["scenario_metadata"] = {
         "family": "direct-hip-reuse-expansion",
         "name": f"{profile}-{role}",
-        "promotion_eligibility": "reuse_contract_evidence_only" if role != "nonreuse_baseline" else "baseline_only",
+        "promotion_eligibility": "reuse_contract_evidence_only"
+        if role != "nonreuse_baseline"
+        else "baseline_only",
         "metadata": {
             "workflow_name": "direct_hip_reuse_expansion",
             "reuse_profile": profile,
@@ -24,7 +26,9 @@ def with_scenario_metadata(item: dict, *, profile: str, role: str) -> dict:
     return result
 
 
-def bounded_adaptive_capture(*, backend: str, median_us: float, pack_mode: str = "per_repeat_repack") -> dict:
+def bounded_adaptive_capture(
+    *, backend: str, median_us: float, pack_mode: str = "per_repeat_repack"
+) -> dict:
     item = capture(
         backend=backend,
         median_us=median_us,
@@ -63,8 +67,12 @@ def main() -> int:
     captures = [
         bounded_adaptive_capture(backend="hip-direct", median_us=1000.0),
         bounded_adaptive_capture(backend="ck", median_us=980.0),
-        bounded_adaptive_capture(backend="hip-direct", median_us=820.0, pack_mode="prepacked_reuse_a"),
-        bounded_adaptive_capture(backend="hip-direct", median_us=760.0, pack_mode="prepacked_reuse_b"),
+        bounded_adaptive_capture(
+            backend="hip-direct", median_us=820.0, pack_mode="prepacked_reuse_a"
+        ),
+        bounded_adaptive_capture(
+            backend="hip-direct", median_us=760.0, pack_mode="prepacked_reuse_b"
+        ),
         finite_capture(backend="hip-direct", median_us=1500.0),
         finite_capture(backend="hipblaslt", median_us=1450.0),
         finite_capture(backend="hip-direct", median_us=1100.0, pack_mode="prepacked_reuse_b"),
@@ -79,13 +87,17 @@ def main() -> int:
         "adaptive_bounded_u64_colpair": {"candidate_workload_win": 2},
         "finite_ring_native_a_reuse_b": {"candidate_workload_win": 1},
     }
-    assert {item["scenario_family"] for item in report["comparisons"]} == {"direct-hip-reuse-expansion"}
+    assert {item["scenario_family"] for item in report["comparisons"]} == {
+        "direct-hip-reuse-expansion"
+    }
     assert {item["scenario_reuse_role"] for item in report["comparisons"]} == {
         "stable_a_candidate",
         "stable_b_candidate",
     }
 
-    missing = direct_hip_reuse_expansion_report.build_direct_hip_report_from_captures([captures[-1]])
+    missing = direct_hip_reuse_expansion_report.build_direct_hip_report_from_captures(
+        [captures[-1]]
+    )
     assert missing["summary"]["missing_baselines"] == 1
     assert missing["comparisons"][0]["decision"] == "missing_baseline"
 

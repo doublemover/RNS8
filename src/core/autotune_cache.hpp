@@ -55,27 +55,23 @@ struct AutotuneRuntimeIdentity {
 
 std::filesystem::path autotune_cache_path();
 AutotuneCacheSnapshot read_autotune_cache();
-const AutotuneCacheEntry* find_exact_autotune_entry(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key);
-const AutotuneCacheEntry* find_validated_autotune_entry(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key);
-const AutotuneCacheEntry* find_validated_autotune_entry_for_runtime(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key,
-    const AutotuneRuntimeIdentity& runtime);
+const AutotuneCacheEntry* find_exact_autotune_entry(const AutotuneCacheSnapshot& snapshot,
+                                                    const std::string& key);
+const AutotuneCacheEntry* find_validated_autotune_entry(const AutotuneCacheSnapshot& snapshot,
+                                                        const std::string& key);
+const AutotuneCacheEntry*
+find_validated_autotune_entry_for_runtime(const AutotuneCacheSnapshot& snapshot,
+                                          const std::string& key,
+                                          const AutotuneRuntimeIdentity& runtime);
 bool write_autotune_cache_entry(const AutotuneCacheEntry& entry, std::string& error);
-std::string autotune_selection_rationale(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key,
-    const std::string& selected_backend);
-std::string autotune_selection_rationale(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key,
-    const std::string& selected_backend,
-    const AutotuneRuntimeIdentity& runtime);
+std::string autotune_selection_rationale(const AutotuneCacheSnapshot& snapshot,
+                                         const std::string& key,
+                                         const std::string& selected_backend);
+std::string autotune_selection_rationale(const AutotuneCacheSnapshot& snapshot,
+                                         const std::string& key,
+                                         const std::string& selected_backend,
+                                         const AutotuneRuntimeIdentity& runtime);
 
-}  // namespace rns8::detail
+} // namespace rns8::detail
 
 #endif

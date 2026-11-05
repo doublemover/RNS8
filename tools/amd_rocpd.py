@@ -41,9 +41,7 @@ class NativeMetric:
     start_ns: int
     end_ns: int
     missingness: str | None
-    aggregation: str = (
-        "individual_native_observation_no_cross_instance_or_replay_aggregation"
-    )
+    aggregation: str = "individual_native_observation_no_cross_instance_or_replay_aggregation"
     definition_version: str = "AMD_rocpd_3.0.4"
 
 
@@ -62,17 +60,11 @@ def read_process(
 ) -> dict:
     path = path.resolve(strict=True)
     _uint(process_id, "process ID", positive=True)
-    if (
-        type(maximum_rows) is not int
-        or maximum_rows < 1
-        or not 0 < timeout_seconds <= 300
-    ):
+    if type(maximum_rows) is not int or maximum_rows < 1 or not 0 < timeout_seconds <= 300:
         raise ValueError("positive bounded native database limits required")
     # An immutable receipt must include a finalized standalone database, never
     # ignore a live WAL or let SQLite create/update sidecars while reading it.
-    if any(
-        Path(str(path) + suffix).exists() for suffix in ("-wal", "-shm", "-journal")
-    ):
+    if any(Path(str(path) + suffix).exists() for suffix in ("-wal", "-shm", "-journal")):
         raise ValueError("native database is not a finalized standalone snapshot")
     deadline = time.monotonic() + timeout_seconds
     try:
@@ -82,22 +74,16 @@ def read_process(
             connection.execute("PRAGMA query_only=ON")
             connection.execute("PRAGMA trusted_schema=OFF")
             connection.enable_load_extension(False)
-            connection.set_progress_handler(
-                lambda: int(time.monotonic() > deadline), 1000
-            )
+            connection.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
             connection.row_factory = sqlite3.Row
 
             def rows(table: str, columns: str, where="", values=()):
                 # Identifiers/conditions are source constants; all input values
                 # are parameters. Bound every materialized table projection.
-                cursor = connection.execute(
-                    "SELECT " + columns + " FROM " + table + where, values
-                )
+                cursor = connection.execute("SELECT " + columns + " FROM " + table + where, values)
                 result = cursor.fetchmany(maximum_rows + 1)
                 if len(result) > maximum_rows:
-                    raise ValueError(
-                        "native table exceeds the bounded adapter row limit"
-                    )
+                    raise ValueError("native table exceeds the bounded adapter row limit")
                 return [dict(row) for row in result]
 
             versions = rows("rocpd_metadata", "value", " WHERE tag='schema_version'")
@@ -110,9 +96,7 @@ def read_process(
                 (process_id,),
             )
             if len(processes) != 1:
-                raise ValueError(
-                    "native database does not uniquely identify this process/node"
-                )
+                raise ValueError("native database does not uniquely identify this process/node")
             process = processes[0]
             pid, nid, guid = process["id"], process["nid"], process["guid"]
             _uint(pid, "process table ID", positive=True)
@@ -142,9 +126,7 @@ def read_process(
                 "id,name,type,uuid,absolute_index,logical_index,type_index",
             )
             objects = indexed("rocpd_info_code_object", "id,agent_id,uri,storage_type")
-            symbols = indexed(
-                "rocpd_info_kernel_symbol", "id,code_object_id,kernel_name"
-            )
+            symbols = indexed("rocpd_info_kernel_symbol", "id,code_object_id,kernel_name")
             queues = indexed("rocpd_info_queue", "id")
             streams = indexed("rocpd_info_stream", "id")
             dispatches = indexed(
@@ -164,9 +146,7 @@ def read_process(
                 event_ids[identifier] = event
             normalized, dispatch_events, seen = [], {}, set()
             for dispatch in dispatches.values():
-                aid, kid, qid = (
-                    dispatch[key] for key in ("agent_id", "kernel_id", "queue_id")
-                )
+                aid, kid, qid = (dispatch[key] for key in ("agent_id", "kernel_id", "queue_id"))
                 key = (
                     _uint(aid, "agent ID"),
                     _uint(qid, "queue ID"),
@@ -183,40 +163,26 @@ def read_process(
                     or qid not in queues
                     or dispatch["stream_id"] not in streams
                 ):
-                    raise ValueError(
-                        "dispatch refers outside its process/node/GUID inventories"
-                    )
+                    raise ValueError("dispatch refers outside its process/node/GUID inventories")
                 code = objects.get(symbol["code_object_id"])
-                if (
-                    code is None
-                    or code["agent_id"] != aid
-                    or code["storage_type"] != "FILE"
-                ):
-                    raise ValueError(
-                        "dispatch has no matching file-backed loaded code object"
-                    )
+                if code is None or code["agent_id"] != aid or code["storage_type"] != "FILE":
+                    raise ValueError("dispatch has no matching file-backed loaded code object")
                 event = event_ids.get(dispatch["event_id"])
                 if event is None or dispatch["event_id"] in dispatch_events:
-                    raise ValueError(
-                        "dispatch has missing or ambiguous native event association"
-                    )
+                    raise ValueError("dispatch has missing or ambiguous native event association")
                 start, stop = (
                     _uint(dispatch["start"], "dispatch start"),
                     _uint(dispatch["end"], "dispatch end"),
                 )
                 if not begin <= start < stop <= end:
-                    raise ValueError(
-                        "dispatch lies outside its completed process interval"
-                    )
+                    raise ValueError("dispatch lies outside its completed process interval")
                 info = dict(
                     agent_id=dict(handle=aid),
                     kernel_id=kid,
                     queue_id=dict(handle=qid),
                     dispatch_id=dispatch["dispatch_id"],
                     grid_size={
-                        axis: _uint(
-                            dispatch["grid_size_" + axis], "grid size", positive=True
-                        )
+                        axis: _uint(dispatch["grid_size_" + axis], "grid size", positive=True)
                         for axis in "xyz"
                     },
                     workgroup_size={
@@ -262,11 +228,7 @@ def read_process(
             for sample in samples:
                 dispatch = dispatch_events.get(sample["event_id"])
                 definition = definitions.get(sample["pmc_id"])
-                if (
-                    sample["sample_id"] is not None
-                    or dispatch is None
-                    or definition is None
-                ):
+                if sample["sample_id"] is not None or dispatch is None or definition is None:
                     unresolved.append(
                         dict(
                             sample_id=sample["id"],
@@ -278,9 +240,7 @@ def read_process(
                     raise ValueError("native metric belongs to another dispatch agent")
                 value = sample["value"]
                 numeric = (
-                    float(value)
-                    if type(value) in (int, float) and math.isfinite(value)
-                    else None
+                    float(value) if type(value) in (int, float) and math.isfinite(value) else None
                 )
                 unit = definition["units"] or None
                 missingness = (
@@ -311,9 +271,7 @@ def read_process(
                             _optional_uint(sample["xcc"], "XCC"),
                             _optional_uint(sample["shader_engine"], "shader engine"),
                             _optional_uint(sample["instance"], "instance"),
-                            _optional_uint(
-                                definition["instance_id"], "definition instance"
-                            ),
+                            _optional_uint(definition["instance_id"], "definition instance"),
                             dispatch["start"],
                             dispatch["end"],
                             missingness,
@@ -327,8 +285,7 @@ def read_process(
                 native=dict(
                     metadata=dict(pid=process_id, init_time=begin, fini_time=end),
                     agents=[
-                        dict(id=dict(handle=key), name=row["name"])
-                        for key, row in agents.items()
+                        dict(id=dict(handle=key), name=row["name"]) for key, row in agents.items()
                     ],
                     code_objects=[
                         dict(
@@ -355,6 +312,5 @@ def read_process(
             )
     except sqlite3.Error as error:
         raise ValueError(
-            "unsupported, malformed, nonfinalized or over-budget rocpd database: "
-            + str(error)
+            "unsupported, malformed, nonfinalized or over-budget rocpd database: " + str(error)
         ) from error

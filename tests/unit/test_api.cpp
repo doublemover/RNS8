@@ -25,7 +25,7 @@
 namespace {
 #include "test_api_support.inc"
 
-}  // namespace
+} // namespace
 
 #include "test_api_validation_cases.inc"
 #include "test_api_pipeline_recipe_cases.inc"
@@ -56,9 +56,12 @@ namespace {
 
 #include "../support/ragged_owner_fixture.hpp"
 TEST_CASE("public ragged owner preserves exact values across differently tiled consumers on CPU") {
-  auto* ctx=create_cpu_context();
-  for(bool u:{false,true}) {ragged_owner_fixture::roundtrip(ctx,u);ragged_owner_fixture::wide_roundtrip(ctx,u);}
-  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  auto* ctx = create_cpu_context();
+  for (bool u : {false, true}) {
+    ragged_owner_fixture::roundtrip(ctx, u);
+    ragged_owner_fixture::wide_roundtrip(ctx, u);
+  }
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 #include "../support/gram_fixture.hpp"
@@ -91,8 +94,9 @@ TEST_CASE("public CPU product recipe rebinds generations within its compiled pro
 }
 TEST_CASE("public HIP product recipe rebinds owners without reallocating its arena") {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  for(auto execution:{RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS,RNS8_PRODUCT_EXECUTION_ORDERED_HIP})
-    check_product_recipe_rebind(RNS8_BACKEND_HIP_DIRECT,execution);
+  for (auto execution :
+       {RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS, RNS8_PRODUCT_EXECUTION_ORDERED_HIP})
+    check_product_recipe_rebind(RNS8_BACKEND_HIP_DIRECT, execution);
 #else
   SKIP("HIP recipe execution unavailable in this build");
 #endif
@@ -111,10 +115,11 @@ TEST_CASE("public HIP product recipe rebinds owners without reallocating its are
 
 #include "test_api_resident_bounded_cases.inc"
 
-TEST_CASE("HIP event-dependent joins submit before producer observation", "[api][async][pipeline]") {
+TEST_CASE("HIP event-dependent joins submit before producer observation",
+          "[api][async][pipeline]") {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  check_prepared_multi_dependencies(RNS8_BACKEND_HIP_DIRECT,true,false);
-  check_prepared_multi_dependencies(RNS8_BACKEND_HIP_DIRECT,true,true);
+  check_prepared_multi_dependencies(RNS8_BACKEND_HIP_DIRECT, true, false);
+  check_prepared_multi_dependencies(RNS8_BACKEND_HIP_DIRECT, true, true);
 #else
   SKIP("HIP event-dependent submission is unavailable in this build");
 #endif
@@ -138,37 +143,76 @@ TEST_CASE("HIP event-dependent joins submit before producer observation", "[api]
 #include "backend_common/vector_small_n.hpp"
 TEST_CASE("public uniform plan metadata and dispatch share one qualified route", "[api][skinny]") {
   using namespace rns8::detail;
-  for(auto semantics:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED})for(int64_t m:{1,16,64,65,128})for(int64_t n:{1,2,4,8,9})for(uint32_t prefix:{1u,3u,9u,20u})for(bool parallel:{false,true}){
-    rns8_plan plan{};plan.backend=RNS8_BACKEND_HIP_DIRECT;plan.prefix=prefix;plan.desc.semantics=semantics;
-    plan.desc.m=m;plan.desc.n=n;plan.desc.k=65537;plan.desc.flags=parallel?RNS8_PLAN_DIRECT_RNS_PARALLEL:0;
-    const auto route=direct_rns_route(m,n,65537,65537,n,n,prefix,parallel);
-    CHECK(api::selected_kernel_for_plan(plan)==direct_rns_route_name(route));
-    if(!parallel)CHECK(route==(m*n<=64?DirectRnsRoute::persistent_small:DirectRnsRoute::grouped));
-    if(parallel && n<=8)CHECK(route==(n==1?DirectRnsRoute::gemv_n1:DirectRnsRoute::gemv_small_n));
+  for (auto semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64, RNS8_EXACT_WIDE_SIGNED})
+    for (int64_t m : {1, 16, 64, 65, 128})
+      for (int64_t n : {1, 2, 4, 8, 9})
+        for (uint32_t prefix : {1u, 3u, 9u, 20u})
+          for (bool parallel : {false, true}) {
+            rns8_plan plan{};
+            plan.backend = RNS8_BACKEND_HIP_DIRECT;
+            plan.prefix = prefix;
+            plan.desc.semantics = semantics;
+            plan.desc.m = m;
+            plan.desc.n = n;
+            plan.desc.k = 65537;
+            plan.desc.flags = parallel ? RNS8_PLAN_DIRECT_RNS_PARALLEL : 0;
+            const auto route = direct_rns_route(m, n, 65537, 65537, n, n, prefix, parallel);
+            CHECK(api::selected_kernel_for_plan(plan) == direct_rns_route_name(route));
+            if (!parallel)
+              CHECK(route ==
+                    (m * n <= 64 ? DirectRnsRoute::persistent_small : DirectRnsRoute::grouped));
+            if (parallel && n <= 8)
+              CHECK(route == (n == 1 ? DirectRnsRoute::gemv_n1 : DirectRnsRoute::gemv_small_n));
+          }
+  CHECK(vector_small_n_declared_lds(2, true, true) == 12800);
+  CHECK(vector_small_n_declared_lds(2, false, true) == 12288);
+  CHECK(vector_small_n_declared_lds(2, true, false) == 51200);
+  CHECK(vector_small_n_declared_lds(2, false, false) == 49152);
+  for (uint32_t n = 2; n <= 8; ++n) {
+    CHECK(vector_small_n_width(n, true) == n);
+    CHECK(vector_small_n_width(n, false) == 8);
   }
-  CHECK(vector_small_n_declared_lds(2,true,true)==12800);CHECK(vector_small_n_declared_lds(2,false,true)==12288);
-  CHECK(vector_small_n_declared_lds(2,true,false)==51200);CHECK(vector_small_n_declared_lds(2,false,false)==49152);
-  for(uint32_t n=2;n<=8;++n){CHECK(vector_small_n_width(n,true)==n);CHECK(vector_small_n_width(n,false)==8);}
 }
 
-TEST_CASE("narrow fused resource contracts omit native intermediate but retain proof scan", "[narrow][resources]") {
+TEST_CASE("narrow fused resource contracts omit native intermediate but retain proof scan",
+          "[narrow][resources]") {
   using namespace rns8::detail;
-  for(bool wmma:{false,true})for(uint32_t prefix:{1u,2u,9u,20u}) {
-    const auto staged=query_narrow_rns_support(17,19,31,32,21,prefix,wmma,UINT64_MAX);
-    const auto fused=query_narrow_rns_support(17,19,31,32,21,prefix,wmma,UINT64_MAX,true);
-    CHECK(staged.status==RNS8_SUCCESS);CHECK(fused.status==RNS8_SUCCESS);
-    CHECK(staged.scratch_bytes-fused.scratch_bytes==17*19*8);CHECK(fused.scratch_bytes==(wmma?32:16));
-    CHECK(query_narrow_rns_support(17,19,31,32,21,prefix,wmma,fused.scratch_bytes-1,true).status==RNS8_WORKSPACE_TOO_SMALL);
-  }
+  for (bool wmma : {false, true})
+    for (uint32_t prefix : {1u, 2u, 9u, 20u}) {
+      const auto staged = query_narrow_rns_support(17, 19, 31, 32, 21, prefix, wmma, UINT64_MAX);
+      const auto fused =
+          query_narrow_rns_support(17, 19, 31, 32, 21, prefix, wmma, UINT64_MAX, true);
+      CHECK(staged.status == RNS8_SUCCESS);
+      CHECK(fused.status == RNS8_SUCCESS);
+      CHECK(staged.scratch_bytes - fused.scratch_bytes == 17 * 19 * 8);
+      CHECK(fused.scratch_bytes == (wmma ? 32 : 16));
+      CHECK(
+          query_narrow_rns_support(17, 19, 31, 32, 21, prefix, wmma, fused.scratch_bytes - 1, true)
+              .status == RNS8_WORKSPACE_TOO_SMALL);
+    }
 }
-TEST_CASE("synchronous failure leases invalidate only written outputs and release clean failures", "[api][lifetime]") {
-  using namespace rns8::detail::api;auto* ctx=create_cpu_context();rns8_matrix a{},b{},c{};rns8_workspace workspace{};
-  c.host_residues_current=true;size_t token=0;REQUIRE(begin_synchronous_lease(*ctx,a,b,c,workspace,token)==RNS8_SUCCESS);
-  CHECK(a.in_flight_readers==1);CHECK(c.in_flight_writer);CHECK(workspace.in_flight);
-  REQUIRE(finish_synchronous_lease(*ctx,token,RNS8_RANGE_ERROR,false));CHECK(c.host_residues_current);CHECK_FALSE(c.in_flight_writer);
-  REQUIRE(begin_synchronous_lease(*ctx,a,a,c,workspace,token)==RNS8_SUCCESS);CHECK(a.in_flight_readers==1);
-  REQUIRE(finish_synchronous_lease(*ctx,token,RNS8_RANGE_ERROR,true));CHECK_FALSE(c.host_residues_current);CHECK(a.in_flight_readers==0);
-  CHECK(ctx->failed_work_leases.empty());REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+TEST_CASE("synchronous failure leases invalidate only written outputs and release clean failures",
+          "[api][lifetime]") {
+  using namespace rns8::detail::api;
+  auto* ctx = create_cpu_context();
+  rns8_matrix a{}, b{}, c{};
+  rns8_workspace workspace{};
+  c.host_residues_current = true;
+  size_t token = 0;
+  REQUIRE(begin_synchronous_lease(*ctx, a, b, c, workspace, token) == RNS8_SUCCESS);
+  CHECK(a.in_flight_readers == 1);
+  CHECK(c.in_flight_writer);
+  CHECK(workspace.in_flight);
+  REQUIRE(finish_synchronous_lease(*ctx, token, RNS8_RANGE_ERROR, false));
+  CHECK(c.host_residues_current);
+  CHECK_FALSE(c.in_flight_writer);
+  REQUIRE(begin_synchronous_lease(*ctx, a, a, c, workspace, token) == RNS8_SUCCESS);
+  CHECK(a.in_flight_readers == 1);
+  REQUIRE(finish_synchronous_lease(*ctx, token, RNS8_RANGE_ERROR, true));
+  CHECK_FALSE(c.host_residues_current);
+  CHECK(a.in_flight_readers == 0);
+  CHECK(ctx->failed_work_leases.empty());
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 #include "test_api_native_integrity_cases.inc"
@@ -177,7 +221,10 @@ TEST_CASE("synchronous failure leases invalidate only written outputs and releas
 
 #include "../support/ragged_recipe_fixture.hpp"
 TEST_CASE("ragged producer binds retained multi-output recipe consumers") {
-  auto* ctx=create_cpu_context();for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  auto* ctx = create_cpu_context();
+  for (bool u : {false, true})
+    ragged_recipe_fixture::check(ctx, u);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 #include "test_api_pinned_host_cases.inc"
@@ -185,48 +232,88 @@ TEST_CASE("ragged producer binds retained multi-output recipe consumers") {
 #include "test_api_value_bound_plan_cases.inc"
 
 TEST_CASE("CPU materialized recipes consume and refresh differently tiled ragged producers") {
-  auto* ctx=create_cpu_context();for(bool u:{false,true})for(bool experimental:{false,true})ragged_recipe_fixture::check(ctx,u,true,experimental);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  auto* ctx = create_cpu_context();
+  for (bool u : {false, true})
+    for (bool experimental : {false, true})
+      ragged_recipe_fixture::check(ctx, u, true, experimental);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 #include "test_api_prepared_concurrency_cases.inc"
 
-TEST_CASE("reserved CPU publication preserves exclusivity metadata and one generation advance", "[api][lifetime]") {
+TEST_CASE("reserved CPU publication preserves exclusivity metadata and one generation advance",
+          "[api][lifetime]") {
   using namespace rns8::detail::api;
-  for(bool existing:{false,true})for(bool finite:{false,true}) {
-    auto* ctx=create_cpu_context();rns8_matrix a{},b{},c{};rns8_workspace work{};
-    rns8_plan plan{};plan.prefix=9;plan.desc.semantics=finite?RNS8_FINITE_RING_U8:RNS8_EXACT_WIDE_SIGNED;
-    c.prefix=finite?0:9;c.residues={1,2};c.host_residues_current=existing;
-    const auto generation=c.content_generation;
-    size_t token=0;REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
-    {
-      SynchronousLease lease(*ctx,token);
-      const std::vector<int8_t> staged{3,4};
-      boost::multiprecision::cpp_int bound=7;rns8_exact_matrix_ranges ranges;
-      ranges.rows.resize(1);ranges.cols.resize(2);ranges.rows[0].max_magnitude=7; // fallible metadata prepared before commit
-      REQUIRE_THROWS_AS(require_matrix_writable(c),ResourceBusy);
-      REQUIRE(lease.begin_write()==RNS8_SUCCESS);
-      CHECK(c.in_flight_writer);CHECK_FALSE(c.host_residues_current);
-      REQUIRE_THROWS_AS(require_matrix_writable(c),ResourceBusy);
-      std::copy(staged.begin(),staged.end(),c.residues.begin());
-      mark_output_host_residues_current(c,&plan);
-      if(finite)c.finite_modulus=255;
-      else rns8::detail::commit_exact_range(c,plan,bound,&ranges);
-      CHECK(c.in_flight_writer);CHECK(c.host_residues_current);
-      CHECK(c.content_generation==generation+1);
-      if(finite)CHECK(c.finite_modulus==255);
-      else {CHECK(c.exact_max_magnitude==7);CHECK(c.exact_range_prefix==9);CHECK(c.exact_axis_ranges.rows.size()==1);}
-      REQUIRE(lease.finish(RNS8_SUCCESS)==RNS8_SUCCESS);
+  for (bool existing : {false, true})
+    for (bool finite : {false, true}) {
+      auto* ctx = create_cpu_context();
+      rns8_matrix a{}, b{}, c{};
+      rns8_workspace work{};
+      rns8_plan plan{};
+      plan.prefix = 9;
+      plan.desc.semantics = finite ? RNS8_FINITE_RING_U8 : RNS8_EXACT_WIDE_SIGNED;
+      c.prefix = finite ? 0 : 9;
+      c.residues = {1, 2};
+      c.host_residues_current = existing;
+      const auto generation = c.content_generation;
+      size_t token = 0;
+      REQUIRE(begin_synchronous_lease(*ctx, a, b, c, work, token) == RNS8_SUCCESS);
+      {
+        SynchronousLease lease(*ctx, token);
+        const std::vector<int8_t> staged{3, 4};
+        boost::multiprecision::cpp_int bound = 7;
+        rns8_exact_matrix_ranges ranges;
+        ranges.rows.resize(1);
+        ranges.cols.resize(2);
+        ranges.rows[0].max_magnitude = 7; // fallible metadata prepared before commit
+        REQUIRE_THROWS_AS(require_matrix_writable(c), ResourceBusy);
+        REQUIRE(lease.begin_write() == RNS8_SUCCESS);
+        CHECK(c.in_flight_writer);
+        CHECK_FALSE(c.host_residues_current);
+        REQUIRE_THROWS_AS(require_matrix_writable(c), ResourceBusy);
+        std::copy(staged.begin(), staged.end(), c.residues.begin());
+        mark_output_host_residues_current(c, &plan);
+        if (finite)
+          c.finite_modulus = 255;
+        else
+          rns8::detail::commit_exact_range(c, plan, bound, &ranges);
+        CHECK(c.in_flight_writer);
+        CHECK(c.host_residues_current);
+        CHECK(c.content_generation == generation + 1);
+        if (finite)
+          CHECK(c.finite_modulus == 255);
+        else {
+          CHECK(c.exact_max_magnitude == 7);
+          CHECK(c.exact_range_prefix == 9);
+          CHECK(c.exact_axis_ranges.rows.size() == 1);
+        }
+        REQUIRE(lease.finish(RNS8_SUCCESS) == RNS8_SUCCESS);
+      }
+      CHECK_FALSE(c.in_flight_writer);
+      CHECK(a.in_flight_readers == 0);
+      CHECK_FALSE(work.in_flight);
+      const auto committed = c.content_generation;
+      REQUIRE(begin_synchronous_lease(*ctx, a, b, c, work, token) == RNS8_SUCCESS);
+      try {
+        SynchronousLease lease(*ctx, token);
+        throw std::bad_alloc{};
+      } catch (const std::bad_alloc&) {
+      }
+      CHECK(c.host_residues_current);
+      CHECK(c.content_generation == committed);
+      CHECK(c.residues == std::vector<int8_t>{3, 4});
+      REQUIRE(begin_synchronous_lease(*ctx, a, b, c, work, token) == RNS8_SUCCESS);
+      {
+        SynchronousLease lease(*ctx, token);
+        REQUIRE(lease.begin_write() == RNS8_SUCCESS);
+        c.residues[0] = 5;
+        lease.finish(RNS8_RANGE_ERROR);
+      }
+      CHECK_FALSE(c.host_residues_current);
+      CHECK_FALSE(c.in_flight_writer);
+      CHECK(ctx->failed_work_leases.empty());
+      REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
     }
-    CHECK_FALSE(c.in_flight_writer);CHECK(a.in_flight_readers==0);CHECK_FALSE(work.in_flight);
-    const auto committed=c.content_generation;
-    REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
-    try {SynchronousLease lease(*ctx,token);throw std::bad_alloc{};}catch(const std::bad_alloc&){}
-    CHECK(c.host_residues_current);CHECK(c.content_generation==committed);CHECK(c.residues==std::vector<int8_t>{3,4});
-    REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
-    {SynchronousLease lease(*ctx,token);REQUIRE(lease.begin_write()==RNS8_SUCCESS);c.residues[0]=5;lease.finish(RNS8_RANGE_ERROR);}
-    CHECK_FALSE(c.host_residues_current);CHECK_FALSE(c.in_flight_writer);CHECK(ctx->failed_work_leases.empty());
-    REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
-  }
 }
 
 #include "test_api_synchronous_dispatch_cases.inc"

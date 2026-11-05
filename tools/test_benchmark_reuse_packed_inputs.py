@@ -58,14 +58,21 @@ def main() -> int:
         assert capture["timing_metadata"]["pack_mode"] == expected_mode
         assert capture["timing_metadata"]["prepack_reuse_operands"] == expected_operands
         assert capture["timing_metadata"]["prepack_reuse_strategy"] == "persistent_matrix_residency"
-        assert type(capture["prepack_setup_us"]) in (int, float) and math.isfinite(capture["prepack_setup_us"])
+        assert type(capture["prepack_setup_us"]) in (int, float) and math.isfinite(
+            capture["prepack_setup_us"]
+        )
         assert capture["prepack_setup_us"] >= 0
         assert capture["avg_prepack_setup_us"] == float(capture["prepack_setup_us"])
         breakdown = capture["prepack_setup_breakdown_us"]
         assert isinstance(breakdown, dict)
         assert set(breakdown) == {"pack_a", "pack_b", "runtime_cache", "unclassified"}
-        assert all(type(value) in (int, float) and math.isfinite(value) and value >= 0 for value in breakdown.values())
-        assert math.isclose(sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9)
+        assert all(
+            type(value) in (int, float) and math.isfinite(value) and value >= 0
+            for value in breakdown.values()
+        )
+        assert math.isclose(
+            sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9
+        )
         assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
         if expected_mode == "prepacked_reuse_a":
             assert breakdown["pack_b"] == 0
@@ -79,7 +86,10 @@ def main() -> int:
         else:
             assert capture["avg_pack_us"] >= 0.0
         assert capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timed"] is True
-        assert capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timing_key"] == "prepack_setup_us"
+        assert (
+            capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timing_key"]
+            == "prepack_setup_us"
+        )
         assert (
             capture["timing_metadata"]["phase_availability"]["prepack_setup"]["breakdown_key"]
             == "prepack_setup_breakdown_us"
@@ -121,7 +131,9 @@ def main() -> int:
         assert breakdown["pack_a"] == 0
         assert breakdown["pack_b"] >= 0
         assert breakdown["runtime_cache"] >= 0
-        assert math.isclose(sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9)
+        assert math.isclose(
+            sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9
+        )
         assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
         runtime_cache = capture["reuse_contract"]["runtime_prepack_cache"]
         assert runtime_cache["source"] == "rns8_get_prepack_cache_info"
@@ -136,7 +148,10 @@ def main() -> int:
         assert runtime_cache["device_bytes"] >= runtime_cache["operand_pack_bytes"] > 0
         assert "source_version=1" in runtime_cache["cache_key"]
         if capture["timing_metadata"]["gpu_event_timing"] is True:
-            assert "rns_gemm_prepacked_b_kernel_group" in capture["timing_metadata"]["gpu_event_phase_order"]
+            assert (
+                "rns_gemm_prepacked_b_kernel_group"
+                in capture["timing_metadata"]["gpu_event_phase_order"]
+            )
             assert "rns_gemm_prepacked_b_kernel_group" in capture["gpu_event_timings_us"]
         else:
             assert is_censored_gpu_event_capture(capture)

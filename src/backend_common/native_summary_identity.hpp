@@ -14,10 +14,10 @@ struct NativeSummaryIdentity {
   bool unsigned_inputs = false, row_tiles = false;
   bool operator==(const NativeSummaryIdentity& other) const noexcept {
     return instance && generation && native && instance == other.instance &&
-        generation == other.generation && native == other.native &&
-        rows == other.rows && cols == other.cols && ld == other.ld &&
-        device == other.device && method == other.method && panel_k == other.panel_k &&
-        unsigned_inputs == other.unsigned_inputs && row_tiles == other.row_tiles;
+           generation == other.generation && native == other.native && rows == other.rows &&
+           cols == other.cols && ld == other.ld && device == other.device &&
+           method == other.method && panel_k == other.panel_k &&
+           unsigned_inputs == other.unsigned_inputs && row_tiles == other.row_tiles;
   }
 };
 } // namespace rns8::detail

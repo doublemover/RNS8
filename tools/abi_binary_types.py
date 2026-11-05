@@ -34,9 +34,7 @@ def complete_types(xml: str, surface: Surface) -> Object:
         raise ValueError("one ELF ABI corpus required")
     nodes = list(root.iter())
     identifiers = {node.get("id"): node for node in nodes if node.get("id")}
-    if any(
-        node.get("type-id") not in identifiers for node in nodes if node.get("type-id")
-    ):
+    if any(node.get("type-id") not in identifiers for node in nodes if node.get("type-id")):
         raise ValueError("ELF debug type graph contains unresolved references")
     declarations: dict[str, list[ET.Element]] = {}
     for node in nodes:
@@ -89,10 +87,7 @@ def complete_types(xml: str, surface: Surface) -> Object:
             node.tag == "enum-decl"
             and int(node.get("size-in-bits", "0")) == 32
             and node.find("underlying-type") is not None
-            and {
-                item.get("name"): int(item.get("value"))
-                for item in node.findall("enumerator")
-            }
+            and {item.get("name"): int(item.get("value")) for item in node.findall("enumerator")}
             == constants
             for node in candidates
         ):
@@ -102,15 +97,12 @@ def complete_types(xml: str, surface: Surface) -> Object:
             node.tag == "function-decl"
             and node.find("return") is not None
             and all(
-                parameter.get("type-id") in identifiers
-                for parameter in node.findall("parameter")
+                parameter.get("type-id") in identifiers for parameter in node.findall("parameter")
             )
             and node.find("return").get("type-id") in identifiers
             for node in declarations.get(name, [])
         ):
-            raise ValueError(
-                "ELF debug types omit the public function signature " + name
-            )
+            raise ValueError("ELF debug types omit the public function signature " + name)
     return dict(
         records=len(surface.records),
         enums=len(surface.enums),
@@ -129,9 +121,7 @@ def pinned_tool(path: Path, expected: str, output: Path) -> Object:
         raise ValueError("pin the complete numeric libabigail release")
     if not re.search(r"(?<![\w.])" + re.escape(expected) + r"(?![\w.+-])", version):
         raise ValueError("libabigail tool version does not match its explicit pin")
-    return dict(
-        path=str(path), sha256=sha256(path), version=version, release_pin=expected
-    )
+    return dict(path=str(path), sha256=sha256(path), version=version, release_pin=expected)
 
 
 def compare_elf(
@@ -165,9 +155,7 @@ def compare_elf(
         declaration_sha256=declaration_sha256(surface),
     ).items():
         if not same_evidence_value(expected.get(name), value):
-            raise ValueError(
-                "ELF baseline differs in target/compiler/configuration: " + name
-            )
+            raise ValueError("ELF baseline differs in target/compiler/configuration: " + name)
     baseline_xml = (baseline.parent / str(expected.get("xml"))).resolve(strict=True)
     if not baseline_xml.is_relative_to(baseline.parent.resolve(strict=True)):
         raise ValueError("ELF baseline XML escaped its evidence directory")
@@ -197,9 +185,7 @@ def compare_elf(
     report = output / "abidiff.txt"
     report.write_text(process.stdout, encoding="utf-8")
     report.with_suffix(".stderr").write_text(process.stderr, encoding="utf-8")
-    if sha256(binary) != binary_hash or sha256(baseline_xml) != expected.get(
-        "xml_sha256"
-    ):
+    if sha256(binary) != binary_hash or sha256(baseline_xml) != expected.get("xml_sha256"):
         raise ValueError("ELF inputs changed during comparison")
     # abidiff uses a bitmask: error/usage/ABI-change/incompatible-change are all
     # non-success. No difference may be silently suppressed into a passing row.

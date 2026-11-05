@@ -17,12 +17,25 @@ from msvc_env import command_in_msvc_environment, find_visual_studio_installatio
 from .config import *
 from .resolution import ACTIVE_RESOLUTION, compiler_environment, selected_command
 
-def run(args: list[str] | str, timeout: int = 20, env: dict[str, str] | None = None, *, logical_command: list[str] | None = None) -> tuple[int, str]:
+
+def run(
+    args: list[str] | str,
+    timeout: int = 20,
+    env: dict[str, str] | None = None,
+    *,
+    logical_command: list[str] | None = None,
+) -> tuple[int, str]:
     try:
         active = ACTIVE_RESOLUTION.get()
-        original = logical_command if logical_command is not None else args if isinstance(args,list) else []
-        selected = (active.get("hip",{}).get("selected") or {}) if active else {}
-        compiler = selected.get("paths",{}).get("compiler")
+        original = (
+            logical_command
+            if logical_command is not None
+            else args
+            if isinstance(args, list)
+            else []
+        )
+        selected = (active.get("hip", {}).get("selected") or {}) if active else {}
+        compiler = selected.get("paths", {}).get("compiler")
         # The MSVC wrapper may turn argv into shell text. Bind environment from
         # the original compiler identity, never by parsing/reversing that text.
         if compiler and original and Path(original[0]).resolve() == Path(compiler).resolve():
@@ -108,7 +121,9 @@ def find_command(name: str) -> str | None:
 
     if name in {"hipcc", "hipInfo", "hipconfig"}:
         roots = [os.environ.get("HIP_PATH"), os.environ.get("ROCM_PATH")]
-        roots.append(r"C:\Program Files\AMD\ROCm\7.1" if platform.system() == "Windows" else "/opt/rocm")
+        roots.append(
+            r"C:\Program Files\AMD\ROCm\7.1" if platform.system() == "Windows" else "/opt/rocm"
+        )
         for root in roots:
             if not root:
                 continue
@@ -188,10 +203,20 @@ def cmake_presets_report() -> dict[str, object]:
     test_presets = test if isinstance(test, list) else []
 
     configure_by_name = {
-        item.get("name"): item for item in configure_presets if isinstance(item, dict) and isinstance(item.get("name"), str)
+        item.get("name"): item
+        for item in configure_presets
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
     }
-    build_names = [item.get("name") for item in build_presets if isinstance(item, dict) and isinstance(item.get("name"), str)]
-    test_names = [item.get("name") for item in test_presets if isinstance(item, dict) and isinstance(item.get("name"), str)]
+    build_names = [
+        item.get("name")
+        for item in build_presets
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
+    ]
+    test_names = [
+        item.get("name")
+        for item in test_presets
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
+    ]
 
     windows = configure_by_name.get("windows-msvc-hip-debug", {})
     linux = configure_by_name.get("linux-rocm-debug", {})
@@ -207,8 +232,14 @@ def cmake_presets_report() -> dict[str, object]:
     linux_coverage_targets = target_list(linux_cache.get("RNS8_ROCM_COVERAGE_TARGETS"))
     if not linux_coverage_targets:
         linux_coverage_targets = linux_active_targets
-    missing_linux_coverage = [target for target in LINUX_ROCM_COVERAGE_TARGETS if target not in linux_coverage_targets]
-    windows_ok = bool(windows) and windows_cache.get("RNS8_ENABLE_HIP") == "ON" and "gfx1100" in windows_targets
+    missing_linux_coverage = [
+        target for target in LINUX_ROCM_COVERAGE_TARGETS if target not in linux_coverage_targets
+    ]
+    windows_ok = (
+        bool(windows)
+        and windows_cache.get("RNS8_ENABLE_HIP") == "ON"
+        and "gfx1100" in windows_targets
+    )
     linux_represented = (
         bool(linux)
         and linux_cache.get("RNS8_ENABLE_HIP") == "ON"
@@ -242,5 +273,3 @@ def cmake_presets_report() -> dict[str, object]:
             "detail": "source-level preset representation only; active compile targets are separate from RDNA/CDNA family coverage metadata",
         },
     }
-
-

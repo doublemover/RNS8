@@ -1,4 +1,5 @@
 """Archive tampering, index consistency and safe offline restoration checks."""
+
 import hashlib
 import io
 import json
@@ -19,16 +20,30 @@ class EvidenceTests(unittest.TestCase):
 
     def fixture(self, name="metadata/result.json", corrupt_member=False):
         payload = b'{"passed":true}\n'
-        index = dict(schema="rns8_research_archive_index_v1", source_commit="a" * 40,
-            files=[dict(path=name, bytes=len(payload), sha256="0" * 64 if corrupt_member else hashlib.sha256(payload).hexdigest())])
+        index = dict(
+            schema="rns8_research_archive_index_v1",
+            source_commit="a" * 40,
+            files=[
+                dict(
+                    path=name,
+                    bytes=len(payload),
+                    sha256="0" * 64 if corrupt_member else hashlib.sha256(payload).hexdigest(),
+                )
+            ],
+        )
         archive = self.root / "evidence.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as stream:
             stream.writestr(name, payload)
             stream.writestr("archive-index.json", json.dumps(index))
         data = archive.read_bytes()
-        manifest = dict(schema="rns8_research_evidence_archive_v1", source_commit="a" * 40,
-            index_member="archive-index.json", bytes=len(data), sha256=hashlib.sha256(data).hexdigest(),
-            url="https://github.com/doublemover/RNS8/releases/download/test/evidence.zip")
+        manifest = dict(
+            schema="rns8_research_evidence_archive_v1",
+            source_commit="a" * 40,
+            index_member="archive-index.json",
+            bytes=len(data),
+            sha256=hashlib.sha256(data).hexdigest(),
+            url="https://github.com/doublemover/RNS8/releases/download/test/evidence.zip",
+        )
         return archive, manifest, payload
 
     def test_offline_restore_exact_bytes(self):

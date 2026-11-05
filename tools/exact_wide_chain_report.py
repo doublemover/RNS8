@@ -29,7 +29,11 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
     expanded: list[Path] = []
     for path in paths:
         if path.is_dir():
-            expanded.extend(candidate for candidate in sorted(path.rglob("*.json")) if candidate.name not in REPORT_OUTPUT_NAMES)
+            expanded.extend(
+                candidate
+                for candidate in sorted(path.rglob("*.json"))
+                if candidate.name not in REPORT_OUTPUT_NAMES
+            )
         else:
             expanded.append(path)
     return expanded
@@ -61,9 +65,15 @@ def is_exact_wide_chain(capture: dict[str, Any]) -> bool:
 
 def chain_output_mode(capture: dict[str, Any]) -> str | None:
     mode = execution_mode(capture)
-    if mode == "residue_current_rns_chain" and capture.get("residue_output_mode") == "residue_current_rns":
+    if (
+        mode == "residue_current_rns_chain"
+        and capture.get("residue_output_mode") == "residue_current_rns"
+    ):
         return "residue_current"
-    if mode == "residue_chain_final_host_export" and capture.get("residue_chain_final_export") is True:
+    if (
+        mode == "residue_chain_final_host_export"
+        and capture.get("residue_chain_final_export") is True
+    ):
         return "final_output"
     return None
 
@@ -96,7 +106,9 @@ def gpu_events_available(capture: dict[str, Any] | None) -> bool | None:
     )
 
 
-def timing_summary_value(capture: dict[str, Any] | None, phase: str, statistic: str) -> float | None:
+def timing_summary_value(
+    capture: dict[str, Any] | None, phase: str, statistic: str
+) -> float | None:
     if capture is None:
         return None
     summary = capture.get("timing_summary_us")
@@ -160,15 +172,18 @@ def residue_lifetime_metadata(capture: dict[str, Any] | None) -> dict[str, Any]:
     output_policy = capture.get("output_policy")
     requested_next_op = capture.get("requested_next_op")
     checks = {
-        "device_current_output": isinstance(plan_packing, dict) and plan_packing.get("output_device_current") is True,
-        "host_not_current": isinstance(plan_packing, dict) and plan_packing.get("output_host_current") is False,
+        "device_current_output": isinstance(plan_packing, dict)
+        and plan_packing.get("output_device_current") is True,
+        "host_not_current": isinstance(plan_packing, dict)
+        and plan_packing.get("output_host_current") is False,
         "rns_continuation_available": isinstance(plan_lowering, dict)
         and plan_lowering.get("rns_continuation_available") is True,
         "per_repeat_export_deferred": isinstance(output_policy, dict)
         and output_policy.get("per_repeat_logical_export") is False,
         "final_checksum_export_after_repeats": isinstance(output_policy, dict)
         and output_policy.get("final_checksum_export_after_repeats") is True,
-        "next_op_rns_gemm": isinstance(requested_next_op, dict) and requested_next_op.get("resolved") == "rns-gemm",
+        "next_op_rns_gemm": isinstance(requested_next_op, dict)
+        and requested_next_op.get("resolved") == "rns-gemm",
     }
     missing = [key for key, value in checks.items() if not value]
     return {
@@ -214,16 +229,24 @@ def decision_for(
 
 
 def row_for_backend(key: str, captures: list[dict[str, Any]], backend: str) -> dict[str, Any]:
-    final_outputs = [capture for capture in captures if chain_output_mode(capture) == "final_output"]
+    final_outputs = [
+        capture for capture in captures if chain_output_mode(capture) == "final_output"
+    ]
     residue_current = next(
-        (capture for capture in captures if chain_output_mode(capture) == "residue_current" and backend_id(capture) == backend),
+        (
+            capture
+            for capture in captures
+            if chain_output_mode(capture) == "residue_current" and backend_id(capture) == backend
+        ),
         None,
     )
     final_output = next(
         (capture for capture in final_outputs if backend_id(capture) == backend),
         None,
     )
-    cpu_final_output = next((capture for capture in final_outputs if backend_id(capture) in REFERENCE_BACKENDS), None)
+    cpu_final_output = next(
+        (capture for capture in final_outputs if backend_id(capture) in REFERENCE_BACKENDS), None
+    )
     decision, blockers = decision_for(residue_current, final_output, cpu_final_output)
     representative = residue_current or final_output or cpu_final_output or {}
     return {
@@ -250,7 +273,9 @@ def row_for_backend(key: str, captures: list[dict[str, Any]], backend: str) -> d
 
 def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
     chain_captures = [
-        capture for capture in captures if is_exact_wide_chain(capture) and chain_output_mode(capture) is not None
+        capture
+        for capture in captures
+        if is_exact_wide_chain(capture) and chain_output_mode(capture) is not None
     ]
     by_contract: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for capture in chain_captures:
@@ -262,12 +287,14 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
             {
                 backend_id(capture)
                 for capture in items
-                if backend_id(capture) not in REFERENCE_BACKENDS and chain_output_mode(capture) == "residue_current"
+                if backend_id(capture) not in REFERENCE_BACKENDS
+                and chain_output_mode(capture) == "residue_current"
             }
             | {
                 backend_id(capture)
                 for capture in items
-                if backend_id(capture) not in REFERENCE_BACKENDS and chain_output_mode(capture) == "final_output"
+                if backend_id(capture) not in REFERENCE_BACKENDS
+                and chain_output_mode(capture) == "final_output"
             }
         )
         rows = [row_for_backend(key, items, backend) for backend in backends]
@@ -288,7 +315,9 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
         "summary": {
             "groups": len(groups),
             "paired_rows": len(rows),
-            "ready_pairs": sum(1 for row in rows if row["decision"] == "paired_residue_current_chain_ready"),
+            "ready_pairs": sum(
+                1 for row in rows if row["decision"] == "paired_residue_current_chain_ready"
+            ),
             "experimental": sum(1 for row in rows if row["decision"] == "keep_experimental"),
             "missing_residue_current": sum(
                 1 for row in rows if "missing_residue_current_capture" in row["blockers"]
@@ -296,7 +325,9 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
             "missing_final_output": sum(
                 1 for row in rows if "missing_same_backend_final_output_capture" in row["blockers"]
             ),
-            "missing_cpu_baseline": sum(1 for row in rows if "missing_cpu_final_output_baseline" in row["blockers"]),
+            "missing_cpu_baseline": sum(
+                1 for row in rows if "missing_cpu_final_output_baseline" in row["blockers"]
+            ),
         },
         "groups": groups,
     }

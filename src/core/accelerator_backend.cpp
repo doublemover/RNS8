@@ -67,7 +67,7 @@ void set_text(char* dst, std::size_t dst_size, const char* text) {
   copy_c_string(dst, dst_size, text ? text : "");
 }
 
-}  // namespace
+} // namespace
 
 bool accelerator_backend_kind(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
@@ -76,73 +76,77 @@ bool accelerator_backend_kind(rns8_backend_kind backend) {
 
 bool accelerator_backend_compiled(rns8_backend_kind backend) {
   switch (backend) {
-    case RNS8_BACKEND_CK:
+  case RNS8_BACKEND_CK:
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
-      return true;
+    return true;
 #else
-      return false;
+    return false;
 #endif
-    case RNS8_BACKEND_ROCWMMA:
+  case RNS8_BACKEND_ROCWMMA:
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-      return true;
+    return true;
 #else
-      return false;
+    return false;
 #endif
-    case RNS8_BACKEND_AMDGPU_BUILTINS:
-#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS &&                         \
     defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
-      return true;
+    return true;
 #else
-      return false;
+    return false;
 #endif
-    default:
-      return false;
+  default:
+    return false;
   }
 }
 
 bool accelerator_backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
-  return accelerator_backend_compiled(backend) && accelerator_backend_source_supports_semantics(backend, semantics);
+  return accelerator_backend_compiled(backend) &&
+         accelerator_backend_source_supports_semantics(backend, semantics);
 }
 
-bool accelerator_backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
+bool accelerator_backend_source_supports_semantics(rns8_backend_kind backend,
+                                                   rns8_semantics semantics) {
   const accelerator_backend_descriptor* descriptor = accelerator_backend_descriptor_for(backend);
   if (!descriptor) {
     return false;
   }
   switch (semantics) {
-    case RNS8_BOUNDED_I64:
-      return descriptor->supports_bounded_rns != 0;
-    case RNS8_BOUNDED_U64:
-      if (backend == RNS8_BACKEND_CK) {
-        return false;
-      }
-      return descriptor->supports_bounded_rns != 0;
-    case RNS8_EXACT_WIDE_SIGNED:
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      return descriptor->supports_exact_wide_rns != 0;
-    case RNS8_FINITE_RING_U8:
-    case RNS8_FINITE_FIELD_U8:
-      return descriptor->supports_finite_u8 != 0;
-    case RNS8_WRAP_U64_MOD_2_64:
-      return descriptor->supports_wrap64 != 0;
+  case RNS8_BOUNDED_I64:
+    return descriptor->supports_bounded_rns != 0;
+  case RNS8_BOUNDED_U64:
+    if (backend == RNS8_BACKEND_CK) {
+      return false;
+    }
+    return descriptor->supports_bounded_rns != 0;
+  case RNS8_EXACT_WIDE_SIGNED:
+  case RNS8_EXACT_WIDE_UNSIGNED:
+    return descriptor->supports_exact_wide_rns != 0;
+  case RNS8_FINITE_RING_U8:
+  case RNS8_FINITE_FIELD_U8:
+    return descriptor->supports_finite_u8 != 0;
+  case RNS8_WRAP_U64_MOD_2_64:
+    return descriptor->supports_wrap64 != 0;
   }
   return false;
 }
 
-const accelerator_backend_descriptor* accelerator_backend_descriptor_for(rns8_backend_kind backend) {
+const accelerator_backend_descriptor*
+accelerator_backend_descriptor_for(rns8_backend_kind backend) {
   switch (backend) {
-    case RNS8_BACKEND_CK:
-      return &kCkDescriptor;
-    case RNS8_BACKEND_ROCWMMA:
-      return &kRocwmmaDescriptor;
-    case RNS8_BACKEND_AMDGPU_BUILTINS:
-      return &kAmdgpuBuiltinsDescriptor;
-    default:
-      return nullptr;
+  case RNS8_BACKEND_CK:
+    return &kCkDescriptor;
+  case RNS8_BACKEND_ROCWMMA:
+    return &kRocwmmaDescriptor;
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+    return &kAmdgpuBuiltinsDescriptor;
+  default:
+    return nullptr;
   }
 }
 
-void fill_disabled_accelerator_capability(rns8_backend_kind backend, rns8_backend_capability_info& info) {
+void fill_disabled_accelerator_capability(rns8_backend_kind backend,
+                                          rns8_backend_capability_info& info) {
   const accelerator_backend_descriptor* descriptor = accelerator_backend_descriptor_for(backend);
   if (!descriptor) {
     return;
@@ -155,7 +159,8 @@ void fill_disabled_accelerator_capability(rns8_backend_kind backend, rns8_backen
   info.supports_finite_u8 = descriptor->supports_finite_u8;
   info.supports_wrap64 = descriptor->supports_wrap64;
   info.is_matrix_engine_backend = 0;
-  set_text(info.selected_kernel, sizeof(info.selected_kernel), descriptor->disabled_selected_kernel);
+  set_text(info.selected_kernel, sizeof(info.selected_kernel),
+           descriptor->disabled_selected_kernel);
   set_text(info.library_name, sizeof(info.library_name), descriptor->library_name);
   set_text(info.enable_flag, sizeof(info.enable_flag), descriptor->enable_flag);
   set_text(info.epilogue_mode, sizeof(info.epilogue_mode), descriptor->disabled_epilogue_mode);
@@ -165,4 +170,4 @@ void fill_disabled_accelerator_capability(rns8_backend_kind backend, rns8_backen
   set_text(info.detail, sizeof(info.detail), descriptor->disabled_detail);
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

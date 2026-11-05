@@ -18,6 +18,7 @@ from test_benchmark_schema_support_metadata import (
     with_accumulator_key_fields,
 )
 
+
 def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
     oneshot = as_direct_hip_finite_capture(
         capture,
@@ -31,13 +32,15 @@ def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
     oneshot["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
     oneshot["backend_metadata"]["source"] = "rns8_bench_public_oneshot_api"
     oneshot["backend_metadata"]["epilogue_mode"] = epilogue
-    oneshot["backend_metadata"]["workspace_mode"] = "transient_native_u8_inputs_to_resident_finite_output"
+    oneshot["backend_metadata"]["workspace_mode"] = (
+        "transient_native_u8_inputs_to_resident_finite_output"
+    )
     oneshot["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
-        "tile_m=128;tile_n=128;execution=public_oneshot_transient_native_inputs;"
-        "kernel=direct_hip_native_finite_u8_gemm_mod255_v1;"
-        f"epilogue={epilogue}"
+            "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
+            "tile_m=128;tile_n=128;execution=public_oneshot_transient_native_inputs;"
+            "kernel=direct_hip_native_finite_u8_gemm_mod255_v1;"
+            f"epilogue={epilogue}"
         ),
         oneshot,
     )
@@ -49,9 +52,15 @@ def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
         "host wall-clock timings for the public finite-u8 one-shot API; raw_timings_us.rns_gemm and "
         "raw_timings_us.end_to_end both measure one complete call"
     )
-    oneshot["timing_metadata"]["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
-    oneshot["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_oneshot_api_hooks"
-    oneshot["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_oneshot_default_stream_operation_groups"
+    oneshot["timing_metadata"]["benchmark_execution_mode"] = (
+        "public_oneshot_transient_native_inputs"
+    )
+    oneshot["timing_metadata"]["gpu_event_timing_reason"] = (
+        "captured_by_direct_hip_oneshot_api_hooks"
+    )
+    oneshot["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "direct_hip_oneshot_default_stream_operation_groups"
+    )
     oneshot["timing_metadata"]["gpu_event_phase_order"] = [
         "oneshot_native_input_h2d",
         "finite_native_gemm_kernel",
@@ -104,7 +113,9 @@ def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
         "oneshot_api_gpu": [138.0, 153.0][:repeats],
     }
     oneshot["gpu_event_timings_us"] = event_values
-    oneshot["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    oneshot["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     return oneshot
 
 
@@ -123,10 +134,10 @@ def as_direct_hip_finite_native_a_reuse_b_capture(capture: dict) -> dict:
     reused["backend_metadata"]["workspace_mode"] = "transient_native_u8_a_resident_finite_b_output"
     reused["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
-        "tile_m=128;tile_n=128;execution=transient_native_a_resident_b_reuse;"
-        "kernel=direct_hip_native_a_finite_u8_gemm_mod255_v1;"
-        f"epilogue={epilogue}"
+            "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
+            "tile_m=128;tile_n=128;execution=transient_native_a_resident_b_reuse;"
+            "kernel=direct_hip_native_a_finite_u8_gemm_mod255_v1;"
+            f"epilogue={epilogue}"
         ),
         reused,
     )
@@ -166,7 +177,9 @@ def as_direct_hip_finite_native_a_reuse_b_capture(capture: dict) -> dict:
         "crt_export": [28.0, 31.0][:repeats],
     }
     reused["gpu_event_timings_us"] = event_values
-    reused["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    reused["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     reused["raw_timings_us"]["pack"] = [100, 110][:repeats]
     reused["raw_timings_us"]["rns_gemm"] = [200, 210][:repeats]
     reused["raw_timings_us"]["crt_export"] = [90, 100][:repeats]
@@ -206,11 +219,11 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     apply_int32_accumulator_contract(reused)
     reused["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
-        "input_profile=uniform-small;"
-        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
-        "execution=transient_uniform_small_i8_a_resident_i8_b_reuse;"
-        f"kernel={kernel};epilogue={epilogue}"
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+            "input_profile=uniform-small;"
+            "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "execution=transient_uniform_small_i8_a_resident_i8_b_reuse;"
+            f"kernel={kernel};epilogue={epilogue}"
         ),
         reused,
     )
@@ -220,7 +233,9 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["prepack_setup_us"] = 400
     reused["avg_prepack_setup_us"] = 400.0
-    reused["timing_metadata"]["benchmark_execution_mode"] = "transient_uniform_small_i8_a_resident_i8_b_reuse"
+    reused["timing_metadata"]["benchmark_execution_mode"] = (
+        "transient_uniform_small_i8_a_resident_i8_b_reuse"
+    )
     reused["timing_metadata"]["prepack_reuse_operands"] = ["B"]
     reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["timing_metadata"]["gpu_event_timing_source_scope"] = (
@@ -257,7 +272,9 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
         "crt_export": [41.5, 43.5][:repeats],
     }
     reused["gpu_event_timings_us"] = event_values
-    reused["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    reused["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     reused["raw_timings_us"]["pack"] = [120, 125][:repeats]
     reused["raw_timings_us"]["rns_gemm"] = [260, 270][:repeats]
     reused["raw_timings_us"]["crt_export"] = [95, 100][:repeats]
@@ -299,11 +316,11 @@ def as_direct_hip_bounded_uniform_small_transient_capture(capture: dict) -> dict
     apply_int32_accumulator_contract(transient)
     transient["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
-        "input_profile=uniform-small;"
-        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
-        "execution=transient_uniform_small_i8_ab_inputs;"
-        f"kernel={kernel};epilogue={epilogue}"
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+            "input_profile=uniform-small;"
+            "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "execution=transient_uniform_small_i8_ab_inputs;"
+            f"kernel={kernel};epilogue={epilogue}"
         ),
         transient,
     )
@@ -316,7 +333,9 @@ def as_direct_hip_bounded_uniform_small_transient_capture(capture: dict) -> dict
     transient["timing_note"] = (
         "host wall-clock timings for an explicit benchmark-owned direct-HIP uniform-small native-input path"
     )
-    transient["timing_metadata"]["benchmark_execution_mode"] = "transient_uniform_small_i8_ab_inputs"
+    transient["timing_metadata"]["benchmark_execution_mode"] = (
+        "transient_uniform_small_i8_ab_inputs"
+    )
     transient["timing_metadata"]["pack_mode"] = "per_repeat_repack"
     transient["timing_metadata"]["prepack_reuse_operands"] = []
     transient["timing_metadata"]["prepack_reuse_strategy"] = "none"
@@ -351,20 +370,28 @@ def as_direct_hip_bounded_uniform_small_transient_capture(capture: dict) -> dict
         "crt_export": [41.5, 43.5][:repeats],
     }
     transient["gpu_event_timings_us"] = event_values
-    transient["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    transient["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     transient["raw_timings_us"]["pack"] = [115, 120][:repeats]
     transient["raw_timings_us"]["rns_gemm"] = [250, 260][:repeats]
     transient["raw_timings_us"]["crt_export"] = [95, 100][:repeats]
     transient["raw_timings_us"]["end_to_end"] = [460, 480][:repeats]
     transient["timing_summary_us"]["pack"] = summary(transient["raw_timings_us"]["pack"])
     transient["timing_summary_us"]["rns_gemm"] = summary(transient["raw_timings_us"]["rns_gemm"])
-    transient["timing_summary_us"]["crt_export"] = summary(transient["raw_timings_us"]["crt_export"])
-    transient["timing_summary_us"]["end_to_end"] = summary(transient["raw_timings_us"]["end_to_end"])
+    transient["timing_summary_us"]["crt_export"] = summary(
+        transient["raw_timings_us"]["crt_export"]
+    )
+    transient["timing_summary_us"]["end_to_end"] = summary(
+        transient["raw_timings_us"]["end_to_end"]
+    )
     transient["avg_pack_us"] = transient["timing_summary_us"]["pack"]["avg"]
     transient["avg_rns_gemm_us"] = transient["timing_summary_us"]["rns_gemm"]["avg"]
     transient["avg_crt_export_us"] = transient["timing_summary_us"]["crt_export"]["avg"]
     transient["avg_end_to_end_us"] = transient["timing_summary_us"]["end_to_end"]["avg"]
-    transient["avg_per_modulus_gemm_estimate_us"] = transient["avg_rns_gemm_us"] / transient["prefix"]
+    transient["avg_per_modulus_gemm_estimate_us"] = (
+        transient["avg_rns_gemm_us"] / transient["prefix"]
+    )
     return transient
 
 
@@ -381,11 +408,11 @@ def as_direct_hip_bounded_residue_channel_fusion_capture(capture: dict) -> dict:
     fusion["backend_metadata"]["workspace_mode"] = "width3_residue_fusion_transient_i8_inputs"
     fusion["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
-        "input_profile=uniform-small;"
-        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
-        "execution=residue_channel_fusion_native_inputs;"
-        f"kernel={kernel};epilogue={epilogue}"
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+            "input_profile=uniform-small;"
+            "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "execution=residue_channel_fusion_native_inputs;"
+            f"kernel={kernel};epilogue={epilogue}"
         ),
         fusion,
     )
@@ -426,11 +453,11 @@ def as_direct_hip_bounded_uniform_small_reuse_a_capture(capture: dict) -> dict:
     apply_int32_accumulator_contract(reused)
     reused["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
-        "input_profile=uniform-small;"
-        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
-        "execution=transient_uniform_small_i8_b_resident_i8_a_reuse;"
-        f"kernel={kernel};epilogue={epilogue}"
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+            "input_profile=uniform-small;"
+            "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "execution=transient_uniform_small_i8_b_resident_i8_a_reuse;"
+            f"kernel={kernel};epilogue={epilogue}"
         ),
         reused,
     )
@@ -440,7 +467,9 @@ def as_direct_hip_bounded_uniform_small_reuse_a_capture(capture: dict) -> dict:
     reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["prepack_setup_us"] = 320
     reused["avg_prepack_setup_us"] = 320.0
-    reused["timing_metadata"]["benchmark_execution_mode"] = "transient_uniform_small_i8_b_resident_i8_a_reuse"
+    reused["timing_metadata"]["benchmark_execution_mode"] = (
+        "transient_uniform_small_i8_b_resident_i8_a_reuse"
+    )
     reused["timing_metadata"]["pack_mode"] = "prepacked_reuse_a"
     reused["timing_metadata"]["prepack_reuse_operands"] = ["A"]
     reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
@@ -481,7 +510,9 @@ def as_direct_hip_bounded_uniform_small_reuse_a_capture(capture: dict) -> dict:
         "crt_export": [41.5, 43.5][:repeats],
     }
     reused["gpu_event_timings_us"] = event_values
-    reused["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    reused["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     reused["raw_timings_us"]["pack"] = [118, 123][:repeats]
     reused["raw_timings_us"]["rns_gemm"] = [255, 265][:repeats]
     reused["raw_timings_us"]["crt_export"] = [95, 100][:repeats]
@@ -511,7 +542,9 @@ def as_direct_hip_bounded_native_b_reuse_a_capture(capture: dict) -> dict:
     epilogue = "resident_a_native_b_centered_residue_then_crt_export"
     gemm_event = "bounded_native_b_colpair_reuse_a_gemm_kernel_group"
     reused["bound_kind"] = "global_max_abs" if signed else "global_max_unsigned"
-    reused["input_distribution"] = "signed_adaptive_bands_-16_16" if signed else "unsigned_adaptive_bands_0_16"
+    reused["input_distribution"] = (
+        "signed_adaptive_bands_-16_16" if signed else "unsigned_adaptive_bands_0_16"
+    )
     reused["m"] = 512
     reused["n"] = 512
     reused["k"] = 512
@@ -533,11 +566,11 @@ def as_direct_hip_bounded_native_b_reuse_a_capture(capture: dict) -> dict:
     apply_int32_accumulator_contract(reused)
     reused["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        f"backend=hip-direct;semantics={semantics};m=512;n=512;k=512;bound=16384;"
-        "input_profile=adaptive-bands;"
-        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
-        "execution=transient_native_b_resident_a_reuse;"
-        f"kernel={kernel};epilogue={epilogue}"
+            f"backend=hip-direct;semantics={semantics};m=512;n=512;k=512;bound=16384;"
+            "input_profile=adaptive-bands;"
+            "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "execution=transient_native_b_resident_a_reuse;"
+            f"kernel={kernel};epilogue={epilogue}"
         ),
         reused,
     )
@@ -588,7 +621,9 @@ def as_direct_hip_bounded_native_b_reuse_a_capture(capture: dict) -> dict:
         "crt_export": [41.5, 43.5][:repeats],
     }
     reused["gpu_event_timings_us"] = event_values
-    reused["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    reused["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     reused["raw_timings_us"]["pack"] = [122, 127][:repeats]
     reused["raw_timings_us"]["rns_gemm"] = [258, 268][:repeats]
     reused["raw_timings_us"]["crt_export"] = [95, 100][:repeats]
@@ -705,7 +740,9 @@ def as_direct_hip_bounded_skinny_gemv_n1_capture(capture: dict) -> dict:
     skinny["backend_metadata"]["workspace_required_bytes"] = 0
     skinny["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
     apply_int32_accumulator_contract(skinny)
-    skinny["backend_metadata"]["accumulator_safety"]["accumulator_signedness"] = accumulator_signedness
+    skinny["backend_metadata"]["accumulator_safety"]["accumulator_signedness"] = (
+        accumulator_signedness
+    )
     skinny["backend_metadata"]["accumulator_safety"]["k_block_size"] = skinny["k"]
     skinny["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
@@ -758,7 +795,9 @@ def as_direct_hip_bounded_skinny_gemv_n1_capture(capture: dict) -> dict:
         "crt_export": [29.5, 31.0][:repeats],
     }
     skinny["gpu_event_timings_us"] = event_values
-    skinny["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    skinny["gpu_event_timing_summary_us"] = {
+        key: summary(value) for key, value in event_values.items()
+    }
     skinny["raw_timings_us"]["pack"] = [105, 110][:repeats]
     skinny["raw_timings_us"]["rns_gemm"] = [120, 123][:repeats]
     skinny["raw_timings_us"]["crt_export"] = [58, 60][:repeats]
@@ -827,13 +866,18 @@ def as_direct_hip_bounded_skinny_gemv_small_n_capture(capture: dict, *, n: int =
         .replace(";n=1;", f";n={n};")
         .replace(";k=4096;", ";k=512;")
         .replace(";bound=1048576;", ";bound=131072;")
-        .replace("execution=direct_hip_skinny_gemv_n1_resident_rns", "execution=direct_hip_skinny_gemv_small_n_resident_rns")
+        .replace(
+            "execution=direct_hip_skinny_gemv_n1_resident_rns",
+            "execution=direct_hip_skinny_gemv_small_n_resident_rns",
+        )
         .replace(f"kernel={old_kernel}", f"kernel={kernel}")
         .replace(f"epilogue={old_epilogue}", f"epilogue={epilogue}")
         .replace("k_block_size=4096;", "k_block_size=512;")
     )
 
-    skinny["timing_metadata"]["benchmark_execution_mode"] = "direct_hip_skinny_gemv_small_n_resident_rns"
+    skinny["timing_metadata"]["benchmark_execution_mode"] = (
+        "direct_hip_skinny_gemv_small_n_resident_rns"
+    )
     skinny["timing_metadata"]["gpu_event_phase_order"] = [
         new_event if phase == old_event else phase
         for phase in skinny["timing_metadata"]["gpu_event_phase_order"]
@@ -842,7 +886,9 @@ def as_direct_hip_bounded_skinny_gemv_small_n_capture(capture: dict, *, n: int =
         "HIP events around the skinny small-N resident-RNS GEMV kernel group"
     )
     skinny["gpu_event_timings_us"][new_event] = skinny["gpu_event_timings_us"].pop(old_event)
-    skinny["gpu_event_timing_summary_us"][new_event] = skinny["gpu_event_timing_summary_us"].pop(old_event)
+    skinny["gpu_event_timing_summary_us"][new_event] = skinny["gpu_event_timing_summary_us"].pop(
+        old_event
+    )
     skinny["raw_timings_us"]["rns_gemm"] = [130, 133][: skinny["repeats"]]
     skinny["raw_timings_us"]["end_to_end"] = [325, 335][: skinny["repeats"]]
     skinny["timing_summary_us"]["rns_gemm"] = summary(skinny["raw_timings_us"]["rns_gemm"])
@@ -854,5 +900,3 @@ def as_direct_hip_bounded_skinny_gemv_small_n_capture(capture: dict, *, n: int =
         "skinny small-N direct-HIP GEMV evidence must beat the same-contract tiled direct-HIP route"
     )
     return skinny
-
-

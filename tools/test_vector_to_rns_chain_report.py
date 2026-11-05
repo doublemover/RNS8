@@ -29,7 +29,9 @@ def make_capture(*, host_repack_control: bool, median: float, checksum: int = 12
     capture["repeats"] = 9
     capture["checksum_u64"] = checksum
     for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
-        capture["timing_summary_us"][phase]["median"] = median if phase == "end_to_end" else median / 4.0
+        capture["timing_summary_us"][phase]["median"] = (
+            median if phase == "end_to_end" else median / 4.0
+        )
     return add_synthetic_full_reference(capture)
 
 
@@ -67,8 +69,12 @@ assert slow_report["rows"][0]["disposition"] == "drop/deprioritize"
 
 with tempfile.TemporaryDirectory() as temp_dir:
     root = Path(temp_dir)
-    (root / "review_report.json").write_text('{"schema_version": 3, "groups": []}\n', encoding="utf-8")
-    (root / "capture.json").write_text(json.dumps(expect_valid("v4_bounded_i64_adaptive_hip.json")) + "\n", encoding="utf-8")
+    (root / "review_report.json").write_text(
+        '{"schema_version": 3, "groups": []}\n', encoding="utf-8"
+    )
+    (root / "capture.json").write_text(
+        json.dumps(expect_valid("v4_bounded_i64_adaptive_hip.json")) + "\n", encoding="utf-8"
+    )
     loaded = load_report_captures([root])
     assert len(loaded) == 1
     assert loaded[0]["benchmark"] == "rns8_bounded_gemm_persistent_rns"

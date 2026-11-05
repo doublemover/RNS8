@@ -71,14 +71,9 @@ uint64_t corrected_signed_i8_comba_product(uint64_t a, uint64_t b) {
   return out;
 }
 
-uint64_t expected_wrap_cell(
-    const std::vector<uint64_t>& A,
-    int64_t lda,
-    const std::vector<uint64_t>& B,
-    int64_t ldb,
-    int64_t row,
-    int64_t col,
-    int64_t k) {
+uint64_t expected_wrap_cell(const std::vector<uint64_t>& A, int64_t lda,
+                            const std::vector<uint64_t>& B, int64_t ldb, int64_t row, int64_t col,
+                            int64_t k) {
   boost::multiprecision::cpp_int exact = 0;
   for (int64_t kk = 0; kk < k; ++kk) {
     exact += boost::multiprecision::cpp_int(A[static_cast<std::size_t>(row * lda + kk)]) *
@@ -94,4 +89,3 @@ uint64_t load_compact_u64_limbs(const std::vector<uint8_t>& limbs, int64_t cell)
   }
   return value;
 }
-

@@ -204,8 +204,12 @@ def runtime_b_cache(source_version: int = 1, production: bool = True) -> dict:
 def main() -> int:
     same_backend = capture(backend="hipblaslt", median_us=1000.0)
     best_nonreuse = capture(backend="ck", median_us=900.0)
-    winning_reuse = capture(backend="hipblaslt", median_us=700.0, pack_mode="prepacked_reuse_b", setup_us=900.0)
-    report = reuse_contract_report.compare_reuse_contracts([same_backend, best_nonreuse, winning_reuse])
+    winning_reuse = capture(
+        backend="hipblaslt", median_us=700.0, pack_mode="prepacked_reuse_b", setup_us=900.0
+    )
+    report = reuse_contract_report.compare_reuse_contracts(
+        [same_backend, best_nonreuse, winning_reuse]
+    )
     assert report["summary"]["candidate_workload_wins"] == 1
     item = report["comparisons"][0]
     assert item["decision"] == "candidate_workload_win"
@@ -230,7 +234,9 @@ def main() -> int:
     slow_setup = copy.deepcopy(winning_reuse)
     slow_setup["_path"] = "slow-setup.json"
     slow_setup["avg_prepack_setup_us"] = 3600.0
-    slow_report = reuse_contract_report.compare_reuse_contracts([same_backend, best_nonreuse, slow_setup])
+    slow_report = reuse_contract_report.compare_reuse_contracts(
+        [same_backend, best_nonreuse, slow_setup]
+    )
     slow_item = slow_report["comparisons"][0]
     assert slow_item["decision"] == "deprioritize"
     assert slow_item["break_even_repeats_same_backend"] == 13
@@ -239,7 +245,9 @@ def main() -> int:
     missing_identity = copy.deepcopy(winning_reuse)
     missing_identity["_path"] = "missing-identity.json"
     del missing_identity["device_allocation"]
-    identity_report = reuse_contract_report.compare_reuse_contracts([same_backend, best_nonreuse, missing_identity])
+    identity_report = reuse_contract_report.compare_reuse_contracts(
+        [same_backend, best_nonreuse, missing_identity]
+    )
     identity_item = identity_report["comparisons"][0]
     assert identity_item["decision"] == "keep_experimental"
     assert "missing_device_allocation_metadata" in identity_item["blockers"]
@@ -266,7 +274,9 @@ def main() -> int:
         setup_us=900.0,
         with_reuse_contract=False,
     )
-    legacy_report = reuse_contract_report.compare_reuse_contracts([same_backend, best_nonreuse, legacy_reuse])
+    legacy_report = reuse_contract_report.compare_reuse_contracts(
+        [same_backend, best_nonreuse, legacy_reuse]
+    )
     legacy_item = legacy_report["comparisons"][0]
     assert legacy_item["decision"] == "candidate_workload_win"
     assert legacy_item["stale_source_rejection"]["available"] is True
@@ -310,7 +320,10 @@ def main() -> int:
     )
     zero_source_item = zero_source_report["comparisons"][0]
     assert zero_source_item["decision"] == "keep_experimental"
-    assert "runtime_prepack_cache_missing_reusable_source_version_cache_key_source" in zero_source_item["blockers"]
+    assert (
+        "runtime_prepack_cache_missing_reusable_source_version_cache_key_source"
+        in zero_source_item["blockers"]
+    )
     assert zero_source_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
 
     nonproduction_runtime_reuse = copy.deepcopy(rocwmma_runtime_reuse)
@@ -326,10 +339,17 @@ def main() -> int:
     assert nonproduction_item["decision"] == "candidate_workload_win"
     assert nonproduction_item["runtime_prepack_cache"]["available"] is True
     assert nonproduction_item["runtime_prepack_cache"]["production_available"] is False
-    assert "runtime_prepack_cache_not_production_available" in nonproduction_item["selector_eligibility"]["blockers"]
-    assert nonproduction_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
+    assert (
+        "runtime_prepack_cache_not_production_available"
+        in nonproduction_item["selector_eligibility"]["blockers"]
+    )
+    assert (
+        nonproduction_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
+    )
 
-    missing_baseline_report = reuse_contract_report.compare_reuse_contracts([best_nonreuse, winning_reuse])
+    missing_baseline_report = reuse_contract_report.compare_reuse_contracts(
+        [best_nonreuse, winning_reuse]
+    )
     missing_item = missing_baseline_report["comparisons"][0]
     assert missing_item["decision"] == "missing_baseline"
     assert "missing_same_backend_nonreuse_baseline" in missing_item["blockers"]

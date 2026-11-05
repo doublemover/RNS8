@@ -1,4 +1,5 @@
 """Authored binary-identity and collector controls; never executes a binary."""
+
 from __future__ import annotations
 
 import copy
@@ -16,24 +17,36 @@ import gpu_qualification as qualification
 def document():
     capture = {}
     synthetic_identity(capture)
-    return dict(schema=SCHEMA, build_manifest=capture["build_manifest"],
-                library_build_manifest=copy.deepcopy(capture["build_manifest"]),
-                library_abi_declaration_sha256="e"*64)
+    return dict(
+        schema=SCHEMA,
+        build_manifest=capture["build_manifest"],
+        library_build_manifest=copy.deepcopy(capture["build_manifest"]),
+        library_abi_declaration_sha256="e" * 64,
+    )
 
 
 class CompiledBinaryIdentity(unittest.TestCase):
     def test_manifests_must_be_real_complete_and_equal(self):
         value = document()
-        self.assertEqual(validate_document(value)["build_manifest_sha256"],
-                         validate_document(value)["library_build_manifest_sha256"])
-        for mode in ("missing", "empty", "different_library", "dirty", "bad_declaration", "wrong_schema"):
+        self.assertEqual(
+            validate_document(value)["build_manifest_sha256"],
+            validate_document(value)["library_build_manifest_sha256"],
+        )
+        for mode in (
+            "missing",
+            "empty",
+            "different_library",
+            "dirty",
+            "bad_declaration",
+            "wrong_schema",
+        ):
             broken = copy.deepcopy(value)
             if mode == "missing":
                 broken.pop("build_manifest")
             elif mode == "empty":
                 broken["library_build_manifest"] = {}
             elif mode == "different_library":
-                broken["library_build_manifest"]["source_digest"] = "f"*64
+                broken["library_build_manifest"]["source_digest"] = "f" * 64
             elif mode == "dirty":
                 broken["build_manifest"]["source_dirty"] = True
             elif mode == "bad_declaration":
@@ -53,7 +66,7 @@ class CompiledBinaryIdentity(unittest.TestCase):
             value = bind_document(binary, raw, before_sha256=file_digest(binary))
             self.assertEqual(validate_receipt(value), value)
             changed = copy.deepcopy(value)
-            changed["library_build_manifest_sha256"] = "a"*64
+            changed["library_build_manifest_sha256"] = "a" * 64
             with self.assertRaises(ValueError):
                 validate_receipt(changed)
             before = file_digest(binary)

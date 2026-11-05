@@ -28,9 +28,7 @@ class ProfilerCapabilities(unittest.TestCase):
             tools = root / "tools with spaces"
             tools.mkdir()
             for name in ("rocprofv3", "rocprofv3-avail", "rocpd", "rocprof-compute"):
-                (tools / name).write_bytes(
-                    b"AUTHORED TOOL, NEVER EXECUTED " + name.encode()
-                )
+                (tools / name).write_bytes(b"AUTHORED TOOL, NEVER EXECUTED " + name.encode())
             plan = probe_plan(
                 "Linux",
                 "gfx942",
@@ -57,9 +55,7 @@ class ProfilerCapabilities(unittest.TestCase):
                     stderr="",
                 )
 
-            with patch(
-                "amd_profiler_capabilities.platform.system", return_value="Linux"
-            ):
+            with patch("amd_profiler_capabilities.platform.system", return_value="Linux"):
                 value = preflight(
                     plan,
                     root / "probe",
@@ -96,17 +92,11 @@ class ProfilerCapabilities(unittest.TestCase):
                     original = target.read_bytes()
                     target.write_bytes(b"substituted tool")
                 candidate["identity_sha256"] = canonical_digest(
-                    {
-                        key: item
-                        for key, item in candidate.items()
-                        if key != "identity_sha256"
-                    }
+                    {key: item for key, item in candidate.items() if key != "identity_sha256"}
                 )
                 write(path, candidate)
                 with self.subTest(mode=mode), self.assertRaises(ValueError):
-                    validate_preflight(
-                        reference(path), store=EvidenceStore(), parent=root
-                    )
+                    validate_preflight(reference(path), store=EvidenceStore(), parent=root)
                 if original is not None:
                     target.write_bytes(original)
             write(path, value)
@@ -166,21 +156,15 @@ class ProfilerCapabilities(unittest.TestCase):
             probe_plan("Linux", "gfx942", counters=("SQ_WAVES",))
 
     def test_windows_plan_never_contains_a_gui_or_service_start(self):
-        plan = probe_plan(
-            "Windows", "gfx1100", resolver=lambda name: "/authored/" + name + ".exe"
-        )
+        plan = probe_plan("Windows", "gfx1100", resolver=lambda name: "/authored/" + name + ".exe")
         self.assertEqual(
             [row["argv"][1:] for row in plan["commands"]],
             [["--version"], ["--help=profiling"]],
         )
-        self.assertTrue(
-            all(row["tool"] == "RadeonDeveloperPanelCLI" for row in plan["commands"])
-        )
+        self.assertTrue(all(row["tool"] == "RadeonDeveloperPanelCLI" for row in plan["commands"]))
 
     def test_versions_do_not_parse_unrelated_numbers(self):
-        self.assertEqual(
-            _version("ROCm rocprofiler-sdk version: 1.4.1", "rocprofv3"), "1.4.1"
-        )
+        self.assertEqual(_version("ROCm rocprofiler-sdk version: 1.4.1", "rocprofv3"), "1.4.1")
         self.assertEqual(
             _version("Radeon Developer Panel CLI v3.5.1", "RadeonDeveloperPanelCLI"),
             "3.5.1",
@@ -228,9 +212,7 @@ class ProfilerCapabilities(unittest.TestCase):
                     elapsed_seconds=0.01,
                 )
 
-            with patch(
-                "amd_profiler_capabilities.platform.system", return_value="Linux"
-            ):
+            with patch("amd_profiler_capabilities.platform.system", return_value="Linux"):
                 result = preflight(
                     plan,
                     root / "probe",
@@ -239,26 +221,16 @@ class ProfilerCapabilities(unittest.TestCase):
                     minimum_free_bytes=1,
                 )
                 self.assertEqual(len(calls), 2)
-                self.assertTrue(
-                    all(not row["completed"] for row in result["observations"])
-                )
-                self.assertEqual(
-                    result["features"]["counters"]["permission"], "unknown"
-                )
-                self.assertEqual(
-                    result["tools"]["rocprofv3"]["version_state"], "unknown"
-                )
+                self.assertTrue(all(not row["completed"] for row in result["observations"]))
+                self.assertEqual(result["features"]["counters"]["permission"], "unknown")
+                self.assertEqual(result["tools"]["rocprofv3"]["version_state"], "unknown")
                 altered = copy.deepcopy(plan)
                 altered["commands"][0]["argv"] = [
                     "unrelated",
                     "--enable-developer-mode",
                 ]
                 altered["identity_sha256"] = canonical_digest(
-                    {
-                        key: value
-                        for key, value in altered.items()
-                        if key != "identity_sha256"
-                    }
+                    {key: value for key, value in altered.items() if key != "identity_sha256"}
                 )
                 with self.assertRaises(ValueError):
                     preflight(altered, root / "rejected", environment={}, runner=runner)

@@ -1,23 +1,15 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
-    const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
-    int m, int n, int k, int prefix);
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(const int8_t* a_residues,
+                                                                const int8_t* b_residues,
+                                                                int8_t* c_residues, int m, int n,
+                                                                int k, int prefix);
 #endif
 
-rns8_status hip_direct_ring_gemm_i8_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus,
-    uint32_t modulus_index,
-    uint32_t selected_prefix) {
+rns8_status hip_direct_ring_gemm_i8_device(int device_id, const void* device_a_residues,
+                                           const void* device_b_residues, void* device_c_residues,
+                                           int64_t m, int64_t n, int64_t k, int64_t lda,
+                                           int64_t ldb, int64_t ldc, uint16_t modulus,
+                                           uint32_t modulus_index, uint32_t selected_prefix) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
       !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
     return RNS8_UNSUPPORTED_BACKEND;
@@ -68,43 +60,30 @@ rns8_status hip_direct_ring_gemm_i8_device(
 }
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-hipError_t launch_direct_rns_gemm_no_sync(
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint32_t prefix,
-    void* stream = nullptr) {
+hipError_t launch_direct_rns_gemm_no_sync(const void* device_a_residues,
+                                          const void* device_b_residues, void* device_c_residues,
+                                          int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
+                                          int64_t ldc, uint32_t prefix, void* stream = nullptr) {
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  return launch_rns_grouped_prefix_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix, stream);
+  return launch_rns_grouped_prefix_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix,
+                                        stream);
 }
 #endif
 
-rns8_status hip_direct_gemm_rns_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint32_t prefix,bool parallel_skinny) {
-  const auto support = query_residue_gemm_support(m,n,k,lda,ldb,ldc,prefix);
-  if (support.status != RNS8_SUCCESS) return support.status;
+rns8_status hip_direct_gemm_rns_device(int device_id, const void* device_a_residues,
+                                       const void* device_b_residues, void* device_c_residues,
+                                       int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
+                                       int64_t ldc, uint32_t prefix, bool parallel_skinny) {
+  const auto support = query_residue_gemm_support(m, n, k, lda, ldb, ldc, prefix);
+  if (support.status != RNS8_SUCCESS)
+    return support.status;
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
-      ldb < n || ldc < n || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+  if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 ||
+      k <= 0 || lda < k || ldb < n || ldc < n || prefix == 0 ||
+      prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -119,13 +98,24 @@ rns8_status hip_direct_gemm_rns_device(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  const auto route=direct_rns_route(m,n,k,lda,ldb,ldc,prefix,parallel_skinny);
-  const auto err=timed_hip_operation(direct_rns_route_event(route),[&](){hipError_t launch=hipSuccess;
-    if(route==DirectRnsRoute::persistent_small)return static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_device(a_base,b_base,c_base,int(m),int(n),int(k),int(prefix)));
-    if(route==DirectRnsRoute::gemv_n1)launch=static_cast<hipError_t>(rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(a_base,b_base,c_base,int(m),int(k),int(lda),int(ldb),int(ldc),int(prefix),RNS8_SAFE_INT32_K_BLOCK));
-    else if(route==DirectRnsRoute::gemv_small_n)launch=static_cast<hipError_t>(rns8_hip_direct_ring_gemv_small_n_i8_grouped_prefix_device(a_base,b_base,c_base,int(m),int(n),int(k),int(lda),int(ldb),int(ldc),int(prefix),RNS8_SAFE_INT32_K_BLOCK));
-    else launch=launch_direct_rns_gemm_no_sync(a_base,b_base,c_base,m,n,k,lda,ldb,ldc,prefix);
-    return launch==hipSuccess?hipDeviceSynchronize():launch;
+  const auto route = direct_rns_route(m, n, k, lda, ldb, ldc, prefix, parallel_skinny);
+  const auto err = timed_hip_operation(direct_rns_route_event(route), [&]() {
+    hipError_t launch = hipSuccess;
+    if (route == DirectRnsRoute::persistent_small)
+      return static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_device(
+          a_base, b_base, c_base, int(m), int(n), int(k), int(prefix)));
+    if (route == DirectRnsRoute::gemv_n1)
+      launch = static_cast<hipError_t>(rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(
+          a_base, b_base, c_base, int(m), int(k), int(lda), int(ldb), int(ldc), int(prefix),
+          RNS8_SAFE_INT32_K_BLOCK));
+    else if (route == DirectRnsRoute::gemv_small_n)
+      launch = static_cast<hipError_t>(rns8_hip_direct_ring_gemv_small_n_i8_grouped_prefix_device(
+          a_base, b_base, c_base, int(m), int(n), int(k), int(lda), int(ldb), int(ldc), int(prefix),
+          RNS8_SAFE_INT32_K_BLOCK));
+    else
+      launch =
+          launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
+    return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -144,31 +134,23 @@ rns8_status hip_direct_gemm_rns_device(
 #endif
 }
 
-rns8_status hip_direct_gemm_rns_region_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    int64_t region_row_offset,
-    int64_t region_col_offset,
-    int64_t region_rows,
-    int64_t region_cols,
-    uint32_t prefix) {
+rns8_status hip_direct_gemm_rns_region_device(int device_id, const void* device_a_residues,
+                                              const void* device_b_residues,
+                                              void* device_c_residues, int64_t m, int64_t n,
+                                              int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+                                              int64_t region_row_offset, int64_t region_col_offset,
+                                              int64_t region_rows, int64_t region_cols,
+                                              uint32_t prefix) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
+      !rns8::detail::qualified_i32_gemm_address(
+          m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
-      ldb < n || ldc < n || region_row_offset < 0 || region_col_offset < 0 || region_rows <= 0 ||
-      region_cols <= 0 || region_row_offset > m || region_col_offset > n ||
+  if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 ||
+      k <= 0 || lda < k || ldb < n || ldc < n || region_row_offset < 0 || region_col_offset < 0 ||
+      region_rows <= 0 || region_cols <= 0 || region_row_offset > m || region_col_offset > n ||
       region_rows > m - region_row_offset || region_cols > n - region_col_offset || prefix == 0 ||
       prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return RNS8_INVALID_ARGUMENT;
@@ -178,7 +160,8 @@ rns8_status hip_direct_gemm_rns_region_device(
       ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max() ||
       region_row_offset > std::numeric_limits<int>::max() ||
       region_col_offset > std::numeric_limits<int>::max() ||
-      region_rows > std::numeric_limits<int>::max() || region_cols > std::numeric_limits<int>::max()) {
+      region_rows > std::numeric_limits<int>::max() ||
+      region_cols > std::numeric_limits<int>::max()) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -188,21 +171,14 @@ rns8_status hip_direct_gemm_rns_region_device(
   const hipError_t err = timed_hip_operation("rns_gemm_region_kernel_group", [&]() {
     const int code = rns8_hip_direct_ring_gemm_i8_grouped_prefix_region_device(
         static_cast<const int8_t*>(device_a_residues),
-        static_cast<const int8_t*>(device_b_residues),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(region_row_offset),
-        static_cast<int>(region_col_offset),
-        static_cast<int>(region_rows),
-        static_cast<int>(region_cols),
-        static_cast<int>(prefix),
+        static_cast<const int8_t*>(device_b_residues), static_cast<int8_t*>(device_c_residues),
+        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), static_cast<int>(lda),
+        static_cast<int>(ldb), static_cast<int>(ldc), static_cast<int>(region_row_offset),
+        static_cast<int>(region_col_offset), static_cast<int>(region_rows),
+        static_cast<int>(region_cols), static_cast<int>(prefix),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
-    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize()
+                                                : static_cast<hipError_t>(code);
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -226,24 +202,16 @@ rns8_status hip_direct_gemm_rns_region_device(
 }
 
 rns8_status hip_direct_gemm_rns_grouped_matrices_device(
-    int device_id,
-    rns8_matrix* const* a_matrices,
-    rns8_matrix* const* b_matrices,
-    rns8_matrix* const* c_matrices,
-    uint32_t task_count,
-    rns8_semantics expected_semantics,
-    const void* device_a_residue_ptrs,
-    const void* device_b_residue_ptrs,
-    const void* device_c_residue_ptrs,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    uint32_t prefix) {
+    int device_id, rns8_matrix* const* a_matrices, rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices, uint32_t task_count, rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs, const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs, int64_t m, int64_t n, int64_t k, uint32_t prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!a_matrices || !b_matrices || !c_matrices || task_count == 0 || !device_a_residue_ptrs ||
       !device_b_residue_ptrs || !device_c_residue_ptrs ||
       (expected_semantics != RNS8_BOUNDED_I64 && expected_semantics != RNS8_BOUNDED_U64 &&
-       expected_semantics != RNS8_EXACT_WIDE_SIGNED && expected_semantics != RNS8_EXACT_WIDE_UNSIGNED) ||
+       expected_semantics != RNS8_EXACT_WIDE_SIGNED &&
+       expected_semantics != RNS8_EXACT_WIDE_UNSIGNED) ||
       m <= 0 || n <= 0 || k <= 0 || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
       k > std::numeric_limits<int>::max()) {
@@ -256,23 +224,23 @@ rns8_status hip_direct_gemm_rns_grouped_matrices_device(
   uint32_t a_prefix = 0;
   uint32_t b_prefix = 0;
   uint32_t c_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(
-      a_matrices, task_count, expected_semantics, m, k, true, &a_device_id, &a_prefix, nullptr);
+  rns8_status status = validate_grouped_rns_matrices(a_matrices, task_count, expected_semantics, m,
+                                                     k, true, &a_device_id, &a_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = validate_grouped_rns_matrices(
-      b_matrices, task_count, expected_semantics, k, n, true, &b_device_id, &b_prefix, nullptr);
+  status = validate_grouped_rns_matrices(b_matrices, task_count, expected_semantics, k, n, true,
+                                         &b_device_id, &b_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = validate_grouped_rns_matrices(
-      c_matrices, task_count, expected_semantics, m, n, false, &c_device_id, &c_prefix, nullptr);
+  status = validate_grouped_rns_matrices(c_matrices, task_count, expected_semantics, m, n, false,
+                                         &c_device_id, &c_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != b_prefix || a_prefix != c_prefix ||
-      a_prefix != prefix) {
+  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != b_prefix ||
+      a_prefix != c_prefix || a_prefix != prefix) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (device_id < 0) {
@@ -289,8 +257,8 @@ rns8_status hip_direct_gemm_rns_grouped_matrices_device(
   const auto* b_ptrs = static_cast<const int8_t* const*>(device_b_residue_ptrs);
   auto* c_ptrs = static_cast<int8_t* const*>(const_cast<void*>(device_c_residue_ptrs));
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    const hipError_t launch_status =
-        launch_rns_grouped_task_prefix_gemm(a_ptrs, b_ptrs, c_ptrs, task_count, m, n, k, k, n, n, prefix);
+    const hipError_t launch_status = launch_rns_grouped_task_prefix_gemm(
+        a_ptrs, b_ptrs, c_ptrs, task_count, m, n, k, k, n, n, prefix);
     return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
   });
   if (err != hipSuccess) {
@@ -320,23 +288,15 @@ rns8_status hip_direct_gemm_rns_grouped_matrices_device(
 }
 
 rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
-    int device_id,
-    rns8_matrix* const* a_matrices,
-    rns8_matrix* const* b_matrices,
-    rns8_matrix* const* c_matrices,
-    uint32_t task_count,
-    rns8_semantics expected_semantics,
-    const void* device_a_residue_ptrs,
-    const void* device_b_residue_ptrs,
-    const void* device_c_residue_ptrs,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    uint32_t prefix) {
+    int device_id, rns8_matrix* const* a_matrices, rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices, uint32_t task_count, rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs, const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs, int64_t m, int64_t n, int64_t k, uint32_t prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!a_matrices || !b_matrices || !c_matrices || task_count == 0 || !device_a_residue_ptrs ||
       !device_b_residue_ptrs || !device_c_residue_ptrs ||
-      (expected_semantics != RNS8_EXACT_WIDE_SIGNED && expected_semantics != RNS8_EXACT_WIDE_UNSIGNED) ||
+      (expected_semantics != RNS8_EXACT_WIDE_SIGNED &&
+       expected_semantics != RNS8_EXACT_WIDE_UNSIGNED) ||
       m <= 0 || n <= 0 || k <= 0 || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
       k > std::numeric_limits<int>::max()) {
@@ -349,23 +309,23 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
   uint32_t a_prefix = 0;
   uint32_t b_prefix = 0;
   uint32_t c_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(
-      a_matrices, task_count, expected_semantics, m, k, true, &a_device_id, &a_prefix, nullptr);
+  rns8_status status = validate_grouped_rns_matrices(a_matrices, task_count, expected_semantics, m,
+                                                     k, true, &a_device_id, &a_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = validate_grouped_rns_matrices(
-      b_matrices, task_count, expected_semantics, k, n, true, &b_device_id, &b_prefix, nullptr);
+  status = validate_grouped_rns_matrices(b_matrices, task_count, expected_semantics, k, n, true,
+                                         &b_device_id, &b_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = validate_grouped_rns_matrices(
-      c_matrices, task_count, expected_semantics, m, n, false, &c_device_id, &c_prefix, nullptr);
+  status = validate_grouped_rns_matrices(c_matrices, task_count, expected_semantics, m, n, false,
+                                         &c_device_id, &c_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != b_prefix || a_prefix != c_prefix ||
-      a_prefix != prefix) {
+  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != b_prefix ||
+      a_prefix != c_prefix || a_prefix != prefix) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (device_id < 0) {
@@ -382,8 +342,8 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
   const auto* b_ptrs = static_cast<const int8_t* const*>(device_b_residue_ptrs);
   auto* c_ptrs = static_cast<int8_t* const*>(const_cast<void*>(device_c_residue_ptrs));
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    const hipError_t launch_status =
-        launch_rns_grouped_task_prefix_gemm(a_ptrs, b_ptrs, c_ptrs, task_count, m, n, k, k, n, n, prefix);
+    const hipError_t launch_status = launch_rns_grouped_task_prefix_gemm(
+        a_ptrs, b_ptrs, c_ptrs, task_count, m, n, k, k, n, n, prefix);
     return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
   });
   if (err != hipSuccess) {
@@ -412,44 +372,41 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
 #endif
 }
 
-rns8_status hip_direct_enqueue_rns_no_publish(const rns8_plan* plan,const rns8_matrix* a,
-    const rns8_matrix* b,rns8_matrix* c,void* stream) {
+rns8_status hip_direct_enqueue_rns_no_publish(const rns8_plan* plan, const rns8_matrix* a,
+                                              const rns8_matrix* b, rns8_matrix* c, void* stream) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  const auto error=launch_direct_rns_gemm_no_sync(a->hip_residues,b->hip_residues,c->hip_residues,
-      plan->desc.m,plan->desc.n,plan->desc.k,a->desc.cols,b->desc.cols,c->desc.cols,plan->prefix,stream);
-  return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+  const auto error = launch_direct_rns_gemm_no_sync(
+      a->hip_residues, b->hip_residues, c->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
+      a->desc.cols, b->desc.cols, c->desc.cols, plan->prefix, stream);
+  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
-  (void)plan;(void)a;(void)b;(void)c;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
+  (void)plan;
+  (void)a;
+  (void)b;
+  (void)c;
+  (void)stream;
+  return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 
-rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
-    const rns8_plan* plan,
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    rns8_matrix* C,
-    void* stream) {
+rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(const rns8_plan* plan,
+                                                                     const rns8_matrix* A,
+                                                                     const rns8_matrix* B,
+                                                                     rns8_matrix* C, void* stream) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!plan || !A || !B || !C || plan->backend != RNS8_BACKEND_HIP_DIRECT || !plan->tile_schedule.empty()) {
+  if (!plan || !A || !B || !C || plan->backend != RNS8_BACKEND_HIP_DIRECT ||
+      !plan->tile_schedule.empty()) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!A->device_residues_current || !B->device_residues_current ||
-      !api::materialized_rns_prefix_covers(*A, plan->prefix) || !api::materialized_rns_prefix_covers(*B, plan->prefix) || !A->hip_residues || !B->hip_residues ||
-      !C->hip_residues) {
+      !api::materialized_rns_prefix_covers(*A, plan->prefix) ||
+      !api::materialized_rns_prefix_covers(*B, plan->prefix) || !A->hip_residues ||
+      !B->hip_residues || !C->hip_residues) {
     return RNS8_INVALID_ARGUMENT;
   }
   const hipError_t launch_status = launch_direct_rns_gemm_no_sync(
-      A->hip_residues,
-      B->hip_residues,
-      C->hip_residues,
-      plan->desc.m,
-      plan->desc.n,
-      plan->desc.k,
-      A->desc.cols,
-      B->desc.cols,
-      C->desc.cols,
-      plan->prefix,
-      stream);
+      A->hip_residues, B->hip_residues, C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
+      A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, stream);
   if (launch_status != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -468,18 +425,14 @@ rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
 #endif
 }
 
-rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
-    int device_id,
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    rns8_matrix* C,
-    int64_t m,
-    int64_t k,
-    uint64_t source_version) {
+rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(int device_id, const rns8_matrix* A,
+                                                  const rns8_matrix* B, rns8_matrix* C, int64_t m,
+                                                  int64_t k, uint64_t source_version) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!A || !B || !C || !A->device_residues_current || !B->device_residues_current ||
-      !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) ||
-      !A->hip_residues || !B->hip_residues || !C->hip_residues ||
+      !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) ||
+      !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !A->hip_residues ||
+      !B->hip_residues || !C->hip_residues ||
       (A->desc.semantics != RNS8_BOUNDED_I64 && A->desc.semantics != RNS8_BOUNDED_U64) ||
       A->desc.semantics != B->desc.semantics || A->desc.semantics != C->desc.semantics ||
       A->desc.bound_kind != B->desc.bound_kind || A->desc.bound_kind != C->desc.bound_kind ||
@@ -499,15 +452,10 @@ rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
   }
   const int code = rns8::detail::run_timed_device_code("rns_gemv_n1_kernel_group", [&]() {
     const int launch_status = rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(
-        static_cast<const int8_t*>(A->hip_residues),
-        static_cast<const int8_t*>(B->hip_residues),
-        static_cast<int8_t*>(C->hip_residues),
-        static_cast<int>(m),
-        static_cast<int>(k),
-        static_cast<int>(A->desc.logical_ld),
-        static_cast<int>(B->desc.logical_ld),
-        static_cast<int>(C->desc.logical_ld),
-        static_cast<int>(RNS8_DEFAULT_BOUNDED_PREFIX),
+        static_cast<const int8_t*>(A->hip_residues), static_cast<const int8_t*>(B->hip_residues),
+        static_cast<int8_t*>(C->hip_residues), static_cast<int>(m), static_cast<int>(k),
+        static_cast<int>(A->desc.logical_ld), static_cast<int>(B->desc.logical_ld),
+        static_cast<int>(C->desc.logical_ld), static_cast<int>(RNS8_DEFAULT_BOUNDED_PREFIX),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
@@ -535,19 +483,15 @@ rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
 #endif
 }
 
-rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
-    int device_id,
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    rns8_matrix* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    uint64_t source_version) {
+rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(int device_id, const rns8_matrix* A,
+                                                       const rns8_matrix* B, rns8_matrix* C,
+                                                       int64_t m, int64_t n, int64_t k,
+                                                       uint64_t source_version) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!A || !B || !C || !A->device_residues_current || !B->device_residues_current ||
-      !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) ||
-      !A->hip_residues || !B->hip_residues || !C->hip_residues ||
+      !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) ||
+      !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !A->hip_residues ||
+      !B->hip_residues || !C->hip_residues ||
       (A->desc.semantics != RNS8_BOUNDED_I64 && A->desc.semantics != RNS8_BOUNDED_U64) ||
       A->desc.semantics != B->desc.semantics || A->desc.semantics != C->desc.semantics ||
       A->desc.bound_kind != B->desc.bound_kind || A->desc.bound_kind != C->desc.bound_kind ||
@@ -568,17 +512,11 @@ rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
   }
   const int code = rns8::detail::run_timed_device_code("rns_gemv_small_n_kernel_group", [&]() {
     const int launch_status = rns8_hip_direct_ring_gemv_small_n_i8_grouped_prefix_device(
-        static_cast<const int8_t*>(A->hip_residues),
-        static_cast<const int8_t*>(B->hip_residues),
-        static_cast<int8_t*>(C->hip_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(A->desc.logical_ld),
-        static_cast<int>(B->desc.logical_ld),
-        static_cast<int>(C->desc.logical_ld),
-        static_cast<int>(RNS8_DEFAULT_BOUNDED_PREFIX),
-        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+        static_cast<const int8_t*>(A->hip_residues), static_cast<const int8_t*>(B->hip_residues),
+        static_cast<int8_t*>(C->hip_residues), static_cast<int>(m), static_cast<int>(n),
+        static_cast<int>(k), static_cast<int>(A->desc.logical_ld),
+        static_cast<int>(B->desc.logical_ld), static_cast<int>(C->desc.logical_ld),
+        static_cast<int>(RNS8_DEFAULT_BOUNDED_PREFIX), static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
     }
@@ -607,26 +545,40 @@ rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
 }
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_direct_persistent_small_gemm_rns_on_stream(const int8_t*,const int8_t*,int8_t*,int,int,int,int,void*);
-extern "C" int rns8_hip_basis_gemm_stream(const int8_t*,const int8_t*,int8_t*,int,int,int,const uint16_t*,uint32_t,void*);
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_on_stream(const int8_t*, const int8_t*,
+                                                                   int8_t*, int, int, int, int,
+                                                                   void*);
+extern "C" int rns8_hip_basis_gemm_stream(const int8_t*, const int8_t*, int8_t*, int, int, int,
+                                          const uint16_t*, uint32_t, void*);
 #endif
-rns8_status hip_direct_enqueue_recipe_gemm_current(const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
-    uint32_t prefix,void* stream,const uint16_t* moduli) {
-  if(!stream || !a || !b || !c)return RNS8_INVALID_ARGUMENT;
-  const auto support=query_residue_gemm_support(m,n,k,k,n,n,prefix);
-  if(support.status!=RNS8_SUCCESS)return support.status;
-  if(!nonoverlapping_byte_ranges(a,uint64_t(m)*k*prefix,c,uint64_t(m)*n*prefix) ||
-      !nonoverlapping_byte_ranges(b,uint64_t(k)*n*prefix,c,uint64_t(m)*n*prefix))return RNS8_INVALID_ARGUMENT;
+rns8_status hip_direct_enqueue_recipe_gemm_current(const void* a, const void* b, void* c, int64_t m,
+                                                   int64_t n, int64_t k, uint32_t prefix,
+                                                   void* stream, const uint16_t* moduli) {
+  if (!stream || !a || !b || !c)
+    return RNS8_INVALID_ARGUMENT;
+  const auto support = query_residue_gemm_support(m, n, k, k, n, n, prefix);
+  if (support.status != RNS8_SUCCESS)
+    return support.status;
+  if (!nonoverlapping_byte_ranges(a, uint64_t(m) * k * prefix, c, uint64_t(m) * n * prefix) ||
+      !nonoverlapping_byte_ranges(b, uint64_t(k) * n * prefix, c, uint64_t(m) * n * prefix))
+    return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if(moduli)return rns8_hip_basis_gemm_stream(static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),static_cast<int8_t*>(c),
-      int(m),int(n),int(k),moduli,prefix,stream)==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
-  const auto route=direct_rns_route(m,n,k,k,n,n,prefix,false);
-  const auto issued=route==DirectRnsRoute::persistent_small?
-      static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_on_stream(static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),
-          static_cast<int8_t*>(c),int(m),int(n),int(k),int(prefix),stream)):
-      launch_direct_rns_gemm_no_sync(a,b,c,m,n,k,k,n,n,prefix,stream);
-  return issued==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+  if (moduli)
+    return rns8_hip_basis_gemm_stream(static_cast<const int8_t*>(a), static_cast<const int8_t*>(b),
+                                      static_cast<int8_t*>(c), int(m), int(n), int(k), moduli,
+                                      prefix, stream) == int(hipSuccess)
+               ? RNS8_SUCCESS
+               : RNS8_BACKEND_FAILURE;
+  const auto route = direct_rns_route(m, n, k, k, n, n, prefix, false);
+  const auto issued =
+      route == DirectRnsRoute::persistent_small
+          ? static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_on_stream(
+                static_cast<const int8_t*>(a), static_cast<const int8_t*>(b),
+                static_cast<int8_t*>(c), int(m), int(n), int(k), int(prefix), stream))
+          : launch_direct_rns_gemm_no_sync(a, b, c, m, n, k, k, n, n, prefix, stream);
+  return issued == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
-  (void)moduli;return RNS8_UNSUPPORTED_BACKEND;
+  (void)moduli;
+  return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

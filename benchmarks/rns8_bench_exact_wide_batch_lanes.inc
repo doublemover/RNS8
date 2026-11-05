@@ -1,11 +1,13 @@
-BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
+BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Args& args,
+                                                     uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
-  const std::size_t c_elements = output_limb_elements(args, args.exact_wide_limb_count, "host batch C");
+  const std::size_t c_elements =
+      output_limb_elements(args, args.exact_wide_limb_count, "host batch C");
   std::vector<std::vector<int64_t>> batch_a(task_count, std::vector<int64_t>(a_elements));
   std::vector<std::vector<int64_t>> batch_b(task_count, std::vector<int64_t>(b_elements));
   std::vector<std::vector<uint64_t>> batch_c(
@@ -20,7 +22,8 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch exact-wide signed)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan(host API batch exact-wide signed)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -38,8 +41,9 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   const bool grouped_gemm_slab_enabled = grouped_pack_slab_enabled;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_gemm_slab_enabled ? "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
-                                    : "host_phase_loop_per_task_export";
+        grouped_gemm_slab_enabled
+            ? "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
+            : "host_phase_loop_per_task_export";
   }
 
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -51,43 +55,30 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
-  enforce_grouped_dispatch_task_setup_contract(
-      args, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix, "grouped exact-wide signed setup");
+  enforce_grouped_dispatch_task_setup_contract(args, plan, tasks, RNS8_EXACT_WIDE_SIGNED,
+                                               matrix_prefix, "grouped exact-wide signed setup");
   if (grouped_export_slab_enabled) {
-    initialize_grouped_exact_wide_rns_batch(
-        args,
-        plan,
-        RNS8_EXACT_WIDE_SIGNED,
-        matrix_prefix,
-        tasks,
-        batch_a,
-        batch_b,
-        a_elements,
-        b_elements,
-        grouped_batch,
-        result,
-        "grouped exact-wide signed");
+    initialize_grouped_exact_wide_rns_batch(args, plan, RNS8_EXACT_WIDE_SIGNED, matrix_prefix,
+                                            tasks, batch_a, batch_b, a_elements, b_elements,
+                                            grouped_batch, result, "grouped exact-wide signed");
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   auto& grouped_resources = grouped_batch.device_resources;
   const auto grouped_bucket_plan =
       make_grouped_dispatch_bucket_plan(args, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix);
-  const auto& grouped_descriptor =
-      single_grouped_dispatch_descriptor(grouped_bucket_plan, "grouped exact-wide signed execution");
+  const auto& grouped_descriptor = single_grouped_dispatch_descriptor(
+      grouped_bucket_plan, "grouped exact-wide signed execution");
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_slab_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_pack_grouped_i64_task_inputs(
-            grouped_descriptor,
-            grouped_resources,
-            grouped_batch.a_host_slab.data(),
-            grouped_batch.b_host_slab.data(),
-            args.k,
-            args.n,
-            source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_i64_task_inputs(host API batch exact-wide signed)", status);
+            grouped_descriptor, grouped_resources, grouped_batch.a_host_slab.data(),
+            grouped_batch.b_host_slab.data(), args.k, args.n, source_version);
+        if (status != RNS8_SUCCESS)
+          fail_status("hip_direct_pack_grouped_i64_task_inputs(host API batch exact-wide signed)",
+                      status);
       }
       (void)task;
       return OptionalPackOperandTiming{};
@@ -96,12 +87,14 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
     timing.available = true;
     const auto pack_a_start = std::chrono::steady_clock::now();
     status = rns8_pack_i64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch exact-wide A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_i64(host API batch exact-wide A)", status);
     const auto pack_a_end = std::chrono::steady_clock::now();
     timing.timing.a_us = elapsed_us(pack_a_start, pack_a_end);
     const auto pack_b_start = std::chrono::steady_clock::now();
     status = rns8_pack_i64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch exact-wide B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_i64(host API batch exact-wide B)", status);
     const auto pack_b_end = std::chrono::steady_clock::now();
     timing.timing.b_us = elapsed_us(pack_b_start, pack_b_end);
     return timing;
@@ -109,98 +102,73 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_gemm_slab_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
-            grouped_descriptor,
-            grouped_resources);
+        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(grouped_descriptor,
+                                                                        grouped_resources);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_grouped_rns_task_outputs(host API batch exact-wide signed)", status);
+          fail_status("hip_direct_gemm_grouped_rns_task_outputs(host API batch exact-wide signed)",
+                      status);
         }
       }
       (void)task;
       return;
     }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch exact-wide signed)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_rns(host API batch exact-wide signed)", status);
   };
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_export_slab_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_export_grouped_exact_wide_task_outputs_to_host(
-            grouped_descriptor,
-            grouped_resources,
-            args.exact_wide_limb_count,
-            true,
-            grouped_batch.export_host_slab.data(),
-            grouped_batch.export_host_slab.size());
+            grouped_descriptor, grouped_resources, args.exact_wide_limb_count, true,
+            grouped_batch.export_host_slab.data(), grouped_batch.export_host_slab.size());
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide signed)", status);
+          fail_status(
+              "hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide signed)",
+              status);
         }
-        if (!args.grouped_compact_output) scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
+        if (!args.grouped_compact_output)
+          scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
       }
       return;
     }
-    status = rns8_export_exact_wide_signed_limbs(
-        ctx, plan, task.c, batch_c[task_index].data(), ldc, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs(host API batch)", status);
+    status = rns8_export_exact_wide_signed_limbs(ctx, plan, task.c, batch_c[task_index].data(), ldc,
+                                                 args.exact_wide_limb_count);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_export_exact_wide_signed_limbs(host API batch)", status);
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_EXACT_WIDE_SIGNED,
-        matrix_prefix,
-        static_cast<uint64_t>(r) + 1,
-        nullptr,
-        pack_task,
-        gemm_task,
-        export_task);
+        args, result, selected_backend, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix,
+        static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_EXACT_WIDE_SIGNED,
-        matrix_prefix,
-        static_cast<uint64_t>(args.warmups) + r + 1,
-        &result.samples,
-        pack_task,
-        gemm_task,
-        export_task);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks,
+                                 RNS8_EXACT_WIDE_SIGNED, matrix_prefix,
+                                 static_cast<uint64_t>(args.warmups) + r + 1, &result.samples,
+                                 pack_task, gemm_task, export_task);
   }
   record_allocation_after_repeats(result);
   run_public_sustained(args, result, [&](uint64_t version) {
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_EXACT_WIDE_SIGNED,
-        matrix_prefix,
-        version,
-        nullptr,
-        pack_task,
-        gemm_task,
-        export_task);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks,
+                                 RNS8_EXACT_WIDE_SIGNED, matrix_prefix, version, nullptr, pack_task,
+                                 gemm_task, export_task);
   });
   std::vector<uint64_t> task_checksums(task_count);
   if (grouped_export_slab_enabled && args.grouped_compact_output) {
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    verify_exact_wide_benchmark_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
-    task_checksums[task_index] = checksum_limb_matrix(
-        batch_c[task_index], args.m, args.n, ldc, args.exact_wide_limb_count, "host batch C");
+    verify_exact_wide_benchmark_output(args, batch_a[task_index], batch_b[task_index],
+                                       batch_c[task_index], result);
+    task_checksums[task_index] = checksum_limb_matrix(batch_c[task_index], args.m, args.n, ldc,
+                                                      args.exact_wide_limb_count, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
 
@@ -209,14 +177,16 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   return result;
 }
 
-BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
+BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const Args& args,
+                                                       uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
-  const std::size_t c_elements = output_limb_elements(args, args.exact_wide_limb_count, "host batch C");
+  const std::size_t c_elements =
+      output_limb_elements(args, args.exact_wide_limb_count, "host batch C");
   std::vector<std::vector<uint64_t>> batch_a(task_count, std::vector<uint64_t>(a_elements));
   std::vector<std::vector<uint64_t>> batch_b(task_count, std::vector<uint64_t>(b_elements));
   std::vector<std::vector<uint64_t>> batch_c(
@@ -231,7 +201,8 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch exact-wide unsigned)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan(host API batch exact-wide unsigned)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -249,8 +220,9 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   const bool grouped_gemm_slab_enabled = grouped_pack_slab_enabled;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_gemm_slab_enabled ? "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
-                                    : "host_phase_loop_per_task_export";
+        grouped_gemm_slab_enabled
+            ? "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
+            : "host_phase_loop_per_task_export";
   }
 
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -262,43 +234,30 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
-  enforce_grouped_dispatch_task_setup_contract(
-      args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix, "grouped exact-wide unsigned setup");
+  enforce_grouped_dispatch_task_setup_contract(args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED,
+                                               matrix_prefix, "grouped exact-wide unsigned setup");
   if (grouped_export_slab_enabled) {
-    initialize_grouped_exact_wide_rns_batch(
-        args,
-        plan,
-        RNS8_EXACT_WIDE_UNSIGNED,
-        matrix_prefix,
-        tasks,
-        batch_a,
-        batch_b,
-        a_elements,
-        b_elements,
-        grouped_batch,
-        result,
-        "grouped exact-wide unsigned");
+    initialize_grouped_exact_wide_rns_batch(args, plan, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix,
+                                            tasks, batch_a, batch_b, a_elements, b_elements,
+                                            grouped_batch, result, "grouped exact-wide unsigned");
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   auto& grouped_resources = grouped_batch.device_resources;
   const auto grouped_bucket_plan =
       make_grouped_dispatch_bucket_plan(args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix);
-  const auto& grouped_descriptor =
-      single_grouped_dispatch_descriptor(grouped_bucket_plan, "grouped exact-wide unsigned execution");
+  const auto& grouped_descriptor = single_grouped_dispatch_descriptor(
+      grouped_bucket_plan, "grouped exact-wide unsigned execution");
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_slab_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_pack_grouped_u64_task_inputs(
-            grouped_descriptor,
-            grouped_resources,
-            grouped_batch.a_host_slab.data(),
-            grouped_batch.b_host_slab.data(),
-            args.k,
-            args.n,
-            source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_u64_task_inputs(host API batch exact-wide unsigned)", status);
+            grouped_descriptor, grouped_resources, grouped_batch.a_host_slab.data(),
+            grouped_batch.b_host_slab.data(), args.k, args.n, source_version);
+        if (status != RNS8_SUCCESS)
+          fail_status("hip_direct_pack_grouped_u64_task_inputs(host API batch exact-wide unsigned)",
+                      status);
       }
       (void)task;
       return OptionalPackOperandTiming{};
@@ -307,12 +266,14 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
     timing.available = true;
     const auto pack_a_start = std::chrono::steady_clock::now();
     status = rns8_pack_u64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch exact-wide A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(host API batch exact-wide A)", status);
     const auto pack_a_end = std::chrono::steady_clock::now();
     timing.timing.a_us = elapsed_us(pack_a_start, pack_a_end);
     const auto pack_b_start = std::chrono::steady_clock::now();
     status = rns8_pack_u64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch exact-wide B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(host API batch exact-wide B)", status);
     const auto pack_b_end = std::chrono::steady_clock::now();
     timing.timing.b_us = elapsed_us(pack_b_start, pack_b_end);
     return timing;
@@ -320,98 +281,74 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_gemm_slab_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
-            grouped_descriptor,
-            grouped_resources);
+        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(grouped_descriptor,
+                                                                        grouped_resources);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_grouped_rns_task_outputs(host API batch exact-wide unsigned)", status);
+          fail_status(
+              "hip_direct_gemm_grouped_rns_task_outputs(host API batch exact-wide unsigned)",
+              status);
         }
       }
       (void)task;
       return;
     }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch exact-wide unsigned)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_rns(host API batch exact-wide unsigned)", status);
   };
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_export_slab_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_export_grouped_exact_wide_task_outputs_to_host(
-            grouped_descriptor,
-            grouped_resources,
-            args.exact_wide_limb_count,
-            false,
-            grouped_batch.export_host_slab.data(),
-            grouped_batch.export_host_slab.size());
+            grouped_descriptor, grouped_resources, args.exact_wide_limb_count, false,
+            grouped_batch.export_host_slab.data(), grouped_batch.export_host_slab.size());
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide unsigned)", status);
+          fail_status(
+              "hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide unsigned)",
+              status);
         }
-        if (!args.grouped_compact_output) scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
+        if (!args.grouped_compact_output)
+          scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
       }
       return;
     }
-    status = rns8_export_exact_wide_unsigned_limbs(
-        ctx, plan, task.c, batch_c[task_index].data(), ldc, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs(host API batch)", status);
+    status = rns8_export_exact_wide_unsigned_limbs(ctx, plan, task.c, batch_c[task_index].data(),
+                                                   ldc, args.exact_wide_limb_count);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_export_exact_wide_unsigned_limbs(host API batch)", status);
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_EXACT_WIDE_UNSIGNED,
-        matrix_prefix,
-        static_cast<uint64_t>(r) + 1,
-        nullptr,
-        pack_task,
-        gemm_task,
-        export_task);
+        args, result, selected_backend, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix,
+        static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_EXACT_WIDE_UNSIGNED,
-        matrix_prefix,
-        static_cast<uint64_t>(args.warmups) + r + 1,
-        &result.samples,
-        pack_task,
-        gemm_task,
-        export_task);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks,
+                                 RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix,
+                                 static_cast<uint64_t>(args.warmups) + r + 1, &result.samples,
+                                 pack_task, gemm_task, export_task);
   }
   record_allocation_after_repeats(result);
   run_public_sustained(args, result, [&](uint64_t version) {
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_EXACT_WIDE_UNSIGNED,
-        matrix_prefix,
-        version,
-        nullptr,
-        pack_task,
-        gemm_task,
-        export_task);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks,
+                                 RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix, version, nullptr,
+                                 pack_task, gemm_task, export_task);
   });
   std::vector<uint64_t> task_checksums(task_count);
   if (grouped_export_slab_enabled && args.grouped_compact_output) {
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    verify_exact_wide_benchmark_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
-    task_checksums[task_index] = checksum_limb_matrix(
-        batch_c[task_index], args.m, args.n, ldc, args.exact_wide_limb_count, "host batch C");
+    verify_exact_wide_benchmark_output(args, batch_a[task_index], batch_b[task_index],
+                                       batch_c[task_index], result);
+    task_checksums[task_index] = checksum_limb_matrix(batch_c[task_index], args.m, args.n, ldc,
+                                                      args.exact_wide_limb_count, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
 
@@ -419,4 +356,3 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   rns8_destroy_plan(plan);
   return result;
 }
-

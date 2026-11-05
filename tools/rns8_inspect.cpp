@@ -18,9 +18,10 @@ namespace {
 #include "rns8_inspect_selector_print.inc"
 int main(int argc, char** argv) {
   const int identity_status = rns8::tools::emit_build_identity(argc, argv, std::cout);
-  if (identity_status >= 0) return identity_status;
+  if (identity_status >= 0)
+    return identity_status;
   bool json = false;
-  bool operations=false;
+  bool operations = false;
   bool show_autotune_cache = false;
   bool selector_shadow = false;
   int device_id = -1;
@@ -32,7 +33,7 @@ int main(int argc, char** argv) {
     if (arg == "--json") {
       json = true;
     } else if (arg == "--operations") {
-      operations=true;
+      operations = true;
     } else if (arg == "--show-autotune-cache") {
       show_autotune_cache = true;
     } else if (arg == "--selector-shadow") {
@@ -48,13 +49,17 @@ int main(int argc, char** argv) {
         return 2;
       }
     } else if (arg == "--device") {
-      if(i+1>=argc) {
-        std::cerr << "missing value for --device\n";print_usage(std::cerr);return 2;
+      if (i + 1 >= argc) {
+        std::cerr << "missing value for --device\n";
+        print_usage(std::cerr);
+        return 2;
       }
-      const auto* value=argv[++i];
-      if(!rns8::cli::parse_device(value,device_id)) {
-        std::cerr << "invalid device for --device: " << value << " (expected -1 or a nonnegative int ordinal)\n";
-        print_usage(std::cerr);return 2;
+      const auto* value = argv[++i];
+      if (!rns8::cli::parse_device(value, device_id)) {
+        std::cerr << "invalid device for --device: " << value
+                  << " (expected -1 or a nonnegative int ordinal)\n";
+        print_usage(std::cerr);
+        return 2;
       }
     } else if (arg == "--help") {
       print_usage(std::cout);
@@ -76,51 +81,100 @@ int main(int argc, char** argv) {
   requested_capability.abi_version = RNS8_ABI_VERSION;
   status = rns8_get_backend_capability_info(backend, &requested_capability);
   if (status != RNS8_SUCCESS) {
-    std::cerr << "rns8_get_backend_capability_info(" << backend_name(backend) << "): "
-              << rns8_status_string(status) << "\n";
+    std::cerr << "rns8_get_backend_capability_info(" << backend_name(backend)
+              << "): " << rns8_status_string(status) << "\n";
     return 1;
   }
 
   rns8_context* ctx = nullptr;
   status = rns8_create_context(device_id, &options, &ctx);
   if (status != RNS8_SUCCESS) {
-    std::cerr << "rns8_create_context(" << backend_name(backend) << "): " << rns8_status_string(status) << "\n";
+    std::cerr << "rns8_create_context(" << backend_name(backend)
+              << "): " << rns8_status_string(status) << "\n";
     std::cerr << "capability_status: " << requested_capability.status << "\n";
     std::cerr << "capability_detail: " << requested_capability.detail << "\n";
     if (requested_capability.enable_flag[0] != '\0') {
       std::cerr << "enable_flag: " << requested_capability.enable_flag << "\n";
     }
     if (status == RNS8_UNSUPPORTED_BACKEND && evidence_only_accelerator_backend(backend)) {
-      std::cerr << "requested accelerator is evidence-only; runtime remains unsupported until a real exact "
-                   "correctness backend, compiled kernels, and ISA evidence exist\n";
+      std::cerr
+          << "requested accelerator is evidence-only; runtime remains unsupported until a real exact "
+             "correctness backend, compiled kernels, and ISA evidence exist\n";
     } else if (status == RNS8_UNSUPPORTED_BACKEND) {
-      std::cerr << "backend is not available for this context; RNS8_BACKEND_AUTO does not route across "
-                   "bounded, exact-wide, or wrap64 semantic backends\n";
+      std::cerr
+          << "backend is not available for this context; RNS8_BACKEND_AUTO does not route across "
+             "bounded, exact-wide, or wrap64 semantic backends\n";
     }
     return 1;
   }
 
-  if(operations) {
-    nlohmann::json rows=nlohmann::json::array();
-    for(uint32_t operation=0;operation<RNS8_OP_COUNT;++operation) {
-      rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;q.operation=operation;q.execution_modes=RNS8_EXEC_SYNC;
-      q.scratch_budget=UINT64_MAX;q.device_count=1;q.problem.struct_size=sizeof(q.problem);q.problem.abi_version=RNS8_ABI_VERSION;
-      q.problem.requested_backend=RNS8_BACKEND_AUTO;q.problem.semantics=RNS8_EXACT_WIDE_SIGNED;q.problem.bound_kind=RNS8_BOUND_NONE;
-      q.problem.m=q.problem.n=q.problem.k=16;q.problem.max_prefix=20;q.proof_flags=15;
-      uint32_t count=0;status=rns8_query_operation_support(ctx,&q,nullptr,0,&count);
-      if(status!=RNS8_SUCCESS){rns8_destroy_context(ctx);return 1;}
+  if (operations) {
+    nlohmann::json rows = nlohmann::json::array();
+    for (uint32_t operation = 0; operation < RNS8_OP_COUNT; ++operation) {
+      rns8_operation_query q{};
+      q.struct_size = sizeof(q);
+      q.abi_version = RNS8_ABI_VERSION;
+      q.operation = operation;
+      q.execution_modes = RNS8_EXEC_SYNC;
+      q.scratch_budget = UINT64_MAX;
+      q.device_count = 1;
+      q.problem.struct_size = sizeof(q.problem);
+      q.problem.abi_version = RNS8_ABI_VERSION;
+      q.problem.requested_backend = RNS8_BACKEND_AUTO;
+      q.problem.semantics = RNS8_EXACT_WIDE_SIGNED;
+      q.problem.bound_kind = RNS8_BOUND_NONE;
+      q.problem.m = q.problem.n = q.problem.k = 16;
+      q.problem.max_prefix = 20;
+      q.proof_flags = 15;
+      uint32_t count = 0;
+      status = rns8_query_operation_support(ctx, &q, nullptr, 0, &count);
+      if (status != RNS8_SUCCESS) {
+        rns8_destroy_context(ctx);
+        return 1;
+      }
       std::vector<rns8_operation_support> records(count);
-      status=rns8_query_operation_support(ctx,&q,records.data(),count,&count);if(status!=RNS8_SUCCESS){rns8_destroy_context(ctx);return 1;}
-      for(uint32_t i=0;i<count;++i) {const auto& r=records[i];rows.push_back({{"operation",operation},{"backend",backend_name(static_cast<rns8_backend_kind>(r.backend))},
-        {"status",rns8_status_string(r.status)},{"reason",r.reason_code},{"source",r.source_implemented},{"compiled",r.compiled_inventory},
-        {"runtime_observed",r.runtime_observed},{"correctness_qualified",r.correctness_qualified},{"performance_qualified",r.performance_qualified},
-        {"requires_binding",r.requires_binding},{"execution_modes",r.supported_execution_modes},{"resource_status",r.resource_status},
-        {"device_bytes",r.required_device_bytes},{"host_bytes",r.required_host_bytes},{"explanation",r.explanation},{"provider_sha256",r.provider_identity_sha256}});}
+      status = rns8_query_operation_support(ctx, &q, records.data(), count, &count);
+      if (status != RNS8_SUCCESS) {
+        rns8_destroy_context(ctx);
+        return 1;
+      }
+      for (uint32_t i = 0; i < count; ++i) {
+        const auto& r = records[i];
+        rows.push_back({{"operation", operation},
+                        {"backend", backend_name(static_cast<rns8_backend_kind>(r.backend))},
+                        {"status", rns8_status_string(r.status)},
+                        {"reason", r.reason_code},
+                        {"source", r.source_implemented},
+                        {"compiled", r.compiled_inventory},
+                        {"runtime_observed", r.runtime_observed},
+                        {"correctness_qualified", r.correctness_qualified},
+                        {"performance_qualified", r.performance_qualified},
+                        {"requires_binding", r.requires_binding},
+                        {"execution_modes", r.supported_execution_modes},
+                        {"resource_status", r.resource_status},
+                        {"device_bytes", r.required_device_bytes},
+                        {"host_bytes", r.required_host_bytes},
+                        {"explanation", r.explanation},
+                        {"provider_sha256", r.provider_identity_sha256}});
+      }
     }
-    if(json)std::cout<<nlohmann::json({{"schema","rns8-operation-support-v1"},{"contract","16x16x16 signed exact-wide prefix9; hypothetical proof flags; not qualification"},{"rows",rows}}).dump(2)<<"\n";
-    else {std::cout<<"Operation support: 16x16x16 signed exact-wide prefix9, hypothetical proofs. No qualification inferred.\n";
-      for(const auto& r:rows)std::cout<<r["operation"]<<" "<<r["backend"]<<" "<<r["status"]<<" "<<r["explanation"]<<"\n";}
-    return rns8_destroy_context(ctx)==RNS8_SUCCESS?0:1;
+    if (json)
+      std::cout
+          << nlohmann::json(
+                 {{"schema", "rns8-operation-support-v1"},
+                  {"contract",
+                   "16x16x16 signed exact-wide prefix9; hypothetical proof flags; not qualification"},
+                  {"rows", rows}})
+                 .dump(2)
+          << "\n";
+    else {
+      std::cout
+          << "Operation support: 16x16x16 signed exact-wide prefix9, hypothetical proofs. No qualification inferred.\n";
+      for (const auto& r : rows)
+        std::cout << r["operation"] << " " << r["backend"] << " " << r["status"] << " "
+                  << r["explanation"] << "\n";
+    }
+    return rns8_destroy_context(ctx) == RNS8_SUCCESS ? 0 : 1;
   }
 
   rns8_device_info info{};
@@ -139,8 +193,8 @@ int main(int argc, char** argv) {
   status = rns8_get_backend_capability_info(info.backend, &selected_capability);
   if (status != RNS8_SUCCESS) {
     rns8_destroy_context(ctx);
-    std::cerr << "rns8_get_backend_capability_info(" << backend_name(info.backend) << "): "
-              << rns8_status_string(status) << "\n";
+    std::cerr << "rns8_get_backend_capability_info(" << backend_name(info.backend)
+              << "): " << rns8_status_string(status) << "\n";
     return 1;
   }
 
@@ -157,14 +211,8 @@ int main(int argc, char** argv) {
   bool autotune_plan_lowering_available = false;
   if (inspect_autotune && !autotune_key.empty()) {
     runtime = runtime_identity_with_plan_version(
-        ctx,
-        info.backend,
-        snapshot,
-        autotune_key,
-        runtime,
-        &autotune_plan_packing,
-        &autotune_plan_packing_available,
-        &autotune_plan_lowering,
+        ctx, info.backend, snapshot, autotune_key, runtime, &autotune_plan_packing,
+        &autotune_plan_packing_available, &autotune_plan_lowering,
         &autotune_plan_lowering_available);
   }
   const rns8_plan_packing_info* plan_packing =
@@ -173,27 +221,11 @@ int main(int argc, char** argv) {
       autotune_plan_lowering_available ? &autotune_plan_lowering : nullptr;
 
   if (json) {
-    print_json(
-        info,
-        selected_capability,
-        inspect_autotune ? &snapshot : nullptr,
-        autotune_key,
-        runtime,
-        plan_packing,
-        plan_lowering,
-        show_autotune_cache,
-        selector_shadow);
+    print_json(info, selected_capability, inspect_autotune ? &snapshot : nullptr, autotune_key,
+               runtime, plan_packing, plan_lowering, show_autotune_cache, selector_shadow);
   } else {
-    print_text(
-        info,
-        selected_capability,
-        inspect_autotune ? &snapshot : nullptr,
-        autotune_key,
-        runtime,
-        plan_packing,
-        plan_lowering,
-        show_autotune_cache,
-        selector_shadow);
+    print_text(info, selected_capability, inspect_autotune ? &snapshot : nullptr, autotune_key,
+               runtime, plan_packing, plan_lowering, show_autotune_cache, selector_shadow);
   }
   rns8_destroy_context(ctx);
   return 0;

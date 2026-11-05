@@ -55,7 +55,9 @@ def _reviewable_export_variant(capture: dict[str, Any], export: dict[str, Any]) 
 
 
 def _blockers(capture: dict[str, Any]) -> list[str]:
-    export = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    export = (
+        capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    )
     blockers: list[str] = []
     if not export.get("selector_key"):
         blockers.append("missing_selector_key")
@@ -66,13 +68,17 @@ def _blockers(capture: dict[str, Any]) -> list[str]:
         blockers.append("non_default_export_variant_not_reviewable_for_promotion")
     if not selector_promotion_eligible:
         blocker = export.get("promotion_blocker")
-        blockers.append(str(blocker) if isinstance(blocker, str) and blocker else "non_promoting_export_variant")
+        blockers.append(
+            str(blocker) if isinstance(blocker, str) and blocker else "non_promoting_export_variant"
+        )
     correctness = capture.get("correctness")
     if correctness is None:
         blockers.append("correctness_not_recorded")
     elif correctness != "ok":
         blockers.append("correctness_not_ok")
-    if capture.get("gpu_events", {}).get("requested") and not capture.get("gpu_events", {}).get("complete", False):
+    if capture.get("gpu_events", {}).get("requested") and not capture.get("gpu_events", {}).get(
+        "complete", False
+    ):
         blockers.append("gpu_events_incomplete")
     if export.get("selector_key") and export.get("selected_kernel"):
         if f"selected_kernel={export['selected_kernel']}" not in export["selector_key"]:
@@ -81,9 +87,13 @@ def _blockers(capture: dict[str, Any]) -> list[str]:
 
 
 def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
-    export = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    export = (
+        capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    )
     reconstruction = (
-        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+        capture.get("reconstruction_variant")
+        if isinstance(capture.get("reconstruction_variant"), dict)
+        else {}
     )
     target_id = _target_id(capture, export)
     return {
@@ -151,7 +161,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                     "signedness": key[8],
                     "final_output_mode": key[9],
                 },
-                "rows": sorted(value, key=lambda row: (row.get("median_end_to_end_us") or float("inf"))),
+                "rows": sorted(
+                    value, key=lambda row: row.get("median_end_to_end_us") or float("inf")
+                ),
             }
             for key, value in sorted(groups.items(), key=lambda item: str(item[0]))
         ],

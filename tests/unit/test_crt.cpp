@@ -22,7 +22,7 @@ std::vector<int8_t> residues_for(boost::multiprecision::cpp_int value, uint32_t 
   return residues;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CRT reconstruction recovers signed and unsigned bounded values") {
   {
@@ -33,17 +33,19 @@ TEST_CASE("CRT reconstruction recovers signed and unsigned bounded values") {
   }
 
   {
-    const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 9);
+    const auto residues =
+        residues_for(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 9);
     int64_t value = 0;
     CHECK(rns8::detail::reconstruct_signed(residues, 9, 1ull << 63u, value) == RNS8_SUCCESS);
     CHECK(value == std::numeric_limits<int64_t>::min());
   }
 
   {
-    const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()), 9);
+    const auto residues =
+        residues_for(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()), 9);
     uint64_t value = 0;
-    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(), value) ==
-          RNS8_SUCCESS);
+    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(),
+                                             value) == RNS8_SUCCESS);
     CHECK(value == std::numeric_limits<uint64_t>::max());
   }
 }
@@ -99,7 +101,8 @@ TEST_CASE("CRT signed reconstruction locks centered midpoint thresholds") {
 
 TEST_CASE("CRT signed prefix-9 distinguishes int64 min from positive 2^63") {
   {
-    const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 9);
+    const auto residues =
+        residues_for(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 9);
     int64_t value = 0;
     CHECK(rns8::detail::reconstruct_signed(residues, 9, 1ull << 63u, value) == RNS8_SUCCESS);
     CHECK(value == std::numeric_limits<int64_t>::min());
@@ -114,34 +117,38 @@ TEST_CASE("CRT signed prefix-9 distinguishes int64 min from positive 2^63") {
 
 TEST_CASE("CRT unsigned reconstruction is canonical and does not wrap past uint64") {
   {
-    const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()), 9);
+    const auto residues =
+        residues_for(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()), 9);
     uint64_t value = 0;
-    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(), value) ==
-          RNS8_SUCCESS);
+    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(),
+                                             value) == RNS8_SUCCESS);
     CHECK(value == std::numeric_limits<uint64_t>::max());
   }
   {
-    const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()) + 1, 9);
+    const auto residues =
+        residues_for(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()) + 1, 9);
     uint64_t value = 123;
-    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(), value) ==
-          RNS8_RANGE_ERROR);
+    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(),
+                                             value) == RNS8_RANGE_ERROR);
     CHECK(value == 123);
   }
   {
     const boost::multiprecision::cpp_int product = rns8::detail::modulus_product(9);
     const auto residues = residues_for(product - 1, 9);
     uint64_t value = 456;
-    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(), value) ==
-          RNS8_RANGE_ERROR);
+    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(),
+                                             value) == RNS8_RANGE_ERROR);
     CHECK(value == 456);
   }
 }
 
 TEST_CASE("CRT reconstruction reports insufficient range") {
-  const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::max()), 8);
+  const auto residues =
+      residues_for(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::max()), 8);
   int64_t value = 0;
-  CHECK(rns8::detail::reconstruct_signed(
-            residues, 8, static_cast<uint64_t>(std::numeric_limits<int64_t>::max()), value) == RNS8_RANGE_ERROR);
+  CHECK(rns8::detail::reconstruct_signed(residues, 8,
+                                         static_cast<uint64_t>(std::numeric_limits<int64_t>::max()),
+                                         value) == RNS8_RANGE_ERROR);
 }
 
 TEST_CASE("CRT reconstruction rejects malformed prefix inputs before range evaluation") {
@@ -155,8 +162,8 @@ TEST_CASE("CRT reconstruction rejects malformed prefix inputs before range evalu
   {
     const std::vector<int8_t> residues(8, 0);
     uint64_t value = 0;
-    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(), value) ==
-          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(),
+                                             value) == RNS8_INVALID_ARGUMENT);
   }
   {
     const std::vector<int8_t> residues(1, 0);
@@ -167,40 +174,48 @@ TEST_CASE("CRT reconstruction rejects malformed prefix inputs before range evalu
   }
 }
 
-TEST_CASE("immutable Garner constants and every prefix match independent congruences", "[crt][value-lifecycle]") {
+TEST_CASE("immutable Garner constants and every prefix match independent congruences",
+          "[crt][value-lifecycle]") {
   using namespace rns8::detail;
   std::mt19937_64 rng(20261023);
-  cpp_int product=1;
-  for (uint32_t prefix=1;prefix<=20;++prefix) {
-    const auto modulus=kDefaultModuli[prefix-1];
-    CHECK(garner::kConstants.moduli[prefix-1]==modulus);
-    CHECK((product % modulus)*garner::kConstants.inverses[prefix-1] % modulus==1);
-    product*=modulus;
-    cpp_int encoded=0;
-    for (int limb=2;limb>=0;--limb) { encoded<<=64; encoded+=garner::kConstants.products[prefix][limb]; }
-    CHECK(encoded==product); CHECK(product < (cpp_int(1)<<160));
-    for (const cpp_int value : std::vector<cpp_int>{0,1,product/2,product-1})
-      CHECK(reconstruct_canonical(residues_for(value,prefix),prefix)==value);
-    for (int trial=0;trial<100;++trial) {
+  cpp_int product = 1;
+  for (uint32_t prefix = 1; prefix <= 20; ++prefix) {
+    const auto modulus = kDefaultModuli[prefix - 1];
+    CHECK(garner::kConstants.moduli[prefix - 1] == modulus);
+    CHECK((product % modulus) * garner::kConstants.inverses[prefix - 1] % modulus == 1);
+    product *= modulus;
+    cpp_int encoded = 0;
+    for (int limb = 2; limb >= 0; --limb) {
+      encoded <<= 64;
+      encoded += garner::kConstants.products[prefix][limb];
+    }
+    CHECK(encoded == product);
+    CHECK(product < (cpp_int(1) << 160));
+    for (const cpp_int value : std::vector<cpp_int>{0, 1, product / 2, product - 1})
+      CHECK(reconstruct_canonical(residues_for(value, prefix), prefix) == value);
+    for (int trial = 0; trial < 100; ++trial) {
       std::vector<int8_t> residues(prefix);
-      for (uint32_t p=0;p<prefix;++p) residues[p]=centered_residue(cpp_int(rng()%kDefaultModuli[p]),kDefaultModuli[p]);
-      const auto value=reconstruct_canonical(residues,prefix);
-      REQUIRE(value>=0); REQUIRE(value<product);
-      for (uint32_t p=0;p<prefix;++p)
-        CHECK(value % kDefaultModuli[p]==canonical_from_centered(residues[p],kDefaultModuli[p]));
+      for (uint32_t p = 0; p < prefix; ++p)
+        residues[p] = centered_residue(cpp_int(rng() % kDefaultModuli[p]), kDefaultModuli[p]);
+      const auto value = reconstruct_canonical(residues, prefix);
+      REQUIRE(value >= 0);
+      REQUIRE(value < product);
+      for (uint32_t p = 0; p < prefix; ++p)
+        CHECK(value % kDefaultModuli[p] == canonical_from_centered(residues[p], kDefaultModuli[p]));
     }
   }
 }
 
 TEST_CASE("Garner pair constants prove both inverse levels", "[crt][value-lifecycle]") {
   using namespace rns8::detail;
-  cpp_int product=1;
-  for (uint32_t pair=0;pair<10;++pair) {
-    const uint32_t lhs=kDefaultModuli[pair*2], rhs=kDefaultModuli[pair*2+1];
-    CHECK(garner::kConstants.pair_moduli[pair]==lhs*rhs);
-    CHECK((lhs*garner::kConstants.pair_inner_inverses[pair]) % rhs==1);
-    CHECK((product % (lhs*rhs))*garner::kConstants.pair_prefix_inverses[pair] % (lhs*rhs)==1);
-    product*=lhs*rhs;
+  cpp_int product = 1;
+  for (uint32_t pair = 0; pair < 10; ++pair) {
+    const uint32_t lhs = kDefaultModuli[pair * 2], rhs = kDefaultModuli[pair * 2 + 1];
+    CHECK(garner::kConstants.pair_moduli[pair] == lhs * rhs);
+    CHECK((lhs * garner::kConstants.pair_inner_inverses[pair]) % rhs == 1);
+    CHECK((product % (lhs * rhs)) * garner::kConstants.pair_prefix_inverses[pair] % (lhs * rhs) ==
+          1);
+    product *= lhs * rhs;
   }
 }
 
@@ -215,7 +230,7 @@ struct RestoreCpuParallel {
     rns8::detail::configure_cpu_parallel(requested, threshold, progress);
   }
 };
-}
+} // namespace
 
 TEST_CASE("Native CPU packing matches multiprecision at every ladder prefix") {
   using namespace rns8::detail;
@@ -227,7 +242,8 @@ TEST_CASE("Native CPU packing matches multiprecision at every ladder prefix") {
     for (int64_t col = 0; col < cols; ++col) {
       const uint64_t bits = random();
       unsigned_values[row * ld + col] = bits;
-      signed_values[row * ld + col] = col % 2 ? -static_cast<int64_t>(bits >> 1) : static_cast<int64_t>(bits >> 1);
+      signed_values[row * ld + col] =
+          col % 2 ? -static_cast<int64_t>(bits >> 1) : static_cast<int64_t>(bits >> 1);
     }
   }
   signed_values[0] = std::numeric_limits<int64_t>::min();
@@ -264,11 +280,11 @@ TEST_CASE("Native CPU packing matches multiprecision at every ladder prefix") {
   }
 }
 
-
 TEST_CASE("Finite native CPU packing exhausts every byte and modulus") {
   using namespace rns8::detail;
   std::vector<uint8_t> values(263, 199);
-  for (unsigned value = 0; value < 256; ++value) values[value] = static_cast<uint8_t>(value);
+  for (unsigned value = 0; value < 256; ++value)
+    values[value] = static_cast<uint8_t>(value);
   rns8_matrix matrix{};
   matrix.desc.rows = 1;
   matrix.desc.cols = 256;
@@ -319,10 +335,12 @@ TEST_CASE("Address-domain qualification proves complete spans without allocation
 TEST_CASE("Host duration conversion preserves sub-microsecond samples") {
   using rns8::bench::duration_us;
   for (int64_t ns : {0, 1, 500, 999, 1000, 1500, 1999}) {
-    CHECK(std::abs(duration_us(std::chrono::nanoseconds(ns)) - static_cast<double>(ns) / 1000.0) < 1e-12);
+    CHECK(std::abs(duration_us(std::chrono::nanoseconds(ns)) - static_cast<double>(ns) / 1000.0) <
+          1e-12);
   }
   double sum = 0;
-  for (unsigned i = 0; i < 100; ++i) sum += duration_us(std::chrono::nanoseconds(500));
+  for (unsigned i = 0; i < 100; ++i)
+    sum += duration_us(std::chrono::nanoseconds(500));
   CHECK(sum == 50.0);
 }
 
@@ -331,8 +349,8 @@ TEST_CASE("one-correction reciprocal reduction covers quotient boundaries for ev
   std::mt19937 random(6901);
   for (uint32_t modulus = 2; modulus <= 256; ++modulus) {
     const uint32_t reciprocal = modulus_reciprocal_u32(modulus);
-    for (uint64_t quotient : {uint64_t{0}, uint64_t{1}, uint64_t{65535},
-                              uint64_t{UINT32_MAX / modulus}}) {
+    for (uint64_t quotient :
+         {uint64_t{0}, uint64_t{1}, uint64_t{65535}, uint64_t{UINT32_MAX / modulus}}) {
       for (int offset : {-1, 0, 1, 127, 255}) {
         const int64_t wide = static_cast<int64_t>(quotient * modulus) + offset;
         if (wide >= 0 && wide <= UINT32_MAX)
@@ -379,53 +397,77 @@ TEST_CASE("packed signed byte primitive and scalar control preserve every sign a
 TEST_CASE("signed pack calibration shares unchanged public crossover selector") {
   using namespace rns8::detail;
   for (int64_t cells : {1, 255, 256, 257, 4095, 4096, 4097, 8192}) {
-    CHECK(signed_pack_kernel(1, cells, cells, SignedPackVariant::fixed_prefix) == SignedPackKernel::fixed_prefix);
-    CHECK(signed_pack_kernel(1, cells, cells + 7, SignedPackVariant::generic) == SignedPackKernel::generic);
+    CHECK(signed_pack_kernel(1, cells, cells, SignedPackVariant::fixed_prefix) ==
+          SignedPackKernel::fixed_prefix);
+    CHECK(signed_pack_kernel(1, cells, cells + 7, SignedPackVariant::generic) ==
+          SignedPackKernel::generic);
     CHECK(signed_pack_kernel(1, cells, cells + 7, SignedPackVariant::public_selected) ==
           (cells <= 4096 ? SignedPackKernel::small : SignedPackKernel::fixed_prefix));
     CHECK(signed_pack_kernel(1, cells, cells, SignedPackVariant::public_selected) ==
-          (cells < 256 ? SignedPackKernel::small : cells <= 4096 ? SignedPackKernel::four_wide : SignedPackKernel::eight_wide));
+          (cells < 256     ? SignedPackKernel::small
+           : cells <= 4096 ? SignedPackKernel::four_wide
+                           : SignedPackKernel::eight_wide));
   }
 }
 
 #include "reconstruct/reconstruction.hpp"
-TEST_CASE("CRT immutable tables initialize before worker use and match the complete ladder", "[crt-first-use]") {
-  using namespace rns8::detail;cpp_int independent=1;
-  REQUIRE(reconstruction_product(0)==independent);
-  for(uint32_t prefix=1;prefix<=RNS8_DEFAULT_MODULUS_COUNT;++prefix) {
-    independent*=rns8_default_modulus(prefix-1);
-    CHECK(reconstruction_product(prefix)==independent);
-    CHECK(modulus_product(prefix)==independent);
+TEST_CASE("CRT immutable tables initialize before worker use and match the complete ladder",
+          "[crt-first-use]") {
+  using namespace rns8::detail;
+  cpp_int independent = 1;
+  REQUIRE(reconstruction_product(0) == independent);
+  for (uint32_t prefix = 1; prefix <= RNS8_DEFAULT_MODULUS_COUNT; ++prefix) {
+    independent *= rns8_default_modulus(prefix - 1);
+    CHECK(reconstruction_product(prefix) == independent);
+    CHECK(modulus_product(prefix) == independent);
   }
   CHECK(default_moduli_pairwise_coprime());
 }
-TEST_CASE("strided reconstruction contracts cover every prefix sign and output limb width", "[crt][strided]") {
+TEST_CASE("strided reconstruction contracts cover every prefix sign and output limb width",
+          "[crt][strided]") {
   using namespace rns8::detail;
-  cpp_int product=1;
-  for(uint32_t prefix=1;prefix<=RNS8_MAX_SUPPORTED_PREFIX;++prefix) {
-    product*=rns8_default_modulus(prefix-1);
-    for(bool sign:{false,true})for(uint32_t limbs=1;limbs<=32;++limbs) {
-      ReconstructionContract contract;
-      REQUIRE(prepare_reconstruction_contract(sign?IntegerExportKind::wide_signed:IntegerExportKind::wide_unsigned,prefix,0,limbs,contract)==RNS8_SUCCESS);
-      const std::vector<cpp_int> canonical{cpp_int(0),cpp_int(1),cpp_int((product+1)/2-1),cpp_int((product+1)/2),cpp_int(product-1)};
-      for(const auto& value:canonical) {
-        std::vector<int8_t> residues(size_t(prefix)*3,99);
-        for(uint32_t p=0;p<prefix;++p) {
-          const int q=rns8_default_modulus(p);int r=static_cast<int>(value%q);
-          if(r>=(q+1)/2)r-=q;residues[size_t(p)*3+1]=static_cast<int8_t>(r);
-        }
-        cpp_int expected=value;if(sign && expected>=(product+1)/2)expected-=product;
-        const cpp_int ring=cpp_int(1)<<(64*limbs),minimum=sign?cpp_int(-(ring>>1)):cpp_int(0);
-        const cpp_int maximum=sign?cpp_int((ring>>1)-1):cpp_int(ring-1);
-        cpp_int decoded;const auto status=reconstruct_strided(residues.data()+1,3,contract,decoded);
-        CHECK(status==((expected<minimum || expected>maximum)?RNS8_RANGE_ERROR:RNS8_SUCCESS));
-        if(status==RNS8_SUCCESS) {
-          CHECK(decoded==expected);std::vector<uint64_t> out(size_t(limbs)+2,99);
-          store_reconstructed_limbs(decoded,contract,out.data()+1);CHECK(out.front()==99);CHECK(out.back()==99);
-          if(expected<0)expected+=ring;
-          for(uint32_t l=0;l<limbs;++l)CHECK(out[l+1]==static_cast<uint64_t>((expected>>(64*l))&UINT64_MAX));
+  cpp_int product = 1;
+  for (uint32_t prefix = 1; prefix <= RNS8_MAX_SUPPORTED_PREFIX; ++prefix) {
+    product *= rns8_default_modulus(prefix - 1);
+    for (bool sign : {false, true})
+      for (uint32_t limbs = 1; limbs <= 32; ++limbs) {
+        ReconstructionContract contract;
+        REQUIRE(prepare_reconstruction_contract(sign ? IntegerExportKind::wide_signed
+                                                     : IntegerExportKind::wide_unsigned,
+                                                prefix, 0, limbs, contract) == RNS8_SUCCESS);
+        const std::vector<cpp_int> canonical{cpp_int(0), cpp_int(1), cpp_int((product + 1) / 2 - 1),
+                                             cpp_int((product + 1) / 2), cpp_int(product - 1)};
+        for (const auto& value : canonical) {
+          std::vector<int8_t> residues(size_t(prefix) * 3, 99);
+          for (uint32_t p = 0; p < prefix; ++p) {
+            const int q = rns8_default_modulus(p);
+            int r = static_cast<int>(value % q);
+            if (r >= (q + 1) / 2)
+              r -= q;
+            residues[size_t(p) * 3 + 1] = static_cast<int8_t>(r);
+          }
+          cpp_int expected = value;
+          if (sign && expected >= (product + 1) / 2)
+            expected -= product;
+          const cpp_int ring = cpp_int(1) << (64 * limbs),
+                        minimum = sign ? cpp_int(-(ring >> 1)) : cpp_int(0);
+          const cpp_int maximum = sign ? cpp_int((ring >> 1) - 1) : cpp_int(ring - 1);
+          cpp_int decoded;
+          const auto status = reconstruct_strided(residues.data() + 1, 3, contract, decoded);
+          CHECK(status ==
+                ((expected < minimum || expected > maximum) ? RNS8_RANGE_ERROR : RNS8_SUCCESS));
+          if (status == RNS8_SUCCESS) {
+            CHECK(decoded == expected);
+            std::vector<uint64_t> out(size_t(limbs) + 2, 99);
+            store_reconstructed_limbs(decoded, contract, out.data() + 1);
+            CHECK(out.front() == 99);
+            CHECK(out.back() == 99);
+            if (expected < 0)
+              expected += ring;
+            for (uint32_t l = 0; l < limbs; ++l)
+              CHECK(out[l + 1] == static_cast<uint64_t>((expected >> (64 * l)) & UINT64_MAX));
+          }
         }
       }
-    }
   }
 }

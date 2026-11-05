@@ -50,13 +50,19 @@ def cache_capture(backend: str = "hip-direct") -> dict:
     }
     if backend != "cpu-reference":
         if backend == "hip-direct":
-            capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
-            capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
+            capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+                "direct_hip_default_stream_backend_operation_groups"
+            )
+            capture["timing_metadata"]["gpu_event_timing_reason"] = (
+                "captured_by_direct_hip_backend_hooks"
+            )
         add_target_variant_fields(capture)
     return add_synthetic_full_reference(capture)
 
 
-def public_cache_capture(backend: str, end_to_end: int, role: str, public_candidate: bool = False) -> dict:
+def public_cache_capture(
+    backend: str, end_to_end: int, role: str, public_candidate: bool = False
+) -> dict:
     capture = cache_capture(backend)
     capture["scenario_metadata"]["promotion_eligibility"] = "result_cache_contract_candidate"
     capture["scenario_metadata"]["metadata"]["promotion_scope"] = "result_cache_contract_candidate"
@@ -107,7 +113,9 @@ def write(path: Path, capture: dict) -> Path:
     if capture.get("per_modulus_gemm_estimate_applicable") is False:
         capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"])
     else:
-        capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(prefix)
+        capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(
+            prefix
+        )
     validate_capture(capture, path)
     path.write_text(json.dumps(capture, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
@@ -120,12 +128,19 @@ def main() -> int:
         direct = write(tmp / "direct.json", cache_capture("hip-direct"))
         report = incremental_result_cache_report.build_report([cpu, direct])
         assert report["schema"] == "rns8_incremental_result_cache_report_v1"
-        assert report["rank75_gate_complete"] is True, json.dumps(report["blocker_counts"], indent=2)
+        assert report["rank75_gate_complete"] is True, json.dumps(
+            report["blocker_counts"], indent=2
+        )
         assert report["groups"][0]["status"] == "research-ready"
         assert report["promotable_result_cache_candidate_count"] == 0
         assert report["promotion_status"] == "blocked_public_incremental_cache_contract_required"
-        assert report["groups"][0]["promotion_decision"] == "blocked_public_incremental_cache_contract_required"
-        assert "public_result_lifetime_contract_missing" in report["groups"][0]["promotion_blockers"]
+        assert (
+            report["groups"][0]["promotion_decision"]
+            == "blocked_public_incremental_cache_contract_required"
+        )
+        assert (
+            "public_result_lifetime_contract_missing" in report["groups"][0]["promotion_blockers"]
+        )
 
         missing_dir = tmp / "missing-contract"
         missing_dir.mkdir()
@@ -134,7 +149,9 @@ def main() -> int:
         try:
             write(missing_dir / "missing.json", missing)
         except Exception:
-            missing["incremental_result_cache"]["dirty_region_policy"] = "explicit_dirty_region_shape_required"
+            missing["incremental_result_cache"]["dirty_region_policy"] = (
+                "explicit_dirty_region_shape_required"
+            )
             del missing["incremental_result_cache"]["source_identity_policy"]
             missing_dir.joinpath("missing.json").write_text(
                 json.dumps(missing, indent=2, sort_keys=True) + "\n",
@@ -165,8 +182,12 @@ def main() -> int:
         exact = exact_wide_capture("hip-direct", 1200)
         exact["scenario_metadata"] = copy.deepcopy(cache_capture("hip-direct")["scenario_metadata"])
         exact["scenario_metadata"]["name"] = "exact-wide-partial-output-recompute"
-        exact["incremental_result_cache"] = copy.deepcopy(cache_capture("hip-direct")["incremental_result_cache"])
-        exact["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
+        exact["incremental_result_cache"] = copy.deepcopy(
+            cache_capture("hip-direct")["incremental_result_cache"]
+        )
+        exact["timing_metadata"]["gpu_event_timing_source_scope"] = (
+            "direct_hip_default_stream_backend_operation_groups"
+        )
         exact["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(exact)
         write(exact_dir / "exact.json", exact)
@@ -176,10 +197,16 @@ def main() -> int:
         public_dir = tmp / "public-contract"
         public_dir.mkdir()
         cpu_public = public_cache_capture("cpu-reference", 5000, "cpu_reference_baseline")
-        full_public = public_cache_capture("hip-direct", 1000, "same_backend_full_recompute_baseline")
-        candidate_public = public_cache_capture("hip-direct", 800, "public_result_cache_candidate", True)
+        full_public = public_cache_capture(
+            "hip-direct", 1000, "same_backend_full_recompute_baseline"
+        )
+        candidate_public = public_cache_capture(
+            "hip-direct", 800, "public_result_cache_candidate", True
+        )
         ck_public = public_cache_capture("ck", 1200, "comparison_candidate")
-        full_public["scenario_metadata"]["name"] = "bounded-i64-dirty-tile-public-contract-full-recompute-baseline"
+        full_public["scenario_metadata"]["name"] = (
+            "bounded-i64-dirty-tile-public-contract-full-recompute-baseline"
+        )
         for capture in [cpu_public, full_public, candidate_public, ck_public]:
             capture["scenario_metadata"]["metadata"]["result_cache_contract_group"] = (
                 "bounded-i64-dirty-tile-recompute"
@@ -196,7 +223,9 @@ def main() -> int:
 
         weak_dir = tmp / "weak-public-contract"
         weak_dir.mkdir()
-        weak_candidate = public_cache_capture("hip-direct", 950, "public_result_cache_candidate", True)
+        weak_candidate = public_cache_capture(
+            "hip-direct", 950, "public_result_cache_candidate", True
+        )
         weak_candidate["scenario_metadata"]["metadata"]["result_cache_contract_group"] = (
             "bounded-i64-dirty-tile-recompute"
         )
@@ -206,8 +235,7 @@ def main() -> int:
         weak_report = incremental_result_cache_report.build_report([weak_dir])
         assert weak_report["rank78_gate_complete"] is False
         assert any(
-            "speedup_below_1_10x" in group["promotion_blockers"]
-            for group in weak_report["groups"]
+            "speedup_below_1_10x" in group["promotion_blockers"] for group in weak_report["groups"]
         ), json.dumps(weak_report, indent=2)
 
     print("incremental result-cache report self-test: PASS")

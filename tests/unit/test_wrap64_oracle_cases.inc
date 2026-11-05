@@ -1,17 +1,17 @@
 TEST_CASE("wrap64 byte-limb product matches low 64-bit multiprecision product") {
-  const std::vector<uint64_t> values = {
-      0,
-      1,
-      255,
-      256,
-      0x0102030405060708ull,
-      0x8080808080808080ull,
-      std::numeric_limits<uint64_t>::max() - 1,
-      std::numeric_limits<uint64_t>::max()};
+  const std::vector<uint64_t> values = {0,
+                                        1,
+                                        255,
+                                        256,
+                                        0x0102030405060708ull,
+                                        0x8080808080808080ull,
+                                        std::numeric_limits<uint64_t>::max() - 1,
+                                        std::numeric_limits<uint64_t>::max()};
 
   for (const uint64_t a : values) {
     for (const uint64_t b : values) {
-      const uint64_t expected = low64(boost::multiprecision::cpp_int(a) * boost::multiprecision::cpp_int(b));
+      const uint64_t expected =
+          low64(boost::multiprecision::cpp_int(a) * boost::multiprecision::cpp_int(b));
       CHECK(rns8::detail::wrap64_byte_limb_product(a, b) == expected);
     }
   }
@@ -21,7 +21,8 @@ TEST_CASE("wrap64 signed-int8 byte correction recovers unsigned byte products") 
   CHECK(rns8::detail::wrap64_signed_i8_product_correction(0x7fu, 0x7fu) == 0);
   CHECK(rns8::detail::wrap64_signed_i8_product_correction(0x80u, 0x7fu) == 256 * 0x7f);
   CHECK(rns8::detail::wrap64_signed_i8_product_correction(0x7fu, 0x80u) == 256 * 0x7f);
-  CHECK(rns8::detail::wrap64_signed_i8_product_correction(0xffu, 0xffu) == 256 * 0xff + 256 * 0xff - 65536);
+  CHECK(rns8::detail::wrap64_signed_i8_product_correction(0xffu, 0xffu) ==
+        256 * 0xff + 256 * 0xff - 65536);
 
   for (uint32_t a = 0; a <= 0xffu; ++a) {
     for (uint32_t b = 0; b <= 0xffu; ++b) {
@@ -29,7 +30,8 @@ TEST_CASE("wrap64 signed-int8 byte correction recovers unsigned byte products") 
       const auto b_byte = static_cast<uint8_t>(b);
       const int32_t signed_product = rns8::detail::wrap64_signed_i8_lane_value(a_byte) *
                                      rns8::detail::wrap64_signed_i8_lane_value(b_byte);
-      const int32_t corrected = signed_product + rns8::detail::wrap64_signed_i8_product_correction(a_byte, b_byte);
+      const int32_t corrected =
+          signed_product + rns8::detail::wrap64_signed_i8_product_correction(a_byte, b_byte);
       CHECK(corrected == static_cast<int32_t>(a * b));
       CHECK(rns8::detail::wrap64_unsigned_byte_product_from_signed_i8(a_byte, b_byte) == a * b);
     }
@@ -38,16 +40,13 @@ TEST_CASE("wrap64 signed-int8 byte correction recovers unsigned byte products") 
 
 TEST_CASE("wrap64 signed-int8 correction composes through Comba diagonals") {
   const std::vector<uint64_t> values = {
-      0x0000000000000000ull,
-      0x00000000000000ffull,
-      0x8080808080808080ull,
-      0x7f807f807f807f80ull,
-      0xfefdfcfbfaf9f8f7ull,
-      std::numeric_limits<uint64_t>::max()};
+      0x0000000000000000ull, 0x00000000000000ffull, 0x8080808080808080ull,
+      0x7f807f807f807f80ull, 0xfefdfcfbfaf9f8f7ull, std::numeric_limits<uint64_t>::max()};
 
   for (const uint64_t a : values) {
     for (const uint64_t b : values) {
-      CHECK(corrected_signed_i8_comba_product(a, b) == rns8::detail::wrap64_byte_limb_product(a, b));
+      CHECK(corrected_signed_i8_comba_product(a, b) ==
+            rns8::detail::wrap64_byte_limb_product(a, b));
     }
   }
 }
@@ -56,26 +55,22 @@ TEST_CASE("wrap64 byte-limb GEMM cell matches multiprecision modulo 2^64") {
   const int64_t m = 2;
   const int64_t n = 2;
   const int64_t k = 3;
-  const uint64_t A[] = {
-      std::numeric_limits<uint64_t>::max(),
-      0x0102030405060708ull,
-      17,
-      0x8080808080808080ull,
-      std::numeric_limits<uint64_t>::max() - 1,
-      255};
+  const uint64_t A[] = {std::numeric_limits<uint64_t>::max(),
+                        0x0102030405060708ull,
+                        17,
+                        0x8080808080808080ull,
+                        std::numeric_limits<uint64_t>::max() - 1,
+                        255};
   const uint64_t B[] = {
-      3,
-      std::numeric_limits<uint64_t>::max(),
-      0x1112131415161718ull,
-      29,
-      0x8080808080808080ull,
+      3, std::numeric_limits<uint64_t>::max(), 0x1112131415161718ull, 29, 0x8080808080808080ull,
       31};
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       boost::multiprecision::cpp_int exact = 0;
       for (int64_t kk = 0; kk < k; ++kk) {
-        exact += boost::multiprecision::cpp_int(A[row * k + kk]) * boost::multiprecision::cpp_int(B[kk * n + col]);
+        exact += boost::multiprecision::cpp_int(A[row * k + kk]) *
+                 boost::multiprecision::cpp_int(B[kk * n + col]);
       }
       CHECK(rns8::detail::wrap64_byte_limb_gemm_cell(A, k, B, n, row, col, k) == low64(exact));
     }
@@ -88,45 +83,45 @@ TEST_CASE("wrap64 36-byte-pair oracle matches Comba and multiprecision") {
   constexpr int64_t k = 4;
   constexpr int64_t lda = 5;
   constexpr int64_t ldb = 4;
-  const std::vector<uint64_t> A = {
-      0,
-      std::numeric_limits<uint64_t>::max(),
-      0x8080808080808080ull,
-      0x0102030405060708ull,
-      0xaaaaaaaaaaaaaaaaull,
-      0xfefdfcfbfaf9f8f7ull,
-      17,
-      0x7f807f807f807f80ull,
-      255,
-      0xbbbbbbbbbbbbbbbbull};
-  const std::vector<uint64_t> B = {
-      3,
-      std::numeric_limits<uint64_t>::max(),
-      0x1112131415161718ull,
-      0xccccccccccccccccull,
-      0x8080808080808080ull,
-      31,
-      0xfefdfcfbfaf9f8f7ull,
-      0xddddddddddddddddull,
-      0x0101010101010101ull,
-      37,
-      41,
-      0xeeeeeeeeeeeeeeeeull,
-      43,
-      47,
-      53,
-      0xffffffffffffffffull};
+  const std::vector<uint64_t> A = {0,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x8080808080808080ull,
+                                   0x0102030405060708ull,
+                                   0xaaaaaaaaaaaaaaaaull,
+                                   0xfefdfcfbfaf9f8f7ull,
+                                   17,
+                                   0x7f807f807f807f80ull,
+                                   255,
+                                   0xbbbbbbbbbbbbbbbbull};
+  const std::vector<uint64_t> B = {3,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x1112131415161718ull,
+                                   0xccccccccccccccccull,
+                                   0x8080808080808080ull,
+                                   31,
+                                   0xfefdfcfbfaf9f8f7ull,
+                                   0xddddddddddddddddull,
+                                   0x0101010101010101ull,
+                                   37,
+                                   41,
+                                   0xeeeeeeeeeeeeeeeeull,
+                                   43,
+                                   47,
+                                   53,
+                                   0xffffffffffffffffull};
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       boost::multiprecision::cpp_int exact = 0;
       for (int64_t kk = 0; kk < k; ++kk) {
-        exact += boost::multiprecision::cpp_int(A[row * lda + kk]) * boost::multiprecision::cpp_int(B[kk * ldb + col]);
+        exact += boost::multiprecision::cpp_int(A[row * lda + kk]) *
+                 boost::multiprecision::cpp_int(B[kk * ldb + col]);
       }
-      const uint64_t oracle =
-          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t oracle = rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(
+          A.data(), lda, B.data(), ldb, row, col, k);
       CHECK(oracle == low64(exact));
-      CHECK(oracle == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+      CHECK(oracle ==
+            rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
     }
   }
 }
@@ -160,41 +155,52 @@ TEST_CASE("wrap64 36-byte-pair oracle covers full-width randomized signed-int8 c
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t oracle =
-          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t oracle = rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(
+          A.data(), lda, B.data(), ldb, row, col, k);
       CHECK(oracle == expected_wrap_cell(A, lda, B, ldb, row, col, k));
-      CHECK(oracle == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+      CHECK(oracle ==
+            rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
     }
   }
 }
 
-
 TEST_CASE("carry-recoded signed radix256 preserves the entire wrap64 ring") {
   using namespace rns8::detail;
-  const auto reconstruct=[](uint64_t packed) {
-    uint64_t value=0;
-    for(unsigned i=0;i<8;++i) value+=uint64_t(int64_t(wrap64_signed_digit(packed,i)))<<(8*i);
+  const auto reconstruct = [](uint64_t packed) {
+    uint64_t value = 0;
+    for (unsigned i = 0; i < 8; ++i)
+      value += uint64_t(int64_t(wrap64_signed_digit(packed, i))) << (8 * i);
     return value;
   };
-  for(unsigned shift=0;shift<=48;shift+=8)
-    for(uint64_t value=0;value<65536;++value)
-      REQUIRE(reconstruct(wrap64_signed_recode(value<<shift))==(value<<shift));
-  std::vector<uint64_t> values={0,1,127,128,255,256,UINT64_MAX,UINT64_C(1)<<63,
-    UINT64_C(0x7f7f7f7f7f7f7f7f),UINT64_C(0x8080808080808080),
-    UINT64_C(0xff00ff00ff00ff00)};
-  for(unsigned byte=1;byte<8;++byte) values.push_back((UINT64_C(1)<<(8*byte))-1);
-  for(auto a:values) for(auto b:values) {
-    REQUIRE(wrap64_signed_product(a,b)==low64(boost::multiprecision::cpp_int(a)*b));
-    REQUIRE(wrap64_signed_product(a,b)==wrap64_byte_limb_product(a,b));
-  }
+  for (unsigned shift = 0; shift <= 48; shift += 8)
+    for (uint64_t value = 0; value < 65536; ++value)
+      REQUIRE(reconstruct(wrap64_signed_recode(value << shift)) == (value << shift));
+  std::vector<uint64_t> values = {0,
+                                  1,
+                                  127,
+                                  128,
+                                  255,
+                                  256,
+                                  UINT64_MAX,
+                                  UINT64_C(1) << 63,
+                                  UINT64_C(0x7f7f7f7f7f7f7f7f),
+                                  UINT64_C(0x8080808080808080),
+                                  UINT64_C(0xff00ff00ff00ff00)};
+  for (unsigned byte = 1; byte < 8; ++byte)
+    values.push_back((UINT64_C(1) << (8 * byte)) - 1);
+  for (auto a : values)
+    for (auto b : values) {
+      REQUIRE(wrap64_signed_product(a, b) == low64(boost::multiprecision::cpp_int(a) * b));
+      REQUIRE(wrap64_signed_product(a, b) == wrap64_byte_limb_product(a, b));
+    }
   std::mt19937_64 random(641);
-  for(unsigned i=0;i<10000;++i) {
-    const auto a=random(),b=random();
-    REQUIRE(wrap64_signed_product(a,b)==a*b);
+  for (unsigned i = 0; i < 10000; ++i) {
+    const auto a = random(), b = random();
+    REQUIRE(wrap64_signed_product(a, b) == a * b);
   }
   // Raw signed reinterpretation omits the carry and is demonstrably wrong.
-  CHECK(reconstruct(255)!=255);
-  CHECK(reconstruct((255+wrap64_radix_bias)^UINT64_C(0x8080808080808000))!=255);
-  CHECK(wrap64_signed_pair_k_cap==131071);
-  CHECK(wrap64_unsigned_pair_k_cap==33025);
+  CHECK(reconstruct(255) != 255);
+  CHECK(reconstruct((255 + wrap64_radix_bias) ^ UINT64_C(0x8080808080808000)) != 255);
+  CHECK(wrap64_signed_pair_k_cap == 131071);
+  CHECK(wrap64_unsigned_pair_k_cap == 33025);
 }

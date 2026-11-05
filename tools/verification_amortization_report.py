@@ -9,7 +9,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 from review_reference import ReviewIndex, load_review_index
-from review_contract import REVIEW_SCHEMA_VERSION, FINAL_COMPARISON_STATUSES, COMPLETE_COMPARISON_STATUSES
+from review_contract import (
+    REVIEW_SCHEMA_VERSION,
+    FINAL_COMPARISON_STATUSES,
+    COMPLETE_COMPARISON_STATUSES,
+)
 
 from benchmark_schema import BenchmarkSchemaError
 from report_capture_inputs import load_report_capture
@@ -18,8 +22,6 @@ from report_capture_inputs import load_report_capture
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUT_DIR = REPO_ROOT / "temp" / "verification-amortization-reports"
 CPU_REFERENCE_BACKENDS = {"cpu", "cpu-reference"}
-
-
 
 
 def _relative(path: Path) -> str:
@@ -60,10 +62,6 @@ def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]
         if isinstance(amortization, dict) and amortization.get("enabled") is True:
             captures.append((path, capture))
     return captures, skipped
-
-
-
-
 
 
 def _scenario_scope(capture: dict[str, Any]) -> str | None:
@@ -108,7 +106,10 @@ def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> lis
             blockers.append("review_schema_version_mismatch")
         if review.get("cpu_reference_present") is not True:
             blockers.append("cpu_reference_baseline_missing")
-        if review.get("review_mode") == "release" and review.get("cpu_reference_release_review_capture") is not True:
+        if (
+            review.get("review_mode") == "release"
+            and review.get("cpu_reference_release_review_capture") is not True
+        ):
             blockers.append("cpu_reference_release_review_missing")
         missing = review.get("missing_required_baselines") or []
         if any(str(item) in CPU_REFERENCE_BACKENDS for item in missing):
@@ -118,7 +119,11 @@ def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> lis
             blockers.append("duplicate_backend_records")
         if review.get("candidate_promotable") is True:
             blockers.append("amortized_capture_promotable_in_review")
-        if review.get("candidate_cache_write_status") in {"eligible_after_review", "written", "pending"}:
+        if review.get("candidate_cache_write_status") in {
+            "eligible_after_review",
+            "written",
+            "pending",
+        }:
             blockers.append("amortized_capture_cache_write_eligible")
     policy = capture.get("verification_amortization") or {}
     if policy.get("final_exact_comparison_status") not in COMPLETE_COMPARISON_STATUSES:
@@ -128,14 +133,20 @@ def _row_blockers(capture: dict[str, Any], review: dict[str, Any] | None) -> lis
     return sorted(set(blockers))
 
 
-def _row_for_capture(path: Path, capture: dict[str, Any], review_index: ReviewIndex) -> dict[str, Any]:
+def _row_for_capture(
+    path: Path, capture: dict[str, Any], review_index: ReviewIndex
+) -> dict[str, Any]:
     review = review_index.lookup(path, capture)
     amortization = capture.get("verification_amortization")
     if not isinstance(amortization, dict):
         amortization = {}
     blockers = _row_blockers(capture, review)
     numerical = review.get("numerical_reference") if review else None
-    reference_passed = isinstance(numerical, dict) and numerical.get("passed") is True and not review.get("review_reader_blockers")
+    reference_passed = (
+        isinstance(numerical, dict)
+        and numerical.get("passed") is True
+        and not review.get("review_reader_blockers")
+    )
     return {
         "capture_path": _relative(path),
         "backend": capture.get("backend_selected"),
@@ -149,19 +160,38 @@ def _row_for_capture(path: Path, capture: dict[str, Any], review_index: ReviewIn
         "scenario_promotion_scope": _scenario_scope(capture),
         "review_report": review.get("review_report") if isinstance(review, dict) else None,
         "review_mode": review.get("review_mode") if isinstance(review, dict) else None,
-        "review_group_index": review.get("review_report_group_index") if isinstance(review, dict) else None,
-        "review_cpu_reference_present": review.get("cpu_reference_present") if isinstance(review, dict) else None,
-        "review_cpu_reference_release_review_capture": review.get("cpu_reference_release_review_capture")
+        "review_group_index": review.get("review_report_group_index")
         if isinstance(review, dict)
         else None,
-        "review_candidate_backends": review.get("candidate_backends") if isinstance(review, dict) else [],
-        "review_missing_required_baselines": review.get("missing_required_baselines") if isinstance(review, dict) else [],
-        "review_duplicate_backends": review.get("duplicate_backends") if isinstance(review, dict) else [],
-        "review_candidate_promotable": review.get("candidate_promotable") if isinstance(review, dict) else None,
-        "review_candidate_cache_write_status": review.get("candidate_cache_write_status") if isinstance(review, dict) else None,
+        "review_cpu_reference_present": review.get("cpu_reference_present")
+        if isinstance(review, dict)
+        else None,
+        "review_cpu_reference_release_review_capture": review.get(
+            "cpu_reference_release_review_capture"
+        )
+        if isinstance(review, dict)
+        else None,
+        "review_candidate_backends": review.get("candidate_backends")
+        if isinstance(review, dict)
+        else [],
+        "review_missing_required_baselines": review.get("missing_required_baselines")
+        if isinstance(review, dict)
+        else [],
+        "review_duplicate_backends": review.get("duplicate_backends")
+        if isinstance(review, dict)
+        else [],
+        "review_candidate_promotable": review.get("candidate_promotable")
+        if isinstance(review, dict)
+        else None,
+        "review_candidate_cache_write_status": review.get("candidate_cache_write_status")
+        if isinstance(review, dict)
+        else None,
         "policy_metadata_valid": not _policy_blockers(capture),
-        "reference_coverage_present": numerical.get("reference_coverage_present") is True if isinstance(numerical, dict) else False,
-        "comparison_passed": reference_passed and amortization.get("final_exact_comparison_status") in COMPLETE_COMPARISON_STATUSES,
+        "reference_coverage_present": numerical.get("reference_coverage_present") is True
+        if isinstance(numerical, dict)
+        else False,
+        "comparison_passed": reference_passed
+        and amortization.get("final_exact_comparison_status") in COMPLETE_COMPARISON_STATUSES,
         "promotion_prohibited": amortization.get("promotion_eligible") is False,
         "numerical_reference": numerical,
         "ready": not blockers,
@@ -224,7 +254,9 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("inputs", nargs="+", type=Path, help="capture files or directories containing captures")
+    parser.add_argument(
+        "inputs", nargs="+", type=Path, help="capture files or directories containing captures"
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--json", action="store_true")

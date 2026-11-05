@@ -1,37 +1,37 @@
 const char* semantics_name_for_key(rns8_semantics semantics) {
   switch (semantics) {
-    case RNS8_BOUNDED_I64:
-      return "bounded_i64";
-    case RNS8_BOUNDED_U64:
-      return "bounded_u64";
-    case RNS8_EXACT_WIDE_SIGNED:
-      return "exact_wide_signed";
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      return "exact_wide_unsigned";
-    case RNS8_WRAP_U64_MOD_2_64:
-      return "wrap_u64_mod_2_64";
-    case RNS8_FINITE_RING_U8:
-      return "finite_ring_u8";
-    case RNS8_FINITE_FIELD_U8:
-      return "finite_field_u8";
+  case RNS8_BOUNDED_I64:
+    return "bounded_i64";
+  case RNS8_BOUNDED_U64:
+    return "bounded_u64";
+  case RNS8_EXACT_WIDE_SIGNED:
+    return "exact_wide_signed";
+  case RNS8_EXACT_WIDE_UNSIGNED:
+    return "exact_wide_unsigned";
+  case RNS8_WRAP_U64_MOD_2_64:
+    return "wrap_u64_mod_2_64";
+  case RNS8_FINITE_RING_U8:
+    return "finite_ring_u8";
+  case RNS8_FINITE_FIELD_U8:
+    return "finite_field_u8";
   }
   return "unknown";
 }
 
 const char* bound_kind_name_for_key(rns8_bound_kind bound_kind) {
   switch (bound_kind) {
-    case RNS8_BOUND_NONE:
-      return "none";
-    case RNS8_BOUND_GLOBAL_MAX_ABS:
-      return "global_max_abs";
-    case RNS8_BOUND_GLOBAL_MAX_UNSIGNED:
-      return "global_max_unsigned";
-    case RNS8_BOUND_PER_TILE_MAX_ABS:
-      return "per_tile_max_abs";
-    case RNS8_BOUND_PER_TILE_MAX_UNSIGNED:
-      return "per_tile_max_unsigned";
-    case RNS8_BOUND_INPUT_RANGE_AND_K:
-      return "input_range_and_k";
+  case RNS8_BOUND_NONE:
+    return "none";
+  case RNS8_BOUND_GLOBAL_MAX_ABS:
+    return "global_max_abs";
+  case RNS8_BOUND_GLOBAL_MAX_UNSIGNED:
+    return "global_max_unsigned";
+  case RNS8_BOUND_PER_TILE_MAX_ABS:
+    return "per_tile_max_abs";
+  case RNS8_BOUND_PER_TILE_MAX_UNSIGNED:
+    return "per_tile_max_unsigned";
+  case RNS8_BOUND_INPUT_RANGE_AND_K:
+    return "input_range_and_k";
   }
   return "unknown";
 }
@@ -51,16 +51,17 @@ const char* bound_contract_name_for_plan(const rns8_plan& plan) {
 }
 
 bool direct_hip_bounded_skinny_gemv_n1_plan(const rns8_plan& plan) {
-  return plan.backend==RNS8_BACKEND_HIP_DIRECT && plan.tile_schedule.empty() &&
-      (plan.desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL) && plan.desc.n==1;
+  return plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.tile_schedule.empty() &&
+         (plan.desc.flags & RNS8_PLAN_DIRECT_RNS_PARALLEL) && plan.desc.n == 1;
 }
 bool direct_hip_bounded_skinny_gemv_small_n_plan(const rns8_plan& plan) {
-  return plan.backend==RNS8_BACKEND_HIP_DIRECT && plan.tile_schedule.empty() &&
-      (plan.desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL) && plan.desc.n>1 && plan.desc.n<=8;
+  return plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.tile_schedule.empty() &&
+         (plan.desc.flags & RNS8_PLAN_DIRECT_RNS_PARALLEL) && plan.desc.n > 1 && plan.desc.n <= 8;
 }
 
 std::string selected_kernel_for_plan(const rns8_plan& plan) {
-  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_int8_16x16x64_centered_v1";
+  if (plan.backend == RNS8_BACKEND_CPU_AMX)
+    return "cpu_amx_int8_16x16x64_centered_v1";
   if (plan.backend == RNS8_BACKEND_CPU_REFERENCE) {
     return uses_finite_storage(plan.desc.semantics) ? "cpu_reference_finite_u8_gemm_v1"
                                                     : "cpu_reference_scalar_rns_gemm_v1";
@@ -70,7 +71,8 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-      return rns8::detail::wrap64_hip_selected_kernel_for_shape(plan.desc.m, plan.desc.n, plan.desc.k);
+      return rns8::detail::wrap64_hip_selected_kernel_for_shape(plan.desc.m, plan.desc.n,
+                                                                plan.desc.k);
     }
     if (uses_finite_storage(plan.desc.semantics)) {
       if (plan.desc.finite_modulus == 256) {
@@ -84,8 +86,10 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
       }
       return "direct_hip_tiled_finite_u8_gemm_v1";
     }
-    if(plan.tile_schedule.empty())return rns8::detail::direct_rns_route_name(rns8::detail::direct_rns_route(
-      plan.desc.m,plan.desc.n,plan.desc.k,plan.desc.k,plan.desc.n,plan.desc.n,plan.prefix,(plan.desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL)!=0));
+    if (plan.tile_schedule.empty())
+      return rns8::detail::direct_rns_route_name(rns8::detail::direct_rns_route(
+          plan.desc.m, plan.desc.n, plan.desc.k, plan.desc.k, plan.desc.n, plan.desc.n, plan.prefix,
+          (plan.desc.flags & RNS8_PLAN_DIRECT_RNS_PARALLEL) != 0));
     if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
       if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0) {
         return "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1";
@@ -103,9 +107,13 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
                                                      : "hip_vector_alu_u64_gemv_n1_exact_192b_v1";
     }
     if (plan.desc.n > 1 && plan.desc.n <= 8 && plan.desc.k >= 512) {
-      if(plan.desc.flags&RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH)return std::string(plan.desc.semantics==RNS8_BOUNDED_I64?"hip_vector_alu_i64_gemv_n":"hip_vector_alu_u64_gemv_n")+std::to_string(plan.desc.n)+"_exact_width_192b_v1";
-      return plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
-                                                     : "hip_vector_alu_u64_gemv_small_n_exact_192b_v1";
+      if (plan.desc.flags & RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH)
+        return std::string(plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_gemv_n"
+                                                                   : "hip_vector_alu_u64_gemv_n") +
+               std::to_string(plan.desc.n) + "_exact_width_192b_v1";
+      return plan.desc.semantics == RNS8_BOUNDED_I64
+                 ? "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
+                 : "hip_vector_alu_u64_gemv_small_n_exact_192b_v1";
     }
     return plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_exact_192b_v1"
                                                    : "hip_vector_alu_u64_exact_192b_v1";
@@ -115,7 +123,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_CK) {
     if (!plan.tile_schedule.empty()) {
-      return compiled_ck_implementation().selected_kernel(0,true);
+      return compiled_ck_implementation().selected_kernel(0, true);
     }
     if (uses_finite_storage(plan.desc.semantics)) {
       return ck_finite_selected_kernel(plan.desc.finite_modulus);
@@ -132,28 +140,31 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     return "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2";
   }
   if (plan.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
-    if(builtin_arch(plan.backend_target_id)==BuiltinArch::unsupported)return "not_implemented";
+    if (builtin_arch(plan.backend_target_id) == BuiltinArch::unsupported)
+      return "not_implemented";
     if (uses_finite_storage(plan.desc.semantics)) {
-      if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna3) {
+      if (builtin_arch(plan.backend_target_id) == BuiltinArch::rdna3) {
         return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
       }
-      if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna4) {
+      if (builtin_arch(plan.backend_target_id) == BuiltinArch::rdna4) {
         return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
       }
-      if (builtin_arch(plan.backend_target_id)==BuiltinArch::cdna3 &&
-          rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(plan.desc.m, plan.desc.n, plan.desc.k)) {
+      if (builtin_arch(plan.backend_target_id) == BuiltinArch::cdna3 &&
+          rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(plan.desc.m, plan.desc.n,
+                                                                plan.desc.k)) {
         return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1";
       }
       return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
     }
-    if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna3) {
+    if (builtin_arch(plan.backend_target_id) == BuiltinArch::rdna3) {
       return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
     }
-    if (builtin_arch(plan.backend_target_id)==BuiltinArch::rdna4) {
+    if (builtin_arch(plan.backend_target_id) == BuiltinArch::rdna4) {
       return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
     }
-    if (builtin_arch(plan.backend_target_id)==BuiltinArch::cdna3 &&
-        rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(plan.desc.m, plan.desc.n, plan.desc.k)) {
+    if (builtin_arch(plan.backend_target_id) == BuiltinArch::cdna3 &&
+        rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(plan.desc.m, plan.desc.n,
+                                                              plan.desc.k)) {
       return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
     }
     return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1";
@@ -162,7 +173,8 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
 }
 
 std::string epilogue_mode_for_plan(const rns8_plan& plan) {
-  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_tile_local_centered_then_reference_crt";
+  if (plan.backend == RNS8_BACKEND_CPU_AMX)
+    return "cpu_amx_tile_local_centered_then_reference_crt";
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "low64_wrap_export";
   }
@@ -179,7 +191,8 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
     if (uses_finite_storage(plan.desc.semantics)) {
       return "separate_i32_scratch_reduce_then_canonical_u8_export";
     }
-    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED ||
+        plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       return "separate_i32_scratch_reduce_rns_output";
     }
     return "separate_i32_scratch_reduce_then_crt_export";
@@ -188,7 +201,8 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
     if (uses_finite_storage(plan.desc.semantics)) {
       return "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
     }
-    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED ||
+        plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       return "ck_fused_i32_to_centered_residue_rns_output";
     }
     return "ck_fused_i32_to_centered_residue_then_crt_export";
@@ -197,7 +211,8 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
     if (uses_finite_storage(plan.desc.semantics)) {
       return "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export";
     }
-    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED ||
+        plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       return "rocwmma_fused_i32_to_centered_residue_rns_output";
     }
     return "rocwmma_fused_i32_to_centered_residue_then_crt_export";
@@ -206,7 +221,8 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
     if (uses_finite_storage(plan.desc.semantics)) {
       return "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export";
     }
-    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED ||
+        plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       return "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
     }
     return "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
@@ -214,14 +230,16 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
   if (uses_finite_storage(plan.desc.semantics)) {
     return "fused_centered_residue_then_canonical_u8_export";
   }
-  if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+  if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED ||
+      plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
     return "fused_centered_residue_rns_output";
   }
   return "fused_centered_residue_then_crt_export";
 }
 
 std::string workspace_mode_for_plan(const rns8_plan& plan) {
-  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_per_worker_tiles_cached_b_transactional_output";
+  if (plan.backend == RNS8_BACKEND_CPU_AMX)
+    return "cpu_amx_per_worker_tiles_cached_b_transactional_output";
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (direct_hip_bounded_skinny_gemv_n1_plan(plan)) {
       return "resident_rns_inputs_skinny_n1_output";
@@ -272,14 +290,14 @@ rns8_output_domain output_domain_for_plan(const rns8_plan& plan) {
 
 const char* output_domain_name(rns8_output_domain domain) {
   switch (domain) {
-    case RNS8_OUTPUT_DOMAIN_RNS_RESIDUE:
-      return "rns_residue_current";
-    case RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64:
-      return "native_i64_u64_current";
-    case RNS8_OUTPUT_DOMAIN_FINITE_U8:
-      return "finite_u8_current";
-    case RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB:
-      return "wrap64_byte_limb_current";
+  case RNS8_OUTPUT_DOMAIN_RNS_RESIDUE:
+    return "rns_residue_current";
+  case RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64:
+    return "native_i64_u64_current";
+  case RNS8_OUTPUT_DOMAIN_FINITE_U8:
+    return "finite_u8_current";
+  case RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB:
+    return "wrap64_byte_limb_current";
   }
   return "unknown";
 }
@@ -293,7 +311,8 @@ bool concrete_device_target_id(const std::string& target) {
 }
 
 std::string target_id_for_plan_context(const rns8_plan& plan, const rns8_context* ctx) {
-  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu-amx-int8";
+  if (plan.backend == RNS8_BACKEND_CPU_AMX)
+    return "cpu-amx-int8";
   if (!hip_device_backend(plan.backend)) {
     return "cpu";
   }
@@ -346,13 +365,15 @@ const char* next_op_hint_for_plan(const rns8_plan& plan) {
 }
 
 std::string isa_evidence_for_plan(const rns8_plan& plan) {
-  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "source_intrinsics_tdpbssd_runtime_os_worker_admission_unqualified";
+  if (plan.backend == RNS8_BACKEND_CPU_AMX)
+    return "source_intrinsics_tdpbssd_runtime_os_worker_admission_unqualified";
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
       return "wrap64_byte_gemm36_isa_gate_no_variable_divide_no_matrix_engine";
     }
     if (uses_finite_storage(plan.desc.semantics) &&
-        (plan.desc.finite_modulus == 251 || plan.desc.finite_modulus == 255 || plan.desc.finite_modulus == 256)) {
+        (plan.desc.finite_modulus == 251 || plan.desc.finite_modulus == 255 ||
+         plan.desc.finite_modulus == 256)) {
       return "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide";
     }
     return "rns8_hip_direct_reciprocal_isa_gate";
@@ -415,8 +436,9 @@ uint64_t accumulator_modulus_for_plan(const rns8_plan& plan) {
 }
 
 uint64_t accumulator_max_abs_input_for_plan(const rns8_plan& plan) {
-  if(plan.backend==RNS8_BACKEND_CK)return compiled_ck_implementation().max_input(
-    uses_finite_storage(plan.desc.semantics)?plan.desc.finite_modulus:256);
+  if (plan.backend == RNS8_BACKEND_CK)
+    return compiled_ck_implementation().max_input(
+        uses_finite_storage(plan.desc.semantics) ? plan.desc.finite_modulus : 256);
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
       rns8::detail::wrap64_hip_uses_u32_accumulator(plan.desc.k)) {
     return 255u;
@@ -443,12 +465,15 @@ uint32_t accumulator_safe_for_k_block_for_plan(const rns8_plan& plan) {
   if (k_block == 0 || product == 0) {
     return 0u;
   }
-  const uint64_t previous=plan.backend==RNS8_BACKEND_CPU_AMX?128:0;
-  return product <= (static_cast<uint64_t>(std::numeric_limits<int32_t>::max())-previous) / k_block ? 1u : 0u;
+  const uint64_t previous = plan.backend == RNS8_BACKEND_CPU_AMX ? 128 : 0;
+  return product <=
+                 (static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) - previous) / k_block
+             ? 1u
+             : 0u;
 }
 
 std::string accumulator_input_domain_for_plan(const rns8_plan& plan) {
-  if(plan.backend==RNS8_BACKEND_CK && !compiled_ck_implementation().signed_operands)
+  if (plan.backend == RNS8_BACKEND_CK && !compiled_ck_implementation().signed_operands)
     return "canonical_u8_from_centered_residues";
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return plan.desc.semantics == RNS8_BOUNDED_I64 ? "native_i64_values" : "native_u64_values";
@@ -463,10 +488,11 @@ std::string accumulator_input_domain_for_plan(const rns8_plan& plan) {
 }
 
 std::string accumulator_signedness_for_plan(const rns8_plan& plan) {
-  if(plan.backend==RNS8_BACKEND_CK && !compiled_ck_implementation().signed_operands)
+  if (plan.backend == RNS8_BACKEND_CK && !compiled_ck_implementation().signed_operands)
     return "unsigned_u8x_unsigned_u8";
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
-    return plan.desc.semantics == RNS8_BOUNDED_I64 ? "signed_i64x_signed_i64" : "unsigned_u64x_unsigned_u64";
+    return plan.desc.semantics == RNS8_BOUNDED_I64 ? "signed_i64x_signed_i64"
+                                                   : "unsigned_u64x_unsigned_u64";
   }
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "unsigned_byte_limb";
@@ -518,6 +544,6 @@ std::string accumulator_safety_status_for_plan(const rns8_plan& plan) {
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "exact_mod_2_64_byte_limb_no_int32_k_cap";
   }
-  return accumulator_safe_for_k_block_for_plan(plan) ? "safe_int32_k_block_split" : "unsafe_int32_k_block";
+  return accumulator_safe_for_k_block_for_plan(plan) ? "safe_int32_k_block_split"
+                                                     : "unsafe_int32_k_block";
 }
-

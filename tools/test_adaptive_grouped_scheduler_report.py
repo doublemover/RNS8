@@ -20,7 +20,11 @@ FIXTURE = Path("tests") / "fixtures" / "benchmark_schema" / "v4_bounded_i64_adap
 
 def _summary(values: list[float]) -> dict[str, float]:
     ordered = sorted(values)
-    return {"avg": sum(ordered) / len(ordered), "median": ordered[len(ordered) // 2], "p95": ordered[-1]}
+    return {
+        "avg": sum(ordered) / len(ordered),
+        "median": ordered[len(ordered) // 2],
+        "p95": ordered[-1],
+    }
 
 
 def _resize_timings(capture: dict, end_to_end_us: int, repeats: int = 9) -> None:
@@ -29,7 +33,11 @@ def _resize_timings(capture: dict, end_to_end_us: int, repeats: int = 9) -> None
     phases = list(capture["raw_timings_us"])
     one_time_phases = {"planning", "scheduling", "tile_bound_scan", "matrix_alloc"}
     for phase in phases:
-        value = end_to_end_us if phase == "end_to_end" else int(capture["timing_summary_us"][phase]["median"])
+        value = (
+            end_to_end_us
+            if phase == "end_to_end"
+            else int(capture["timing_summary_us"][phase]["median"])
+        )
         count = 1 if phase in one_time_phases else repeats
         capture["raw_timings_us"][phase] = [value] * count
         capture["timing_summary_us"][phase] = _summary([float(value)] * count)
@@ -58,10 +66,16 @@ def _add_adaptive_grouped_metadata(capture: dict, executed: bool = True) -> None
         "independent_launch_count_model": active_entries,
         "aggregate_launch_count_model": 1,
         "launch_reduction_ratio": float(active_entries),
-        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat" if executed else "not_available",
+        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat"
+        if executed
+        else "not_available",
         "selected_prefix_histogram": "min=1;max=4",
-        "capture_status": "executed" if executed else "metadata_only_unsupported_for_execution_path",
-        "unsupported_reason": None if executed else "adaptive_grouped_scheduler_not_executed_by_current_path",
+        "capture_status": "executed"
+        if executed
+        else "metadata_only_unsupported_for_execution_path",
+        "unsupported_reason": None
+        if executed
+        else "adaptive_grouped_scheduler_not_executed_by_current_path",
         "promotion_eligible": False,
     }
 
@@ -97,8 +111,12 @@ def _capture(backend: str, end_to_end_us: int, *, candidate: bool = False) -> di
         metadata["workspace_mode"] = "host_reference_workspace"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"
-        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=hip-direct", "backend=cpu-reference")
-        metadata["autotune_key"] = metadata["autotune_key"].replace("target_id=gfx1100", "target_id=cpu")
+        metadata["autotune_key"] = metadata["autotune_key"].replace(
+            "backend=hip-direct", "backend=cpu-reference"
+        )
+        metadata["autotune_key"] = metadata["autotune_key"].replace(
+            "target_id=gfx1100", "target_id=cpu"
+        )
         metadata["autotune_key"] = metadata["autotune_key"].replace(
             "kernel=direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
             "kernel=cpu_reference_scalar_rns_gemm_v1",

@@ -3,44 +3,44 @@ TEST_CASE("public wrap64 one-shot uses byte-limb low-64-bit semantics") {
   constexpr int64_t n = 3;
   constexpr int64_t k = 5;
   constexpr int64_t ldc = 4;
-  const std::vector<uint64_t> A = {
-      0,
-      1,
-      std::numeric_limits<uint64_t>::max(),
-      0x8080808080808080ull,
-      0x0102030405060708ull,
-      255,
-      256,
-      std::numeric_limits<uint64_t>::max() - 1,
-      0x7f7f7f7f7f7f7f7full,
-      17};
-  const std::vector<uint64_t> B = {
-      3,
-      std::numeric_limits<uint64_t>::max(),
-      0x1112131415161718ull,
-      29,
-      0x8080808080808080ull,
-      31,
-      0x0101010101010101ull,
-      0xfefdfcfbfaf9f8f7ull,
-      37,
-      41,
-      43,
-      47,
-      53,
-      59,
-      61};
+  const std::vector<uint64_t> A = {0,
+                                   1,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x8080808080808080ull,
+                                   0x0102030405060708ull,
+                                   255,
+                                   256,
+                                   std::numeric_limits<uint64_t>::max() - 1,
+                                   0x7f7f7f7f7f7f7f7full,
+                                   17};
+  const std::vector<uint64_t> B = {3,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x1112131415161718ull,
+                                   29,
+                                   0x8080808080808080ull,
+                                   31,
+                                   0x0101010101010101ull,
+                                   0xfefdfcfbfaf9f8f7ull,
+                                   37,
+                                   41,
+                                   43,
+                                   47,
+                                   53,
+                                   59,
+                                   61};
   std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), 0xdeadbeefdeadbeefull);
 
   rns8_context* ctx = create_wrap64();
   auto desc = wrap_desc(m, n, k);
-  REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) ==
+          RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       boost::multiprecision::cpp_int exact = 0;
       for (int64_t kk = 0; kk < k; ++kk) {
-        exact += boost::multiprecision::cpp_int(A[row * k + kk]) * boost::multiprecision::cpp_int(B[kk * n + col]);
+        exact += boost::multiprecision::cpp_int(A[row * k + kk]) *
+                 boost::multiprecision::cpp_int(B[kk * n + col]);
       }
       CHECK(C[row * ldc + col] == low64(exact));
     }
@@ -64,9 +64,9 @@ TEST_CASE("public wrap64 one-shot matches byte-limb oracle for carry-heavy padde
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
-      A[static_cast<std::size_t>(row * lda + col)] =
-          row == 0 ? std::numeric_limits<uint64_t>::max()
-                   : row == 1 ? 0x8080808080808080ull : 0xfefdfcfbfaf9f8f7ull;
+      A[static_cast<std::size_t>(row * lda + col)] = row == 0 ? std::numeric_limits<uint64_t>::max()
+                                                     : row == 1 ? 0x8080808080808080ull
+                                                                : 0xfefdfcfbfaf9f8f7ull;
     }
   }
   for (int64_t row = 0; row < k; ++row) {
@@ -78,12 +78,13 @@ TEST_CASE("public wrap64 one-shot matches byte-limb oracle for carry-heavy padde
 
   rns8_context* ctx = create_wrap64();
   auto desc = wrap_desc(m, n, k);
-  REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+          RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t expected =
-          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t expected = rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(
+          A.data(), lda, B.data(), ldb, row, col, k);
       CHECK(C[static_cast<std::size_t>(row * ldc + col)] == expected);
       CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
             rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
@@ -101,33 +102,31 @@ TEST_CASE("public wrap64 persistent matrices use byte-limb low-64-bit semantics"
   constexpr int64_t n = 3;
   constexpr int64_t k = 5;
   constexpr int64_t ldc = 4;
-  const std::vector<uint64_t> A = {
-      0,
-      1,
-      std::numeric_limits<uint64_t>::max(),
-      0x8080808080808080ull,
-      0x0102030405060708ull,
-      255,
-      256,
-      std::numeric_limits<uint64_t>::max() - 1,
-      0x7f7f7f7f7f7f7f7full,
-      17};
-  const std::vector<uint64_t> B = {
-      3,
-      std::numeric_limits<uint64_t>::max(),
-      0x1112131415161718ull,
-      29,
-      0x8080808080808080ull,
-      31,
-      0x0101010101010101ull,
-      0xfefdfcfbfaf9f8f7ull,
-      37,
-      41,
-      43,
-      47,
-      53,
-      59,
-      61};
+  const std::vector<uint64_t> A = {0,
+                                   1,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x8080808080808080ull,
+                                   0x0102030405060708ull,
+                                   255,
+                                   256,
+                                   std::numeric_limits<uint64_t>::max() - 1,
+                                   0x7f7f7f7f7f7f7f7full,
+                                   17};
+  const std::vector<uint64_t> B = {3,
+                                   std::numeric_limits<uint64_t>::max(),
+                                   0x1112131415161718ull,
+                                   29,
+                                   0x8080808080808080ull,
+                                   31,
+                                   0x0101010101010101ull,
+                                   0xfefdfcfbfaf9f8f7ull,
+                                   37,
+                                   41,
+                                   43,
+                                   47,
+                                   53,
+                                   59,
+                                   61};
   std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), 0xdeadbeefdeadbeefull);
 
   rns8_context* ctx = create_wrap64();
@@ -166,7 +165,8 @@ TEST_CASE("public wrap64 persistent matrices use byte-limb low-64-bit semantics"
     for (int64_t col = 0; col < n; ++col) {
       boost::multiprecision::cpp_int exact = 0;
       for (int64_t kk = 0; kk < k; ++kk) {
-        exact += boost::multiprecision::cpp_int(A[row * k + kk]) * boost::multiprecision::cpp_int(B[kk * n + col]);
+        exact += boost::multiprecision::cpp_int(A[row * k + kk]) *
+                 boost::multiprecision::cpp_int(B[kk * n + col]);
       }
       CHECK(C[row * ldc + col] == low64(exact));
     }
@@ -181,7 +181,8 @@ TEST_CASE("public wrap64 persistent matrices use byte-limb low-64-bit semantics"
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("public wrap64 persistent matrices use compact byte limbs independent of padded host storage") {
+TEST_CASE(
+    "public wrap64 persistent matrices use compact byte limbs independent of padded host storage") {
   constexpr int64_t m = 2;
   constexpr int64_t n = 2;
   constexpr int64_t k = 3;
@@ -325,8 +326,8 @@ TEST_CASE("public wrap64 CPU path reuses resident byte-limb storage for padded f
     REQUIRE(rns8_pack_u64(ctx, b_matrix, B.data(), ldb, b_version) == RNS8_SUCCESS);
     REQUIRE(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
     REQUIRE(rns8_export_wrap_u64(ctx, plan, c_matrix, C.data(), ldc) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, oneshot.data(), ldc) ==
-            RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, oneshot.data(),
+                                       ldc) == RNS8_SUCCESS);
     CHECK(a_matrix->byte_limbs.data() == a_bytes);
     CHECK(b_matrix->byte_limbs.data() == b_bytes);
     CHECK(c_matrix->byte_limbs.data() == c_bytes);
@@ -338,7 +339,8 @@ TEST_CASE("public wrap64 CPU path reuses resident byte-limb storage for padded f
         const std::size_t out_index = static_cast<std::size_t>(row * ldc + col);
         const uint64_t expected = expected_wrap_cell(A, lda, B, ldb, row, col, k);
         CHECK(C[out_index] == expected);
-        CHECK(C[out_index] == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+        CHECK(C[out_index] ==
+              rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
       }
       for (int64_t col = n; col < ldc; ++col) {
         CHECK(C[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
@@ -368,4 +370,3 @@ TEST_CASE("public wrap64 CPU path reuses resident byte-limb storage for padded f
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
 }
-

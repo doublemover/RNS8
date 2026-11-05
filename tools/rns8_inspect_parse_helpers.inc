@@ -7,7 +7,10 @@ bool parse_backend(const std::string& value, rns8_backend_kind& out) {
     out = RNS8_BACKEND_CPU_REFERENCE;
     return true;
   }
-  if(value=="cpu-amx-int8"){out=RNS8_BACKEND_CPU_AMX;return true;}
+  if (value == "cpu-amx-int8") {
+    out = RNS8_BACKEND_CPU_AMX;
+    return true;
+  }
   if (value == "hip-direct") {
     out = RNS8_BACKEND_HIP_DIRECT;
     return true;
@@ -40,8 +43,8 @@ bool parse_backend(const std::string& value, rns8_backend_kind& out) {
 }
 
 bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
-         backend == RNS8_BACKEND_AMDGPU_BUILTINS;
+  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK ||
+         backend == RNS8_BACKEND_ROCWMMA || backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
 
 void print_usage(std::ostream& out) {
@@ -52,60 +55,60 @@ void print_usage(std::ostream& out) {
 
 const char* backend_name(rns8_backend_kind backend) {
   switch (backend) {
-    case RNS8_BACKEND_AUTO:
-      return "auto";
-    case RNS8_BACKEND_CPU_REFERENCE:
-      return "cpu-reference";
-    case RNS8_BACKEND_CPU_AMX:
-      return "cpu-amx-int8";
-    case RNS8_BACKEND_HIP_DIRECT:
-      return "hip-direct";
-    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-      return "hip-vector-alu-int64";
-    case RNS8_BACKEND_HIPBLASLT:
-      return "hipblaslt";
-    case RNS8_BACKEND_CK:
-      return "ck";
-    case RNS8_BACKEND_ROCWMMA:
-      return "rocwmma";
-    case RNS8_BACKEND_AMDGPU_BUILTINS:
-      return "amdgpu-builtins";
-    case RNS8_BACKEND_WRAP64_BYTE_LIMB:
-      return "wrap64-byte-limb";
+  case RNS8_BACKEND_AUTO:
+    return "auto";
+  case RNS8_BACKEND_CPU_REFERENCE:
+    return "cpu-reference";
+  case RNS8_BACKEND_CPU_AMX:
+    return "cpu-amx-int8";
+  case RNS8_BACKEND_HIP_DIRECT:
+    return "hip-direct";
+  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+    return "hip-vector-alu-int64";
+  case RNS8_BACKEND_HIPBLASLT:
+    return "hipblaslt";
+  case RNS8_BACKEND_CK:
+    return "ck";
+  case RNS8_BACKEND_ROCWMMA:
+    return "rocwmma";
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+    return "amdgpu-builtins";
+  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
+    return "wrap64-byte-limb";
   }
   return "unknown";
 }
 
 const char* semantics_name(rns8_semantics semantics) {
   switch (semantics) {
-    case RNS8_BOUNDED_I64:
-      return "bounded_i64";
-    case RNS8_BOUNDED_U64:
-      return "bounded_u64";
-    case RNS8_EXACT_WIDE_SIGNED:
-      return "exact_wide_signed";
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      return "exact_wide_unsigned";
-    case RNS8_WRAP_U64_MOD_2_64:
-      return "wrap_u64_mod_2_64";
-    case RNS8_FINITE_RING_U8:
-      return "finite_ring_u8";
-    case RNS8_FINITE_FIELD_U8:
-      return "finite_field_u8";
+  case RNS8_BOUNDED_I64:
+    return "bounded_i64";
+  case RNS8_BOUNDED_U64:
+    return "bounded_u64";
+  case RNS8_EXACT_WIDE_SIGNED:
+    return "exact_wide_signed";
+  case RNS8_EXACT_WIDE_UNSIGNED:
+    return "exact_wide_unsigned";
+  case RNS8_WRAP_U64_MOD_2_64:
+    return "wrap_u64_mod_2_64";
+  case RNS8_FINITE_RING_U8:
+    return "finite_ring_u8";
+  case RNS8_FINITE_FIELD_U8:
+    return "finite_field_u8";
   }
   return "unknown";
 }
 
 const char* output_domain_name(rns8_output_domain domain) {
   switch (domain) {
-    case RNS8_OUTPUT_DOMAIN_RNS_RESIDUE:
-      return "rns_residue_current";
-    case RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64:
-      return "native_i64_u64_current";
-    case RNS8_OUTPUT_DOMAIN_FINITE_U8:
-      return "finite_u8_current";
-    case RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB:
-      return "wrap64_byte_limb_current";
+  case RNS8_OUTPUT_DOMAIN_RNS_RESIDUE:
+    return "rns_residue_current";
+  case RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64:
+    return "native_i64_u64_current";
+  case RNS8_OUTPUT_DOMAIN_FINITE_U8:
+    return "finite_u8_current";
+  case RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB:
+    return "wrap64_byte_limb_current";
   }
   return "unknown";
 }
@@ -117,24 +120,24 @@ std::string json_escape(const char* input) {
   }
   for (const unsigned char ch : std::string(input)) {
     switch (ch) {
-      case '\\':
-        escaped += "\\\\";
-        break;
-      case '"':
-        escaped += "\\\"";
-        break;
-      case '\n':
-        escaped += "\\n";
-        break;
-      case '\r':
-        escaped += "\\r";
-        break;
-      case '\t':
-        escaped += "\\t";
-        break;
-      default:
-        escaped.push_back(static_cast<char>(ch));
-        break;
+    case '\\':
+      escaped += "\\\\";
+      break;
+    case '"':
+      escaped += "\\\"";
+      break;
+    case '\n':
+      escaped += "\\n";
+      break;
+    case '\r':
+      escaped += "\\r";
+      break;
+    case '\t':
+      escaped += "\\t";
+      break;
+    default:
+      escaped.push_back(static_cast<char>(ch));
+      break;
     }
   }
   return escaped;
@@ -149,7 +152,8 @@ bool parse_key_u32_field(const std::string& key, const std::string& name, uint32
   std::size_t begin = 0;
   while (begin <= key.size()) {
     const std::size_t end = key.find(';', begin);
-    const std::string field = key.substr(begin, end == std::string::npos ? std::string::npos : end - begin);
+    const std::string field =
+        key.substr(begin, end == std::string::npos ? std::string::npos : end - begin);
     if (field.rfind(prefix, 0) == 0) {
       try {
         const unsigned long parsed = std::stoul(field.substr(prefix.size()));
@@ -170,11 +174,10 @@ bool parse_key_u32_field(const std::string& key, const std::string& name, uint32
   return false;
 }
 
-bool fill_plan_desc_from_autotune_entry(
-    const rns8::detail::AutotuneCacheEntry& entry,
-    rns8_backend_kind backend,
-    rns8_gemm_desc& desc) {
-  if (entry.selected_backend != backend_name(backend) || entry.m <= 0 || entry.n <= 0 || entry.k <= 0) {
+bool fill_plan_desc_from_autotune_entry(const rns8::detail::AutotuneCacheEntry& entry,
+                                        rns8_backend_kind backend, rns8_gemm_desc& desc) {
+  if (entry.selected_backend != backend_name(backend) || entry.m <= 0 || entry.n <= 0 ||
+      entry.k <= 0) {
     return false;
   }
 
@@ -238,14 +241,10 @@ bool fill_plan_desc_from_autotune_entry(
 }
 
 rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
-    rns8_context* ctx,
-    rns8_backend_kind backend,
-    const rns8::detail::AutotuneCacheSnapshot& snapshot,
-    const std::string& autotune_key,
-    rns8::detail::AutotuneRuntimeIdentity runtime,
-    rns8_plan_packing_info* plan_packing,
-    bool* plan_packing_available,
-    rns8::detail::PlanLoweringDescription* plan_lowering,
+    rns8_context* ctx, rns8_backend_kind backend,
+    const rns8::detail::AutotuneCacheSnapshot& snapshot, const std::string& autotune_key,
+    rns8::detail::AutotuneRuntimeIdentity runtime, rns8_plan_packing_info* plan_packing,
+    bool* plan_packing_available, rns8::detail::PlanLoweringDescription* plan_lowering,
     bool* plan_lowering_available) {
   if (plan_packing_available) {
     *plan_packing_available = false;
@@ -286,8 +285,8 @@ rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
       *plan_packing_available = true;
     }
   }
-  if (backend_status == RNS8_SUCCESS && packing_status == RNS8_SUCCESS && schedule_status == RNS8_SUCCESS &&
-      plan_lowering) {
+  if (backend_status == RNS8_SUCCESS && packing_status == RNS8_SUCCESS &&
+      schedule_status == RNS8_SUCCESS && plan_lowering) {
     *plan_lowering = rns8::detail::describe_plan_lowering(plan_info, local_packing, schedule);
     if (plan_lowering_available) {
       *plan_lowering_available = true;
@@ -299,4 +298,3 @@ rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
   }
   return runtime;
 }
-

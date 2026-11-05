@@ -12,135 +12,101 @@
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
 extern "C" int rns8_rocwmma_runtime_wave_contract(int);
-extern "C" int rns8_rocwmma_gemm_rns_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    unsigned long long workspace_bytes,
-    long long m,
-    long long n,
-    long long k,
-    long long lda,
-    long long ldb,
-    long long ldc,
-    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
+extern "C" int rns8_rocwmma_gemm_rns_device(int device_id, const void* device_a_residues,
+                                            const void* device_b_residues, void* device_c_residues,
+                                            void* workspace, unsigned long long workspace_bytes,
+                                            long long m, long long n, long long k, long long lda,
+                                            long long ldb, long long ldc, unsigned int prefix,
+                                            unsigned int packing_policy,
+                                            rns8::detail::RocwmmaPackingStats* packing_stats);
 
 // Event recording uses run_timed_device_code in the dispatch functions below.
 // The rocWMMA backend is a separate build target that cannot reference
 // Direct HIP internal helpers (timed_hip_operation).
 
-
-
 extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    unsigned long long workspace_bytes,
-    long long m,
-    long long n,
-    long long k,
-    long long lda,
-    long long ldb,
-    long long ldc,
-    const rns8_plan_tile_schedule_entry* entries,
-    unsigned long long entry_count, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
+    int device_id, const void* device_a_residues, const void* device_b_residues,
+    void* device_c_residues, void* workspace, unsigned long long workspace_bytes, long long m,
+    long long n, long long k, long long lda, long long ldb, long long ldc,
+    const rns8_plan_tile_schedule_entry* entries, unsigned long long entry_count,
+    unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
-extern "C" int rns8_rocwmma_prepack_b_rns_device(
-    int device_id,
-    const void* device_b_residues,
-    void* device_b_prepack,
-    unsigned long long device_b_prepack_bytes,
-    long long k,
-    long long n,
-    long long ldb,
-    unsigned int prefix);
+extern "C" int rns8_rocwmma_prepack_b_rns_device(int device_id, const void* device_b_residues,
+                                                 void* device_b_prepack,
+                                                 unsigned long long device_b_prepack_bytes,
+                                                 long long k, long long n, long long ldb,
+                                                 unsigned int prefix);
 
-extern "C" int rns8_rocwmma_prepack_b_native_i64_device(
-    int device_id,
-    const void* device_b_native,
-    void* device_b_prepack,
-    unsigned long long device_b_prepack_bytes,
-    long long k,
-    long long n,
-    long long ldb,
-    unsigned int prefix);
+extern "C" int rns8_rocwmma_prepack_b_native_i64_device(int device_id, const void* device_b_native,
+                                                        void* device_b_prepack,
+                                                        unsigned long long device_b_prepack_bytes,
+                                                        long long k, long long n, long long ldb,
+                                                        unsigned int prefix);
 
-extern "C" int rns8_rocwmma_prepack_b_native_u64_device(
-    int device_id,
-    const void* device_b_native,
-    void* device_b_prepack,
-    unsigned long long device_b_prepack_bytes,
-    long long k,
-    long long n,
-    long long ldb,
-    unsigned int prefix);
+extern "C" int rns8_rocwmma_prepack_b_native_u64_device(int device_id, const void* device_b_native,
+                                                        void* device_b_prepack,
+                                                        unsigned long long device_b_prepack_bytes,
+                                                        long long k, long long n, long long ldb,
+                                                        unsigned int prefix);
 
 extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_prepack,
-    void* device_c_residues,
-    void* workspace,
-    unsigned long long workspace_bytes,
-    long long m,
-    long long n,
-    long long k,
-    long long lda,
-    long long ldc,
-    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
+    int device_id, const void* device_a_residues, const void* device_b_prepack,
+    void* device_c_residues, void* workspace, unsigned long long workspace_bytes, long long m,
+    long long n, long long k, long long lda, long long ldc, unsigned int prefix,
+    unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
 extern "C" int rns8_rocwmma_gemm_finite_u8_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    unsigned long long workspace_bytes,
-    long long m,
-    long long n,
-    long long k,
-    long long lda,
-    long long ldb,
-    long long ldc,
-    unsigned int modulus);
+    int device_id, const void* device_a_residues, const void* device_b_residues,
+    void* device_c_residues, void* workspace, unsigned long long workspace_bytes, long long m,
+    long long n, long long k, long long lda, long long ldb, long long ldc, unsigned int modulus);
 
 extern "C" int rns8_rocwmma_wrap64_gemm_byte_limbs_candidate_device(
-    int device_id,
-    const void* device_a_limbs,
-    const void* device_b_limbs,
-    void* device_c_limbs,
-    long long m,
-    long long n,
-    long long k);
+    int device_id, const void* device_a_limbs, const void* device_b_limbs, void* device_c_limbs,
+    long long m, long long n, long long k);
 #endif
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-extern "C" int rns8_rocwmma_exact_axpby_device(int, const int8_t*, const int8_t*, const int8_t*, int8_t*,
-    int, int, int, int, int, int, int, int, int64_t, int64_t);
+extern "C" int rns8_rocwmma_exact_axpby_device(int, const int8_t*, const int8_t*, const int8_t*,
+                                               int8_t*, int, int, int, int, int, int, int, int,
+                                               int64_t, int64_t);
 #endif
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-extern "C" int rns8_rocwmma_gemm_rns_device_on_stream(int,const void*,const void*,void*,void*,unsigned long long,long long,long long,long long,long long,long long,long long,unsigned,unsigned,rns8::detail::RocwmmaPackingStats*,void*);
-extern "C" int rns8_rocwmma_gemm_finite_u8_device_on_stream(int,const void*,const void*,void*,void*,unsigned long long,long long,long long,long long,long long,long long,long long,unsigned,void*);
+extern "C" int rns8_rocwmma_gemm_rns_device_on_stream(int, const void*, const void*, void*, void*,
+                                                      unsigned long long, long long, long long,
+                                                      long long, long long, long long, long long,
+                                                      unsigned, unsigned,
+                                                      rns8::detail::RocwmmaPackingStats*, void*);
+extern "C" int rns8_rocwmma_gemm_finite_u8_device_on_stream(int, const void*, const void*, void*,
+                                                            void*, unsigned long long, long long,
+                                                            long long, long long, long long,
+                                                            long long, long long, unsigned, void*);
 #endif
 
 namespace rns8::detail {
 
 namespace {
-thread_local RocwmmaPackingPolicy packing_policy=RocwmmaPackingPolicy::packed;
+thread_local RocwmmaPackingPolicy packing_policy = RocwmmaPackingPolicy::packed;
 thread_local RocwmmaPackingStats packing_stats;
-RocwmmaPackingStats* rocwmma_packing_stats_sink(){return &packing_stats;}
+RocwmmaPackingStats* rocwmma_packing_stats_sink() {
+  return &packing_stats;
 }
-RocwmmaPackingPolicy rocwmma_packing_policy(){return packing_policy;}
+} // namespace
+RocwmmaPackingPolicy rocwmma_packing_policy() {
+  return packing_policy;
+}
 bool rocwmma_set_packing_policy(RocwmmaPackingPolicy value) {
-  if(uint32_t(value)>3)return false;packing_policy=value;return true;
+  if (uint32_t(value) > 3)
+    return false;
+  packing_policy = value;
+  return true;
 }
-void rocwmma_reset_packing_stats(){packing_stats={};}
-RocwmmaPackingStats rocwmma_packing_stats(){return packing_stats;}
+void rocwmma_reset_packing_stats() {
+  packing_stats = {};
+}
+RocwmmaPackingStats rocwmma_packing_stats() {
+  return packing_stats;
+}
 
 bool rocwmma_compiled() {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
@@ -156,12 +122,14 @@ rns8_status rocwmma_probe(int device_id, rns8_device_info& out) {
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  if(rns8_rocwmma_runtime_wave_contract(device_id)!=0) {
-    copy_c_string(out.detail,sizeof(out.detail),"rocWMMA runtime wave size differs from the compiled host launch contract");
+  if (rns8_rocwmma_runtime_wave_contract(device_id) != 0) {
+    copy_c_string(out.detail, sizeof(out.detail),
+                  "rocWMMA runtime wave size differs from the compiled host launch contract");
     return RNS8_UNSUPPORTED_BACKEND;
   }
   out.backend = RNS8_BACKEND_ROCWMMA;
-  copy_c_string(out.detail, sizeof(out.detail), "rocWMMA accelerator backend detected through HIP runtime");
+  copy_c_string(out.detail, sizeof(out.detail),
+                "rocWMMA accelerator backend detected through HIP runtime");
   return RNS8_SUCCESS;
 #else
   (void)device_id;
@@ -170,57 +138,38 @@ rns8_status rocwmma_probe(int device_id, rns8_device_info& out) {
 #endif
 }
 
-bool rocwmma_workspace_requirements(
-    int64_t max_m,
-    int64_t max_n,
-    int64_t k,
-    std::size_t& a_pack_bytes,
-    std::size_t& b_pack_bytes,
-    std::size_t& total_bytes) {
-  a_pack_bytes=b_pack_bytes=total_bytes=0;
+bool rocwmma_workspace_requirements(int64_t max_m, int64_t max_n, int64_t k,
+                                    std::size_t& a_pack_bytes, std::size_t& b_pack_bytes,
+                                    std::size_t& total_bytes) {
+  a_pack_bytes = b_pack_bytes = total_bytes = 0;
   PackedGemmLayout layout;
-  if(max_m<=0 || max_n<=0 || k<=0 || !rocwmma_packed_gemm_layout(max_m,max_n,k,layout))return false;
-  a_pack_bytes=static_cast<std::size_t>(layout.a_bytes);
-  b_pack_bytes=static_cast<std::size_t>(layout.b_bytes);
-  total_bytes=static_cast<std::size_t>(layout.total_bytes);
+  if (max_m <= 0 || max_n <= 0 || k <= 0 || !rocwmma_packed_gemm_layout(max_m, max_n, k, layout))
+    return false;
+  a_pack_bytes = static_cast<std::size_t>(layout.a_bytes);
+  b_pack_bytes = static_cast<std::size_t>(layout.b_bytes);
+  total_bytes = static_cast<std::size_t>(layout.total_bytes);
   return true;
 }
 
-rns8_status rocwmma_gemm_rns_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint32_t prefix) {
+rns8_status rocwmma_gemm_rns_device(int device_id, const void* device_a_residues,
+                                    const void* device_b_residues, void* device_c_residues,
+                                    void* workspace, std::size_t workspace_bytes, int64_t m,
+                                    int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+                                    uint32_t prefix) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
+      !rns8::detail::qualified_i32_gemm_address(
+          m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_rocwmma_gemm_rns_device(
-        device_id,
-        device_a_residues,
-        device_b_residues,
-        device_c_residues,
-        workspace,
-        static_cast<unsigned long long>(workspace_bytes),
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k),
-        static_cast<long long>(lda),
-        static_cast<long long>(ldb),
-        static_cast<long long>(ldc),
-        prefix, uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
+        device_id, device_a_residues, device_b_residues, device_c_residues, workspace,
+        static_cast<unsigned long long>(workspace_bytes), static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k), static_cast<long long>(lda),
+        static_cast<long long>(ldb), static_cast<long long>(ldc), prefix,
+        uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -241,43 +190,27 @@ rns8_status rocwmma_gemm_rns_device(
 #endif
 }
 
-rns8_status rocwmma_gemm_rns_tiled_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    const rns8_plan_tile_schedule_entry* entries,
-    uint64_t entry_count) {
+rns8_status rocwmma_gemm_rns_tiled_device(int device_id, const void* device_a_residues,
+                                          const void* device_b_residues, void* device_c_residues,
+                                          void* workspace, std::size_t workspace_bytes, int64_t m,
+                                          int64_t n, int64_t k, int64_t lda, int64_t ldb,
+                                          int64_t ldc, const rns8_plan_tile_schedule_entry* entries,
+                                          uint64_t entry_count) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, RNS8_MAX_SUPPORTED_PREFIX)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc,
+                                                RNS8_MAX_SUPPORTED_PREFIX)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_rocwmma_gemm_rns_tiled_device(
-        device_id,
-        device_a_residues,
-        device_b_residues,
-        device_c_residues,
-        workspace,
-        static_cast<unsigned long long>(workspace_bytes),
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k),
-        static_cast<long long>(lda),
-        static_cast<long long>(ldb),
-        static_cast<long long>(ldc),
-        entries,
-        static_cast<unsigned long long>(entry_count), uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
+        device_id, device_a_residues, device_b_residues, device_c_residues, workspace,
+        static_cast<unsigned long long>(workspace_bytes), static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k), static_cast<long long>(lda),
+        static_cast<long long>(ldb), static_cast<long long>(ldc), entries,
+        static_cast<unsigned long long>(entry_count), uint32_t(rocwmma_packing_policy()),
+        rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -299,26 +232,15 @@ rns8_status rocwmma_gemm_rns_tiled_device(
 #endif
 }
 
-rns8_status rocwmma_prepack_b_rns_device(
-    int device_id,
-    const void* device_b_residues,
-    void* device_b_prepack,
-    std::size_t device_b_prepack_bytes,
-    int64_t k,
-    int64_t n,
-    int64_t ldb,
-    uint32_t prefix) {
+rns8_status rocwmma_prepack_b_rns_device(int device_id, const void* device_b_residues,
+                                         void* device_b_prepack, std::size_t device_b_prepack_bytes,
+                                         int64_t k, int64_t n, int64_t ldb, uint32_t prefix) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_prepack_b_kernel_group", [&]() {
     return rns8_rocwmma_prepack_b_rns_device(
-        device_id,
-        device_b_residues,
-        device_b_prepack,
-        static_cast<unsigned long long>(device_b_prepack_bytes),
-        static_cast<long long>(k),
-        static_cast<long long>(n),
-        static_cast<long long>(ldb),
-        prefix);
+        device_id, device_b_residues, device_b_prepack,
+        static_cast<unsigned long long>(device_b_prepack_bytes), static_cast<long long>(k),
+        static_cast<long long>(n), static_cast<long long>(ldb), prefix);
   });
   return status_from_device_code(code);
 #else
@@ -334,26 +256,16 @@ rns8_status rocwmma_prepack_b_rns_device(
 #endif
 }
 
-rns8_status rocwmma_prepack_b_native_i64_device(
-    int device_id,
-    const void* device_b_native,
-    void* device_b_prepack,
-    std::size_t device_b_prepack_bytes,
-    int64_t k,
-    int64_t n,
-    int64_t ldb,
-    uint32_t prefix) {
+rns8_status rocwmma_prepack_b_native_i64_device(int device_id, const void* device_b_native,
+                                                void* device_b_prepack,
+                                                std::size_t device_b_prepack_bytes, int64_t k,
+                                                int64_t n, int64_t ldb, uint32_t prefix) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_prepack_b_native_i64_kernel_group", [&]() {
     return rns8_rocwmma_prepack_b_native_i64_device(
-        device_id,
-        device_b_native,
-        device_b_prepack,
-        static_cast<unsigned long long>(device_b_prepack_bytes),
-        static_cast<long long>(k),
-        static_cast<long long>(n),
-        static_cast<long long>(ldb),
-        prefix);
+        device_id, device_b_native, device_b_prepack,
+        static_cast<unsigned long long>(device_b_prepack_bytes), static_cast<long long>(k),
+        static_cast<long long>(n), static_cast<long long>(ldb), prefix);
   });
   return status_from_device_code(code);
 #else
@@ -369,26 +281,16 @@ rns8_status rocwmma_prepack_b_native_i64_device(
 #endif
 }
 
-rns8_status rocwmma_prepack_b_native_u64_device(
-    int device_id,
-    const void* device_b_native,
-    void* device_b_prepack,
-    std::size_t device_b_prepack_bytes,
-    int64_t k,
-    int64_t n,
-    int64_t ldb,
-    uint32_t prefix) {
+rns8_status rocwmma_prepack_b_native_u64_device(int device_id, const void* device_b_native,
+                                                void* device_b_prepack,
+                                                std::size_t device_b_prepack_bytes, int64_t k,
+                                                int64_t n, int64_t ldb, uint32_t prefix) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_prepack_b_native_u64_kernel_group", [&]() {
     return rns8_rocwmma_prepack_b_native_u64_device(
-        device_id,
-        device_b_native,
-        device_b_prepack,
-        static_cast<unsigned long long>(device_b_prepack_bytes),
-        static_cast<long long>(k),
-        static_cast<long long>(n),
-        static_cast<long long>(ldb),
-        prefix);
+        device_id, device_b_native, device_b_prepack,
+        static_cast<unsigned long long>(device_b_prepack_bytes), static_cast<long long>(k),
+        static_cast<long long>(n), static_cast<long long>(ldb), prefix);
   });
   return status_from_device_code(code);
 #else
@@ -404,34 +306,20 @@ rns8_status rocwmma_prepack_b_native_u64_device(
 #endif
 }
 
-rns8_status rocwmma_gemm_rns_prepacked_b_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_prepack,
-    void* device_c_residues,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldc,
-    uint32_t prefix) {
+rns8_status rocwmma_gemm_rns_prepacked_b_device(int device_id, const void* device_a_residues,
+                                                const void* device_b_prepack,
+                                                void* device_c_residues, void* workspace,
+                                                std::size_t workspace_bytes, int64_t m, int64_t n,
+                                                int64_t k, int64_t lda, int64_t ldc,
+                                                uint32_t prefix) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_prepacked_b_kernel_group", [&]() {
     return rns8_rocwmma_gemm_rns_prepacked_b_device(
-        device_id,
-        device_a_residues,
-        device_b_prepack,
-        device_c_residues,
-        workspace,
-        static_cast<unsigned long long>(workspace_bytes),
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k),
-        static_cast<long long>(lda),
-        static_cast<long long>(ldc),
-        prefix, uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
+        device_id, device_a_residues, device_b_prepack, device_c_residues, workspace,
+        static_cast<unsigned long long>(workspace_bytes), static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k), static_cast<long long>(lda),
+        static_cast<long long>(ldc), prefix, uint32_t(rocwmma_packing_policy()),
+        rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -451,20 +339,11 @@ rns8_status rocwmma_gemm_rns_prepacked_b_device(
 #endif
 }
 
-rns8_status rocwmma_gemm_finite_u8_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus) {
+rns8_status rocwmma_gemm_finite_u8_device(int device_id, const void* device_a_residues,
+                                          const void* device_b_residues, void* device_c_residues,
+                                          void* workspace, std::size_t workspace_bytes, int64_t m,
+                                          int64_t n, int64_t k, int64_t lda, int64_t ldb,
+                                          int64_t ldc, uint16_t modulus) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
       !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
     return RNS8_UNSUPPORTED_BACKEND;
@@ -473,19 +352,10 @@ rns8_status rocwmma_gemm_finite_u8_device(
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_rocwmma_gemm_finite_u8_device(
-        device_id,
-        device_a_residues,
-        device_b_residues,
-        device_c_residues,
-        workspace,
-        static_cast<unsigned long long>(workspace_bytes),
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k),
-        static_cast<long long>(lda),
-        static_cast<long long>(ldb),
-        static_cast<long long>(ldc),
-        modulus);
+        device_id, device_a_residues, device_b_residues, device_c_residues, workspace,
+        static_cast<unsigned long long>(workspace_bytes), static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k), static_cast<long long>(lda),
+        static_cast<long long>(ldb), static_cast<long long>(ldc), modulus);
   });
   return status_from_device_code(code);
 #else
@@ -506,24 +376,16 @@ rns8_status rocwmma_gemm_finite_u8_device(
 #endif
 }
 
-rns8_status rocwmma_wrap64_gemm_byte_limbs_candidate_device(
-    int device_id,
-    const void* device_a_limbs,
-    const void* device_b_limbs,
-    void* device_c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+rns8_status rocwmma_wrap64_gemm_byte_limbs_candidate_device(int device_id,
+                                                            const void* device_a_limbs,
+                                                            const void* device_b_limbs,
+                                                            void* device_c_limbs, int64_t m,
+                                                            int64_t n, int64_t k) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("wrap64_rocwmma_candidate_gemm36_kernel_group", [&]() {
     return rns8_rocwmma_wrap64_gemm_byte_limbs_candidate_device(
-        device_id,
-        device_a_limbs,
-        device_b_limbs,
-        device_c_limbs,
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k));
+        device_id, device_a_limbs, device_b_limbs, device_c_limbs, static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k));
   });
   return status_from_device_code(code);
 #else
@@ -538,14 +400,16 @@ rns8_status rocwmma_wrap64_gemm_byte_limbs_candidate_device(
 #endif
 }
 
-rns8_status rocwmma_exact_axpby_device(
-    int device_id, const void* a, const void* b, const void* d, void* c,
-    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldd, int64_t ldc,
-    uint32_t prefix, int64_t alpha, int64_t beta) {
-  if (!a || !b || !d || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldd < n || ldc < n ||
-      !prefix || prefix > RNS8_MAX_SUPPORTED_PREFIX) return RNS8_INVALID_ARGUMENT;
+rns8_status rocwmma_exact_axpby_device(int device_id, const void* a, const void* b, const void* d,
+                                       void* c, int64_t m, int64_t n, int64_t k, int64_t lda,
+                                       int64_t ldb, int64_t ldd, int64_t ldc, uint32_t prefix,
+                                       int64_t alpha, int64_t beta) {
+  if (!a || !b || !d || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldd < n ||
+      ldc < n || !prefix || prefix > RNS8_MAX_SUPPORTED_PREFIX)
+    return RNS8_INVALID_ARGUMENT;
   if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix) ||
-      !qualified_i32_matrix_address(m, n, ldd, prefix)) return RNS8_UNSUPPORTED_BACKEND;
+      !qualified_i32_matrix_address(m, n, ldd, prefix))
+    return RNS8_UNSUPPORTED_BACKEND;
   const uint64_t output_bytes = static_cast<uint64_t>(m) * ldc * prefix;
   if (!nonoverlapping_byte_ranges(c, output_bytes, a, static_cast<uint64_t>(m) * lda * prefix) ||
       !nonoverlapping_byte_ranges(c, output_bytes, b, static_cast<uint64_t>(k) * ldb * prefix) ||
@@ -553,29 +417,40 @@ rns8_status rocwmma_exact_axpby_device(
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   return status_from_device_code(run_timed_device_code("rocwmma_exact_axpby_kernel", [&]() {
-    return rns8_rocwmma_exact_axpby_device(device_id,
-        static_cast<const int8_t*>(a), static_cast<const int8_t*>(b), static_cast<const int8_t*>(d),
-        static_cast<int8_t*>(c), static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
-        static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldd), static_cast<int>(ldc), prefix, alpha, beta);
+    return rns8_rocwmma_exact_axpby_device(
+        device_id, static_cast<const int8_t*>(a), static_cast<const int8_t*>(b),
+        static_cast<const int8_t*>(d), static_cast<int8_t*>(c), static_cast<int>(m),
+        static_cast<int>(n), static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb),
+        static_cast<int>(ldd), static_cast<int>(ldc), prefix, alpha, beta);
   }));
 #else
-  (void)device_id; (void)alpha; (void)beta;
+  (void)device_id;
+  (void)alpha;
+  (void)beta;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 
-
-rns8_status rocwmma_enqueue_dense(int device,const void* a,const void* b,void* c,void* workspace,std::size_t bytes,
-    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t value,bool finite,void* stream) {
-  if(!stream || !a || !b || !c || !workspace || !value || (!finite && value>20) ||
-      (finite && (value<2 || value>256)))return RNS8_INVALID_ARGUMENT;
-  if(!qualified_i32_gemm_address(m,n,k,lda,ldb,ldc,finite?1:value))return RNS8_UNSUPPORTED_BACKEND;
+rns8_status rocwmma_enqueue_dense(int device, const void* a, const void* b, void* c,
+                                  void* workspace, std::size_t bytes, int64_t m, int64_t n,
+                                  int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t value,
+                                  bool finite, void* stream) {
+  if (!stream || !a || !b || !c || !workspace || !value || (!finite && value > 20) ||
+      (finite && (value < 2 || value > 256)))
+    return RNS8_INVALID_ARGUMENT;
+  if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, finite ? 1 : value))
+    return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-  const auto code=finite?rns8_rocwmma_gemm_finite_u8_device_on_stream(device,a,b,c,workspace,bytes,m,n,k,lda,ldb,ldc,value,stream):
-      rns8_rocwmma_gemm_rns_device_on_stream(device,a,b,c,workspace,bytes,m,n,k,lda,ldb,ldc,value,0,nullptr,stream);
+  const auto code =
+      finite ? rns8_rocwmma_gemm_finite_u8_device_on_stream(device, a, b, c, workspace, bytes, m, n,
+                                                            k, lda, ldb, ldc, value, stream)
+             : rns8_rocwmma_gemm_rns_device_on_stream(device, a, b, c, workspace, bytes, m, n, k,
+                                                      lda, ldb, ldc, value, 0, nullptr, stream);
   return status_from_device_code(code);
 #else
-  (void)device;(void)bytes;return RNS8_UNSUPPORTED_BACKEND;
+  (void)device;
+  (void)bytes;
+  return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-}  // namespace rns8::detail
+} // namespace rns8::detail

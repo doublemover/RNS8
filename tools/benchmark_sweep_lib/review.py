@@ -10,12 +10,26 @@ from typing import Any
 
 from evidence_database_lib.isa import lookup_isa_resources
 from build_manifest import manifest_provenance_complete, manifest_dependencies_compatible
-from timing_eligibility import phase_blockers, pair_blockers, comparison_record, capture_identity, bound_comparison_blockers
+from timing_eligibility import (
+    phase_blockers,
+    pair_blockers,
+    comparison_record,
+    capture_identity,
+    bound_comparison_blockers,
+)
 from diagnostic_companion import production_evidence, binding_for_capture
 from review_contract import REVIEW_MODES, release_capture_satisfied
 from first_call_setup import review_first_call
-from graph_caller_contract import graph_setup_us as graph_specific_setup_us, caller_transaction_blockers, full_path_graph
-from reference_verdict import SCHEMA as NUMERICAL_REFERENCE_SCHEMA, checksum_u64 as capture_checksum, reference_verdict
+from graph_caller_contract import (
+    graph_setup_us as graph_specific_setup_us,
+    caller_transaction_blockers,
+    full_path_graph,
+)
+from reference_verdict import (
+    SCHEMA as NUMERICAL_REFERENCE_SCHEMA,
+    checksum_u64 as capture_checksum,
+    reference_verdict,
+)
 
 from .capture_metadata import (
     backend_id,
@@ -147,10 +161,16 @@ def _autotune_key_has_all(metadata: dict[str, Any], tokens: tuple[str, ...]) -> 
 
 def requires_amdgpu_builtin_matrix_isa_proof(backend_family: str, metadata: dict[str, Any]) -> bool:
     family = metadata.get("matrix_instruction_family")
-    return backend_family == "amdgpu-builtins" and isinstance(family, str) and family in AMDGPU_BUILTIN_MATRIX_FAMILIES
+    return (
+        backend_family == "amdgpu-builtins"
+        and isinstance(family, str)
+        and family in AMDGPU_BUILTIN_MATRIX_FAMILIES
+    )
 
 
-def expected_amdgpu_builtin_matrix_mnemonic(capture: dict[str, Any], metadata: dict[str, Any]) -> str | None:
+def expected_amdgpu_builtin_matrix_mnemonic(
+    capture: dict[str, Any], metadata: dict[str, Any]
+) -> str | None:
     kernel = str(selected_kernel(capture) or metadata.get("selected_kernel") or "")
     kernel_tokens = (
         ("smfmac_i32_32x32x32_i8", "v_smfmac_i32_32x32x32_i8"),
@@ -267,16 +287,28 @@ def _amdgpu_matrix_sparse_contract(metadata: dict[str, Any]) -> str | None:
     return None
 
 
-def _amdgpu_matrix_a_value_contract(capture: dict[str, Any], metadata: dict[str, Any]) -> str | None:
+def _amdgpu_matrix_a_value_contract(
+    capture: dict[str, Any], metadata: dict[str, Any]
+) -> str | None:
     if metadata.get("matrix_instruction_family") not in AMDGPU_BUILTIN_MATRIX_FAMILIES:
         return None
     finite = _capture_semantics_are_finite_u8(capture)
     if _amdgpu_matrix_sparse_contract(metadata):
-        return "unsigned_u8_public_values_centered_for_matrix_core" if finite else "signed_i8_centered_residue_planes"
-    return "dense_a_public_u8_centered_for_matrix_core" if finite else "dense_a_centered_i8_residue_planes"
+        return (
+            "unsigned_u8_public_values_centered_for_matrix_core"
+            if finite
+            else "signed_i8_centered_residue_planes"
+        )
+    return (
+        "dense_a_public_u8_centered_for_matrix_core"
+        if finite
+        else "dense_a_centered_i8_residue_planes"
+    )
 
 
-def _amdgpu_matrix_b_value_contract(capture: dict[str, Any], metadata: dict[str, Any]) -> str | None:
+def _amdgpu_matrix_b_value_contract(
+    capture: dict[str, Any], metadata: dict[str, Any]
+) -> str | None:
     if metadata.get("matrix_instruction_family") not in AMDGPU_BUILTIN_MATRIX_FAMILIES:
         return None
     return (
@@ -311,11 +343,17 @@ def amdgpu_builtin_matrix_contract_blockers(
     blockers: list[str] = []
     if metadata.get("matrix_operand_signedness") != _amdgpu_matrix_operand_signedness(metadata):
         blockers.append("missing_amdgpu_builtin_operand_signedness_contract")
-    if metadata.get("matrix_a_value_contract") != _amdgpu_matrix_a_value_contract(capture, metadata):
+    if metadata.get("matrix_a_value_contract") != _amdgpu_matrix_a_value_contract(
+        capture, metadata
+    ):
         blockers.append("missing_amdgpu_builtin_a_value_contract")
-    if metadata.get("matrix_b_value_contract") != _amdgpu_matrix_b_value_contract(capture, metadata):
+    if metadata.get("matrix_b_value_contract") != _amdgpu_matrix_b_value_contract(
+        capture, metadata
+    ):
         blockers.append("missing_amdgpu_builtin_b_value_contract")
-    if metadata.get("matrix_rdna_integer_modifier_policy") != _amdgpu_rdna_integer_modifier_policy(metadata):
+    if metadata.get("matrix_rdna_integer_modifier_policy") != _amdgpu_rdna_integer_modifier_policy(
+        metadata
+    ):
         blockers.append("missing_rdna_integer_modifier_policy")
     return blockers
 
@@ -329,7 +367,10 @@ def final_output_export_metadata_blockers(
     if not accelerator or semantics not in FINAL_OUTPUT_EXPORT_SEMANTICS:
         return []
     exact_output = capture.get("exact_output_contract")
-    if isinstance(exact_output, dict) and exact_output.get("output_domain_after_measured_repeats") == "rns_residue_current":
+    if (
+        isinstance(exact_output, dict)
+        and exact_output.get("output_domain_after_measured_repeats") == "rns_residue_current"
+    ):
         return []
     if capture.get("residue_output_mode", "host_export") != "host_export":
         return []
@@ -338,16 +379,23 @@ def final_output_export_metadata_blockers(
     if not isinstance(exact_output, dict):
         blockers.append("missing_final_output_contract_metadata")
     else:
-        if exact_output.get("requested_final_output") not in {"native_i64_u64_host", "exact_wide_limb_host"}:
+        if exact_output.get("requested_final_output") not in {
+            "native_i64_u64_host",
+            "exact_wide_limb_host",
+        }:
             blockers.append("final_output_contract_not_host_output")
-        if not isinstance(exact_output.get("kernel_identity"), str) or not exact_output.get("kernel_identity"):
+        if not isinstance(exact_output.get("kernel_identity"), str) or not exact_output.get(
+            "kernel_identity"
+        ):
             blockers.append("missing_final_output_kernel_identity")
 
     export_variant = capture.get("export_variant")
     if not isinstance(export_variant, dict):
         blockers.append("missing_export_variant_metadata")
     else:
-        if not isinstance(export_variant.get("selected_kernel"), str) or not export_variant.get("selected_kernel"):
+        if not isinstance(export_variant.get("selected_kernel"), str) or not export_variant.get(
+            "selected_kernel"
+        ):
             blockers.append("missing_export_kernel_identity")
         if export_variant.get("final_output_mode") != "final_host_output":
             blockers.append("export_variant_not_final_host_output")
@@ -360,10 +408,9 @@ def final_output_export_metadata_blockers(
     if not isinstance(reconstruction_variant, dict):
         blockers.append("missing_reconstruction_variant_metadata")
     else:
-        if (
-            not isinstance(reconstruction_variant.get("kernel_identity"), str)
-            or not reconstruction_variant.get("kernel_identity")
-        ):
+        if not isinstance(
+            reconstruction_variant.get("kernel_identity"), str
+        ) or not reconstruction_variant.get("kernel_identity"):
             blockers.append("missing_reconstruction_kernel_identity")
         prefix_count = reconstruction_variant.get("prefix_count")
         if not isinstance(prefix_count, int) or isinstance(prefix_count, bool) or prefix_count < 0:
@@ -371,7 +418,9 @@ def final_output_export_metadata_blockers(
     return blockers
 
 
-def skinny_gemv_metadata_blockers(capture: dict[str, Any], *, semantics: Any, backend_family: str) -> list[str]:
+def skinny_gemv_metadata_blockers(
+    capture: dict[str, Any], *, semantics: Any, backend_family: str
+) -> list[str]:
     n = capture.get("n")
     if (
         semantics not in {"bounded_i64", "bounded_u64"}
@@ -441,8 +490,15 @@ def native_to_rns_handoff_metadata_blockers(
     if mode == "auto_native_to_rns_bridge":
         if timing.get("native_to_rns_bridge_forced") is not True:
             blockers.append("missing_native_to_rns_bridge_forced_metadata")
-        phase = phase_availability.get("native_to_rns_bridge") if isinstance(phase_availability, dict) else None
-        if not isinstance(phase, dict) or phase.get("scope") != "device_native_to_rns_conversion_inside_rns_gemm":
+        phase = (
+            phase_availability.get("native_to_rns_bridge")
+            if isinstance(phase_availability, dict)
+            else None
+        )
+        if (
+            not isinstance(phase, dict)
+            or phase.get("scope") != "device_native_to_rns_conversion_inside_rns_gemm"
+        ):
             blockers.append("missing_native_to_rns_handoff_scope")
     else:
         if timing.get("vector_to_rns_chain") is not True:
@@ -458,7 +514,11 @@ def native_to_rns_handoff_metadata_blockers(
             blockers.append("missing_vector_to_rns_chain_producer_backend")
         if timing.get("vector_to_rns_chain_consumer_backend") != "hip-direct":
             blockers.append("missing_vector_to_rns_chain_consumer_backend")
-        phase = phase_availability.get("vector_to_rns_chain") if isinstance(phase_availability, dict) else None
+        phase = (
+            phase_availability.get("vector_to_rns_chain")
+            if isinstance(phase_availability, dict)
+            else None
+        )
         if not isinstance(phase, dict):
             blockers.append("missing_vector_to_rns_chain_phase_scope")
     return blockers
@@ -480,7 +540,9 @@ def native_to_rns_handoff_diagnostics(capture: dict[str, Any]) -> dict[str, Any]
     if mode not in NATIVE_TO_RNS_EXECUTION_MODES:
         return None
     semantics = capture.get("semantics")
-    conversion_label = "native_u64_to_rns_kernel" if semantics == "bounded_u64" else "native_i64_to_rns_kernel"
+    conversion_label = (
+        "native_u64_to_rns_kernel" if semantics == "bounded_u64" else "native_i64_to_rns_kernel"
+    )
     timing = capture_timing_metadata(capture)
     diagnostics = {
         "execution_mode": mode,
@@ -515,7 +577,12 @@ def sparse_a_4_to_2_contract_blockers(
     kernel = selected_kernel(capture)
     sparse_runtime = backend.endswith("-sparse-a-runtime")
     dense_sparse_baseline = backend.endswith("-dense-sparse-a-input")
-    if not sparse_scenario and "sparse_a" not in kernel and not sparse_runtime and not dense_sparse_baseline:
+    if (
+        not sparse_scenario
+        and "sparse_a" not in kernel
+        and not sparse_runtime
+        and not dense_sparse_baseline
+    ):
         return []
 
     blockers: list[str] = []
@@ -544,7 +611,9 @@ def sparse_a_4_to_2_contract_blockers(
         ):
             blockers.append("missing_sparse_a_compression_index_layout")
 
-    sparse_value_signedness = "unsigned_u8" if _capture_semantics_are_finite_u8(capture) else "signed_i8"
+    sparse_value_signedness = (
+        "unsigned_u8" if _capture_semantics_are_finite_u8(capture) else "signed_i8"
+    )
     required_key_tokens = (
         "sparse_contract=a_4_to_2_structured_k_v1",
         "sparse_operand=A",
@@ -559,7 +628,9 @@ def sparse_a_4_to_2_contract_blockers(
     return blockers
 
 
-def amdgpu_builtin_tile_variant_blockers(capture: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
+def amdgpu_builtin_tile_variant_blockers(
+    capture: dict[str, Any], metadata: dict[str, Any]
+) -> list[str]:
     if backend_family_id(backend_id(capture)) != "amdgpu-builtins":
         return []
     tile_variant = capture.get("tile_shape_variant")
@@ -621,7 +692,9 @@ def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) ->
     if reuse_evidence_group(items) or any(capture_prepacked_reuse(item) for item in items):
         return []
     scopes = {capture_scenario_promotion_scope(item) for item in items}
-    if scopes & GRAPH_EVIDENCE_PROMOTION_SCOPES or any(capture_hip_graph_replay(item) for item in items):
+    if scopes & GRAPH_EVIDENCE_PROMOTION_SCOPES or any(
+        capture_hip_graph_replay(item) for item in items
+    ):
         return []
     required = required_baselines(semantics)
     if semantics in {"bounded_i64", "bounded_u64"} and residue_chain_group(items):
@@ -629,7 +702,9 @@ def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) ->
     return required
 
 
-def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: dict[str, Any] | None) -> dict[str, Any]:
+def phase_ratios(
+    item: dict[str, Any], direct: dict[str, Any] | None, vector: dict[str, Any] | None
+) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for phase in DIAGNOSTIC_PHASES:
         value = median_phase(item, phase)
@@ -777,63 +852,162 @@ def review_next_work(
             }
         )
     for blocker, work in [
-        ("reuse_not_faster_than_same_backend_setup_inclusive", "reduce_prepack_setup_or_reuse_steady_state_cost"),
-        ("reuse_not_faster_than_best_nonreuse_setup_inclusive", "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence"),
-        ("graph_not_faster_than_non_graph_setup_inclusive", "improve_graph_replay_break_even_or_keep_graph_benchmark_only"),
+        (
+            "reuse_not_faster_than_same_backend_setup_inclusive",
+            "reduce_prepack_setup_or_reuse_steady_state_cost",
+        ),
+        (
+            "reuse_not_faster_than_best_nonreuse_setup_inclusive",
+            "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence",
+        ),
+        (
+            "graph_not_faster_than_non_graph_setup_inclusive",
+            "improve_graph_replay_break_even_or_keep_graph_benchmark_only",
+        ),
         ("missing_graph_setup_inclusive_timing", "fix_graph_setup_inclusive_timing_metadata"),
-        ("missing_amdgpu_builtin_matrix_isa_histogram", "attach_compiled_matrix_isa_reports_before_builtin_promotion"),
+        (
+            "missing_amdgpu_builtin_matrix_isa_histogram",
+            "attach_compiled_matrix_isa_reports_before_builtin_promotion",
+        ),
         (
             "missing_selected_amdgpu_builtin_matrix_instruction",
             "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction",
         ),
-        ("missing_final_output_contract_metadata", "attach_final_output_contract_metadata_before_promotion"),
-        ("missing_final_output_kernel_identity", "attach_final_output_kernel_identity_before_promotion"),
+        (
+            "missing_final_output_contract_metadata",
+            "attach_final_output_contract_metadata_before_promotion",
+        ),
+        (
+            "missing_final_output_kernel_identity",
+            "attach_final_output_kernel_identity_before_promotion",
+        ),
         ("missing_export_variant_metadata", "attach_export_variant_metadata_before_promotion"),
         ("missing_export_kernel_identity", "attach_export_kernel_identity_before_promotion"),
-        ("export_variant_not_final_host_output", "reclassify_residue_current_or_capture_final_host_output"),
+        (
+            "export_variant_not_final_host_output",
+            "reclassify_residue_current_or_capture_final_host_output",
+        ),
         ("missing_export_output_layout", "attach_export_output_layout_before_promotion"),
         ("missing_export_d2h_policy", "attach_export_d2h_policy_before_promotion"),
-        ("missing_reconstruction_variant_metadata", "attach_reconstruction_variant_metadata_before_promotion"),
-        ("missing_reconstruction_kernel_identity", "attach_reconstruction_kernel_identity_before_promotion"),
-        ("missing_reconstruction_prefix_count", "attach_reconstruction_prefix_count_before_promotion"),
-        ("missing_direct_hip_skinny_gemv_kernel_identity", "select_direct_hip_skinny_gemv_kernel_before_promotion"),
-        ("missing_direct_hip_skinny_gemv_execution_mode", "route_direct_hip_skinny_captures_through_gemv_mode"),
-        ("missing_vector_alu_skinny_gemv_kernel_identity", "select_vector_alu_skinny_gemv_kernel_before_promotion"),
-        ("missing_vector_alu_skinny_gemv_execution_mode", "route_vector_alu_skinny_captures_through_gemv_mode"),
+        (
+            "missing_reconstruction_variant_metadata",
+            "attach_reconstruction_variant_metadata_before_promotion",
+        ),
+        (
+            "missing_reconstruction_kernel_identity",
+            "attach_reconstruction_kernel_identity_before_promotion",
+        ),
+        (
+            "missing_reconstruction_prefix_count",
+            "attach_reconstruction_prefix_count_before_promotion",
+        ),
+        (
+            "missing_direct_hip_skinny_gemv_kernel_identity",
+            "select_direct_hip_skinny_gemv_kernel_before_promotion",
+        ),
+        (
+            "missing_direct_hip_skinny_gemv_execution_mode",
+            "route_direct_hip_skinny_captures_through_gemv_mode",
+        ),
+        (
+            "missing_vector_alu_skinny_gemv_kernel_identity",
+            "select_vector_alu_skinny_gemv_kernel_before_promotion",
+        ),
+        (
+            "missing_vector_alu_skinny_gemv_execution_mode",
+            "route_vector_alu_skinny_captures_through_gemv_mode",
+        ),
         ("missing_skinny_gemv_gpu_event_phase", "attach_skinny_gemv_gpu_event_phase_timing"),
-        ("missing_native_to_rns_bridge_forced_metadata", "attach_native_to_rns_bridge_forced_metadata"),
+        (
+            "missing_native_to_rns_bridge_forced_metadata",
+            "attach_native_to_rns_bridge_forced_metadata",
+        ),
         ("missing_native_to_rns_handoff_scope", "attach_native_to_rns_handoff_phase_scope"),
-        ("missing_native_to_rns_phase_availability", "attach_native_to_rns_phase_availability_metadata"),
+        (
+            "missing_native_to_rns_phase_availability",
+            "attach_native_to_rns_phase_availability_metadata",
+        ),
         ("missing_vector_to_rns_chain_metadata", "attach_vector_to_rns_chain_metadata"),
-        ("vector_to_rns_chain_control_mode_mismatch", "fix_vector_to_rns_chain_control_mode_metadata"),
-        ("missing_vector_to_rns_chain_producer_backend", "attach_vector_to_rns_chain_producer_backend"),
-        ("missing_vector_to_rns_chain_consumer_backend", "attach_vector_to_rns_chain_consumer_backend"),
+        (
+            "vector_to_rns_chain_control_mode_mismatch",
+            "fix_vector_to_rns_chain_control_mode_metadata",
+        ),
+        (
+            "missing_vector_to_rns_chain_producer_backend",
+            "attach_vector_to_rns_chain_producer_backend",
+        ),
+        (
+            "missing_vector_to_rns_chain_consumer_backend",
+            "attach_vector_to_rns_chain_consumer_backend",
+        ),
         ("missing_vector_to_rns_chain_phase_scope", "attach_vector_to_rns_chain_phase_scope"),
-        ("missing_sparse_a_4_to_2_scenario_contract", "route_sparse_a_captures_through_explicit_sparse_contract_scenarios"),
+        (
+            "missing_sparse_a_4_to_2_scenario_contract",
+            "route_sparse_a_captures_through_explicit_sparse_contract_scenarios",
+        ),
         ("sparse_a_k_not_divisible_by_4", "fix_sparse_a_shapes_to_k_divisible_by_4"),
-        ("missing_sparse_a_4_to_2_input_distribution", "attach_sparse_a_4_to_2_input_distribution_metadata"),
+        (
+            "missing_sparse_a_4_to_2_input_distribution",
+            "attach_sparse_a_4_to_2_input_distribution_metadata",
+        ),
         ("missing_sparse_a_runtime_kernel_identity", "compile_sparse_a_matrix_core_runtime_kernel"),
-        ("dense_sparse_a_baseline_used_sparse_kernel", "separate_dense_sparse_input_baseline_from_sparse_runtime_kernel"),
-        ("missing_sparse_a_matrix_instruction_sparsity", "attach_sparse_a_matrix_instruction_sparsity_metadata"),
-        ("missing_sparse_a_matrix_instruction_family", "attach_sparse_a_smfmac_or_swmmac_family_metadata"),
-        ("missing_amdgpu_builtin_operand_signedness_contract", "attach_amdgpu_builtin_operand_signedness_contract"),
+        (
+            "dense_sparse_a_baseline_used_sparse_kernel",
+            "separate_dense_sparse_input_baseline_from_sparse_runtime_kernel",
+        ),
+        (
+            "missing_sparse_a_matrix_instruction_sparsity",
+            "attach_sparse_a_matrix_instruction_sparsity_metadata",
+        ),
+        (
+            "missing_sparse_a_matrix_instruction_family",
+            "attach_sparse_a_smfmac_or_swmmac_family_metadata",
+        ),
+        (
+            "missing_amdgpu_builtin_operand_signedness_contract",
+            "attach_amdgpu_builtin_operand_signedness_contract",
+        ),
         ("missing_amdgpu_builtin_a_value_contract", "attach_amdgpu_builtin_a_value_contract"),
         ("missing_amdgpu_builtin_b_value_contract", "attach_amdgpu_builtin_dense_b_value_contract"),
         ("missing_sparse_a_contract_metadata", "attach_sparse_a_contract_metadata"),
         ("missing_sparse_a_dense_b_contract", "attach_sparse_a_dense_b_contract_metadata"),
-        ("missing_sparse_a_compression_index_layout", "attach_sparse_a_compression_index_layout_metadata"),
+        (
+            "missing_sparse_a_compression_index_layout",
+            "attach_sparse_a_compression_index_layout_metadata",
+        ),
         ("missing_rdna_integer_modifier_policy", "attach_rdna_integer_modifier_policy_metadata"),
-        ("missing_sparse_a_4_to_2_autotune_contract", "attach_sparse_a_4_to_2_autotune_contract_metadata"),
+        (
+            "missing_sparse_a_4_to_2_autotune_contract",
+            "attach_sparse_a_4_to_2_autotune_contract_metadata",
+        ),
         (
             "amdgpu_builtin_selected_kernel_semantic_target_mismatch",
             "align_amdgpu_builtin_selected_kernel_with_semantics_and_target",
         ),
-        ("amdgpu_builtin_tile_variant_kernel_mismatch", "align_amdgpu_builtin_tile_variant_with_selected_kernel"),
-        ("amdgpu_builtin_tile_variant_family_mismatch", "align_amdgpu_builtin_tile_variant_family_metadata"),
-        ("amdgpu_builtin_tile_variant_shape_mismatch", "align_amdgpu_builtin_tile_variant_shape_metadata"),
-        ("amdgpu_builtin_tile_variant_dtype_mismatch", "align_amdgpu_builtin_tile_variant_dtype_metadata"),
-        ("not_faster_than_direct_hip", "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner"),
-        ("not_faster_than_vector_alu", "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion"),
+        (
+            "amdgpu_builtin_tile_variant_kernel_mismatch",
+            "align_amdgpu_builtin_tile_variant_with_selected_kernel",
+        ),
+        (
+            "amdgpu_builtin_tile_variant_family_mismatch",
+            "align_amdgpu_builtin_tile_variant_family_metadata",
+        ),
+        (
+            "amdgpu_builtin_tile_variant_shape_mismatch",
+            "align_amdgpu_builtin_tile_variant_shape_metadata",
+        ),
+        (
+            "amdgpu_builtin_tile_variant_dtype_mismatch",
+            "align_amdgpu_builtin_tile_variant_dtype_metadata",
+        ),
+        (
+            "not_faster_than_direct_hip",
+            "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner",
+        ),
+        (
+            "not_faster_than_vector_alu",
+            "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion",
+        ),
     ]:
         count = actionable_blockers.get(blocker, 0)
         if count:
@@ -928,7 +1102,9 @@ def review_next_work(
     return rows
 
 
-def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[dict[str, Any]]) -> dict[str, Any]:
+def build_review_summary(
+    groups: list[dict[str, Any]], promotable_entries: list[dict[str, Any]]
+) -> dict[str, Any]:
     blocker_counts: Counter[str] = Counter()
     actionable_blockers: Counter[str] = Counter()
     loss_phase_counts: Counter[str] = Counter()
@@ -956,7 +1132,11 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
         production = group.get("fastest_production_route")
         if isinstance(production, dict):
             production_counts.update([str(production.get("backend"))])
-            bottleneck = production.get("bottleneck") if isinstance(production.get("bottleneck"), dict) else {}
+            bottleneck = (
+                production.get("bottleneck")
+                if isinstance(production.get("bottleneck"), dict)
+                else {}
+            )
             bottleneck_class = str(bottleneck.get("class") or "unknown")
             bottleneck_counts.update([bottleneck_class])
             if production.get("backend") == "hip-direct":
@@ -965,11 +1145,19 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
         if isinstance(accelerator, dict):
             accelerator_counts.update([str(accelerator.get("backend"))])
         for candidate in group.get("candidates", []):
-            blockers = candidate.get("promotion_blockers") if isinstance(candidate.get("promotion_blockers"), list) else []
+            blockers = (
+                candidate.get("promotion_blockers")
+                if isinstance(candidate.get("promotion_blockers"), list)
+                else []
+            )
             blocker_counts.update(str(item) for item in blockers)
             pack_diagnostics = candidate.get("pack_diagnostics")
             if isinstance(pack_diagnostics, dict):
-                split_state = "split_available" if pack_diagnostics.get("split_available") is True else "split_missing"
+                split_state = (
+                    "split_available"
+                    if pack_diagnostics.get("split_available") is True
+                    else "split_missing"
+                )
                 pack_split_counts.update([split_state])
                 dominant = pack_diagnostics.get("dominant_operand")
                 if isinstance(dominant, str) and dominant:
@@ -993,21 +1181,25 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
                             "dominant_operand": dominant,
                             "pack_mode": pack_diagnostics.get("pack_mode"),
                             "pack_layout": pack_diagnostics.get("pack_layout"),
-                            "source_versioned_inputs": pack_diagnostics.get("source_versioned_inputs"),
+                            "source_versioned_inputs": pack_diagnostics.get(
+                                "source_versioned_inputs"
+                            ),
                             "same_source_version_pack_elision_available": pack_diagnostics.get(
                                 "same_source_version_pack_elision_available"
                             ),
                         }
                     )
-            route_metadata_actionable = any(str(item) in ROUTE_METADATA_BLOCKERS for item in blockers)
+            route_metadata_actionable = any(
+                str(item) in ROUTE_METADATA_BLOCKERS for item in blockers
+            )
             if (
-                (candidate.get("accelerator_backend") is True or route_metadata_actionable)
-                and candidate.get("scenario_promotion_scope") in {None, "release_review_candidate"}
-            ):
+                candidate.get("accelerator_backend") is True or route_metadata_actionable
+            ) and candidate.get("scenario_promotion_scope") in {None, "release_review_candidate"}:
                 actionable = [
                     str(item)
                     for item in blockers
-                    if str(item) not in {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}
+                    if str(item)
+                    not in {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}
                 ]
                 actionable_blockers.update(actionable)
                 phase = candidate.get("primary_loss_phase_vs_direct_hip")
@@ -1019,12 +1211,21 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
                     loss_phase_by_backend.update([(backend, phase)])
                     loss_phase_by_semantics.update([(semantics, phase)])
                     loss_phase_by_shape_family.update([(family, phase)])
-                    loss_phase_by_scenario_family.update((scenario_family, phase) for scenario_family in group_scenario_families(group))
+                    loss_phase_by_scenario_family.update(
+                        (scenario_family, phase)
+                        for scenario_family in group_scenario_families(group)
+                    )
                     loss_rows.append(compact_candidate_route(group, candidate))
-                bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
+                bottleneck = (
+                    candidate.get("bottleneck")
+                    if isinstance(candidate.get("bottleneck"), dict)
+                    else {}
+                )
                 bottleneck_class = str(bottleneck.get("class") or "unknown")
                 bottleneck_counts.update([bottleneck_class])
-            if isinstance(candidate.get("prepacked_reuse_review"), dict) or isinstance(candidate.get("hip_graph_replay_review"), dict):
+            if isinstance(candidate.get("prepacked_reuse_review"), dict) or isinstance(
+                candidate.get("hip_graph_replay_review"), dict
+            ):
                 setup_sensitive.append(
                     {
                         **compact_candidate_route(group, candidate),
@@ -1079,7 +1280,9 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
 
 
 def capture_prepacked_reuse(capture: dict[str, Any]) -> bool:
-    return capture_pack_mode(capture) in REUSE_PACK_MODES or capture.get("reuse_packed_inputs") is True
+    return (
+        capture_pack_mode(capture) in REUSE_PACK_MODES or capture.get("reuse_packed_inputs") is True
+    )
 
 
 def capture_hip_graph_replay(capture: dict[str, Any]) -> bool:
@@ -1153,7 +1356,9 @@ def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> floa
     return setup
 
 
-def setup_inclusive_end_to_end_us(capture: dict[str, Any], *, include_graph_setup: bool = False) -> float | None:
+def setup_inclusive_end_to_end_us(
+    capture: dict[str, Any], *, include_graph_setup: bool = False
+) -> float | None:
     if capture_prepacked_reuse(capture) and not include_graph_setup:
         recorded = reuse_contract_numeric_value(capture, "setup_inclusive_median_end_to_end_us")
         if recorded is not None:
@@ -1263,18 +1468,23 @@ def setup_comparison_key(capture: dict[str, Any], *, include_pack_mode: bool) ->
     return ";".join(str(part) for part in parts)
 
 
-def fastest_capture(captures: list[dict[str, Any]], *, include_graph_setup: bool = False) -> dict[str, Any] | None:
+def fastest_capture(
+    captures: list[dict[str, Any]], *, include_graph_setup: bool = False
+) -> dict[str, Any] | None:
     timed = [
         capture
         for capture in captures
-        if setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup) is not None
+        if setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup)
+        is not None
     ]
     if not timed:
         return None
     return min(
         timed,
-        key=lambda capture: setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup)
-        or float("inf"),
+        key=lambda capture: (
+            setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup)
+            or float("inf")
+        ),
     )
 
 
@@ -1299,7 +1509,9 @@ def build_setup_baseline_indexes(
     graph_baseline_by_key_backend: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for capture in captures:
         family = backend_family_id(backend_id(capture))
-        if not correctness_anchor_reference_capture(capture) and not capture_hip_graph_replay(capture):
+        if not correctness_anchor_reference_capture(capture) and not capture_hip_graph_replay(
+            capture
+        ):
             graph_key = setup_comparison_key(capture, include_pack_mode=True)
             graph_baseline_by_key_backend[(graph_key, family)].append(capture)
         if capture_prepacked_reuse(capture) or capture_hip_graph_replay(capture):
@@ -1337,8 +1549,12 @@ def prepacked_reuse_review(
 ) -> dict[str, Any]:
     candidate_setup = setup_inclusive_end_to_end_us(capture)
     candidate_median = median_phase(capture, "end_to_end")
-    same_backend_time = median_phase(same_backend_baseline, "end_to_end") if same_backend_baseline else None
-    best_nonreuse_time = median_phase(best_nonreuse_baseline, "end_to_end") if best_nonreuse_baseline else None
+    same_backend_time = (
+        median_phase(same_backend_baseline, "end_to_end") if same_backend_baseline else None
+    )
+    best_nonreuse_time = (
+        median_phase(best_nonreuse_baseline, "end_to_end") if best_nonreuse_baseline else None
+    )
     prepack_setup = setup_cost_us(capture, include_graph_setup=False)
     declared_repeats = normalized_positive_int(capture.get("repeats"))
     setup_amortized = (
@@ -1357,11 +1573,21 @@ def prepacked_reuse_review(
         blockers.append("best_nonreuse_not_release_review")
     if candidate_setup is None:
         blockers.append("missing_prepack_setup_inclusive_timing")
-    if same_backend_time is not None and candidate_setup is not None and candidate_setup >= same_backend_time:
+    if (
+        same_backend_time is not None
+        and candidate_setup is not None
+        and candidate_setup >= same_backend_time
+    ):
         blockers.append("reuse_not_faster_than_same_backend_setup_inclusive")
-    if best_nonreuse_time is not None and candidate_setup is not None and candidate_setup >= best_nonreuse_time:
+    if (
+        best_nonreuse_time is not None
+        and candidate_setup is not None
+        and candidate_setup >= best_nonreuse_time
+    ):
         blockers.append("reuse_not_faster_than_best_nonreuse_setup_inclusive")
-    blockers.extend(checksum_match_blockers(capture, same_backend_baseline, label="same_backend_nonreuse"))
+    blockers.extend(
+        checksum_match_blockers(capture, same_backend_baseline, label="same_backend_nonreuse")
+    )
     blockers.extend(checksum_match_blockers(capture, best_nonreuse_baseline, label="best_nonreuse"))
     return {
         "setup_inclusive_median_end_to_end_us": candidate_setup,
@@ -1376,11 +1602,19 @@ def prepacked_reuse_review(
             if setup_amortized is not None and candidate_setup not in (None, 0.0)
             else None
         ),
-        "same_backend_nonreuse_backend": backend_family_id(backend_id(same_backend_baseline)) if same_backend_baseline else None,
-        "same_backend_nonreuse_capture": same_backend_baseline.get("_path") if same_backend_baseline else None,
+        "same_backend_nonreuse_backend": backend_family_id(backend_id(same_backend_baseline))
+        if same_backend_baseline
+        else None,
+        "same_backend_nonreuse_capture": same_backend_baseline.get("_path")
+        if same_backend_baseline
+        else None,
         "same_backend_nonreuse_median_end_to_end_us": same_backend_time,
-        "best_nonreuse_backend": backend_family_id(backend_id(best_nonreuse_baseline)) if best_nonreuse_baseline else None,
-        "best_nonreuse_capture": best_nonreuse_baseline.get("_path") if best_nonreuse_baseline else None,
+        "best_nonreuse_backend": backend_family_id(backend_id(best_nonreuse_baseline))
+        if best_nonreuse_baseline
+        else None,
+        "best_nonreuse_capture": best_nonreuse_baseline.get("_path")
+        if best_nonreuse_baseline
+        else None,
         "best_nonreuse_median_end_to_end_us": best_nonreuse_time,
         "speedup_vs_same_backend_setup_inclusive": (
             same_backend_time / candidate_setup
@@ -1413,7 +1647,11 @@ def hip_graph_replay_review(
         candidate_setup_us=graph_total_setup,
     )
     raw_repeats = capture.get("repeats")
-    declared_repeats = raw_repeats if isinstance(raw_repeats, int) and not isinstance(raw_repeats, bool) and raw_repeats > 0 else None
+    declared_repeats = (
+        raw_repeats
+        if isinstance(raw_repeats, int) and not isinstance(raw_repeats, bool) and raw_repeats > 0
+        else None
+    )
     blockers: list[str] = []
     if baseline is None:
         blockers.append("missing_same_contract_non_graph_baseline")
@@ -1430,7 +1668,10 @@ def hip_graph_replay_review(
         blockers.extend(pair_blockers(baseline, capture))
         if capture_hip_graph_replay(baseline):
             blockers.append("non_graph_baseline_is_graph")
-        if full_path_graph(capture) and capture_execution_mode(baseline) != "persistent_resident_matrices":
+        if (
+            full_path_graph(capture)
+            and capture_execution_mode(baseline) != "persistent_resident_matrices"
+        ):
             blockers.append("ordinary_caller_host_baseline_required")
     blockers.extend(checksum_match_blockers(capture, baseline, label="non_graph_baseline"))
     if blockers:
@@ -1449,7 +1690,9 @@ def hip_graph_replay_review(
         ),
         "graph_setup_share_of_setup_inclusive": (
             (graph_total_setup / float(declared_repeats)) / graph_setup
-            if graph_total_setup is not None and declared_repeats is not None and graph_setup not in (None, 0.0)
+            if graph_total_setup is not None
+            and declared_repeats is not None
+            and graph_setup not in (None, 0.0)
             else None
         ),
         "baseline_backend": backend_family_id(backend_id(baseline)) if baseline else None,
@@ -1459,11 +1702,15 @@ def hip_graph_replay_review(
         "baseline_setup_inclusive_median_end_to_end_us": baseline_setup,
         "baseline_setup_share_of_setup_inclusive": (
             (baseline_total_setup / float(declared_repeats)) / baseline_setup
-            if baseline_total_setup is not None and declared_repeats is not None and baseline_setup not in (None, 0.0)
+            if baseline_total_setup is not None
+            and declared_repeats is not None
+            and baseline_setup not in (None, 0.0)
             else None
         ),
         "steady_state_delta_us": (
-            baseline_median - graph_median if baseline_median is not None and graph_median is not None else None
+            baseline_median - graph_median
+            if baseline_median is not None and graph_median is not None
+            else None
         ),
         "graph_setup_overhead_vs_baseline_us": (
             graph_total_setup - baseline_total_setup
@@ -1478,7 +1725,9 @@ def hip_graph_replay_review(
             else False
         ),
         "speedup_vs_non_graph_setup_inclusive": (
-            baseline_setup / graph_setup if not blockers and baseline_setup is not None and graph_setup not in (None, 0.0) else None
+            baseline_setup / graph_setup
+            if not blockers and baseline_setup is not None and graph_setup not in (None, 0.0)
+            else None
         ),
         "blockers": sorted(set(blockers)),
     }
@@ -1633,11 +1882,17 @@ def bottleneck_classification(capture: dict[str, Any]) -> dict[str, Any]:
     overhead_share = max(0.0, end_to_end - sum(phase_values.values())) / end_to_end
     phase, share = max(shares.items(), key=lambda item: item[1])
     if overhead_share >= 0.25 and overhead_share > share:
-        return {"class": "launch_or_api_bound", "phase": "unattributed_overhead", "share": overhead_share}
+        return {
+            "class": "launch_or_api_bound",
+            "phase": "unattributed_overhead",
+            "share": overhead_share,
+        }
     if share < 0.40:
         return {"class": "mixed_bound", "phase": phase, "share": share}
     return {
-        "class": {"pack": "pack_bound", "rns_gemm": "compute_bound", "crt_export": "export_bound"}[phase],
+        "class": {"pack": "pack_bound", "rns_gemm": "compute_bound", "crt_export": "export_bound"}[
+            phase
+        ],
         "phase": phase,
         "share": share,
     }
@@ -1663,7 +1918,9 @@ def pack_phase_diagnostics(capture: dict[str, Any]) -> dict[str, Any]:
         "pack_median_us": pack,
         "pack_a_median_us": pack_a,
         "pack_b_median_us": pack_b,
-        "pack_share_of_end_to_end": (pack / end_to_end) if pack is not None and end_to_end else None,
+        "pack_share_of_end_to_end": (pack / end_to_end)
+        if pack is not None and end_to_end
+        else None,
         "split_available": split_available,
         "dominant_operand": dominant_operand,
         "pack_mode": capture_pack_mode(capture),
@@ -1719,7 +1976,9 @@ def matrix_instruction_histogram(
     # selected-opcode admission requires artifact/target/symbol association.
     if isa_index is not None:
         target = capture_device(capture).get("gcn_arch") or capture.get("configured_amdgpu_targets")
-        resources = lookup_isa_resources(isa_index, backend_family_id(backend_id(capture)), target, capture)
+        resources = lookup_isa_resources(
+            isa_index, backend_family_id(backend_id(capture)), target, capture
+        )
         histogram = resources.get("isa_matrix_instruction_histogram")
         if isinstance(histogram, dict):
             return histogram
@@ -1795,12 +2054,18 @@ def review_route_candidate(candidate: dict[str, Any]) -> bool:
     )
 
 
-def fastest_route(candidates: list[dict[str, Any]], *, accelerator_only: bool) -> dict[str, Any] | None:
+def fastest_route(
+    candidates: list[dict[str, Any]], *, accelerator_only: bool
+) -> dict[str, Any] | None:
     route_candidates = [
         candidate
         for candidate in candidates
         if review_route_candidate(candidate)
-        and (candidate.get("accelerator_backend") is True if accelerator_only else candidate.get("backend") != "cpu-reference")
+        and (
+            candidate.get("accelerator_backend") is True
+            if accelerator_only
+            else candidate.get("backend") != "cpu-reference"
+        )
     ]
     if not route_candidates:
         return None
@@ -1816,7 +2081,9 @@ def review_captures(
 ) -> dict[str, Any]:
     if review_mode not in REVIEW_MODES:
         raise ValueError(f"unsupported review mode: {review_mode}")
-    nonreuse_by_key_backend, nonreuse_by_key, graph_baseline_by_key_backend = build_setup_baseline_indexes(captures)
+    nonreuse_by_key_backend, nonreuse_by_key, graph_baseline_by_key_backend = (
+        build_setup_baseline_indexes(captures)
+    )
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for capture in captures:
         grouped[capture_contract_key(capture)].append(capture)
@@ -1827,7 +2094,9 @@ def review_captures(
         backend_counts: dict[str, int] = defaultdict(int)
         for item in items:
             backend_counts[backend_id(item)] += 1
-        duplicate_backends = sorted(backend for backend, count in backend_counts.items() if count > 1)
+        duplicate_backends = sorted(
+            backend for backend, count in backend_counts.items() if count > 1
+        )
         by_backend: dict[str, dict[str, Any]] = {}
         for item in items:
             by_backend.setdefault(backend_id(item), item)
@@ -1846,7 +2115,9 @@ def review_captures(
             for backend, capture in by_backend.items()
             if backend_requires_gpu_target(backend)
         }
-        missing_gpu_targets = sorted(backend for backend, target in gpu_targets.items() if target is None)
+        missing_gpu_targets = sorted(
+            backend for backend, target in gpu_targets.items() if target is None
+        )
         gpu_target_identity_complete = not missing_gpu_targets
         gpu_target_values = {value for value in gpu_targets.values() if value}
         gpu_target_compatible = gpu_target_identity_complete and len(gpu_target_values) <= 1
@@ -1860,9 +2131,13 @@ def review_captures(
         )
         configured_target_identity_complete = not missing_configured_gpu_targets
         configured_target_values = {target for target in configured_gpu_targets.values() if target}
-        configured_target_compatible = configured_target_identity_complete and len(configured_target_values) <= 1
+        configured_target_compatible = (
+            configured_target_identity_complete and len(configured_target_values) <= 1
+        )
         hip_toolchain_versions = {
-            backend: normalized_target_id(capture_hip_toolchain(capture).get("hip_sdk_or_rocm_version"))
+            backend: normalized_target_id(
+                capture_hip_toolchain(capture).get("hip_sdk_or_rocm_version")
+            )
             for backend, capture in by_backend.items()
             if backend_requires_gpu_target(backend)
         }
@@ -1870,7 +2145,9 @@ def review_captures(
             backend for backend, version in hip_toolchain_versions.items() if version is None
         )
         hip_toolchain_version_complete = not missing_hip_toolchain_versions
-        hip_toolchain_version_values = {version for version in hip_toolchain_versions.values() if version}
+        hip_toolchain_version_values = {
+            version for version in hip_toolchain_versions.values() if version
+        }
         hip_toolchain_version_compatible = (
             hip_toolchain_version_complete and len(hip_toolchain_version_values) <= 1
         )
@@ -1883,8 +2160,12 @@ def review_captures(
             backend for backend, version in hip_runtime_versions.items() if version is None
         )
         hip_runtime_version_complete = not missing_hip_runtime_versions
-        hip_runtime_version_values = {version for version in hip_runtime_versions.values() if version}
-        hip_runtime_version_compatible = hip_runtime_version_complete and len(hip_runtime_version_values) <= 1
+        hip_runtime_version_values = {
+            version for version in hip_runtime_versions.values() if version
+        }
+        hip_runtime_version_compatible = (
+            hip_runtime_version_complete and len(hip_runtime_version_values) <= 1
+        )
         hip_driver_versions = {
             backend: normalized_positive_int(capture_device(capture).get("hip_driver_version"))
             for backend, capture in by_backend.items()
@@ -1895,28 +2176,56 @@ def review_captures(
         )
         hip_driver_version_complete = not missing_hip_driver_versions
         hip_driver_version_values = {version for version in hip_driver_versions.values() if version}
-        hip_driver_version_compatible = hip_driver_version_complete and len(hip_driver_version_values) <= 1
-        compiler_identities = {backend: normalized_compiler_identity(capture) for backend, capture in by_backend.items()}
+        hip_driver_version_compatible = (
+            hip_driver_version_complete and len(hip_driver_version_values) <= 1
+        )
+        compiler_identities = {
+            backend: normalized_compiler_identity(capture)
+            for backend, capture in by_backend.items()
+        }
         missing_compiler_identities = sorted(
             backend for backend, identity in compiler_identities.items() if identity is None
         )
         compiler_identity_complete = not missing_compiler_identities
-        compiler_identity_values = {identity for identity in compiler_identities.values() if identity}
-        compiler_identity_compatible = compiler_identity_complete and len(compiler_identity_values) <= 1
-        git_commits = {
-            backend: normalized_identity_text(capture.get("git_commit")) for backend, capture in by_backend.items()
+        compiler_identity_values = {
+            identity for identity in compiler_identities.values() if identity
         }
-        missing_git_commits = sorted(backend for backend, commit in git_commits.items() if commit is None)
+        compiler_identity_compatible = (
+            compiler_identity_complete and len(compiler_identity_values) <= 1
+        )
+        git_commits = {
+            backend: normalized_identity_text(capture.get("git_commit"))
+            for backend, capture in by_backend.items()
+        }
+        missing_git_commits = sorted(
+            backend for backend, commit in git_commits.items() if commit is None
+        )
         # Legacy captures remain readable, but cannot qualify a new release.
         manifests = [capture.get("build_manifest", {}) for capture in by_backend.values()]
         artifacts = [capture.get("artifact_capture", {}) for capture in by_backend.values()]
-        manifest_complete = all(manifest_provenance_complete(m, backend) for backend, m in zip(by_backend, manifests))
+        manifest_complete = all(
+            manifest_provenance_complete(m, backend) for backend, m in zip(by_backend, manifests)
+        )
         artifact_complete = all(
             len(str(a.get("executable_sha256", ""))) == 64 and a.get("unchanged_during_run") is True
-            for a in artifacts)
-        git_commit_identity_complete = not missing_git_commits and manifest_complete and artifact_complete
+            for a in artifacts
+        )
+        git_commit_identity_complete = (
+            not missing_git_commits and manifest_complete and artifact_complete
+        )
         git_commit_values = {commit for commit in git_commits.values() if commit}
-        git_commit_identity_compatible = git_commit_identity_complete and manifest_dependencies_compatible(manifests) and len({c.get("exact_proof_policy", "eager_moments_v1") for c in by_backend.values()}) <= 1 and len(git_commit_values) <= 1 and len({m.get("source_digest") for m in manifests}) <= 1 and all(m.get("source_commit") == c.get("git_commit") for m, c in zip(manifests, by_backend.values()))
+        git_commit_identity_compatible = (
+            git_commit_identity_complete
+            and manifest_dependencies_compatible(manifests)
+            and len({c.get("exact_proof_policy", "eager_moments_v1") for c in by_backend.values()})
+            <= 1
+            and len(git_commit_values) <= 1
+            and len({m.get("source_digest") for m in manifests}) <= 1
+            and all(
+                m.get("source_commit") == c.get("git_commit")
+                for m, c in zip(manifests, by_backend.values())
+            )
+        )
         release_timing_by_backend = {
             backend: capture
             for backend, capture in by_backend.items()
@@ -1926,7 +2235,9 @@ def review_captures(
             backend: normalized_positive_int(capture.get("warmups"))
             for backend, capture in release_timing_by_backend.items()
         }
-        missing_warmup_counts = sorted(backend for backend, count in warmup_counts.items() if count is None)
+        missing_warmup_counts = sorted(
+            backend for backend, count in warmup_counts.items() if count is None
+        )
         warmup_count_complete = not missing_warmup_counts
         warmup_count_values = {count for count in warmup_counts.values() if count}
         warmup_count_compatible = warmup_count_complete and len(warmup_count_values) <= 1
@@ -1934,22 +2245,34 @@ def review_captures(
             backend: normalized_positive_int(capture.get("repeats"))
             for backend, capture in release_timing_by_backend.items()
         }
-        missing_repeat_counts = sorted(backend for backend, count in repeat_counts.items() if count is None)
+        missing_repeat_counts = sorted(
+            backend for backend, count in repeat_counts.items() if count is None
+        )
         repeat_count_complete = not missing_repeat_counts
         repeat_count_values = {count for count in repeat_counts.values() if count}
         repeat_count_compatible = repeat_count_complete and len(repeat_count_values) <= 1
-        release_review_satisfied = review_mode == "release" and bool(release_timing_by_backend) and all(
-            release_capture_satisfied(item) for item in release_timing_by_backend.values()
+        release_review_satisfied = (
+            review_mode == "release"
+            and bool(release_timing_by_backend)
+            and all(release_capture_satisfied(item) for item in release_timing_by_backend.values())
         )
-        checksum_by_backend = {backend: capture_checksum(capture) for backend, capture in by_backend.items()}
+        checksum_by_backend = {
+            backend: capture_checksum(capture) for backend, capture in by_backend.items()
+        }
         checksum_reference_backend, checksum_reference = reference_checksum_for_group(by_backend)
-        missing_checksums = sorted(backend for backend, checksum in checksum_by_backend.items() if checksum is None)
+        missing_checksums = sorted(
+            backend for backend, checksum in checksum_by_backend.items() if checksum is None
+        )
         checksum_mismatches = sorted(
             backend
             for backend, checksum in checksum_by_backend.items()
-            if checksum_reference is not None and checksum is not None and checksum != checksum_reference
+            if checksum_reference is not None
+            and checksum is not None
+            and checksum != checksum_reference
         )
-        checksum_consistent = checksum_reference is not None and not missing_checksums and not checksum_mismatches
+        checksum_consistent = (
+            checksum_reference is not None and not missing_checksums and not checksum_mismatches
+        )
         scenario_promotion_scopes = sorted(
             {
                 scope
@@ -1977,12 +2300,16 @@ def review_captures(
             )
             setup_key = setup_comparison_key(item, include_pack_mode=False)
             graph_key = setup_comparison_key(item, include_pack_mode=True)
-            same_backend_nonreuse = fastest_capture(nonreuse_by_key_backend.get((setup_key, backend_family), []))
+            same_backend_nonreuse = fastest_capture(
+                nonreuse_by_key_backend.get((setup_key, backend_family), [])
+            )
             best_nonreuse = fastest_capture(nonreuse_by_key.get(setup_key, []))
             graph_non_graph_baseline = fastest_capture(
                 graph_baseline_by_key_backend.get((graph_key, backend_family), []),
             )
-            direct_baseline = direct_capture or fastest_capture(nonreuse_by_key_backend.get((setup_key, "hip-direct"), []))
+            direct_baseline = direct_capture or fastest_capture(
+                nonreuse_by_key_backend.get((setup_key, "hip-direct"), [])
+            )
             vector_baseline = vector_capture or fastest_capture(
                 nonreuse_by_key_backend.get((setup_key, "hip-vector-alu-int64"), [])
             )
@@ -1999,7 +2326,7 @@ def review_captures(
                 if hip_graph_replay_capture
                 else None
             )
-            companion = production_evidence(item,binding_for_capture(item,diagnostic_bindings))
+            companion = production_evidence(item, binding_for_capture(item, diagnostic_bindings))
             matrix_histogram = matrix_instruction_histogram(item, isa_index)
             if autotune_promotable_scope(item):
                 blockers = promotion_blockers(
@@ -2031,7 +2358,9 @@ def review_captures(
                     oneshot_capture=oneshot_capture,
                     host_api_batch_capture=host_api_batch_capture,
                     hip_graph_replay_capture=False,
-                    gpu_events_available=capture_gpu_events_available(item) or companion["eligible"] and companion["binding"] is not None,
+                    gpu_events_available=capture_gpu_events_available(item)
+                    or companion["eligible"]
+                    and companion["binding"] is not None,
                     end_to_end=selection_e2e,
                     cpu=cpu,
                     direct=direct,
@@ -2050,19 +2379,36 @@ def review_captures(
             baseline_evidence = None
             if timing_baseline is not None:
                 blockers.extend(pair_blockers(timing_baseline, item))
-                baseline_evidence=production_evidence(timing_baseline,binding_for_capture(timing_baseline,diagnostic_bindings))
-                blockers.extend("baseline:"+blocker for blocker in baseline_evidence["blockers"])
+                baseline_evidence = production_evidence(
+                    timing_baseline, binding_for_capture(timing_baseline, diagnostic_bindings)
+                )
+                blockers.extend("baseline:" + blocker for blocker in baseline_evidence["blockers"])
                 if timing_baseline.get("_path"):
-                    timing_comparison = comparison_record(timing_baseline, item, timing_baseline["_path"])
+                    timing_comparison = comparison_record(
+                        timing_baseline, item, timing_baseline["_path"]
+                    )
             else:
                 blockers.append("timing_comparison_baseline_missing")
-            additional_baselines=[]
-            for baseline_name,baseline_capture in (("cpu",timed_cpu_capture),("vector",vector_baseline)):
-                if baseline_capture is None or baseline_capture is timing_baseline:continue
-                extra_evidence=production_evidence(baseline_capture,binding_for_capture(baseline_capture,diagnostic_bindings))
-                blockers.extend(baseline_name+"_baseline:"+blocker for blocker in extra_evidence["blockers"])
-                additional_baselines.append({"capture":baseline_capture.get("_path"),
-                    "capture_sha256":capture_identity(baseline_capture),"diagnostic_companion":extra_evidence["binding"]})
+            additional_baselines = []
+            for baseline_name, baseline_capture in (
+                ("cpu", timed_cpu_capture),
+                ("vector", vector_baseline),
+            ):
+                if baseline_capture is None or baseline_capture is timing_baseline:
+                    continue
+                extra_evidence = production_evidence(
+                    baseline_capture, binding_for_capture(baseline_capture, diagnostic_bindings)
+                )
+                blockers.extend(
+                    baseline_name + "_baseline:" + blocker for blocker in extra_evidence["blockers"]
+                )
+                additional_baselines.append(
+                    {
+                        "capture": baseline_capture.get("_path"),
+                        "capture_sha256": capture_identity(baseline_capture),
+                        "diagnostic_companion": extra_evidence["binding"],
+                    }
+                )
             expected_matrix_mnemonic = expected_amdgpu_builtin_matrix_mnemonic(item, metadata)
             if requires_amdgpu_builtin_matrix_isa_proof(backend_family, metadata):
                 if not matrix_histogram:
@@ -2126,8 +2472,10 @@ def review_captures(
                 blockers.append("checksum_mismatch_vs_reference")
             blockers.extend(scenario_promotion_blockers(item))
             promotable = not blockers
-            cpu_reference = by_backend.get('cpu-reference') or by_backend.get('cpu')
-            numerical = reference_verdict(item, [cpu_reference] if cpu_reference is not None else []).to_json()
+            cpu_reference = by_backend.get("cpu-reference") or by_backend.get("cpu")
+            numerical = reference_verdict(
+                item, [cpu_reference] if cpu_reference is not None else []
+            ).to_json()
             candidate = {
                 "backend": backend,
                 "selected_kernel": selected_kernel(item),
@@ -2162,15 +2510,25 @@ def review_captures(
                     if isinstance(item.get("tile_shape_variant"), dict)
                     else None
                 ),
-                "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
+                "speedup_vs_direct_hip": (direct / selection_e2e)
+                if direct and selection_e2e
+                else None,
                 "timing_comparison": timing_comparison,
-                "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
+                "speedup_vs_vector_alu": (vector / selection_e2e)
+                if vector and selection_e2e
+                else None,
                 "exact_output_contract": (
-                    item.get("exact_output_contract") if isinstance(item.get("exact_output_contract"), dict) else None
+                    item.get("exact_output_contract")
+                    if isinstance(item.get("exact_output_contract"), dict)
+                    else None
                 ),
-                "export_variant": item.get("export_variant") if isinstance(item.get("export_variant"), dict) else None,
+                "export_variant": item.get("export_variant")
+                if isinstance(item.get("export_variant"), dict)
+                else None,
                 "reconstruction_variant": (
-                    item.get("reconstruction_variant") if isinstance(item.get("reconstruction_variant"), dict) else None
+                    item.get("reconstruction_variant")
+                    if isinstance(item.get("reconstruction_variant"), dict)
+                    else None
                 ),
                 "prepacked_reuse_review": prepack_review,
                 "runtime_prepack_cache": (
@@ -2192,12 +2550,18 @@ def review_captures(
                 "matrix_sparse_a_compression_index_layout": metadata.get(
                     "matrix_sparse_a_compression_index_layout"
                 ),
-                "matrix_rdna_integer_modifier_policy": metadata.get("matrix_rdna_integer_modifier_policy"),
+                "matrix_rdna_integer_modifier_policy": metadata.get(
+                    "matrix_rdna_integer_modifier_policy"
+                ),
                 "expected_matrix_instruction_mnemonic": expected_matrix_mnemonic,
                 "promotable": promotable,
                 "promotion_blockers": blockers,
-                "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",
-                "primary_loss_phase_vs_direct_hip": None if promotable else primary_loss_phase(item, direct_baseline),
+                "promotion_reason": "beats_required_same_contract_gpu_baselines"
+                if promotable
+                else "blocked",
+                "primary_loss_phase_vs_direct_hip": None
+                if promotable
+                else primary_loss_phase(item, direct_baseline),
                 "bottleneck": bottleneck_classification(item),
                 "cache_write_status": "eligible_after_review" if promotable else "not_eligible",
             }
@@ -2218,22 +2582,32 @@ def review_captures(
                     item["cache_write_status"] = "not_eligible"
             source = by_backend.get(fastest["backend"])
             if source is not None:
-                metadata = source.get("backend_metadata") if isinstance(source.get("backend_metadata"), dict) else {}
+                metadata = (
+                    source.get("backend_metadata")
+                    if isinstance(source.get("backend_metadata"), dict)
+                    else {}
+                )
                 promotable_entries.append(
                     {
                         "source_capture": source.get("_path"),
                         "source_capture_sha256": capture_identity(source),
-                        "diagnostic_companion": binding_for_capture(source,diagnostic_bindings),
+                        "diagnostic_companion": binding_for_capture(source, diagnostic_bindings),
                         "timing_comparison": fastest.get("timing_comparison"),
-                        "baseline_diagnostic_companion": (fastest.get("baseline_production_timing_evidence") or {}).get("binding"),
-                        "additional_baseline_evidence": fastest.get("additional_baseline_evidence",[]),
+                        "baseline_diagnostic_companion": (
+                            fastest.get("baseline_production_timing_evidence") or {}
+                        ).get("binding"),
+                        "additional_baseline_evidence": fastest.get(
+                            "additional_baseline_evidence", []
+                        ),
                         "autotune_key": metadata.get("autotune_key"),
                         "selected_backend": fastest["backend"],
                         "selected_kernel": fastest["selected_kernel"],
                         "median_end_to_end_us": fastest["median_end_to_end_us"],
                         "selection_end_to_end_us": fastest["selection_end_to_end_us"],
                         "target_id": candidate_source_metadata(source).get("target_id"),
-                        "hip_sdk_or_rocm_version": candidate_source_metadata(source).get("hip_sdk_or_rocm_version"),
+                        "hip_sdk_or_rocm_version": candidate_source_metadata(source).get(
+                            "hip_sdk_or_rocm_version"
+                        ),
                         "accelerator_library": metadata.get("accelerator_library"),
                         "accelerator_version": metadata.get("accelerator_version"),
                         "workspace_bytes": metadata.get("workspace_required_bytes", 0),
@@ -2249,7 +2623,9 @@ def review_captures(
                 "semantics": semantics,
                 "finite_modulus": items[0].get("finite_modulus"),
                 "shape": group_shape,
-                "shape_family": shape_family(group_shape.get("m"), group_shape.get("n"), group_shape.get("k")),
+                "shape_family": shape_family(
+                    group_shape.get("m"), group_shape.get("n"), group_shape.get("k")
+                ),
                 "capture_count": len(items),
                 "scenario_families": scenario_values(items, "family"),
                 "scenario_names": scenario_values(items, "name"),
@@ -2307,7 +2683,9 @@ def review_captures(
                 "checksum_consistent": checksum_consistent,
                 "scenario_promotion_scopes": scenario_promotion_scopes,
                 "phase_medians_us": phase_medians,
-                "phase_ratio_summary": [phase_ratio_summary_for_candidate(candidate) for candidate in candidates],
+                "phase_ratio_summary": [
+                    phase_ratio_summary_for_candidate(candidate) for candidate in candidates
+                ],
                 "fastest_promotable": fastest,
                 "fastest_production_route": fastest_production_route,
                 "fastest_accelerator_route": fastest_accelerator_route,
@@ -2339,13 +2717,29 @@ def review_captures(
 
 
 def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) -> dict[str, Any]:
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
-    medians = capture.get("timing_summary_us") if isinstance(capture.get("timing_summary_us"), dict) else {}
-    schedule = capture.get("schedule_metadata") if isinstance(capture.get("schedule_metadata"), dict) else {}
-    tile_bounds = capture.get("tile_bounds_u64") if isinstance(capture.get("tile_bounds_u64"), dict) else {}
-    export_variant = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
+    medians = (
+        capture.get("timing_summary_us")
+        if isinstance(capture.get("timing_summary_us"), dict)
+        else {}
+    )
+    schedule = (
+        capture.get("schedule_metadata")
+        if isinstance(capture.get("schedule_metadata"), dict)
+        else {}
+    )
+    tile_bounds = (
+        capture.get("tile_bounds_u64") if isinstance(capture.get("tile_bounds_u64"), dict) else {}
+    )
+    export_variant = (
+        capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    )
     reconstruction_variant = (
-        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+        capture.get("reconstruction_variant")
+        if isinstance(capture.get("reconstruction_variant"), dict)
+        else {}
     )
     export_variant_name = str(export_variant.get("name") or "default")
     reconstruction_variant_name = str(reconstruction_variant.get("name") or "default_garner")
@@ -2355,7 +2749,9 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         if isinstance(export_selector_key, str) and export_selector_key
         else None
     )
-    default_export_contract = export_variant_name == "default" and reconstruction_variant_name == "default_garner"
+    default_export_contract = (
+        export_variant_name == "default" and reconstruction_variant_name == "default_garner"
+    )
     selected_prefix = capture.get("selected_prefix", schedule.get("max_selected_prefix"))
     requested_max_prefix = capture.get("requested_max_prefix", capture.get("prefix"))
     prefix_policy = capture.get("contract_prefix_policy", "legacy_v4_unspecified")
@@ -2374,9 +2770,15 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         f"zero_row_col_products={schedule.get('zero_row_col_product_count', 0)};"
         f"tile_bound_hash={tile_bounds.get('hash_u64', 0)}"
     )
-    hip_toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
+    hip_toolchain = (
+        capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
+    )
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
-    version = metadata.get("accelerator_version") or hip_toolchain.get("hip_sdk_or_rocm_version") or "unknown"
+    version = (
+        metadata.get("accelerator_version")
+        or hip_toolchain.get("hip_sdk_or_rocm_version")
+        or "unknown"
+    )
     key = metadata.get("autotune_key")
     if isinstance(key, str) and key and not default_export_contract and export_selector_hash:
         key = (
@@ -2415,7 +2817,9 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         "export_selector_policy": export_variant.get("selector_policy"),
         "export_cache_visibility": export_variant.get("cache_visibility"),
         "export_stale_entry_reason": export_variant.get("stale_entry_reason"),
-        "cache_scope": "runtime_exact_autotune" if default_export_contract else "selector_review_only_non_default",
+        "cache_scope": "runtime_exact_autotune"
+        if default_export_contract
+        else "selector_review_only_non_default",
         "pack_mode": capture_pack_mode(capture),
         "reuse_packed_inputs": capture_prepacked_reuse(capture),
         "prepack_reuse_operands": capture.get("prepack_reuse_operands"),
@@ -2448,13 +2852,15 @@ def reviewed_release_status_for_target(target_id: str | None) -> str:
     return "reviewed_release_unknown_target"
 
 
-def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str, Any]], path: Path) -> int:
+def write_promoted_cache_entries(
+    report: dict[str, Any], captures: list[dict[str, Any]], path: Path
+) -> int:
     promotable = report.get("promotable_autotune_entries")
     if not isinstance(promotable, list) or not promotable:
         return 0
     by_path = {str(capture.get("_path")): capture for capture in captures}
     entries = []
-    written_sources=set()
+    written_sources = set()
     for item in promotable:
         if not isinstance(item, dict):
             continue
@@ -2463,28 +2869,43 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
             continue
         # Defense in depth: a saved/edited review or mutated capture cannot bypass
         # the production/diagnostic binding at the actual cache mutation boundary.
-        evidence=production_evidence(capture,item.get("diagnostic_companion"))
-        if item.get("source_capture_sha256")!=capture_identity(capture) or not evidence["eligible"] or phase_blockers(capture):
-            item["cache_write_status"]="blocked_revalidation"
+        evidence = production_evidence(capture, item.get("diagnostic_companion"))
+        if (
+            item.get("source_capture_sha256") != capture_identity(capture)
+            or not evidence["eligible"]
+            or phase_blockers(capture)
+        ):
+            item["cache_write_status"] = "blocked_revalidation"
             continue
-        comparison=item.get("timing_comparison")
-        if bound_comparison_blockers(comparison,capture):
-            item["cache_write_status"]="blocked_baseline_revalidation"
+        comparison = item.get("timing_comparison")
+        if bound_comparison_blockers(comparison, capture):
+            item["cache_write_status"] = "blocked_baseline_revalidation"
             continue
         from benchmark_schema import load_capture
-        baseline=load_capture(Path(comparison["baseline_capture"]))
-        if not production_evidence(baseline,item.get("baseline_diagnostic_companion"))["eligible"]:
-            item["cache_write_status"]="blocked_baseline_companion"
+
+        baseline = load_capture(Path(comparison["baseline_capture"]))
+        if not production_evidence(baseline, item.get("baseline_diagnostic_companion"))["eligible"]:
+            item["cache_write_status"] = "blocked_baseline_companion"
             continue
-        extra_valid=True
-        for receipt in item.get("additional_baseline_evidence",[]):
+        extra_valid = True
+        for receipt in item.get("additional_baseline_evidence", []):
             try:
-                other=load_capture(Path(receipt["capture"]))
-                if capture_identity(other)!=receipt["capture_sha256"] or not production_evidence(other,receipt.get("diagnostic_companion"))["eligible"] or pair_blockers(other,capture):
-                    extra_valid=False;break
-            except (KeyError,TypeError,ValueError,OSError):extra_valid=False;break
+                other = load_capture(Path(receipt["capture"]))
+                if (
+                    capture_identity(other) != receipt["capture_sha256"]
+                    or not production_evidence(other, receipt.get("diagnostic_companion"))[
+                        "eligible"
+                    ]
+                    or pair_blockers(other, capture)
+                ):
+                    extra_valid = False
+                    break
+            except (KeyError, TypeError, ValueError, OSError):
+                extra_valid = False
+                break
         if not extra_valid:
-            item["cache_write_status"]="blocked_additional_baseline_revalidation";continue
+            item["cache_write_status"] = "blocked_additional_baseline_revalidation"
+            continue
         device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
         target_id = normalized_target_id(device.get("gcn_arch")) or "cpu"
         entry = cache_entry_from_capture(capture, reviewed_release_status_for_target(target_id))
@@ -2502,12 +2923,19 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
     existing_entries = existing.get("entries")
     if not isinstance(existing_entries, list):
         existing_entries = []
-    by_key = {entry.get("key"): entry for entry in existing_entries if isinstance(entry, dict) and entry.get("key")}
+    by_key = {
+        entry.get("key"): entry
+        for entry in existing_entries
+        if isinstance(entry, dict) and entry.get("key")
+    }
     for entry in entries:
         by_key[entry["key"]] = entry
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"schema_version": 1, "entries": list(by_key.values())}, indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            {"schema_version": 1, "entries": list(by_key.values())}, indent=2, sort_keys=True
+        )
+        + "\n",
         encoding="utf-8",
     )
     for item in promotable:
@@ -2516,12 +2944,18 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
     return len(entries)
 
 
-def attach_cache_write_status(report: dict[str, Any], requested: bool, path: Path, entries_written: int) -> None:
+def attach_cache_write_status(
+    report: dict[str, Any], requested: bool, path: Path, entries_written: int
+) -> None:
     report["cache_write"] = {
         "requested": requested,
         "path": str(path) if requested else None,
         "entries_written": entries_written,
-        "status": "written" if requested and entries_written else "no_promotable_entries" if requested else "not_requested",
+        "status": "written"
+        if requested and entries_written
+        else "no_promotable_entries"
+        if requested
+        else "not_requested",
     }
     if not requested:
         for item in report.get("promotable_autotune_entries", []):
@@ -2531,7 +2965,9 @@ def attach_cache_write_status(report: dict[str, Any], requested: bool, path: Pat
     written_sources = {
         str(item.get("source_capture"))
         for item in report.get("promotable_autotune_entries", [])
-        if isinstance(item, dict) and item.get("cache_write_status") == "written" and item.get("source_capture")
+        if isinstance(item, dict)
+        and item.get("cache_write_status") == "written"
+        and item.get("source_capture")
     }
     for group in report.get("groups", []):
         if not isinstance(group, dict):
@@ -2543,5 +2979,3 @@ def attach_cache_write_status(report: dict[str, Any], requested: bool, path: Pat
                 candidate["cache_write_status"] = "written"
             elif candidate.get("promotable"):
                 candidate["cache_write_status"] = "pending"
-
-

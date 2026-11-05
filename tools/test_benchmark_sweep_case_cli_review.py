@@ -8,7 +8,6 @@ import unittest
 class CliReviewCases(unittest.TestCase):
     def test_cli_review_contracts(self) -> None:
 
-
         import argparse
         import json
         import tempfile
@@ -22,7 +21,6 @@ class CliReviewCases(unittest.TestCase):
             write_command_plan,
         )
         from benchmark_sweep_lib.config import SweepCommand
-
 
         with tempfile.TemporaryDirectory() as tmp_name:
             tmp = Path(tmp_name)

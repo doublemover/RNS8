@@ -25,7 +25,15 @@ DIRECT_KERNEL = "direct_hip_prefix9_grouped_rns_gemm_v1"
 CPU_KERNEL = "cpu_reference_scalar_rns_gemm_v1"
 REPEATS = 9
 ONE_TIME_PHASES = {"planning", "scheduling", "matrix_alloc"}
-HOST_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+HOST_PHASES = [
+    "planning",
+    "scheduling",
+    "matrix_alloc",
+    "pack",
+    "rns_gemm",
+    "crt_export",
+    "end_to_end",
+]
 DIRECT_GPU_EVENT_PHASES = [
     "pack_h2d",
     "pack_kernel",
@@ -58,7 +66,9 @@ def set_host_timings(capture: dict, medians: dict[str, int]) -> None:
         capture["timing_summary_us"][phase] = summary(values)
         capture[f"avg_{phase}_us"] = float(sum(values) / len(values))
     capture["schedule_query_us"] = int(capture["avg_scheduling_us"])
-    capture["avg_per_modulus_gemm_estimate_us"] = capture["avg_rns_gemm_us"] / float(capture["prefix"])
+    capture["avg_per_modulus_gemm_estimate_us"] = capture["avg_rns_gemm_us"] / float(
+        capture["prefix"]
+    )
 
 
 def set_direct_gpu_events(capture: dict) -> None:
@@ -68,7 +78,9 @@ def set_direct_gpu_events(capture: dict) -> None:
     metadata["gpu_event_timing_status"] = "available"
     metadata["gpu_event_timing_source"] = "hipEventElapsedTime"
     metadata["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
-    metadata["gpu_event_timing_caveat"] = "HIP event timings record Direct-HIP operation groups for tests"
+    metadata["gpu_event_timing_caveat"] = (
+        "HIP event timings record Direct-HIP operation groups for tests"
+    )
     metadata["gpu_event_phase_order"] = list(DIRECT_GPU_EVENT_PHASES)
     metadata["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
     capture["gpu_event_timings_us"] = {phase: [1.0] * REPEATS for phase in DIRECT_GPU_EVENT_PHASES}
@@ -223,7 +235,9 @@ def make_cpu_capture(end_to_end_us: int) -> dict:
         }
     )
     apply_int32_accumulator_contract(capture)
-    set_tile_variant(capture, "cpu-reference-default", capture["tile_m"], capture["tile_n"], CPU_KERNEL)
+    set_tile_variant(
+        capture, "cpu-reference-default", capture["tile_m"], capture["tile_n"], CPU_KERNEL
+    )
     metadata["autotune_key"] = with_accumulator_key_fields(
         "backend=cpu-reference;"
         f"semantics={capture['semantics']};m={capture['m']};n={capture['n']};k={capture['k']};"
@@ -245,8 +259,12 @@ def main() -> int:
         candidate_path = tmp / "direct-64x64.json"
         kblock_path = tmp / "direct-kblock.json"
         write_capture(cpu_path, make_cpu_capture(200))
-        write_capture(default_path, make_direct_capture(128, 128, "direct-hip-default-128x128", 100))
-        write_capture(candidate_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80))
+        write_capture(
+            default_path, make_direct_capture(128, 128, "direct-hip-default-128x128", 100)
+        )
+        write_capture(
+            candidate_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80)
+        )
         write_capture(kblock_path, make_k_block_capture("direct-hip-bounded-fixture-kblock", 85))
 
         manifest_path = tmp / "resource-manifest.json"
@@ -312,27 +330,35 @@ def main() -> int:
         assert kblock_row["tile_n"] == 128
         assert kblock_row["promotion_blockers"] == []
 
-        no_resource = tile_shape_report.build_report([cpu_path, default_path, candidate_path, kblock_path])
+        no_resource = tile_shape_report.build_report(
+            [cpu_path, default_path, candidate_path, kblock_path]
+        )
         no_resource_rows = {row["variant_name"]: row for row in no_resource["rows"]}
         no_resource_row = no_resource_rows["direct-hip-bounded-fixture-64x64"]
         assert no_resource_row["decision"] == "keep experimental"
         assert "missing_counter_or_isa_resource_evidence" in no_resource_row["promotion_blockers"]
         no_resource_kblock = no_resource_rows["direct-hip-bounded-fixture-kblock"]
         assert no_resource_kblock["decision"] == "keep experimental"
-        assert "missing_counter_or_isa_resource_evidence" in no_resource_kblock["promotion_blockers"]
+        assert (
+            "missing_counter_or_isa_resource_evidence" in no_resource_kblock["promotion_blockers"]
+        )
 
         losing_path = tmp / "direct-64x64-loser.json"
-        write_capture(losing_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 130))
+        write_capture(
+            losing_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 130)
+        )
         losing_report = tile_shape_report.build_report([cpu_path, default_path, losing_path])
         losing_row = losing_report["rows"][0]
         assert losing_row["decision"] == "drop/deprioritize"
         assert losing_row["speedup_vs_default_direct_hip_tile"] < 0.98
         assert "missing_occupancy_signal" in losing_row["promotion_blockers"]
 
-        stale_identity = copy.deepcopy(make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80))
-        stale_identity["backend_metadata"]["autotune_key"] = stale_identity["backend_metadata"]["autotune_key"].replace(
-            ";tile_m=64;", ";tile_m=128;"
+        stale_identity = copy.deepcopy(
+            make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80)
         )
+        stale_identity["backend_metadata"]["autotune_key"] = stale_identity["backend_metadata"][
+            "autotune_key"
+        ].replace(";tile_m=64;", ";tile_m=128;")
         stale_path = tmp / "direct-stale-identity.json"
         write_capture(stale_path, stale_identity)
         stale_report = tile_shape_report.build_report(

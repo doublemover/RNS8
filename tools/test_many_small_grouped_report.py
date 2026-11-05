@@ -9,7 +9,9 @@ from pathlib import Path
 
 import many_small_grouped_report
 from benchmark_schema import load_capture
-from metadata_registry_constants import GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+from metadata_registry_constants import (
+    GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS,
+)
 from test_benchmark_schema_support_core import (
     as_host_api_batch_capture,
 )
@@ -78,9 +80,15 @@ def build_grouped_case(
     mismatch_host_batch_checksum: bool = False,
     mismatch_host_batch_task_count: bool = False,
 ) -> list[dict]:
-    base = align_current_contract(mark_release(load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json")))
-    best_independent = with_path(set_e2e_median(set_backend(base, "cpu-reference"), 80.0), "independent-cpu.json")
-    same_backend = with_path(set_e2e_median(set_backend(base, "hip-direct"), 100.0), "independent-hip-direct.json")
+    base = align_current_contract(
+        mark_release(load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json"))
+    )
+    best_independent = with_path(
+        set_e2e_median(set_backend(base, "cpu-reference"), 80.0), "independent-cpu.json"
+    )
+    same_backend = with_path(
+        set_e2e_median(set_backend(base, "hip-direct"), 100.0), "independent-hip-direct.json"
+    )
     grouped_task_count = 32
 
     captures = [best_independent, same_backend]
@@ -100,14 +108,21 @@ def build_grouped_case(
     grouped = set_backend(grouped, "hip-direct")
     grouped["grouped_dispatch"]["task_count"] = grouped_task_count
     grouped["grouped_dispatch"]["task_descriptor_contract"]["task_count"] = grouped_task_count
-    grouped = set_e2e_median(grouped, grouped_per_task_us * grouped["grouped_dispatch"]["task_count"])
+    grouped = set_e2e_median(
+        grouped, grouped_per_task_us * grouped["grouped_dispatch"]["task_count"]
+    )
     captures.append(with_path(grouped, "grouped-hip-direct.json"))
     return captures
 
 
 def main() -> int:
     report = many_small_grouped_report.build_report_from_captures(build_grouped_case(60.0))
-    row = next(row for group in report["groups"] for row in group["rows"] if row["mode"] == "grouped_dispatch")
+    row = next(
+        row
+        for group in report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
+    )
     assert report["summary"]["grouped_dispatch_comparisons"] == 1
     assert report["summary"]["candidate_wins"] == 1
     assert row["decision"] == "candidate_win"
@@ -120,7 +135,9 @@ def main() -> int:
     assert row["grouped_task_descriptor_device_policy"] == "host_resident_task_loop"
 
     bucketed_grouped_captures = build_grouped_case(60.0)
-    bucketed_descriptor = bucketed_grouped_captures[-1]["grouped_dispatch"]["task_descriptor_contract"]
+    bucketed_descriptor = bucketed_grouped_captures[-1]["grouped_dispatch"][
+        "task_descriptor_contract"
+    ]
     bucketed_descriptor.update(
         {
             "descriptor_layout": "same_contract_bucketed_resident_task_triplets_v1",
@@ -148,9 +165,14 @@ def main() -> int:
             ],
         }
     )
-    bucketed_report = many_small_grouped_report.build_report_from_captures(bucketed_grouped_captures)
+    bucketed_report = many_small_grouped_report.build_report_from_captures(
+        bucketed_grouped_captures
+    )
     bucketed_row = next(
-        row for group in bucketed_report["groups"] for row in group["rows"] if row["mode"] == "grouped_dispatch"
+        row
+        for group in bucketed_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
     )
     assert bucketed_row["decision"] == "candidate_win"
     assert bucketed_row["grouped_task_descriptor_valid"] is True
@@ -158,13 +180,15 @@ def main() -> int:
     assert bucketed_row["grouped_task_descriptor_bucket_count"] == 2
 
     device_grouped_captures = build_grouped_case(60.0)
-    device_grouped_captures[-1]["grouped_dispatch"][
-        "execution_strategy"
-    ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+    device_grouped_captures[-1]["grouped_dispatch"]["execution_strategy"] = (
+        GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+    )
     device_grouped_captures[-1]["grouped_dispatch"]["task_descriptor_contract"][
         "device_descriptor_policy"
     ] = "device_pointer_tables_and_compact_slabs"
-    device_grouped_report = many_small_grouped_report.build_report_from_captures(device_grouped_captures)
+    device_grouped_report = many_small_grouped_report.build_report_from_captures(
+        device_grouped_captures
+    )
     device_grouped_row = next(
         row
         for group in device_grouped_report["groups"]
@@ -173,11 +197,17 @@ def main() -> int:
     )
     assert device_grouped_row["decision"] == "candidate_win"
     assert device_grouped_row["grouped_task_descriptor_valid"] is True
-    assert device_grouped_row["grouped_task_descriptor_device_policy"] == "device_pointer_tables_and_compact_slabs"
+    assert (
+        device_grouped_row["grouped_task_descriptor_device_policy"]
+        == "device_pointer_tables_and_compact_slabs"
+    )
 
     loss_report = many_small_grouped_report.build_report_from_captures(build_grouped_case(90.0))
     loss_row = next(
-        row for group in loss_report["groups"] for row in group["rows"] if row["mode"] == "grouped_dispatch"
+        row
+        for group in loss_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
     )
     assert loss_report["summary"]["deprioritized"] == 1
     assert loss_row["decision"] == "deprioritize"
@@ -187,7 +217,10 @@ def main() -> int:
         build_grouped_case(60.0, include_host_batch=False)
     )
     missing_row = next(
-        row for group in missing_report["groups"] for row in group["rows"] if row["mode"] == "grouped_dispatch"
+        row
+        for group in missing_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
     )
     assert missing_report["summary"]["experimental"] == 1
     assert missing_row["decision"] == "keep_experimental"
@@ -220,8 +253,12 @@ def main() -> int:
     assert "host_batch_task_count_mismatch" in task_count_mismatch_row["blockers"]
 
     invalid_descriptor_captures = build_grouped_case(60.0)
-    invalid_descriptor_captures[-1]["grouped_dispatch"]["task_descriptor_contract"]["task_count"] += 1
-    invalid_descriptor_report = many_small_grouped_report.build_report_from_captures(invalid_descriptor_captures)
+    invalid_descriptor_captures[-1]["grouped_dispatch"]["task_descriptor_contract"][
+        "task_count"
+    ] += 1
+    invalid_descriptor_report = many_small_grouped_report.build_report_from_captures(
+        invalid_descriptor_captures
+    )
     invalid_descriptor_row = next(
         row
         for group in invalid_descriptor_report["groups"]

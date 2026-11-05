@@ -68,13 +68,17 @@ def with_common_layout(capture: dict, *, name: str, role: str, baseline: str | N
     return add_synthetic_full_reference(capture)
 
 
-def make_candidate(base: dict, *, name: str, baseline: str, median: float, actual_delta: bool = True) -> dict:
+def make_candidate(
+    base: dict, *, name: str, baseline: str, median: float, actual_delta: bool = True
+) -> dict:
     capture = with_common_layout(base, name=name, role="candidate", baseline=baseline)
     capture["timing_summary_us"]["end_to_end"]["median"] = median
     if actual_delta:
         capture["scenario_metadata"]["residue_channel_fusion"] = True
         capture["timing_metadata"]["pack_layout"] = "native_i8_row_major_residue_channel_width3"
-        capture["timing_metadata"]["residue_group_layout"] = "first_prefix9_moduli_contiguous_width3_groups"
+        capture["timing_metadata"]["residue_group_layout"] = (
+            "first_prefix9_moduli_contiguous_width3_groups"
+        )
     return capture
 
 
@@ -93,8 +97,12 @@ def main() -> int:
         actual_delta=False,
     )
     loser = make_candidate(fixture, name="slow-layout", baseline="default-layout", median=120.0)
-    missing = make_candidate(fixture, name="missing-baseline-layout", baseline="absent-layout", median=75.0)
-    report = layout_search_report.build_report(synthetic_independent_runs([baseline, winner, metadata_only, loser, missing]))
+    missing = make_candidate(
+        fixture, name="missing-baseline-layout", baseline="absent-layout", median=75.0
+    )
+    report = layout_search_report.build_report(
+        synthetic_independent_runs([baseline, winner, metadata_only, loser, missing])
+    )
     rows = {row["layout_variant_name"]: row for row in report["rows"]}
     assert report["schema"] == "rns8_layout_search_report_v1"
     assert report["baseline_count"] == 2
@@ -106,7 +114,9 @@ def main() -> int:
     assert "metadata_only_layout_candidate" in rows["metadata-only-layout"]["promotion_blockers"]
     assert rows["slow-layout"]["decision"] == "drop/deprioritize"
     assert rows["missing-baseline-layout"]["decision"] == "keep experimental"
-    assert "missing_default_layout_baseline" in rows["missing-baseline-layout"]["promotion_blockers"]
+    assert (
+        "missing_default_layout_baseline" in rows["missing-baseline-layout"]["promotion_blockers"]
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         md_path = Path(tmp) / "layout-search-report.md"

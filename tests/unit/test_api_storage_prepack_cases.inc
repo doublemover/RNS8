@@ -143,8 +143,7 @@ TEST_CASE("resident lifetime info reports role, source version, and workspace bi
   REQUIRE(rns8_pack_i64(cpu, a, a_values, desc.k, 101) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(cpu, b, b_values, desc.n, 202) == RNS8_SUCCESS);
 
-  const auto a_info =
-      resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
+  const auto a_info = resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
   CHECK(a_info.backend == RNS8_BACKEND_CPU_REFERENCE);
   CHECK(a_info.semantics == RNS8_BOUNDED_I64);
   CHECK(a_info.matrix_role == RNS8_RESIDENT_MATRIX_ROLE_A);
@@ -172,14 +171,14 @@ TEST_CASE("resident lifetime info reports role, source version, and workspace bi
   CHECK(a_info.workspace_fingerprint == a_info.plan_fingerprint);
   CHECK(std::string(a_info.current_domain) == "rns_residue_host_current");
   CHECK(std::string(a_info.matrix_role_name) == "A");
-  CHECK(std::string(a_info.source_version_policy) == "matrix_instance_plus_monotonic_content_generation");
+  CHECK(std::string(a_info.source_version_policy) ==
+        "matrix_instance_plus_monotonic_content_generation");
   CHECK(std::string(a_info.workspace_binding_policy) ==
         "plan_fingerprint_plus_workspace_identity_schedule_backend");
   CHECK(std::string(a_info.mismatch_policy) ==
         "source_version_descriptor_semantic_prefix_target_workspace_match");
 
-  const auto wrong_role =
-      resident_lifetime_info(b, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
+  const auto wrong_role = resident_lifetime_info(b, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
   CHECK(wrong_role.source_version == 202);
   CHECK(wrong_role.plan_binding_matches == 0);
   CHECK(wrong_role.workspace_binding_matches == 0);
@@ -200,8 +199,7 @@ TEST_CASE("resident lifetime info reports role, source version, and workspace bi
   CHECK(std::string(mismatched_workspace.mismatch_policy) ==
         "reject_source_version_descriptor_semantic_prefix_target_workspace_mismatch");
 
-  const auto c_info =
-      resident_lifetime_info(c, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_C);
+  const auto c_info = resident_lifetime_info(c, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_C);
   CHECK(c_info.plan_binding_matches == 1);
   CHECK(c_info.workspace_binding_matches == 1);
   CHECK(c_info.source_version == 0);
@@ -211,19 +209,19 @@ TEST_CASE("resident lifetime info reports role, source version, and workspace bi
   rns8_resident_lifetime_info bad_abi{};
   bad_abi.struct_size = sizeof(bad_abi) - 1;
   bad_abi.abi_version = RNS8_ABI_VERSION;
-  CHECK(rns8_get_resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A, &bad_abi) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A,
+                                        &bad_abi) == RNS8_INVALID_ARGUMENT);
 
   rns8_resident_lifetime_info raw{};
   raw.struct_size = sizeof(raw);
   raw.abi_version = RNS8_ABI_VERSION;
-  CHECK(rns8_get_resident_lifetime_info(nullptr, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A, &raw) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_resident_lifetime_info(nullptr, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A,
+                                        &raw) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_get_resident_lifetime_info(a, nullptr, workspace, RNS8_RESIDENT_MATRIX_ROLE_A, &raw) ==
         RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_get_resident_lifetime_info(
-            a, plan, workspace, static_cast<rns8_resident_matrix_role>(99), &raw) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_resident_lifetime_info(a, plan, workspace,
+                                        static_cast<rns8_resident_matrix_role>(99),
+                                        &raw) == RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_plan(other_plan);
   rns8_destroy_matrix(c);
@@ -249,8 +247,7 @@ TEST_CASE("C++ resident lifetime wrapper exposes matrix and workspace contracts"
   CHECK(matrix_only.plan_binding_available == 0);
   CHECK(std::string(matrix_only.workspace_binding_policy) == "not_bound_to_plan_or_workspace");
 
-  const auto bound =
-      rns8::resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
+  const auto bound = rns8::resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
   CHECK(bound.plan_binding_matches == 1);
   CHECK(bound.workspace_binding_matches == 1);
   CHECK(bound.source_version == 303);
@@ -304,7 +301,8 @@ TEST_CASE("public prepack cache key info validates operand role and source versi
   CHECK(std::string(a_key.cache_scope) == "validated_key_no_production_cache");
   CHECK(std::string(a_key.cache_key).find("operand=A") != std::string::npos);
   CHECK(std::string(a_key.cache_key).find("target_id=cpu") != std::string::npos);
-  CHECK(std::string(a_key.cache_key).find("kernel=cpu_reference_scalar_rns_gemm_v1") != std::string::npos);
+  CHECK(std::string(a_key.cache_key).find("kernel=cpu_reference_scalar_rns_gemm_v1") !=
+        std::string::npos);
   CHECK(std::string(a_key.cache_key).find("prefix_schedule_hash=") != std::string::npos);
   CHECK(std::string(a_key.cache_key).find("k_block_size=0") != std::string::npos);
   CHECK(std::string(a_key.cache_key).find("source_version=11") != std::string::npos);
@@ -329,13 +327,16 @@ TEST_CASE("public prepack cache key info validates operand role and source versi
   rns8_prepack_cache_key_info bad_abi{};
   bad_abi.struct_size = sizeof(bad_abi) - 1;
   bad_abi.abi_version = RNS8_ABI_VERSION;
-  CHECK(rns8_get_prepack_cache_key_info(plan, a, RNS8_OPERAND_A, &bad_abi) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_prepack_cache_key_info(plan, a, RNS8_OPERAND_A, &bad_abi) ==
+        RNS8_INVALID_ARGUMENT);
 
   rns8_prepack_cache_key_info info{};
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
-  CHECK(rns8_get_prepack_cache_key_info(nullptr, a, RNS8_OPERAND_A, &info) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_get_prepack_cache_key_info(plan, nullptr, RNS8_OPERAND_A, &info) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_prepack_cache_key_info(nullptr, a, RNS8_OPERAND_A, &info) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_prepack_cache_key_info(plan, nullptr, RNS8_OPERAND_A, &info) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(rns8_get_prepack_cache_key_info(plan, a, static_cast<rns8_operand_role>(99), &info) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8_get_prepack_cache_key_info(plan, a, RNS8_OPERAND_B, &info) == RNS8_INVALID_ARGUMENT);
@@ -404,19 +405,24 @@ TEST_CASE("native B prepack cache constructors reject invalid and unsupported pu
   const uint64_t unsigned_b[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
   rns8_prepack_cache* cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
 
-  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 0, &cache) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 0, &cache) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(cache == nullptr);
   cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
-  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n - 1, 1, &cache) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n - 1, 1, &cache) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(cache == nullptr);
-  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 1, nullptr) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 1, nullptr) ==
+        RNS8_INVALID_ARGUMENT);
 
   cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
-  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 1, &cache) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 1, &cache) ==
+        RNS8_UNSUPPORTED_BACKEND);
   CHECK(cache == nullptr);
 
   cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
-  CHECK(rns8_create_b_prepack_cache_u64(cpu, plan, unsigned_b, desc.n, 1, &cache) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_create_b_prepack_cache_u64(cpu, plan, unsigned_b, desc.n, 1, &cache) ==
+        RNS8_UNSUPPORTED_BACKEND);
   CHECK(cache == nullptr);
 
   rns8_destroy_plan(plan);
@@ -526,62 +532,61 @@ TEST_CASE("C++ prepack cache key helper exposes validated key material") {
   CHECK(key.cache_key_hash != 0);
 }
 
-
 TEST_CASE("resident capacity admission does not require a host mirror") {
   using namespace rns8::detail::api;
-  int8_t dummy = 0;  // Admission checks addresses, never dereferences this mock.
+  int8_t dummy = 0; // Admission checks addresses, never dereferences this mock.
   rns8_matrix matrix{};
   matrix.prefix = 9;
   matrix.host_residues_current = false;
   matrix.hip_residues = &dummy;
-  matrix.hip_residue_bytes = 2*3*9;
-  CHECK(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
-  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_CPU_REFERENCE,2,3,9));
+  matrix.hip_residue_bytes = 2 * 3 * 9;
+  CHECK(rns_matrix_storage_matches(matrix, RNS8_BACKEND_HIP_DIRECT, 2, 3, 9));
+  CHECK_FALSE(rns_matrix_storage_matches(matrix, RNS8_BACKEND_CPU_REFERENCE, 2, 3, 9));
   matrix.host_residues_current = true;
-  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  CHECK_FALSE(rns_matrix_storage_matches(matrix, RNS8_BACKEND_HIP_DIRECT, 2, 3, 9));
   matrix.host_residues_current = false;
   --matrix.hip_residue_bytes;
-  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  CHECK_FALSE(rns_matrix_storage_matches(matrix, RNS8_BACKEND_HIP_DIRECT, 2, 3, 9));
   matrix.prefix = 0;
   matrix.hip_residue_bytes = 6;
-  CHECK(finite_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  CHECK(finite_matrix_storage_matches(matrix, RNS8_BACKEND_HIP_DIRECT, 2, 3));
   matrix.hip_residues = nullptr;
   matrix.hip_residue_bytes = 0;
-  CHECK_FALSE(finite_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  CHECK_FALSE(finite_matrix_storage_matches(matrix, RNS8_BACKEND_HIP_DIRECT, 2, 3));
   matrix.hip_byte_limbs = &dummy;
   matrix.hip_byte_limb_bytes = 48;
-  CHECK(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
-  CHECK_FALSE(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_WRAP64_BYTE_LIMB,2,3));
+  CHECK(wrap_matrix_storage_matches(matrix, RNS8_BACKEND_HIP_DIRECT, 2, 3));
+  CHECK_FALSE(wrap_matrix_storage_matches(matrix, RNS8_BACKEND_WRAP64_BYTE_LIMB, 2, 3));
   matrix.host_byte_limbs_current = true;
-  CHECK_FALSE(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  CHECK_FALSE(wrap_matrix_storage_matches(matrix, RNS8_BACKEND_HIP_DIRECT, 2, 3));
   std::size_t bytes = 0;
-  CHECK_FALSE(rns_residue_count(INT64_MAX,INT64_MAX,20,bytes));
-  CHECK_FALSE(wrap_byte_limb_bytes(INT64_MAX,INT64_MAX,bytes));
+  CHECK_FALSE(rns_residue_count(INT64_MAX, INT64_MAX, 20, bytes));
+  CHECK_FALSE(wrap_byte_limb_bytes(INT64_MAX, INT64_MAX, bytes));
 }
 
 TEST_CASE("allocation diagnostics and staging trim preserve CPU value identity") {
   rns8::Context ctx;
-  rns8::Matrix matrix(ctx,bounded_matrix_desc(2,3,RNS8_BOUNDED_I64));
-  auto info=matrix.allocation_info();
-  CHECK(info.logical_primary_bytes==2*3*RNS8_DEFAULT_BOUNDED_PREFIX);
-  CHECK(info.host_payload_capacity_bytes>=info.logical_primary_bytes);
-  CHECK(info.host_current_bytes==info.logical_primary_bytes);
-  CHECK(info.device_total_capacity_bytes==0);
-  const auto generation=matrix.get()->content_generation;
+  rns8::Matrix matrix(ctx, bounded_matrix_desc(2, 3, RNS8_BOUNDED_I64));
+  auto info = matrix.allocation_info();
+  CHECK(info.logical_primary_bytes == 2 * 3 * RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.host_payload_capacity_bytes >= info.logical_primary_bytes);
+  CHECK(info.host_current_bytes == info.logical_primary_bytes);
+  CHECK(info.device_total_capacity_bytes == 0);
+  const auto generation = matrix.get()->content_generation;
   matrix.trim_staging();
-  CHECK(matrix.get()->content_generation==generation);
+  CHECK(matrix.get()->content_generation == generation);
   CHECK(matrix.get()->host_residues_current);
-  matrix.get()->prepared_references=1;
-  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
-  matrix.get()->prepared_references=0;
-  matrix.get()->in_flight_readers=1;
-  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
-  matrix.get()->in_flight_readers=0;
-  matrix.get()->in_flight_writer=true;
-  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
-  matrix.get()->in_flight_writer=false;
-  info.struct_size=0;
-  CHECK(rns8_get_matrix_allocation_info(matrix.get(),&info)==RNS8_INVALID_ARGUMENT);
-  CHECK(info.struct_size==0);
-  CHECK(rns8_trim_matrix_staging(nullptr)==RNS8_INVALID_ARGUMENT);
+  matrix.get()->prepared_references = 1;
+  CHECK(rns8_trim_matrix_staging(matrix.get()) == RNS8_BUSY);
+  matrix.get()->prepared_references = 0;
+  matrix.get()->in_flight_readers = 1;
+  CHECK(rns8_trim_matrix_staging(matrix.get()) == RNS8_BUSY);
+  matrix.get()->in_flight_readers = 0;
+  matrix.get()->in_flight_writer = true;
+  CHECK(rns8_trim_matrix_staging(matrix.get()) == RNS8_BUSY);
+  matrix.get()->in_flight_writer = false;
+  info.struct_size = 0;
+  CHECK(rns8_get_matrix_allocation_info(matrix.get(), &info) == RNS8_INVALID_ARGUMENT);
+  CHECK(info.struct_size == 0);
+  CHECK(rns8_trim_matrix_staging(nullptr) == RNS8_INVALID_ARGUMENT);
 }

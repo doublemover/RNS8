@@ -93,7 +93,9 @@ def assert_release_shape_checksums_match(captures: list[dict]) -> None:
     checksums = {capture["backend_requested"]: capture["checksum_u64"] for capture in captures}
     expected = checksums["wrap64-byte-limb"]
     for backend, checksum in checksums.items():
-        assert checksum == expected, f"{backend} checksum {checksum} did not match CPU wrap64 {expected}"
+        assert checksum == expected, (
+            f"{backend} checksum {checksum} did not match CPU wrap64 {expected}"
+        )
 
 
 def main() -> int:

@@ -25,18 +25,21 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     REQUIRE(rns8_create_matrix(hip, &b_desc, &b_matrix) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
 
-    fill_exact_residue_matrix(a_matrix, {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(2)});
-    fill_exact_residue_matrix(b_matrix, {boost::multiprecision::cpp_int(3), boost::multiprecision::cpp_int(4)});
+    fill_exact_residue_matrix(
+        a_matrix, {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(2)});
+    fill_exact_residue_matrix(
+        b_matrix, {boost::multiprecision::cpp_int(3), boost::multiprecision::cpp_int(4)});
     upload_exact_residues_to_hip(b_matrix);
     c_matrix->residues.resize(c_matrix->hip_residue_bytes);
     std::fill(c_matrix->residues.begin(), c_matrix->residues.end(), c_sentinel);
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
-                hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
-            RNS8_SUCCESS);
+                hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(),
+                c_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     rns8::test::set_host_residues_current(*c_matrix, false);
     rns8::test::set_device_residues_current(*c_matrix, true);
 
-    CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(a_matrix->host_residues_current);
     CHECK_FALSE(a_matrix->device_residues_current);
     CHECK_FALSE(b_matrix->host_residues_current);
@@ -45,11 +48,10 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     CHECK(c_matrix->hip_export_buffer == nullptr);
     CHECK(c_matrix->hip_status_buffer == nullptr);
     REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
-                hip->device_id, c_matrix->residues.data(), c_matrix->hip_residues, c_matrix->hip_residue_bytes) ==
-            RNS8_SUCCESS);
-    CHECK(std::all_of(c_matrix->residues.begin(), c_matrix->residues.end(), [&](int8_t value) {
-      return value == c_sentinel;
-    }));
+                hip->device_id, c_matrix->residues.data(), c_matrix->hip_residues,
+                c_matrix->hip_residue_bytes) == RNS8_SUCCESS);
+    CHECK(std::all_of(c_matrix->residues.begin(), c_matrix->residues.end(),
+                      [&](int8_t value) { return value == c_sentinel; }));
 
     rns8_destroy_matrix(c_matrix);
     rns8_destroy_matrix(b_matrix);
@@ -74,18 +76,21 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     REQUIRE(rns8_create_matrix(hip, &b_desc, &b_matrix) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
 
-    fill_exact_residue_matrix(a_matrix, {boost::multiprecision::cpp_int(5), boost::multiprecision::cpp_int(6)});
-    fill_exact_residue_matrix(b_matrix, {boost::multiprecision::cpp_int(7), boost::multiprecision::cpp_int(8)});
+    fill_exact_residue_matrix(
+        a_matrix, {boost::multiprecision::cpp_int(5), boost::multiprecision::cpp_int(6)});
+    fill_exact_residue_matrix(
+        b_matrix, {boost::multiprecision::cpp_int(7), boost::multiprecision::cpp_int(8)});
     upload_exact_residues_to_hip(a_matrix);
     c_matrix->residues.resize(c_matrix->hip_residue_bytes);
     std::fill(c_matrix->residues.begin(), c_matrix->residues.end(), c_sentinel);
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
-                hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
-            RNS8_SUCCESS);
+                hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(),
+                c_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     rns8::test::set_host_residues_current(*c_matrix, false);
     rns8::test::set_device_residues_current(*c_matrix, true);
 
-    CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK_FALSE(a_matrix->host_residues_current);
     CHECK(a_matrix->device_residues_current);
     CHECK(b_matrix->host_residues_current);
@@ -94,11 +99,10 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     CHECK(c_matrix->hip_export_buffer == nullptr);
     CHECK(c_matrix->hip_status_buffer == nullptr);
     REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
-                hip->device_id, c_matrix->residues.data(), c_matrix->hip_residues, c_matrix->hip_residue_bytes) ==
-            RNS8_SUCCESS);
-    CHECK(std::all_of(c_matrix->residues.begin(), c_matrix->residues.end(), [&](int8_t value) {
-      return value == c_sentinel;
-    }));
+                hip->device_id, c_matrix->residues.data(), c_matrix->hip_residues,
+                c_matrix->hip_residue_bytes) == RNS8_SUCCESS);
+    CHECK(std::all_of(c_matrix->residues.begin(), c_matrix->residues.end(),
+                      [&](int8_t value) { return value == c_sentinel; }));
 
     rns8_destroy_matrix(c_matrix);
     rns8_destroy_matrix(b_matrix);
@@ -127,12 +131,10 @@ TEST_CASE("direct HIP bounded exports reject host-current stale device residues"
     REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
     auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
-    fill_exact_residue_matrix(
-        c_matrix,
-        {boost::multiprecision::cpp_int(expected[0]),
-         boost::multiprecision::cpp_int(expected[1]),
-         boost::multiprecision::cpp_int(expected[2]),
-         boost::multiprecision::cpp_int(expected[3])});
+    fill_exact_residue_matrix(c_matrix, {boost::multiprecision::cpp_int(expected[0]),
+                                         boost::multiprecision::cpp_int(expected[1]),
+                                         boost::multiprecision::cpp_int(expected[2]),
+                                         boost::multiprecision::cpp_int(expected[3])});
 
     std::vector<int64_t> out(static_cast<std::size_t>(m * n), INT64_C(0x7f7f7f7f));
     CHECK(rns8_export_i64(hip, plan, c_matrix, out.data(), n) == RNS8_INVALID_ARGUMENT);
@@ -155,16 +157,15 @@ TEST_CASE("direct HIP bounded exports reject host-current stale device residues"
     REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
     auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
-    fill_exact_residue_matrix(
-        c_matrix,
-        {boost::multiprecision::cpp_int(expected[0]),
-         boost::multiprecision::cpp_int(expected[1]),
-         boost::multiprecision::cpp_int(expected[2]),
-         boost::multiprecision::cpp_int(expected[3])});
+    fill_exact_residue_matrix(c_matrix, {boost::multiprecision::cpp_int(expected[0]),
+                                         boost::multiprecision::cpp_int(expected[1]),
+                                         boost::multiprecision::cpp_int(expected[2]),
+                                         boost::multiprecision::cpp_int(expected[3])});
 
     std::vector<uint64_t> out(static_cast<std::size_t>(m * n), UINT64_C(0xffffffffffffffff));
     CHECK(rns8_export_u64(hip, plan, c_matrix, out.data(), n) == RNS8_INVALID_ARGUMENT);
-    CHECK(out == std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xffffffffffffffff)));
+    CHECK(out ==
+          std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xffffffffffffffff)));
     CHECK(c_matrix->host_residues_current);
     CHECK_FALSE(c_matrix->device_residues_current);
     CHECK(c_matrix->hip_upload_buffer == nullptr);
@@ -178,7 +179,8 @@ TEST_CASE("direct HIP bounded exports reject host-current stale device residues"
   rns8_destroy_context(hip);
 }
 
-TEST_CASE("direct HIP bounded export range errors preserve host output and reuse resident buffers") {
+TEST_CASE(
+    "direct HIP bounded export range errors preserve host output and reuse resident buffers") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP bounded range-error export smoke");
   }
@@ -204,16 +206,20 @@ TEST_CASE("direct HIP bounded export range errors preserve host output and reuse
     REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
 
-    fill_exact_residue_matrix(cpu_c, {boost::multiprecision::cpp_int(-11), boost::multiprecision::cpp_int(7)});
-    fill_exact_residue_matrix(hip_c, {boost::multiprecision::cpp_int(-11), boost::multiprecision::cpp_int(7)});
+    fill_exact_residue_matrix(
+        cpu_c, {boost::multiprecision::cpp_int(-11), boost::multiprecision::cpp_int(7)});
+    fill_exact_residue_matrix(
+        hip_c, {boost::multiprecision::cpp_int(-11), boost::multiprecision::cpp_int(7)});
     upload_exact_residues_to_hip(hip_c);
 
     std::vector<int64_t> cpu_out(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212));
     std::vector<int64_t> hip_out(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212));
     CHECK(rns8_export_i64(cpu, cpu_plan, cpu_c, cpu_out.data(), n) == RNS8_RANGE_ERROR);
     CHECK(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), n) == RNS8_RANGE_ERROR);
-    CHECK(cpu_out == std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
-    CHECK(hip_out == std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
+    CHECK(cpu_out ==
+          std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
+    CHECK(hip_out ==
+          std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
     CHECK_FALSE(hip_c->host_residues_current);
     CHECK(hip_c->device_residues_current);
     CHECK(hip_c->hip_upload_buffer == nullptr);
@@ -238,7 +244,8 @@ TEST_CASE("direct HIP bounded export range errors preserve host output and reuse
     CHECK(hip_c->hip_upload_bytes == 0);
     CHECK(hip_c->hip_export_bytes == export_bytes);
     CHECK(hip_c->hip_status_bytes == status_bytes);
-    CHECK(hip_out == std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
+    CHECK(hip_out ==
+          std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
 
     rns8_destroy_matrix(hip_c);
     rns8_destroy_matrix(cpu_c);
@@ -261,16 +268,20 @@ TEST_CASE("direct HIP bounded export range errors preserve host output and reuse
     REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
 
-    fill_exact_residue_matrix(cpu_c, {boost::multiprecision::cpp_int(11), boost::multiprecision::cpp_int(3)});
-    fill_exact_residue_matrix(hip_c, {boost::multiprecision::cpp_int(11), boost::multiprecision::cpp_int(3)});
+    fill_exact_residue_matrix(
+        cpu_c, {boost::multiprecision::cpp_int(11), boost::multiprecision::cpp_int(3)});
+    fill_exact_residue_matrix(
+        hip_c, {boost::multiprecision::cpp_int(11), boost::multiprecision::cpp_int(3)});
     upload_exact_residues_to_hip(hip_c);
 
     std::vector<uint64_t> cpu_out(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe));
     std::vector<uint64_t> hip_out(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe));
     CHECK(rns8_export_u64(cpu, cpu_plan, cpu_c, cpu_out.data(), n) == RNS8_RANGE_ERROR);
     CHECK(rns8_export_u64(hip, hip_plan, hip_c, hip_out.data(), n) == RNS8_RANGE_ERROR);
-    CHECK(cpu_out == std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
-    CHECK(hip_out == std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
+    CHECK(cpu_out ==
+          std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
+    CHECK(hip_out ==
+          std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
     CHECK_FALSE(hip_c->host_residues_current);
     CHECK(hip_c->device_residues_current);
     CHECK(hip_c->hip_upload_buffer == nullptr);
@@ -295,7 +306,8 @@ TEST_CASE("direct HIP bounded export range errors preserve host output and reuse
     CHECK(hip_c->hip_upload_bytes == 0);
     CHECK(hip_c->hip_export_bytes == export_bytes);
     CHECK(hip_c->hip_status_bytes == status_bytes);
-    CHECK(hip_out == std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
+    CHECK(hip_out ==
+          std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
 
     rns8_destroy_matrix(hip_c);
     rns8_destroy_matrix(cpu_c);
@@ -307,7 +319,8 @@ TEST_CASE("direct HIP bounded export range errors preserve host output and reuse
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage across same-shape calls") {
+TEST_CASE(
+    "direct HIP persistent per-tile bounded u64 reuses resident storage across same-shape calls") {
   if (!hip_available()) {
     SKIP("no HIP device available for persistent per-tile direct HIP bounded smoke");
   }
@@ -330,12 +343,16 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
     std::fill(A.begin(), A.end(), sentinel);
     std::fill(B.begin(), B.end(), sentinel);
     for (int64_t row = 0; row < m; ++row) {
-      A[static_cast<std::size_t>(row * lda)] = row < 64 ? (variant == 0 ? 1 : 3) : (variant == 0 ? 1000000 : 500000);
-      A[static_cast<std::size_t>(row * lda + 1)] = row < 64 ? (variant == 0 ? 2 : 4) : (variant == 0 ? 3 : 5);
+      A[static_cast<std::size_t>(row * lda)] =
+          row < 64 ? (variant == 0 ? 1 : 3) : (variant == 0 ? 1000000 : 500000);
+      A[static_cast<std::size_t>(row * lda + 1)] =
+          row < 64 ? (variant == 0 ? 2 : 4) : (variant == 0 ? 3 : 5);
     }
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(col)] = col < 64 ? (variant == 0 ? 7 : 5) : (variant == 0 ? 1000 : 999);
-      B[static_cast<std::size_t>(ldb + col)] = col < 64 ? (variant == 0 ? 11 : 6) : (variant == 0 ? 13 : 7);
+      B[static_cast<std::size_t>(col)] =
+          col < 64 ? (variant == 0 ? 7 : 5) : (variant == 0 ? 1000 : 999);
+      B[static_cast<std::size_t>(ldb + col)] =
+          col < 64 ? (variant == 0 ? 11 : 6) : (variant == 0 ? 13 : 7);
     }
   };
 
@@ -396,7 +413,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
   fill_inputs(0);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -426,7 +444,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
   fill_inputs(1);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -459,4 +478,3 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }
-

@@ -50,7 +50,9 @@ def run_command(
         )
         return {
             "command": list(command),
-            "wrapped_command": actual if isinstance(actual, str) else subprocess.list2cmdline(actual),
+            "wrapped_command": actual
+            if isinstance(actual, str)
+            else subprocess.list2cmdline(actual),
             "exit_code": completed.returncode,
             "ok": completed.returncode == 0,
             "output": deps.compact_output(completed.stdout),
@@ -58,7 +60,9 @@ def run_command(
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {
             "command": list(command),
-            "wrapped_command": actual if isinstance(actual, str) else subprocess.list2cmdline(actual),
+            "wrapped_command": actual
+            if isinstance(actual, str)
+            else subprocess.list2cmdline(actual),
             "exit_code": 1,
             "ok": False,
             "output": str(exc),
@@ -69,7 +73,11 @@ def initialize_submodules(root: Path) -> dict[str, object]:
     items: dict[str, object] = {}
     for name, spec in deps.EXPECTED_ROCM_SUBMODULES.items():
         path = str(spec["path"])
-        result = run_command(["git", "submodule", "update", "--init", "--checkout", "--", path], cwd=root, timeout=600)
+        result = run_command(
+            ["git", "submodule", "update", "--init", "--checkout", "--", path],
+            cwd=root,
+            timeout=600,
+        )
         report = deps.repo_local_dependency_report(name)
         items[name] = {
             "command": result,
@@ -83,8 +91,14 @@ def initialize_submodules(root: Path) -> dict[str, object]:
 
 
 def toolchain_report(target: str) -> dict[str, object]:
-    resolution = resolve(Request(platform.system(), source_root=str(deps.repo_root()), require_hip=True,
-                                 require_vcpkg=platform.system() == "Windows"))
+    resolution = resolve(
+        Request(
+            platform.system(),
+            source_root=str(deps.repo_root()),
+            require_hip=True,
+            require_vcpkg=platform.system() == "Windows",
+        )
+    )
     with selection_context(resolution):
         commands = {
             name: deps.find_command(name)
@@ -95,7 +109,8 @@ def toolchain_report(target: str) -> dict[str, object]:
     hip_info = deps.hip_info_report(commands.get("hipInfo"))
     hip_target = hip_info.get("target") if isinstance(hip_info, dict) else ""
     return {
-        "ok": not resolution["errors"] and all(commands[name] for name in ["git", "cmake", "ninja", "python", "hipcc"])
+        "ok": not resolution["errors"]
+        and all(commands[name] for name in ["git", "cmake", "ninja", "python", "hipcc"])
         and bool(msvc_install)
         and bool(msvc_probe["ok"])
         and (not hip_target or hip_target == target),
@@ -118,7 +133,11 @@ def compile_dependency_probe(name: str, target: str, probe_root: Path) -> dict[s
             "status": "missing_component_record",
             "name": name,
             **deps.primitive_probe_not_run_fields(
-                name, probe_root, "NOT_RUN_MISSING_COMPONENT", "component record not discovered", True
+                name,
+                probe_root,
+                "NOT_RUN_MISSING_COMPONENT",
+                "component record not discovered",
+                True,
             ),
         }
     header = component.get("header")
@@ -191,7 +210,9 @@ def probe_dependencies(target: str, probe_root: Path) -> dict[str, object]:
     }
 
 
-def dry_run_bootstrap_report(root: Path, target: str, probe_root: Path, init: bool, probe: bool) -> dict[str, object]:
+def dry_run_bootstrap_report(
+    root: Path, target: str, probe_root: Path, init: bool, probe: bool
+) -> dict[str, object]:
     submodule_items: dict[str, object] = {}
     for name, spec in deps.EXPECTED_ROCM_SUBMODULES.items():
         path = str(spec["path"])
@@ -199,7 +220,9 @@ def dry_run_bootstrap_report(root: Path, target: str, probe_root: Path, init: bo
         submodule_items[name] = {
             "ok": True,
             "dependency": dependency,
-            "planned_command": ["git", "submodule", "update", "--init", "--checkout", "--", path] if init else [],
+            "planned_command": ["git", "submodule", "update", "--init", "--checkout", "--", path]
+            if init
+            else [],
             "planned_write": "submodule checkout/update" if init else "",
         }
 
@@ -278,7 +301,9 @@ def print_human(report: dict[str, object]) -> None:
             assert isinstance(item, dict)
             dependency = item["dependency"]
             assert isinstance(dependency, dict)
-            print(f"  {name}: {'OK' if item['ok'] else 'FAIL'} {dependency.get('actual_sha') or 'not initialized'}")
+            print(
+                f"  {name}: {'OK' if item['ok'] else 'FAIL'} {dependency.get('actual_sha') or 'not initialized'}"
+            )
     toolchain = report.get("toolchain")
     if isinstance(toolchain, dict):
         print(f"toolchain: {'OK' if toolchain['ok'] else 'FAIL'}")
@@ -310,9 +335,17 @@ def print_human(report: dict[str, object]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--init", action="store_true", help="initialize/update CK and rocWMMA submodules")
-    parser.add_argument("--probe", action="store_true", help="compile repo-local CK and rocWMMA dependency probes")
-    parser.add_argument("--target", default=None, help="AMDGPU offload target for probes (default gfx1100); also selects an SDK target")
+    parser.add_argument(
+        "--init", action="store_true", help="initialize/update CK and rocWMMA submodules"
+    )
+    parser.add_argument(
+        "--probe", action="store_true", help="compile repo-local CK and rocWMMA dependency probes"
+    )
+    parser.add_argument(
+        "--target",
+        default=None,
+        help="AMDGPU offload target for probes (default gfx1100); also selects an SDK target",
+    )
     rocm_sdk.add_arguments(parser)
     parser.add_argument(
         "--probe-root",
@@ -332,7 +365,9 @@ def main() -> int:
         if not (args.sdk_auto or args.sdk_install or args.sdk_root):
             parser.error("--sdk-build/--sdk-test requires --sdk-auto, --sdk-install or --sdk-root")
         if args.init or args.probe:
-            parser.error("SDK provisioning/build and repo-local submodule probes are separate explicit invocations")
+            parser.error(
+                "SDK provisioning/build and repo-local submodule probes are separate explicit invocations"
+            )
         try:
             report = rocm_sdk.run(args)
         except (OSError, ValueError, tarfile.TarError, subprocess.SubprocessError) as error:
@@ -351,7 +386,9 @@ def main() -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
         else:
             print_human(report)
-            print(f"record: {probe_root / 'bootstrap_rocm_accelerators.json'} (not written; dry-run)")
+            print(
+                f"record: {probe_root / 'bootstrap_rocm_accelerators.json'} (not written; dry-run)"
+            )
         return 0
 
     report: dict[str, object] = {
@@ -368,9 +405,15 @@ def main() -> int:
         ok = ok and bool(submodules["ok"])
     else:
         report["submodules"] = {
-            "ok": all(bool(deps.repo_local_dependency_report(name).get("sha_matches")) for name in ("ck", "rocwmma")),
+            "ok": all(
+                bool(deps.repo_local_dependency_report(name).get("sha_matches"))
+                for name in ("ck", "rocwmma")
+            ),
             "items": {
-                name: {"dependency": deps.repo_local_dependency_report(name), "ok": deps.repo_local_dependency_report(name).get("sha_matches")}
+                name: {
+                    "dependency": deps.repo_local_dependency_report(name),
+                    "ok": deps.repo_local_dependency_report(name).get("sha_matches"),
+                }
                 for name in ("ck", "rocwmma")
             },
             "note": "submodule update not requested; pass --init to initialize missing dependencies",
@@ -385,7 +428,11 @@ def main() -> int:
         report["probes"] = probes
         ok = ok and bool(probes["ok"])
     else:
-        report["probes"] = {"ok": True, "requested": False, "note": "compile probes not requested; pass --probe"}
+        report["probes"] = {
+            "ok": True,
+            "requested": False,
+            "note": "compile probes not requested; pass --probe",
+        }
 
     output_path = probe_root / "bootstrap_rocm_accelerators.json"
     report["record_path"] = str(output_path)

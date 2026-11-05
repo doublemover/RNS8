@@ -4,32 +4,39 @@ namespace {
 // this API. Reservations also exclude outstanding asynchronous owners.
 struct ComplexWriteReservation {
   bool commit_started = false;
-  std::array<std::optional<SynchronousLease>,4> leases;
-  size_t count=0;
-  rns8_status acquire(rns8_context& ctx,std::array<const rns8_matrix*,4> inputs,
-                     rns8_matrix& real,rns8_matrix& imag,rns8_workspace& workspace) {
-    size_t token=0;
-    auto status=begin_synchronous_lease(ctx,*inputs[0],*inputs[1],real,workspace,token);
-    if(status!=RNS8_SUCCESS)return status;
-    leases[count++].emplace(ctx,token);leases[count-1]->track_write(commit_started);
-    status=begin_synchronous_output_lease(ctx,imag,token);if(status!=RNS8_SUCCESS)return finish(status);
-    leases[count++].emplace(ctx,token);leases[count-1]->track_write(commit_started);
-    for(size_t i=2;i<inputs.size();++i) {
-      status=begin_synchronous_read_lease(ctx,*inputs[i],token);
-      if(status!=RNS8_SUCCESS)return finish(status);
-      leases[count++].emplace(ctx,token);
+  std::array<std::optional<SynchronousLease>, 4> leases;
+  size_t count = 0;
+  rns8_status acquire(rns8_context& ctx, std::array<const rns8_matrix*, 4> inputs,
+                      rns8_matrix& real, rns8_matrix& imag, rns8_workspace& workspace) {
+    size_t token = 0;
+    auto status = begin_synchronous_lease(ctx, *inputs[0], *inputs[1], real, workspace, token);
+    if (status != RNS8_SUCCESS)
+      return status;
+    leases[count++].emplace(ctx, token);
+    leases[count - 1]->track_write(commit_started);
+    status = begin_synchronous_output_lease(ctx, imag, token);
+    if (status != RNS8_SUCCESS)
+      return finish(status);
+    leases[count++].emplace(ctx, token);
+    leases[count - 1]->track_write(commit_started);
+    for (size_t i = 2; i < inputs.size(); ++i) {
+      status = begin_synchronous_read_lease(ctx, *inputs[i], token);
+      if (status != RNS8_SUCCESS)
+        return finish(status);
+      leases[count++].emplace(ctx, token);
     }
     return RNS8_SUCCESS;
   }
   rns8_status finish(rns8_status status) noexcept {
-    for(size_t i=0;i<count;++i)leases[i]->finish(status);
+    for (size_t i = 0; i < count; ++i)
+      leases[i]->finish(status);
     return status;
   }
 };
 
-void cpu_complex_residue_product(const ComplexResiduePair<const int8_t> &a,
-                                 const ComplexResiduePair<const int8_t> &b, int8_t *real,
-                                 int8_t *imag, ComplexProductMethod method) {
+void cpu_complex_residue_product(const ComplexResiduePair<const int8_t>& a,
+                                 const ComplexResiduePair<const int8_t>& b, int8_t* real,
+                                 int8_t* imag, ComplexProductMethod method) {
   const auto m = a.real.rows, n = b.real.cols, k = a.real.cols;
   for (uint32_t p = 0; p < a.real.basis.prefix; ++p) {
     const int64_t modulus = rns8_default_modulus(p);
@@ -67,17 +74,17 @@ void cpu_complex_residue_product(const ComplexResiduePair<const int8_t> &a,
 }
 } // namespace
 
-rns8_status complex_exact_signed_gemm(rns8_context *ctx, const rns8_plan *plan,
+rns8_status complex_exact_signed_gemm(rns8_context* ctx, const rns8_plan* plan,
                                       ComplexMatrixPair<const rns8_matrix> a,
                                       ComplexMatrixPair<const rns8_matrix> b,
                                       ComplexMatrixPair<rns8_matrix> c, ComplexProductMethod method,
-                                      uint64_t max_scratch_bytes, rns8_workspace *workspace) {
+                                      uint64_t max_scratch_bytes, rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !workspace || !a.real || !a.imag || !b.real || !b.imag || !c.real ||
         !c.imag || c.real == c.imag || plan->desc.semantics != RNS8_EXACT_WIDE_SIGNED)
       return RNS8_INVALID_ARGUMENT;
-    const std::array<const rns8_matrix *, 4> inputs{a.real, a.imag, b.real, b.imag};
-    for (const auto *input : inputs)
+    const std::array<const rns8_matrix*, 4> inputs{a.real, a.imag, b.real, b.imag};
+    for (const auto* input : inputs)
       if (input == c.real || input == c.imag)
         return RNS8_INVALID_ARGUMENT;
     if (plan->backend != RNS8_BACKEND_CPU_REFERENCE && plan->backend != RNS8_BACKEND_HIP_DIRECT)
@@ -91,7 +98,7 @@ rns8_status complex_exact_signed_gemm(rns8_context *ctx, const rns8_plan *plan,
     status = validate_rns_gemm_operands(*ctx, *plan, *a.imag, *b.imag, *c.imag, true);
     if (status != RNS8_SUCCESS)
       return status;
-    for (const auto *input : inputs) {
+    for (const auto* input : inputs) {
       if (input->in_flight_readers == UINT64_MAX || input->in_flight_writer)
         return RNS8_BUSY;
       if (input->exact_range_prefix < plan->prefix)
@@ -101,14 +108,14 @@ rns8_status complex_exact_signed_gemm(rns8_context *ctx, const rns8_plan *plan,
       return RNS8_RANGE_ERROR;
     const bool hip = plan->backend == RNS8_BACKEND_HIP_DIRECT;
     const ComplexResidueBasis basis{ComplexResidueDomain::wide_signed, 1, plan->prefix, 0};
-    const auto view = [&](const rns8_matrix *matrix) {
+    const auto view = [&](const rns8_matrix* matrix) {
       return ComplexResidueView<const int8_t>{
-          hip ? static_cast<const int8_t *>(matrix->hip_residues) : matrix->residues.data(),
+          hip ? static_cast<const int8_t*>(matrix->hip_residues) : matrix->residues.data(),
           matrix->desc.rows, matrix->desc.cols, matrix->desc.cols, basis};
     };
-    const auto output = [&](rns8_matrix *matrix) {
+    const auto output = [&](rns8_matrix* matrix) {
       return ComplexResidueView<int8_t>{
-          hip ? static_cast<int8_t *>(matrix->hip_residues) : matrix->residues.data(),
+          hip ? static_cast<int8_t*>(matrix->hip_residues) : matrix->residues.data(),
           matrix->desc.rows, matrix->desc.cols, matrix->desc.cols, basis};
     };
     const ComplexResiduePair<const int8_t> av{view(a.real), view(a.imag)},
@@ -124,34 +131,38 @@ rns8_status complex_exact_signed_gemm(rns8_context *ctx, const rns8_plan *plan,
     if (!hip)
       stage.resize(static_cast<std::size_t>(admitted.product_bytes * 2));
     ComplexWriteReservation write;
-    status=write.acquire(*ctx,inputs,*c.real,*c.imag,*workspace);if(status!=RNS8_SUCCESS)return status;
+    status = write.acquire(*ctx, inputs, *c.real, *c.imag, *workspace);
+    if (status != RNS8_SUCCESS)
+      return status;
     return write.finish([&]() -> rns8_status {
-    status=synchronous_dispatch_checkpoint(*ctx,"complex",&write.commit_started);if(status!=RNS8_SUCCESS)return status;
-    if (hip) {
-      status = hip_direct_gemm_complex_residues(ctx->device_id, av, bv, cv, bounds, method,
-                                                max_scratch_bytes, write.commit_started);
+      status = synchronous_dispatch_checkpoint(*ctx, "complex", &write.commit_started);
       if (status != RNS8_SUCCESS)
         return status;
-    } else {
-      cpu_complex_residue_product(av, bv, stage.data(), stage.data() + admitted.product_bytes,
-                                  method);
-      write.commit_started = true;
-      std::copy_n(stage.data(), static_cast<std::size_t>(admitted.product_bytes), cv.real.data);
-      std::copy_n(stage.data() + admitted.product_bytes,
-                  static_cast<std::size_t>(admitted.product_bytes), cv.imag.data);
-    }
-    // No allocation or fallible device operation between the two publications.
-    // External host-thread exclusion makes this one logical synchronous commit.
-    if (hip) {
-      mark_output_device_residues_current(*c.real);
-      mark_output_device_residues_current(*c.imag);
-    } else {
-      mark_output_host_residues_current(*c.real);
-      mark_output_host_residues_current(*c.imag);
-    }
-    commit_exact_range(*c.real, *plan, admitted.real_bound);
-    commit_exact_range(*c.imag, *plan, admitted.imag_bound);
-    return RNS8_SUCCESS;
+      if (hip) {
+        status = hip_direct_gemm_complex_residues(ctx->device_id, av, bv, cv, bounds, method,
+                                                  max_scratch_bytes, write.commit_started);
+        if (status != RNS8_SUCCESS)
+          return status;
+      } else {
+        cpu_complex_residue_product(av, bv, stage.data(), stage.data() + admitted.product_bytes,
+                                    method);
+        write.commit_started = true;
+        std::copy_n(stage.data(), static_cast<std::size_t>(admitted.product_bytes), cv.real.data);
+        std::copy_n(stage.data() + admitted.product_bytes,
+                    static_cast<std::size_t>(admitted.product_bytes), cv.imag.data);
+      }
+      // No allocation or fallible device operation between the two publications.
+      // External host-thread exclusion makes this one logical synchronous commit.
+      if (hip) {
+        mark_output_device_residues_current(*c.real);
+        mark_output_device_residues_current(*c.imag);
+      } else {
+        mark_output_host_residues_current(*c.real);
+        mark_output_host_residues_current(*c.imag);
+      }
+      commit_exact_range(*c.real, *plan, admitted.real_bound);
+      commit_exact_range(*c.imag, *plan, admitted.imag_bound);
+      return RNS8_SUCCESS;
     }());
   });
 }

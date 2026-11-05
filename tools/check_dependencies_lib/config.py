@@ -35,7 +35,11 @@ RADEON_TOOLS = [
 ]
 SUPPORTED_TARGETS = {
     "gfx1030": {"tier": "W2", "family": "RDNA2", "role": "functional HIP regression"},
-    "gfx1100": {"tier": "W0", "family": "RDNA3", "role": "local Windows bring-up and RDNA3 optimization"},
+    "gfx1100": {
+        "tier": "W0",
+        "family": "RDNA3",
+        "role": "local Windows bring-up and RDNA3 optimization",
+    },
     "gfx1200": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
     "gfx1201": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
     "gfx90a": {"tier": "I2", "family": "CDNA2", "role": "supported CDNA2 cluster target"},
@@ -218,5 +222,3 @@ extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
 }
 """,
 }
-
-

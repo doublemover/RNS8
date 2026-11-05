@@ -10,7 +10,15 @@ from pathlib import Path
 from typing import Any
 
 import result_compare
-from observation_cohorts import aggregate_captures, canonical_work, comparison_environment, phase_median, compound_median, evidence, qualified
+from observation_cohorts import (
+    aggregate_captures,
+    canonical_work,
+    comparison_environment,
+    phase_median,
+    compound_median,
+    evidence,
+    qualified,
+)
 from report_inputs import expand_inputs, load_validated_capture
 
 
@@ -52,7 +60,8 @@ def gpu_events_available(capture: dict[str, Any]) -> bool:
 
 
 def timing_summary_value(capture: dict[str, Any], phase: str, statistic: str) -> float | None:
-    if statistic == "median": return phase_median(capture, phase)
+    if statistic == "median":
+        return phase_median(capture, phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None
@@ -124,17 +133,25 @@ def setup_scan_us(capture: dict[str, Any]) -> float | None:
 
 def setup_inclusive_median_us(capture: dict[str, Any]) -> float | None:
     variant = bound_variant(capture)
-    if variant == "static_global": return phase_median(capture)
+    if variant == "static_global":
+        return phase_median(capture)
     scan = "global_bound_scan" if variant == "input_scan_global" else "tile_bound_scan"
     return compound_median(capture, ["end_to_end", scan])
 
 
-def phase_comparison(baseline: dict[str, Any] | None, candidate: dict[str, Any], phase: str) -> dict[str, Any]:
-    baseline_median = timing_summary_value(baseline, phase, "median") if baseline is not None else None
+def phase_comparison(
+    baseline: dict[str, Any] | None, candidate: dict[str, Any], phase: str
+) -> dict[str, Any]:
+    baseline_median = (
+        timing_summary_value(baseline, phase, "median") if baseline is not None else None
+    )
     candidate_median = timing_summary_value(candidate, phase, "median")
     speedup = (
         baseline_median / candidate_median
-        if qualified(baseline) and qualified(candidate) and baseline_median is not None and candidate_median not in (None, 0.0)
+        if qualified(baseline)
+        and qualified(candidate)
+        and baseline_median is not None
+        and candidate_median not in (None, 0.0)
         else None
     )
     return {
@@ -147,23 +164,56 @@ def phase_comparison(baseline: dict[str, Any] | None, candidate: dict[str, Any],
 def workload_key(capture: dict[str, Any]) -> str:
     # Explicit bound-discovery A/B: proof bounds/schedules/prefix work may
     # change, but arithmetic inputs, output/reuse/batch boundary and policy may not.
-    excluded = [key for key in result_compare.CONTRACT_KEYS if key.startswith(("bound", "schedule_metadata.", "tile_bounds_u64.",
-        "residue_planes_", "residue_count_policy.", "export_variant.selector_key")) or key in
-        {"prefix", "selected_prefix", "requested_max_prefix", "contract_prefix_policy", "tile_m", "tile_n"}]
+    excluded = [
+        key
+        for key in result_compare.CONTRACT_KEYS
+        if key.startswith(
+            (
+                "bound",
+                "schedule_metadata.",
+                "tile_bounds_u64.",
+                "residue_planes_",
+                "residue_count_policy.",
+                "export_variant.selector_key",
+            )
+        )
+        or key
+        in {
+            "prefix",
+            "selected_prefix",
+            "requested_max_prefix",
+            "contract_prefix_policy",
+            "tile_m",
+            "tile_n",
+        }
+    ]
     return canonical_work(capture, exclude=excluded)
 
 
-def select_best_static(candidates: list[dict[str, Any]], candidate: dict[str, Any] | None = None) -> dict[str, Any] | None:
+def select_best_static(
+    candidates: list[dict[str, Any]], candidate: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     valid = [
         capture
         for capture in candidates
-        if bound_variant(capture) == "static_global" and qualified(capture) and setup_inclusive_median_us(capture) is not None
-        and (candidate is None or comparison_environment(capture, cpu_anchor=not gpu_backend(capture)) ==
-             comparison_environment(candidate, cpu_anchor=not gpu_backend(capture)))
+        if bound_variant(capture) == "static_global"
+        and qualified(capture)
+        and setup_inclusive_median_us(capture) is not None
+        and (
+            candidate is None
+            or comparison_environment(capture, cpu_anchor=not gpu_backend(capture))
+            == comparison_environment(candidate, cpu_anchor=not gpu_backend(capture))
+        )
     ]
     if not valid:
         return None
-    return min(valid, key=lambda capture: (setup_inclusive_median_us(capture), evidence(capture)["implementation_key"]))
+    return min(
+        valid,
+        key=lambda capture: (
+            setup_inclusive_median_us(capture),
+            evidence(capture)["implementation_key"],
+        ),
+    )
 
 
 def decision_for(
@@ -178,7 +228,11 @@ def decision_for(
         return "missing_baseline", ["missing_same_backend_static_global_baseline"]
     if best_static is None:
         return "missing_baseline", ["missing_contract_static_global_baseline"]
-    if not release_satisfied(candidate) or not release_satisfied(same_backend_static) or not release_satisfied(best_static):
+    if (
+        not release_satisfied(candidate)
+        or not release_satisfied(same_backend_static)
+        or not release_satisfied(best_static)
+    ):
         blockers.append("not_release_review")
     variant = bound_variant(candidate)
     if variant == "input_scan_global" and setup_scan_us(candidate) is None:
@@ -208,7 +262,9 @@ def decision_for(
 
 
 def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
-    bounded = aggregate_captures([capture for capture in captures if bound_variant(capture) is not None])
+    bounded = aggregate_captures(
+        [capture for capture in captures if bound_variant(capture) is not None]
+    )
     by_workload: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_workload_backend: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     candidates: list[dict[str, Any]] = []
@@ -224,21 +280,31 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
     for candidate in sorted(candidates, key=lambda item: str(item.get("_path"))):
         key = workload_key(candidate)
         backend = backend_id(candidate)
-        same_backend_static = select_best_static(by_workload_backend.get((key, backend), []), candidate)
+        same_backend_static = select_best_static(
+            by_workload_backend.get((key, backend), []), candidate
+        )
         best_static = select_best_static(by_workload.get(key, []), candidate)
         candidate_setup_inclusive = setup_inclusive_median_us(candidate)
         same_backend_setup_inclusive = (
-            setup_inclusive_median_us(same_backend_static) if same_backend_static is not None else None
+            setup_inclusive_median_us(same_backend_static)
+            if same_backend_static is not None
+            else None
         )
-        best_static_setup_inclusive = setup_inclusive_median_us(best_static) if best_static is not None else None
+        best_static_setup_inclusive = (
+            setup_inclusive_median_us(best_static) if best_static is not None else None
+        )
         speedup_vs_same_backend_static = (
             same_backend_setup_inclusive / candidate_setup_inclusive
-            if qualified(candidate) and same_backend_setup_inclusive is not None and candidate_setup_inclusive not in (None, 0.0)
+            if qualified(candidate)
+            and same_backend_setup_inclusive is not None
+            and candidate_setup_inclusive not in (None, 0.0)
             else None
         )
         speedup_vs_best_static = (
             best_static_setup_inclusive / candidate_setup_inclusive
-            if qualified(candidate) and best_static_setup_inclusive is not None and candidate_setup_inclusive not in (None, 0.0)
+            if qualified(candidate)
+            and best_static_setup_inclusive is not None
+            and candidate_setup_inclusive not in (None, 0.0)
             else None
         )
         decision, blockers = decision_for(
@@ -253,7 +319,11 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
             {
                 "workload_key": key,
                 "measurement_cohort": evidence(candidate),
-                "baseline_observation_cohorts": [evidence(c) for c in by_workload.get(key, []) if bound_variant(c) == "static_global"],
+                "baseline_observation_cohorts": [
+                    evidence(c)
+                    for c in by_workload.get(key, [])
+                    if bound_variant(c) == "static_global"
+                ],
                 "selected_same_backend_cohort": evidence(same_backend_static),
                 "selected_best_static_cohort": evidence(best_static),
                 "variant": bound_variant(candidate),
@@ -269,10 +339,14 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
                 "same_backend_static_capture": same_backend_static.get("_path")
                 if same_backend_static is not None
                 else None,
-                "best_static_capture": best_static.get("_path") if best_static is not None else None,
+                "best_static_capture": best_static.get("_path")
+                if best_static is not None
+                else None,
                 "best_static_backend": backend_id(best_static) if best_static is not None else None,
                 "candidate_setup_scan_us": setup_scan_us(candidate),
-                "candidate_median_end_to_end_us": timing_summary_value(candidate, "end_to_end", "median"),
+                "candidate_median_end_to_end_us": timing_summary_value(
+                    candidate, "end_to_end", "median"
+                ),
                 "candidate_setup_inclusive_median_us": candidate_setup_inclusive,
                 "same_backend_static_setup_inclusive_median_us": same_backend_setup_inclusive,
                 "best_static_setup_inclusive_median_us": best_static_setup_inclusive,
@@ -285,7 +359,9 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
                     and release_satisfied(same_backend_static)
                     and release_satisfied(best_static)
                 ),
-                "candidate_gpu_events": gpu_events_available(candidate) if gpu_backend(candidate) else None,
+                "candidate_gpu_events": gpu_events_available(candidate)
+                if gpu_backend(candidate)
+                else None,
                 "same_backend_static_gpu_events": gpu_events_available(same_backend_static)
                 if same_backend_static is not None and gpu_backend(same_backend_static)
                 else None,
@@ -304,9 +380,15 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
 
     summary = {
         "bounded_captures": len(bounded),
-        "static_global_captures": sum(1 for item in bounded if bound_variant(item) == "static_global"),
-        "input_scan_global_captures": sum(1 for item in bounded if bound_variant(item) == "input_scan_global"),
-        "proof_mask_per_tile_captures": sum(1 for item in bounded if bound_variant(item) == "proof_mask_per_tile"),
+        "static_global_captures": sum(
+            1 for item in bounded if bound_variant(item) == "static_global"
+        ),
+        "input_scan_global_captures": sum(
+            1 for item in bounded if bound_variant(item) == "input_scan_global"
+        ),
+        "proof_mask_per_tile_captures": sum(
+            1 for item in bounded if bound_variant(item) == "proof_mask_per_tile"
+        ),
         "tile_bound_per_tile_without_proofs": sum(
             1 for item in bounded if bound_variant(item) == "tile_bound_per_tile"
         ),
@@ -314,7 +396,9 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
         "candidate_wins": sum(1 for item in comparisons if item["decision"] == "candidate_win"),
         "deprioritized": sum(1 for item in comparisons if item["decision"] == "deprioritize"),
         "experimental": sum(1 for item in comparisons if item["decision"] == "keep_experimental"),
-        "missing_baselines": sum(1 for item in comparisons if item["decision"] == "missing_baseline"),
+        "missing_baselines": sum(
+            1 for item in comparisons if item["decision"] == "missing_baseline"
+        ),
     }
     return {"summary": summary, "comparisons": comparisons}
 
@@ -385,7 +469,9 @@ def main() -> int:
     report = compare_bound_discovery(captures)
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
-        args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.out_json.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     else:
         print(json.dumps(report, indent=2, sort_keys=True))
     if args.out_md:

@@ -55,9 +55,7 @@ def candidate_identity(capture: dict, row: dict) -> dict:
         "windows",
         "linux",
     ):
-        raise ValueError(
-            "candidate target/platform has no supported qualification policy"
-        )
+        raise ValueError("candidate target/platform has no supported qualification policy")
     backend = text(capture.get("backend_selected"))
     manifest = capture.get("build_manifest")
     if not manifest_provenance_complete(manifest, backend):
@@ -68,10 +66,7 @@ def candidate_identity(capture: dict, row: dict) -> dict:
     if error:
         raise ValueError(error)
     artifact = object_value(capture.get("artifact_capture"))
-    if (
-        artifact.get("rns8_linkage") != "static"
-        or artifact.get("unchanged_during_run") is not True
-    ):
+    if artifact.get("rns8_linkage") != "static" or artifact.get("unchanged_during_run") is not True:
         raise ValueError("candidate needs stable static executable attribution")
     executable = digest_text(artifact.get("executable_sha256"))
     if request.get("executable_sha256") != executable:
@@ -81,9 +76,7 @@ def candidate_identity(capture: dict, row: dict) -> dict:
     if row.get("target_id") != observed_arch:
         raise ValueError("candidate expected and runtime-observed architectures differ")
     if row.get("target_cache_key") != row.get("runtime_observed_cache_key"):
-        raise ValueError(
-            "candidate cache labels contradict its runtime-observed device"
-        )
+        raise ValueError("candidate cache labels contradict its runtime-observed device")
     runtime = device.get("hip_runtime_version")
     if type(runtime) is not int or runtime <= 0:
         raise ValueError("candidate runtime identity is missing")
@@ -115,9 +108,7 @@ def candidate_binding(path: Path, capture: dict, row: dict) -> dict:
     snapshot = object_value(parse_evidence_json(raw.decode("utf-8")))
     validate_capture(snapshot, path)
     if capture_identity(snapshot) != capture_identity(capture):
-        raise ValueError(
-            "candidate file changed or differs from its parsed observation"
-        )
+        raise ValueError("candidate file changed or differs from its parsed observation")
     identity = candidate_identity(snapshot, row)
     return dict(
         capture=str(path.resolve(strict=True)),
@@ -151,9 +142,7 @@ class EvidenceStore:
 
     def reference(self, reference: JsonValue, parent: Path) -> Path:
         value = object_value(reference)
-        return self.verify(
-            parent / text(value.get("path")), digest_text(value.get("sha256"))
-        )
+        return self.verify(parent / text(value.get("path")), digest_text(value.get("sha256")))
 
     def json(self, reference: JsonValue, parent: Path) -> tuple[Path, dict]:
         value = object_value(reference)
@@ -180,9 +169,7 @@ class EvidenceStore:
     def finish(self) -> None:
         for path, expected in self.hashes.items():
             if file_digest(path) != expected:
-                raise ValueError(
-                    "qualification artifact changed during review: " + str(path)
-                )
+                raise ValueError("qualification artifact changed during review: " + str(path))
 
 
 def session_stage(
@@ -202,16 +189,10 @@ def session_stage(
         or results.get("manifest_identity_sha256") != identity
     ):
         raise ValueError("phase session manifest/result identity mismatch")
-    if proof.get("session_id") != identity or proof.get("run_id") != results.get(
-        "run_id"
-    ):
+    if proof.get("session_id") != identity or proof.get("run_id") != results.get("run_id"):
         raise ValueError("phase does not belong to the declared executed session/run")
-    working_directory = Path(text(manifest.get("command_working_directory"))).resolve(
-        strict=True
-    )
-    if working_directory != Path(text(proof.get("working_directory"))).resolve(
-        strict=True
-    ):
+    working_directory = Path(text(manifest.get("command_working_directory"))).resolve(strict=True)
+    if working_directory != Path(text(proof.get("working_directory"))).resolve(strict=True):
         raise ValueError("phase working directory differs from the executed session")
     if (
         manifest.get("schema_version") != 2
@@ -240,11 +221,7 @@ def session_stage(
         indexed[name] = (item, row)
     stage = indexed.get(text(proof.get("stage")))
     binary = indexed.get(text(proof.get("binary_identity_stage")))
-    if (
-        stage is None
-        or binary is None
-        or binary[0].get("compiled_identity") is not True
-    ):
+    if stage is None or binary is None or binary[0].get("compiled_identity") is not True:
         raise ValueError("phase or compiled binary query stage is absent")
     if binary[0].get("argv", [])[-1:] != ["--build-identity"]:
         raise ValueError("phase binary association was not a compiled identity query")
@@ -259,17 +236,13 @@ def phase_observation(
     capture: dict,
     store: EvidenceStore,
 ) -> dict:
-    item, result, identity_item, identity_result, stages = session_stage(
-        proof, parent, store
-    )
+    item, result, identity_item, identity_result, stages = session_stage(proof, parent, store)
     identity = object_value(candidate["identity"])
     binary = store.binary(
         identity_result.get("compiled_binary_identity"), identity["backend_selected"]
     )
     if binary["build_manifest_sha256"] != identity["build_manifest_sha256"]:
-        raise ValueError(
-            "phase binary was compiled for a different candidate build/configuration"
-        )
+        raise ValueError("phase binary was compiled for a different candidate build/configuration")
     arguments = item.get("argv")
     identity_arguments = identity_item.get("argv")
     if (
@@ -288,68 +261,49 @@ def phase_observation(
     def operand(flag: str) -> Path:
         if arguments.count(flag) != 1 or arguments.index(flag) + 1 >= len(arguments):
             raise ValueError("phase command omits or duplicates " + flag)
-        return (working_directory / arguments[arguments.index(flag) + 1]).resolve(
-            strict=True
-        )
+        return (working_directory / arguments[arguments.index(flag) + 1]).resolve(strict=True)
 
     if phase in ("build", "ctest"):
-        build = (working_directory / text(identity_item.get("build_dir"))).resolve(
-            strict=True
-        )
+        build = (working_directory / text(identity_item.get("build_dir"))).resolve(strict=True)
         if not binary_path.is_relative_to(build):
-            raise ValueError(
-                "tested binary does not belong to the selected build directory"
-            )
+            raise ValueError("tested binary does not belong to the selected build directory")
         if operand("--build" if phase == "build" else "--test-dir") != build:
             raise ValueError("phase targets a different build directory")
         if phase == "ctest" and binary_path.stem != "rns8_tests":
             raise ValueError("CTest phase lacks the compiled Catch runner identity")
         if phase == "build" and "--target" in arguments:
-            raise ValueError(
-                "qualification build must build the complete configured project"
-            )
+            raise ValueError("qualification build must build the complete configured project")
         if phase == "ctest":
             if "--no-tests=error" not in arguments:
-                raise ValueError(
-                    "CTest phase may silently accept an empty test selection"
-                )
+                raise ValueError("CTest phase may silently accept an empty test selection")
             check = stages.get(text(proof.get("correctness_stage")))
             if check is None:
-                raise ValueError(
-                    "CTest phase lacks its required unskipped GPU correctness stage"
-                )
+                raise ValueError("CTest phase lacks its required unskipped GPU correctness stage")
             check_item, check_result = check
             check_args = check_item.get("argv")
             required = "qualification pack covers dispatch thresholds and plane tails"
             if (
                 not isinstance(check_args, list)
                 or not check_args
-                or (working_directory / check_args[0]).resolve(strict=True)
-                != binary_path
+                or (working_directory / check_args[0]).resolve(strict=True) != binary_path
                 or check_item.get("require_test") != required
                 or "[qualification]" not in check_args
             ):
-                raise ValueError(
-                    "correctness stage does not run the bound GPU qualification suite"
-                )
+                raise ValueError("correctness stage does not run the bound GPU qualification suite")
             for stage_item, stage_result, field_name, required_case in (
                 (item, result, "ctest_junit", None),
                 (check_item, check_result, "junit", required),
             ):
-                xml_path = (
-                    working_directory / text(stage_item.get(field_name))
-                ).resolve(strict=True)
+                xml_path = (working_directory / text(stage_item.get(field_name))).resolve(
+                    strict=True
+                )
                 store.verify(
                     xml_path,
-                    digest_text(
-                        object_value(stage_result.get("artifacts")).get(str(xml_path))
-                    ),
+                    digest_text(object_value(stage_result.get("artifacts")).get(str(xml_path))),
                 )
                 xml = xml_path.read_text(encoding="utf-8")
                 if "<!DOCTYPE" in xml or "<!ENTITY" in xml:
-                    raise ValueError(
-                        "test evidence must not contain external XML definitions"
-                    )
+                    raise ValueError("test evidence must not contain external XML definitions")
                 try:
                     root = ET.fromstring(xml)
                 except ET.ParseError as error:
@@ -358,8 +312,7 @@ def phase_observation(
                 if (
                     not cases
                     or any(
-                        case.find("failure") is not None
-                        or case.find("error") is not None
+                        case.find("failure") is not None or case.find("error") is not None
                         for case in cases
                     )
                     or not any(case.find("skipped") is None for case in cases)
@@ -369,13 +322,8 @@ def phase_observation(
                     case.get("name") == required_case and case.find("skipped") is None
                     for case in cases
                 ):
-                    raise ValueError(
-                        "required GPU qualification test is missing or skipped"
-                    )
-            if (
-                not capture_succeeded(check_result)
-                or check_result.get("validation_errors") != []
-            ):
+                    raise ValueError("required GPU qualification test is missing or skipped")
+            if not capture_succeeded(check_result) or check_result.get("validation_errors") != []:
                 raise ValueError("required GPU correctness stage failed")
     elif phase == "smoke":
         if (
@@ -389,16 +337,12 @@ def phase_observation(
             raise ValueError("release phase executes a different benchmark artifact")
         path = (working_directory / text(item.get("capture"))).resolve(strict=True)
         if file_digest(path) != candidate["capture_sha256"]:
-            raise ValueError(
-                "release phase does not contain this exact candidate capture"
-            )
+            raise ValueError("release phase does not contain this exact candidate capture")
         if (
             item.get("expected_backend") != identity["backend_selected"]
             or item.get("expected_target") != identity["target_id"]
         ):
-            raise ValueError(
-                "release phase backend/target does not match the candidate"
-            )
+            raise ValueError("release phase backend/target does not match the candidate")
         if not same_evidence_value(
             arguments[1:], object_value(capture["request_identity"])["arguments"]
         ):
@@ -446,8 +390,7 @@ def phase_observation(
         if not isinstance(observed.get("validation_errors"), list):
             raise ValueError("phase validation result is absent")
     passed = all(
-        capture_succeeded(observed)
-        and not observed["validation_errors"]
+        capture_succeeded(observed) and not observed["validation_errors"]
         for observed in (identity_result, result)
     )
     return dict(
@@ -459,9 +402,7 @@ def phase_observation(
     )
 
 
-def load_qualification(
-    path: Path, expected: dict, capture: dict, store: EvidenceStore
-) -> dict:
+def load_qualification(path: Path, expected: dict, capture: dict, store: EvidenceStore) -> dict:
     path = path.resolve(strict=True)
     raw_hash = file_digest(path)
     store.verify(path, raw_hash)
@@ -481,9 +422,7 @@ def load_qualification(
         "identity_sha256",
     ):
         if not same_evidence_value(actual.get(key), expected.get(key)):
-            raise ValueError(
-                "qualification receipt belongs to a different candidate: " + key
-            )
+            raise ValueError("qualification receipt belongs to a different candidate: " + key)
     text(value.get("session_id"))
     text(value.get("run_id"))
     proofs = object_value(value.get("phases"))
@@ -496,10 +435,7 @@ def load_qualification(
             blockers.append(phase + "_missing_candidate_evidence")
             continue
         proof = object_value(proofs[phase])
-        if (
-            proof.get("session_id") != value["session_id"]
-            or proof.get("run_id") != value["run_id"]
-        ):
+        if proof.get("session_id") != value["session_id"] or proof.get("run_id") != value["run_id"]:
             raise ValueError("phase belongs to a different qualification session/run")
         if proof.get("candidate_identity_sha256") != expected["identity_sha256"]:
             raise ValueError("phase candidate association is missing or inconsistent")
@@ -512,9 +448,7 @@ def load_qualification(
         if observations[phase]["status"] != "pass":
             blockers.append(phase + "_not_qualified_for_candidate")
     supersedes = value.get("supersedes")
-    if not isinstance(supersedes, list) or any(
-        not isinstance(item, str) for item in supersedes
-    ):
+    if not isinstance(supersedes, list) or any(not isinstance(item, str) for item in supersedes):
         raise ValueError("qualification requires an explicit supersession list")
     for item in supersedes:
         digest_text(item)
@@ -540,9 +474,7 @@ def candidate_verdict(
 ) -> dict:
     owned_store = store is None
     store = store if store is not None else EvidenceStore()
-    store.verify(
-        Path(text(binding.get("capture"))), digest_text(binding.get("capture_sha256"))
-    )
+    store.verify(Path(text(binding.get("capture"))), digest_text(binding.get("capture_sha256")))
     if canonical_digest(binding.get("identity")) != binding.get(
         "identity_sha256"
     ) or capture_identity(capture) != binding.get("capture_content_sha256"):
@@ -554,13 +486,9 @@ def candidate_verdict(
             raw = object_value(load_evidence_json(path))
             associated = object_value(raw.get("candidate"))
             same_capture = associated.get("capture_sha256") == binding["capture_sha256"]
-            same_candidate = (
-                associated.get("identity_sha256") == binding["identity_sha256"]
-            )
+            same_candidate = associated.get("identity_sha256") == binding["identity_sha256"]
             if not same_capture and not same_candidate:
-                exclusions.append(
-                    dict(path=str(path), reason="different_candidate_capture")
-                )
+                exclusions.append(dict(path=str(path), reason="different_candidate_capture"))
                 continue
             source_binding, source_capture = binding, capture
             if not same_capture:
@@ -577,9 +505,7 @@ def candidate_verdict(
                     source_path, source_capture, capture_target(source_path)
                 )
                 if source_binding["identity_sha256"] != binding["identity_sha256"]:
-                    raise ValueError(
-                        "another observation has inconsistent candidate identity"
-                    )
+                    raise ValueError("another observation has inconsistent candidate identity")
             receipt = load_qualification(path, source_binding, source_capture, store)
             receipt["qualifies_requested_capture"] = same_capture
             receipts[receipt["sha256"]] = receipt
@@ -645,27 +571,17 @@ def candidate_verdict(
     )
 
 
-def validate_bound_verdict(
-    value: JsonValue, path: Path, capture: dict, row: dict
-) -> dict:
+def validate_bound_verdict(value: JsonValue, path: Path, capture: dict, row: dict) -> dict:
     verdict = object_value(value)
     if verdict.get("schema") != VERDICT_SCHEMA or verdict.get("eligible") is not True:
         raise ValueError("candidate qualification verdict is not ready")
     paths = verdict.get("input_receipt_paths")
-    if (
-        not isinstance(paths, list)
-        or not paths
-        or any(not isinstance(item, str) for item in paths)
-    ):
+    if not isinstance(paths, list) or not paths or any(not isinstance(item, str) for item in paths):
         raise ValueError("candidate verdict has no original qualification receipts")
     binding = candidate_binding(path, capture, row)
     recomputed = candidate_verdict(binding, capture, [Path(item) for item in paths])
-    if recomputed.get("eligible") is not True or not same_evidence_value(
-        recomputed, verdict
-    ):
-        raise ValueError(
-            "candidate qualification verdict is stale or does not match raw evidence"
-        )
+    if recomputed.get("eligible") is not True or not same_evidence_value(recomputed, verdict):
+        raise ValueError("candidate qualification verdict is stale or does not match raw evidence")
     return recomputed
 
 
@@ -728,9 +644,7 @@ def emit_qualification(
     import json
 
     with output.open("x", encoding="utf-8") as stream:
-        stream.write(
-            json.dumps(receipt, sort_keys=True, indent=2, allow_nan=False) + "\n"
-        )
+        stream.write(json.dumps(receipt, sort_keys=True, indent=2, allow_nan=False) + "\n")
     return candidate_verdict(binding, capture, [*supersedes, output])
 
 

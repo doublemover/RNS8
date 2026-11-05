@@ -1,4 +1,5 @@
 """Current CK lowering labels; historical reports retain their original labels."""
+
 from __future__ import annotations
 
 CK_KERNEL_FAMILIES = (

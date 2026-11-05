@@ -39,9 +39,7 @@ class ProfilerSession(unittest.TestCase):
         self.sdk = self.root / "sdk"
         (self.sdk / "bin").mkdir(parents=True)
         for name in ("rocprofv3", "rocprofv3-avail", "rocpd", "rocprof-compute"):
-            (self.sdk / "bin" / name).write_bytes(
-                b"AUTHORED NEVER EXECUTED " + name.encode()
-            )
+            (self.sdk / "bin" / name).write_bytes(b"AUTHORED NEVER EXECUTED " + name.encode())
         for name in (
             "librocprofiler-sdk.so",
             "librocprofiler-sdk-roctx.so",
@@ -108,9 +106,7 @@ class ProfilerSession(unittest.TestCase):
         }[name]
         if name.endswith("identity"):
             value = json.loads(
-                Path(
-                    fixture.binary_receipts["rns8-bench"]["identity_document"]
-                ).read_text()
+                Path(fixture.binary_receipts["rns8-bench"]["identity_document"]).read_text()
             )
             value["process_id"] = pid
         elif name == "device-inspection":
@@ -118,9 +114,7 @@ class ProfilerSession(unittest.TestCase):
             value.update(
                 process_id=pid,
                 backend="hip-direct",
-                runtime_device_identity=fixture.capture["device_identity_witness"][
-                    "before"
-                ],
+                runtime_device_identity=fixture.capture["device_identity_witness"]["before"],
             )
         else:
             self.assertEqual(kwargs["artifact_roots"], [self.out / "native"])
@@ -168,9 +162,7 @@ class ProfilerSession(unittest.TestCase):
         self.assertEqual(len(plan["commands"]), 4)
         command = plan["commands"][-1]
         self.assertEqual(command["argv"].count("--"), 1)
-        self.assertEqual(
-            command["owned_artifact_directories"], [str(self.out / "native")]
-        )
+        self.assertEqual(command["owned_artifact_directories"], [str(self.out / "native")])
         self.assertEqual(plan["profiler_agent_selector"], 7)
         self.assertFalse(plan["promotion_allowed"])
         self.assertIn("not_unmasked_parent", plan["device_namespace"])
@@ -178,9 +170,7 @@ class ProfilerSession(unittest.TestCase):
     def test_authored_acquisition_reopens_raw_stages_and_binds_dispatches(self):
         plan = self.plan()
         with patch("amd_profiler_session.platform.system", return_value="Linux"):
-            self.assertEqual(
-                execute_capture(plan, environment={}, runner=self.runner), 0
-            )
+            self.assertEqual(execute_capture(plan, environment={}, runner=self.runner), 0)
         summary = json.loads((self.out / "profile-summary.json").read_text())
         self.assertTrue(summary["facts"]["qualified_selected_dispatches"])
         self.assertEqual(summary["facts"]["acquisition"]["native_process_id"], 222)

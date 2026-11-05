@@ -96,11 +96,7 @@ def _c_integer(value: str) -> int:
     return _integer(
         int(
             value,
-            16
-            if value.lower().startswith("0x")
-            else 8
-            if value.startswith("0")
-            else 10,
+            16 if value.lower().startswith("0x") else 8 if value.startswith("0") else 10,
         )
     )
 
@@ -117,9 +113,7 @@ def code_object_digest(
     match = re.fullmatch(r"([^?#]+)(?:[?#](.*))?", encoded)
     if match is None:
         raise ValueError("unsupported loaded code-object URI")
-    filename = Path(unquote(match[1], encoding="utf-8", errors="strict")).resolve(
-        strict=True
-    )
+    filename = Path(unquote(match[1], encoding="utf-8", errors="strict")).resolve(strict=True)
     executable = executable.resolve(strict=True)
     if filename != executable:
         raise ValueError("loaded code object belongs to a different executable/library")
@@ -149,7 +143,10 @@ def code_object_digest(
 
 
 def _profile_pair(
-    production: dict, profiled: dict, declared_environment: JsonValue, *,
+    production: dict,
+    profiled: dict,
+    declared_environment: JsonValue,
+    *,
     native_output: Path | None = None,
 ) -> None:
     if not isinstance(declared_environment, dict) or any(
@@ -170,13 +167,23 @@ def _profile_pair(
     validate_execution_request(profiled, profiled["request_identity"], required=True)
     arguments = identities[1]["execution_request"]["arguments"]
     if native_output is not None:
-        if arguments.count("--json-output") != 1 or "--json-output" in identities[0]["execution_request"]["arguments"]:
-            raise ValueError("one declared native JSON output is required for this profiler relation")
+        if (
+            arguments.count("--json-output") != 1
+            or "--json-output" in identities[0]["execution_request"]["arguments"]
+        ):
+            raise ValueError(
+                "one declared native JSON output is required for this profiler relation"
+            )
         position = arguments.index("--json-output")
-        if (position+1 >= len(arguments) or not Path(arguments[position+1]).is_absolute()
-                or Path(arguments[position+1]).resolve(strict=True) != native_output):
-            raise ValueError("profiled JSON output path differs from the retained raw native artifact")
-        del arguments[position:position+2]
+        if (
+            position + 1 >= len(arguments)
+            or not Path(arguments[position + 1]).is_absolute()
+            or Path(arguments[position + 1]).resolve(strict=True) != native_output
+        ):
+            raise ValueError(
+                "profiled JSON output path differs from the retained raw native artifact"
+            )
+        del arguments[position : position + 2]
     elif "--json-output" in arguments:
         raise ValueError("profiled file output has no retained raw native artifact")
     flag = "--record-execution-environment"
@@ -194,17 +201,13 @@ def _profile_pair(
         tool="rocprofv3",
         mode="kernel_trace",
     ):
-        raise ValueError(
-            "profiled capture lacks an explicit external instrumentation role"
-        )
+        raise ValueError("profiled capture lacks an explicit external instrumentation role")
     identities[1].pop("external_instrumentation", None)
     p_env = identities[0]["execution_request"]["environment"]
     d_env = identities[1]["execution_request"]["environment"]
     actual = {key: value for key, value in d_env.items() if p_env.get(key) != value}
     if not same_evidence_value(actual, declared_environment):
-        raise ValueError(
-            "actual profiler injection differs from its declared environment"
-        )
+        raise ValueError("actual profiler injection differs from its declared environment")
     replaced = {"LD_LIBRARY_PATH", "RNS8_PROFILE_RANGES"}
     if any(key in p_env and key not in replaced for key in declared_environment):
         raise ValueError("production environment already contains profiler injection")
@@ -227,9 +230,7 @@ def _profile_pair(
     if not facts.get("full_output_reference_covered") or facts.get(
         "checksum_u64"
     ) != production.get("checksum_u64"):
-        raise ValueError(
-            "profiled workload lacks matching completed exact-reference evidence"
-        )
+        raise ValueError("profiled workload lacks matching completed exact-reference evidence")
 
 
 def validate_dispatch_receipt(
@@ -237,10 +238,7 @@ def validate_dispatch_receipt(
 ) -> dict:
     validate_capture(capture)
     receipt_path, receipt = store.json(reference, parent)
-    if (
-        receipt.get("schema") != SCHEMA
-        or receipt.get("adapter") not in ADAPTERS
-    ):
+    if receipt.get("schema") != SCHEMA or receipt.get("adapter") not in ADAPTERS:
         raise ValueError(
             "unsupported native profiler adapter; raw RGP/unknown formats remain inventory-only"
         )
@@ -254,18 +252,24 @@ def validate_dispatch_receipt(
         native_output, native_capture = store.json(receipt["native_benchmark_output"], base)
         validate_capture(native_capture)
         added = {"request_identity", "artifact_capture", "execution_id", "external_instrumentation"}
-        if (set(native_capture).intersection(added)
-                or set(profiled) != set(native_capture) | added
-                or not same_evidence_value(native_capture,
-                    {key: value for key, value in profiled.items() if key not in added})):
+        if (
+            set(native_capture).intersection(added)
+            or set(profiled) != set(native_capture) | added
+            or not same_evidence_value(
+                native_capture, {key: value for key, value in profiled.items() if key not in added}
+            )
+        ):
             raise ValueError("bound profiler capture differs from its untouched native output")
-    _profile_pair(capture, profiled, receipt.get("profiler_environment"), native_output=native_output)
+    _profile_pair(
+        capture, profiled, receipt.get("profiler_environment"), native_output=native_output
+    )
     process_id = _integer(profiled.get("process_id"))
     if process_id == 0:
         raise ValueError("profiled benchmark must emit its actual OS process ID")
     native_extension = None
     if ADAPTERS[receipt["adapter"]] == "rocpd":
         from amd_rocpd import read_process
+
         native_path = store.reference(receipt.get("native_trace"), base)
         native_extension = read_process(native_path, process_id)
         native = {"rocprofiler-sdk-tool": [native_extension["native"]]}
@@ -284,9 +288,7 @@ def validate_dispatch_receipt(
         if _integer(_object(item.get("metadata")).get("pid")) == process_id
     ]
     if len(matched) != 1:
-        raise ValueError(
-            "native trace cannot uniquely identify the profiled benchmark process"
-        )
+        raise ValueError("native trace cannot uniquely identify the profiled benchmark process")
     process = matched[0]
     metadata = _object(process.get("metadata"))
     if _integer(metadata.get("fini_time")) <= _integer(metadata.get("init_time")):
@@ -322,9 +324,7 @@ def validate_dispatch_receipt(
         )
         if key in dispatches:
             raise ValueError("ambiguous native process/agent/queue/dispatch identity")
-        if _integer(record.get("end_timestamp")) <= _integer(
-            record.get("start_timestamp")
-        ):
+        if _integer(record.get("end_timestamp")) <= _integer(record.get("start_timestamp")):
             raise ValueError("native dispatch has no complete timestamp interval")
         dispatches[key] = record
     isa_path, isa = store.json(receipt.get("selected_static_isa"), base)
@@ -335,23 +335,18 @@ def validate_dispatch_receipt(
         {isa_index_key(backend, target): [summary]}, backend, target, capture=profiled
     )
     if not (resources.get("isa_association") or {}).get("qualified"):
-        raise ValueError(
-            "selected static ISA is not bound to the profiled artifact/kernel/target"
-        )
+        raise ValueError("selected static ISA is not bound to the profiled artifact/kernel/target")
     selected_symbols = set(_object(isa.get("capture_binding")).get("symbols", []))
     selected = receipt.get("selected_dispatches")
     if not isinstance(selected, list) or not selected:
         raise ValueError("profiler receipt has no explicit selected dispatch set")
-    executable = Path(
-        str(_object(profiled.get("artifact_capture")).get("executable_path"))
-    )
+    executable = Path(str(_object(profiled.get("artifact_capture")).get("executable_path")))
     executable_sha = profiled["artifact_capture"]["executable_sha256"]
     seen, observations, object_hashes = set(), [], {}
     for selection in selected:
         selection = _object(selection)
         key = tuple(
-            _integer(selection.get(name))
-            for name in ("agent_id", "queue_id", "dispatch_id")
+            _integer(selection.get(name)) for name in ("agent_id", "queue_id", "dispatch_id")
         )
         if key in seen or key not in dispatches:
             raise ValueError("selected native dispatch is absent or duplicated")
@@ -365,16 +360,16 @@ def validate_dispatch_receipt(
             )
         agent = agents.get(key[0])
         if agent is None or agent.get("name") != target:
-            raise ValueError(
-                "executed native agent architecture does not match the capture"
-            )
+            raise ValueError("executed native agent architecture does not match the capture")
         code = objects.get(_integer(kernel.get("code_object_id")))
         if (
             code is None
             or not isinstance(code.get("agent_id"), dict)
             or _integer(code["agent_id"].get("handle")) != key[0]
         ):
-            raise ValueError("loaded code object lacks its SDK agent_id or belongs to another agent")
+            raise ValueError(
+                "loaded code object lacks its SDK agent_id or belongs to another agent"
+            )
         object_id = code["code_object_id"]
         if object_id not in object_hashes:
             object_hashes[object_id] = code_object_digest(
@@ -420,13 +415,9 @@ def validate_dispatch_receipt(
         )
         is None
     ):
-        raise ValueError(
-            "profiler executable release is not bound to its raw version output"
-        )
+        raise ValueError("profiler executable release is not bound to its raw version output")
     if Path(command[0]).resolve(strict=True) != tool or command.count("--") != 1:
-        raise ValueError(
-            "profiler acquisition does not identify its tool/workload roles"
-        )
+        raise ValueError("profiler acquisition does not identify its tool/workload roles")
     separator = command.index("--")
     options = command[1:separator]
     if options.count("--kernel-trace") != 1 or options.count("--output-format") != 1:
@@ -438,14 +429,13 @@ def validate_dispatch_receipt(
     if (
         not workload
         or Path(workload[0]).resolve(strict=True) != executable.resolve(strict=True)
-        or not same_evidence_value(
-            workload[1:], profiled["request_identity"]["arguments"]
-        )
+        or not same_evidence_value(workload[1:], profiled["request_identity"]["arguments"])
     ):
         raise ValueError("profiled benchmark argv differs from the native acquisition")
     acquisition = None
     if receipt.get("acquisition_session") is not None:
         from amd_profiler_session import validate_acquisition
+
         acquisition = validate_acquisition(receipt, capture, store, base)
     return dict(
         schema=SCHEMA,
@@ -453,9 +443,7 @@ def validate_dispatch_receipt(
         qualified_selected_dispatches=True,
         observations=observations,
         native_trace_sha256=receipt["native_trace"]["sha256"],
-        profiled_capture=str(
-            (base / receipt["profiled_capture"]["path"]).resolve(strict=True)
-        ),
+        profiled_capture=str((base / receipt["profiled_capture"]["path"]).resolve(strict=True)),
         profiled_capture_sha256=receipt["profiled_capture"]["sha256"],
         acquisition_command=command,
         native_trace=str(native_path),
@@ -463,11 +451,23 @@ def validate_dispatch_receipt(
         scope="selected_executed_dispatch_identity_not_complete_run_counters_or_production_latency",
         complete_run_coverage=False,
         performance_promotion_allowed=False,
-        native_schema_version=native_extension["schema_version"] if native_extension else "rocprofiler-sdk-json-1.4.1",
-        native_identity_namespace=native_extension["identity_namespace"] if native_extension else "rocprofiler-sdk-process-local-handles",
-        native_metrics=([metric for metric in native_extension["metrics"] if
-                         (metric["agent_id"], metric["queue_id"], metric["dispatch_id"]) in seen]
-                        if native_extension else []),
+        native_schema_version=native_extension["schema_version"]
+        if native_extension
+        else "rocprofiler-sdk-json-1.4.1",
+        native_identity_namespace=native_extension["identity_namespace"]
+        if native_extension
+        else "rocprofiler-sdk-process-local-handles",
+        native_metrics=(
+            [
+                metric
+                for metric in native_extension["metrics"]
+                if (metric["agent_id"], metric["queue_id"], metric["dispatch_id"]) in seen
+            ]
+            if native_extension
+            else []
+        ),
         unresolved_metrics=native_extension["unresolved_metrics"] if native_extension else [],
-        loss_status=native_extension["loss_status"] if native_extension else "unknown_not_established_by_dispatch_identity",
+        loss_status=native_extension["loss_status"]
+        if native_extension
+        else "unknown_not_established_by_dispatch_identity",
     )

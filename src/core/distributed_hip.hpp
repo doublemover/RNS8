@@ -16,12 +16,12 @@ struct HipProgress {
 // One process, explicit modulus/M/N/2-D/K shards and serialized host operations.
 // No RCCL, cross-device event timing, partial-result export or implicit fallback.
 class HipExecution {
- public:
+public:
   static bool compiled() noexcept;
   // Discovery reports runtime ordinals and BDF identities, never physical-card
   // counts. Unknown package/partition fields remain unknown.
-  static Admission discover(const std::vector<uint32_t>& ordinals,
-                            std::vector<Rank>& ranks, std::vector<Edge>& edges);
+  static Admission discover(const std::vector<uint32_t>& ordinals, std::vector<Rank>& ranks,
+                            std::vector<Edge>& edges);
   static Admission create(std::shared_ptr<const Plan>, std::shared_ptr<const Inputs>,
                           std::unique_ptr<HipExecution>& output);
   ~HipExecution();
@@ -42,11 +42,13 @@ class HipExecution {
   // shard is exposed as a short prefix. The result is on the explicit owner.
   Admission resident_limbs(uint64_t epoch, int& device, const void*& pointer) const;
   Admission materialize(uint64_t epoch, uint32_t prefix, uint64_t max_bytes);
-  Admission resident_residues(uint64_t epoch, int& device, const void*& pointer, uint32_t& prefix,const BasisPacket*& basis) const;
+  Admission resident_residues(uint64_t epoch, int& device, const void*& pointer, uint32_t& prefix,
+                              const BasisPacket*& basis) const;
   const std::vector<std::string>& arithmetic_certificates() const;
   Admission close(); // BUSY while work/readers survive; failed frees retain ownership
   static void reap_quarantined() noexcept;
- private:
+
+private:
   friend struct HipExecutionTestAccess;
   struct Impl;
   explicit HipExecution(std::unique_ptr<Impl>);

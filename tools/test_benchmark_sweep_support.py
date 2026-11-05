@@ -24,7 +24,11 @@ def attach_test_provenance(capture):
 def set_phase(capture: dict, end_to_end: int) -> None:
     repeats = capture.get("repeats", 2)
     for phase in benchmark_sweep.PHASES:
-        value = end_to_end if phase == "end_to_end" else int(capture["timing_summary_us"][phase]["median"])
+        value = (
+            end_to_end
+            if phase == "end_to_end"
+            else int(capture["timing_summary_us"][phase]["median"])
+        )
         capture["raw_timings_us"][phase] = [value] * repeats
         capture["timing_summary_us"][phase] = {
             "avg": float(value),
@@ -55,7 +59,9 @@ def set_phase(capture: dict, end_to_end: int) -> None:
 def int32_accumulator_safety(capture: dict, cap: int = 65536) -> dict:
     finite = capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
     return {
-        "input_domain": "centered_i8_finite_u8_residues" if finite else "centered_i8_rns_residue_planes",
+        "input_domain": "centered_i8_finite_u8_residues"
+        if finite
+        else "centered_i8_rns_residue_planes",
         "signedness": "signed_i8x_signed_i8",
         "accumulator_type": "int32",
         "modulus_policy": "finite_u8_modulus" if finite else "selected_rns_modulus_ladder",
@@ -75,7 +81,9 @@ def vector_accumulator_safety(capture: dict) -> dict:
     semantics = capture.get("semantics")
     return {
         "input_domain": "native_i64_values" if semantics == "bounded_i64" else "native_u64_values",
-        "signedness": "signed_i64x_signed_i64" if semantics == "bounded_i64" else "unsigned_u64x_unsigned_u64",
+        "signedness": "signed_i64x_signed_i64"
+        if semantics == "bounded_i64"
+        else "unsigned_u64x_unsigned_u64",
         "accumulator_type": "software_192bit_limb",
         "modulus_policy": "native_exact_integer_output",
         "modulus": 0,
@@ -142,7 +150,9 @@ def with_accumulator_key_fields(key: str, capture: dict) -> str:
         target = "cpu"
     insert_target_at = 1 if parts and parts[0].startswith("backend=") else 0
     parts = parts[:insert_target_at] + [f"target_id={target}"] + parts[insert_target_at:]
-    insert_at = next((index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts))
+    insert_at = next(
+        (index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts)
+    )
     additions = [
         f"accumulator_type={safety['accumulator_type']}",
         f"accumulator_signedness={safety['signedness']}",
@@ -174,7 +184,9 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
-        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=cpu-reference")
+        metadata["autotune_key"] = metadata["autotune_key"].replace(
+            "backend=ck", "backend=cpu-reference"
+        )
         capture["device"] = {
             "device_id": -1,
             "name": "CPU reference",
@@ -196,13 +208,13 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
-        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct")
+        metadata["autotune_key"] = metadata["autotune_key"].replace(
+            "backend=ck", "backend=hip-direct"
+        )
     metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     set_phase(capture, end_to_end)
     attach_test_provenance(capture)
     return capture
-
-
 
 
 def _export_kernel_for_capture(capture: dict, semantics: str) -> str:
@@ -229,13 +241,18 @@ def _export_kernel_for_capture(capture: dict, semantics: str) -> str:
         return "hip_direct_export_exact_wide_unsigned_limbs_device"
     return capture.get("selected_kernel", "")
 
+
 def attach_final_output_metadata(capture: dict) -> None:
     semantics = capture.get("semantics")
     export_kernel = _export_kernel_for_capture(capture, semantics)
     output_ld = capture.get("output_logical_ld", capture.get("n", 0))
     exact_wide = semantics in {"exact_wide_signed", "exact_wide_unsigned"}
     output_domain = "exact_wide_limb_host" if exact_wide else "native_i64_u64_host"
-    output_layout = "fixed_u64_limbs" if exact_wide else ("scalar_u64" if semantics == "bounded_u64" else "scalar_i64")
+    output_layout = (
+        "fixed_u64_limbs"
+        if exact_wide
+        else ("scalar_u64" if semantics == "bounded_u64" else "scalar_i64")
+    )
     status_policy = "structurally_elided" if exact_wide else "required"
     limb_count = capture.get("exact_wide_limb_count") if exact_wide else None
     capture["exact_output_contract"] = {
@@ -325,10 +342,18 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
-        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=cpu-reference").replace(
-            "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
-            "kernel=cpu_reference_scalar_rns_gemm_v1",
-        ).replace("epilogue=ck_fused_i32_to_centered_residue_then_crt_export", "epilogue=fused_centered_residue_then_crt_export")
+        metadata["autotune_key"] = (
+            metadata["autotune_key"]
+            .replace("backend=ck", "backend=cpu-reference")
+            .replace(
+                "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
+                "kernel=cpu_reference_scalar_rns_gemm_v1",
+            )
+            .replace(
+                "epilogue=ck_fused_i32_to_centered_residue_then_crt_export",
+                "epilogue=fused_centered_residue_then_crt_export",
+            )
+        )
         capture["device"] = {
             "device_id": -1,
             "name": "CPU reference",
@@ -350,10 +375,18 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
-        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct").replace(
-            "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
-            "kernel=direct_hip_tiled_rns_gemm_v1",
-        ).replace("epilogue=ck_fused_i32_to_centered_residue_then_crt_export", "epilogue=fused_centered_residue_then_crt_export")
+        metadata["autotune_key"] = (
+            metadata["autotune_key"]
+            .replace("backend=ck", "backend=hip-direct")
+            .replace(
+                "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
+                "kernel=direct_hip_tiled_rns_gemm_v1",
+            )
+            .replace(
+                "epilogue=ck_fused_i32_to_centered_residue_then_crt_export",
+                "epilogue=fused_centered_residue_then_crt_export",
+            )
+        )
     elif backend == "hip-vector-alu-int64":
         vector = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_vector_alu.json"))
         vector["_path"] = capture["_path"]
@@ -422,9 +455,9 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
         metadata["epilogue_mode"] = "fused_centered_residue_rns_output"
     metadata["autotune_key"] = with_accumulator_key_fields(
         (
-        f"backend={backend};semantics=exact_wide_signed;m={capture['m']};n={capture['n']};k={capture['k']};"
-        "prefix=20;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
-        f"kernel={capture['selected_kernel']};epilogue={metadata['epilogue_mode']}"
+            f"backend={backend};semantics=exact_wide_signed;m={capture['m']};n={capture['n']};k={capture['k']};"
+            "prefix=20;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            f"kernel={capture['selected_kernel']};epilogue={metadata['epilogue_mode']}"
         ),
         capture,
     )
@@ -445,7 +478,9 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
     metadata["accelerator_backend"] = False
     metadata["matrix_engine_backend"] = False
     metadata["performance_validated"] = False
-    metadata["autotune_key"] = metadata["autotune_key"].replace("backend=hip-direct", f"backend={backend}")
+    metadata["autotune_key"] = metadata["autotune_key"].replace(
+        "backend=hip-direct", f"backend={backend}"
+    )
     if backend == "wrap64-byte-limb":
         capture["selected_kernel"] = "cpu_wrap64_byte_limb_reference_v1"
         metadata["selected_kernel"] = "cpu_wrap64_byte_limb_reference_v1"
@@ -511,14 +546,18 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
         }
         phase_order = capture["timing_metadata"].get("gpu_event_phase_order")
         if isinstance(phase_order, list):
-            capture["timing_metadata"]["gpu_event_phase_order"] = [renamed.get(item, item) for item in phase_order]
+            capture["timing_metadata"]["gpu_event_phase_order"] = [
+                renamed.get(item, item) for item in phase_order
+            ]
         for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
             values = capture.get(field)
             if isinstance(values, dict):
                 for old, new in renamed.items():
                     if old in values:
                         values[new] = values.pop(old)
-        capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_internal_rocwmma_wrap64_candidate_hooks"
+        capture["timing_metadata"]["gpu_event_timing_reason"] = (
+            "captured_by_internal_rocwmma_wrap64_candidate_hooks"
+        )
         capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
             "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups"
         )
@@ -559,8 +598,6 @@ def mark_reused_a_pack(capture: dict) -> dict:
     reused["timing_metadata"]["prepack_reuse_operands"] = ["A"]
     reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
     return reused
-
-
 
 
 def exact_command_args() -> argparse.Namespace:
@@ -613,7 +650,12 @@ def finite_review_cohort() -> tuple[dict, dict, dict, dict]:
     direct = finite_capture("hip-direct", 300)
     cpu = finite_capture("cpu-reference", 500)
     for capture in (ck, direct, cpu):
-        capture["tile_shape_variant"] = {"name": "finite-ring-u8-default-128x128", "tile_m": 128, "tile_n": 128, "tile_k": 256}
+        capture["tile_shape_variant"] = {
+            "name": "finite-ring-u8-default-128x128",
+            "tile_m": 128,
+            "tile_n": 128,
+            "tile_k": 256,
+        }
     report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
     benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
     return ck, direct, cpu, report

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Provided-log normalization never infers runtime/SMI device correlation."""
+
 from __future__ import annotations
 
 import json
@@ -34,7 +35,8 @@ class SummaryTests(unittest.TestCase):
             root = Path(directory)
             (root / "rocm_smi_showallinfo.log").write_text(
                 "GPU[7] : Card series: MI300X-seven\nGPU[7] : PCI Bus: 0000:10:00.0\n"
-                "GPU[7] : NUMA Node: 1\nGPU[4] : PCI Bus: 0000:80:00.0\nGPU[4] : ASIC: gfx942\n")
+                "GPU[7] : NUMA Node: 1\nGPU[4] : PCI Bus: 0000:80:00.0\nGPU[4] : ASIC: gfx942\n"
+            )
             (root / "rocminfo.log").write_text("Name: gfx942\nName: gfx1100\n")
             data = self.build(root)
             self.assertEqual(data["observed_smi_device_count"], 2)
@@ -59,15 +61,19 @@ class SummaryTests(unittest.TestCase):
             self.assertIsNone(data["node_gpu_count"])
 
     def test_conflicting_indexed_evidence_stays_unknown(self):
-        records = summary.parse_indexed_smi_records("GPU[4]: ASIC: gfx942\nGPU[4]: ASIC: gfx1100\n"
-                                                    "GPU[4]: PCI Bus: 0000:01:00.0\nGPU[4]: PCI Bus: 0000:02:00.0\n")
+        records = summary.parse_indexed_smi_records(
+            "GPU[4]: ASIC: gfx942\nGPU[4]: ASIC: gfx1100\n"
+            "GPU[4]: PCI Bus: 0000:01:00.0\nGPU[4]: PCI Bus: 0000:02:00.0\n"
+        )
         self.assertIsNone(records[4]["target_arch"])
         self.assertIsNone(records[4]["bdf"])
         self.assertIn("target_arch", records[4]["conflicting_fields"])
 
     def test_masks_are_recorded_but_never_select_devices(self):
         with tempfile.TemporaryDirectory() as directory:
-            data = summary.build_summary(Path(directory), environment={"HIP_VISIBLE_DEVICES": "4,5"})
+            data = summary.build_summary(
+                Path(directory), environment={"HIP_VISIBLE_DEVICES": "4,5"}
+            )
             self.assertEqual(data["requested_devices"], [])
             self.assertEqual(data["physical_devices"], [])
             self.assertEqual(data["runtime_environment"]["HIP_VISIBLE_DEVICES"], "4,5")
@@ -75,8 +81,10 @@ class SummaryTests(unittest.TestCase):
     def test_secret_allowlist(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "env.log").write_text("AWS_SECRET_ACCESS_KEY=top-secret\nGITHUB_TOKEN=top-secret\n"
-                                         "HIP_PATH=/sdk with spaces\nLD_LIBRARY_PATH=https://user:top-secret@example/a\n")
+            (root / "env.log").write_text(
+                "AWS_SECRET_ACCESS_KEY=top-secret\nGITHUB_TOKEN=top-secret\n"
+                "HIP_PATH=/sdk with spaces\nLD_LIBRARY_PATH=https://user:top-secret@example/a\n"
+            )
             data = self.build(root)
             self.assertNotIn("top-secret", json.dumps(data))
             self.assertEqual(data["runtime_environment"]["HIP_PATH"], "/sdk with spaces")

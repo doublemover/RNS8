@@ -5,7 +5,6 @@ bool hip_available() {
 }
 #endif
 
-
 rns8_context* create_cpu_context() {
   rns8_context_options options{};
   options.struct_size = sizeof(options);
@@ -62,13 +61,16 @@ void clear_autotune_cache_path_for_test() {
 }
 
 struct ScopedAutotuneCachePath {
-  explicit ScopedAutotuneCachePath(const std::filesystem::path& path) { set_autotune_cache_path_for_test(path); }
+  explicit ScopedAutotuneCachePath(const std::filesystem::path& path) {
+    set_autotune_cache_path_for_test(path);
+  }
   ~ScopedAutotuneCachePath() { clear_autotune_cache_path_for_test(); }
 };
 
 std::filesystem::path unique_cache_fixture_path(const char* stem) {
   const auto tick = std::chrono::steady_clock::now().time_since_epoch().count();
-  return std::filesystem::temp_directory_path() / (std::string(stem) + "-" + std::to_string(tick) + ".json");
+  return std::filesystem::temp_directory_path() /
+         (std::string(stem) + "-" + std::to_string(tick) + ".json");
 }
 
 std::string reviewed_release_status_for_target(const char* target_id) {
@@ -105,7 +107,8 @@ rns8_gemm_desc bounded_gemm_desc(rns8_semantics semantics, int64_t m, int64_t n,
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
   desc.semantics = semantics;
-  desc.bound_kind = semantics == RNS8_BOUNDED_I64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  desc.bound_kind =
+      semantics == RNS8_BOUNDED_I64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   desc.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
   desc.m = m;
   desc.n = n;
@@ -115,7 +118,8 @@ rns8_gemm_desc bounded_gemm_desc(rns8_semantics semantics, int64_t m, int64_t n,
   return desc;
 }
 
-rns8_gemm_desc finite_gemm_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k, uint32_t modulus) {
+rns8_gemm_desc finite_gemm_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k,
+                                uint32_t modulus) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -165,7 +169,8 @@ rns8_matrix_desc bounded_matrix_desc(int64_t rows, int64_t cols, rns8_semantics 
   desc.logical_ld = cols;
   desc.semantics = semantics;
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
-  desc.bound_kind = semantics == RNS8_BOUNDED_I64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  desc.bound_kind =
+      semantics == RNS8_BOUNDED_I64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
@@ -206,11 +211,9 @@ rns8_matrix_storage_info matrix_storage_info(const rns8_matrix* matrix) {
   return info;
 }
 
-rns8_resident_lifetime_info resident_lifetime_info(
-    const rns8_matrix* matrix,
-    const rns8_plan* plan,
-    const rns8_workspace* workspace,
-    rns8_resident_matrix_role role) {
+rns8_resident_lifetime_info resident_lifetime_info(const rns8_matrix* matrix, const rns8_plan* plan,
+                                                   const rns8_workspace* workspace,
+                                                   rns8_resident_matrix_role role) {
   rns8_resident_lifetime_info info{};
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
@@ -218,14 +221,11 @@ rns8_resident_lifetime_info resident_lifetime_info(
   return info;
 }
 
-rns8_prepack_cache_key_info prepack_cache_key_info(
-    const rns8_plan* plan,
-    const rns8_matrix* matrix,
-    rns8_operand_role operand_role) {
+rns8_prepack_cache_key_info prepack_cache_key_info(const rns8_plan* plan, const rns8_matrix* matrix,
+                                                   rns8_operand_role operand_role) {
   rns8_prepack_cache_key_info info{};
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_prepack_cache_key_info(plan, matrix, operand_role, &info) == RNS8_SUCCESS);
   return info;
 }
-

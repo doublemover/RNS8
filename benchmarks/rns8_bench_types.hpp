@@ -81,7 +81,8 @@ struct Args {
   uint64_t cpu_parallel_threshold = UINT64_C(1) << 20;
   bool progress = false;
   bool production_host_timing = false;
-  uint32_t sustained_batches = 0, sustained_min_calls = 16, sustained_max_calls = 4096, sustained_min_ms = 250;
+  uint32_t sustained_batches = 0, sustained_min_calls = 16, sustained_max_calls = 4096,
+           sustained_min_ms = 250;
   std::string cpu_reference_mode = "timed-baseline";
   std::string reference_cache_directory;
   std::string json_output;
@@ -134,13 +135,13 @@ struct Args {
   bool workspace_arena = false;
   bool adaptive_grouped_scheduler = false;
   bool hipblaslt_metadata_per_block_control = false;
-  std::string hipblaslt_prepack_policy="both";
-  bool hipblaslt_prepack_policy_explicit=false;
-  std::string rocwmma_packing_policy="packed";
-  bool rocwmma_packing_policy_explicit=false;
+  std::string hipblaslt_prepack_policy = "both";
+  bool hipblaslt_prepack_policy_explicit = false;
+  std::string rocwmma_packing_policy = "packed";
+  bool rocwmma_packing_policy_explicit = false;
   std::string locality_order;
-  uint32_t locality_model_domains=1,locality_model_concurrency=1;
-  uint64_t locality_model_cache_bytes=0;
+  uint32_t locality_model_domains = 1, locality_model_concurrency = 1;
+  uint64_t locality_model_cache_bytes = 0;
   bool streaming_overlap = false;
   bool streaming_serial_control = false;
   uint32_t streaming_batches = 9;
@@ -186,7 +187,7 @@ struct BenchmarkResult {
   NativeReferenceVerification native_reference;
   rns8_auto_trace_info auto_trace{};
   std::vector<rns8_auto_decision> auto_decisions;
-  bool auto_trace_available=false;
+  bool auto_trace_available = false;
   ExactWideMagnitudeStats exact_wide_magnitude{};
   std::vector<SustainedObservation> sustained_observations;
   double plan_us = 0;
@@ -230,8 +231,8 @@ struct BenchmarkResult {
   uint32_t streaming_overlap_buffer_count = 0;
   uint32_t streaming_overlap_measured_repeat_count = 0;
   std::vector<StreamingBatchObservation> streaming_observations;
-  double streaming_first_use_batch_us=0;
-  uint32_t streaming_warmup_batch_count=0;
+  double streaming_first_use_batch_us = 0;
+  uint32_t streaming_warmup_batch_count = 0;
   double streaming_overlap_batch_wall_us = 0;
   double streaming_overlap_per_repeat_pipeline_us = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
@@ -268,9 +269,9 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   rns8::detail::HipblasLtMetadataCounters metadata_after_warmups{}, metadata_after_repeats{};
-  rns8::detail::HipblasLtAlgorithmInventory algorithms_after_warmups{},algorithms_after_repeats{};
-  rns8::detail::HipblasLtPrepackCounters prepack_after_warmups{},prepack_after_repeats{};
-  rns8::detail::RocwmmaPackingStats rocwmma_after_warmups{},rocwmma_after_repeats{};
+  rns8::detail::HipblasLtAlgorithmInventory algorithms_after_warmups{}, algorithms_after_repeats{};
+  rns8::detail::HipblasLtPrepackCounters prepack_after_warmups{}, prepack_after_repeats{};
+  rns8::detail::RocwmmaPackingStats rocwmma_after_warmups{}, rocwmma_after_repeats{};
   rns8::detail::api::plan_validation_counters schedule_after_warmups{}, schedule_after_repeats{};
   rns8_locality_info locality_info{};
   bool allocation_tracking_available = false;
@@ -340,4 +341,4 @@ struct BenchmarkResult {
   uint64_t checksum = 0;
 };
 
-}  // namespace rns8::bench
+} // namespace rns8::bench

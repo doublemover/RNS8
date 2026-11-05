@@ -24,6 +24,7 @@ from .gpu_events import (
     vector_gpu_event_phases,
 )
 
+
 class ValidatorTimingEventsMixin:
     def _validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> None:
         from .reuse_timing import validate_pack_reuse_fields
@@ -45,7 +46,9 @@ class ValidatorTimingEventsMixin:
 
         return is_all_zero_direct_hip_adaptive_capture(self)
 
-    def _validate_all_zero_direct_hip_adaptive_timings(self, raw_timings: dict[str, list[float]]) -> None:
+    def _validate_all_zero_direct_hip_adaptive_timings(
+        self, raw_timings: dict[str, list[float]]
+    ) -> None:
         from .reuse_timing import validate_all_zero_direct_hip_adaptive_timings
 
         validate_all_zero_direct_hip_adaptive_timings(self, raw_timings)
@@ -55,20 +58,29 @@ class ValidatorTimingEventsMixin:
         repeats = self.data.get("repeats")
         metadata = self.data.get("timing_metadata") or {}
         from measurement_contract import host_instrumentation
+
         try:
             host_instrumentation(self.data)
         except ValueError as error:
             self._error(str(error))
         from .streaming_timing import validate_streaming_observations, raw_host_sample_count
-        for error in validate_streaming_observations(self.data): self._error(error)
+
+        for error in validate_streaming_observations(self.data):
+            self._error(error)
         from .public_timing import validate_sustained
-        for error in validate_sustained(self.data): self._error(error)
+
+        for error in validate_sustained(self.data):
+            self._error(error)
         contract_version = metadata.get("host_timing_contract_version", 1)
         fractional = contract_version == 2
         if contract_version not in (1, 2):
             self._error("unsupported host timing contract version")
         if fractional:
-            for field in ("clock_period_numerator", "clock_period_denominator", "timer_overhead_samples"):
+            for field in (
+                "clock_period_numerator",
+                "clock_period_denominator",
+                "timer_overhead_samples",
+            ):
                 if not _is_int(metadata.get(field)) or metadata[field] <= 0:
                     self._error(f"timing_metadata.{field} must be a positive integer")
             for field in ("timer_pair_median_us", "timer_pair_p95_us", "censor_threshold_us"):
@@ -78,8 +90,19 @@ class ValidatorTimingEventsMixin:
             if not isinstance(states, dict):
                 self._error("fractional host timings require phase_states")
             else:
-                for phase in ("planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"):
-                    if not text_choice(states.get(phase), {"measured", "elided", "fused", "unsupported", "below_resolution"}):
+                for phase in (
+                    "planning",
+                    "scheduling",
+                    "matrix_alloc",
+                    "pack",
+                    "rns_gemm",
+                    "crt_export",
+                    "end_to_end",
+                ):
+                    if not text_choice(
+                        states.get(phase),
+                        {"measured", "elided", "fused", "unsupported", "below_resolution"},
+                    ):
                         self._error(f"invalid host phase state for {phase}")
 
         result: dict[str, list[float]] = {}
@@ -90,13 +113,19 @@ class ValidatorTimingEventsMixin:
             if not isinstance(values, list):
                 self._error(f"raw_timings_us.{phase} must be an array")
                 continue
-            expected_length = raw_host_sample_count(self.data,phase,repeats if text_choice(phase, REPEATED_TIMING_PHASES) else 1)
+            expected_length = raw_host_sample_count(
+                self.data, phase, repeats if text_choice(phase, REPEATED_TIMING_PHASES) else 1
+            )
             if len(values) != expected_length:
-                self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}")
+                self._error(
+                    f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}"
+                )
             parsed: list[float] = []
             for index, value in enumerate(values):
                 if not (_is_number(value) if fractional else _is_int(value)) or value < 0:
-                    self._error(f"raw_timings_us.{phase}[{index}] must be nonnegative and match its host timing contract")
+                    self._error(
+                        f"raw_timings_us.{phase}[{index}] must be nonnegative and match its host timing contract"
+                    )
                 else:
                     parsed.append(float(value))
             result[phase] = parsed
@@ -107,13 +136,17 @@ class ValidatorTimingEventsMixin:
             if not isinstance(values, list):
                 self._error(f"raw_timings_us.{phase} must be an array")
                 continue
-            expected_length=raw_host_sample_count(self.data,phase,repeats)
+            expected_length = raw_host_sample_count(self.data, phase, repeats)
             if len(values) != expected_length:
-                self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}")
+                self._error(
+                    f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}"
+                )
             parsed: list[float] = []
             for index, value in enumerate(values):
                 if not (_is_number(value) if fractional else _is_int(value)) or value < 0:
-                    self._error(f"raw_timings_us.{phase}[{index}] must be nonnegative and match its host timing contract")
+                    self._error(
+                        f"raw_timings_us.{phase}[{index}] must be nonnegative and match its host timing contract"
+                    )
                 else:
                     parsed.append(float(value))
             result[phase] = parsed
@@ -172,19 +205,29 @@ class ValidatorTimingEventsMixin:
         for field, phase in fields:
             value = self._require(field, "number")
             values = raw_timings.get(phase)
-            if _is_number(value) and values is not None and not _close(float(value), _average(values)):
+            if (
+                _is_number(value)
+                and values is not None
+                and not _close(float(value), _average(values))
+            ):
                 self._error(f"{field}={value} does not match raw average {_average(values)}")
         schedule_query = self._require("schedule_query_us", "number")
         scheduling_values = raw_timings.get("scheduling")
-        if _is_number(schedule_query) and scheduling_values is not None and not _close(
-            float(schedule_query), _average(scheduling_values)
+        if (
+            _is_number(schedule_query)
+            and scheduling_values is not None
+            and not _close(float(schedule_query), _average(scheduling_values))
         ):
-            self._error(f"schedule_query_us={schedule_query} does not match raw average {_average(scheduling_values)}")
+            self._error(
+                f"schedule_query_us={schedule_query} does not match raw average {_average(scheduling_values)}"
+            )
         if PER_TILE_TIMING_PHASE in raw_timings:
             tile_bound_scan = self._require("tile_bound_scan_us", "number")
             tile_bound_values = raw_timings.get(PER_TILE_TIMING_PHASE)
-            if _is_number(tile_bound_scan) and tile_bound_values is not None and not _close(
-                float(tile_bound_scan), _average(tile_bound_values)
+            if (
+                _is_number(tile_bound_scan)
+                and tile_bound_values is not None
+                and not _close(float(tile_bound_scan), _average(tile_bound_values))
             ):
                 self._error(
                     f"tile_bound_scan_us={tile_bound_scan} does not match raw average "
@@ -193,8 +236,10 @@ class ValidatorTimingEventsMixin:
         if GLOBAL_BOUND_TIMING_PHASE in raw_timings:
             global_bound_scan = self._require("global_bound_scan_us", "number")
             global_bound_values = raw_timings.get(GLOBAL_BOUND_TIMING_PHASE)
-            if _is_number(global_bound_scan) and global_bound_values is not None and not _close(
-                float(global_bound_scan), _average(global_bound_values)
+            if (
+                _is_number(global_bound_scan)
+                and global_bound_values is not None
+                and not _close(float(global_bound_scan), _average(global_bound_values))
             ):
                 self._error(
                     f"global_bound_scan_us={global_bound_scan} does not match raw average "
@@ -210,9 +255,13 @@ class ValidatorTimingEventsMixin:
             and gemm_values is not None
             and applicable is not False
         ):
-            expected = _average(gemm_values) / float(prefix) if prefix > 0 else _average(gemm_values)
+            expected = (
+                _average(gemm_values) / float(prefix) if prefix > 0 else _average(gemm_values)
+            )
             if not _close(float(per_modulus), expected):
-                self._error(f"avg_per_modulus_gemm_estimate_us={per_modulus} does not match expected {expected}")
+                self._error(
+                    f"avg_per_modulus_gemm_estimate_us={per_modulus} does not match expected {expected}"
+                )
 
     def _gpu_event_selected_prefix_count(self) -> int:
         semantics = self.data.get("semantics")
@@ -230,7 +279,10 @@ class ValidatorTimingEventsMixin:
         if self.data.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache":
             return True
         metadata = self.data.get("timing_metadata")
-        return isinstance(metadata, dict) and metadata.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache"
+        return (
+            isinstance(metadata, dict)
+            and metadata.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache"
+        )
 
     @staticmethod
     def _prefix_event_label(prefix: str, index: int, suffix: str) -> str:
@@ -251,11 +303,16 @@ class ValidatorTimingEventsMixin:
         return vector_gpu_event_phases(self.data.get("semantics"), self.data.get("selected_kernel"))
 
     def _amdgpu_builtin_deep_gpu_event_phases(self) -> list[str]:
-        return amdgpu_builtin_deep_gpu_event_phases(self.data.get("selected_kernel"), self.data.get("semantics"))
+        return amdgpu_builtin_deep_gpu_event_phases(
+            self.data.get("selected_kernel"), self.data.get("semantics")
+        )
 
     def _expected_accelerator_deep_gpu_event_phases(self) -> list[str] | None:
         backend = self.data.get("backend_selected")
-        if not text_choice(backend, {"ck", "rocwmma", "amdgpu-builtins"}) or self._is_wrap64_rocwmma_candidate():
+        if (
+            not text_choice(backend, {"ck", "rocwmma", "amdgpu-builtins"})
+            or self._is_wrap64_rocwmma_candidate()
+        ):
             return None
         semantics = self.data.get("semantics")
         selected_kernel = self.data.get("selected_kernel")
@@ -265,7 +322,9 @@ class ValidatorTimingEventsMixin:
             and "sparse_a" in selected_kernel
         )
         use_prepacked_b = backend == "rocwmma" and self._uses_rocwmma_prepacked_b_cache()
-        gemm_group = "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
+        gemm_group = (
+            "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
+        )
         if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
             if sparse_amdgpu_capture:
                 phases = [
@@ -278,13 +337,23 @@ class ValidatorTimingEventsMixin:
             else:
                 phases = ["finite_pack_h2d", "finite_pack_kernel", "pack"]
             if backend != "amdgpu-builtins":
-                phases.extend(["rns_gemm_kernel_group", "rns_gemm", "finite_export_kernel", "finite_export_d2h", "crt_export"])
+                phases.extend(
+                    [
+                        "rns_gemm_kernel_group",
+                        "rns_gemm",
+                        "finite_export_kernel",
+                        "finite_export_d2h",
+                        "crt_export",
+                    ]
+                )
                 return phases
         elif text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
             phases = ["pack_h2d", "pack_kernel", "pack"]
         else:
             phases = ["pack_h2d", "pack_kernel", "pack"]
-        if sparse_amdgpu_capture and not text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
+        if sparse_amdgpu_capture and not text_choice(
+            semantics, {"finite_ring_u8", "finite_field_u8"}
+        ):
             phases = ["sparse_a_values_h2d", "sparse_a_indices_h2d", *phases]
         prefix_count = self._gpu_event_selected_prefix_count()
         schedule = self.data.get("schedule_metadata")
@@ -298,7 +367,11 @@ class ValidatorTimingEventsMixin:
             phases.extend(self._ck_deep_gpu_event_phases(prefix_count, zero_output_tiles))
         elif backend == "rocwmma":
             phases.append(gemm_group)
-            phases.extend(self._rocwmma_deep_gpu_event_phases(prefix_count, use_prepacked_b, zero_output_tiles))
+            phases.extend(
+                self._rocwmma_deep_gpu_event_phases(
+                    prefix_count, use_prepacked_b, zero_output_tiles
+                )
+            )
         else:
             phases.extend(self._amdgpu_builtin_deep_gpu_event_phases())
         phases.append("rns_gemm")
@@ -347,7 +420,9 @@ class ValidatorTimingEventsMixin:
 
         return known_status_event_labels(self)
 
-    def _validate_status_event_consistency(self, phases: list[str], parsed: dict[str, list[float]]) -> None:
+    def _validate_status_event_consistency(
+        self, phases: list[str], parsed: dict[str, list[float]]
+    ) -> None:
         from .gpu_event_validation import validate_status_event_consistency
 
         validate_status_event_consistency(self, phases, parsed)

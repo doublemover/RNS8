@@ -19,7 +19,9 @@ def capture(*, backend: str, mode: str, median_us: float) -> dict:
     return {
         "_path": f"{backend}-{mode}.json",
         "schema_version": 4,
-        "benchmark_execution_mode": "residue_current_rns_chain" if residue_current else "residue_chain_final_host_export",
+        "benchmark_execution_mode": "residue_current_rns_chain"
+        if residue_current
+        else "residue_chain_final_host_export",
         "backend_requested": backend,
         "backend_selected": backend,
         "semantics": "exact_wide_signed",
@@ -55,9 +57,15 @@ def capture(*, backend: str, mode: str, median_us: float) -> dict:
         },
         "timing_metadata": {
             "gpu_event_timing": backend != "cpu-reference",
-            "gpu_event_timing_status": "available" if backend != "cpu-reference" else "not_applicable",
-            "gpu_event_timing_source": "hipEventElapsedTime" if backend != "cpu-reference" else None,
-            "gpu_event_phase_order": ["pack", "rns_gemm"] if residue_current else ["pack", "rns_gemm", "crt_export"],
+            "gpu_event_timing_status": "available"
+            if backend != "cpu-reference"
+            else "not_applicable",
+            "gpu_event_timing_source": "hipEventElapsedTime"
+            if backend != "cpu-reference"
+            else None,
+            "gpu_event_phase_order": ["pack", "rns_gemm"]
+            if residue_current
+            else ["pack", "rns_gemm", "crt_export"],
         },
         "timing_summary_us": {
             "end_to_end": phase_summary(median_us),
@@ -89,7 +97,9 @@ def main() -> int:
 
     broken_lifetime = copy.deepcopy(gpu_residue)
     broken_lifetime["plan_packing"]["output_device_current"] = False
-    broken = exact_wide_chain_report.build_report_from_captures([cpu_final, gpu_final, broken_lifetime])
+    broken = exact_wide_chain_report.build_report_from_captures(
+        [cpu_final, gpu_final, broken_lifetime]
+    )
     broken_row = first_row(broken)
     assert broken_row["decision"] == "keep_experimental"
     assert "incomplete_residue_current_lifetime_metadata" in broken_row["blockers"]

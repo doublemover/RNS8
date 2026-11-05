@@ -15,4 +15,4 @@ inline uint64_t process_id() noexcept {
   return static_cast<uint64_t>(getpid());
 #endif
 }
-}  // namespace rns8::tools
+} // namespace rns8::tools

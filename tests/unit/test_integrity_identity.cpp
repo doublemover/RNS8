@@ -7,10 +7,9 @@ TEST_CASE("integrity identity and independent primes exclude computational "
   using namespace rns8::detail;
   IntegrityIdentity value{1, 2, 3, 4, 5, 6, 1, 20};
   REQUIRE(integrity_identity_matches(value, value));
-  for (auto member :
-       {&IntegrityIdentity::operation, &IntegrityIdentity::epoch,
-        &IntegrityIdentity::a_instance, &IntegrityIdentity::a_generation,
-        &IntegrityIdentity::b_instance, &IntegrityIdentity::b_generation}) {
+  for (auto member : {&IntegrityIdentity::operation, &IntegrityIdentity::epoch,
+                      &IntegrityIdentity::a_instance, &IntegrityIdentity::a_generation,
+                      &IntegrityIdentity::b_instance, &IntegrityIdentity::b_generation}) {
     auto changed = value;
     ++(changed.*member);
     REQUIRE_FALSE(integrity_identity_matches(value, changed));

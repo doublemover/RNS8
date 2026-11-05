@@ -42,600 +42,238 @@
 #include <vector>
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-#  include <hip/hip_runtime_api.h>
-extern "C" int rns8_hip_direct_lift_suffix_device(
-    const int8_t*, int8_t*, int, int, int, bool, uint64_t, uint64_t, uint64_t, int*, bool, void*);
+#include <hip/hip_runtime_api.h>
+extern "C" int rns8_hip_direct_lift_suffix_device(const int8_t*, int8_t*, int, int, int, bool,
+                                                  uint64_t, uint64_t, uint64_t, int*, bool, void*);
 
-extern "C" int rns8_hip_guarded_copy_bytes(const void*,void*,uint64_t,uint64_t,uint64_t,uint64_t,const int*,void*);
-extern "C" int rns8_hip_direct_pack_i64_device(
-    const int64_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix);
+extern "C" int rns8_hip_guarded_copy_bytes(const void*, void*, uint64_t, uint64_t, uint64_t,
+                                           uint64_t, const int*, void*);
+extern "C" int rns8_hip_direct_pack_i64_device(const int64_t* d_src, int8_t* d_residues, int rows,
+                                               int cols, int ld, int prefix);
 
-extern "C" int rns8_hip_direct_pack_u64_device(
-    const uint64_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix);
+extern "C" int rns8_hip_direct_pack_u64_device(const uint64_t* d_src, int8_t* d_residues, int rows,
+                                               int cols, int ld, int prefix);
 
-extern "C" int rns8_hip_direct_pack_i64_grouped_device(
-    const int64_t* d_src,
-    int8_t* const* d_residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int prefix);
+extern "C" int rns8_hip_direct_pack_i64_grouped_device(const int64_t* d_src,
+                                                       int8_t* const* d_residue_ptrs,
+                                                       int task_count, int64_t src_task_stride,
+                                                       int rows, int cols, int ld, int prefix);
 
-extern "C" int rns8_hip_direct_pack_u64_grouped_device(
-    const uint64_t* d_src,
-    int8_t* const* d_residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int prefix);
+extern "C" int rns8_hip_direct_pack_u64_grouped_device(const uint64_t* d_src,
+                                                       int8_t* const* d_residue_ptrs,
+                                                       int task_count, int64_t src_task_stride,
+                                                       int rows, int cols, int ld, int prefix);
 
-extern "C" int rns8_hip_direct_pack_u8_modulus_device(
-    const uint8_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int modulus);
+extern "C" int rns8_hip_direct_pack_u8_modulus_device(const uint8_t* d_src, int8_t* d_residues,
+                                                      int rows, int cols, int ld, int modulus);
 
-extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
-    const uint8_t* d_src,
-    int8_t* const* d_residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int modulus);
+extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(const uint8_t* d_src,
+                                                              int8_t* const* d_residue_ptrs,
+                                                              int task_count,
+                                                              int64_t src_task_stride, int rows,
+                                                              int cols, int ld, int modulus);
 
-extern "C" int rns8_hip_direct_ring_gemm_i8_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int modulus_index,
-    int selected_prefix,
-    int safe_k_block);
-extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int modulus_index,
-    int selected_prefix,
-    int safe_k_block,
-    void* stream);
+extern "C" int rns8_hip_direct_ring_gemm_i8_device(const int8_t* d_a, const int8_t* d_b,
+                                                   int8_t* d_c, int m, int n, int k, int lda,
+                                                   int ldb, int ldc, int modulus,
+                                                   uint32_t modulus_reciprocal, int modulus_index,
+                                                   int selected_prefix, int safe_k_block);
+extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(const int8_t* d_a, const int8_t* d_b,
+                                                             int8_t* d_c, int m, int n, int k,
+                                                             int lda, int ldb, int ldc, int modulus,
+                                                             uint32_t modulus_reciprocal,
+                                                             int modulus_index, int selected_prefix,
+                                                             int safe_k_block, void* stream);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int grouped_prefix,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int grouped_prefix, int safe_k_block);
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int grouped_prefix,
-    int safe_k_block,
-    void* stream);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int grouped_prefix, int safe_k_block, void* stream);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_region_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int region_row_offset,
-    int region_col_offset,
-    int region_rows,
-    int region_cols,
-    int grouped_prefix,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int region_row_offset, int region_col_offset, int region_rows, int region_cols,
+    int grouped_prefix, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_task_prefix_device(
-    const int8_t* const* d_a_ptrs,
-    const int8_t* const* d_b_ptrs,
-    int8_t* const* d_c_ptrs,
-    int task_count,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int grouped_prefix,
+    const int8_t* const* d_a_ptrs, const int8_t* const* d_b_ptrs, int8_t* const* d_c_ptrs,
+    int task_count, int m, int n, int k, int lda, int ldb, int ldc, int grouped_prefix,
     int safe_k_block);
 
-extern "C" int rns8_hip_direct_ring_gemm_i64_native_prefix9_device(
-    const int64_t* d_a,
-    const int64_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+extern "C" int rns8_hip_direct_ring_gemm_i64_native_prefix9_device(const int64_t* d_a,
+                                                                   const int64_t* d_b, int8_t* d_c,
+                                                                   int m, int n, int k, int lda,
+                                                                   int ldb, int ldc,
+                                                                   int safe_k_block);
 
-extern "C" int rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int grouped_prefix,
-    int safe_k_block);
+extern "C" int rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(const int8_t* d_a,
+                                                                     const int8_t* d_b, int8_t* d_c,
+                                                                     int m, int k, int lda, int ldb,
+                                                                     int ldc, int grouped_prefix,
+                                                                     int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemv_small_n_i8_grouped_prefix_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int grouped_prefix,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int grouped_prefix, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i64_native_prefix9_colpair_device(
-    const int64_t* d_a,
-    const int64_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int64_t* d_a, const int64_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i64_native_a_resident_b_prefix9_device(
-    const int64_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int64_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i64_native_a_resident_b_prefix9_colpair_device(
-    const int64_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int64_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i64_uniform_small_native_a_resident_b_prefix9_device(
-    const int64_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int64_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
-extern "C" int rns8_hip_direct_ring_gemm_u64_native_prefix9_device(
-    const uint64_t* d_a,
-    const uint64_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+extern "C" int rns8_hip_direct_ring_gemm_u64_native_prefix9_device(const uint64_t* d_a,
+                                                                   const uint64_t* d_b, int8_t* d_c,
+                                                                   int m, int n, int k, int lda,
+                                                                   int ldb, int ldc,
+                                                                   int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_u64_native_prefix9_colpair_device(
-    const uint64_t* d_a,
-    const uint64_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const uint64_t* d_a, const uint64_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_u64_native_a_resident_b_prefix9_device(
-    const uint64_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const uint64_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_u64_native_a_resident_b_prefix9_colpair_device(
-    const uint64_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const uint64_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i64_resident_a_native_b_prefix9_colpair_device(
-    const int8_t* d_a,
-    const int64_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int8_t* d_a, const int64_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_u64_resident_a_native_b_prefix9_colpair_device(
-    const int8_t* d_a,
-    const uint64_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int8_t* d_a, const uint64_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_u64_uniform_small_native_a_resident_b_prefix9_device(
-    const uint64_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const uint64_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_uniform_small_i8_ab_resident_b_prefix9_colpair_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int safe_k_block);
 
-extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int safe_k_block);
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(const int8_t* d_a, const int8_t* d_b,
+                                                          int8_t* d_c, int m, int n, int k, int lda,
+                                                          int ldb, int ldc, int modulus,
+                                                          uint32_t modulus_reciprocal,
+                                                          int safe_k_block);
 
 extern "C" int rns8_hip_direct_finite_ring_gemm_i8_region_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int region_row_offset,
-    int region_col_offset,
-    int region_rows,
-    int region_cols,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int region_row_offset, int region_col_offset, int region_rows, int region_cols,
+    int modulus, uint32_t modulus_reciprocal, int safe_k_block);
 
 extern "C" int rns8_hip_direct_finite_ring_gemm_i8_grouped_device(
-    const int8_t* const* d_a_ptrs,
-    const int8_t* const* d_b_ptrs,
-    int8_t* const* d_c_ptrs,
-    int task_count,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int safe_k_block);
+    const int8_t* const* d_a_ptrs, const int8_t* const* d_b_ptrs, int8_t* const* d_c_ptrs,
+    int task_count, int m, int n, int k, int lda, int ldb, int ldc, int modulus,
+    uint32_t modulus_reciprocal, int safe_k_block);
 
 extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_device(
-    const uint8_t* d_a,
-    const uint8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int safe_k_block);
+    const uint8_t* d_a, const uint8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int modulus, uint32_t modulus_reciprocal, int safe_k_block);
 
 extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_a_i8_b_device(
-    const uint8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int safe_k_block);
+    const uint8_t* d_a, const int8_t* d_b, int8_t* d_c, int m, int n, int k, int lda, int ldb,
+    int ldc, int modulus, uint32_t modulus_reciprocal, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    const rns8_plan_tile_schedule_entry* d_schedule,
-    const uint8_t* d_zero_a_rows,
-    const uint8_t* d_zero_b_cols,
-    int entry_count,
-    int max_tile_row_blocks,
-    int max_tile_col_blocks,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int modulus_index,
-    int selected_prefix,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c,
+    const rns8_plan_tile_schedule_entry* d_schedule, const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols, int entry_count, int max_tile_row_blocks, int max_tile_col_blocks,
+    int k, int lda, int ldb, int ldc, int modulus, uint32_t modulus_reciprocal, int modulus_index,
+    int selected_prefix, int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_active_schedule_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    const rns8_plan_tile_schedule_entry* d_active_schedule,
-    const uint8_t* d_zero_a_rows,
-    const uint8_t* d_zero_b_cols,
-    int active_entry_count,
-    int max_tile_row_blocks,
-    int max_tile_col_blocks,
-    int m,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int safe_k_block);
+    const int8_t* d_a, const int8_t* d_b, int8_t* d_c,
+    const rns8_plan_tile_schedule_entry* d_active_schedule, const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols, int active_entry_count, int max_tile_row_blocks,
+    int max_tile_col_blocks, int m, int k, int lda, int ldb, int ldc, int safe_k_block);
 
 extern "C" int rns8_hip_direct_zero_scheduled_residue_tiles_device(
-    int8_t* d_c,
-    const rns8_plan_tile_schedule_entry* d_schedule,
-    int entry_count,
-    int max_tile_elements,
-    int rows,
-    int ldc);
+    int8_t* d_c, const rns8_plan_tile_schedule_entry* d_schedule, int entry_count,
+    int max_tile_elements, int rows, int ldc);
 
-extern "C" int rns8_hip_direct_export_u8_modulus_device(
-    const int8_t* d_residues,
-    uint8_t* d_dst,
-    int rows,
-    int cols,
-    int ld,
-    int modulus);
+extern "C" int rns8_hip_direct_export_u8_modulus_device(const int8_t* d_residues, uint8_t* d_dst,
+                                                        int rows, int cols, int ld, int modulus);
 
-extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
-    const int8_t* const* d_residue_ptrs,
-    uint8_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int modulus);
+extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(const int8_t* const* d_residue_ptrs,
+                                                                uint8_t* d_dst, int task_count,
+                                                                int rows, int cols, int modulus);
 
-extern "C" int rns8_hip_direct_export_i64_device(
-    const int8_t* d_residues,
-    int64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status);
+extern "C" int rns8_hip_direct_export_i64_device(const int8_t* d_residues, int64_t* d_dst, int rows,
+                                                 int cols, int prefix, uint64_t bound,
+                                                 int* d_status);
 
-extern "C" int rns8_hip_direct_export_i64_grouped_device(
-    const int8_t* const* d_residue_ptrs,
-    int64_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status);
+extern "C" int rns8_hip_direct_export_i64_grouped_device(const int8_t* const* d_residue_ptrs,
+                                                         int64_t* d_dst, int task_count, int rows,
+                                                         int cols, int prefix, uint64_t bound,
+                                                         int* d_status);
 
 extern "C" int rns8_hip_direct_export_i64_scheduled_device(
-    const int8_t* d_residues,
-    int64_t* d_dst,
-    const rns8_plan_tile_schedule_entry* d_schedule,
-    const uint64_t* d_bounds,
-    const uint8_t* d_zero_a_rows,
-    const uint8_t* d_zero_b_cols,
-    int entry_count,
-    int max_tile_elements,
-    int rows,
-    int cols,
-    int* d_status);
+    const int8_t* d_residues, int64_t* d_dst, const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds, const uint8_t* d_zero_a_rows, const uint8_t* d_zero_b_cols,
+    int entry_count, int max_tile_elements, int rows, int cols, int* d_status);
 
-extern "C" int rns8_hip_direct_export_u64_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status);
+extern "C" int rns8_hip_direct_export_u64_device(const int8_t* d_residues, uint64_t* d_dst,
+                                                 int rows, int cols, int prefix, uint64_t bound,
+                                                 int* d_status);
 
-extern "C" int rns8_hip_direct_export_u64_grouped_device(
-    const int8_t* const* d_residue_ptrs,
-    uint64_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status);
+extern "C" int rns8_hip_direct_export_u64_grouped_device(const int8_t* const* d_residue_ptrs,
+                                                         uint64_t* d_dst, int task_count, int rows,
+                                                         int cols, int prefix, uint64_t bound,
+                                                         int* d_status);
 
 extern "C" int rns8_hip_direct_export_u64_scheduled_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    const rns8_plan_tile_schedule_entry* d_schedule,
-    const uint64_t* d_bounds,
-    const uint8_t* d_zero_a_rows,
-    const uint8_t* d_zero_b_cols,
-    int entry_count,
-    int max_tile_elements,
-    int rows,
-    int cols,
-    int* d_status);
+    const int8_t* d_residues, uint64_t* d_dst, const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds, const uint8_t* d_zero_a_rows, const uint8_t* d_zero_b_cols,
+    int entry_count, int max_tile_elements, int rows, int cols, int* d_status);
 
-extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    int limb_count,
-    int* d_status);
+extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(const int8_t* d_residues,
+                                                                     uint64_t* d_dst, int rows,
+                                                                     int cols, int prefix,
+                                                                     int limb_count, int* d_status);
 
 extern "C" int rns8_hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    int limb_count,
+    const int8_t* d_residues, uint64_t* d_dst, int rows, int cols, int prefix, int limb_count,
     int* d_status);
 
 extern "C" int rns8_hip_direct_export_exact_wide_signed_grouped_limbs_device(
-    const int8_t* const* d_residue_ptrs,
-    uint64_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int prefix,
-    int limb_count);
+    const int8_t* const* d_residue_ptrs, uint64_t* d_dst, int task_count, int rows, int cols,
+    int prefix, int limb_count);
 
-extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    int limb_count,
-    int* d_status);
+extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(const int8_t* d_residues,
+                                                                       uint64_t* d_dst, int rows,
+                                                                       int cols, int prefix,
+                                                                       int limb_count,
+                                                                       int* d_status);
 
 extern "C" int rns8_hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    int limb_count,
+    const int8_t* d_residues, uint64_t* d_dst, int rows, int cols, int prefix, int limb_count,
     int* d_status);
 
 extern "C" int rns8_hip_direct_export_exact_wide_unsigned_grouped_limbs_device(
-    const int8_t* const* d_residue_ptrs,
-    uint64_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int prefix,
-    int limb_count);
+    const int8_t* const* d_residue_ptrs, uint64_t* d_dst, int task_count, int rows, int cols,
+    int prefix, int limb_count);
 #endif
 
 namespace rns8::detail {
@@ -643,49 +281,73 @@ namespace {
 std::atomic<hip_deferred_buffer_cleanup*> deferred_buffers{nullptr};
 // Caller has already established device-wide completion. Failed frees remain
 // queued, including their allocation record; another device's nodes stay live.
-rns8_status release_completed_buffers(int device_id,hip_deferred_buffer_cleanup* node,bool completed) {
-  rns8_status result=RNS8_SUCCESS;
-  while(node) {
-    auto* next=node->next;
-    if(!completed || node->device_id!=device_id) hip_direct_defer_buffer_cleanup(node);
+rns8_status release_completed_buffers(int device_id, hip_deferred_buffer_cleanup* node,
+                                      bool completed) {
+  rns8_status result = RNS8_SUCCESS;
+  while (node) {
+    auto* next = node->next;
+    if (!completed || node->device_id != device_id)
+      hip_direct_defer_buffer_cleanup(node);
     else {
-      auto status=RNS8_UNSUPPORTED_BACKEND;
-      if(node->kind==hip_deferred_allocation_kind::device) status=hip_direct_free(device_id,node->pointer);
-      else if(node->kind==hip_deferred_allocation_kind::library_handle)
-        status=node->release_library_handle && node->release_library_handle(device_id,node->pointer)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+      auto status = RNS8_UNSUPPORTED_BACKEND;
+      if (node->kind == hip_deferred_allocation_kind::device)
+        status = hip_direct_free(device_id, node->pointer);
+      else if (node->kind == hip_deferred_allocation_kind::library_handle)
+        status =
+            node->release_library_handle && node->release_library_handle(device_id, node->pointer)
+                ? RNS8_SUCCESS
+                : RNS8_BACKEND_FAILURE;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-      else if(node->kind==hip_deferred_allocation_kind::pinned_host) {
-        AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));
-        status=hipHostFree(node->pointer)==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
-        if(status==RNS8_SUCCESS)observation.released(node->pointer,AllocationObservationDomain::pinned_host);
-      }
-      else {
-        hipError_t error=hipErrorInvalidValue;
-        switch(node->kind) {
-          case hip_deferred_allocation_kind::event: error=hipEventDestroy(static_cast<hipEvent_t>(node->pointer));break;
-          case hip_deferred_allocation_kind::stream: error=hipStreamDestroy(static_cast<hipStream_t>(node->pointer));break;
-          case hip_deferred_allocation_kind::graph: error=hipGraphDestroy(static_cast<hipGraph_t>(node->pointer));break;
-          case hip_deferred_allocation_kind::graph_exec: error=hipGraphExecDestroy(static_cast<hipGraphExec_t>(node->pointer));break;
-          default: break;
+      else if (node->kind == hip_deferred_allocation_kind::pinned_host) {
+        AllocationObservationLedger::Transaction observation(
+            hip_direct_allocation_ledger(device_id));
+        status = hipHostFree(node->pointer) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+        if (status == RNS8_SUCCESS)
+          observation.released(node->pointer, AllocationObservationDomain::pinned_host);
+      } else {
+        hipError_t error = hipErrorInvalidValue;
+        switch (node->kind) {
+        case hip_deferred_allocation_kind::event:
+          error = hipEventDestroy(static_cast<hipEvent_t>(node->pointer));
+          break;
+        case hip_deferred_allocation_kind::stream:
+          error = hipStreamDestroy(static_cast<hipStream_t>(node->pointer));
+          break;
+        case hip_deferred_allocation_kind::graph:
+          error = hipGraphDestroy(static_cast<hipGraph_t>(node->pointer));
+          break;
+        case hip_deferred_allocation_kind::graph_exec:
+          error = hipGraphExecDestroy(static_cast<hipGraphExec_t>(node->pointer));
+          break;
+        default:
+          break;
         }
-        status=error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+        status = error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
       }
 #endif
-      if(status==RNS8_SUCCESS) delete node;
-      else {if(result==RNS8_SUCCESS) result=status;hip_direct_defer_buffer_cleanup(node);}
+      if (status == RNS8_SUCCESS)
+        delete node;
+      else {
+        if (result == RNS8_SUCCESS)
+          result = status;
+        hip_direct_defer_buffer_cleanup(node);
+      }
     }
-    node=next;
+    node = next;
   }
   return result;
 }
-}
+} // namespace
 void hip_direct_defer_buffer_cleanup(hip_deferred_buffer_cleanup* node) noexcept {
-  auto* head=deferred_buffers.load(std::memory_order_relaxed);
-  do {node->next=head;} while(!deferred_buffers.compare_exchange_weak(
-      head,node,std::memory_order_release,std::memory_order_relaxed));
+  auto* head = deferred_buffers.load(std::memory_order_relaxed);
+  do {
+    node->next = head;
+  } while (!deferred_buffers.compare_exchange_weak(head, node, std::memory_order_release,
+                                                   std::memory_order_relaxed));
 }
 rns8_status hip_direct_collect_deferred_buffers(int device_id) {
-  if(!deferred_buffers.load(std::memory_order_acquire)) return RNS8_SUCCESS;
+  if (!deferred_buffers.load(std::memory_order_acquire))
+    return RNS8_SUCCESS;
   return hip_direct_synchronize(device_id);
 }
 
@@ -742,10 +404,10 @@ rns8_status hip_direct_synchronize(int device_id) {
   }
   // Capture before the drain. Nodes queued by later concurrent submissions
   // cannot be freed using completion of this earlier device snapshot.
-  auto* pending=deferred_buffers.exchange(nullptr,std::memory_order_acquire);
+  auto* pending = deferred_buffers.exchange(nullptr, std::memory_order_acquire);
   const hipError_t err = hipDeviceSynchronize();
-  const auto cleanup=release_completed_buffers(device_id,pending,err==hipSuccess);
-  return err==hipSuccess?cleanup:RNS8_BACKEND_FAILURE;
+  const auto cleanup = release_completed_buffers(device_id, pending, err == hipSuccess);
+  return err == hipSuccess ? cleanup : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;
@@ -755,4 +417,4 @@ rns8_status hip_direct_synchronize(int device_id) {
 #include "hip_backend_experimental_basis.inc"
 #include "hip_backend_fp8_modular.inc"
 #include "hip_backend_native_tdm.inc"
-}  // namespace rns8::detail
+} // namespace rns8::detail

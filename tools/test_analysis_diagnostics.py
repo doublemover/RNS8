@@ -11,8 +11,10 @@ import unittest
 
 from analysis_diagnostics import diagnostic_document, read_diagnostics
 
-HAS_DECODER = (importlib.util.find_spec("ruamel") is not None
-               and importlib.util.find_spec("ruamel.yaml") is not None)
+HAS_DECODER = (
+    importlib.util.find_spec("ruamel") is not None
+    and importlib.util.find_spec("ruamel.yaml") is not None
+)
 
 
 class AnalysisDiagnostics(unittest.TestCase):
@@ -23,16 +25,35 @@ class AnalysisDiagnostics(unittest.TestCase):
         self.source = self.root / "first party λ.cpp"
         self.original = "// λ\r\nreturn *pointer;\r\n".encode("utf-8")
         self.source.write_bytes(self.original)
-        self.document = dict(MainSourceFile=str(self.source), Diagnostics=[dict(
-            DiagnosticName="clang-analyzer-core.NullDereference", Level="Warning",
-            BuildDirectory=str(self.root), DiagnosticMessage=dict(Message="authored null diagnostic",
-                FilePath=str(self.source), FileOffset=self.original.index(b"return"),
-                Replacements=[dict(FilePath=str(self.source), Offset=0, Length=2, ReplacementText="never applied")]),
-            Notes=[])])
+        self.document = dict(
+            MainSourceFile=str(self.source),
+            Diagnostics=[
+                dict(
+                    DiagnosticName="clang-analyzer-core.NullDereference",
+                    Level="Warning",
+                    BuildDirectory=str(self.root),
+                    DiagnosticMessage=dict(
+                        Message="authored null diagnostic",
+                        FilePath=str(self.source),
+                        FileOffset=self.original.index(b"return"),
+                        Replacements=[
+                            dict(
+                                FilePath=str(self.source),
+                                Offset=0,
+                                Length=2,
+                                ReplacementText="never applied",
+                            )
+                        ],
+                    ),
+                    Notes=[],
+                )
+            ],
+        )
 
     def read(self, value=None):
-        return diagnostic_document(self.document if value is None else value,
-                                   source=self.source, directory=self.root)
+        return diagnostic_document(
+            self.document if value is None else value, source=self.source, directory=self.root
+        )
 
     def test_native_bytes_preserve_crlf_unicode_and_unapplied_fixes(self):
         facts = self.read()
@@ -48,7 +69,13 @@ class AnalysisDiagnostics(unittest.TestCase):
         changed = copy.deepcopy(self.document)
         changed["Diagnostics"][0].update(DiagnosticName="clang-diagnostic-error", Level="Error")
         self.assertTrue(self.read(changed)[0]["parse_failure"])
-        for mutation in ("offset_bool", "offset_past_file", "unknown_level", "unknown_field", "foreign_source"):
+        for mutation in (
+            "offset_bool",
+            "offset_past_file",
+            "unknown_level",
+            "unknown_field",
+            "foreign_source",
+        ):
             value = copy.deepcopy(self.document)
             row = value["Diagnostics"][0]
             if mutation == "offset_bool":
@@ -76,11 +103,15 @@ class AnalysisDiagnostics(unittest.TestCase):
     def test_yaml_duplicates_aliases_unsafe_tags_and_depth_are_rejected(self):
         path = self.root / "diagnostics.yaml"
         path.write_text(json.dumps(self.document), encoding="utf-8")
-        self.assertEqual(read_diagnostics(path, source=self.source, directory=self.root), self.read())
-        for text in ("MainSourceFile: a\nMainSourceFile: b\nDiagnostics: []\n",
-                     "MainSourceFile: &anchor x\nDiagnostics: [*anchor]\n",
-                     "!!python/object/apply:os.system ['must never execute']",
-                     "MainSourceFile: source.cpp\nDiagnostics: " + "[" * 66 + "]" * 66):
+        self.assertEqual(
+            read_diagnostics(path, source=self.source, directory=self.root), self.read()
+        )
+        for text in (
+            "MainSourceFile: a\nMainSourceFile: b\nDiagnostics: []\n",
+            "MainSourceFile: &anchor x\nDiagnostics: [*anchor]\n",
+            "!!python/object/apply:os.system ['must never execute']",
+            "MainSourceFile: source.cpp\nDiagnostics: " + "[" * 66 + "]" * 66,
+        ):
             path.write_text(text, encoding="utf-8")
             with self.assertRaises(ValueError):
                 read_diagnostics(path, source=self.source, directory=self.root)

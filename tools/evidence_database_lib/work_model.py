@@ -9,6 +9,7 @@ from .io import event_medians, median_phase
 from .event_cover import disjoint_event_cover
 from .isa import normalized_backend, normalized_target, safe_float, sorted_strings
 
+
 def selected_residue_planes(capture: dict[str, Any]) -> int:
     for key in ("residue_planes_selected", "selected_prefix", "prefix"):
         value = capture.get(key)
@@ -44,16 +45,38 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
     semantics = capture.get("semantics")
     host = capture.get("host_api_batch") or {}
     grouped = capture.get("grouped_dispatch") or {}
-    tasks = max(host.get("tasks_per_measured_repeat", host.get("batch_size", 1)), grouped.get("task_count", 1))
-    unavailable = (capture.get("residue_chain_length", 1) != 1 or grouped.get("heterogeneous") is True or
-                   type(tasks) is not int or tasks < 1)
+    tasks = max(
+        host.get("tasks_per_measured_repeat", host.get("batch_size", 1)),
+        grouped.get("task_count", 1),
+    )
+    unavailable = (
+        capture.get("residue_chain_length", 1) != 1
+        or grouped.get("heterogeneous") is True
+        or type(tasks) is not int
+        or tasks < 1
+    )
     if unavailable:
-        keys = ("estimated_ops", "estimated_input_a_bytes", "estimated_input_b_bytes", "estimated_input_bytes",
-                "estimated_output_bytes", "estimated_residue_bytes", "estimated_bytes", "arithmetic_intensity_ops_per_byte",
-                "measured_gops", "pack_bandwidth_gbs", "pack_a_bandwidth_gbs", "pack_b_bandwidth_gbs", "export_bandwidth_gbs")
-        return {**{key: None for key in keys}, "work_estimate_available": False,
-                "work_estimate_reason": "dependent_or_heterogeneous_stage_shapes_not_described",
-                "work_observation_unit": "unavailable"}
+        keys = (
+            "estimated_ops",
+            "estimated_input_a_bytes",
+            "estimated_input_b_bytes",
+            "estimated_input_bytes",
+            "estimated_output_bytes",
+            "estimated_residue_bytes",
+            "estimated_bytes",
+            "arithmetic_intensity_ops_per_byte",
+            "measured_gops",
+            "pack_bandwidth_gbs",
+            "pack_a_bandwidth_gbs",
+            "pack_b_bandwidth_gbs",
+            "export_bandwidth_gbs",
+        )
+        return {
+            **{key: None for key in keys},
+            "work_estimate_available": False,
+            "work_estimate_reason": "dependent_or_heterogeneous_stage_shapes_not_described",
+            "work_observation_unit": "unavailable",
+        }
     planes = selected_residue_planes(capture)
     if semantics == "wrap_u64_mod_2_64":
         logical_ops = 2 * m * n * k * 36
@@ -70,12 +93,18 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
     input_b_bytes *= tasks
     logical_ops *= tasks
     residue_bytes *= tasks
-    mode = capture.get("pack_mode", "prepacked_reuse" if capture.get("reuse_packed_inputs") else "per_repeat_repack")
-    if mode in ("prepacked_reuse", "prepacked_reuse_a"): input_a_bytes = 0
-    if mode in ("prepacked_reuse", "prepacked_reuse_b"): input_b_bytes = 0
+    mode = capture.get(
+        "pack_mode",
+        "prepacked_reuse" if capture.get("reuse_packed_inputs") else "per_repeat_repack",
+    )
+    if mode in ("prepacked_reuse", "prepacked_reuse_a"):
+        input_a_bytes = 0
+    if mode in ("prepacked_reuse", "prepacked_reuse_b"):
+        input_b_bytes = 0
     input_bytes = input_a_bytes + input_b_bytes
     output_bytes = m * n * output_bytes_per_element(capture) * tasks
-    if capture.get("residue_output_mode", "host_export") != "host_export": output_bytes = 0
+    if capture.get("residue_output_mode", "host_export") != "host_export":
+        output_bytes = 0
     estimated_bytes = input_bytes + output_bytes + residue_bytes
     gemm_us = median_phase(capture, "rns_gemm")
     pack_us = median_phase(capture, "pack")
@@ -97,12 +126,22 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
         "estimated_output_bytes": output_bytes,
         "estimated_residue_bytes": residue_bytes,
         "estimated_bytes": estimated_bytes,
-        "arithmetic_intensity_ops_per_byte": (logical_ops / estimated_bytes) if estimated_bytes else None,
+        "arithmetic_intensity_ops_per_byte": (logical_ops / estimated_bytes)
+        if estimated_bytes
+        else None,
         "measured_gops": (logical_ops / (gemm_us * 1000.0)) if gemm_us and gemm_us > 0 else None,
-        "pack_bandwidth_gbs": (input_bytes / (pack_us * 1000.0)) if pack_us and pack_us > 0 else None,
-        "pack_a_bandwidth_gbs": (input_a_bytes / (pack_a_us * 1000.0)) if pack_a_us and pack_a_us > 0 else None,
-        "pack_b_bandwidth_gbs": (input_b_bytes / (pack_b_us * 1000.0)) if pack_b_us and pack_b_us > 0 else None,
-        "export_bandwidth_gbs": (output_bytes / (export_us * 1000.0)) if export_us and export_us > 0 else None,
+        "pack_bandwidth_gbs": (input_bytes / (pack_us * 1000.0))
+        if pack_us and pack_us > 0
+        else None,
+        "pack_a_bandwidth_gbs": (input_a_bytes / (pack_a_us * 1000.0))
+        if pack_a_us and pack_a_us > 0
+        else None,
+        "pack_b_bandwidth_gbs": (input_b_bytes / (pack_b_us * 1000.0))
+        if pack_b_us and pack_b_us > 0
+        else None,
+        "export_bandwidth_gbs": (output_bytes / (export_us * 1000.0))
+        if export_us and export_us > 0
+        else None,
     }
 
 
@@ -134,8 +173,17 @@ def pack_split_diagnostics(capture: dict[str, Any]) -> dict[str, str | float | N
     }
 
 
-def classify_event_bottleneck(events: dict[str, float]) -> tuple[str | None, float | None, dict[str, float]]:
-    categories = {"status": 0.0, "transfer": 0.0, "pack": 0.0, "compute": 0.0, "export": 0.0, "other": 0.0}
+def classify_event_bottleneck(
+    events: dict[str, float],
+) -> tuple[str | None, float | None, dict[str, float]]:
+    categories = {
+        "status": 0.0,
+        "transfer": 0.0,
+        "pack": 0.0,
+        "compute": 0.0,
+        "export": 0.0,
+        "other": 0.0,
+    }
     for name, value in events.items():
         lowered = name.lower()
         if "status" in lowered:
@@ -160,7 +208,9 @@ def classify_event_bottleneck(events: dict[str, float]) -> tuple[str | None, flo
 def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
     medians = {phase: median_phase(capture, phase) for phase in DIAGNOSTIC_PHASES}
     end_to_end = medians.get("end_to_end")
-    phase_values = {phase: medians[phase] for phase in ("pack", "rns_gemm", "crt_export") if medians[phase]}
+    phase_values = {
+        phase: medians[phase] for phase in ("pack", "rns_gemm", "crt_export") if medians[phase]
+    }
     phase_shares = {
         phase: (value / end_to_end)
         for phase, value in phase_values.items()
@@ -168,7 +218,9 @@ def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
     }
     overhead = None
     if end_to_end and end_to_end > 0:
-        overhead = max(0.0, end_to_end - sum(float(value) for value in phase_values.values())) / end_to_end
+        overhead = (
+            max(0.0, end_to_end - sum(float(value) for value in phase_values.values())) / end_to_end
+        )
     phase = max(phase_shares, key=phase_shares.get) if phase_shares else None
     share = phase_shares.get(phase) if phase else None
     if overhead is not None and overhead >= 0.25 and (share is None or overhead > share):
@@ -194,7 +246,11 @@ def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
     cover = disjoint_event_cover(capture)
     event_categories = cover["category_medians_us"]
     category_total = sum(event_categories.values())
-    event_class = max(event_categories, key=event_categories.get) + "_event_bound" if category_total > 0 else None
+    event_class = (
+        max(event_categories, key=event_categories.get) + "_event_bound"
+        if category_total > 0
+        else None
+    )
     event_share = max(event_categories.values()) / category_total if category_total > 0 else None
     return {
         "phase_medians_us": medians,
@@ -261,27 +317,47 @@ def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> l
     priorities: list[dict[str, Any]] = []
     for (target, scenario, semantics, target_id), grouped_rows in groups.items():
         end_to_end_values = [
-            value for value in (safe_float(row.get("median_end_to_end_us")) for row in grouped_rows) if value is not None
-        ]
-        bottleneck_values = [bottleneck_time_us(row) for row in grouped_rows]
-        share_values = [value for value in (safe_float(row.get("bottleneck_share")) for row in grouped_rows) if value is not None]
-        ai_values = [
             value
-            for value in (safe_float(row.get("arithmetic_intensity_ops_per_byte")) for row in grouped_rows)
+            for value in (safe_float(row.get("median_end_to_end_us")) for row in grouped_rows)
             if value is not None
         ]
-        gops_values = [value for value in (safe_float(row.get("measured_gops")) for row in grouped_rows) if value is not None]
+        bottleneck_values = [bottleneck_time_us(row) for row in grouped_rows]
+        share_values = [
+            value
+            for value in (safe_float(row.get("bottleneck_share")) for row in grouped_rows)
+            if value is not None
+        ]
+        ai_values = [
+            value
+            for value in (
+                safe_float(row.get("arithmetic_intensity_ops_per_byte")) for row in grouped_rows
+            )
+            if value is not None
+        ]
+        gops_values = [
+            value
+            for value in (safe_float(row.get("measured_gops")) for row in grouped_rows)
+            if value is not None
+        ]
         pack_bw_values = [
-            value for value in (safe_float(row.get("pack_bandwidth_gbs")) for row in grouped_rows) if value is not None
+            value
+            for value in (safe_float(row.get("pack_bandwidth_gbs")) for row in grouped_rows)
+            if value is not None
         ]
         pack_a_bw_values = [
-            value for value in (safe_float(row.get("pack_a_bandwidth_gbs")) for row in grouped_rows) if value is not None
+            value
+            for value in (safe_float(row.get("pack_a_bandwidth_gbs")) for row in grouped_rows)
+            if value is not None
         ]
         pack_b_bw_values = [
-            value for value in (safe_float(row.get("pack_b_bandwidth_gbs")) for row in grouped_rows) if value is not None
+            value
+            for value in (safe_float(row.get("pack_b_bandwidth_gbs")) for row in grouped_rows)
+            if value is not None
         ]
         export_bw_values = [
-            value for value in (safe_float(row.get("export_bandwidth_gbs")) for row in grouped_rows) if value is not None
+            value
+            for value in (safe_float(row.get("export_bandwidth_gbs")) for row in grouped_rows)
+            if value is not None
         ]
         top_rows = sorted(grouped_rows, key=bottleneck_time_us, reverse=True)[:3]
         priorities.append(
@@ -306,12 +382,22 @@ def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> l
                     [row.get("pack_split_dominant_operand") for row in grouped_rows]
                 ),
                 "median_export_bandwidth_gbs": median_or_none(export_bw_values),
-                "bottleneck_classes": sorted_strings([row.get("bottleneck_class") for row in grouped_rows]),
-                "bottleneck_phases": sorted_strings([row.get("bottleneck_phase") for row in grouped_rows]),
-                "event_bottlenecks": sorted_strings([row.get("event_bottleneck_class") for row in grouped_rows]),
+                "bottleneck_classes": sorted_strings(
+                    [row.get("bottleneck_class") for row in grouped_rows]
+                ),
+                "bottleneck_phases": sorted_strings(
+                    [row.get("bottleneck_phase") for row in grouped_rows]
+                ),
+                "event_bottlenecks": sorted_strings(
+                    [row.get("event_bottleneck_class") for row in grouped_rows]
+                ),
                 "backends": sorted_strings([row.get("backend") for row in grouped_rows]),
-                "selected_kernels": sorted_strings([row.get("selected_kernel") for row in grouped_rows]),
-                "example_captures": [str(row.get("capture_path")) for row in top_rows if row.get("capture_path")],
+                "selected_kernels": sorted_strings(
+                    [row.get("selected_kernel") for row in grouped_rows]
+                ),
+                "example_captures": [
+                    str(row.get("capture_path")) for row in top_rows if row.get("capture_path")
+                ],
             }
         )
 
@@ -333,7 +419,6 @@ def gpu_evidence_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         row
         for row in rows
-        if normalized_target(row.get("target_id")) is not None and normalized_backend(row.get("backend")) != "cpu-reference"
+        if normalized_target(row.get("target_id")) is not None
+        and normalized_backend(row.get("backend")) != "cpu-reference"
     ]
-
-

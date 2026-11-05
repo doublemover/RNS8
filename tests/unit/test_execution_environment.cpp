@@ -12,7 +12,8 @@ void assign_fixture(const char* value) {
     throw std::runtime_error("authored environment fixture setup failed");
 #else
   const int status = value ? ::setenv(fixture_key, value, 1) : ::unsetenv(fixture_key);
-  if (status) throw std::runtime_error("authored environment fixture setup failed");
+  if (status)
+    throw std::runtime_error("authored environment fixture setup failed");
 #endif
 }
 struct RestoreFixture {
@@ -23,14 +24,19 @@ struct RestoreFixture {
     std::size_t count = 0;
     if (_dupenv_s(&value, &count, fixture_key) != 0)
       throw std::runtime_error("authored environment fixture read failed");
-    if (value) original = value;
+    if (value)
+      original = value;
     std::free(value);
 #else
-    if (const char* value = std::getenv(fixture_key)) original = value;
+    if (const char* value = std::getenv(fixture_key))
+      original = value;
 #endif
   }
   ~RestoreFixture() {
-    try { assign_fixture(original ? original->c_str() : nullptr); } catch (...) {}
+    try {
+      assign_fixture(original ? original->c_str() : nullptr);
+    } catch (...) {
+    }
   }
 };
 nlohmann::json serialize(const rns8::tools::ExecutionEnvironmentWitness& witness) {
@@ -38,7 +44,7 @@ nlohmann::json serialize(const rns8::tools::ExecutionEnvironmentWitness& witness
   witness.print(out);
   return nlohmann::json::parse(out.str());
 }
-}
+} // namespace
 
 TEST_CASE("disabled execution observations do not dereference argv", "[cpu][identity]") {
   rns8::tools::ExecutionEnvironmentWitness witness(false, 0, nullptr);
@@ -49,7 +55,8 @@ TEST_CASE("disabled execution observations do not dereference argv", "[cpu][iden
   CHECK(value.at("before").is_null());
 }
 
-TEST_CASE("native execution observations bind actual arguments and environment changes", "[cpu][identity]") {
+TEST_CASE("native execution observations bind actual arguments and environment changes",
+          "[cpu][identity]") {
   RestoreFixture restore;
   assign_fixture("before");
   char program[] = "authored-benchmark";

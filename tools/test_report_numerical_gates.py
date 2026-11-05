@@ -1,4 +1,5 @@
 """Synthetic negative controls for every standalone numerical report adapter."""
+
 from __future__ import annotations
 
 import copy
@@ -65,11 +66,17 @@ class ReportNumericalGatesTest(unittest.TestCase):
 
     def test_pending_policy_remains_distinct_from_a_completed_numerical_receipt(self):
         candidate, cpu, _ = self.fixtures()
-        candidate["verification_amortization"] = {"enabled": True, "final_exact_comparison_required": True,
-            "final_exact_comparison_status": "reference_required", "promotion_eligible": False}
+        candidate["verification_amortization"] = {
+            "enabled": True,
+            "final_exact_comparison_required": True,
+            "final_exact_comparison_status": "reference_required",
+            "promotion_eligible": False,
+        }
         candidate["incremental_result_cache"] = dict(candidate["verification_amortization"])
-        for row in (fhe.row_for_capture(candidate, CPUReferenceIndex([cpu])),
-                    incremental.row_for_capture(candidate, CPUReferenceIndex([cpu]))):
+        for row in (
+            fhe.row_for_capture(candidate, CPUReferenceIndex([cpu])),
+            incremental.row_for_capture(candidate, CPUReferenceIndex([cpu])),
+        ):
             self.assertTrue(row["numerical_reference"]["passed"])
             self.assertIn("final_exact_comparison_pending", row["blockers"])
             self.assertEqual(row["status"], "blocked")
@@ -85,9 +92,11 @@ class ReportNumericalGatesTest(unittest.TestCase):
     def test_layout_pair_mismatch_blocks_local_promotion(self):
         candidate, _, direct = self.fixtures()
         baseline = with_common_layout(direct, name="baseline", role="baseline")
-        subject = with_common_layout(candidate, name="candidate", role="candidate", baseline="baseline")
+        subject = with_common_layout(
+            candidate, name="candidate", role="candidate", baseline="baseline"
+        )
         subject["checksum_u64"] ^= 1
-        row, = layout.candidate_rows([baseline, subject])
+        (row,) = layout.candidate_rows([baseline, subject])
         self.assertFalse(row["promotion_eligible"])
         self.assertFalse(row["numerical_reference"]["passed"])
         self.assertIn("checksum_mismatch_vs_reference", row["promotion_blockers"])

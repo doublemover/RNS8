@@ -79,7 +79,9 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
     if _absolute(cache.get("CMAKE_HOME_DIRECTORY")) != root:
         raise ValueError("analysis build belongs to another source tree")
     if cache.get("CMAKE_GENERATOR") not in {"Ninja", "Unix Makefiles"}:
-        raise ValueError("analysis requires a supported single-configuration compilation database generator")
+        raise ValueError(
+            "analysis requires a supported single-configuration compilation database generator"
+        )
     if cache.get("CMAKE_UNITY_BUILD", "OFF").upper() not in {"OFF", "NO", "FALSE", "0", ""}:
         raise ValueError("unity compilation cannot claim individual source coverage")
     if cache.get("CMAKE_EXPORT_COMPILE_COMMANDS", "OFF").upper() not in {"ON", "YES", "TRUE", "1"}:
@@ -91,10 +93,12 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
     target_path = build / ("rns8-analysis-targets-" + configuration + ".json")
     hip_path = build / ("rns8-hip-compile-commands-" + configuration + ".json")
     target_document, hip_document = load_evidence_json(target_path), load_evidence_json(hip_path)
-    if (not isinstance(target_document, dict)
-            or target_document.get("schema") != "rns8_first_party_analysis_targets_v1"
-            or not isinstance(hip_document, dict)
-            or hip_document.get("schema") != "rns8_custom_hip_compile_commands_v1"):
+    if (
+        not isinstance(target_document, dict)
+        or target_document.get("schema") != "rns8_first_party_analysis_targets_v1"
+        or not isinstance(hip_document, dict)
+        or hip_document.get("schema") != "rns8_custom_hip_compile_commands_v1"
+    ):
         raise ValueError("build lacks maintained configured first-party/custom HIP inventories")
     tracked = {(root / row.path).resolve(): row for row in inventory(root) if row.role == "cpp"}
     owners: dict[Path, set[str]] = defaultdict(set)
@@ -103,8 +107,12 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
         raise ValueError("configured first-party target inventory is empty")
     names = set()
     for target in registered:
-        if (not isinstance(target, dict) or type(target.get("name")) is not str
-                or target["name"] in names or target.get("configuration") != configuration):
+        if (
+            not isinstance(target, dict)
+            or type(target.get("name")) is not str
+            or target["name"] in names
+            or target.get("configuration") != configuration
+        ):
             raise ValueError("configured target identity is duplicated or contradictory")
         names.add(target["name"])
         for source in _strings(target.get("sources")):
@@ -112,7 +120,10 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
             if path.suffix.lower() not in {".cpp", ".c", ".cc", ".cxx"}:
                 continue  # Headers/fragments and linked external objects are not invented TUs.
             if path not in tracked and not path.is_relative_to(build):
-                raise ValueError("registered first-party source is outside tracked/generated inventory: " + source)
+                raise ValueError(
+                    "registered first-party source is outside tracked/generated inventory: "
+                    + source
+                )
             owners[path].add(target["name"])
     records = load_evidence_json(database)
     if not isinstance(records, list) or not records:
@@ -127,19 +138,38 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
         if arguments is not None:
             argv = _strings(arguments)
             if not argv or not argv[0] or command is not None:
-                raise ValueError("compilation context needs one unambiguous native argv/command representation")
+                raise ValueError(
+                    "compilation context needs one unambiguous native argv/command representation"
+                )
         elif type(command) is not str or not command:
             raise ValueError("compilation context lacks its actual native compiler command")
-        value = dict(record=record, kind=kind, environment=environment,
-                     generated_inputs=[str(path) for path in generated], targets=targets)
+        value = dict(
+            record=record,
+            kind=kind,
+            environment=environment,
+            generated_inputs=[str(path) for path in generated],
+            targets=targets,
+        )
         key = canonical_digest(value)
         if key in seen:
-            raise ValueError("duplicate equivalent compilation context hides the coverage denominator")
+            raise ValueError(
+                "duplicate equivalent compilation context hides the coverage denominator"
+            )
         seen.add(key)
-        contexts.append(Compilation(key, kind, source, directory,
-            json.dumps(record, sort_keys=True, separators=(",", ":"), allow_nan=False),
-            tuple(environment), tuple(generated), tuple(targets), tuple(registered_targets),
-            source.is_relative_to(build)))
+        contexts.append(
+            Compilation(
+                key,
+                kind,
+                source,
+                directory,
+                json.dumps(record, sort_keys=True, separators=(",", ":"), allow_nan=False),
+                tuple(environment),
+                tuple(generated),
+                tuple(targets),
+                tuple(registered_targets),
+                source.is_relative_to(build),
+            )
+        )
 
     for record in records:
         if not isinstance(record, dict):
@@ -151,8 +181,12 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
             excluded.append((str(source), "external_or_unregistered_not_first_party_coverage"))
             continue
         actual[source] += 1
-        add(record, kind="host", registered_targets=sorted(owners[source]),
-            generated=(build / "generated" / configuration / "rns8_build_manifest.hpp",))
+        add(
+            record,
+            kind="host",
+            registered_targets=sorted(owners[source]),
+            generated=(build / "generated" / configuration / "rns8_build_manifest.hpp",),
+        )
     expected = {source: len(targets) for source, targets in owners.items()}
     if dict(actual) != expected:
         raise ValueError("exported host contexts do not cover every registered target/source pair")
@@ -173,12 +207,22 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
         if not argv:
             raise ValueError("custom HIP compiler argv is empty")
         hip_compilers.add(_absolute(argv[0]))
-        if any(re.match(r"^(?:-D|/D)(?:__HIP_DEVICE_COMPILE__|__AMDGCN__|__gfx[0-9a-f]+__)(?:=|$)", argument) for argument in argv):
-            raise ValueError("configured HIP analysis must not fabricate compiler device/target macros")
+        if any(
+            re.match(
+                r"^(?:-D|/D)(?:__HIP_DEVICE_COMPILE__|__AMDGCN__|__gfx[0-9a-f]+__)(?:=|$)", argument
+            )
+            for argument in argv
+        ):
+            raise ValueError(
+                "configured HIP analysis must not fabricate compiler device/target macros"
+            )
         targets = _strings(row.get("targets"))
-        if (not targets or len(set(targets)) != len(targets)
-                or targets != tuple(cache.get("RNS8_AMDGPU_TARGETS", "").split(";"))
-                or any(argv.count("--offload-arch=" + target) != 1 for target in targets)):
+        if (
+            not targets
+            or len(set(targets)) != len(targets)
+            or targets != tuple(cache.get("RNS8_AMDGPU_TARGETS", "").split(";"))
+            or any(argv.count("--offload-arch=" + target) != 1 for target in targets)
+        ):
             raise ValueError("custom HIP targets differ from the real compiler argv")
         environment = []
         for item in _strings(row.get("environment")):
@@ -192,6 +236,16 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
     if not contexts:
         raise ValueError("zero selected first-party compilation contexts cannot pass analysis")
     compiler = _absolute(cache.get("CMAKE_CXX_COMPILER"))
-    artifacts = list(dict.fromkeys([cache_path, database, target_path, hip_path, compiler, *sorted(hip_compilers)]))
-    return AnalysisInputs(build, configuration, tuple(contexts), tuple(excluded),
-        tuple((str(path), file_digest(path)) for path in artifacts), compiler)
+    artifacts = list(
+        dict.fromkeys(
+            [cache_path, database, target_path, hip_path, compiler, *sorted(hip_compilers)]
+        )
+    )
+    return AnalysisInputs(
+        build,
+        configuration,
+        tuple(contexts),
+        tuple(excluded),
+        tuple((str(path), file_digest(path)) for path in artifacts),
+        compiler,
+    )

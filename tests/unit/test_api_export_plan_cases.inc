@@ -26,7 +26,7 @@ void add_export_plan_tile(rns8_plan& plan, bool zero_output) {
   plan.tile_bounds.push_back(plan.desc.bound);
 }
 
-}  // namespace
+} // namespace
 
 namespace rns8_api = rns8::detail::api;
 
@@ -34,15 +34,18 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   auto cpu_i64 = export_plan_fixture(RNS8_BACKEND_CPU_REFERENCE, RNS8_BOUNDED_I64);
   const auto cpu_i64_export = rns8_api::make_export_plan(cpu_i64, RNS8_BOUNDED_I64);
   CHECK(cpu_i64_export.output_layout == rns8_api::export_output_layout::scalar_i64);
-  CHECK(cpu_i64_export.status_policy == rns8_api::export_status_policy::range_checked_status_buffer);
+  CHECK(cpu_i64_export.status_policy ==
+        rns8_api::export_status_policy::range_checked_status_buffer);
   CHECK(cpu_i64_export.d2h_policy == rns8_api::export_d2h_policy::host_ld_padded);
   CHECK_FALSE(cpu_i64_export.requires_hip_tile_metadata);
   CHECK_FALSE(cpu_i64_export.all_zero_tiled_output);
   CHECK(std::string(cpu_i64_export.selected_export_kernel) == "cpu_reference_export_i64");
-  CHECK(std::string(rns8_api::export_output_layout_name(cpu_i64_export.output_layout)) == "scalar_i64");
+  CHECK(std::string(rns8_api::export_output_layout_name(cpu_i64_export.output_layout)) ==
+        "scalar_i64");
   CHECK(std::string(rns8_api::export_status_policy_name(cpu_i64_export.status_policy)) ==
         "range_checked_status_buffer");
-  CHECK(std::string(rns8_api::export_d2h_policy_name(cpu_i64_export.d2h_policy)) == "host_ld_padded");
+  CHECK(std::string(rns8_api::export_d2h_policy_name(cpu_i64_export.d2h_policy)) ==
+        "host_ld_padded");
 
   auto vector_i64 = export_plan_fixture(RNS8_BACKEND_HIP_VECTOR_ALU_INT64, RNS8_BOUNDED_I64);
   const auto vector_i64_export = rns8_api::make_export_plan(vector_i64, RNS8_BOUNDED_I64);
@@ -61,7 +64,8 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   auto hip_zero_i64 = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_BOUNDED_I64);
   add_export_plan_tile(hip_zero_i64, true);
   const auto hip_zero_i64_export = rns8_api::make_export_plan(hip_zero_i64, RNS8_BOUNDED_I64);
-  CHECK(std::string(hip_zero_i64_export.selected_export_kernel) == "hip_direct_export_i64_tiled_device");
+  CHECK(std::string(hip_zero_i64_export.selected_export_kernel) ==
+        "hip_direct_export_i64_tiled_device");
   CHECK_FALSE(hip_zero_i64_export.requires_hip_tile_metadata);
   CHECK(hip_zero_i64_export.all_zero_tiled_output);
 
@@ -75,12 +79,14 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   CHECK(finite_cpu_export.output_layout == rns8_api::export_output_layout::finite_u8);
   CHECK(finite_cpu_export.status_policy == rns8_api::export_status_policy::none);
   CHECK(std::string(finite_cpu_export.selected_export_kernel) == "finite_reference_export_u8");
-  CHECK(std::string(rns8_api::export_output_layout_name(finite_cpu_export.output_layout)) == "finite_u8");
+  CHECK(std::string(rns8_api::export_output_layout_name(finite_cpu_export.output_layout)) ==
+        "finite_u8");
 
   auto finite_hip = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_FINITE_RING_U8);
   const auto finite_hip_export = rns8_api::make_export_plan(finite_hip, RNS8_FINITE_RING_U8);
   CHECK(finite_hip_export.output_layout == rns8_api::export_output_layout::finite_u8);
-  CHECK(std::string(finite_hip_export.selected_export_kernel) == "hip_direct_export_finite_u8_device");
+  CHECK(std::string(finite_hip_export.selected_export_kernel) ==
+        "hip_direct_export_finite_u8_device");
 
   auto wrap_cpu = export_plan_fixture(RNS8_BACKEND_WRAP64_BYTE_LIMB, RNS8_WRAP_U64_MOD_2_64);
   const auto wrap_cpu_export = rns8_api::make_export_plan(wrap_cpu, RNS8_WRAP_U64_MOD_2_64);
@@ -98,7 +104,8 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
       rns8_api::make_export_plan(exact_signed_cpu, RNS8_EXACT_WIDE_SIGNED, 3);
   CHECK(exact_signed_cpu_export.output_layout == rns8_api::export_output_layout::fixed_u64_limbs);
   CHECK(exact_signed_cpu_export.status_policy == rns8_api::export_status_policy::none);
-  CHECK(exact_signed_cpu_export.status_elision_reason == "exact_wide_requested_limb_count_covers_range_status");
+  CHECK(exact_signed_cpu_export.status_elision_reason ==
+        "exact_wide_requested_limb_count_covers_range_status");
   CHECK(exact_signed_cpu_export.limb_count == 3);
   CHECK(std::string(exact_signed_cpu_export.selected_export_kernel) ==
         "cpu_reference_export_exact_wide_signed_limbs");
@@ -111,13 +118,15 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
       rns8_api::make_export_plan(exact_unsigned_hip, RNS8_EXACT_WIDE_UNSIGNED, 4);
   CHECK(exact_unsigned_hip_export.output_layout == rns8_api::export_output_layout::fixed_u64_limbs);
   CHECK(exact_unsigned_hip_export.status_policy == rns8_api::export_status_policy::none);
-  CHECK(exact_unsigned_hip_export.status_elision_reason == "exact_wide_requested_limb_count_covers_range_status");
+  CHECK(exact_unsigned_hip_export.status_elision_reason ==
+        "exact_wide_requested_limb_count_covers_range_status");
   CHECK(exact_unsigned_hip_export.limb_count == 4);
   CHECK(std::string(exact_unsigned_hip_export.selected_export_kernel) ==
         "hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device");
-  CHECK(exact_unsigned_hip_export.selector_key.find(
-            "selected_kernel=hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device") !=
-        std::string::npos);
+  CHECK(
+      exact_unsigned_hip_export.selector_key.find(
+          "selected_kernel=hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device") !=
+      std::string::npos);
 
   auto exact_signed_hip_512 = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_EXACT_WIDE_SIGNED);
   exact_signed_hip_512.prefix = 18;
@@ -137,7 +146,8 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   CHECK(std::string(exact_signed_hip_1024_export.selected_export_kernel) ==
         "hip_direct_export_exact_wide_signed_tree_crt_limbs_device");
   CHECK(exact_signed_hip_1024_export.selector_key.find(
-            "selected_kernel=hip_direct_export_exact_wide_signed_tree_crt_limbs_device") != std::string::npos);
+            "selected_kernel=hip_direct_export_exact_wide_signed_tree_crt_limbs_device") !=
+        std::string::npos);
 
   auto exact_signed_hip_rect = exact_signed_hip_1024;
   exact_signed_hip_rect.desc.m = 512;
@@ -147,7 +157,8 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   CHECK(std::string(exact_signed_hip_rect_export.selected_export_kernel) ==
         "hip_direct_export_exact_wide_signed_tree_crt_limbs_device");
 
-  auto exact_unsigned_hip_large = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_EXACT_WIDE_UNSIGNED);
+  auto exact_unsigned_hip_large =
+      export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_EXACT_WIDE_UNSIGNED);
   exact_unsigned_hip_large.prefix = 18;
   exact_unsigned_hip_large.desc.m = 2048;
   exact_unsigned_hip_large.desc.n = 2048;

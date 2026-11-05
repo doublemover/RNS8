@@ -27,32 +27,39 @@ enum class BuiltinArch { unsupported, cdna3, rdna3, rdna4 };
 inline std::string_view normalized_amdgpu_target(std::string_view target) noexcept {
   const auto separator = target.find(':');
   const auto base = target.substr(0, separator);
-  if (separator == std::string_view::npos) return base;
+  if (separator == std::string_view::npos)
+    return base;
   bool xnack = false, sramecc = false;
   auto rest = target.substr(separator + 1);
   while (!rest.empty()) {
     const auto next = rest.find(':');
     const auto feature = rest.substr(0, next);
     if (feature == "xnack+" || feature == "xnack-") {
-      if (xnack) return {};
+      if (xnack)
+        return {};
       xnack = true;
     } else if (feature == "sramecc+" || feature == "sramecc-") {
-      if (sramecc) return {};
+      if (sramecc)
+        return {};
       sramecc = true;
     } else {
       return {};
     }
-    if (next == std::string_view::npos) return base;
+    if (next == std::string_view::npos)
+      return base;
     rest.remove_prefix(next + 1);
   }
-  return {};  // Empty/trailing feature tokens are malformed.
+  return {}; // Empty/trailing feature tokens are malformed.
 }
 
 inline BuiltinArch builtin_arch(std::string_view target) noexcept {
   const auto base = normalized_amdgpu_target(target);
-  if (base == "gfx942") return BuiltinArch::cdna3;
-  if (base == "gfx1100" || base == "gfx1101" || base == "gfx1102") return BuiltinArch::rdna3;
-  if (base == "gfx1200" || base == "gfx1201") return BuiltinArch::rdna4;
+  if (base == "gfx942")
+    return BuiltinArch::cdna3;
+  if (base == "gfx1100" || base == "gfx1101" || base == "gfx1102")
+    return BuiltinArch::rdna3;
+  if (base == "gfx1200" || base == "gfx1201")
+    return BuiltinArch::rdna4;
   return BuiltinArch::unsupported;
 }
 
@@ -61,4 +68,4 @@ inline bool builtin_sparse_target(std::string_view target) noexcept {
   return arch == BuiltinArch::cdna3 || arch == BuiltinArch::rdna4;
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

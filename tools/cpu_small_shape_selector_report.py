@@ -75,7 +75,9 @@ def _group_key(capture: dict[str, Any]) -> tuple[str, str, str, str, str, int, i
     )
 
 
-def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | None = None) -> dict[str, Any]:
+def row_for_capture(
+    capture: dict[str, Any], references: CPUReferenceIndex | None = None
+) -> dict[str, Any]:
     selector = _selector(capture)
     backend = backend_id(capture)
     numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
@@ -106,14 +108,20 @@ def row_for_capture(capture: dict[str, Any], references: CPUReferenceIndex | Non
     }
 
 
-def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _group_report(
+    key: tuple[str, str, str, str, str, int, int, int], rows: list[dict[str, Any]]
+) -> dict[str, Any]:
     blockers = sorted({blocker for row in rows for blocker in row["blockers"]})
     cpu_rows = [row for row in rows if row["backend"] in {"cpu-reference", "cpu"}]
     gpu_rows = [row for row in rows if row["backend"] not in {"cpu-reference", "cpu"}]
     if not cpu_rows:
         blockers.append("cpu_reference_baseline_missing")
     cpu_median = min(
-        (float(row["median_end_to_end_us"]) for row in cpu_rows if isinstance(row["median_end_to_end_us"], (int, float))),
+        (
+            float(row["median_end_to_end_us"])
+            for row in cpu_rows
+            if isinstance(row["median_end_to_end_us"], (int, float))
+        ),
         default=None,
     )
     fastest_gpu = min(
@@ -122,7 +130,9 @@ def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list
         default=None,
     )
     fastest_gpu_median = (
-        float(fastest_gpu["median_end_to_end_us"]) if fastest_gpu and fastest_gpu["median_end_to_end_us"] is not None else None
+        float(fastest_gpu["median_end_to_end_us"])
+        if fastest_gpu and fastest_gpu["median_end_to_end_us"] is not None
+        else None
     )
     target_boundaries = sorted({str(row["target_boundary"]) for row in rows})
     if len(target_boundaries) > 2:
@@ -135,7 +145,10 @@ def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list
         promotion_speedup = None
     else:
         ratio = cpu_median / fastest_gpu_median if fastest_gpu_median > 0 else None
-        if ratio is not None and abs(cpu_median - fastest_gpu_median) / min(cpu_median, fastest_gpu_median) <= 0.05:
+        if (
+            ratio is not None
+            and abs(cpu_median - fastest_gpu_median) / min(cpu_median, fastest_gpu_median) <= 0.05
+        ):
             recommendation = "threshold_boundary"
         elif cpu_median <= fastest_gpu_median:
             recommendation = "cpu_wins"
@@ -150,7 +163,12 @@ def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list
             promotion_decision = "promote_gpu_selector_threshold"
             promoted_backend = fastest_gpu.get("backend") if fastest_gpu else None
             promotion_speedup = ratio
-        elif recommendation == "cpu_wins" and ratio is not None and ratio > 0 and (1.0 / ratio) >= PROMOTION_MARGIN:
+        elif (
+            recommendation == "cpu_wins"
+            and ratio is not None
+            and ratio > 0
+            and (1.0 / ratio) >= PROMOTION_MARGIN
+        ):
             promotion_decision = "promote_cpu_selector_threshold"
             promoted_backend = "cpu-reference"
             promotion_speedup = 1.0 / ratio
@@ -194,11 +212,16 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         if isinstance(capture.get("cpu_small_shape_selector"), dict)
         and capture.get("cpu_small_shape_selector", {}).get("enabled") is True
     ]
-    grouped: dict[tuple[str, str, str, str, str, int, int, int], list[dict[str, Any]]] = defaultdict(list)
+    grouped: dict[tuple[str, str, str, str, str, int, int, int], list[dict[str, Any]]] = (
+        defaultdict(list)
+    )
     references = CPUReferenceIndex(captures)
     for capture in captures:
         grouped[_group_key(capture)].append(row_for_capture(capture, references))
-    groups = [_group_report(key, rows) for key, rows in sorted(grouped.items(), key=lambda item: str(item[0]))]
+    groups = [
+        _group_report(key, rows)
+        for key, rows in sorted(grouped.items(), key=lambda item: str(item[0]))
+    ]
     blocker_counts = Counter(blocker for group in groups for blocker in group["blockers"])
     promotable_thresholds = [
         {

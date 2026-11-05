@@ -13,15 +13,12 @@
 namespace rns8::detail::api {
 #include "core/cpu_integer_export.inc"
 
-rns8_status validate_export_matrix(
-    const rns8_context& ctx,
-    const rns8_plan& plan,
-    const rns8_matrix& C,
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint32_t prefix,
-    bool require_current) {
-  if (ctx.hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+rns8_status validate_export_matrix(const rns8_context& ctx, const rns8_plan& plan,
+                                   const rns8_matrix& C, rns8_semantics semantics,
+                                   rns8_bound_kind bound_kind, uint32_t prefix,
+                                   bool require_current) {
+  if (ctx.hip_failure_poisoned)
+    return RNS8_BACKEND_FAILURE;
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -33,12 +30,12 @@ rns8_status validate_export_matrix(
   if (hip_device_backend(plan.backend) && C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const uint32_t storage_prefix = uses_rns_storage(semantics) ? rns_storage_prefix_for_plan(plan) : prefix;
+  const uint32_t storage_prefix =
+      uses_rns_storage(semantics) ? rns_storage_prefix_for_plan(plan) : prefix;
   const rns8_bound_kind storage_bound_kind =
       uses_rns_storage(semantics) ? storage_bound_kind_for_plan(plan) : bound_kind;
-  if (!matrix_descriptor_matches(
-          C, semantics, storage_bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m,
-          plan.desc.tile_n)) {
+  if (!matrix_descriptor_matches(C, semantics, storage_bound_kind, plan.desc.m, plan.desc.n,
+                                 storage_prefix, plan.desc.tile_m, plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (native_vector_backend(plan.backend)) {
@@ -52,7 +49,8 @@ rns8_status validate_export_matrix(
        (require_current && !rns_residue_state_current_for_backend(C, plan.backend)))) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (require_current && rns8::detail::exact_wide_semantics(semantics) && C.exact_range_prefix != 0 &&
+  if (require_current && rns8::detail::exact_wide_semantics(semantics) &&
+      C.exact_range_prefix != 0 &&
       (C.exact_range_prefix < prefix ||
        !rns8::detail::exact_range_fits(semantics, C.exact_max_magnitude, plan.modulus_product))) {
     return RNS8_RANGE_ERROR;
@@ -67,11 +65,8 @@ rns8_status validate_export_matrix(
   return RNS8_SUCCESS;
 }
 
-rns8_status validate_finite_export_matrix(
-    const rns8_context& ctx,
-    const rns8_plan& plan,
-    uint16_t modulus,
-    const rns8_matrix& C) {
+rns8_status validate_finite_export_matrix(const rns8_context& ctx, const rns8_plan& plan,
+                                          uint16_t modulus, const rns8_matrix& C) {
   if (!plan_schedule_contract_matches(plan) || !uses_finite_storage(plan.desc.semantics) ||
       !rns8::detail::valid_finite_modulus_for_semantics(plan.desc.semantics, modulus) ||
       plan.desc.finite_modulus != modulus) {
@@ -84,9 +79,8 @@ rns8_status validate_finite_export_matrix(
   if (hip_resident_rns_backend(plan.backend) && C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_descriptor_matches(
-          C, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.m, plan.desc.n, 0, plan.desc.tile_m,
-          plan.desc.tile_n)) {
+  if (!matrix_descriptor_matches(C, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.m, plan.desc.n,
+                                 0, plan.desc.tile_m, plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!finite_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n) ||
@@ -105,13 +99,10 @@ bool signed_value_within_bound(int64_t value, uint64_t bound) {
   return static_cast<uint64_t>(value) <= bound;
 }
 
-rns8_status export_native_i64(
-    rns8_context& ctx,
-    const rns8_plan& plan,
-    const rns8_matrix& C,
-    int64_t* dst,
-    int64_t ld) {
-  std::vector<int64_t> staged(static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
+rns8_status export_native_i64(rns8_context& ctx, const rns8_plan& plan, const rns8_matrix& C,
+                              int64_t* dst, int64_t ld) {
+  std::vector<int64_t> staged(
+      static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
   rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
     return rns8::detail::hip_direct_copy_device_to_host(
         ctx.device_id, staged.data(), C.hip_native_i64, staged.size() * sizeof(int64_t));
@@ -136,13 +127,10 @@ rns8_status export_native_i64(
   return RNS8_SUCCESS;
 }
 
-rns8_status export_native_u64(
-    rns8_context& ctx,
-    const rns8_plan& plan,
-    const rns8_matrix& C,
-    uint64_t* dst,
-    int64_t ld) {
-  std::vector<uint64_t> staged(static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
+rns8_status export_native_u64(rns8_context& ctx, const rns8_plan& plan, const rns8_matrix& C,
+                              uint64_t* dst, int64_t ld) {
+  std::vector<uint64_t> staged(
+      static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
   rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
     return rns8::detail::hip_direct_copy_device_to_host(
         ctx.device_id, staged.data(), C.hip_native_u64, staged.size() * sizeof(uint64_t));
@@ -167,14 +155,16 @@ rns8_status export_native_u64(
   return RNS8_SUCCESS;
 }
 
-rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& plan, rns8_matrix& matrix) {
+rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& plan,
+                                            rns8_matrix& matrix) {
   if (!context_accepts_backend(ctx, plan.backend) ||
       !matrix_backend_compatible_with_plan(ctx, matrix, plan.backend) ||
       !hip_resident_rns_backend(plan.backend) || plan.tile_schedule.empty()) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (plan.tile_bounds.size() != plan.tile_schedule.size() ||
-      plan.tile_schedule.size() > std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry) ||
+      plan.tile_schedule.size() >
+          std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry) ||
       plan.tile_bounds.size() > std::numeric_limits<std::size_t>::max() / sizeof(uint64_t)) {
     return RNS8_INTERNAL_ERROR;
   }
@@ -190,107 +180,114 @@ rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& 
     }
     max_tile_elements = std::max(max_tile_elements, row_extent * col_extent);
   }
-  if (max_tile_elements == 0 || max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+  if (max_tile_elements == 0 ||
+      max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
     return RNS8_RANGE_ERROR;
   }
   const uint64_t fingerprint = plan_workspace_fingerprint(plan);
   const uint64_t entry_count = static_cast<uint64_t>(plan.tile_schedule.size());
-  const std::size_t schedule_bytes = plan.tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry);
+  const std::size_t schedule_bytes =
+      plan.tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry);
   const std::size_t bounds_bytes = plan.tile_bounds.size() * sizeof(uint64_t);
   const bool zero_row_col_masks =
       (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
-  const std::size_t zero_a_bytes = zero_row_col_masks ? plan.zero_a_rows.size() * sizeof(uint8_t) : 0;
-  const std::size_t zero_b_bytes = zero_row_col_masks ? plan.zero_b_cols.size() * sizeof(uint8_t) : 0;
-  const bool metadata_current =
-      matrix.hip_export_schedule_fingerprint == fingerprint &&
-      matrix.hip_export_tile_schedule != nullptr &&
-      matrix.hip_export_tile_schedule_bytes >= schedule_bytes &&
-      matrix.hip_export_tile_schedule_count == entry_count &&
-      matrix.hip_export_tile_bounds != nullptr &&
-      matrix.hip_export_tile_bounds_bytes >= bounds_bytes &&
-      matrix.hip_export_tile_bounds_count == entry_count &&
-      matrix.hip_export_zero_a_rows_bytes >= zero_a_bytes &&
-      matrix.hip_export_zero_b_cols_bytes >= zero_b_bytes &&
-      (zero_a_bytes == 0 ? matrix.hip_export_zero_a_rows == nullptr
-                         : matrix.hip_export_zero_a_rows != nullptr) &&
-      (zero_b_bytes == 0 ? matrix.hip_export_zero_b_cols == nullptr
-                         : matrix.hip_export_zero_b_cols != nullptr) &&
-      matrix.hip_export_tile_max_elements == max_tile_elements;
+  const std::size_t zero_a_bytes =
+      zero_row_col_masks ? plan.zero_a_rows.size() * sizeof(uint8_t) : 0;
+  const std::size_t zero_b_bytes =
+      zero_row_col_masks ? plan.zero_b_cols.size() * sizeof(uint8_t) : 0;
+  const bool metadata_current = matrix.hip_export_schedule_fingerprint == fingerprint &&
+                                matrix.hip_export_tile_schedule != nullptr &&
+                                matrix.hip_export_tile_schedule_bytes >= schedule_bytes &&
+                                matrix.hip_export_tile_schedule_count == entry_count &&
+                                matrix.hip_export_tile_bounds != nullptr &&
+                                matrix.hip_export_tile_bounds_bytes >= bounds_bytes &&
+                                matrix.hip_export_tile_bounds_count == entry_count &&
+                                matrix.hip_export_zero_a_rows_bytes >= zero_a_bytes &&
+                                matrix.hip_export_zero_b_cols_bytes >= zero_b_bytes &&
+                                (zero_a_bytes == 0 ? matrix.hip_export_zero_a_rows == nullptr
+                                                   : matrix.hip_export_zero_a_rows != nullptr) &&
+                                (zero_b_bytes == 0 ? matrix.hip_export_zero_b_cols == nullptr
+                                                   : matrix.hip_export_zero_b_cols != nullptr) &&
+                                matrix.hip_export_tile_max_elements == max_tile_elements;
   if (metadata_current) {
     return RNS8_SUCCESS;
   }
-  return rns8::detail::replace_export_metadata(matrix, fingerprint, entry_count, max_tile_elements, [&]() {
-    if (zero_a_bytes == 0 && matrix.hip_export_zero_a_rows) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_a_rows);
-      if (free_status != RNS8_SUCCESS) {
-        return free_status;
-      }
-      matrix.hip_export_zero_a_rows = nullptr;
-      matrix.hip_export_zero_a_rows_bytes = 0;
-    }
-    if (zero_b_bytes == 0 && matrix.hip_export_zero_b_cols) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_b_cols);
-      if (free_status != RNS8_SUCCESS) {
-        return free_status;
-      }
-      matrix.hip_export_zero_b_cols = nullptr;
-      matrix.hip_export_zero_b_cols_bytes = 0;
-    }
-    rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
-        ctx.device_id, schedule_bytes, &matrix.hip_export_tile_schedule, &matrix.hip_export_tile_schedule_bytes);
-    if (status != RNS8_SUCCESS) {
-      return status;
-    }
-    status = rns8::detail::hip_direct_ensure_upload_buffer(
-        ctx.device_id, bounds_bytes, &matrix.hip_export_tile_bounds, &matrix.hip_export_tile_bounds_bytes);
-    if (status != RNS8_SUCCESS) {
-      return status;
-    }
-    status = rns8::detail::hip_direct_copy_host_to_device(
-        ctx.device_id, matrix.hip_export_tile_schedule, plan.tile_schedule.data(), schedule_bytes);
-    if (status != RNS8_SUCCESS) {
-      return status;
-    }
-    status = rns8::detail::hip_direct_copy_host_to_device(
-        ctx.device_id, matrix.hip_export_tile_bounds, plan.tile_bounds.data(), bounds_bytes);
-    if (status != RNS8_SUCCESS) {
-      return status;
-    }
-    if (zero_a_bytes != 0) {
-      status = rns8::detail::hip_direct_ensure_upload_buffer(
-          ctx.device_id, zero_a_bytes, &matrix.hip_export_zero_a_rows, &matrix.hip_export_zero_a_rows_bytes);
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-      status = rns8::detail::hip_direct_copy_host_to_device(
-          ctx.device_id, matrix.hip_export_zero_a_rows, plan.zero_a_rows.data(), zero_a_bytes);
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-    }
-    if (zero_b_bytes != 0) {
-      status = rns8::detail::hip_direct_ensure_upload_buffer(
-          ctx.device_id, zero_b_bytes, &matrix.hip_export_zero_b_cols, &matrix.hip_export_zero_b_cols_bytes);
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-      status = rns8::detail::hip_direct_copy_host_to_device(
-          ctx.device_id, matrix.hip_export_zero_b_cols, plan.zero_b_cols.data(), zero_b_bytes);
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-    }
-    return RNS8_SUCCESS;
-  });
+  return rns8::detail::replace_export_metadata(
+      matrix, fingerprint, entry_count, max_tile_elements, [&]() {
+        if (zero_a_bytes == 0 && matrix.hip_export_zero_a_rows) {
+          const rns8_status free_status =
+              rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_a_rows);
+          if (free_status != RNS8_SUCCESS) {
+            return free_status;
+          }
+          matrix.hip_export_zero_a_rows = nullptr;
+          matrix.hip_export_zero_a_rows_bytes = 0;
+        }
+        if (zero_b_bytes == 0 && matrix.hip_export_zero_b_cols) {
+          const rns8_status free_status =
+              rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_b_cols);
+          if (free_status != RNS8_SUCCESS) {
+            return free_status;
+          }
+          matrix.hip_export_zero_b_cols = nullptr;
+          matrix.hip_export_zero_b_cols_bytes = 0;
+        }
+        rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
+            ctx.device_id, schedule_bytes, &matrix.hip_export_tile_schedule,
+            &matrix.hip_export_tile_schedule_bytes);
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
+        status = rns8::detail::hip_direct_ensure_upload_buffer(
+            ctx.device_id, bounds_bytes, &matrix.hip_export_tile_bounds,
+            &matrix.hip_export_tile_bounds_bytes);
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
+        status = rns8::detail::hip_direct_copy_host_to_device(
+            ctx.device_id, matrix.hip_export_tile_schedule, plan.tile_schedule.data(),
+            schedule_bytes);
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
+        status = rns8::detail::hip_direct_copy_host_to_device(
+            ctx.device_id, matrix.hip_export_tile_bounds, plan.tile_bounds.data(), bounds_bytes);
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
+        if (zero_a_bytes != 0) {
+          status = rns8::detail::hip_direct_ensure_upload_buffer(
+              ctx.device_id, zero_a_bytes, &matrix.hip_export_zero_a_rows,
+              &matrix.hip_export_zero_a_rows_bytes);
+          if (status != RNS8_SUCCESS) {
+            return status;
+          }
+          status = rns8::detail::hip_direct_copy_host_to_device(
+              ctx.device_id, matrix.hip_export_zero_a_rows, plan.zero_a_rows.data(), zero_a_bytes);
+          if (status != RNS8_SUCCESS) {
+            return status;
+          }
+        }
+        if (zero_b_bytes != 0) {
+          status = rns8::detail::hip_direct_ensure_upload_buffer(
+              ctx.device_id, zero_b_bytes, &matrix.hip_export_zero_b_cols,
+              &matrix.hip_export_zero_b_cols_bytes);
+          if (status != RNS8_SUCCESS) {
+            return status;
+          }
+          status = rns8::detail::hip_direct_copy_host_to_device(
+              ctx.device_id, matrix.hip_export_zero_b_cols, plan.zero_b_cols.data(), zero_b_bytes);
+          if (status != RNS8_SUCCESS) {
+            return status;
+          }
+        }
+        return RNS8_SUCCESS;
+      });
 }
 
-rns8_matrix& prepare_mutable_export_cache(
-    rns8_context& ctx,
-    const rns8_plan& plan,
-    const export_reconstruction_plan& export_plan,
-    const rns8_matrix& matrix) {
+rns8_matrix& prepare_mutable_export_cache(rns8_context& ctx, const rns8_plan& plan,
+                                          const export_reconstruction_plan& export_plan,
+                                          const rns8_matrix& matrix) {
   (void)ctx;
   (void)plan;
   (void)export_plan;
@@ -299,176 +296,148 @@ rns8_matrix& prepare_mutable_export_cache(
   return *const_cast<rns8_matrix*>(&matrix);
 }
 
-rns8_status ensure_export_plan_resources(
-    rns8_context& ctx,
-    const rns8_plan& plan,
-    const export_reconstruction_plan& export_plan,
-    rns8_matrix& matrix) {
+rns8_status ensure_export_plan_resources(rns8_context& ctx, const rns8_plan& plan,
+                                         const export_reconstruction_plan& export_plan,
+                                         rns8_matrix& matrix) {
   if (!export_plan.requires_hip_tile_metadata) {
     return RNS8_SUCCESS;
   }
   return ensure_hip_export_tile_metadata(ctx, plan, matrix);
 }
 
-}  // namespace rns8::detail::api
+} // namespace rns8::detail::api
 
 using namespace rns8::detail::api;
 using rns8::detail::cpu_parallel_saturating_mul;
 using rns8::detail::cpu_parallel_saturating_mul3;
 using rns8::detail::cpu_parallel_should_use;
 
-rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C, int64_t* dst, int64_t ld) {
-  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
+rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,
+                            int64_t* dst, int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(
+      rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    const rns8_status export_status =
-        validate_export_matrix(*ctx, *plan, *C, RNS8_BOUNDED_I64, plan->desc.bound_kind, plan->prefix);
+    const rns8_status export_status = validate_export_matrix(*ctx, *plan, *C, RNS8_BOUNDED_I64,
+                                                             plan->desc.bound_kind, plan->prefix);
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
-    if(reserved!=RNS8_SUCCESS)return reserved;
-    SynchronousLease lease(*ctx,token);
+    size_t token = 0;
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    if (reserved != RNS8_SUCCESS)
+      return reserved;
+    SynchronousLease lease(*ctx, token);
     return lease.finish([&]() -> rns8_status {
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_i64");
-    if(dispatched!=RNS8_SUCCESS)return dispatched;
-    if (native_vector_backend(plan->backend)) {
-      return export_native_i64(*ctx, *plan, *C, dst, ld);
-    }
-    const export_reconstruction_plan export_plan = make_export_plan(*plan, RNS8_BOUNDED_I64);
-    if (hip_resident_rns_backend(plan->backend)) {
-      if (!plan->tile_schedule.empty()) {
-        if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
-          return RNS8_INTERNAL_ERROR;
+      const auto dispatched = synchronous_dispatch_checkpoint(*ctx, "export_i64");
+      if (dispatched != RNS8_SUCCESS)
+        return dispatched;
+      if (native_vector_backend(plan->backend)) {
+        return export_native_i64(*ctx, *plan, *C, dst, ld);
+      }
+      const export_reconstruction_plan export_plan = make_export_plan(*plan, RNS8_BOUNDED_I64);
+      if (hip_resident_rns_backend(plan->backend)) {
+        if (!plan->tile_schedule.empty()) {
+          if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
+            return RNS8_INTERNAL_ERROR;
+          }
+          rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
+          const rns8_status resource_status =
+              ensure_export_plan_resources(*ctx, *plan, export_plan, mutable_c);
+          if (resource_status != RNS8_SUCCESS) {
+            return resource_status;
+          }
+          return rns8::detail::hip_direct_export_i64_tiled_device(
+              ctx->device_id, C->hip_residues, &mutable_c.hip_export_buffer,
+              &mutable_c.hip_export_bytes, &mutable_c.hip_status_buffer,
+              &mutable_c.hip_status_bytes, plan->desc.m, plan->desc.n,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_schedule,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_bounds,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_a_rows,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_b_cols,
+              export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_schedule_count,
+              export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_max_elements,
+              export_plan.all_zero_tiled_output, dst, ld);
         }
         rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
-        const rns8_status resource_status = ensure_export_plan_resources(*ctx, *plan, export_plan, mutable_c);
-        if (resource_status != RNS8_SUCCESS) {
-          return resource_status;
-        }
-        return rns8::detail::hip_direct_export_i64_tiled_device(
-            ctx->device_id,
-            C->hip_residues,
-            &mutable_c.hip_export_buffer,
-            &mutable_c.hip_export_bytes,
-            &mutable_c.hip_status_buffer,
-            &mutable_c.hip_status_bytes,
-            plan->desc.m,
-            plan->desc.n,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_schedule,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_bounds,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_a_rows,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_b_cols,
-            export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_schedule_count,
-            export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_max_elements,
-            export_plan.all_zero_tiled_output,
-            dst,
-            ld);
+        return rns8::detail::hip_direct_export_i64_device(
+            ctx->device_id, C->hip_residues, &mutable_c.hip_export_buffer,
+            &mutable_c.hip_export_bytes, &mutable_c.hip_status_buffer, &mutable_c.hip_status_bytes,
+            plan->desc.m, plan->desc.n, plan->prefix, bound_for_cell(*plan, 0, 0), dst, ld);
       }
-      rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
-      return rns8::detail::hip_direct_export_i64_device(
-          ctx->device_id,
-          C->hip_residues,
-          &mutable_c.hip_export_buffer,
-          &mutable_c.hip_export_bytes,
-          &mutable_c.hip_status_buffer,
-          &mutable_c.hip_status_bytes,
-          plan->desc.m,
-          plan->desc.n,
-          plan->prefix,
-          bound_for_cell(*plan, 0, 0),
-          dst,
-          ld);
-    }
-    return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::bounded_signed,1);
+      return export_host_integer(*ctx, *plan, *C, dst, ld,
+                                 rns8::detail::IntegerExportKind::bounded_signed, 1);
     }());
   });
 }
 
-rns8_status rns8_export_u64(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const rns8_matrix* C,
-    uint64_t* dst,
-    int64_t ld) {
-  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
+rns8_status rns8_export_u64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,
+                            uint64_t* dst, int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(
+      rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    const rns8_status export_status =
-        validate_export_matrix(*ctx, *plan, *C, RNS8_BOUNDED_U64, plan->desc.bound_kind, plan->prefix);
+    const rns8_status export_status = validate_export_matrix(*ctx, *plan, *C, RNS8_BOUNDED_U64,
+                                                             plan->desc.bound_kind, plan->prefix);
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
-    if(reserved!=RNS8_SUCCESS)return reserved;
-    SynchronousLease lease(*ctx,token);
+    size_t token = 0;
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    if (reserved != RNS8_SUCCESS)
+      return reserved;
+    SynchronousLease lease(*ctx, token);
     return lease.finish([&]() -> rns8_status {
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_u64");
-    if(dispatched!=RNS8_SUCCESS)return dispatched;
-    if (native_vector_backend(plan->backend)) {
-      return export_native_u64(*ctx, *plan, *C, dst, ld);
-    }
-    const export_reconstruction_plan export_plan = make_export_plan(*plan, RNS8_BOUNDED_U64);
-    if (hip_resident_rns_backend(plan->backend)) {
-      if (!plan->tile_schedule.empty()) {
-        if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
-          return RNS8_INTERNAL_ERROR;
+      const auto dispatched = synchronous_dispatch_checkpoint(*ctx, "export_u64");
+      if (dispatched != RNS8_SUCCESS)
+        return dispatched;
+      if (native_vector_backend(plan->backend)) {
+        return export_native_u64(*ctx, *plan, *C, dst, ld);
+      }
+      const export_reconstruction_plan export_plan = make_export_plan(*plan, RNS8_BOUNDED_U64);
+      if (hip_resident_rns_backend(plan->backend)) {
+        if (!plan->tile_schedule.empty()) {
+          if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
+            return RNS8_INTERNAL_ERROR;
+          }
+          rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
+          const rns8_status resource_status =
+              ensure_export_plan_resources(*ctx, *plan, export_plan, mutable_c);
+          if (resource_status != RNS8_SUCCESS) {
+            return resource_status;
+          }
+          return rns8::detail::hip_direct_export_u64_tiled_device(
+              ctx->device_id, C->hip_residues, &mutable_c.hip_export_buffer,
+              &mutable_c.hip_export_bytes, &mutable_c.hip_status_buffer,
+              &mutable_c.hip_status_bytes, plan->desc.m, plan->desc.n,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_schedule,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_bounds,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_a_rows,
+              export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_b_cols,
+              export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_schedule_count,
+              export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_max_elements,
+              export_plan.all_zero_tiled_output, dst, ld);
         }
         rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
-        const rns8_status resource_status = ensure_export_plan_resources(*ctx, *plan, export_plan, mutable_c);
-        if (resource_status != RNS8_SUCCESS) {
-          return resource_status;
-        }
-        return rns8::detail::hip_direct_export_u64_tiled_device(
-            ctx->device_id,
-            C->hip_residues,
-            &mutable_c.hip_export_buffer,
-            &mutable_c.hip_export_bytes,
-            &mutable_c.hip_status_buffer,
-            &mutable_c.hip_status_bytes,
-            plan->desc.m,
-            plan->desc.n,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_schedule,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_tile_bounds,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_a_rows,
-            export_plan.all_zero_tiled_output ? nullptr : mutable_c.hip_export_zero_b_cols,
-            export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_schedule_count,
-            export_plan.all_zero_tiled_output ? 0 : mutable_c.hip_export_tile_max_elements,
-            export_plan.all_zero_tiled_output,
-            dst,
-            ld);
+        return rns8::detail::hip_direct_export_u64_device(
+            ctx->device_id, C->hip_residues, &mutable_c.hip_export_buffer,
+            &mutable_c.hip_export_bytes, &mutable_c.hip_status_buffer, &mutable_c.hip_status_bytes,
+            plan->desc.m, plan->desc.n, plan->prefix, bound_for_cell(*plan, 0, 0), dst, ld);
       }
-      rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
-      return rns8::detail::hip_direct_export_u64_device(
-          ctx->device_id,
-          C->hip_residues,
-          &mutable_c.hip_export_buffer,
-          &mutable_c.hip_export_bytes,
-          &mutable_c.hip_status_buffer,
-          &mutable_c.hip_status_bytes,
-          plan->desc.m,
-          plan->desc.n,
-          plan->prefix,
-          bound_for_cell(*plan, 0, 0),
-          dst,
-          ld);
-    }
-    return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::bounded_unsigned,1);
+      return export_host_integer(*ctx, *plan, *C, dst, ld,
+                                 rns8::detail::IntegerExportKind::bounded_unsigned, 1);
     }());
   });
 }
 
-rns8_status rns8_export_wrap_u64(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const rns8_matrix* C,
-    uint64_t* dst,
-    int64_t ld) {
-  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
+rns8_status rns8_export_wrap_u64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,
+                                 uint64_t* dst, int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(
+      rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
       return RNS8_INVALID_ARGUMENT;
@@ -478,193 +447,171 @@ rns8_status rns8_export_wrap_u64(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
-    if(reserved!=RNS8_SUCCESS)return reserved;
-    SynchronousLease lease(*ctx,token);
+    size_t token = 0;
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    if (reserved != RNS8_SUCCESS)
+      return reserved;
+    SynchronousLease lease(*ctx, token);
     return lease.finish([&]() -> rns8_status {
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"wrap64_export");
-    if(dispatched!=RNS8_SUCCESS)return dispatched;
-    if (!wrap_matrix_storage_matches(*C, plan->backend, plan->desc.m, plan->desc.n)) {
-      return RNS8_INVALID_ARGUMENT;
-    }
-    if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
-      if (!C->host_byte_limbs_current) {
+      const auto dispatched = synchronous_dispatch_checkpoint(*ctx, "wrap64_export");
+      if (dispatched != RNS8_SUCCESS)
+        return dispatched;
+      if (!wrap_matrix_storage_matches(*C, plan->backend, plan->desc.m, plan->desc.n)) {
         return RNS8_INVALID_ARGUMENT;
       }
-      const auto export_row = [&](int64_t row) {
-        for (int64_t col = 0; col < plan->desc.n; ++col) {
-          dst[row * ld + col] = rns8::detail::wrap_u64_matrix_cell(*C, row, col);
+      if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+        if (!C->host_byte_limbs_current) {
+          return RNS8_INVALID_ARGUMENT;
         }
-      };
-      const uint64_t work = cpu_parallel_saturating_mul(
-          static_cast<uint64_t>(plan->desc.m), static_cast<uint64_t>(plan->desc.n));
+        const auto export_row = [&](int64_t row) {
+          for (int64_t col = 0; col < plan->desc.n; ++col) {
+            dst[row * ld + col] = rns8::detail::wrap_u64_matrix_cell(*C, row, col);
+          }
+        };
+        const uint64_t work = cpu_parallel_saturating_mul(static_cast<uint64_t>(plan->desc.m),
+                                                          static_cast<uint64_t>(plan->desc.n));
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
-      if (cpu_parallel_should_use(work)) {
-#  pragma omp parallel for schedule(static)
+        if (cpu_parallel_should_use(work)) {
+#pragma omp parallel for schedule(static)
+          for (int64_t row = 0; row < plan->desc.m; ++row) {
+            export_row(row);
+          }
+          return RNS8_SUCCESS;
+        }
+#endif
         for (int64_t row = 0; row < plan->desc.m; ++row) {
           export_row(row);
         }
         return RNS8_SUCCESS;
       }
-#endif
-      for (int64_t row = 0; row < plan->desc.m; ++row) {
-        export_row(row);
+      if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+        return rns8::detail::wrap64_hip_export_u64_device(ctx->device_id, C->hip_byte_limbs,
+                                                          plan->desc.m, plan->desc.n, dst, ld);
       }
-      return RNS8_SUCCESS;
-    }
-    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      return rns8::detail::wrap64_hip_export_u64_device(
-          ctx->device_id,
-          C->hip_byte_limbs,
-          plan->desc.m,
-          plan->desc.n,
-          dst,
-          ld);
-    }
-    return RNS8_UNSUPPORTED_BACKEND;
+      return RNS8_UNSUPPORTED_BACKEND;
     }());
   });
 }
 
-rns8_status rns8_export_finite_u8(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    uint16_t modulus,
-    const rns8_matrix* C,
-    uint8_t* dst,
-    int64_t ld) {
-  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
+rns8_status rns8_export_finite_u8(rns8_context* ctx, const rns8_plan* plan, uint16_t modulus,
+                                  const rns8_matrix* C, uint8_t* dst, int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(
+      rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld, sizeof(uint8_t))) {
+    if (!ctx || !plan || !C || !dst ||
+        !valid_matrix_access(plan->desc.m, plan->desc.n, ld, sizeof(uint8_t))) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status export_status = validate_finite_export_matrix(*ctx, *plan, modulus, *C);
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
-    if(reserved!=RNS8_SUCCESS)return reserved;
-    SynchronousLease lease(*ctx,token);
+    size_t token = 0;
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    if (reserved != RNS8_SUCCESS)
+      return reserved;
+    SynchronousLease lease(*ctx, token);
     return lease.finish([&]() -> rns8_status {
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_finite_u8");
-    if(dispatched!=RNS8_SUCCESS)return dispatched;
-    if (hip_resident_rns_backend(plan->backend)) {
-      const export_reconstruction_plan export_plan = make_export_plan(*plan, plan->desc.semantics);
-      rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
-      return rns8::detail::hip_direct_export_finite_u8_device(
-          ctx->device_id,
-          C->hip_residues,
-          &mutable_c.hip_export_buffer,
-          &mutable_c.hip_export_bytes,
-          plan->desc.m,
-          plan->desc.n,
-          modulus,
-          dst,
-          ld);
-    }
-    if (host_rns_backend(plan->backend)) {
-      rns8::detail::export_finite_u8_matrix(*C, dst, ld, modulus);
-      return RNS8_SUCCESS;
-    }
-    return RNS8_UNSUPPORTED_BACKEND;
+      const auto dispatched = synchronous_dispatch_checkpoint(*ctx, "export_finite_u8");
+      if (dispatched != RNS8_SUCCESS)
+        return dispatched;
+      if (hip_resident_rns_backend(plan->backend)) {
+        const export_reconstruction_plan export_plan =
+            make_export_plan(*plan, plan->desc.semantics);
+        rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
+        return rns8::detail::hip_direct_export_finite_u8_device(
+            ctx->device_id, C->hip_residues, &mutable_c.hip_export_buffer,
+            &mutable_c.hip_export_bytes, plan->desc.m, plan->desc.n, modulus, dst, ld);
+      }
+      if (host_rns_backend(plan->backend)) {
+        rns8::detail::export_finite_u8_matrix(*C, dst, ld, modulus);
+        return RNS8_SUCCESS;
+      }
+      return RNS8_UNSUPPORTED_BACKEND;
     }());
   });
 }
 
-rns8_status rns8_export_exact_wide_signed_limbs(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const rns8_matrix* C,
-    uint64_t* dst,
-    int64_t ld,
-    uint32_t limb_count) {
-  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
+rns8_status rns8_export_exact_wide_signed_limbs(rns8_context* ctx, const rns8_plan* plan,
+                                                const rns8_matrix* C, uint64_t* dst, int64_t ld,
+                                                uint32_t limb_count) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(
+      rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !C || !dst || !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
+    if (!ctx || !plan || !C || !dst ||
+        !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    const rns8_status export_status =
-        validate_export_matrix(*ctx, *plan, *C, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, plan->prefix);
+    const rns8_status export_status = validate_export_matrix(
+        *ctx, *plan, *C, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, plan->prefix);
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
-    if(reserved!=RNS8_SUCCESS)return reserved;
-    SynchronousLease lease(*ctx,token);
+    size_t token = 0;
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    if (reserved != RNS8_SUCCESS)
+      return reserved;
+    SynchronousLease lease(*ctx, token);
     return lease.finish([&]() -> rns8_status {
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_wide_signed");
-    if(dispatched!=RNS8_SUCCESS)return dispatched;
-    if (hip_resident_rns_backend(plan->backend)) {
-      if (!C->device_residues_current) {
-        return RNS8_INVALID_ARGUMENT;
+      const auto dispatched = synchronous_dispatch_checkpoint(*ctx, "export_wide_signed");
+      if (dispatched != RNS8_SUCCESS)
+        return dispatched;
+      if (hip_resident_rns_backend(plan->backend)) {
+        if (!C->device_residues_current) {
+          return RNS8_INVALID_ARGUMENT;
+        }
+        const export_reconstruction_plan export_plan =
+            make_export_plan(*plan, RNS8_EXACT_WIDE_SIGNED, limb_count);
+        rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
+        return rns8::detail::hip_direct_export_exact_wide_signed_limbs_device(
+            ctx->device_id, C->hip_residues, &mutable_c.hip_export_buffer,
+            &mutable_c.hip_export_bytes, &mutable_c.hip_status_buffer, &mutable_c.hip_status_bytes,
+            plan->desc.m, plan->desc.n, plan->prefix, dst, ld, limb_count);
       }
-      const export_reconstruction_plan export_plan =
-          make_export_plan(*plan, RNS8_EXACT_WIDE_SIGNED, limb_count);
-      rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
-      return rns8::detail::hip_direct_export_exact_wide_signed_limbs_device(
-          ctx->device_id,
-          C->hip_residues,
-          &mutable_c.hip_export_buffer,
-          &mutable_c.hip_export_bytes,
-          &mutable_c.hip_status_buffer,
-          &mutable_c.hip_status_bytes,
-          plan->desc.m,
-          plan->desc.n,
-          plan->prefix,
-          dst,
-          ld,
-          limb_count);
-    }
-    return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::wide_signed,limb_count);
+      return export_host_integer(*ctx, *plan, *C, dst, ld,
+                                 rns8::detail::IntegerExportKind::wide_signed, limb_count);
     }());
   });
 }
 
-rns8_status rns8_export_exact_wide_unsigned_limbs(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const rns8_matrix* C,
-    uint64_t* dst,
-    int64_t ld,
-    uint32_t limb_count) {
-  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
+rns8_status rns8_export_exact_wide_unsigned_limbs(rns8_context* ctx, const rns8_plan* plan,
+                                                  const rns8_matrix* C, uint64_t* dst, int64_t ld,
+                                                  uint32_t limb_count) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(
+      rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !C || !dst || !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
+    if (!ctx || !plan || !C || !dst ||
+        !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    const rns8_status export_status =
-        validate_export_matrix(*ctx, *plan, *C, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, plan->prefix);
+    const rns8_status export_status = validate_export_matrix(
+        *ctx, *plan, *C, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, plan->prefix);
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    size_t token=0;const auto reserved=begin_synchronous_read_lease(*ctx,*C,token);
-    if(reserved!=RNS8_SUCCESS)return reserved;
-    SynchronousLease lease(*ctx,token);
+    size_t token = 0;
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    if (reserved != RNS8_SUCCESS)
+      return reserved;
+    SynchronousLease lease(*ctx, token);
     return lease.finish([&]() -> rns8_status {
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"export_wide_unsigned");
-    if(dispatched!=RNS8_SUCCESS)return dispatched;
-    if (hip_resident_rns_backend(plan->backend)) {
-      if (!C->device_residues_current) {
-        return RNS8_INVALID_ARGUMENT;
+      const auto dispatched = synchronous_dispatch_checkpoint(*ctx, "export_wide_unsigned");
+      if (dispatched != RNS8_SUCCESS)
+        return dispatched;
+      if (hip_resident_rns_backend(plan->backend)) {
+        if (!C->device_residues_current) {
+          return RNS8_INVALID_ARGUMENT;
+        }
+        const export_reconstruction_plan export_plan =
+            make_export_plan(*plan, RNS8_EXACT_WIDE_UNSIGNED, limb_count);
+        rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
+        return rns8::detail::hip_direct_export_exact_wide_unsigned_limbs_device(
+            ctx->device_id, C->hip_residues, &mutable_c.hip_export_buffer,
+            &mutable_c.hip_export_bytes, &mutable_c.hip_status_buffer, &mutable_c.hip_status_bytes,
+            plan->desc.m, plan->desc.n, plan->prefix, dst, ld, limb_count);
       }
-      const export_reconstruction_plan export_plan =
-          make_export_plan(*plan, RNS8_EXACT_WIDE_UNSIGNED, limb_count);
-      rns8_matrix& mutable_c = prepare_mutable_export_cache(*ctx, *plan, export_plan, *C);
-      return rns8::detail::hip_direct_export_exact_wide_unsigned_limbs_device(
-          ctx->device_id,
-          C->hip_residues,
-          &mutable_c.hip_export_buffer,
-          &mutable_c.hip_export_bytes,
-          &mutable_c.hip_status_buffer,
-          &mutable_c.hip_status_bytes,
-          plan->desc.m,
-          plan->desc.n,
-          plan->prefix,
-          dst,
-          ld,
-          limb_count);
-    }
-    return export_host_integer(*ctx,*plan,*C,dst,ld,rns8::detail::IntegerExportKind::wide_unsigned,limb_count);
+      return export_host_integer(*ctx, *plan, *C, dst, ld,
+                                 rns8::detail::IntegerExportKind::wide_unsigned, limb_count);
     }());
   });
 }

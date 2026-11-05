@@ -54,15 +54,11 @@ def enum_constants(node: Object) -> dict[str, int]:
         if child.get("kind") != "EnumConstantDecl":
             continue
         constants = [
-            item
-            for item in walk(child)
-            if item.get("kind") == "ConstantExpr" and "value" in item
+            item for item in walk(child) if item.get("kind") == "ConstantExpr" and "value" in item
         ]
         if not constants and list(children(child)):
             raise ValueError("frontend omitted a folded enum initializer")
-        previous = (
-            int(spelling(constants[0]["value"]), 0) if constants else previous + 1
-        )
+        previous = int(spelling(constants[0]["value"]), 0) if constants else previous + 1
         name = spelling(child.get("name"))
         if name in result:
             raise ValueError("duplicate enum constant: " + name)
@@ -146,17 +142,14 @@ def collect_surface(
         kind = node.get("kind")
         if not isinstance(name, str) or not name.startswith("rns8_"):
             if kind == "FunctionDecl" and any(
-                child.get("kind")
-                in ("DLLImportAttr", "DLLExportAttr", "VisibilityAttr")
+                child.get("kind") in ("DLLImportAttr", "DLLExportAttr", "VisibilityAttr")
                 for child in children(node)
             ):
                 raise ValueError(
-                    "exported declarations must use the public rns8_ namespace: "
-                    + str(name)
+                    "exported declarations must use the public rns8_ namespace: " + str(name)
                 )
             if kind == "EnumDecl" and any(
-                str(child.get("name", "")).startswith("RNS8_")
-                for child in children(node)
+                str(child.get("name", "")).startswith("RNS8_") for child in children(node)
             ):
                 if node.get("name"):
                     raise ValueError(
@@ -170,14 +163,10 @@ def collect_surface(
             if cpp:
                 underlying = object_value(node.get("fixedUnderlyingType"))
                 if underlying.get("qualType") != "uint32_t":
-                    raise ValueError(
-                        "public enum lacks fixed uint32_t C++ backing: " + name
-                    )
+                    raise ValueError("public enum lacks fixed uint32_t C++ backing: " + name)
             values = enum_constants(node)
             if any(value < 0 or value > 0xFFFFFFFF for value in values.values()):
-                raise ValueError(
-                    "public enum exceeds the supported uint32 ABI: " + name
-                )
+                raise ValueError("public enum exceeds the supported uint32 ABI: " + name)
             if name in enums and enums[name] != values:
                 raise ValueError("conflicting public enum: " + name)
             enums[name] = values
@@ -191,14 +180,12 @@ def collect_surface(
                     continue
                 if field.get("isBitfield") or not field.get("name"):
                     raise ValueError(
-                        "public bitfield/anonymous field needs explicit ABI support: "
-                        + name
+                        "public bitfield/anonymous field needs explicit ABI support: " + name
                     )
                 field_type = qualified_type(field)
                 if "(unnamed" in field_type or "anonymous" in field_type:
                     raise ValueError(
-                        "anonymous public member type needs explicit ABI support: "
-                        + name
+                        "anonymous public member type needs explicit ABI support: " + name
                     )
                 fields.append([spelling(field["name"]), field_type])
             if not fields:
@@ -211,9 +198,7 @@ def collect_surface(
             typedefs[name] = node
         elif kind == "FunctionDecl":
             target = (
-                inline
-                if node.get("storageClass") == "static" or node.get("inline")
-                else functions
+                inline if node.get("storageClass") == "static" or node.get("inline") else functions
             )
             signature = qualified_type(node)
             if name in target and target[name] != signature:
@@ -221,8 +206,7 @@ def collect_surface(
             mangled = node.get("mangledName")
             if target is functions and mangled != name:
                 raise ValueError(
-                    "public function lacks ordinary C linkage/calling convention: "
-                    + name
+                    "public function lacks ordinary C linkage/calling convention: " + name
                 )
             target[name] = signature
             visibility[name] = sorted(
@@ -233,9 +217,7 @@ def collect_surface(
                 }
             )
         elif kind == "VarDecl":
-            raise ValueError(
-                "public data export needs an explicit inventory/probe policy: " + name
-            )
+            raise ValueError("public data export needs an explicit inventory/probe policy: " + name)
     handles = sorted(incomplete - records.keys())
     for name, node in typedefs.items():
         if name in records or name in enums or name in handles:
@@ -279,13 +261,10 @@ def command_output(command: list[str], output: Path, *, timeout: float = 180) ->
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(result.stdout, encoding="utf-8")
-    output.with_suffix(output.suffix + ".stderr").write_text(
-        result.stderr, encoding="utf-8"
-    )
+    output.with_suffix(output.suffix + ".stderr").write_text(result.stderr, encoding="utf-8")
     if result.returncode:
         raise ValueError(
-            "ABI frontend failed; see "
-            + str(output.with_suffix(output.suffix + ".stderr"))
+            "ABI frontend failed; see " + str(output.with_suffix(output.suffix + ".stderr"))
         )
     return result.stdout
 
@@ -318,9 +297,7 @@ def frontend_surface(
     ]
     ast_command = [*base, "-fsyntax-only", "-Xclang", "-ast-dump=json", str(source)]
     ast = object_value(
-        parse_evidence_json(
-            command_output(ast_command, output / (extension + "-ast.json"))
-        )
+        parse_evidence_json(command_output(ast_command, output / (extension + "-ast.json")))
     )
     macros_text = command_output(
         [*base, "-dM", "-E", str(source)], output / (extension + "-macros.txt")
@@ -331,9 +308,7 @@ def frontend_surface(
             continue
         name, _, value = line[len("#define ") :].partition(" ")
         if "(" in name:
-            raise ValueError(
-                "function-like public macro needs an explicit ABI policy: " + name
-            )
+            raise ValueError("function-like public macro needs an explicit ABI policy: " + name)
         if value and name not in (
             "RNS8_API",
             "RNS8_ENUM_BASE",
@@ -350,9 +325,7 @@ def frontend_surface(
     receipt: Object = dict(
         clang=str(clang),
         clang_sha256=sha256(clang),
-        version=command_output(
-            [str(clang), "--version"], output / "clang-version.txt"
-        ).strip(),
+        version=command_output([str(clang), "--version"], output / "clang-version.txt").strip(),
         target=command_output(
             [str(clang), "-print-target-triple"], output / "clang-target.txt"
         ).strip(),
@@ -382,17 +355,11 @@ def comparison_projection(surface: Object) -> Object:
     }
     if set(surface) != required or surface.get("schema") != SCHEMA:
         raise ValueError("unknown/incomplete public ABI surface schema")
-    if any(
-        not surface.get(key) for key in ("headers", "enums", "records", "functions")
-    ):
+    if any(not surface.get(key) for key in ("headers", "enums", "records", "functions")):
         raise ValueError("empty public ABI inventory is not compatible")
     # Header hashes and platform import/export attributes bind each receipt but
     # do not make a comment edit, or static/shared declaration mode, an ABI break.
-    return {
-        key: value
-        for key, value in surface.items()
-        if key not in ("headers", "visibility")
-    }
+    return {key: value for key, value in surface.items() if key not in ("headers", "visibility")}
 
 
 def surface_diff(expected: Object, actual: Object) -> list[Object]:
@@ -424,7 +391,5 @@ def surface_diff(expected: Object, actual: Object) -> list[Object]:
 def declaration_sha256(surface: Surface) -> str:
     projection = comparison_projection(surface.to_json())
     return hashlib.sha256(
-        json.dumps(
-            projection, sort_keys=True, separators=(",", ":"), allow_nan=False
-        ).encode()
+        json.dumps(projection, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     ).hexdigest()

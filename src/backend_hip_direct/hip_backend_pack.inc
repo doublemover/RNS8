@@ -1,67 +1,72 @@
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(
-    const int64_t* src, int8_t* residues, int rows, int cols, int ld, int prefix);
-extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(
-    const int64_t* src, int8_t* residues, int rows, int cols, int prefix);
-extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
-    const int64_t* src, int8_t* residues, int rows, int cols, int ld, int prefix,
-    const uint16_t* moduli);
-extern "C" int rns8_hip_direct_pack_i64_generic_device(
-    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix);
-extern "C" int rns8_hip_direct_pack_i64_fixed_all_device(
-    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix);
+extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(const int64_t* src,
+                                                                int8_t* residues, int rows,
+                                                                int cols, int ld, int prefix);
+extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(const int64_t* src, int8_t* residues,
+                                                               int rows, int cols, int prefix);
+extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(const int64_t* src,
+                                                                  int8_t* residues, int rows,
+                                                                  int cols, int ld, int prefix,
+                                                                  const uint16_t* moduli);
+extern "C" int rns8_hip_direct_pack_i64_generic_device(const int64_t* source, int8_t* residues,
+                                                       int rows, int cols, int ld, int prefix);
+extern "C" int rns8_hip_direct_pack_i64_fixed_all_device(const int64_t* source, int8_t* residues,
+                                                         int rows, int cols, int ld, int prefix);
 #endif
 
 rns8_status hip_direct_pack_i64_variant_device(int device_id, const void* device_source,
-    void* device_residues, int64_t rows, int64_t cols, int64_t ld, uint32_t prefix,
-    SignedPackVariant variant) {
-  if (!device_source || !device_residues || rows <= 0 || cols <= 0 || ld < cols ||
-      prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
-      (variant != SignedPackVariant::public_selected && variant != SignedPackVariant::fixed_prefix &&
-       variant != SignedPackVariant::generic)) return RNS8_INVALID_ARGUMENT;
-  if (!qualified_i32_matrix_address(rows, cols, ld, 1, 8)) return RNS8_UNSUPPORTED_BACKEND;
+                                               void* device_residues, int64_t rows, int64_t cols,
+                                               int64_t ld, uint32_t prefix,
+                                               SignedPackVariant variant) {
+  if (!device_source || !device_residues || rows <= 0 || cols <= 0 || ld < cols || prefix == 0 ||
+      prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+      (variant != SignedPackVariant::public_selected &&
+       variant != SignedPackVariant::fixed_prefix && variant != SignedPackVariant::generic))
+    return RNS8_INVALID_ARGUMENT;
+  if (!qualified_i32_matrix_address(rows, cols, ld, 1, 8))
+    return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!checked_i32_shape(rows, cols, ld, prefix) || !checked_pack_elements(rows, cols, prefix))
     return RNS8_INVALID_ARGUMENT;
   const auto selected = set_hip_device(device_id);
-  if (selected != RNS8_SUCCESS) return selected;
+  if (selected != RNS8_SUCCESS)
+    return selected;
   const auto kernel = signed_pack_kernel(rows, cols, ld, variant, prefix);
   const hipError_t err = timed_hip_operation("pack_kernel", [&]() {
     int code = 0;
     if (kernel == SignedPackKernel::generic) {
       code = rns8_hip_direct_pack_i64_generic_device(
           static_cast<const int64_t*>(device_source), static_cast<int8_t*>(device_residues),
-          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld), static_cast<int>(prefix));
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix));
     } else if (kernel == SignedPackKernel::fixed_prefix) {
       code = rns8_hip_direct_pack_i64_fixed_all_device(
           static_cast<const int64_t*>(device_source), static_cast<int8_t*>(device_residues),
-          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld), static_cast<int>(prefix));
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix));
     } else if (kernel == SignedPackKernel::four_wide) {
       code = rns8_hip_direct_pack_i64_4wide_coalesced_device(
-          static_cast<const int64_t*>(device_source),
-          static_cast<int8_t*>(device_residues),
+          static_cast<const int64_t*>(device_source), static_cast<int8_t*>(device_residues),
           static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(prefix));
     } else if (kernel == SignedPackKernel::eight_wide) {
       code = rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
-          static_cast<const int64_t*>(device_source),
-          static_cast<int8_t*>(device_residues),
+          static_cast<const int64_t*>(device_source), static_cast<int8_t*>(device_residues),
           static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
           static_cast<int>(prefix), kDefaultModuli);
     } else if (kernel == SignedPackKernel::small) {
       code = rns8_hip_direct_pack_i64_persistent_small_device(
-          static_cast<const int64_t*>(device_source),
-          static_cast<int8_t*>(device_residues),
+          static_cast<const int64_t*>(device_source), static_cast<int8_t*>(device_residues),
           static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
           static_cast<int>(prefix));
     } else {
-      code = rns8_hip_direct_pack_i64_device(
-          static_cast<const int64_t*>(device_source),
-          static_cast<int8_t*>(device_residues),
-          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
-          static_cast<int>(prefix));
+      code = rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(device_source),
+                                             static_cast<int8_t*>(device_residues),
+                                             static_cast<int>(rows), static_cast<int>(cols),
+                                             static_cast<int>(ld), static_cast<int>(prefix));
     }
-    if (code != static_cast<int>(hipSuccess)) return static_cast<hipError_t>(code);
+    if (code != static_cast<int>(hipSuccess))
+      return static_cast<hipError_t>(code);
     return hipDeviceSynchronize();
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
@@ -71,16 +76,9 @@ rns8_status hip_direct_pack_i64_variant_device(int device_id, const void* device
 #endif
 }
 
-rns8_status hip_direct_pack_i64_device(
-    int device_id,
-    const int64_t* src,
-    void** upload_buffer,
-    std::size_t* upload_bytes,
-    void* device_residues,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    uint32_t prefix) {
+rns8_status hip_direct_pack_i64_device(int device_id, const int64_t* src, void** upload_buffer,
+                                       std::size_t* upload_bytes, void* device_residues,
+                                       int64_t rows, int64_t cols, int64_t ld, uint32_t prefix) {
   if (rows > 0 && cols > 0 && ld >= cols &&
       !rns8::detail::qualified_i32_matrix_address(rows, cols, cols, 1, 8)) {
     return RNS8_UNSUPPORTED_BACKEND;
@@ -88,8 +86,10 @@ rns8_status hip_direct_pack_i64_device(
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   HostUploadPlan upload;
-  if (!make_host_upload_plan(rows, cols, ld, sizeof(int64_t), upload)) return RNS8_INVALID_ARGUMENT;
-  if (!src || !upload_buffer || !upload_bytes || !device_residues || !checked_i32_shape(rows, cols, cols, prefix)) {
+  if (!make_host_upload_plan(rows, cols, ld, sizeof(int64_t), upload))
+    return RNS8_INVALID_ARGUMENT;
+  if (!src || !upload_buffer || !upload_bytes || !device_residues ||
+      !checked_i32_shape(rows, cols, cols, prefix)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!checked_pack_elements(rows, cols, prefix)) {
@@ -99,15 +99,18 @@ rns8_status hip_direct_pack_i64_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  rns8_status status = hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
+  rns8_status status =
+      hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = hip_direct_upload_host_matrix(device_id, "pack_h2d", *upload_buffer,
-      *upload_bytes, src, upload);
-  if (status != RNS8_SUCCESS) return status;
-  return hip_direct_pack_i64_variant_device(device_id, *upload_buffer, device_residues,
-      rows, cols, upload.device_ld, prefix, SignedPackVariant::public_selected);
+  status = hip_direct_upload_host_matrix(device_id, "pack_h2d", *upload_buffer, *upload_bytes, src,
+                                         upload);
+  if (status != RNS8_SUCCESS)
+    return status;
+  return hip_direct_pack_i64_variant_device(device_id, *upload_buffer, device_residues, rows, cols,
+                                            upload.device_ld, prefix,
+                                            SignedPackVariant::public_selected);
 #else
   (void)device_id;
   (void)src;
@@ -122,16 +125,9 @@ rns8_status hip_direct_pack_i64_device(
 #endif
 }
 
-rns8_status hip_direct_pack_u64_device(
-    int device_id,
-    const uint64_t* src,
-    void** upload_buffer,
-    std::size_t* upload_bytes,
-    void* device_residues,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    uint32_t prefix) {
+rns8_status hip_direct_pack_u64_device(int device_id, const uint64_t* src, void** upload_buffer,
+                                       std::size_t* upload_bytes, void* device_residues,
+                                       int64_t rows, int64_t cols, int64_t ld, uint32_t prefix) {
   if (rows > 0 && cols > 0 && ld >= cols &&
       !rns8::detail::qualified_i32_matrix_address(rows, cols, cols, 1, 8)) {
     return RNS8_UNSUPPORTED_BACKEND;
@@ -139,8 +135,10 @@ rns8_status hip_direct_pack_u64_device(
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   HostUploadPlan upload;
-  if (!make_host_upload_plan(rows, cols, ld, sizeof(uint64_t), upload)) return RNS8_INVALID_ARGUMENT;
-  if (!src || !upload_buffer || !upload_bytes || !device_residues || !checked_i32_shape(rows, cols, cols, prefix)) {
+  if (!make_host_upload_plan(rows, cols, ld, sizeof(uint64_t), upload))
+    return RNS8_INVALID_ARGUMENT;
+  if (!src || !upload_buffer || !upload_bytes || !device_residues ||
+      !checked_i32_shape(rows, cols, cols, prefix)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!checked_pack_elements(rows, cols, prefix)) {
@@ -150,20 +148,19 @@ rns8_status hip_direct_pack_u64_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  rns8_status status = hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
+  rns8_status status =
+      hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = hip_direct_upload_host_matrix(device_id, "pack_h2d", *upload_buffer,
-      *upload_bytes, src, upload);
-  if (status != RNS8_SUCCESS) return status;
+  status = hip_direct_upload_host_matrix(device_id, "pack_h2d", *upload_buffer, *upload_bytes, src,
+                                         upload);
+  if (status != RNS8_SUCCESS)
+    return status;
   const hipError_t err = timed_hip_operation("pack_kernel", [&]() {
     const int code = rns8_hip_direct_pack_u64_device(
-        static_cast<const uint64_t*>(*upload_buffer),
-        static_cast<int8_t*>(device_residues),
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(upload.device_ld),
+        static_cast<const uint64_t*>(*upload_buffer), static_cast<int8_t*>(device_residues),
+        static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(upload.device_ld),
         static_cast<int>(prefix));
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
@@ -186,26 +183,18 @@ rns8_status hip_direct_pack_u64_device(
 }
 
 rns8_status hip_direct_pack_i64_grouped_matrices_device(
-    int device_id,
-    const int64_t* src_slab,
-    void* device_src_slab,
-    std::size_t device_src_slab_bytes,
-    rns8_matrix* const* matrices,
-    uint32_t task_count,
-    rns8_semantics expected_semantics,
-    const void* device_residue_ptrs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    uint32_t prefix,
-    uint64_t first_source_version) {
+    int device_id, const int64_t* src_slab, void* device_src_slab,
+    std::size_t device_src_slab_bytes, rns8_matrix* const* matrices, uint32_t task_count,
+    rns8_semantics expected_semantics, const void* device_residue_ptrs, int64_t rows, int64_t cols,
+    int64_t ld, uint32_t prefix, uint64_t first_source_version) {
   if (rows > 0 && cols > 0 && ld >= cols &&
       !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, prefix) ||
+  if (!src_slab || !device_src_slab || !device_residue_ptrs ||
+      !checked_i32_shape(rows, cols, ld, prefix) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
       (expected_semantics != RNS8_BOUNDED_I64 && expected_semantics != RNS8_EXACT_WIDE_SIGNED)) {
     return RNS8_INVALID_ARGUMENT;
@@ -215,22 +204,16 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
   }
   std::size_t source_bytes = 0;
   int64_t source_task_stride = 0;
-  if (!checked_grouped_source_bytes(task_count, rows, ld, sizeof(int64_t), &source_bytes, &source_task_stride) ||
+  if (!checked_grouped_source_bytes(task_count, rows, ld, sizeof(int64_t), &source_bytes,
+                                    &source_task_stride) ||
       device_src_slab_bytes < source_bytes) {
     return RNS8_INVALID_ARGUMENT;
   }
   int matrix_device_id = -1;
   uint32_t matrix_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(
-      matrices,
-      task_count,
-      expected_semantics,
-      rows,
-      cols,
-      false,
-      &matrix_device_id,
-      &matrix_prefix,
-      nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(matrices, task_count, expected_semantics, rows, cols, false,
+                                    &matrix_device_id, &matrix_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -251,12 +234,8 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
     const int code = rns8_hip_direct_pack_i64_grouped_device(
         static_cast<const int64_t*>(device_src_slab),
         static_cast<int8_t* const*>(const_cast<void*>(device_residue_ptrs)),
-        static_cast<int>(task_count),
-        source_task_stride,
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(ld),
-        static_cast<int>(prefix));
+        static_cast<int>(task_count), source_task_stride, static_cast<int>(rows),
+        static_cast<int>(cols), static_cast<int>(ld), static_cast<int>(prefix));
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -290,26 +269,18 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
 }
 
 rns8_status hip_direct_pack_u64_grouped_matrices_device(
-    int device_id,
-    const uint64_t* src_slab,
-    void* device_src_slab,
-    std::size_t device_src_slab_bytes,
-    rns8_matrix* const* matrices,
-    uint32_t task_count,
-    rns8_semantics expected_semantics,
-    const void* device_residue_ptrs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    uint32_t prefix,
-    uint64_t first_source_version) {
+    int device_id, const uint64_t* src_slab, void* device_src_slab,
+    std::size_t device_src_slab_bytes, rns8_matrix* const* matrices, uint32_t task_count,
+    rns8_semantics expected_semantics, const void* device_residue_ptrs, int64_t rows, int64_t cols,
+    int64_t ld, uint32_t prefix, uint64_t first_source_version) {
   if (rows > 0 && cols > 0 && ld >= cols &&
       !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, prefix) ||
+  if (!src_slab || !device_src_slab || !device_residue_ptrs ||
+      !checked_i32_shape(rows, cols, ld, prefix) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
       (expected_semantics != RNS8_BOUNDED_U64 && expected_semantics != RNS8_EXACT_WIDE_UNSIGNED)) {
     return RNS8_INVALID_ARGUMENT;
@@ -319,22 +290,16 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
   }
   std::size_t source_bytes = 0;
   int64_t source_task_stride = 0;
-  if (!checked_grouped_source_bytes(task_count, rows, ld, sizeof(uint64_t), &source_bytes, &source_task_stride) ||
+  if (!checked_grouped_source_bytes(task_count, rows, ld, sizeof(uint64_t), &source_bytes,
+                                    &source_task_stride) ||
       device_src_slab_bytes < source_bytes) {
     return RNS8_INVALID_ARGUMENT;
   }
   int matrix_device_id = -1;
   uint32_t matrix_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(
-      matrices,
-      task_count,
-      expected_semantics,
-      rows,
-      cols,
-      false,
-      &matrix_device_id,
-      &matrix_prefix,
-      nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(matrices, task_count, expected_semantics, rows, cols, false,
+                                    &matrix_device_id, &matrix_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -355,12 +320,8 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
     const int code = rns8_hip_direct_pack_u64_grouped_device(
         static_cast<const uint64_t*>(device_src_slab),
         static_cast<int8_t* const*>(const_cast<void*>(device_residue_ptrs)),
-        static_cast<int>(task_count),
-        source_task_stride,
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(ld),
-        static_cast<int>(prefix));
+        static_cast<int>(task_count), source_task_stride, static_cast<int>(rows),
+        static_cast<int>(cols), static_cast<int>(ld), static_cast<int>(prefix));
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -393,13 +354,9 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
 #endif
 }
 
-rns8_status hip_direct_native_i64_to_rns_device(
-    int device_id,
-    const void* device_native,
-    void* device_residues,
-    int64_t rows,
-    int64_t cols,
-    uint32_t prefix) {
+rns8_status hip_direct_native_i64_to_rns_device(int device_id, const void* device_native,
+                                                void* device_residues, int64_t rows, int64_t cols,
+                                                uint32_t prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_native || !device_residues || !checked_i32_shape(rows, cols, cols, prefix)) {
     return RNS8_INVALID_ARGUMENT;
@@ -413,11 +370,8 @@ rns8_status hip_direct_native_i64_to_rns_device(
   }
   const int code = rns8::detail::run_timed_device_code("native_i64_to_rns_kernel", [&]() {
     const int launch_status = rns8_hip_direct_pack_i64_device(
-        static_cast<const int64_t*>(device_native),
-        static_cast<int8_t*>(device_residues),
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(cols),
+        static_cast<const int64_t*>(device_native), static_cast<int8_t*>(device_residues),
+        static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(cols),
         static_cast<int>(prefix));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
@@ -437,13 +391,9 @@ rns8_status hip_direct_native_i64_to_rns_device(
 #endif
 }
 
-rns8_status hip_direct_native_u64_to_rns_device(
-    int device_id,
-    const void* device_native,
-    void* device_residues,
-    int64_t rows,
-    int64_t cols,
-    uint32_t prefix) {
+rns8_status hip_direct_native_u64_to_rns_device(int device_id, const void* device_native,
+                                                void* device_residues, int64_t rows, int64_t cols,
+                                                uint32_t prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_native || !device_residues || !checked_i32_shape(rows, cols, cols, prefix)) {
     return RNS8_INVALID_ARGUMENT;
@@ -457,11 +407,8 @@ rns8_status hip_direct_native_u64_to_rns_device(
   }
   const int code = rns8::detail::run_timed_device_code("native_u64_to_rns_kernel", [&]() {
     const int launch_status = rns8_hip_direct_pack_u64_device(
-        static_cast<const uint64_t*>(device_native),
-        static_cast<int8_t*>(device_residues),
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(cols),
+        static_cast<const uint64_t*>(device_native), static_cast<int8_t*>(device_residues),
+        static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(cols),
         static_cast<int>(prefix));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
@@ -481,16 +428,10 @@ rns8_status hip_direct_native_u64_to_rns_device(
 #endif
 }
 
-rns8_status hip_direct_pack_finite_u8_device(
-    int device_id,
-    const uint8_t* src,
-    void** upload_buffer,
-    std::size_t* upload_bytes,
-    void* device_residues,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    uint16_t modulus) {
+rns8_status hip_direct_pack_finite_u8_device(int device_id, const uint8_t* src,
+                                             void** upload_buffer, std::size_t* upload_bytes,
+                                             void* device_residues, int64_t rows, int64_t cols,
+                                             int64_t ld, uint16_t modulus) {
   if (rows > 0 && cols > 0 && ld >= cols &&
       !rns8::detail::qualified_i32_matrix_address(rows, cols, cols, 1, 1)) {
     return RNS8_UNSUPPORTED_BACKEND;
@@ -498,7 +439,8 @@ rns8_status hip_direct_pack_finite_u8_device(
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   HostUploadPlan upload;
-  if (!make_host_upload_plan(rows, cols, ld, sizeof(uint8_t), upload)) return RNS8_INVALID_ARGUMENT;
+  if (!make_host_upload_plan(rows, cols, ld, sizeof(uint8_t), upload))
+    return RNS8_INVALID_ARGUMENT;
   if (!src || !upload_buffer || !upload_bytes || !device_residues || modulus < 2 || modulus > 256 ||
       rows <= 0 || cols <= 0 || ld < cols || rows > std::numeric_limits<int>::max() ||
       cols > std::numeric_limits<int>::max()) {
@@ -516,24 +458,24 @@ rns8_status hip_direct_pack_finite_u8_device(
   // conversion kernel is needed, including for padded host rows.
   if (modulus == 256) {
     return hip_direct_upload_host_matrix(device_id, "finite_pack_h2d", device_residues,
-        upload.device_bytes, src, upload);
+                                         upload.device_bytes, src, upload);
   }
-  rns8_status status = hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
+  rns8_status status =
+      hip_direct_ensure_upload_buffer(device_id, upload.device_bytes, upload_buffer, upload_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   status = hip_direct_upload_host_matrix(device_id, "finite_pack_h2d", *upload_buffer,
-      *upload_bytes, src, upload);
-  if (status != RNS8_SUCCESS) return status;
+                                         *upload_bytes, src, upload);
+  if (status != RNS8_SUCCESS)
+    return status;
   const hipError_t err = timed_hip_operation("finite_pack_kernel", [&]() {
     const int code = rns8_hip_direct_pack_u8_modulus_device(
-        static_cast<const uint8_t*>(*upload_buffer),
-        static_cast<int8_t*>(device_residues),
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(upload.device_ld),
+        static_cast<const uint8_t*>(*upload_buffer), static_cast<int8_t*>(device_residues),
+        static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(upload.device_ld),
         static_cast<int>(modulus));
-    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize()
+                                                : static_cast<hipError_t>(code);
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -551,48 +493,34 @@ rns8_status hip_direct_pack_finite_u8_device(
 }
 
 rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
-    int device_id,
-    const uint8_t* src_slab,
-    void* device_src_slab,
-    std::size_t device_src_slab_bytes,
-    rns8_matrix* const* matrices,
-    uint32_t task_count,
-    rns8_semantics expected_semantics,
-    const void* device_residue_ptrs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    uint16_t modulus,
-    uint64_t first_source_version) {
+    int device_id, const uint8_t* src_slab, void* device_src_slab,
+    std::size_t device_src_slab_bytes, rns8_matrix* const* matrices, uint32_t task_count,
+    rns8_semantics expected_semantics, const void* device_residue_ptrs, int64_t rows, int64_t cols,
+    int64_t ld, uint16_t modulus, uint64_t first_source_version) {
   if (rows > 0 && cols > 0 && ld >= cols &&
       !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, 1) ||
+  if (!src_slab || !device_src_slab || !device_residue_ptrs ||
+      !checked_i32_shape(rows, cols, ld, 1) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
       !valid_finite_modulus_for_semantics(expected_semantics, modulus)) {
     return RNS8_INVALID_ARGUMENT;
   }
   std::size_t source_bytes = 0;
   int64_t source_task_stride = 0;
-  if (!checked_grouped_source_bytes(task_count, rows, ld, sizeof(uint8_t), &source_bytes, &source_task_stride) ||
+  if (!checked_grouped_source_bytes(task_count, rows, ld, sizeof(uint8_t), &source_bytes,
+                                    &source_task_stride) ||
       device_src_slab_bytes < source_bytes) {
     return RNS8_INVALID_ARGUMENT;
   }
   int matrix_device_id = -1;
   uint32_t matrix_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(
-      matrices,
-      task_count,
-      expected_semantics,
-      rows,
-      cols,
-      false,
-      &matrix_device_id,
-      &matrix_prefix,
-      nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(matrices, task_count, expected_semantics, rows, cols, false,
+                                    &matrix_device_id, &matrix_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -613,12 +541,8 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
     const int code = rns8_hip_direct_pack_u8_grouped_modulus_device(
         static_cast<const uint8_t*>(device_src_slab),
         static_cast<int8_t* const*>(const_cast<void*>(device_residue_ptrs)),
-        static_cast<int>(task_count),
-        source_task_stride,
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(ld),
-        static_cast<int>(modulus));
+        static_cast<int>(task_count), source_task_stride, static_cast<int>(rows),
+        static_cast<int>(cols), static_cast<int>(ld), static_cast<int>(modulus));
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -651,4 +575,3 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-

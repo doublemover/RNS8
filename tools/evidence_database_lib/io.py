@@ -9,6 +9,7 @@ from benchmark_schema import load_capture, validate_capture
 
 from .config import SKIP_JSON_NAMES
 
+
 def median_phase(capture: dict[str, Any], phase: str) -> float | None:
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
@@ -128,12 +129,12 @@ def load_review_index(paths: list[Path]) -> dict[str, dict[str, Any]]:
                     "missing_required_baselines": group.get("missing_required_baselines") or [],
                     "promotable": candidate.get("promotable"),
                     "promotion_blockers": candidate.get("promotion_blockers") or [],
-                    "primary_loss_phase_vs_direct_hip": candidate.get("primary_loss_phase_vs_direct_hip"),
+                    "primary_loss_phase_vs_direct_hip": candidate.get(
+                        "primary_loss_phase_vs_direct_hip"
+                    ),
                     "speedup_vs_direct_hip": candidate.get("speedup_vs_direct_hip"),
                     "speedup_vs_vector_alu": candidate.get("speedup_vs_vector_alu"),
                 }
                 index[normalized_capture_path(capture)] = payload
                 index[Path(capture).name.lower()] = payload
     return index
-
-

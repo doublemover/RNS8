@@ -40,9 +40,10 @@ namespace rns8::detail {
 bool hip_direct_timing_enabled();
 void hip_direct_timing_flush_pending_events();
 void hip_direct_timing_record_sample(const char* label, double microseconds);
-void hip_direct_timing_record_failure(const char* label, const char* phase, int backend_status) noexcept;
+void hip_direct_timing_record_failure(const char* label, const char* phase,
+                                      int backend_status) noexcept;
 
-}  // namespace rns8::detail
+} // namespace rns8::detail
 
 #include "ck_backend_timing_workspace.inc"
 #include "ck_backend_gemm_kernels.inc"

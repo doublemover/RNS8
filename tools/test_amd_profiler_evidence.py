@@ -24,7 +24,8 @@ class NativeProfilerEvidence(unittest.TestCase):
             injection = {"ROCP_TOOL_LIBRARIES": "/authored/native-tool.so"}
             request["environment"].update(injection)
             request["identity_sha256"] = canonical_digest(
-                {key: value for key, value in request.items() if key != "identity_sha256"})
+                {key: value for key, value in request.items() if key != "identity_sha256"}
+            )
             witness = profiled["execution_environment_witness"]
             witness["before"] = copy.deepcopy(request["environment"])
             witness["after"] = copy.deepcopy(request["environment"])
@@ -34,8 +35,12 @@ class NativeProfilerEvidence(unittest.TestCase):
             receipt["profiler_environment"] = injection
             write(fixture.dispatch_path, receipt)
             store = EvidenceStore()
-            result = validate_dispatch_receipt(reference(fixture.dispatch_path),
-                capture=fixture.capture, store=store, parent=fixture.root)
+            result = validate_dispatch_receipt(
+                reference(fixture.dispatch_path),
+                capture=fixture.capture,
+                store=store,
+                parent=fixture.root,
+            )
             store.finish()
             self.assertTrue(result["qualified_selected_dispatches"])
             # Caller labels cannot supply an injection the native process did
@@ -45,8 +50,12 @@ class NativeProfilerEvidence(unittest.TestCase):
             receipt["profiled_capture"] = reference(fixture.profiled_path)
             write(fixture.dispatch_path, receipt)
             with self.assertRaises(ValueError):
-                validate_dispatch_receipt(reference(fixture.dispatch_path),
-                    capture=fixture.capture, store=EvidenceStore(), parent=fixture.root)
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
 
     def test_unsupported_code_object_agent_field_cannot_qualify(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -59,22 +68,37 @@ class NativeProfilerEvidence(unittest.TestCase):
             receipt["native_trace"] = reference(fixture.native_path)
             write(fixture.dispatch_path, receipt)
             with self.assertRaises(ValueError):
-                validate_dispatch_receipt(reference(fixture.dispatch_path),
-                    capture=fixture.capture, store=EvidenceStore(), parent=fixture.root)
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
+
     def test_native_file_output_is_an_explicit_raw_bound_observation(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = QualificationFixture(Path(directory))
             native = copy.deepcopy(fixture.profiled)
-            for key in ("execution_id", "request_identity", "artifact_capture", "external_instrumentation"):
+            for key in (
+                "execution_id",
+                "request_identity",
+                "artifact_capture",
+                "external_instrumentation",
+            ):
                 native.pop(key)
             native_path = write(fixture.root / "native-benchmark.json", native)
             profiled = copy.deepcopy(fixture.profiled)
             request = profiled["request_identity"]
             request["arguments"].extend(["--json-output", str(native_path)])
             request["identity_sha256"] = canonical_digest(
-                {key: value for key, value in request.items() if key != "identity_sha256"})
-            profiled["execution_environment_witness"]["arguments"] = copy.deepcopy(request["arguments"])
-            native["execution_environment_witness"] = copy.deepcopy(profiled["execution_environment_witness"])
+                {key: value for key, value in request.items() if key != "identity_sha256"}
+            )
+            profiled["execution_environment_witness"]["arguments"] = copy.deepcopy(
+                request["arguments"]
+            )
+            native["execution_environment_witness"] = copy.deepcopy(
+                profiled["execution_environment_witness"]
+            )
             write(native_path, native)
             write(fixture.profiled_path, profiled)
             receipt = copy.deepcopy(fixture.dispatch)
@@ -83,8 +107,12 @@ class NativeProfilerEvidence(unittest.TestCase):
             receipt["acquisition_command"].extend(["--json-output", str(native_path)])
             write(fixture.dispatch_path, receipt)
             store = EvidenceStore()
-            result = validate_dispatch_receipt(reference(fixture.dispatch_path),
-                capture=fixture.capture, store=store, parent=fixture.root)
+            result = validate_dispatch_receipt(
+                reference(fixture.dispatch_path),
+                capture=fixture.capture,
+                store=store,
+                parent=fixture.root,
+            )
             store.finish()
             self.assertTrue(result["qualified_selected_dispatches"])
             # Rehashing a substituted native file cannot change the bound
@@ -94,21 +122,38 @@ class NativeProfilerEvidence(unittest.TestCase):
             receipt["native_benchmark_output"] = reference(native_path)
             write(fixture.dispatch_path, receipt)
             with self.assertRaises(ValueError):
-                validate_dispatch_receipt(reference(fixture.dispatch_path),
-                    capture=fixture.capture, store=EvidenceStore(), parent=fixture.root)
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
 
     def test_requested_or_active_ranges_cannot_enter_production_latency(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = QualificationFixture(Path(directory))
             for state in ("active", "requested_provider_unavailable", "unknown"):
                 candidate = copy.deepcopy(fixture.capture)
-                candidate["profiler_ranges"] = dict(schema="rns8_profiler_ranges_v1", provider_status=state)
-                self.assertIn("profile_range_instrumentation_not_production_evidence", phase_blockers(candidate))
-                self.assertIn("profile_range_instrumentation_not_production_evidence", production_evidence(candidate)["blockers"])
+                candidate["profiler_ranges"] = dict(
+                    schema="rns8_profiler_ranges_v1", provider_status=state
+                )
+                self.assertIn(
+                    "profile_range_instrumentation_not_production_evidence",
+                    phase_blockers(candidate),
+                )
+                self.assertIn(
+                    "profile_range_instrumentation_not_production_evidence",
+                    production_evidence(candidate)["blockers"],
+                )
             for state in ("disabled_at_build", "disabled_at_runtime"):
                 candidate = copy.deepcopy(fixture.capture)
-                candidate["profiler_ranges"] = dict(schema="rns8_profiler_ranges_v1", provider_status=state)
-                self.assertNotIn("profile_range_instrumentation_not_production_evidence", phase_blockers(candidate))
+                candidate["profiler_ranges"] = dict(
+                    schema="rns8_profiler_ranges_v1", provider_status=state
+                )
+                self.assertNotIn(
+                    "profile_range_instrumentation_not_production_evidence",
+                    phase_blockers(candidate),
+                )
 
     def test_selected_native_dispatch_retains_identity_without_claiming_production_latency(
         self,
@@ -174,9 +219,7 @@ class NativeProfilerEvidence(unittest.TestCase):
                 elif mutate == "code_object":
                     process["code_objects"][0]["uri"] = "memory://222#offset=1&size=4"
                 elif mutate == "duplicate":
-                    process["buffer_records"]["kernel_dispatch"].append(
-                        copy.deepcopy(dispatch)
-                    )
+                    process["buffer_records"]["kernel_dispatch"].append(copy.deepcopy(dispatch))
                 elif mutate == "missing_geometry":
                     dispatch["dispatch_info"]["grid_size"]["x"] = 0
                 else:
@@ -243,9 +286,7 @@ class NativeProfilerEvidence(unittest.TestCase):
                 "#offset=0&size=1&unknown=3",
             ):
                 with self.subTest(suffix=suffix), self.assertRaises(ValueError):
-                    code_object_digest(
-                        prefix + suffix, executable, sha, EvidenceStore()
-                    )
+                    code_object_digest(prefix + suffix, executable, sha, EvidenceStore())
 
 
 if __name__ == "__main__":

@@ -32,25 +32,26 @@ struct sparse_layout_counts {
 bool sparse_semantic_identity_valid(const rns8_sparse_matrix_desc& desc, uint32_t& plane_count) {
   plane_count = 0;
   if (rns8::detail::api::uses_rns_storage(desc.semantics)) {
-    if (desc.finite_modulus != 0 || desc.max_prefix == 0 || desc.max_prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+    if (desc.finite_modulus != 0 || desc.max_prefix == 0 ||
+        desc.max_prefix > RNS8_MAX_SUPPORTED_PREFIX ||
         desc.value_signedness != RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8) {
       return false;
     }
     switch (desc.semantics) {
-      case RNS8_BOUNDED_I64:
-      case RNS8_BOUNDED_U64:
-        if (desc.bound_kind == RNS8_BOUND_NONE) {
-          return false;
-        }
-        break;
-      case RNS8_EXACT_WIDE_SIGNED:
-      case RNS8_EXACT_WIDE_UNSIGNED:
-        if (desc.bound_kind != RNS8_BOUND_NONE) {
-          return false;
-        }
-        break;
-      default:
+    case RNS8_BOUNDED_I64:
+    case RNS8_BOUNDED_U64:
+      if (desc.bound_kind == RNS8_BOUND_NONE) {
         return false;
+      }
+      break;
+    case RNS8_EXACT_WIDE_SIGNED:
+    case RNS8_EXACT_WIDE_UNSIGNED:
+      if (desc.bound_kind != RNS8_BOUND_NONE) {
+        return false;
+      }
+      break;
+    default:
+      return false;
     }
     plane_count = desc.max_prefix;
     return true;
@@ -69,12 +70,14 @@ bool sparse_semantic_identity_valid(const rns8_sparse_matrix_desc& desc, uint32_
 
 bool sparse_contract_valid(const rns8_sparse_matrix_desc& desc, sparse_layout_counts& counts) {
   uint32_t plane_count = 0;
-  if (!rns8::detail::valid_abi(desc.struct_size, desc.abi_version, sizeof(desc)) || desc.flags != 0 ||
-      desc.reserved0 != 0 || desc.contract != RNS8_SPARSE_A_4_TO_2_STRUCTURED_K ||
+  if (!rns8::detail::valid_abi(desc.struct_size, desc.abi_version, sizeof(desc)) ||
+      desc.flags != 0 || desc.reserved0 != 0 ||
+      desc.contract != RNS8_SPARSE_A_4_TO_2_STRUCTURED_K ||
       desc.sparse_operand != RNS8_SPARSE_OPERAND_A ||
       desc.index_layout != RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1 ||
-      !sparse_semantic_identity_valid(desc, plane_count) || desc.rows <= 0 || desc.expanded_k <= 0 ||
-      desc.group_size != 4 || desc.nonzeros_per_group != 2 || (desc.expanded_k % 4) != 0) {
+      !sparse_semantic_identity_valid(desc, plane_count) || desc.rows <= 0 ||
+      desc.expanded_k <= 0 || desc.group_size != 4 || desc.nonzeros_per_group != 2 ||
+      (desc.expanded_k % 4) != 0) {
     return false;
   }
   const auto rows = static_cast<uint64_t>(desc.rows);
@@ -83,8 +86,8 @@ bool sparse_contract_valid(const rns8_sparse_matrix_desc& desc, sparse_layout_co
     return false;
   }
   const uint64_t groups_per_plane = rows * groups_per_row;
-  if (groups_per_plane != 0 &&
-      static_cast<uint64_t>(plane_count) > std::numeric_limits<uint64_t>::max() / groups_per_plane) {
+  if (groups_per_plane != 0 && static_cast<uint64_t>(plane_count) >
+                                   std::numeric_limits<uint64_t>::max() / groups_per_plane) {
     return false;
   }
   const uint64_t group_count = groups_per_plane * static_cast<uint64_t>(plane_count);
@@ -109,10 +112,12 @@ bool dense_ld_valid(const rns8_sparse_matrix_desc& desc, int64_t dense_ld) {
              static_cast<uint64_t>(dense_ld), counts.plane_count, 1, domain);
 }
 
-bool dense_plane_byte_count(const rns8_sparse_matrix_desc& desc, uint32_t plane_count, std::size_t& bytes) {
+bool dense_plane_byte_count(const rns8_sparse_matrix_desc& desc, uint32_t plane_count,
+                            std::size_t& bytes) {
   rns8::detail::AddressDomain domain;
   if (!rns8::detail::checked_host_plane_address(desc.rows, desc.expanded_k, desc.expanded_k,
-                                               plane_count, 1, domain)) return false;
+                                                plane_count, 1, domain))
+    return false;
   bytes = static_cast<std::size_t>(domain.byte_extent);
   return true;
 }
@@ -123,16 +128,16 @@ uint64_t assign_sparse_matrix_instance_id() {
 
 const char* sparse_signedness_name(rns8_sparse_value_signedness signedness) {
   switch (signedness) {
-    case RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8:
-      return "signed_i8";
-    case RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8:
-      return "unsigned_u8";
-    default:
-      return "unspecified";
+  case RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8:
+    return "signed_i8";
+  case RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8:
+    return "unsigned_u8";
+  default:
+    return "unspecified";
   }
 }
 
-std::string build_sparse_cache_key(const rns8_sparse_matrix& matrix,uint64_t source_version) {
+std::string build_sparse_cache_key(const rns8_sparse_matrix& matrix, uint64_t source_version) {
   const auto& desc = matrix.desc;
   std::string key = "backend=" + std::string(rns8::detail::api::backend_name(matrix.backend));
   key += ";semantics=" + std::string(rns8::detail::api::semantics_name_for_key(desc.semantics));
@@ -151,17 +156,14 @@ std::string build_sparse_cache_key(const rns8_sparse_matrix& matrix,uint64_t sou
   return key;
 }
 
-rns8_matrix make_sparse_expanded_rns_matrix(const rns8_sparse_matrix& sparse, const rns8_plan& plan) {
+rns8_matrix make_sparse_expanded_rns_matrix(const rns8_sparse_matrix& sparse,
+                                            const rns8_plan& plan) {
   rns8_matrix dense{};
   const uint32_t storage_prefix = rns8::detail::api::rns_storage_prefix_for_plan(plan);
-  dense.desc = rns8::detail::api::make_matrix_desc(
-      plan.desc.m,
-      plan.desc.k,
-      plan.desc.semantics,
-      rns8::detail::api::storage_bound_kind_for_plan(plan),
-      storage_prefix,
-      plan.desc.tile_m,
-      plan.desc.tile_n);
+  dense.desc =
+      rns8::detail::api::make_matrix_desc(plan.desc.m, plan.desc.k, plan.desc.semantics,
+                                          rns8::detail::api::storage_bound_kind_for_plan(plan),
+                                          storage_prefix, plan.desc.tile_m, plan.desc.tile_n);
   dense.backend = RNS8_BACKEND_CPU_REFERENCE;
   dense.matrix_instance_id = sparse.matrix_instance_id;
   dense.prefix = sparse.desc.max_prefix;
@@ -171,18 +173,15 @@ rns8_matrix make_sparse_expanded_rns_matrix(const rns8_sparse_matrix& sparse, co
   dense.materialized_rns_prefix = storage_prefix;
   dense.host_residues_current = true;
   dense.device_residues_current = false;
-  dense.residues.resize(
-      static_cast<std::size_t>(dense.prefix) * static_cast<std::size_t>(dense.desc.rows) *
-      static_cast<std::size_t>(dense.desc.cols));
+  dense.residues.resize(static_cast<std::size_t>(dense.prefix) *
+                        static_cast<std::size_t>(dense.desc.rows) *
+                        static_cast<std::size_t>(dense.desc.cols));
 
   std::vector<uint8_t> expanded(dense.residues.size(), 0);
   rns8_sparse_matrix_desc expansion_desc = sparse.desc;
   expansion_desc.max_prefix = storage_prefix;
   const rns8_status status = rns8_expand_sparse_a_4_to_2_u8(
-      &expansion_desc,
-      sparse.packed_values.data(),
-      sparse.packed_indices.data(),
-      expanded.data(),
+      &expansion_desc, sparse.packed_values.data(), sparse.packed_indices.data(), expanded.data(),
       sparse.desc.expanded_k);
   if (status != RNS8_SUCCESS) {
     dense.residues.clear();
@@ -194,16 +193,12 @@ rns8_matrix make_sparse_expanded_rns_matrix(const rns8_sparse_matrix& sparse, co
   return dense;
 }
 
-rns8_matrix make_sparse_expanded_finite_matrix(const rns8_sparse_matrix& sparse, const rns8_plan& plan, uint16_t modulus) {
+rns8_matrix make_sparse_expanded_finite_matrix(const rns8_sparse_matrix& sparse,
+                                               const rns8_plan& plan, uint16_t modulus) {
   rns8_matrix dense{};
-  dense.desc = rns8::detail::api::make_matrix_desc(
-      plan.desc.m,
-      plan.desc.k,
-      plan.desc.semantics,
-      RNS8_BOUND_NONE,
-      0,
-      plan.desc.tile_m,
-      plan.desc.tile_n);
+  dense.desc =
+      rns8::detail::api::make_matrix_desc(plan.desc.m, plan.desc.k, plan.desc.semantics,
+                                          RNS8_BOUND_NONE, 0, plan.desc.tile_m, plan.desc.tile_n);
   dense.backend = RNS8_BACKEND_CPU_REFERENCE;
   dense.matrix_instance_id = sparse.matrix_instance_id;
   dense.prefix = 0;
@@ -211,11 +206,14 @@ rns8_matrix make_sparse_expanded_finite_matrix(const rns8_sparse_matrix& sparse,
   dense.source_version = sparse.source_version;
   dense.host_residues_current = true;
   dense.device_residues_current = false;
-  dense.residues.resize(static_cast<std::size_t>(dense.desc.rows) * static_cast<std::size_t>(dense.desc.cols));
+  dense.residues.resize(static_cast<std::size_t>(dense.desc.rows) *
+                        static_cast<std::size_t>(dense.desc.cols));
 
-  std::vector<uint8_t> expanded(static_cast<std::size_t>(dense.desc.rows) * static_cast<std::size_t>(dense.desc.cols), 0);
+  std::vector<uint8_t> expanded(
+      static_cast<std::size_t>(dense.desc.rows) * static_cast<std::size_t>(dense.desc.cols), 0);
   const rns8_status status = rns8_expand_sparse_a_4_to_2_u8(
-      &sparse.desc, sparse.packed_values.data(), sparse.packed_indices.data(), expanded.data(), sparse.desc.expanded_k);
+      &sparse.desc, sparse.packed_values.data(), sparse.packed_indices.data(), expanded.data(),
+      sparse.desc.expanded_k);
   if (status != RNS8_SUCCESS) {
     dense.residues.clear();
     return dense;
@@ -225,7 +223,7 @@ rns8_matrix make_sparse_expanded_finite_matrix(const rns8_sparse_matrix& sparse,
 }
 
 bool sparse_device_backend_supported(rns8_backend_kind backend) {
-#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS &&                         \
     defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
   return backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 #else
@@ -235,13 +233,16 @@ bool sparse_device_backend_supported(rns8_backend_kind backend) {
 }
 
 rns8_status free_sparse_device_storage(rns8_sparse_matrix& matrix) {
-  if(matrix.in_flight_readers || matrix.in_flight_writers)return RNS8_BUSY;
+  if (matrix.in_flight_readers || matrix.in_flight_writers)
+    return RNS8_BUSY;
   rns8_status status = RNS8_SUCCESS;
   if (matrix.hip_packed_values) {
-    status = matrix.packed_values_owner.reset_alias(matrix.hip_packed_values, matrix.hip_packed_value_bytes);
+    status = matrix.packed_values_owner.reset_alias(matrix.hip_packed_values,
+                                                    matrix.hip_packed_value_bytes);
   }
   if (matrix.hip_packed_indices) {
-    const rns8_status free_status = matrix.packed_indices_owner.reset_alias(matrix.hip_packed_indices, matrix.hip_packed_index_bytes);
+    const rns8_status free_status = matrix.packed_indices_owner.reset_alias(
+        matrix.hip_packed_indices, matrix.hip_packed_index_bytes);
     if (status == RNS8_SUCCESS) {
       status = free_status;
     }
@@ -251,7 +252,8 @@ rns8_status free_sparse_device_storage(rns8_sparse_matrix& matrix) {
 }
 
 rns8_status ensure_sparse_device_storage(rns8_context& ctx, rns8_sparse_matrix& matrix) {
-  if(matrix.in_flight_readers || matrix.in_flight_writers)return RNS8_BUSY;
+  if (matrix.in_flight_readers || matrix.in_flight_writers)
+    return RNS8_BUSY;
   if (!sparse_device_backend_supported(matrix.backend) || matrix.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -268,14 +270,16 @@ rns8_status ensure_sparse_device_storage(rns8_context& ctx, rns8_sparse_matrix& 
     }
   }
   if (!matrix.hip_packed_values) {
-    rns8_status status = matrix.packed_values_owner.allocate_alias(ctx.device_id, value_bytes, matrix.hip_packed_values);
+    rns8_status status = matrix.packed_values_owner.allocate_alias(ctx.device_id, value_bytes,
+                                                                   matrix.hip_packed_values);
     if (status != RNS8_SUCCESS) {
       return status;
     }
     matrix.hip_packed_value_bytes = value_bytes;
   }
   if (!matrix.hip_packed_indices) {
-    rns8_status status = matrix.packed_indices_owner.allocate_alias(ctx.device_id, index_bytes, matrix.hip_packed_indices);
+    rns8_status status = matrix.packed_indices_owner.allocate_alias(ctx.device_id, index_bytes,
+                                                                    matrix.hip_packed_indices);
     if (status != RNS8_SUCCESS) {
       (void)free_sparse_device_storage(matrix);
       return status;
@@ -291,48 +295,48 @@ rns8_status upload_sparse_device_storage(rns8_context& ctx, rns8_sparse_matrix& 
   }
   // Storage and writer custody are admitted before host publication. Both
   // packed host vectors belong to this retained owner through a failed drain.
-  matrix.device_current=false;
+  matrix.device_current = false;
   rns8_status status = rns8::detail::hip_direct_copy_host_to_device_labeled(
-      ctx.device_id,
-      "sparse_a_values_h2d",
-      matrix.hip_packed_values,
-      matrix.packed_values.data(),
+      ctx.device_id, "sparse_a_values_h2d", matrix.hip_packed_values, matrix.packed_values.data(),
       matrix.packed_values.size() * sizeof(uint8_t));
   if (status == RNS8_SUCCESS) {
     status = rns8::detail::hip_direct_copy_host_to_device_labeled(
-        ctx.device_id,
-        "sparse_a_indices_h2d",
-        matrix.hip_packed_indices,
-        matrix.packed_indices.data(),
-        matrix.packed_indices.size() * sizeof(uint8_t));
+        ctx.device_id, "sparse_a_indices_h2d", matrix.hip_packed_indices,
+        matrix.packed_indices.data(), matrix.packed_indices.size() * sizeof(uint8_t));
   }
   matrix.device_current = status == RNS8_SUCCESS;
   return status;
 }
 
-template<class Execute>
-rns8_status execute_sparse_writer(rns8_context& ctx,const rns8_sparse_matrix& a,
-    const rns8_matrix& b,rns8_matrix& c,rns8_workspace& workspace,
-    const char* operation,Execute&& execute) {
+template <class Execute>
+rns8_status execute_sparse_writer(rns8_context& ctx, const rns8_sparse_matrix& a,
+                                  const rns8_matrix& b, rns8_matrix& c, rns8_workspace& workspace,
+                                  const char* operation, Execute&& execute) {
   using namespace rns8::detail::api;
-  size_t token=0;
+  size_t token = 0;
   // Sparse A is a distinct owner, not an invented dense matrix reader. The
   // shared lease retains B once, C and workspace plus the real sparse counter.
-  auto status=begin_synchronous_lease(ctx,b,b,c,workspace,token);
-  if(status!=RNS8_SUCCESS)return status;
-  bool started=false;
-  SynchronousLease lease(ctx,token);lease.track_write(started);
-  status=add_synchronous_owner_hold(ctx,token,a.in_flight_readers);
-  if(status!=RNS8_SUCCESS)return lease.finish(status);
-  status=synchronous_dispatch_checkpoint(ctx,operation,&started);
-  if(status!=RNS8_SUCCESS)return lease.finish(status);
-  status=lease.begin_write();
-  if(status!=RNS8_SUCCESS)return lease.finish(status);
+  auto status = begin_synchronous_lease(ctx, b, b, c, workspace, token);
+  if (status != RNS8_SUCCESS)
+    return status;
+  bool started = false;
+  SynchronousLease lease(ctx, token);
+  lease.track_write(started);
+  status = add_synchronous_owner_hold(ctx, token, a.in_flight_readers);
+  if (status != RNS8_SUCCESS)
+    return lease.finish(status);
+  status = synchronous_dispatch_checkpoint(ctx, operation, &started);
+  if (status != RNS8_SUCCESS)
+    return lease.finish(status);
+  status = lease.begin_write();
+  if (status != RNS8_SUCCESS)
+    return lease.finish(status);
   return lease.finish(execute());
 }
 
 bool sparse_rns_matches_plan(const rns8_sparse_matrix& sparse, const rns8_plan& plan) {
-  return rns8::detail::api::uses_rns_storage(plan.desc.semantics) && sparse.desc.semantics == plan.desc.semantics &&
+  return rns8::detail::api::uses_rns_storage(plan.desc.semantics) &&
+         sparse.desc.semantics == plan.desc.semantics &&
          sparse.desc.bound_kind == rns8::detail::api::storage_bound_kind_for_plan(plan) &&
          sparse.desc.rows == plan.desc.m && sparse.desc.expanded_k == plan.desc.k &&
          sparse.desc.max_prefix >= rns8::detail::api::rns_storage_prefix_for_plan(plan) &&
@@ -340,39 +344,37 @@ bool sparse_rns_matches_plan(const rns8_sparse_matrix& sparse, const rns8_plan& 
          sparse.value_plane_count != 0;
 }
 
-bool sparse_finite_matches_plan(const rns8_sparse_matrix& sparse, const rns8_plan& plan, uint16_t modulus) {
-  return rns8::detail::api::uses_finite_storage(plan.desc.semantics) && sparse.desc.semantics == plan.desc.semantics &&
+bool sparse_finite_matches_plan(const rns8_sparse_matrix& sparse, const rns8_plan& plan,
+                                uint16_t modulus) {
+  return rns8::detail::api::uses_finite_storage(plan.desc.semantics) &&
+         sparse.desc.semantics == plan.desc.semantics &&
          sparse.desc.bound_kind == RNS8_BOUND_NONE && sparse.desc.rows == plan.desc.m &&
          sparse.desc.expanded_k == plan.desc.k && sparse.desc.max_prefix == 0 &&
          sparse.desc.finite_modulus == modulus && sparse.value_plane_count == 1;
 }
 
-rns8_status validate_sparse_rns_device_operands(
-    const rns8_context& ctx,
-    const rns8_plan& plan,
-    const rns8_sparse_matrix& A,
-    const rns8_matrix& B,
-    const rns8_matrix& C) {
+rns8_status validate_sparse_rns_device_operands(const rns8_context& ctx, const rns8_plan& plan,
+                                                const rns8_sparse_matrix& A, const rns8_matrix& B,
+                                                const rns8_matrix& C) {
   if (plan.backend != RNS8_BACKEND_AMDGPU_BUILTINS || A.backend != RNS8_BACKEND_AMDGPU_BUILTINS ||
       !sparse_device_backend_supported(plan.backend)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
-  if (!context_accepts_backend(ctx, plan.backend) || !sparse_rns_matches_plan(A, plan) || !A.device_current ||
-      A.hip_device_id != ctx.device_id || !A.hip_packed_values || !A.hip_packed_indices ||
-      !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
+  if (!context_accepts_backend(ctx, plan.backend) || !sparse_rns_matches_plan(A, plan) ||
+      !A.device_current || A.hip_device_id != ctx.device_id || !A.hip_packed_values ||
+      !A.hip_packed_indices || !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
       !matrix_backend_compatible_with_plan(ctx, C, plan.backend) ||
       B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
   const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
   const rns8_bound_kind storage_bound_kind = storage_bound_kind_for_plan(plan);
-  if (!rns8::detail::api::materialized_rns_prefix_covers(B, storage_prefix)) return RNS8_RANGE_ERROR;
-  if (!matrix_descriptor_matches(
-          B, plan.desc.semantics, storage_bound_kind, plan.desc.k, plan.desc.n, storage_prefix, plan.desc.tile_m,
-          plan.desc.tile_n) ||
-      !matrix_descriptor_matches(
-          C, plan.desc.semantics, storage_bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m,
-          plan.desc.tile_n)) {
+  if (!rns8::detail::api::materialized_rns_prefix_covers(B, storage_prefix))
+    return RNS8_RANGE_ERROR;
+  if (!matrix_descriptor_matches(B, plan.desc.semantics, storage_bound_kind, plan.desc.k,
+                                 plan.desc.n, storage_prefix, plan.desc.tile_m, plan.desc.tile_n) ||
+      !matrix_descriptor_matches(C, plan.desc.semantics, storage_bound_kind, plan.desc.m,
+                                 plan.desc.n, storage_prefix, plan.desc.tile_m, plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!rns_matrix_storage_matches(B, plan.backend, plan.desc.k, plan.desc.n, storage_prefix) ||
@@ -380,34 +382,30 @@ rns8_status validate_sparse_rns_device_operands(
       !rns_residue_state_current_for_backend(B, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  return rns8::detail::amdgpu_builtins_sparse_a_contract(ctx.device_info.gcn_arch,
-      plan.desc.m, plan.desc.n, plan.desc.k, B.desc.cols, C.desc.cols, plan.prefix, false);
+  return rns8::detail::amdgpu_builtins_sparse_a_contract(ctx.device_info.gcn_arch, plan.desc.m,
+                                                         plan.desc.n, plan.desc.k, B.desc.cols,
+                                                         C.desc.cols, plan.prefix, false);
 }
 
-rns8_status validate_sparse_finite_device_operands(
-    const rns8_context& ctx,
-    const rns8_plan& plan,
-    uint16_t modulus,
-    const rns8_sparse_matrix& A,
-    const rns8_matrix& B,
-    const rns8_matrix& C) {
+rns8_status validate_sparse_finite_device_operands(const rns8_context& ctx, const rns8_plan& plan,
+                                                   uint16_t modulus, const rns8_sparse_matrix& A,
+                                                   const rns8_matrix& B, const rns8_matrix& C) {
   if (plan.backend != RNS8_BACKEND_AMDGPU_BUILTINS || A.backend != RNS8_BACKEND_AMDGPU_BUILTINS ||
       !sparse_device_backend_supported(plan.backend)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
-  if (!context_accepts_backend(ctx, plan.backend) || !sparse_finite_matches_plan(A, plan, modulus) ||
-      !A.device_current || A.hip_device_id != ctx.device_id || !A.hip_packed_values || !A.hip_packed_indices ||
+  if (!context_accepts_backend(ctx, plan.backend) ||
+      !sparse_finite_matches_plan(A, plan, modulus) || !A.device_current ||
+      A.hip_device_id != ctx.device_id || !A.hip_packed_values || !A.hip_packed_indices ||
       !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
       !matrix_backend_compatible_with_plan(ctx, C, plan.backend) ||
       B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_descriptor_matches(
-          B, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.k, plan.desc.n, 0, plan.desc.tile_m,
-          plan.desc.tile_n) ||
-      !matrix_descriptor_matches(
-          C, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.m, plan.desc.n, 0, plan.desc.tile_m,
-          plan.desc.tile_n)) {
+  if (!matrix_descriptor_matches(B, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.k, plan.desc.n,
+                                 0, plan.desc.tile_m, plan.desc.tile_n) ||
+      !matrix_descriptor_matches(C, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.m, plan.desc.n,
+                                 0, plan.desc.tile_m, plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!finite_matrix_storage_matches(B, plan.backend, plan.desc.k, plan.desc.n) ||
@@ -415,16 +413,16 @@ rns8_status validate_sparse_finite_device_operands(
       !rns_residue_state_current_for_backend(B, plan.backend) || B.finite_modulus != modulus) {
     return RNS8_INVALID_ARGUMENT;
   }
-  return rns8::detail::amdgpu_builtins_sparse_a_contract(ctx.device_info.gcn_arch,
-      plan.desc.m, plan.desc.n, plan.desc.k, B.desc.cols, C.desc.cols, modulus, true);
+  return rns8::detail::amdgpu_builtins_sparse_a_contract(ctx.device_info.gcn_arch, plan.desc.m,
+                                                         plan.desc.n, plan.desc.k, B.desc.cols,
+                                                         C.desc.cols, modulus, true);
 }
 
-}  // namespace
+} // namespace
 
-rns8_status rns8_sparse_a_4_to_2_layout_counts(
-    const rns8_sparse_matrix_desc* desc,
-    uint64_t* group_count,
-    uint64_t* packed_value_count) {
+rns8_status rns8_sparse_a_4_to_2_layout_counts(const rns8_sparse_matrix_desc* desc,
+                                               uint64_t* group_count,
+                                               uint64_t* packed_value_count) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if (!desc || !group_count || !packed_value_count) {
       return RNS8_INVALID_ARGUMENT;
@@ -439,14 +437,12 @@ rns8_status rns8_sparse_a_4_to_2_layout_counts(
   });
 }
 
-rns8_status rns8_pack_sparse_a_4_to_2_u8(
-    const rns8_sparse_matrix_desc* desc,
-    const uint8_t* dense_a,
-    int64_t dense_ld,
-    uint8_t* packed_values,
-    uint8_t* packed_indices) {
+rns8_status rns8_pack_sparse_a_4_to_2_u8(const rns8_sparse_matrix_desc* desc,
+                                         const uint8_t* dense_a, int64_t dense_ld,
+                                         uint8_t* packed_values, uint8_t* packed_indices) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!desc || !dense_a || !packed_values || !packed_indices || !dense_ld_valid(*desc, dense_ld)) {
+    if (!desc || !dense_a || !packed_values || !packed_indices ||
+        !dense_ld_valid(*desc, dense_ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
     sparse_layout_counts counts{};
@@ -491,14 +487,13 @@ rns8_status rns8_pack_sparse_a_4_to_2_u8(
   });
 }
 
-rns8_status rns8_expand_sparse_a_4_to_2_u8(
-    const rns8_sparse_matrix_desc* desc,
-    const uint8_t* packed_values,
-    const uint8_t* packed_indices,
-    uint8_t* dense_a,
-    int64_t dense_ld) {
+rns8_status rns8_expand_sparse_a_4_to_2_u8(const rns8_sparse_matrix_desc* desc,
+                                           const uint8_t* packed_values,
+                                           const uint8_t* packed_indices, uint8_t* dense_a,
+                                           int64_t dense_ld) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!desc || !packed_values || !packed_indices || !dense_a || !dense_ld_valid(*desc, dense_ld)) {
+    if (!desc || !packed_values || !packed_indices || !dense_a ||
+        !dense_ld_valid(*desc, dense_ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
     sparse_layout_counts counts{};
@@ -534,12 +529,11 @@ rns8_status rns8_expand_sparse_a_4_to_2_u8(
   });
 }
 
-rns8_status rns8_create_sparse_matrix(
-    rns8_context* ctx,
-    const rns8_sparse_matrix_desc* desc,
-    rns8_sparse_matrix** out) {
+rns8_status rns8_create_sparse_matrix(rns8_context* ctx, const rns8_sparse_matrix_desc* desc,
+                                      rns8_sparse_matrix** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+    if (ctx && ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (!ctx || !desc || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -551,7 +545,8 @@ rns8_status rns8_create_sparse_matrix(
     if (!rns8::detail::api::backend_supports_semantics(ctx->backend, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && !sparse_device_backend_supported(ctx->backend)) {
+    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE &&
+        !sparse_device_backend_supported(ctx->backend)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     auto owner = std::unique_ptr<rns8_sparse_matrix>(new (std::nothrow) rns8_sparse_matrix());
@@ -568,7 +563,7 @@ rns8_status rns8_create_sparse_matrix(
     matrix->packed_values.assign(static_cast<std::size_t>(counts.packed_value_count), 0);
     matrix->packed_indices.assign(static_cast<std::size_t>(counts.group_count), 0);
     matrix->hip_device_id = ctx->device_id;
-    matrix->cache_key = build_sparse_cache_key(*matrix,matrix->source_version);
+    matrix->cache_key = build_sparse_cache_key(*matrix, matrix->source_version);
     *out = owner.release();
     return RNS8_SUCCESS;
   });
@@ -577,7 +572,8 @@ rns8_status rns8_create_sparse_matrix(
 rns8_status rns8_destroy_sparse_matrix(rns8_sparse_matrix* matrix) {
   if (matrix) {
     const rns8_status status = free_sparse_device_storage(*matrix);
-    if (status != RNS8_SUCCESS) return status;
+    if (status != RNS8_SUCCESS)
+      return status;
     delete matrix;
     return status;
   }
@@ -585,11 +581,11 @@ rns8_status rns8_destroy_sparse_matrix(rns8_sparse_matrix* matrix) {
   return RNS8_SUCCESS;
 }
 
-rns8_status rns8_get_sparse_matrix_storage_info(
-    const rns8_sparse_matrix* matrix,
-    rns8_sparse_matrix_storage_info* out) {
+rns8_status rns8_get_sparse_matrix_storage_info(const rns8_sparse_matrix* matrix,
+                                                rns8_sparse_matrix_storage_info* out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!matrix || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!matrix || !out ||
+        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
       return RNS8_INVALID_ARGUMENT;
     }
     const uint64_t struct_size = out->struct_size;
@@ -621,39 +617,34 @@ rns8_status rns8_get_sparse_matrix_storage_info(
     out->host_current = matrix->host_current ? 1u : 0u;
     out->device_current = matrix->device_current ? 1u : 0u;
     out->hip_device_id = matrix->hip_device_id;
-    rns8::detail::copy_c_string(out->layout_version, sizeof(out->layout_version), kSparseLayoutVersion);
+    rns8::detail::copy_c_string(out->layout_version, sizeof(out->layout_version),
+                                kSparseLayoutVersion);
     rns8::detail::copy_c_string(out->cache_key, sizeof(out->cache_key), matrix->cache_key);
     rns8::detail::copy_c_string(
-        out->detail,
-        sizeof(out->detail),
+        out->detail, sizeof(out->detail),
         "resident_sparse_a_explicit_4_to_2_contract_cpu_reference_anchor_v1");
     return RNS8_SUCCESS;
   });
 }
 
-rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
-    rns8_context* ctx,
-    rns8_sparse_matrix* matrix,
-    const uint8_t* dense_a_planes,
-    int64_t dense_ld,
-    uint64_t source_version) {
+rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(rns8_context* ctx, rns8_sparse_matrix* matrix,
+                                                const uint8_t* dense_a_planes, int64_t dense_ld,
+                                                uint64_t source_version) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if (!ctx || !matrix || !dense_a_planes || ctx->backend != matrix->backend ||
         !dense_ld_valid(matrix->desc, dense_ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if(matrix->in_flight_readers || matrix->in_flight_writers)return RNS8_BUSY;
-    if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
+    if (matrix->in_flight_readers || matrix->in_flight_writers)
+      return RNS8_BUSY;
+    if (ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     // A malformed later group must not partially overwrite a current matrix
     // while leaving its old source version and range proof usable.
     std::vector<uint8_t> staged_values(matrix->packed_values.size());
     std::vector<uint8_t> staged_indices(matrix->packed_indices.size());
     const rns8_status status = rns8_pack_sparse_a_4_to_2_u8(
-        &matrix->desc,
-        dense_a_planes,
-        dense_ld,
-        staged_values.data(),
-        staged_indices.data());
+        &matrix->desc, dense_a_planes, dense_ld, staged_values.data(), staged_indices.data());
     if (status != RNS8_SUCCESS) {
       return status;
     }
@@ -666,35 +657,55 @@ rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
       for (int64_t row = 0; row < matrix->desc.rows; ++row) {
         for (int64_t col = 0; col < matrix->desc.expanded_k; ++col) {
           for (uint32_t p = 0; p < prefix; ++p) {
-            residues[p] = static_cast<int8_t>(dense_a_planes[
-                static_cast<std::size_t>(p) * matrix->desc.rows * dense_ld + row * dense_ld + col]);
+            residues[p] = static_cast<int8_t>(
+                dense_a_planes[static_cast<std::size_t>(p) * matrix->desc.rows * dense_ld +
+                               row * dense_ld + col]);
           }
           auto value = rns8::detail::reconstruct_canonical(residues, prefix);
           if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED && value >= (product + 1) / 2)
             value -= product;
-          if (value < 0) value = -value;
-          if (value > maximum) maximum = value;
+          if (value < 0)
+            value = -value;
+          if (value > maximum)
+            maximum = value;
         }
       }
       range_prefix = prefix;
     }
-    auto staged_key=build_sparse_cache_key(*matrix,source_version);
-    const bool gpu=sparse_device_backend_supported(matrix->backend);
+    auto staged_key = build_sparse_cache_key(*matrix, source_version);
+    const bool gpu = sparse_device_backend_supported(matrix->backend);
     std::optional<rns8::detail::api::SynchronousLease> upload;
-    if(gpu) {
-      auto admitted=ensure_sparse_device_storage(*ctx,*matrix);
-      if(admitted!=RNS8_SUCCESS)return admitted;
-      size_t token=0;admitted=rns8::detail::api::begin_synchronous_owner_lease(*ctx,token);
-      if(admitted!=RNS8_SUCCESS)return admitted;
-      upload.emplace(*ctx,token);
-      admitted=rns8::detail::api::add_synchronous_owner_hold(*ctx,token,matrix->in_flight_writers);
-      if(admitted==RNS8_SUCCESS)admitted=upload->hold_buffer(matrix->packed_values_owner);
-      if(admitted==RNS8_SUCCESS)admitted=upload->hold_buffer(matrix->packed_indices_owner);
-      if(admitted!=RNS8_SUCCESS)return upload->finish(admitted);
-      bool started=false;
-      try {admitted=rns8::detail::api::synchronous_dispatch_checkpoint(*ctx,"sparse_upload",&started);}
-      catch(...) {if(started)matrix->device_current=false;throw;}
-      if(admitted!=RNS8_SUCCESS){if(started)matrix->device_current=false;return upload->finish(admitted);}
+    if (gpu) {
+      auto admitted = ensure_sparse_device_storage(*ctx, *matrix);
+      if (admitted != RNS8_SUCCESS)
+        return admitted;
+      size_t token = 0;
+      admitted = rns8::detail::api::begin_synchronous_owner_lease(*ctx, token);
+      if (admitted != RNS8_SUCCESS)
+        return admitted;
+      upload.emplace(*ctx, token);
+      admitted =
+          rns8::detail::api::add_synchronous_owner_hold(*ctx, token, matrix->in_flight_writers);
+      if (admitted == RNS8_SUCCESS)
+        admitted = upload->hold_buffer(matrix->packed_values_owner);
+      if (admitted == RNS8_SUCCESS)
+        admitted = upload->hold_buffer(matrix->packed_indices_owner);
+      if (admitted != RNS8_SUCCESS)
+        return upload->finish(admitted);
+      bool started = false;
+      try {
+        admitted =
+            rns8::detail::api::synchronous_dispatch_checkpoint(*ctx, "sparse_upload", &started);
+      } catch (...) {
+        if (started)
+          matrix->device_current = false;
+        throw;
+      }
+      if (admitted != RNS8_SUCCESS) {
+        if (started)
+          matrix->device_current = false;
+        return upload->finish(admitted);
+      }
     }
     matrix->packed_values.swap(staged_values);
     matrix->packed_indices.swap(staged_indices);
@@ -715,41 +726,36 @@ rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
   });
 }
 
-rns8_status rns8_expand_sparse_a_4_to_2_matrix_u8(
-    const rns8_sparse_matrix* matrix,
-    uint8_t* dense_a_planes,
-    int64_t dense_ld) {
+rns8_status rns8_expand_sparse_a_4_to_2_matrix_u8(const rns8_sparse_matrix* matrix,
+                                                  uint8_t* dense_a_planes, int64_t dense_ld) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if (!matrix || !dense_a_planes) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if(matrix->in_flight_writers)return RNS8_BUSY;
-    if(!matrix->host_current)return RNS8_INVALID_ARGUMENT;
-    return rns8_expand_sparse_a_4_to_2_u8(
-        &matrix->desc,
-        matrix->packed_values.data(),
-        matrix->packed_indices.data(),
-        dense_a_planes,
-        dense_ld);
+    if (matrix->in_flight_writers)
+      return RNS8_BUSY;
+    if (!matrix->host_current)
+      return RNS8_INVALID_ARGUMENT;
+    return rns8_expand_sparse_a_4_to_2_u8(&matrix->desc, matrix->packed_values.data(),
+                                          matrix->packed_indices.data(), dense_a_planes, dense_ld);
   });
 }
 
-rns8_status rns8_gemm_rns_sparse_a(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const rns8_sparse_matrix* A,
-    const rns8_matrix* B,
-    rns8_matrix* C,
-    rns8_workspace* workspace) {
+rns8_status rns8_gemm_rns_sparse_a(rns8_context* ctx, const rns8_plan* plan,
+                                   const rns8_sparse_matrix* A, const rns8_matrix* B,
+                                   rns8_matrix* C, rns8_workspace* workspace) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+    if (ctx && ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     // Read-only B may have other readers; a pending writer or any C reservation
     // must fail before compatibility checks, target admission, or output mutation.
-    if (A->in_flight_writers || B->in_flight_writer || C->in_flight_writer || C->in_flight_readers) return RNS8_BUSY;
-    const rns8_status workspace_status = rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
+    if (A->in_flight_writers || B->in_flight_writer || C->in_flight_writer || C->in_flight_readers)
+      return RNS8_BUSY;
+    const rns8_status workspace_status =
+        rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
     }
@@ -757,16 +763,20 @@ rns8_status rns8_gemm_rns_sparse_a(
       return RNS8_INVALID_ARGUMENT;
     }
     if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
-      const auto support = rns8::detail::amdgpu_builtins_sparse_a_contract(ctx->device_info.gcn_arch,
-          plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols, C->desc.cols, plan->prefix, false);
-      if (support != RNS8_SUCCESS) return support;
+      const auto support = rns8::detail::amdgpu_builtins_sparse_a_contract(
+          ctx->device_info.gcn_arch, plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols,
+          C->desc.cols, plan->prefix, false);
+      if (support != RNS8_SUCCESS)
+        return support;
     }
     boost::multiprecision::cpp_int exact_bound;
     if (rns8::detail::exact_wide_semantics(plan->desc.semantics)) {
-      if (B == C) return RNS8_INVALID_ARGUMENT;
+      if (B == C)
+        return RNS8_INVALID_ARGUMENT;
       if (A->exact_range_prefix < plan->prefix || B->exact_range_prefix < plan->prefix)
         return RNS8_RANGE_ERROR;
-      exact_bound = boost::multiprecision::cpp_int(plan->desc.k) * A->exact_max_magnitude * B->exact_max_magnitude;
+      exact_bound = boost::multiprecision::cpp_int(plan->desc.k) * A->exact_max_magnitude *
+                    B->exact_max_magnitude;
       if (!rns8::detail::exact_range_fits(plan->desc.semantics, exact_bound, plan->modulus_product))
         return RNS8_RANGE_ERROR;
     }
@@ -783,68 +793,62 @@ rns8_status rns8_gemm_rns_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
-      return execute_sparse_writer(*ctx,*A,*B,*C,*workspace,"gemm_sparse_rns",[&]() -> rns8_status {
-      const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, dense_a, *B, *C);
-      if (status == RNS8_SUCCESS) {
-        rns8::detail::api::mark_output_host_residues_current(*C, plan);
-        rns8::detail::commit_exact_range(*C, *plan, exact_bound);
-      }
-      return status;
-      });
+      return execute_sparse_writer(
+          *ctx, *A, *B, *C, *workspace, "gemm_sparse_rns", [&]() -> rns8_status {
+            const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, dense_a, *B, *C);
+            if (status == RNS8_SUCCESS) {
+              rns8::detail::api::mark_output_host_residues_current(*C, plan);
+              rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+            }
+            return status;
+          });
     }
-#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS &&                         \
     defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
-    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS && A->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS &&
+        A->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
       if (!plan->tile_schedule.empty() || plan->schedule_adaptive_prefix_active) {
         return RNS8_UNSUPPORTED_BACKEND;
       }
-      const rns8_status operand_status = validate_sparse_rns_device_operands(*ctx, *plan, *A, *B, *C);
+      const rns8_status operand_status =
+          validate_sparse_rns_device_operands(*ctx, *plan, *A, *B, *C);
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
-      return execute_sparse_writer(*ctx,*A,*B,*C,*workspace,"gemm_sparse_rns",[&]() -> rns8_status {
-      const rns8_status status = rns8::detail::amdgpu_builtins_gemm_rns_sparse_a_device(
-          ctx->device_id,
-          A->hip_packed_values,
-          A->hip_packed_indices,
-          B->hip_residues,
-          C->hip_residues,
-          plan->desc.m,
-          plan->desc.n,
-          plan->desc.k,
-          B->desc.cols,
-          C->desc.cols,
-          plan->prefix);
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-      rns8::detail::api::mark_output_device_residues_current(*C, plan);
-      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
-      return RNS8_SUCCESS;
-      });
+      return execute_sparse_writer(
+          *ctx, *A, *B, *C, *workspace, "gemm_sparse_rns", [&]() -> rns8_status {
+            const rns8_status status = rns8::detail::amdgpu_builtins_gemm_rns_sparse_a_device(
+                ctx->device_id, A->hip_packed_values, A->hip_packed_indices, B->hip_residues,
+                C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols,
+                C->desc.cols, plan->prefix);
+            if (status != RNS8_SUCCESS) {
+              return status;
+            }
+            rns8::detail::api::mark_output_device_residues_current(*C, plan);
+            rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+            return RNS8_SUCCESS;
+          });
     }
 #endif
     return RNS8_UNSUPPORTED_BACKEND;
   });
 }
 
-rns8_status rns8_gemm_finite_u8_sparse_a(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    uint16_t modulus,
-    const rns8_sparse_matrix* A,
-    const rns8_matrix* B,
-    rns8_matrix* C,
-    rns8_workspace* workspace) {
+rns8_status rns8_gemm_finite_u8_sparse_a(rns8_context* ctx, const rns8_plan* plan, uint16_t modulus,
+                                         const rns8_sparse_matrix* A, const rns8_matrix* B,
+                                         rns8_matrix* C, rns8_workspace* workspace) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+    if (ctx && ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     // Read-only B may have other readers; a pending writer or any C reservation
     // must fail before compatibility checks, target admission, or output mutation.
-    if (A->in_flight_writers || B->in_flight_writer || C->in_flight_writer || C->in_flight_readers) return RNS8_BUSY;
-    const rns8_status workspace_status = rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
+    if (A->in_flight_writers || B->in_flight_writer || C->in_flight_writer || C->in_flight_readers)
+      return RNS8_BUSY;
+    const rns8_status workspace_status =
+        rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
     }
@@ -852,9 +856,11 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
       return RNS8_INVALID_ARGUMENT;
     }
     if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
-      const auto support = rns8::detail::amdgpu_builtins_sparse_a_contract(ctx->device_info.gcn_arch,
-          plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols, C->desc.cols, modulus, true);
-      if (support != RNS8_SUCCESS) return support;
+      const auto support = rns8::detail::amdgpu_builtins_sparse_a_contract(
+          ctx->device_info.gcn_arch, plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols,
+          C->desc.cols, modulus, true);
+      if (support != RNS8_SUCCESS)
+        return support;
     }
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE && A->backend == RNS8_BACKEND_CPU_REFERENCE) {
       if (!A->host_current) {
@@ -869,45 +875,42 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
-      return execute_sparse_writer(*ctx,*A,*B,*C,*workspace,"gemm_sparse_finite",[&]() -> rns8_status {
-      const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, dense_a, *B, *C);
-      if (status == RNS8_SUCCESS) {
-        rns8::detail::api::mark_output_host_residues_current(*C, plan);
-        C->finite_modulus = modulus;
-      }
-      return status;
-      });
+      return execute_sparse_writer(
+          *ctx, *A, *B, *C, *workspace, "gemm_sparse_finite", [&]() -> rns8_status {
+            const rns8_status status =
+                rns8::detail::cpu_gemm_finite_u8(*plan, modulus, dense_a, *B, *C);
+            if (status == RNS8_SUCCESS) {
+              rns8::detail::api::mark_output_host_residues_current(*C, plan);
+              C->finite_modulus = modulus;
+            }
+            return status;
+          });
     }
-#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS &&                         \
     defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
-    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS && A->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS &&
+        A->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
       if (!plan->tile_schedule.empty() || plan->schedule_adaptive_prefix_active) {
         return RNS8_UNSUPPORTED_BACKEND;
       }
-      const rns8_status operand_status = validate_sparse_finite_device_operands(*ctx, *plan, modulus, *A, *B, *C);
+      const rns8_status operand_status =
+          validate_sparse_finite_device_operands(*ctx, *plan, modulus, *A, *B, *C);
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
-      return execute_sparse_writer(*ctx,*A,*B,*C,*workspace,"gemm_sparse_finite",[&]() -> rns8_status {
-      const rns8_status status = rns8::detail::amdgpu_builtins_gemm_finite_u8_sparse_a_device(
-          ctx->device_id,
-          A->hip_packed_values,
-          A->hip_packed_indices,
-          B->hip_residues,
-          C->hip_residues,
-          plan->desc.m,
-          plan->desc.n,
-          plan->desc.k,
-          B->desc.cols,
-          C->desc.cols,
-          modulus);
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-      rns8::detail::api::mark_output_device_residues_current(*C, plan);
-      C->finite_modulus = modulus;
-      return RNS8_SUCCESS;
-      });
+      return execute_sparse_writer(
+          *ctx, *A, *B, *C, *workspace, "gemm_sparse_finite", [&]() -> rns8_status {
+            const rns8_status status = rns8::detail::amdgpu_builtins_gemm_finite_u8_sparse_a_device(
+                ctx->device_id, A->hip_packed_values, A->hip_packed_indices, B->hip_residues,
+                C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols,
+                C->desc.cols, modulus);
+            if (status != RNS8_SUCCESS) {
+              return status;
+            }
+            rns8::detail::api::mark_output_device_residues_current(*C, plan);
+            C->finite_modulus = modulus;
+            return RNS8_SUCCESS;
+          });
     }
 #endif
     return RNS8_UNSUPPORTED_BACKEND;

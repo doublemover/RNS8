@@ -24,7 +24,9 @@ def _write_capture(path: Path, rank: int, checksum: int = 987654321) -> None:
     capture["checksum_u64"] = checksum
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(capture, indent=2) + "\n", encoding="utf-8")
-    (path.parent / f"benchmark-schema-rank{rank}.log").write_text("schema validation: PASS\n", encoding="utf-8")
+    (path.parent / f"benchmark-schema-rank{rank}.log").write_text(
+        "schema validation: PASS\n", encoding="utf-8"
+    )
 
 
 def _env_summary(path: Path) -> None:
@@ -139,11 +141,16 @@ def main() -> int:
         records = json.loads(original_status)["records"]
         status_path.write_text(json.dumps({"records": records[:1]}), encoding="utf-8")
         rank0 = tmp / "shards" / "gpu4" / "bounded-i64-hip-direct-smoke-rank0.json"
-        truncated = multigpu_shard_report.build_report([rank0], env_summary=env_path, target_status=[status_path])
+        truncated = multigpu_shard_report.build_report(
+            [rank0], env_summary=env_path, target_status=[status_path]
+        )
         assert truncated["missing_ranks"] == [1, 2, 3]
         assert "missing_rank_status" in truncated["promotion_blockers"]
-        for change, blocker in [("duplicate", "duplicate_rank_status"), ("world", "world_size_mismatch"),
-                                ("device", "rank_device_mismatch")]:
+        for change, blocker in [
+            ("duplicate", "duplicate_rank_status"),
+            ("world", "world_size_mismatch"),
+            ("device", "rank_device_mismatch"),
+        ]:
             mutated = copy.deepcopy(records)
             if change == "duplicate":
                 mutated.append(mutated[0])
@@ -152,22 +159,26 @@ def main() -> int:
             else:
                 mutated[0]["device_index"] = 7
             status_path.write_text(json.dumps({"records": mutated}), encoding="utf-8")
-            broken = multigpu_shard_report.build_report([], env_summary=env_path, target_status=[status_path],
-                                                       shards_dir=tmp / "shards")
+            broken = multigpu_shard_report.build_report(
+                [], env_summary=env_path, target_status=[status_path], shards_dir=tmp / "shards"
+            )
             assert blocker in broken["promotion_blockers"]
             assert multigpu_shard_report.report_has_critical_failures(broken)
         status_path.write_text(original_status, encoding="utf-8")
         extra = rank0.with_name("second-case-rank0.json")
         _write_capture(extra, 0)
-        incomplete_case = multigpu_shard_report.build_report([], env_summary=env_path, target_status=[status_path],
-                                                            shards_dir=tmp / "shards")
+        incomplete_case = multigpu_shard_report.build_report(
+            [], env_summary=env_path, target_status=[status_path], shards_dir=tmp / "shards"
+        )
         assert len(incomplete_case["missing_cases"]) == 3
         assert "missing_cases" in incomplete_case["promotion_blockers"]
         extra.unlink()
 
         failed = tmp / "shards" / "gpu5" / "bounded-i64-hip-direct-smoke-rank1.json"
         failed.write_text('{"not": "schema valid"}\n', encoding="utf-8")
-        (failed.parent / "benchmark-schema-rank1.log").write_text("ERROR schema validation failed\n", encoding="utf-8")
+        (failed.parent / "benchmark-schema-rank1.log").write_text(
+            "ERROR schema validation failed\n", encoding="utf-8"
+        )
         missing = tmp / "shards" / "gpu6" / "bounded-i64-hip-direct-smoke-rank2.json"
         missing.unlink()
         failed_report = multigpu_shard_report.build_report(

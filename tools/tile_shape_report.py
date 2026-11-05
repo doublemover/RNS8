@@ -33,10 +33,18 @@ def _number(value: Any) -> float | None:
 def _median(capture: dict[str, Any] | None, phase: str) -> float | None:
     if not capture:
         return None
-    item = (capture.get("timing_summary_us") or {}).get(phase) if isinstance(capture.get("timing_summary_us"), dict) else None
+    item = (
+        (capture.get("timing_summary_us") or {}).get(phase)
+        if isinstance(capture.get("timing_summary_us"), dict)
+        else None
+    )
     if isinstance(item, dict) and isinstance(item.get("median"), (int, float)):
         return float(item["median"])
-    values = (capture.get("raw_timings_us") or {}).get(phase) if isinstance(capture.get("raw_timings_us"), dict) else None
+    values = (
+        (capture.get("raw_timings_us") or {}).get(phase)
+        if isinstance(capture.get("raw_timings_us"), dict)
+        else None
+    )
     if isinstance(values, list) and values:
         numeric = sorted(float(value) for value in values if isinstance(value, (int, float)))
         if numeric:
@@ -78,11 +86,16 @@ def _schedule(capture: dict[str, Any]) -> dict[str, Any]:
 
 
 def _is_release_reviewed(capture: dict[str, Any]) -> bool:
-    return int(capture.get("warmups", 0) or 0) >= RELEASE_MIN_WARMUPS and int(capture.get("repeats", 0) or 0) >= RELEASE_MIN_REPEATS
+    return (
+        int(capture.get("warmups", 0) or 0) >= RELEASE_MIN_WARMUPS
+        and int(capture.get("repeats", 0) or 0) >= RELEASE_MIN_REPEATS
+    )
 
 
 def _gpu_events_available(capture: dict[str, Any]) -> bool:
-    timing = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    timing = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
     events = capture.get("gpu_event_timings_us")
     phases = timing.get("gpu_event_phase_order")
     return (
@@ -98,9 +111,13 @@ def _gpu_events_available(capture: dict[str, Any]) -> bool:
 
 def _contract_key(capture: dict[str, Any]) -> tuple[Any, ...]:
     schedule = _schedule(capture)
-    export_variant = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    export_variant = (
+        capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    )
     reconstruction_variant = (
-        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+        capture.get("reconstruction_variant")
+        if isinstance(capture.get("reconstruction_variant"), dict)
+        else {}
     )
     return (
         capture.get("semantics"),
@@ -151,7 +168,9 @@ def _is_default_tile_anchor(capture: dict[str, Any]) -> bool:
 def _is_tile_candidate(capture: dict[str, Any]) -> bool:
     variant = _tile_variant(capture)
     k_block_policy = variant.get("k_block_policy", "auto")
-    non_default_tile = capture.get("tile_m") != DEFAULT_TILE_M or capture.get("tile_n") != DEFAULT_TILE_N
+    non_default_tile = (
+        capture.get("tile_m") != DEFAULT_TILE_M or capture.get("tile_n") != DEFAULT_TILE_N
+    )
     non_default_k_block = k_block_policy not in {"", "auto"}
     return (
         _backend(capture) == "hip-direct"
@@ -222,7 +241,11 @@ def _resource_from_path(path: Path) -> dict[str, Any]:
     if "resource_summary" in data or "evidence_status" in data:
         return data
     if "instruction_totals" in data:
-        totals = data.get("instruction_totals") if isinstance(data.get("instruction_totals"), dict) else {}
+        totals = (
+            data.get("instruction_totals")
+            if isinstance(data.get("instruction_totals"), dict)
+            else {}
+        )
         return {
             "resource_summary": {
                 "vgpr": totals.get("vgpr_count"),
@@ -236,8 +259,12 @@ def _resource_from_path(path: Path) -> dict[str, Any]:
                 "matrix_instruction_count": totals.get("matrix_instruction_count")
                 if totals.get("matrix_instruction_count") is not None
                 else (totals.get("wmma") or 0) + (totals.get("mfma") or 0),
-                "dense_integer_matrix_instruction_count": totals.get("dense_integer_matrix_instruction_count"),
-                "sparse_integer_matrix_instruction_count": totals.get("sparse_integer_matrix_instruction_count"),
+                "dense_integer_matrix_instruction_count": totals.get(
+                    "dense_integer_matrix_instruction_count"
+                ),
+                "sparse_integer_matrix_instruction_count": totals.get(
+                    "sparse_integer_matrix_instruction_count"
+                ),
                 "matrix_instruction_histogram": totals.get("matrix_instruction_histogram") or {},
             },
             "evidence_status": {
@@ -282,12 +309,16 @@ def load_resource_manifest(path: Path | None) -> dict[str, dict[str, Any]]:
                 reports.append(_resource_from_path(report_path))
         inline = entry.get("resource_summary")
         if isinstance(inline, dict):
-            reports.append({"resource_summary": inline, "evidence_status": entry.get("evidence_status", {})})
+            reports.append(
+                {"resource_summary": inline, "evidence_status": entry.get("evidence_status", {})}
+            )
         manifest[capture] = {"reports": reports}
     return manifest
 
 
-def _resource_for_capture(capture: dict[str, Any], manifest: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _resource_for_capture(
+    capture: dict[str, Any], manifest: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
     capture_path = Path(str(capture.get("_path") or ""))
     for key in _path_lookup_keys(capture_path):
         entry = manifest.get(key)
@@ -304,11 +335,17 @@ def _merge_resource_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
     profiler_present = False
     isa_present = False
     for report in reports:
-        report_summary = report.get("resource_summary") if isinstance(report.get("resource_summary"), dict) else {}
+        report_summary = (
+            report.get("resource_summary")
+            if isinstance(report.get("resource_summary"), dict)
+            else {}
+        )
         for key, value in report_summary.items():
             if summary.get(key) is None:
                 summary[key] = value
-        evidence = report.get("evidence_status") if isinstance(report.get("evidence_status"), dict) else {}
+        evidence = (
+            report.get("evidence_status") if isinstance(report.get("evidence_status"), dict) else {}
+        )
         profiler_present = profiler_present or evidence.get("profiler_counter_status") == "present"
         isa_present = isa_present or evidence.get("isa_resource_status") == "present"
         for item in evidence.get("missing_evidence") or []:
@@ -325,14 +362,24 @@ def _merge_resource_reports(reports: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _resource_status(resource: dict[str, Any]) -> dict[str, Any]:
-    summary = resource.get("resource_summary") if isinstance(resource.get("resource_summary"), dict) else {}
-    evidence = resource.get("evidence_status") if isinstance(resource.get("evidence_status"), dict) else {}
-    evidence_present = (
-        evidence.get("profiler_counter_status") == "present"
-        or evidence.get("isa_resource_status") in {"present", "partial"}
+    summary = (
+        resource.get("resource_summary")
+        if isinstance(resource.get("resource_summary"), dict)
+        else {}
     )
-    register_present = _number(summary.get("vgpr")) is not None or _number(summary.get("sgpr")) is not None
-    lds_present = _number(summary.get("lds_bytes")) is not None or _number(summary.get("lds_instruction_mentions")) is not None
+    evidence = (
+        resource.get("evidence_status") if isinstance(resource.get("evidence_status"), dict) else {}
+    )
+    evidence_present = evidence.get("profiler_counter_status") == "present" or evidence.get(
+        "isa_resource_status"
+    ) in {"present", "partial"}
+    register_present = (
+        _number(summary.get("vgpr")) is not None or _number(summary.get("sgpr")) is not None
+    )
+    lds_present = (
+        _number(summary.get("lds_bytes")) is not None
+        or _number(summary.get("lds_instruction_mentions")) is not None
+    )
     occupancy_present = _number(summary.get("occupancy")) is not None
     return {
         "resource_summary": summary,
@@ -341,11 +388,15 @@ def _resource_status(resource: dict[str, Any]) -> dict[str, Any]:
         "register_pressure_present": register_present,
         "lds_signal_present": lds_present,
         "occupancy_present": occupancy_present,
-        "complete_for_promotion": bool(evidence_present and register_present and lds_present and occupancy_present),
+        "complete_for_promotion": bool(
+            evidence_present and register_present and lds_present and occupancy_present
+        ),
     }
 
 
-def _baseline_maps(captures: list[dict[str, Any]]) -> tuple[dict[tuple[Any, ...], dict[str, Any]], dict[tuple[Any, ...], dict[str, Any]]]:
+def _baseline_maps(
+    captures: list[dict[str, Any]],
+) -> tuple[dict[tuple[Any, ...], dict[str, Any]], dict[tuple[Any, ...], dict[str, Any]]]:
     cpu: dict[tuple[Any, ...], dict[str, Any]] = {}
     direct: dict[tuple[Any, ...], dict[str, Any]] = {}
     for capture in captures:
@@ -405,9 +456,13 @@ def row_for_candidate(
     if variant.get("k_block_policy", "auto") not in {"", "auto"}:
         if variant.get("split_k_mode") != "single_gpu_no_split_k":
             core_blockers.append("k_block_split_mode_not_single_gpu")
-        if not isinstance(variant.get("accumulator_safety_key"), str) or not variant.get("accumulator_safety_key"):
+        if not isinstance(variant.get("accumulator_safety_key"), str) or not variant.get(
+            "accumulator_safety_key"
+        ):
             core_blockers.append("missing_accumulator_safety_key")
-        if not isinstance(variant.get("resource_report_required"), str) or not variant.get("resource_report_required"):
+        if not isinstance(variant.get("resource_report_required"), str) or not variant.get(
+            "resource_report_required"
+        ):
             core_blockers.append("missing_resource_report_requirement")
     if not resource_status["resource_evidence_present"]:
         resource_blockers.append("missing_counter_or_isa_resource_evidence")
@@ -457,13 +512,17 @@ def row_for_candidate(
         "cpu_baseline_path": cpu.get("_path") if cpu else None,
         "cpu_baseline_median_end_to_end_us": _median(cpu, "end_to_end") if cpu else None,
         "default_direct_hip_baseline_path": direct.get("_path") if direct else None,
-        "default_direct_hip_median_end_to_end_us": _median(direct, "end_to_end") if direct else None,
+        "default_direct_hip_median_end_to_end_us": _median(direct, "end_to_end")
+        if direct
+        else None,
         "speedup_vs_default_direct_hip_tile": speedup,
         "release_reviewed": _is_release_reviewed(candidate),
         "candidate_gpu_events": _gpu_events_available(candidate),
         "default_direct_hip_gpu_events": _gpu_events_available(direct) if direct else False,
         "autotune_key_has_tile_identity": _autotune_key_has_tile_identity(candidate),
-        "selected_kernel_has_tile_report_identity": _selected_kernel_has_tile_report_identity(candidate),
+        "selected_kernel_has_tile_report_identity": _selected_kernel_has_tile_report_identity(
+            candidate
+        ),
         "resource_status": resource_status,
         "numerical_reference": numerical.to_json(),
         "direct_numerical_reference": direct_numerical.to_json() if direct_numerical else None,
@@ -473,7 +532,9 @@ def row_for_candidate(
     }
 
 
-def build_report(paths: list[Path], resource_manifest: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+def build_report(
+    paths: list[Path], resource_manifest: dict[str, dict[str, Any]] | None = None
+) -> dict[str, Any]:
     resources = resource_manifest or {}
     captures = load_report_captures(paths)
     candidates = [capture for capture in captures if _is_tile_candidate(capture)]
@@ -492,7 +553,9 @@ def build_report(paths: list[Path], resource_manifest: dict[str, dict[str, Any]]
     grouped_rows: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         shape = row["shape"]
-        grouped_rows[(row["semantics"], row["target_id"], shape["m"], shape["n"], shape["k"])].append(row)
+        grouped_rows[
+            (row["semantics"], row["target_id"], shape["m"], shape["n"], shape["k"])
+        ].append(row)
     return {
         "schema": "rns8_tile_shape_report_v2",
         "capture_count": len(captures),
@@ -511,7 +574,9 @@ def build_report(paths: list[Path], resource_manifest: dict[str, dict[str, Any]]
         "groups": [
             {
                 "key": key,
-                "rows": sorted(value, key=lambda row: row.get("candidate_median_end_to_end_us") or float("inf")),
+                "rows": sorted(
+                    value, key=lambda row: row.get("candidate_median_end_to_end_us") or float("inf")
+                ),
             }
             for key, value in sorted(grouped_rows.items(), key=lambda item: str(item[0]))
         ],
@@ -569,7 +634,8 @@ def main() -> int:
         for label, path in write_outputs(report, args.out_dir).items():
             print(f"{label}: {path}")
     if args.require_complete and (
-        report["candidate_count"] == 0 or any(row["decision"] == "keep experimental" for row in report["rows"])
+        report["candidate_count"] == 0
+        or any(row["decision"] == "keep experimental" for row in report["rows"])
     ):
         return 1
     return 0

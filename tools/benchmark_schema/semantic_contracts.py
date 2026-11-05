@@ -13,6 +13,7 @@ from .semantic_exact_wide import validate_exact_wide_contract
 from .semantic_finite import validate_finite_u8_contract
 from .semantic_wrap64 import validate_wrap64_contract
 
+
 def validate_semantic_contract(self) -> None:
     semantics = self.data.get("semantics")
     prefix = self.data.get("prefix")
@@ -37,11 +38,15 @@ def validate_semantic_contract(self) -> None:
         residue_chain_independent_final_export, bool
     ):
         self._error("residue_chain_independent_final_export must be a boolean")
-    if status_check is not None and not text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
+    if status_check is not None and not text_choice(
+        semantics, {"exact_wide_signed", "exact_wide_unsigned"}
+    ):
         self._error("exact_wide_export_status_check must be null outside exact-wide captures")
     rns_chain_semantics = {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
     if residue_chain_length > 1 and semantics not in rns_chain_semantics:
-        self._error("residue_chain_length > 1 captures must use bounded or exact-wide RNS semantics")
+        self._error(
+            "residue_chain_length > 1 captures must use bounded or exact-wide RNS semantics"
+        )
     if residue_output_mode == "residue_current_rns" and residue_chain_length <= 1:
         self._error("residue_output_mode=residue_current_rns requires residue_chain_length > 1")
     if residue_chain_length == 1 and residue_output_mode != "host_export":
@@ -49,27 +54,45 @@ def validate_semantic_contract(self) -> None:
     if residue_chain_length > 1 and isinstance(residue_chain_final_export, bool):
         expected_final_export = residue_output_mode == "host_export"
         if residue_chain_final_export is not expected_final_export:
-            self._error("residue_chain_final_export must match residue_output_mode for chain captures")
+            self._error(
+                "residue_chain_final_export must match residue_output_mode for chain captures"
+            )
     if residue_chain_independent_final_export is True:
-        if not text_choice(semantics, {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}):
-            self._error("independent final-output residue-chain captures require bounded or exact-wide RNS semantics")
+        if not text_choice(
+            semantics, {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
+        ):
+            self._error(
+                "independent final-output residue-chain captures require bounded or exact-wide RNS semantics"
+            )
         if residue_chain_length <= 1 or residue_output_mode != "host_export":
-            self._error("independent final-output residue-chain captures must use host_export residue_chain_length > 1")
+            self._error(
+                "independent final-output residue-chain captures must use host_export residue_chain_length > 1"
+            )
         if residue_chain_final_export is not True:
-            self._error("independent final-output residue-chain captures must set residue_chain_final_export=true")
+            self._error(
+                "independent final-output residue-chain captures must set residue_chain_final_export=true"
+            )
         if self._benchmark_execution_mode() != "residue_chain_independent_final_host_export":
             self._error(
                 "independent final-output residue-chain captures must use "
                 "benchmark_execution_mode=residue_chain_independent_final_host_export"
             )
         if self.data.get("pack_mode") != "per_repeat_repack":
-            self._error("independent final-output residue-chain captures must use pack_mode=per_repeat_repack")
+            self._error(
+                "independent final-output residue-chain captures must use pack_mode=per_repeat_repack"
+            )
         if self.data.get("reuse_packed_inputs") is not False:
-            self._error("independent final-output residue-chain captures must not use packed-input reuse")
+            self._error(
+                "independent final-output residue-chain captures must not use packed-input reuse"
+            )
         if self.data.get("prepack_reuse_operands") not in (None, []):
-            self._error("independent final-output residue-chain captures must not declare reused operands")
+            self._error(
+                "independent final-output residue-chain captures must not declare reused operands"
+            )
         if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
-            self._error("independent final-output residue-chain captures must use prepack_reuse_strategy=none")
+            self._error(
+                "independent final-output residue-chain captures must use prepack_reuse_strategy=none"
+            )
         if isinstance(metadata, dict):
             if metadata.get("residue_chain_independent_final_export") is not True:
                 self._error(
@@ -118,7 +141,9 @@ def validate_semantic_contract(self) -> None:
         expected_applicable = (
             prefix > 0
             and not self._is_public_oneshot_capture()
-            and not (text_choice(semantics, {"bounded_i64", "bounded_u64"}) and bound_mode == "per_tile")
+            and not (
+                text_choice(semantics, {"bounded_i64", "bounded_u64"}) and bound_mode == "per_tile"
+            )
             and not self._is_direct_hip_vector_to_rns_chain_capture()
             and not self._is_host_api_batch_capture()
             and not self._is_grouped_dispatch_capture()

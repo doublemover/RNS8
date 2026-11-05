@@ -75,11 +75,15 @@ def _write_review_report(path: Path, capture_path: Path, *, promotable: bool) ->
                             {
                                 "backend": "ck",
                                 "capture": str(capture_path),
-                                "cache_write_status": "eligible_after_review" if promotable else "not_eligible",
+                                "cache_write_status": "eligible_after_review"
+                                if promotable
+                                else "not_eligible",
                                 "median_end_to_end_us": 10.0,
                                 "promotable": promotable,
                                 "promotion_blockers": blockers,
-                                "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",
+                                "promotion_reason": "beats_required_same_contract_gpu_baselines"
+                                if promotable
+                                else "blocked",
                                 "release_review_capture": True,
                                 "selected_kernel": "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
                                 "speedup_vs_direct_hip": 1.2 if promotable else 0.9,
@@ -112,7 +116,10 @@ def main() -> int:
             refresh_scenario=["tiny-scenario"],
         )
         commands = pending_validation.command_plan(config, args)
-        assert [item.name for item in commands] == ["build_linux-cdna-release", "sweep_tiny-scenario"]
+        assert [item.name for item in commands] == [
+            "build_linux-cdna-release",
+            "sweep_tiny-scenario",
+        ]
         assert commands[0].command == ["cmake", "--build", "--preset", "linux-cdna-release"]
         sweep_text = " ".join(commands[1].command)
         assert "--scenario tiny-scenario" in sweep_text
@@ -166,7 +173,14 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
-        valid_capture = tmp / "captures" / "k-block-tile-variants" / "scenarios" / "k-block-tile-variants" / "valid.json"
+        valid_capture = (
+            tmp
+            / "captures"
+            / "k-block-tile-variants"
+            / "scenarios"
+            / "k-block-tile-variants"
+            / "valid.json"
+        )
         failed_capture = (
             tmp
             / "captures"
@@ -185,7 +199,9 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
         config = _generic_config(tmp)
-        capture_path = tmp / "captures" / "tiny-scenario" / "scenarios" / "tiny-scenario" / "candidate.json"
+        capture_path = (
+            tmp / "captures" / "tiny-scenario" / "scenarios" / "tiny-scenario" / "candidate.json"
+        )
         review_path = tmp / "captures" / "tiny-scenario" / "review_report.json"
         _write_capture(capture_path)
         _write_review_report(review_path, capture_path, promotable=True)
@@ -200,7 +216,14 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
-        capture_path = tmp / "captures" / "exact-wide-export" / "scenarios" / "exact-wide-export" / "candidate.json"
+        capture_path = (
+            tmp
+            / "captures"
+            / "exact-wide-export"
+            / "scenarios"
+            / "exact-wide-export"
+            / "candidate.json"
+        )
         review_path = tmp / "captures" / "exact-wide-export" / "review_report.json"
         _write_capture(capture_path)
         _write_review_report(review_path, capture_path, promotable=True)
@@ -217,7 +240,14 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
-        capture_path = tmp / "captures" / "resident-lifetime-arena" / "scenarios" / "resident-lifetime-arena" / "candidate.json"
+        capture_path = (
+            tmp
+            / "captures"
+            / "resident-lifetime-arena"
+            / "scenarios"
+            / "resident-lifetime-arena"
+            / "candidate.json"
+        )
         review_path = tmp / "captures" / "resident-lifetime-arena" / "review_report.json"
         _write_capture(capture_path)
         _write_review_report(review_path, capture_path, promotable=False)
@@ -231,7 +261,14 @@ def main() -> int:
 
     assert pending_validation.validation_run_passed(
         [{"name": "sweep", "returncode": 0, "passed": True}],
-        [{"name": "shape_family_shadow_report", "returncode": None, "passed": True, "skipped_reason": "not provided"}],
+        [
+            {
+                "name": "shape_family_shadow_report",
+                "returncode": None,
+                "passed": True,
+                "skipped_reason": "not provided",
+            }
+        ],
     )
     assert not pending_validation.validation_run_passed(
         [{"name": "sweep", "returncode": 0, "passed": True}],

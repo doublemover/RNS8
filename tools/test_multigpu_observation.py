@@ -32,14 +32,10 @@ class MultiGPUObservations(unittest.TestCase):
             self.assertFalse(report_has_critical_failures(report))
             self.assertFalse(report["promotion_eligible"])
             for row in report["rows"]:
-                self.assertEqual(
-                    row["physical_device_id"], fixture.devices[row["rank"]]
-                )
+                self.assertEqual(row["physical_device_id"], fixture.devices[row["rank"]])
                 self.assertEqual(row["observed_runtime_ordinal"], 0)
                 self.assertEqual(row["target_arch"], "gfx942")
-                self.assertEqual(
-                    row["device_bdf"], f"0000:{fixture.devices[row['rank']]:02x}:00.0"
-                )
+                self.assertEqual(row["device_bdf"], f"0000:{fixture.devices[row['rank']]:02x}:00.0")
                 self.assertEqual(row["observation_binding_status"], "verified")
             emission = emit_session_bindings(
                 fixture.manifest_path, fixture.results_path, fixture.root / "emitted"
@@ -48,9 +44,7 @@ class MultiGPUObservations(unittest.TestCase):
             self.assertEqual(emission["emitted"], 8)
             # Escape every metadata cell, including names read from external JSON.
             report["rows"][0]["device_name"] = "name | extra\nrow"
-            markdown = Path(
-                write_outputs(report, fixture.root / "report")["markdown"]
-            ).read_text()
+            markdown = Path(write_outputs(report, fixture.root / "report")["markdown"]).read_text()
             self.assertIn("name &#124; extra<br>row", markdown)
 
     def test_missing_receipt_retains_all_requested_cases(self):
@@ -65,9 +59,7 @@ class MultiGPUObservations(unittest.TestCase):
             fixture = ObservationFixture(Path(temporary), finite=True)
             report = build_report([], observation_receipts=fixture.receipts())
             self.assertEqual(report["qualified_observation_count"], 8)
-            self.assertEqual(
-                {row["finite_modulus"] for row in report["rows"]}, {254, 255}
-            )
+            self.assertEqual({row["finite_modulus"] for row in report["rows"]}, {254, 255})
             self.assertEqual(len(report["checksum_groups"]), 2)
             self.assertFalse(report_has_critical_failures(report))
 
@@ -91,27 +83,19 @@ class MultiGPUObservations(unittest.TestCase):
             fixture = ObservationFixture(Path(temporary), swapped_device=True)
             stage, capture = fixture.captures[-2]
             with self.assertRaises(ValueError):
-                make_binding(
-                    capture, fixture.manifest_path, fixture.results_path, stage
-                )
+                make_binding(capture, fixture.manifest_path, fixture.results_path, stage)
 
     def test_stale_raw_artifacts_and_resealed_summary_substitution_fail(self):
         for mode in ("raw", "facts", "pid", "target", "missing_identity"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
                 fixture = ObservationFixture(Path(temporary))
                 stage, path = fixture.captures[0]
-                binding = make_binding(
-                    path, fixture.manifest_path, fixture.results_path, stage
-                )
+                binding = make_binding(path, fixture.manifest_path, fixture.results_path, stage)
                 value = copy.deepcopy(binding)
                 if mode == "facts":
                     value["facts"]["rank"] = 3
                     value["identity_sha256"] = canonical_digest(
-                        {
-                            key: item
-                            for key, item in value.items()
-                            if key != "identity_sha256"
-                        }
+                        {key: item for key, item in value.items() if key != "identity_sha256"}
                     )
                 elif mode == "raw":
                     path.write_text(path.read_text() + "\n")
@@ -133,11 +117,7 @@ class MultiGPUObservations(unittest.TestCase):
                     write(fixture.results_path, dict(fixture.results, results=rows))
                     value["proof"]["session_results"] = reference(fixture.results_path)
                     value["identity_sha256"] = canonical_digest(
-                        {
-                            key: item
-                            for key, item in value.items()
-                            if key != "identity_sha256"
-                        }
+                        {key: item for key, item in value.items() if key != "identity_sha256"}
                     )
                 with self.assertRaises(ValueError):
                     validate_binding(value, path)
@@ -163,9 +143,7 @@ class MultiGPUObservations(unittest.TestCase):
             report = build_report([], env_summary=intent, observation_receipts=receipts)
             self.assertTrue(report_has_critical_failures(report))
             self.assertIn("observed_target_mismatch", report["promotion_blockers"])
-            self.assertTrue(
-                all(row["target_arch"] == "gfx942" for row in report["rows"])
-            )
+            self.assertTrue(all(row["target_arch"] == "gfx942" for row in report["rows"]))
 
 
 if __name__ == "__main__":

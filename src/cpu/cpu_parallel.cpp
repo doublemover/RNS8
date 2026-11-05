@@ -5,7 +5,7 @@
 #include <limits>
 
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
-#  include <omp.h>
+#include <omp.h>
 #endif
 
 namespace rns8::detail {
@@ -22,14 +22,15 @@ uint32_t clamped_positive_thread_count(int value) {
   return value > 0 ? static_cast<uint32_t>(value) : 0;
 }
 
-}  // namespace
+} // namespace
 
 void configure_cpu_parallel(uint32_t requested_threads, uint64_t threshold_ops, bool progress) {
   g_requested_threads.store(requested_threads, std::memory_order_relaxed);
   g_threshold_ops.store(threshold_ops, std::memory_order_relaxed);
   g_progress.store(progress, std::memory_order_relaxed);
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
-  if (requested_threads > 0 && requested_threads <= static_cast<uint32_t>(std::numeric_limits<int>::max())) {
+  if (requested_threads > 0 &&
+      requested_threads <= static_cast<uint32_t>(std::numeric_limits<int>::max())) {
     omp_set_num_threads(static_cast<int>(requested_threads));
   }
 #else
@@ -101,4 +102,4 @@ bool cpu_parallel_should_use(uint64_t work_estimate) {
   return cpu_parallel_enabled() && work_estimate >= cpu_parallel_threshold_ops();
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

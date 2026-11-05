@@ -62,8 +62,14 @@ class VectorGroupedCases(unittest.TestCase):
         # receipt. Raw diagnostics still carry their own mandatory correctness fields.
         # Historical captures declaring true remain readable; no synthetic pass is
         # required merely to serialize a new unqualified build's metadata.
-        for filename in ("v4_wrap64_hip.json", "v4_bounded_i64_adaptive_hip.json", "v4_bounded_i64_hipblaslt.json",
-                         "v4_bounded_i64_ck.json", "v4_bounded_i64_rocwmma.json", "v4_bounded_i64_vector_alu.json"):
+        for filename in (
+            "v4_wrap64_hip.json",
+            "v4_bounded_i64_adaptive_hip.json",
+            "v4_bounded_i64_hipblaslt.json",
+            "v4_bounded_i64_ck.json",
+            "v4_bounded_i64_rocwmma.json",
+            "v4_bounded_i64_vector_alu.json",
+        ):
             unqualified = load_capture(FIXTURE_DIR / filename)
             unqualified["backend_metadata"]["exact_differential_validated"] = False
             validate_capture(unqualified)
@@ -79,27 +85,38 @@ class VectorGroupedCases(unittest.TestCase):
         vector_gemv["n"] = 1
         vector_gemv["k"] = 4096
         vector_gemv["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
-        vector_gemv["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
-        vector_gemv["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_n1_native_buffers"
-        vector_gemv["timing_metadata"]["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_n1_native_buffers"
+        vector_gemv["backend_metadata"]["selected_kernel"] = (
+            "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+        )
+        vector_gemv["benchmark_execution_mode"] = (
+            "benchmark_owned_vector_alu_gemv_n1_native_buffers"
+        )
+        vector_gemv["timing_metadata"]["benchmark_execution_mode"] = (
+            "benchmark_owned_vector_alu_gemv_n1_native_buffers"
+        )
         vector_gemv["backend_metadata"]["autotune_key"] = (
             vector_gemv["backend_metadata"]["autotune_key"]
             .replace(";m=16;", ";m=128;")
             .replace(";n=16;", ";n=1;")
             .replace(";k=16;", ";k=4096;")
             .replace("k_block_size=16;", "k_block_size=4096;")
-            .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
+            .replace(
+                "kernel=hip_vector_alu_u64_exact_192b_v1",
+                "kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1",
+            )
         )
         vector_gemv["backend_metadata"]["accumulator_safety"]["k_block_size"] = 4096
         vector_gemv["k_block_size"] = 4096
         vector_gemv_phases = vector_gemv["timing_metadata"]["gpu_event_phase_order"]
-        vector_gemv_phases[vector_gemv_phases.index("vector_alu_u64_kernel")] = "vector_alu_u64_gemv_n1_kernel"
-        vector_gemv["gpu_event_timings_us"]["vector_alu_u64_gemv_n1_kernel"] = (
-            vector_gemv["gpu_event_timings_us"].pop("vector_alu_u64_kernel")
+        vector_gemv_phases[vector_gemv_phases.index("vector_alu_u64_kernel")] = (
+            "vector_alu_u64_gemv_n1_kernel"
         )
-        vector_gemv["gpu_event_timing_summary_us"]["vector_alu_u64_gemv_n1_kernel"] = (
-            vector_gemv["gpu_event_timing_summary_us"].pop("vector_alu_u64_kernel")
-        )
+        vector_gemv["gpu_event_timings_us"]["vector_alu_u64_gemv_n1_kernel"] = vector_gemv[
+            "gpu_event_timings_us"
+        ].pop("vector_alu_u64_kernel")
+        vector_gemv["gpu_event_timing_summary_us"]["vector_alu_u64_gemv_n1_kernel"] = vector_gemv[
+            "gpu_event_timing_summary_us"
+        ].pop("vector_alu_u64_kernel")
         validate_capture(vector_gemv)
 
         vector_gemv_small_n = copy.deepcopy(v4_vector_u64)
@@ -107,23 +124,32 @@ class VectorGroupedCases(unittest.TestCase):
         vector_gemv_small_n["n"] = 8
         vector_gemv_small_n["k"] = 512
         vector_gemv_small_n["selected_kernel"] = "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
-        vector_gemv_small_n["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
-        vector_gemv_small_n["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
-        vector_gemv_small_n["timing_metadata"]["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+        vector_gemv_small_n["backend_metadata"]["selected_kernel"] = (
+            "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
+        )
+        vector_gemv_small_n["benchmark_execution_mode"] = (
+            "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+        )
+        vector_gemv_small_n["timing_metadata"]["benchmark_execution_mode"] = (
+            "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+        )
         vector_gemv_small_n["backend_metadata"]["autotune_key"] = (
             vector_gemv_small_n["backend_metadata"]["autotune_key"]
             .replace(";m=16;", ";m=512;")
             .replace(";n=16;", ";n=8;")
             .replace(";k=16;", ";k=512;")
             .replace("k_block_size=16;", "k_block_size=512;")
-            .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1")
+            .replace(
+                "kernel=hip_vector_alu_u64_exact_192b_v1",
+                "kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
+            )
         )
         vector_gemv_small_n["backend_metadata"]["accumulator_safety"]["k_block_size"] = 512
         vector_gemv_small_n["k_block_size"] = 512
         vector_gemv_small_n_phases = vector_gemv_small_n["timing_metadata"]["gpu_event_phase_order"]
-        vector_gemv_small_n_phases[
-            vector_gemv_small_n_phases.index("vector_alu_u64_kernel")
-        ] = "vector_alu_u64_gemv_small_n_kernel"
+        vector_gemv_small_n_phases[vector_gemv_small_n_phases.index("vector_alu_u64_kernel")] = (
+            "vector_alu_u64_gemv_small_n_kernel"
+        )
         vector_gemv_small_n["gpu_event_timings_us"]["vector_alu_u64_gemv_small_n_kernel"] = (
             vector_gemv_small_n["gpu_event_timings_us"].pop("vector_alu_u64_kernel")
         )
@@ -136,32 +162,46 @@ class VectorGroupedCases(unittest.TestCase):
         validate_capture(direct_hip_skinny_gemv)
 
         stale_direct_hip_skinny_gemv_event = copy.deepcopy(direct_hip_skinny_gemv)
-        skinny_phases = stale_direct_hip_skinny_gemv_event["timing_metadata"]["gpu_event_phase_order"]
+        skinny_phases = stale_direct_hip_skinny_gemv_event["timing_metadata"][
+            "gpu_event_phase_order"
+        ]
         skinny_phases[skinny_phases.index("rns_gemv_n1_kernel_group")] = "rns_gemm_kernel_group"
         stale_direct_hip_skinny_gemv_event["gpu_event_timings_us"]["rns_gemm_kernel_group"] = (
-            stale_direct_hip_skinny_gemv_event["gpu_event_timings_us"].pop("rns_gemv_n1_kernel_group")
+            stale_direct_hip_skinny_gemv_event["gpu_event_timings_us"].pop(
+                "rns_gemv_n1_kernel_group"
+            )
         )
-        stale_direct_hip_skinny_gemv_event["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = (
-            stale_direct_hip_skinny_gemv_event["gpu_event_timing_summary_us"].pop("rns_gemv_n1_kernel_group")
+        stale_direct_hip_skinny_gemv_event["gpu_event_timing_summary_us"][
+            "rns_gemm_kernel_group"
+        ] = stale_direct_hip_skinny_gemv_event["gpu_event_timing_summary_us"].pop(
+            "rns_gemv_n1_kernel_group"
         )
         expect_invalid(
             stale_direct_hip_skinny_gemv_event,
             "direct-HIP skinny GEMV N=1 GPU event phase set is incomplete",
         )
 
-        direct_hip_skinny_gemv_small_n = as_direct_hip_bounded_skinny_gemv_small_n_capture(v4_ck_i64, n=4)
+        direct_hip_skinny_gemv_small_n = as_direct_hip_bounded_skinny_gemv_small_n_capture(
+            v4_ck_i64, n=4
+        )
         validate_capture(direct_hip_skinny_gemv_small_n)
 
         stale_direct_hip_skinny_gemv_small_n_event = copy.deepcopy(direct_hip_skinny_gemv_small_n)
-        small_n_phases = stale_direct_hip_skinny_gemv_small_n_event["timing_metadata"]["gpu_event_phase_order"]
-        small_n_phases[small_n_phases.index("rns_gemv_small_n_kernel_group")] = "rns_gemm_kernel_group"
-        stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timings_us"]["rns_gemm_kernel_group"] = (
-            stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timings_us"].pop("rns_gemv_small_n_kernel_group")
+        small_n_phases = stale_direct_hip_skinny_gemv_small_n_event["timing_metadata"][
+            "gpu_event_phase_order"
+        ]
+        small_n_phases[small_n_phases.index("rns_gemv_small_n_kernel_group")] = (
+            "rns_gemm_kernel_group"
         )
-        stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = (
-            stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timing_summary_us"].pop(
-                "rns_gemv_small_n_kernel_group"
-            )
+        stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timings_us"][
+            "rns_gemm_kernel_group"
+        ] = stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timings_us"].pop(
+            "rns_gemv_small_n_kernel_group"
+        )
+        stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timing_summary_us"][
+            "rns_gemm_kernel_group"
+        ] = stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timing_summary_us"].pop(
+            "rns_gemv_small_n_kernel_group"
         )
         expect_invalid(
             stale_direct_hip_skinny_gemv_small_n_event,
@@ -170,7 +210,9 @@ class VectorGroupedCases(unittest.TestCase):
 
         adaptive_vector_runtime = copy.deepcopy(v4_adaptive_i64)
         adaptive_vector_runtime["benchmark"] = "rns8_bounded_gemm_hip_vector_alu_int64_runtime"
-        adaptive_vector_runtime["benchmark_execution_mode"] = "public_runtime_vector_alu_native_buffers"
+        adaptive_vector_runtime["benchmark_execution_mode"] = (
+            "public_runtime_vector_alu_native_buffers"
+        )
         adaptive_vector_runtime["backend_requested"] = "hip-vector-alu-int64"
         adaptive_vector_runtime["backend_selected"] = "hip-vector-alu-int64"
         adaptive_vector_runtime["selected_kernel"] = "hip_vector_alu_i64_exact_192b_v1"
@@ -182,12 +224,20 @@ class VectorGroupedCases(unittest.TestCase):
             "same_contract_cpu_reference",
             "same_contract_direct_hip_correctness",
         ]
-        adaptive_vector_runtime["backend_metadata"] = copy.deepcopy(v4_vector_i64["backend_metadata"])
+        adaptive_vector_runtime["backend_metadata"] = copy.deepcopy(
+            v4_vector_i64["backend_metadata"]
+        )
         adaptive_vector_runtime["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
-        adaptive_vector_runtime["backend_metadata"]["capability_status"] = "implemented_native_bounded_vector_backend"
-        adaptive_vector_runtime["backend_metadata"]["workspace_mode"] = "native_device_i64_u64_buffers"
+        adaptive_vector_runtime["backend_metadata"]["capability_status"] = (
+            "implemented_native_bounded_vector_backend"
+        )
+        adaptive_vector_runtime["backend_metadata"]["workspace_mode"] = (
+            "native_device_i64_u64_buffers"
+        )
         adaptive_vector_runtime["backend_metadata"]["workspace_required_bytes"] = 0
-        adaptive_vector_runtime["backend_metadata"]["accumulator_safety"]["k_block_size"] = adaptive_vector_runtime["k"]
+        adaptive_vector_runtime["backend_metadata"]["accumulator_safety"]["k_block_size"] = (
+            adaptive_vector_runtime["k"]
+        )
         adaptive_vector_runtime["backend_metadata"]["autotune_key"] = (
             "backend=hip-vector-alu-int64;target_id=gfx1100;semantics=bounded_i64;"
             f"m={adaptive_vector_runtime['m']};n={adaptive_vector_runtime['n']};k={adaptive_vector_runtime['k']};"
@@ -213,7 +263,9 @@ class VectorGroupedCases(unittest.TestCase):
             "remain required for CPU staging, range checks, API dispatch, allocations, and synchronous host-side "
             "overhead not represented on the HIP stream"
         )
-        vector_event_order = copy.deepcopy(v4_vector_i64["timing_metadata"]["gpu_event_phase_order"])
+        vector_event_order = copy.deepcopy(
+            v4_vector_i64["timing_metadata"]["gpu_event_phase_order"]
+        )
         adaptive_vector_runtime["timing_metadata"]["gpu_event_phase_order"] = vector_event_order
         adaptive_vector_runtime["timing_metadata"]["phase_availability"]["reduction"]["scope"] = (
             "not_applicable_native_vector_output"
@@ -222,10 +274,12 @@ class VectorGroupedCases(unittest.TestCase):
             "runtime vector-ALU computes exact logical outputs directly and does not use centered RNS residue reduction"
         )
         adaptive_vector_runtime["gpu_event_timings_us"] = {
-            phase: [1.0 for _ in range(adaptive_vector_runtime["repeats"])] for phase in vector_event_order
+            phase: [1.0 for _ in range(adaptive_vector_runtime["repeats"])]
+            for phase in vector_event_order
         }
         adaptive_vector_runtime["gpu_event_timing_summary_us"] = {
-            phase: summary(values) for phase, values in adaptive_vector_runtime["gpu_event_timings_us"].items()
+            phase: summary(values)
+            for phase, values in adaptive_vector_runtime["gpu_event_timings_us"].items()
         }
         validate_capture(adaptive_vector_runtime)
 
@@ -235,31 +289,44 @@ class VectorGroupedCases(unittest.TestCase):
 
         stale_vector_gemv_kernel = copy.deepcopy(vector_gemv)
         stale_vector_gemv_kernel["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
-        stale_vector_gemv_kernel["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
-        stale_vector_gemv_kernel["backend_metadata"]["autotune_key"] = stale_vector_gemv_kernel["backend_metadata"][
-            "autotune_key"
-        ].replace("kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1", "kernel=hip_vector_alu_u64_exact_192b_v1")
-        expect_invalid(stale_vector_gemv_kernel, "selected_kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
+        stale_vector_gemv_kernel["backend_metadata"]["selected_kernel"] = (
+            "hip_vector_alu_u64_exact_192b_v1"
+        )
+        stale_vector_gemv_kernel["backend_metadata"]["autotune_key"] = stale_vector_gemv_kernel[
+            "backend_metadata"
+        ]["autotune_key"].replace(
+            "kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1",
+            "kernel=hip_vector_alu_u64_exact_192b_v1",
+        )
+        expect_invalid(
+            stale_vector_gemv_kernel, "selected_kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+        )
 
         stale_vector_gemv_small_n_kernel = copy.deepcopy(vector_gemv_small_n)
         stale_vector_gemv_small_n_kernel["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
-        stale_vector_gemv_small_n_kernel["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
-        stale_vector_gemv_small_n_kernel["backend_metadata"]["autotune_key"] = stale_vector_gemv_small_n_kernel[
-            "backend_metadata"
-        ]["autotune_key"].replace(
-            "kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
-            "kernel=hip_vector_alu_u64_exact_192b_v1",
+        stale_vector_gemv_small_n_kernel["backend_metadata"]["selected_kernel"] = (
+            "hip_vector_alu_u64_exact_192b_v1"
+        )
+        stale_vector_gemv_small_n_kernel["backend_metadata"]["autotune_key"] = (
+            stale_vector_gemv_small_n_kernel["backend_metadata"]["autotune_key"].replace(
+                "kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
+                "kernel=hip_vector_alu_u64_exact_192b_v1",
+            )
         )
         expect_invalid(
             stale_vector_gemv_small_n_kernel,
             "selected_kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
         )
 
-        native_to_rns_bridge = as_native_to_rns_bridge_capture(v4_adaptive_i64, "native_i64_to_rns_kernel")
+        native_to_rns_bridge = as_native_to_rns_bridge_capture(
+            v4_adaptive_i64, "native_i64_to_rns_kernel"
+        )
         validate_capture(native_to_rns_bridge)
 
         missing_native_to_rns_event = copy.deepcopy(native_to_rns_bridge)
-        missing_native_to_rns_event["timing_metadata"]["gpu_event_phase_order"].remove("native_i64_to_rns_kernel")
+        missing_native_to_rns_event["timing_metadata"]["gpu_event_phase_order"].remove(
+            "native_i64_to_rns_kernel"
+        )
         del missing_native_to_rns_event["gpu_event_timings_us"]["native_i64_to_rns_kernel"]
         del missing_native_to_rns_event["gpu_event_timing_summary_us"]["native_i64_to_rns_kernel"]
         expect_invalid(
@@ -283,7 +350,10 @@ class VectorGroupedCases(unittest.TestCase):
 
         stale_native_to_rns_request = copy.deepcopy(native_to_rns_bridge)
         stale_native_to_rns_request["backend_requested"] = "hip-direct"
-        expect_invalid(stale_native_to_rns_request, "native-to-RNS bridge captures must use backend_requested=auto")
+        expect_invalid(
+            stale_native_to_rns_request,
+            "native-to-RNS bridge captures must use backend_requested=auto",
+        )
 
         stale_native_to_rns_metadata = copy.deepcopy(native_to_rns_bridge)
         stale_native_to_rns_metadata["timing_metadata"]["native_to_rns_bridge_forced"] = False
@@ -300,7 +370,9 @@ class VectorGroupedCases(unittest.TestCase):
         validate_capture(vector_to_rns_chain)
 
         missing_chain_conversion = copy.deepcopy(vector_to_rns_chain)
-        missing_chain_conversion["timing_metadata"]["gpu_event_phase_order"].remove("native_i64_to_rns_kernel")
+        missing_chain_conversion["timing_metadata"]["gpu_event_phase_order"].remove(
+            "native_i64_to_rns_kernel"
+        )
         del missing_chain_conversion["gpu_event_timings_us"]["native_i64_to_rns_kernel"]
         del missing_chain_conversion["gpu_event_timing_summary_us"]["native_i64_to_rns_kernel"]
         expect_invalid(
@@ -309,7 +381,9 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         missing_chain_vector_kernel = copy.deepcopy(vector_to_rns_chain)
-        missing_chain_vector_kernel["timing_metadata"]["gpu_event_phase_order"].remove("vector_alu_i64_kernel")
+        missing_chain_vector_kernel["timing_metadata"]["gpu_event_phase_order"].remove(
+            "vector_alu_i64_kernel"
+        )
         del missing_chain_vector_kernel["gpu_event_timings_us"]["vector_alu_i64_kernel"]
         del missing_chain_vector_kernel["gpu_event_timing_summary_us"]["vector_alu_i64_kernel"]
         expect_invalid(
@@ -325,7 +399,9 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         stale_chain_control_mode = copy.deepcopy(vector_to_rns_chain)
-        stale_chain_control_mode["timing_metadata"]["vector_to_rns_chain_control_mode"] = "host_export_repack_control"
+        stale_chain_control_mode["timing_metadata"]["vector_to_rns_chain_control_mode"] = (
+            "host_export_repack_control"
+        )
         expect_invalid(
             stale_chain_control_mode,
             "vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain_control_mode=fused_device_native_to_rns",
@@ -340,7 +416,9 @@ class VectorGroupedCases(unittest.TestCase):
         validate_capture(vector_to_rns_host_repack_control)
 
         missing_host_repack_event = copy.deepcopy(vector_to_rns_host_repack_control)
-        missing_host_repack_event["timing_metadata"]["gpu_event_phase_order"].remove("vector_to_rns_host_repack_a")
+        missing_host_repack_event["timing_metadata"]["gpu_event_phase_order"].remove(
+            "vector_to_rns_host_repack_a"
+        )
         del missing_host_repack_event["gpu_event_timings_us"]["vector_to_rns_host_repack_a"]
         del missing_host_repack_event["gpu_event_timing_summary_us"]["vector_to_rns_host_repack_a"]
         expect_invalid(
@@ -381,12 +459,18 @@ class VectorGroupedCases(unittest.TestCase):
 
         missing_host_batch = copy.deepcopy(host_api_batch)
         del missing_host_batch["host_api_batch"]
-        expect_invalid(missing_host_batch, "benchmark_host_api_batch captures must include host_api_batch metadata")
+        expect_invalid(
+            missing_host_batch,
+            "benchmark_host_api_batch captures must include host_api_batch metadata",
+        )
 
         bad_host_batch_size = copy.deepcopy(host_api_batch)
         bad_host_batch_size["host_api_batch"]["batch_size"] = 1
         bad_host_batch_size["timing_metadata"]["host_api_batch_size"] = 1
-        expect_invalid(bad_host_batch_size, "benchmark_host_api_batch captures must use host_api_batch.batch_size > 1")
+        expect_invalid(
+            bad_host_batch_size,
+            "benchmark_host_api_batch captures must use host_api_batch.batch_size > 1",
+        )
 
         stale_host_batch_note = copy.deepcopy(host_api_batch)
         stale_host_batch_note["timing_metadata"]["phase_notes"]["end_to_end"] = (
@@ -400,11 +484,21 @@ class VectorGroupedCases(unittest.TestCase):
         bucketed_grouped_dispatch = copy.deepcopy(grouped_dispatch)
         bucketed_grouped_dispatch["grouped_dispatch"]["task_count"] = 8
         bucketed_grouped_dispatch["timing_metadata"]["grouped_dispatch_task_count"] = 8
-        bucketed_grouped_dispatch["avg_end_to_end_per_task_us"] = bucketed_grouped_dispatch["avg_end_to_end_us"] / 8.0
-        bucketed_grouped_dispatch["avg_pack_per_task_us"] = bucketed_grouped_dispatch["avg_pack_us"] / 8.0
-        bucketed_grouped_dispatch["avg_rns_gemm_per_task_us"] = bucketed_grouped_dispatch["avg_rns_gemm_us"] / 8.0
-        bucketed_grouped_dispatch["avg_crt_export_per_task_us"] = bucketed_grouped_dispatch["avg_crt_export_us"] / 8.0
-        bucketed_contract = bucketed_grouped_dispatch["grouped_dispatch"]["task_descriptor_contract"]
+        bucketed_grouped_dispatch["avg_end_to_end_per_task_us"] = (
+            bucketed_grouped_dispatch["avg_end_to_end_us"] / 8.0
+        )
+        bucketed_grouped_dispatch["avg_pack_per_task_us"] = (
+            bucketed_grouped_dispatch["avg_pack_us"] / 8.0
+        )
+        bucketed_grouped_dispatch["avg_rns_gemm_per_task_us"] = (
+            bucketed_grouped_dispatch["avg_rns_gemm_us"] / 8.0
+        )
+        bucketed_grouped_dispatch["avg_crt_export_per_task_us"] = (
+            bucketed_grouped_dispatch["avg_crt_export_us"] / 8.0
+        )
+        bucketed_contract = bucketed_grouped_dispatch["grouped_dispatch"][
+            "task_descriptor_contract"
+        ]
         bucketed_contract.update(
             {
                 "descriptor_layout": "same_contract_bucketed_resident_task_triplets_v1",
@@ -436,36 +530,50 @@ class VectorGroupedCases(unittest.TestCase):
         validate_capture(bucketed_grouped_dispatch)
 
         bucketed_bad_task_sum = copy.deepcopy(bucketed_grouped_dispatch)
-        bucketed_bad_task_sum["grouped_dispatch"]["task_descriptor_contract"]["buckets"][1]["task_count"] = 3
+        bucketed_bad_task_sum["grouped_dispatch"]["task_descriptor_contract"]["buckets"][1][
+            "task_count"
+        ] = 3
         expect_invalid(
             bucketed_bad_task_sum,
             "bucketed grouped task descriptor bucket task counts must sum to task_count",
         )
 
         grouped_device_pack_gemm = copy.deepcopy(grouped_dispatch)
-        grouped_device_pack_gemm["grouped_dispatch"][
-            "execution_strategy"
-        ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
-        grouped_device_pack_gemm["timing_metadata"][
-            "grouped_dispatch_execution_strategy"
-        ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+        grouped_device_pack_gemm["grouped_dispatch"]["execution_strategy"] = (
+            GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+        )
+        grouped_device_pack_gemm["timing_metadata"]["grouped_dispatch_execution_strategy"] = (
+            GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+        )
         grouped_device_pack_gemm["grouped_dispatch"]["task_descriptor_contract"][
             "device_descriptor_policy"
         ] = "device_pointer_tables_and_compact_slabs"
         validate_capture(grouped_device_pack_gemm)
 
         stale_registry_grouped = as_grouped_dispatch_capture(v4_ck_i64)
-        stale_registry_grouped["grouped_dispatch"]["execution_strategy"] = "device_grouped_unregistered_strategy"
-        stale_registry_grouped["timing_metadata"]["grouped_dispatch_execution_strategy"] = "device_grouped_unregistered_strategy"
-        expect_invalid(stale_registry_grouped, "grouped_dispatch.execution_strategy must be a known grouped strategy")
-        assert GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS in GROUPED_DISPATCH_EXECUTION_STRATEGIES
+        stale_registry_grouped["grouped_dispatch"]["execution_strategy"] = (
+            "device_grouped_unregistered_strategy"
+        )
+        stale_registry_grouped["timing_metadata"]["grouped_dispatch_execution_strategy"] = (
+            "device_grouped_unregistered_strategy"
+        )
+        expect_invalid(
+            stale_registry_grouped,
+            "grouped_dispatch.execution_strategy must be a known grouped strategy",
+        )
+        assert (
+            GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+            in GROUPED_DISPATCH_EXECUTION_STRATEGIES
+        )
         assert "device_pointer_tables_and_compact_slabs" in GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES
 
         stale_grouped_status = copy.deepcopy(grouped_dispatch)
-        stale_grouped_status["grouped_dispatch"]["capture_status"] = "metadata_only_unsupported_for_execution_path"
-        stale_grouped_status["grouped_dispatch"][
-            "unsupported_reason"
-        ] = "grouped_dispatch_not_executed_by_current_benchmark_path"
+        stale_grouped_status["grouped_dispatch"]["capture_status"] = (
+            "metadata_only_unsupported_for_execution_path"
+        )
+        stale_grouped_status["grouped_dispatch"]["unsupported_reason"] = (
+            "grouped_dispatch_not_executed_by_current_benchmark_path"
+        )
         expect_invalid(
             stale_grouped_status,
             "benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.capture_status=executed",
@@ -479,7 +587,9 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         grouped_bad_per_task_average = copy.deepcopy(grouped_dispatch)
-        grouped_bad_per_task_average["avg_end_to_end_per_task_us"] = grouped_bad_per_task_average["avg_end_to_end_us"]
+        grouped_bad_per_task_average["avg_end_to_end_per_task_us"] = grouped_bad_per_task_average[
+            "avg_end_to_end_us"
+        ]
         expect_invalid(
             grouped_bad_per_task_average,
             "avg_end_to_end_per_task_us must equal avg_end_to_end_us / grouped_dispatch.task_count",
@@ -487,7 +597,9 @@ class VectorGroupedCases(unittest.TestCase):
 
         grouped_missing_strategy = copy.deepcopy(grouped_dispatch)
         grouped_missing_strategy["grouped_dispatch"]["execution_strategy"] = "not_requested"
-        grouped_missing_strategy["timing_metadata"]["grouped_dispatch_execution_strategy"] = "not_requested"
+        grouped_missing_strategy["timing_metadata"]["grouped_dispatch_execution_strategy"] = (
+            "not_requested"
+        )
         expect_invalid(
             grouped_missing_strategy,
             "benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy",
@@ -501,7 +613,9 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         grouped_bad_descriptor_task_count = copy.deepcopy(grouped_dispatch)
-        grouped_bad_descriptor_task_count["grouped_dispatch"]["task_descriptor_contract"]["task_count"] += 1
+        grouped_bad_descriptor_task_count["grouped_dispatch"]["task_descriptor_contract"][
+            "task_count"
+        ] += 1
         expect_invalid(
             grouped_bad_descriptor_task_count,
             "grouped task descriptor task_count must match grouped_dispatch.task_count",
@@ -517,7 +631,9 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         grouped_missing_ownership_policy = copy.deepcopy(grouped_dispatch)
-        del grouped_missing_ownership_policy["grouped_dispatch"]["task_descriptor_contract"]["matrix_ownership_policy"]
+        del grouped_missing_ownership_policy["grouped_dispatch"]["task_descriptor_contract"][
+            "matrix_ownership_policy"
+        ]
         expect_invalid(
             grouped_missing_ownership_policy,
             "grouped_dispatch.task_descriptor_contract.matrix_ownership_policy must be known",
@@ -533,7 +649,9 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         grouped_bad_stride_policy = copy.deepcopy(grouped_dispatch)
-        grouped_bad_stride_policy["grouped_dispatch"]["task_descriptor_contract"]["stride_policy"] = "not_requested"
+        grouped_bad_stride_policy["grouped_dispatch"]["task_descriptor_contract"][
+            "stride_policy"
+        ] = "not_requested"
         expect_invalid(
             grouped_bad_stride_policy,
             "grouped task descriptor stride_policy must declare explicit matrix/output strides",
@@ -549,7 +667,9 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         grouped_bad_lifetime_policy = copy.deepcopy(grouped_dispatch)
-        grouped_bad_lifetime_policy["grouped_dispatch"]["task_descriptor_contract"]["lifetime_policy"] = "not_requested"
+        grouped_bad_lifetime_policy["grouped_dispatch"]["task_descriptor_contract"][
+            "lifetime_policy"
+        ] = "not_requested"
         expect_invalid(
             grouped_bad_lifetime_policy,
             "grouped task descriptor lifetime_policy must describe capture lifetime",
@@ -557,7 +677,9 @@ class VectorGroupedCases(unittest.TestCase):
 
         grouped_bad_batched_strategy = copy.deepcopy(grouped_dispatch)
         grouped_bad_batched_strategy["grouped_dispatch"]["batched_export_enabled"] = True
-        grouped_bad_batched_strategy["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True
+        grouped_bad_batched_strategy["timing_metadata"][
+            "grouped_dispatch_batched_export_enabled"
+        ] = True
         expect_invalid(
             grouped_bad_batched_strategy,
             "grouped_dispatch batched export requires a registered batched export strategy",
@@ -572,7 +694,9 @@ class VectorGroupedCases(unittest.TestCase):
 
         missing_helper_target = copy.deepcopy(helper_lane_ck)
         del missing_helper_target["target_variant"]
-        expect_invalid(missing_helper_target, "HIP helper-lane captures must include target_variant")
+        expect_invalid(
+            missing_helper_target, "HIP helper-lane captures must include target_variant"
+        )
 
         bad_helper_target_namespace = copy.deepcopy(helper_lane_ck)
         bad_helper_target_namespace["target_variant"]["target_namespace"] = "unknown"
@@ -588,74 +712,108 @@ class VectorGroupedCases(unittest.TestCase):
 
         bad_allocation_bytes = copy.deepcopy(helper_lane_ck)
         bad_allocation_bytes["device_allocation"]["measured_repeat_delta"]["allocated_bytes"] = -1
-        expect_invalid(bad_allocation_bytes, "device_allocation.measured_repeat_delta.allocated_bytes")
+        expect_invalid(
+            bad_allocation_bytes, "device_allocation.measured_repeat_delta.allocated_bytes"
+        )
 
         bad_output_policy = copy.deepcopy(helper_lane_ck)
         bad_output_policy["output_policy"]["destination_layout"] = "padded_row_major"
-        expect_invalid(bad_output_policy, "output_policy.destination_layout must match output_ld_padding")
+        expect_invalid(
+            bad_output_policy, "output_policy.destination_layout must match output_ld_padding"
+        )
 
         stale_output_ld = copy.deepcopy(padded_output)
         stale_output_ld["output_logical_ld"] += 1
         expect_invalid(stale_output_ld, "output_logical_ld must equal n + output_ld_padding")
 
         stale_output_layout = copy.deepcopy(padded_output)
-        stale_output_layout["timing_metadata"]["benchmark_output_destination_layout"] = "contiguous_row_major"
-        expect_invalid(stale_output_layout, "benchmark_output_destination_layout must be padded_row_major")
+        stale_output_layout["timing_metadata"]["benchmark_output_destination_layout"] = (
+            "contiguous_row_major"
+        )
+        expect_invalid(
+            stale_output_layout, "benchmark_output_destination_layout must be padded_row_major"
+        )
 
         stale_output_metadata = copy.deepcopy(padded_output)
         stale_output_metadata["timing_metadata"]["benchmark_output_logical_ld"] += 1
-        expect_invalid(stale_output_metadata, "benchmark_output_logical_ld must match output_logical_ld")
+        expect_invalid(
+            stale_output_metadata, "benchmark_output_logical_ld must match output_logical_ld"
+        )
 
         stale_staging_policy = copy.deepcopy(padded_output)
-        stale_staging_policy["timing_metadata"]["direct_hip_export_staging_policy"] = "large_padded_outputs_always"
+        stale_staging_policy["timing_metadata"]["direct_hip_export_staging_policy"] = (
+            "large_padded_outputs_always"
+        )
         expect_invalid(stale_staging_policy, "direct_hip_export_staging_policy")
 
         missing_accumulator_safety = copy.deepcopy(v4_ck_i64)
         del missing_accumulator_safety["backend_metadata"]["accumulator_safety"]
-        expect_invalid(missing_accumulator_safety, "backend_metadata.accumulator_safety must be an object")
+        expect_invalid(
+            missing_accumulator_safety, "backend_metadata.accumulator_safety must be an object"
+        )
 
         stale_ck_rns_kernel = copy.deepcopy(v4_ck_i64)
         stale_ck_rns_kernel["selected_kernel"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
-        stale_ck_rns_kernel["backend_metadata"]["selected_kernel"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
-        stale_ck_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_rns_kernel["backend_metadata"][
-            "autotune_key"
-        ].replace(
+        stale_ck_rns_kernel["backend_metadata"]["selected_kernel"] = (
+            "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+        )
+        stale_ck_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_rns_kernel[
+            "backend_metadata"
+        ]["autotune_key"].replace(
             "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
             "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
         )
         expect_invalid(stale_ck_rns_kernel, "CK captures must report a known CK selected_kernel")
 
         stale_ck_tiled_rns_kernel = copy.deepcopy(v4_ck_adaptive_u64)
-        stale_ck_tiled_rns_kernel["selected_kernel"] = "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1"
-        stale_ck_tiled_rns_kernel["backend_metadata"][
-            "selected_kernel"
-        ] = "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1"
-        stale_ck_tiled_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_tiled_rns_kernel["backend_metadata"][
-            "autotune_key"
-        ].replace(
+        stale_ck_tiled_rns_kernel["selected_kernel"] = (
+            "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1"
+        )
+        stale_ck_tiled_rns_kernel["backend_metadata"]["selected_kernel"] = (
+            "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1"
+        )
+        stale_ck_tiled_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_tiled_rns_kernel[
+            "backend_metadata"
+        ]["autotune_key"].replace(
             "kernel=ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
             "kernel=ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
         )
-        expect_invalid(stale_ck_tiled_rns_kernel, "CK captures must report a known CK selected_kernel")
+        expect_invalid(
+            stale_ck_tiled_rns_kernel, "CK captures must report a known CK selected_kernel"
+        )
 
         stale_ck_accumulator_cap = copy.deepcopy(v4_ck_i64)
         stale_ck_accumulator_cap["backend_metadata"]["accumulator_safety"]["k_block_cap"] = 65536
-        stale_ck_accumulator_cap["backend_metadata"]["autotune_key"] = stale_ck_accumulator_cap["backend_metadata"][
-            "autotune_key"
-        ].replace("k_block_cap=32768", "k_block_cap=65536")
-        expect_invalid(stale_ck_accumulator_cap, "backend_metadata.accumulator_safety.k_block_cap must be 32768")
+        stale_ck_accumulator_cap["backend_metadata"]["autotune_key"] = stale_ck_accumulator_cap[
+            "backend_metadata"
+        ]["autotune_key"].replace("k_block_cap=32768", "k_block_cap=65536")
+        expect_invalid(
+            stale_ck_accumulator_cap,
+            "backend_metadata.accumulator_safety.k_block_cap must be 32768",
+        )
 
         missing_accumulator_key_field = copy.deepcopy(v4_ck_i64)
-        missing_accumulator_key_field["backend_metadata"]["autotune_key"] = missing_accumulator_key_field[
-            "backend_metadata"
-        ]["autotune_key"].replace("accumulator_type=int32;", "")
-        expect_invalid(missing_accumulator_key_field, "backend_metadata.autotune_key must include accumulator_type=int32")
+        missing_accumulator_key_field["backend_metadata"]["autotune_key"] = (
+            missing_accumulator_key_field["backend_metadata"]["autotune_key"].replace(
+                "accumulator_type=int32;", ""
+            )
+        )
+        expect_invalid(
+            missing_accumulator_key_field,
+            "backend_metadata.autotune_key must include accumulator_type=int32",
+        )
 
         unsafe_accumulator_flag = copy.deepcopy(v4_ck_i64)
-        unsafe_accumulator_flag["backend_metadata"]["accumulator_safety"]["safe_for_k_block"] = False
-        expect_invalid(unsafe_accumulator_flag, "int32 accumulator captures must set safe_for_k_block=true")
+        unsafe_accumulator_flag["backend_metadata"]["accumulator_safety"]["safe_for_k_block"] = (
+            False
+        )
+        expect_invalid(
+            unsafe_accumulator_flag, "int32 accumulator captures must set safe_for_k_block=true"
+        )
 
-        prefixed_adaptive = add_prefix_policy_fields(copy.deepcopy(v4_adaptive_i64), "per_tile_minimum")
+        prefixed_adaptive = add_prefix_policy_fields(
+            copy.deepcopy(v4_adaptive_i64), "per_tile_minimum"
+        )
         validate_capture(prefixed_adaptive)
 
         incomplete_prefix_policy = copy.deepcopy(prefixed_adaptive)
@@ -672,7 +830,10 @@ class VectorGroupedCases(unittest.TestCase):
 
         bad_prefix_policy_scope = copy.deepcopy(prefixed_adaptive)
         bad_prefix_policy_scope["contract_prefix_policy"] = "minimum_proven"
-        expect_invalid(bad_prefix_policy_scope, "contract_prefix_policy=minimum_proven requires bound_mode=global")
+        expect_invalid(
+            bad_prefix_policy_scope,
+            "contract_prefix_policy=minimum_proven requires bound_mode=global",
+        )
 
         scanned_bound = add_global_bound_scan_fields(copy.deepcopy(v4_hipblaslt_i64))
         validate_capture(scanned_bound)
@@ -683,14 +844,19 @@ class VectorGroupedCases(unittest.TestCase):
 
         incomplete_scanned_timing = copy.deepcopy(scanned_bound)
         del incomplete_scanned_timing["timing_metadata"]["phase_availability"]["global_bound_scan"]
-        expect_invalid(incomplete_scanned_timing, "phase_availability.global_bound_scan must be an object")
+        expect_invalid(
+            incomplete_scanned_timing, "phase_availability.global_bound_scan must be an object"
+        )
 
         per_tile_input_scan = add_per_tile_input_scan_fields(copy.deepcopy(v4_adaptive_i64))
         validate_capture(per_tile_input_scan)
 
         per_tile_scan_without_tile_bounds = copy.deepcopy(per_tile_input_scan)
         per_tile_scan_without_tile_bounds["tile_bounds_u64"] = None
-        expect_invalid(per_tile_scan_without_tile_bounds, "input_exact_tile_bounds captures must include tile_bounds_u64")
+        expect_invalid(
+            per_tile_scan_without_tile_bounds,
+            "input_exact_tile_bounds captures must include tile_bounds_u64",
+        )
 
         stale_per_tile_scan_global_field = copy.deepcopy(per_tile_input_scan)
         stale_per_tile_scan_global_field["bound_discovery"]["discovered_global_bound"] = 1
@@ -700,26 +866,33 @@ class VectorGroupedCases(unittest.TestCase):
         )
 
         stale_per_tile_scan_global_availability = copy.deepcopy(per_tile_input_scan)
-        stale_per_tile_scan_global_availability["timing_metadata"]["phase_availability"]["global_bound_scan"] = {
+        stale_per_tile_scan_global_availability["timing_metadata"]["phase_availability"][
+            "global_bound_scan"
+        ] = {
             "timed": True,
             "timing_key": "global_bound_scan",
             "scope": "input_row_column_abs_summary",
             "reason": "stale global scan metadata from a non-per-tile input-scan capture",
         }
-        expect_invalid(stale_per_tile_scan_global_availability, "phase_availability.global_bound_scan.timed must be false")
+        expect_invalid(
+            stale_per_tile_scan_global_availability,
+            "phase_availability.global_bound_scan.timed must be false",
+        )
         large_wrap64_colpair = as_large_wrap64_colpair_capture(v4_wrap64_hip)
         validate_capture(large_wrap64_colpair)
 
         default_large_wrap64_kernel = copy.deepcopy(large_wrap64_colpair)
-        default_large_wrap64_kernel["selected_kernel"] = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
+        default_large_wrap64_kernel["selected_kernel"] = (
+            "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
+        )
         default_large_wrap64_kernel["backend_metadata"]["selected_kernel"] = (
             "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
         )
-        default_large_wrap64_kernel["backend_metadata"]["autotune_key"] = default_large_wrap64_kernel[
-            "backend_metadata"
-        ]["autotune_key"].replace(
-            "kernel=direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5",
-            "kernel=direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4",
+        default_large_wrap64_kernel["backend_metadata"]["autotune_key"] = (
+            default_large_wrap64_kernel["backend_metadata"]["autotune_key"].replace(
+                "kernel=direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5",
+                "kernel=direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4",
+            )
         )
         default_large_wrap64_kernel["timing_metadata"]["gpu_event_phase_order"] = [
             "wrap64_byte_gemm36_tiled_2d_kernel"
@@ -727,21 +900,29 @@ class VectorGroupedCases(unittest.TestCase):
             else item
             for item in default_large_wrap64_kernel["timing_metadata"]["gpu_event_phase_order"]
         ]
-        default_large_wrap64_kernel["gpu_event_timings_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
-            default_large_wrap64_kernel["gpu_event_timings_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+        default_large_wrap64_kernel["gpu_event_timings_us"][
+            "wrap64_byte_gemm36_tiled_2d_kernel"
+        ] = default_large_wrap64_kernel["gpu_event_timings_us"].pop(
+            "wrap64_byte_gemm36_colpair_2d_kernel"
         )
-        default_large_wrap64_kernel["gpu_event_timing_summary_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
-            default_large_wrap64_kernel["gpu_event_timing_summary_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+        default_large_wrap64_kernel["gpu_event_timing_summary_us"][
+            "wrap64_byte_gemm36_tiled_2d_kernel"
+        ] = default_large_wrap64_kernel["gpu_event_timing_summary_us"].pop(
+            "wrap64_byte_gemm36_colpair_2d_kernel"
         )
         validate_capture(default_large_wrap64_kernel)
 
         too_small_wrap64_colpair_kernel = copy.deepcopy(large_wrap64_colpair)
         too_small_wrap64_colpair_kernel["m"] = 128
         too_small_wrap64_colpair_kernel["n"] = 128
-        too_small_wrap64_colpair_kernel["backend_metadata"]["autotune_key"] = too_small_wrap64_colpair_kernel[
-            "backend_metadata"
-        ]["autotune_key"].replace(";m=256;", ";m=128;").replace(";n=256;", ";n=128;")
-        expect_invalid(too_small_wrap64_colpair_kernel, "direct-HIP wrap64 captures must use selected_kernel")
+        too_small_wrap64_colpair_kernel["backend_metadata"]["autotune_key"] = (
+            too_small_wrap64_colpair_kernel["backend_metadata"]["autotune_key"]
+            .replace(";m=256;", ";m=128;")
+            .replace(";n=256;", ";n=128;")
+        )
+        expect_invalid(
+            too_small_wrap64_colpair_kernel, "direct-HIP wrap64 captures must use selected_kernel"
+        )
 
         stale_large_wrap64_colpair_event = copy.deepcopy(large_wrap64_colpair)
         stale_large_wrap64_colpair_event["timing_metadata"]["gpu_event_phase_order"] = [
@@ -750,11 +931,15 @@ class VectorGroupedCases(unittest.TestCase):
             else item
             for item in stale_large_wrap64_colpair_event["timing_metadata"]["gpu_event_phase_order"]
         ]
-        stale_large_wrap64_colpair_event["gpu_event_timings_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
-            stale_large_wrap64_colpair_event["gpu_event_timings_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+        stale_large_wrap64_colpair_event["gpu_event_timings_us"][
+            "wrap64_byte_gemm36_tiled_2d_kernel"
+        ] = stale_large_wrap64_colpair_event["gpu_event_timings_us"].pop(
+            "wrap64_byte_gemm36_colpair_2d_kernel"
         )
-        stale_large_wrap64_colpair_event["gpu_event_timing_summary_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
-            stale_large_wrap64_colpair_event["gpu_event_timing_summary_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+        stale_large_wrap64_colpair_event["gpu_event_timing_summary_us"][
+            "wrap64_byte_gemm36_tiled_2d_kernel"
+        ] = stale_large_wrap64_colpair_event["gpu_event_timing_summary_us"].pop(
+            "wrap64_byte_gemm36_colpair_2d_kernel"
         )
         expect_invalid(stale_large_wrap64_colpair_event, "wrap64_byte_gemm36_colpair_2d_kernel")
 
@@ -764,24 +949,30 @@ class VectorGroupedCases(unittest.TestCase):
         stale_rocwmma_backend_spelling = copy.deepcopy(v4_rocwmma_i64)
         stale_rocwmma_backend_spelling["backend_requested"] = "wmma"
         stale_rocwmma_backend_spelling["backend_selected"] = "wmma"
-        stale_rocwmma_backend_spelling["backend_metadata"]["autotune_key"] = stale_rocwmma_backend_spelling[
-            "backend_metadata"
-        ]["autotune_key"].replace("backend=rocwmma;", "backend=wmma;")
+        stale_rocwmma_backend_spelling["backend_metadata"]["autotune_key"] = (
+            stale_rocwmma_backend_spelling["backend_metadata"]["autotune_key"].replace(
+                "backend=rocwmma;", "backend=wmma;"
+            )
+        )
         expect_invalid(stale_rocwmma_backend_spelling, "backend_selected must be one of")
 
         stale_candidate_request_spelling = copy.deepcopy(v4_wrap64_rocwmma_candidate)
         stale_candidate_request_spelling["backend_requested"] = "wrap64-wmma-candidate"
         stale_candidate_request_spelling["backend_selected"] = "wmma"
-        stale_candidate_request_spelling["backend_metadata"]["autotune_key"] = stale_candidate_request_spelling[
-            "backend_metadata"
-        ]["autotune_key"].replace("backend=rocwmma-wrap64-candidate;", "backend=wrap64-wmma-candidate;")
+        stale_candidate_request_spelling["backend_metadata"]["autotune_key"] = (
+            stale_candidate_request_spelling["backend_metadata"]["autotune_key"].replace(
+                "backend=rocwmma-wrap64-candidate;", "backend=wrap64-wmma-candidate;"
+            )
+        )
         expect_invalid(stale_candidate_request_spelling, "backend_selected must be one of")
 
         v4_cpu_adaptive_i64 = copy.deepcopy(v4_adaptive_i64)
         v4_cpu_adaptive_i64["backend_requested"] = "cpu-reference"
         v4_cpu_adaptive_i64["backend_selected"] = "cpu-reference"
         v4_cpu_adaptive_i64["selected_kernel"] = "cpu_reference_scalar_rns_gemm_v1"
-        v4_cpu_adaptive_i64["backend_metadata"]["selected_kernel"] = "cpu_reference_scalar_rns_gemm_v1"
+        v4_cpu_adaptive_i64["backend_metadata"]["selected_kernel"] = (
+            "cpu_reference_scalar_rns_gemm_v1"
+        )
         v4_cpu_adaptive_i64["backend_metadata"]["accelerator_library"] = None
         v4_cpu_adaptive_i64["backend_metadata"]["workspace_mode"] = "host_reference_workspace"
         v4_cpu_adaptive_i64["backend_metadata"]["workspace_required_bytes"] = 0
@@ -813,8 +1004,12 @@ class VectorGroupedCases(unittest.TestCase):
             "requested for this backend"
         )
         v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing"] = False
-        v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_reason"] = "not_supported_for_selected_backend"
-        v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_status"] = "not_requested_for_selected_backend"
+        v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_reason"] = (
+            "not_supported_for_selected_backend"
+        )
+        v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_status"] = (
+            "not_requested_for_selected_backend"
+        )
         v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_source"] = None
         v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_source_scope"] = None
         v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_caveat"] = None
@@ -822,7 +1017,6 @@ class VectorGroupedCases(unittest.TestCase):
         v4_cpu_adaptive_i64["gpu_event_timings_us"] = None
         v4_cpu_adaptive_i64["gpu_event_timing_summary_us"] = None
         validate_capture(v4_cpu_adaptive_i64)
-
 
 
 if __name__ == "__main__":

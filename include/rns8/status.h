@@ -8,15 +8,15 @@
 #define RNS8_ABI_VERSION 1u
 
 #if defined(RNS8_STATIC)
-#  define RNS8_API
+#define RNS8_API
 #elif defined(_WIN32)
-#  if defined(RNS8_BUILDING_LIBRARY)
-#    define RNS8_API __declspec(dllexport)
-#  else
-#    define RNS8_API __declspec(dllimport)
-#  endif
+#if defined(RNS8_BUILDING_LIBRARY)
+#define RNS8_API __declspec(dllexport)
 #else
-#  define RNS8_API __attribute__((visibility("default")))
+#define RNS8_API __declspec(dllimport)
+#endif
+#else
+#define RNS8_API __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
@@ -49,4 +49,3 @@ RNS8_API const char* rns8_status_string(rns8_status status);
 #endif
 
 #endif
-

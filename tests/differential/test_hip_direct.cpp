@@ -36,7 +36,7 @@ namespace {
 #include "test_hip_direct_support_resident.inc"
 #include "test_hip_direct_support_misc.inc"
 
-}  // namespace
+} // namespace
 
 #include "test_hip_direct_buffer_ownership_cases.inc"
 #include "test_hip_direct_ring_cases.inc"
@@ -91,22 +91,28 @@ namespace {
 
 #include "../support/ragged_owner_fixture.hpp"
 TEST_CASE("public ragged owner extends compact tiles before a HIP GEMM consumer") {
-  if(!hip_available()) SKIP("no HIP device for public ragged owner");
-  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
-  for(bool u:{false,true}) {ragged_owner_fixture::roundtrip(ctx,u);ragged_owner_fixture::wide_roundtrip(ctx,u);}
-  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  if (!hip_available())
+    SKIP("no HIP device for public ragged owner");
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (bool u : {false, true}) {
+    ragged_owner_fixture::roundtrip(ctx, u);
+    ragged_owner_fixture::wide_roundtrip(ctx, u);
+  }
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 #include "../support/gram_fixture.hpp"
 #include "../support/gram_five_fixture.hpp"
 TEST_CASE("single-source HIP Gram scalar and WMMA match Boost") {
-  if (!hip_available()) SKIP("no HIP device for Gram");
+  if (!hip_available())
+    SKIP("no HIP device for Gram");
   check_public_gram(RNS8_BACKEND_HIP_DIRECT);
 }
 
 TEST_CASE("prepared HIP Gram reuses jobs and matches Boost") {
-  if (!hip_available()) SKIP("no HIP device for prepared Gram");
-  check_public_gram(RNS8_BACKEND_HIP_DIRECT,true);
+  if (!hip_available())
+    SKIP("no HIP device for prepared Gram");
+  check_public_gram(RNS8_BACKEND_HIP_DIRECT, true);
 }
 
 #include "test_hip_direct_stream_panels_cases.inc"
@@ -123,34 +129,51 @@ TEST_CASE("prepared HIP Gram reuses jobs and matches Boost") {
 
 #include "../support/ragged_recipe_fixture.hpp"
 TEST_CASE("direct HIP ragged producer binds retained multi-output recipe consumers") {
-  if(!hip_available())SKIP("no HIP device for ragged recipe binding");
-  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  if (!hip_available())
+    SKIP("no HIP device for ragged recipe binding");
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (bool u : {false, true})
+    ragged_recipe_fixture::check(ctx, u);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 TEST_CASE("direct HIP Gram native, transpose and independent reconstruction ablations") {
-  if(!hip_available()){SKIP("HIP direct unavailable");}
+  if (!hip_available()) {
+    SKIP("HIP direct unavailable");
+  }
   check_gram_prepared_ablations(RNS8_BACKEND_HIP_DIRECT);
 }
 TEST_CASE("direct HIP five-product Gram preserves prime and composite channels") {
-  if(!hip_available())SKIP("no HIP device for five-product Gram");
-  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);gram_five_fixture::check(ctx,false);
-  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  if (!hip_available())
+    SKIP("no HIP device for five-product Gram");
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  gram_five_fixture::check(ctx, false);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 TEST_CASE("matrix five-product Gram executes qualified builtin subproducts") {
-  if(!hip_available() || !rns8::detail::amdgpu_builtins_compiled())SKIP("requires actual compiled AMDGPU matrix provider");
-  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);gram_five_fixture::check(ctx,true);
-  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  if (!hip_available() || !rns8::detail::amdgpu_builtins_compiled())
+    SKIP("requires actual compiled AMDGPU matrix provider");
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  gram_five_fixture::check(ctx, true);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 TEST_CASE("experimental direct-HIP ordered bases match Boost products and conversion") {
-  if(!hip_available())SKIP("no HIP device for experimental ordered bases");
-  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
-  for(bool sign:{false,true})experimental_basis_fixture::roundtrip(ctx,sign);
+  if (!hip_available())
+    SKIP("no HIP device for experimental ordered bases");
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (bool sign : {false, true})
+    experimental_basis_fixture::roundtrip(ctx, sign);
   experimental_basis_fixture::slab_edges(ctx);
-  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 TEST_CASE("HIP materialized recipes consume and refresh differently tiled ragged producers") {
-  if(!hip_available())SKIP("no HIP device for packed ragged product recipe");
-  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);for(bool u:{false,true})for(bool experimental:{false,true})ragged_recipe_fixture::check(ctx,u,true,experimental);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  if (!hip_available())
+    SKIP("no HIP device for packed ragged product recipe");
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (bool u : {false, true})
+    for (bool experimental : {false, true})
+      ragged_recipe_fixture::check(ctx, u, true, experimental);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }

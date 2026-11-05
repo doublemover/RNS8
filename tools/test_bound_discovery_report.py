@@ -35,7 +35,11 @@ def mark_release_counts(capture: dict) -> None:
 def set_phase(capture: dict, end_to_end: int) -> None:
     repeats = capture.get("repeats", bound_discovery_report.RELEASE_MIN_REPEATS)
     for phase in bound_discovery_report.PHASES:
-        value = end_to_end if phase == "end_to_end" else int(capture["timing_summary_us"][phase]["median"])
+        value = (
+            end_to_end
+            if phase == "end_to_end"
+            else int(capture["timing_summary_us"][phase]["median"])
+        )
         capture["raw_timings_us"][phase] = [value] * repeats
         capture["timing_summary_us"][phase] = {
             "avg": float(value),
@@ -118,7 +122,9 @@ def input_scan_global_capture(static_capture: dict, end_to_end: int, setup_us: i
     return capture
 
 
-def proof_mask_capture(static_capture: dict, end_to_end: int, setup_us: int, *, with_proofs: bool = True) -> dict:
+def proof_mask_capture(
+    static_capture: dict, end_to_end: int, setup_us: int, *, with_proofs: bool = True
+) -> dict:
     capture = with_path(static_capture, "proof-mask-per-tile-ck.json")
     capture["bound_source"] = "input_scan"
     capture["bound_mode"] = "per_tile"
@@ -154,7 +160,8 @@ def proof_mask_capture(static_capture: dict, end_to_end: int, setup_us: int, *, 
             "zero_row_col_product_count": zero_a * capture["n"] + (capture["m"] - zero_a) * zero_b,
             "planner_zero_a_row_count": zero_a,
             "planner_zero_b_col_count": zero_b,
-            "planner_zero_row_col_product_count": zero_a * capture["n"] + (capture["m"] - zero_a) * zero_b,
+            "planner_zero_row_col_product_count": zero_a * capture["n"]
+            + (capture["m"] - zero_a) * zero_b,
         }
     )
     capture["avg_tile_bound_scan_us"] = float(setup_us)
@@ -173,7 +180,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         invalid = root / "invalid.json"
-        invalid.write_text('{}', encoding="utf-8")
+        invalid.write_text("{}", encoding="utf-8")
         nested = root / "nested"
         nested.mkdir()
         valid = nested / "capture.json"
@@ -193,7 +200,10 @@ def main() -> int:
     report = compare_bound_discovery([static, input_scan_win, proof_mask_win])
     assert report["summary"]["comparisons"] == 2
     assert report["summary"]["candidate_wins"] == 2
-    assert {item["variant"] for item in report["comparisons"]} == {"input_scan_global", "proof_mask_per_tile"}
+    assert {item["variant"] for item in report["comparisons"]} == {
+        "input_scan_global",
+        "proof_mask_per_tile",
+    }
     assert all(item["candidate_setup_inclusive_median_us"] < 1000 for item in report["comparisons"])
 
     input_scan_loss = input_scan_global_capture(static, 950, 100)

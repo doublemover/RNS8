@@ -11,17 +11,25 @@
 
 TEST_CASE("runtime byte reducers cover every modulus and full INT32 endpoints") {
   constexpr rns8::detail::finite_u8::ByteModulusReciprocals reciprocals{};
-  for(uint32_t q=2;q<=256;++q)CHECK(reciprocals.values[q]==(UINT64_C(1)<<32)/q);
-  for(uint32_t q=2;q<=256;++q)for(int32_t value:{INT32_MIN,INT32_MIN+1,-65537,-128,-1,0,1,127,65537,INT32_MAX}) {
-    int64_t expected=int64_t(value)%q;if(expected<0)expected+=q;
-    if(expected>=int64_t((q+1)/2))expected-=q;
-    CHECK(int(rns8::detail::finite_u8::reduce_to_centered_byte_modulus_i32(value,q,reciprocals.values[q]))==expected);
-  }
+  for (uint32_t q = 2; q <= 256; ++q)
+    CHECK(reciprocals.values[q] == (UINT64_C(1) << 32) / q);
+  for (uint32_t q = 2; q <= 256; ++q)
+    for (int32_t value :
+         {INT32_MIN, INT32_MIN + 1, -65537, -128, -1, 0, 1, 127, 65537, INT32_MAX}) {
+      int64_t expected = int64_t(value) % q;
+      if (expected < 0)
+        expected += q;
+      if (expected >= int64_t((q + 1) / 2))
+        expected -= q;
+      CHECK(int(rns8::detail::finite_u8::reduce_to_centered_byte_modulus_i32(
+                value, q, reciprocals.values[q])) == expected);
+    }
 }
 
 TEST_CASE("default modulus ladder is stable and pairwise coprime") {
-  const uint16_t expected[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
-                               193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
+  const uint16_t expected[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223,
+                               217, 211, 199, 197, 193, 191, 181, 179, 173, 167,
+                               163, 157, 151, 149, 139, 137, 131, 127};
   REQUIRE(rns8_default_modulus_count() == 28);
   for (uint32_t i = 0; i < rns8_default_modulus_count(); ++i) {
     CHECK(rns8_default_modulus(i) == expected[i]);
@@ -84,4 +92,3 @@ TEST_CASE("prefix range bits match the research spec table") {
   CHECK(rns8_prefix_range_bits(19) == Catch::Approx(147.458).margin(0.002));
   CHECK(rns8_prefix_range_bits(20) == Catch::Approx(154.842).margin(0.002));
 }
-

@@ -101,9 +101,7 @@ class StaticAnalysis(unittest.TestCase):
             )
             source = Path(argv[argv.index("-p") + 2])
             if label == "parse-error-control":
-                missing = next(
-                    argument for argument in argv if "missing-header-" in argument
-                )
+                missing = next(argument for argument in argv if "missing-header-" in argument)
                 row = dict(
                     DiagnosticName="clang-diagnostic-error",
                     Level="Error",
@@ -116,17 +114,12 @@ class StaticAnalysis(unittest.TestCase):
                 )
                 rows, value["returncode"] = [row], 1
             else:
-                record = json.loads(
-                    (path.parent / "compile_commands.json").read_text()
-                )[0]
+                record = json.loads((path.parent / "compile_commands.json").read_text())[0]
                 device = "--offload-device-only" in record.get("arguments", [])
                 control, lines = control_header()
                 line = lines["device" if device else "host"]
                 offset = sum(
-                    len(part)
-                    for part in control.read_bytes().splitlines(keepends=True)[
-                        : line - 1
-                    ]
+                    len(part) for part in control.read_bytes().splitlines(keepends=True)[: line - 1]
                 )
                 row = dict(
                     DiagnosticName="clang-analyzer-core.NullDereference",
@@ -163,9 +156,7 @@ class StaticAnalysis(unittest.TestCase):
                     )
                 elif self.mutation == "source_change":
                     self.source.write_text("int authored() { return 1; }\n")
-            path.write_text(
-                json.dumps(dict(MainSourceFile=str(source), Diagnostics=rows))
-            )
+            path.write_text(json.dumps(dict(MainSourceFile=str(source), Diagnostics=rows)))
         elif label not in {
             "verify-config",
             "dump-config",
@@ -183,14 +174,10 @@ class StaticAnalysis(unittest.TestCase):
         self.mutation = mutation
         out = self.root / ("session-" + str(self.runs))
         with ExitStack() as stack:
-            stack.enter_context(
-                patch("static_analysis.load_inputs", return_value=self.inputs)
-            )
+            stack.enter_context(patch("static_analysis.load_inputs", return_value=self.inputs))
             stack.enter_context(patch("static_analysis.inventory", return_value=()))
             stack.enter_context(
-                patch(
-                    "static_analysis.importlib.metadata.version", return_value="0.19.1"
-                )
+                patch("static_analysis.importlib.metadata.version", return_value="0.19.1")
             )
             stack.enter_context(
                 patch(
@@ -294,12 +281,9 @@ class StaticAnalysis(unittest.TestCase):
         self.assertEqual(result["analyzed_passes"], 3)
         self.assertEqual(result["selected_contexts"], 1)
         receipts = [
-            json.loads(Path(row["receipt"]["path"]).read_text())
-            for row in result["results"]
+            json.loads(Path(row["receipt"]["path"]).read_text()) for row in result["results"]
         ]
-        self.assertEqual(
-            sum(row["device_kernel_control_observed"] for row in receipts), 2
-        )
+        self.assertEqual(sum(row["device_kernel_control_observed"] for row in receipts), 2)
 
     def test_hip_syntax_never_becomes_analyzer_coverage(self):
         self.inputs = replace(self.inputs, contexts=(self.hip_context(),))

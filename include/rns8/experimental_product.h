@@ -48,19 +48,19 @@ typedef struct rns8_product_materialization_node_costs {
 typedef struct rns8_product_materialization_profile {
   uint64_t struct_size;
   uint32_t abi_version;
-  uint32_t max_evaluations; /* 4..65536 complete schedule evaluations */
+  uint32_t max_evaluations;    /* 4..65536 complete schedule evaluations */
   uint32_t max_chain_frontier; /* 1..4096 cost states; truncation is explicit */
   uint32_t node_count;
   uint32_t cost_schema_version; /* RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION */
-  uint32_t node_costs_size; /* sizeof(rns8_product_materialization_node_costs) */
+  uint32_t node_costs_size;     /* sizeof(rns8_product_materialization_node_costs) */
   rns8_product_materialization_identity identity;
   char calibration_identity[128];
   const rns8_product_materialization_node_costs* nodes;
   uint32_t flags; /* RETAIN_EXTERNAL_PACKED_B | REQUIRE_PROJECTED_AMORTIZATION */
   uint32_t reserved;
   uint64_t expected_replays; /* 1..UINT64_MAX-1, explicit lifetime estimate */
-  uint64_t preparation_ns,calibration_ns,orchestration_ns,publication_ns;
-  uint64_t baseline_replay_ns,baseline_preparation_ns; /* UINT64_MAX = unknown */
+  uint64_t preparation_ns, calibration_ns, orchestration_ns, publication_ns;
+  uint64_t baseline_replay_ns, baseline_preparation_ns; /* UINT64_MAX = unknown */
 } rns8_product_materialization_profile;
 typedef struct rns8_product_materialization_info {
   uint64_t struct_size;
@@ -72,12 +72,13 @@ typedef struct rns8_product_materialization_info {
   uint32_t cost_optimal;
   uint64_t estimated_ns;
   uint64_t retained_arena_and_lift_bytes;
-  uint64_t packed_payload_bytes; /* sum of packed views before arena reuse */
+  uint64_t packed_payload_bytes;    /* sum of packed views before arena reuse */
   uint64_t completed_packing_calls; /* last replay's completed conversions */
   char calibration_identity[128];
-  uint64_t estimated_first_replay_ns,estimated_steady_replay_ns,one_time_ns,lifetime_ns,amortized_ns;
-  uint64_t expected_replays,projected_break_even_replays,retained_external_packed_bytes;
-  uint64_t completed_replays,reused_external_packing_calls;
+  uint64_t estimated_first_replay_ns, estimated_steady_replay_ns, one_time_ns, lifetime_ns,
+      amortized_ns;
+  uint64_t expected_replays, projected_break_even_replays, retained_external_packed_bytes;
+  uint64_t completed_replays, reused_external_packing_calls;
   uint32_t amortization_status; /* 0 unknown,1 projected profitable,2 nonprofitable */
   uint32_t flags;
 } rns8_product_materialization_info;
@@ -97,9 +98,9 @@ typedef struct rns8_product_materialization_choice {
  * does not allocate on the GPU. output_count=0 selects only the final value.
  * Successful queries report admission_status separately, including the first
  * range-blocking node; no downstream enormous bound is constructed after it. */
-RNS8_API rns8_status rns8_query_product_materialization_identity(rns8_context* ctx,
-    const rns8_product_recipe_desc* desc,const uint32_t* output_ids,uint32_t output_count,
-    rns8_product_materialization_identity* out);
+RNS8_API rns8_status rns8_query_product_materialization_identity(
+    rns8_context* ctx, const rns8_product_recipe_desc* desc, const uint32_t* output_ids,
+    uint32_t output_count, rns8_product_materialization_identity* out);
 /* FULL_PREFIX preserves every compute prefix; MINIMUM_COMPUTE_PREFIX allows
  * cost selection above independently proved minimum prefixes. Prices cannot
  * weaken those proofs. The descriptor's hard budget covers the single retained
@@ -108,27 +109,30 @@ RNS8_API rns8_status rns8_query_product_materialization_identity(rns8_context* c
  * A failed bounded search is unsupported, not proof of memory infeasibility.
  * The ordinary recipe execution/rebind/destroy APIs consume the resulting owner.
  * No async/capture behavior is introduced by this function. */
-RNS8_API rns8_status rns8_create_materialized_product_recipe(rns8_context* ctx,
-    const rns8_product_recipe_desc* desc,const uint32_t* output_ids,uint32_t output_count,
-    const rns8_product_materialization_profile* profile,rns8_product_recipe** out);
+RNS8_API rns8_status rns8_create_materialized_product_recipe(
+    rns8_context* ctx, const rns8_product_recipe_desc* desc, const uint32_t* output_ids,
+    uint32_t output_count, const rns8_product_materialization_profile* profile,
+    rns8_product_recipe** out);
 /* Ragged variants price the post-gather graph using the current source proofs.
  * Query does not modify the conversion destinations. Creation validates prices
  * before gathering; the shared budget additionally covers retained ragged
  * owners, conversion destinations and peak gather scratch. Refresh and lifetime
  * rules are those of rns8_create_product_recipe_ragged. The source's producer
  * tile shape need not match the consumer's packed 16x16 B tile shape. */
-RNS8_API rns8_status rns8_query_product_materialization_identity_ragged(rns8_context* ctx,
-    const rns8_product_recipe_desc* desc,const rns8_ragged_recipe_binding* bindings,uint32_t binding_count,
-    const uint32_t* output_ids,uint32_t output_count,uint64_t max_total_bytes,
-    rns8_product_materialization_identity* out);
-RNS8_API rns8_status rns8_create_materialized_product_recipe_ragged(rns8_context* ctx,
-    const rns8_product_recipe_desc* desc,const rns8_ragged_recipe_binding* bindings,uint32_t binding_count,
-    const uint32_t* output_ids,uint32_t output_count,uint64_t max_total_bytes,
-    const rns8_product_materialization_profile* profile,rns8_product_recipe** out);
+RNS8_API rns8_status rns8_query_product_materialization_identity_ragged(
+    rns8_context* ctx, const rns8_product_recipe_desc* desc,
+    const rns8_ragged_recipe_binding* bindings, uint32_t binding_count, const uint32_t* output_ids,
+    uint32_t output_count, uint64_t max_total_bytes, rns8_product_materialization_identity* out);
+RNS8_API rns8_status rns8_create_materialized_product_recipe_ragged(
+    rns8_context* ctx, const rns8_product_recipe_desc* desc,
+    const rns8_ragged_recipe_binding* bindings, uint32_t binding_count, const uint32_t* output_ids,
+    uint32_t output_count, uint64_t max_total_bytes,
+    const rns8_product_materialization_profile* profile, rns8_product_recipe** out);
 RNS8_API rns8_status rns8_get_product_materialization_info(const rns8_product_recipe* recipe,
-    rns8_product_materialization_info* out);
-RNS8_API rns8_status rns8_get_product_materialization_choices(const rns8_product_recipe* recipe,
-    rns8_product_materialization_choice* choices,uint32_t capacity);
+                                                           rns8_product_materialization_info* out);
+RNS8_API rns8_status rns8_get_product_materialization_choices(
+    const rns8_product_recipe* recipe, rns8_product_materialization_choice* choices,
+    uint32_t capacity);
 #ifdef __cplusplus
 }
 #endif

@@ -7,7 +7,7 @@ namespace rns8::detail {
 void hip_direct_defer_buffer_cleanup(hip_deferred_buffer_cleanup*) noexcept;
 void hip_direct_timing_flush_pending_events();
 class hip_scoped_device {
- public:
+public:
   explicit hip_scoped_device(int device) noexcept {
     record_host_control(&HostControlObservations::device_gets);
     status_ = hipGetDevice(&previous_);
@@ -20,26 +20,32 @@ class hip_scoped_device {
   hip_scoped_device(const hip_scoped_device&) = delete;
   hip_scoped_device& operator=(const hip_scoped_device&) = delete;
   ~hip_scoped_device() {
-    if (changed_) {record_host_control(&HostControlObservations::device_sets);(void)hipSetDevice(previous_);}
+    if (changed_) {
+      record_host_control(&HostControlObservations::device_sets);
+      (void)hipSetDevice(previous_);
+    }
   }
   hipError_t status() const noexcept { return status_; }
 
- private:
+private:
   int previous_ = -1;
   bool changed_ = false;
   hipError_t status_ = hipSuccess;
 };
-template <class Handle, hip_deferred_allocation_kind Kind>
-struct hip_runtime_handle_operations {
+template <class Handle, hip_deferred_allocation_kind Kind> struct hip_runtime_handle_operations {
   using handle_type = Handle;
   using status_type = hipError_t;
   static constexpr auto success = hipSuccess, out_of_memory = hipErrorOutOfMemory,
                         invalid_argument = hipErrorInvalidValue;
   static constexpr auto kind = Kind;
-  static hipError_t current_device(int& device) noexcept {record_host_control(&HostControlObservations::device_gets);return hipGetDevice(&device);}
+  static hipError_t current_device(int& device) noexcept {
+    record_host_control(&HostControlObservations::device_gets);
+    return hipGetDevice(&device);
+  }
   static hipError_t destroy(int device, Handle handle) noexcept {
     hip_scoped_device selected(device);
-    if (selected.status() != hipSuccess) return selected.status();
+    if (selected.status() != hipSuccess)
+      return selected.status();
     if constexpr (Kind == hip_deferred_allocation_kind::event) {
       record_host_control(&HostControlObservations::event_destroys);
       return hipEventDestroy(handle);
@@ -60,10 +66,12 @@ class hip_unique_event
   using Base = basic_hip_handle<
       hip_runtime_handle_operations<hipEvent_t, hip_deferred_allocation_kind::event>>;
 
- public:
+public:
   hipError_t create(unsigned flags = hipEventDefault) {
-    return Base::create(
-        [flags](hipEvent_t* out) noexcept {record_host_control(&HostControlObservations::event_creates);return hipEventCreateWithFlags(out, flags);});
+    return Base::create([flags](hipEvent_t* out) noexcept {
+      record_host_control(&HostControlObservations::event_creates);
+      return hipEventCreateWithFlags(out, flags);
+    });
   }
 };
 class hip_unique_stream
@@ -72,7 +80,7 @@ class hip_unique_stream
   using Base = basic_hip_handle<
       hip_runtime_handle_operations<hipStream_t, hip_deferred_allocation_kind::stream>>;
 
- public:
+public:
   hipError_t create_non_blocking() {
     return Base::create([](hipStream_t* out) noexcept {
       return hipStreamCreateWithFlags(out, hipStreamNonBlocking);
@@ -82,7 +90,7 @@ class hip_unique_stream
 class hip_unique_graph
     : public basic_hip_handle<
           hip_runtime_handle_operations<hipGraph_t, hip_deferred_allocation_kind::graph>> {
- public:
+public:
   hipError_t end_capture(hipStream_t stream) noexcept {
     return receive([stream](hipGraph_t* out) noexcept { return hipStreamEndCapture(stream, out); });
   }
@@ -93,7 +101,7 @@ class hip_unique_graph_exec
   using Base = basic_hip_handle<
       hip_runtime_handle_operations<hipGraphExec_t, hip_deferred_allocation_kind::graph_exec>>;
 
- public:
+public:
   hipError_t instantiate(hipGraph_t graph) {
     return Base::create([graph](hipGraphExec_t* out) noexcept {
       return hipGraphInstantiate(out, graph, nullptr, nullptr, 0);
@@ -103,13 +111,14 @@ class hip_unique_graph_exec
 // End owned capture on exception paths too. The graph's retry node must have
 // been reserved before this scope begins; unwinding performs no allocation.
 class hip_capture_scope {
- public:
+public:
   hip_capture_scope(hipStream_t stream, hip_unique_graph& graph) noexcept
       : stream_(stream), graph_(graph) {}
   hip_capture_scope(const hip_capture_scope&) = delete;
   hip_capture_scope& operator=(const hip_capture_scope&) = delete;
   ~hip_capture_scope() {
-    if (active_) (void)graph_.end_capture(stream_);
+    if (active_)
+      (void)graph_.end_capture(stream_);
   }
   hipError_t begin() noexcept {
     const auto status = hipStreamBeginCapture(stream_, hipStreamCaptureModeThreadLocal);
@@ -121,18 +130,20 @@ class hip_capture_scope {
     return graph_.end_capture(stream_);
   }
 
- private:
+private:
   hipStream_t stream_;
   hip_unique_graph& graph_;
   bool active_ = false;
 };
 class hip_unique_event_pair {
- public:
+public:
   hipError_t create() {
     auto status = reset();
-    if (status != hipSuccess) return status;
+    if (status != hipSuccess)
+      return status;
     status = start_.create();
-    if (status != hipSuccess) return status;
+    if (status != hipSuccess)
+      return status;
     return stop_.create();
   }
   hipError_t create_and_record_start(hipStream_t stream = nullptr) {
@@ -154,7 +165,7 @@ class hip_unique_event_pair {
     return stop != hipSuccess ? stop : start;
   }
 
- private:
+private:
   hip_unique_event start_, stop_;
 };
 
@@ -162,12 +173,16 @@ class hip_unique_event_pair {
 // ownership intact and stops replacement instead of leaking another event pair.
 inline bool hip_create_timing_events_with_retry(hip_unique_event_pair& events) {
   for (int attempt = 0; attempt < 8; ++attempt) {
-    if (events.create_and_record_start() == hipSuccess) return true;
-    if (events.reset() != hipSuccess) return false;
-    if (attempt == 0) hip_direct_timing_flush_pending_events();
-    if (attempt + 1 < 8) (void)hipDeviceSynchronize();
+    if (events.create_and_record_start() == hipSuccess)
+      return true;
+    if (events.reset() != hipSuccess)
+      return false;
+    if (attempt == 0)
+      hip_direct_timing_flush_pending_events();
+    if (attempt + 1 < 8)
+      (void)hipDeviceSynchronize();
   }
   return false;
 }
-}  // namespace rns8::detail
+} // namespace rns8::detail
 #endif

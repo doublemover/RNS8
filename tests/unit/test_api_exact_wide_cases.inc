@@ -15,12 +15,16 @@ TEST_CASE("public exact-wide export ABI rejects invalid limb layout") {
     auto matrix = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs.data(), n, 0) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs.data(), n, 33) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs.data(), n - 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs.data(), n, 0) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs.data(), n, 33) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs.data(), n - 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs.data(), overflowing_ld, 32) ==
           RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, nullptr, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, nullptr, n, 2) ==
+          RNS8_INVALID_ARGUMENT);
 
     rns8_destroy_matrix(C);
     rns8_destroy_plan(plan);
@@ -34,12 +38,16 @@ TEST_CASE("public exact-wide export ABI rejects invalid limb layout") {
     auto matrix = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs.data(), n, 0) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs.data(), n, 33) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs.data(), n - 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs.data(), n, 0) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs.data(), n, 33) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs.data(), n - 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs.data(), overflowing_ld, 32) ==
           RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, nullptr, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, nullptr, n, 2) ==
+          RNS8_INVALID_ARGUMENT);
 
     rns8_destroy_matrix(C);
     rns8_destroy_plan(plan);
@@ -118,7 +126,8 @@ TEST_CASE("public exact-wide export rejects stale-prefix matrix handles") {
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
     CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_i64(ctx, plan, C, reinterpret_cast<int64_t*>(limbs), 1) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_i64(ctx, plan, C, reinterpret_cast<int64_t*>(limbs), 1) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == sentinel0);
     CHECK(limbs[1] == sentinel1);
 
@@ -135,7 +144,8 @@ TEST_CASE("public exact-wide export rejects stale-prefix matrix handles") {
     matrix.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_u64(ctx, plan, C, limbs, 1) == RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == sentinel0);
     CHECK(limbs[1] == sentinel1);
@@ -165,10 +175,12 @@ TEST_CASE("public exact-wide export rejects bounded and wrap matrix handles") {
     auto wrap_matrix = wrap_matrix_desc(1, 1);
     REQUIRE(rns8_create_matrix(wrap, &wrap_matrix, &wrap_c) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_signed_limbs(cpu, plan, bounded_c, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(cpu, plan, bounded_c, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == sentinel0);
     CHECK(limbs[1] == sentinel1);
-    CHECK(rns8_export_exact_wide_signed_limbs(cpu, plan, wrap_c, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(cpu, plan, wrap_c, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == sentinel0);
     CHECK(limbs[1] == sentinel1);
 
@@ -188,10 +200,12 @@ TEST_CASE("public exact-wide export rejects bounded and wrap matrix handles") {
     auto wrap_matrix = wrap_matrix_desc(1, 1);
     REQUIRE(rns8_create_matrix(wrap, &wrap_matrix, &wrap_c) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_unsigned_limbs(cpu, plan, bounded_c, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(cpu, plan, bounded_c, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == sentinel0);
     CHECK(limbs[1] == sentinel1);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(cpu, plan, wrap_c, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(cpu, plan, wrap_c, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == sentinel0);
     CHECK(limbs[1] == sentinel1);
 
@@ -218,10 +232,14 @@ TEST_CASE("public exact-wide exports reject null handles without touching output
     auto matrix = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_signed_limbs(nullptr, plan, C, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, nullptr, C, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, nullptr, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, nullptr, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(nullptr, plan, C, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, nullptr, C, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, nullptr, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, nullptr, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
 
     rns8_destroy_matrix(C);
     rns8_destroy_plan(plan);
@@ -235,10 +253,14 @@ TEST_CASE("public exact-wide exports reject null handles without touching output
     auto matrix = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_UNSIGNED);
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_unsigned_limbs(nullptr, plan, C, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, nullptr, C, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, nullptr, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, nullptr, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(nullptr, plan, C, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, nullptr, C, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, nullptr, limbs, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, nullptr, 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
 
     rns8_destroy_matrix(C);
     rns8_destroy_plan(plan);
@@ -459,10 +481,12 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
     auto matrix = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_i64(ctx, plan, C, reinterpret_cast<int64_t*>(limbs), n) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_i64(ctx, plan, C, reinterpret_cast<int64_t*>(limbs), n) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_u64(ctx, plan, C, limbs, n) == RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_wrap_u64(ctx, plan, C, limbs, n) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, C, limbs, n, 2) ==
+          RNS8_INVALID_ARGUMENT);
 
     rns8_destroy_matrix(C);
     rns8_destroy_plan(plan);
@@ -476,7 +500,8 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
     auto matrix = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
     REQUIRE(rns8_create_matrix(ctx, &matrix, &C) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_i64(ctx, plan, C, reinterpret_cast<int64_t*>(limbs), n) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_i64(ctx, plan, C, reinterpret_cast<int64_t*>(limbs), n) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_u64(ctx, plan, C, limbs, n) == RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_wrap_u64(ctx, plan, C, limbs, n) == RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
@@ -489,7 +514,6 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
   CHECK(limbs[1] == 0x2222222222222222ull);
   rns8_destroy_context(ctx);
 }
-
 
 TEST_CASE("retained native exact inputs require explicit direct HIP storage") {
   auto* ctx = create_cpu_context();
@@ -509,17 +533,19 @@ TEST_CASE("retained native exact inputs require explicit direct HIP storage") {
 TEST_CASE("adaptive summary observation is versioned and excludes in-flight ownership") {
   rns8_workspace workspace;
   rns8_adaptive_summary_info info{};
-  CHECK(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_INVALID_ARGUMENT);
-  info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
-  CHECK(rns8_get_adaptive_summary_info(nullptr,&info)==RNS8_INVALID_ARGUMENT);
-  REQUIRE(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_SUCCESS);
-  CHECK(info.retained_bytes==0);
-  CHECK(info.a_instance==0);
-  CHECK(info.a_scans==0);
-  workspace.in_flight=true;
-  CHECK(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_BUSY);
-  CHECK(rns8_destroy_workspace(&workspace)==RNS8_BUSY);
-  workspace.in_flight=false;
-  CHECK(rns8_gemm_adaptive_exact_cached(nullptr,nullptr,nullptr,nullptr,nullptr,
-      RNS8_ADAPTIVE_AXIS_L1,256,1,0,0,&workspace)==RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_adaptive_summary_info(&workspace, &info) == RNS8_INVALID_ARGUMENT);
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_adaptive_summary_info(nullptr, &info) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_get_adaptive_summary_info(&workspace, &info) == RNS8_SUCCESS);
+  CHECK(info.retained_bytes == 0);
+  CHECK(info.a_instance == 0);
+  CHECK(info.a_scans == 0);
+  workspace.in_flight = true;
+  CHECK(rns8_get_adaptive_summary_info(&workspace, &info) == RNS8_BUSY);
+  CHECK(rns8_destroy_workspace(&workspace) == RNS8_BUSY);
+  workspace.in_flight = false;
+  CHECK(rns8_gemm_adaptive_exact_cached(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                        RNS8_ADAPTIVE_AXIS_L1, 256, 1, 0, 0,
+                                        &workspace) == RNS8_INVALID_ARGUMENT);
 }

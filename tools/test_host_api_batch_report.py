@@ -63,7 +63,10 @@ def main() -> int:
     loss_report = host_api_batch_report.compare_host_batches([baseline, losing_batch])
     assert loss_report["summary"]["deprioritized"] == 1
     assert loss_report["comparisons"][0]["decision"] == "deprioritize"
-    assert "host_batch_not_faster_than_same_backend_per_task" in loss_report["comparisons"][0]["blockers"]
+    assert (
+        "host_batch_not_faster_than_same_backend_per_task"
+        in loss_report["comparisons"][0]["blockers"]
+    )
 
     missing_baseline = copy.deepcopy(winning_batch)
     missing_baseline["backend_selected"] = "hipblaslt"

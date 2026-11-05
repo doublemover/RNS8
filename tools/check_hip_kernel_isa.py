@@ -24,18 +24,26 @@ GEMM_SYMBOL_MARKERS = [
 REQUIRED_RECIPROCAL_MNEMONIC = "v_mul_hi_u32"
 
 
-def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str, symbols: list[str]) -> list[str]:
+def scan_disassembly(
+    objdump: str, code_object: Path, amdgpu_target: str, symbols: list[str]
+) -> list[str]:
     reports: list[str] = []
     for symbol in symbols:
         disassembly = disassemble_code_object(objdump, code_object, amdgpu_target, symbol)
         forbidden = forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
         if forbidden:
             raise RuntimeError(
-                f"{symbol} contains forbidden divide/remainder/rcp instructions:\n" + "\n".join(forbidden)
+                f"{symbol} contains forbidden divide/remainder/rcp instructions:\n"
+                + "\n".join(forbidden)
             )
         uses_fixed_default_modulus_reducer = "rns8_ring_gemm_i8_i32_scheduled_kernel" in symbol
-        if REQUIRED_RECIPROCAL_MNEMONIC not in disassembly and not uses_fixed_default_modulus_reducer:
-            raise RuntimeError(f"{symbol} does not contain required {REQUIRED_RECIPROCAL_MNEMONIC} instruction")
+        if (
+            REQUIRED_RECIPROCAL_MNEMONIC not in disassembly
+            and not uses_fixed_default_modulus_reducer
+        ):
+            raise RuntimeError(
+                f"{symbol} does not contain required {REQUIRED_RECIPROCAL_MNEMONIC} instruction"
+            )
         reducer_detail = (
             f"contains {REQUIRED_RECIPROCAL_MNEMONIC}"
             if REQUIRED_RECIPROCAL_MNEMONIC in disassembly
@@ -46,9 +54,15 @@ def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str, symbol
 
 
 def main() -> int:
-    config = parse_isa_tool_config(__doc__, "Compiled HIP host object containing .hip_fatbin", "HIP object")
-    with extracted_device_code_object(config, "rns8-hip-isa-", "hip_direct_kernels.fatbin") as code_object:
-        symbols = symbols_matching_markers(config.objdump, code_object, GEMM_SYMBOL_MARKERS, "GEMM kernel symbols")
+    config = parse_isa_tool_config(
+        __doc__, "Compiled HIP host object containing .hip_fatbin", "HIP object"
+    )
+    with extracted_device_code_object(
+        config, "rns8-hip-isa-", "hip_direct_kernels.fatbin"
+    ) as code_object:
+        symbols = symbols_matching_markers(
+            config.objdump, code_object, GEMM_SYMBOL_MARKERS, "GEMM kernel symbols"
+        )
         reports = scan_disassembly(config.objdump, code_object, config.target, symbols)
 
     print("HIP ISA check: PASS")

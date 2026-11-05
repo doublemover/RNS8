@@ -12,7 +12,8 @@ struct ExactChainFixture {
     options.struct_size = sizeof(options);
     options.abi_version = RNS8_ABI_VERSION;
     options.requested_backend = backend;
-    REQUIRE(rns8_create_context(backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : 0, &options, &ctx) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_context(backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : 0, &options, &ctx) ==
+            RNS8_SUCCESS);
     auto desc = exact_desc(semantics, m, n, k);
     desc.requested_backend = backend;
     desc.max_prefix = prefix;
@@ -28,7 +29,8 @@ struct ExactChainFixture {
     }
   }
   ~ExactChainFixture() {
-    for (auto* matrix : matrices) rns8_destroy_matrix(matrix);
+    for (auto* matrix : matrices)
+      rns8_destroy_matrix(matrix);
     rns8_destroy_workspace(workspace);
     rns8_destroy_plan(plan);
     rns8_destroy_context(ctx);
@@ -37,9 +39,10 @@ struct ExactChainFixture {
     return rns8_gemm_rns(ctx, plan, matrices[a], matrices[b], matrices[c], workspace);
   }
 };
-}
+} // namespace
 
-TEST_CASE("exact-wide chains preserve safe signed and unsigned repeated products", "[exact-chain]") {
+TEST_CASE("exact-wide chains preserve safe signed and unsigned repeated products",
+          "[exact-chain]") {
   for (auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     ExactChainFixture f(semantics);
     const int64_t signed_value = -7;
@@ -57,10 +60,13 @@ TEST_CASE("exact-wide chains preserve safe signed and unsigned repeated products
       expected *= semantics == RNS8_EXACT_WIDE_SIGNED ? -7 : 7;
       std::vector<uint64_t> limbs(3);
       REQUIRE((semantics == RNS8_EXACT_WIDE_SIGNED
-                   ? rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[output], limbs.data(), 1, 3)
-                   : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[output], limbs.data(), 1, 3)) == RNS8_SUCCESS);
+                   ? rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[output],
+                                                         limbs.data(), 1, 3)
+                   : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[output],
+                                                           limbs.data(), 1, 3)) == RNS8_SUCCESS);
       CHECK(limbs == (semantics == RNS8_EXACT_WIDE_SIGNED
-                          ? signed_twos_complement_limbs(expected, 3) : unsigned_limbs(expected, 3)));
+                          ? signed_twos_complement_limbs(expected, 3)
+                          : unsigned_limbs(expected, 3)));
       CHECK(f.matrices[output]->exact_max_magnitude == boost::multiprecision::abs(expected));
       std::swap(input, output);
     }
@@ -75,7 +81,8 @@ TEST_CASE("exact-wide overflowing chains reject before changing destination", "[
     for (unsigned i = 0; i < 2; ++i) {
       REQUIRE((semantics == RNS8_EXACT_WIDE_SIGNED
                    ? rns8_pack_i64(f.ctx, f.matrices[i], &signed_value, 1, 11 + i)
-                   : rns8_pack_u64(f.ctx, f.matrices[i], &unsigned_value, 1, 11 + i)) == RNS8_SUCCESS);
+                   : rns8_pack_u64(f.ctx, f.matrices[i], &unsigned_value, 1, 11 + i)) ==
+              RNS8_SUCCESS);
     }
     REQUIRE(f.multiply(0, 1, 2) == RNS8_SUCCESS);
     const auto saved_residues = f.matrices[2]->residues;
@@ -114,7 +121,8 @@ TEST_CASE("exact-wide range proof includes K and ignores host padding", "[exact-
   CHECK(f.matrices[3]->exact_max_magnitude <= 1024);
   CHECK(f.matrices[3]->exact_max_magnitude >= 70);
   std::vector<uint64_t> limbs(8);
-  REQUIRE(rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[3], limbs.data(), 2, 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[3], limbs.data(), 2, 2) ==
+          RNS8_SUCCESS);
   const int64_t expected[] = {29, -30, -67, 70};
   for (unsigned cell = 0; cell < 4; ++cell) {
     CHECK(limbs[2 * cell] == static_cast<uint64_t>(expected[cell]));
@@ -140,15 +148,18 @@ TEST_CASE("exact-wide chains reject aliases and unwritten higher prefix planes",
   rns8_workspace* workspace = nullptr;
   REQUIRE(rns8_create_plan(f.ctx, &larger_desc, &larger) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(f.ctx, larger, &workspace) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns(f.ctx, larger, f.matrices[2], f.matrices[1], f.matrices[3], workspace) == RNS8_RANGE_ERROR);
+  CHECK(rns8_gemm_rns(f.ctx, larger, f.matrices[2], f.matrices[1], f.matrices[3], workspace) ==
+        RNS8_RANGE_ERROR);
   uint64_t output[3] = {777, 777, 777};
-  CHECK(rns8_export_exact_wide_unsigned_limbs(f.ctx, larger, f.matrices[2], output, 1, 3) == RNS8_RANGE_ERROR);
+  CHECK(rns8_export_exact_wide_unsigned_limbs(f.ctx, larger, f.matrices[2], output, 1, 3) ==
+        RNS8_RANGE_ERROR);
   CHECK(output[0] == 777);
   CHECK(output[1] == 777);
   CHECK(output[2] == 777);
   REQUIRE(rns8_pack_u64(f.ctx, f.matrices[2], &value, 1, 3) == RNS8_SUCCESS);
   CHECK(f.matrices[2]->exact_range_prefix == 20);
-  CHECK(rns8_gemm_rns(f.ctx, larger, f.matrices[2], f.matrices[1], f.matrices[3], workspace) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_rns(f.ctx, larger, f.matrices[2], f.matrices[1], f.matrices[3], workspace) ==
+        RNS8_SUCCESS);
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(larger);
 }
@@ -173,7 +184,8 @@ TEST_CASE("exact-wide pack rejects aliases outside its selected CRT range", "[ex
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("exact-wide sparse representatives carry range into a dense continuation", "[exact-chain]") {
+TEST_CASE("exact-wide sparse representatives carry range into a dense continuation",
+          "[exact-chain]") {
   auto* ctx = create_cpu();
   auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 4);
   rns8_plan* plan = nullptr;
@@ -209,8 +221,9 @@ TEST_CASE("exact-wide sparse representatives carry range into a dense continuati
   const auto saved_values = a->packed_values;
   const auto saved_indices = a->packed_indices;
   auto malformed = planes;
-  malformed[19 * 5 + 1] = 7;  // Late final-plane failure, after earlier groups.
-  CHECK(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, a, malformed.data(), 5, 2) == RNS8_INVALID_ARGUMENT);
+  malformed[19 * 5 + 1] = 7; // Late final-plane failure, after earlier groups.
+  CHECK(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, a, malformed.data(), 5, 2) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(a->packed_values == saved_values);
   CHECK(a->packed_indices == saved_indices);
   CHECK(a->exact_max_magnitude == 5);

@@ -103,23 +103,15 @@ class RocpdEvidence(unittest.TestCase):
             store.finish()
             self.assertTrue(value["qualified_selected_dispatches"])
             self.assertEqual(value["native_schema_version"], "3.0.4")
-            self.assertEqual(
-                value["observations"][0]["native_relationships"]["graph_exec_id"], 42
-            )
-            self.assertEqual(
-                value["native_metrics"][0]["raw_name"], "AUTHORED_REQUESTS"
-            )
+            self.assertEqual(value["observations"][0]["native_relationships"]["graph_exec_id"], 42)
+            self.assertEqual(value["native_metrics"][0]["raw_name"], "AUTHORED_REQUESTS")
             self.assertFalse(value["performance_promotion_allowed"])
-            report = report_for_capture(
-                fixture.capture_path, [], [], 3, [fixture.dispatch_path]
-            )
+            report = report_for_capture(fixture.capture_path, [], [], 3, [fixture.dispatch_path])
             self.assertEqual(
                 report["native_profiler_evidence"][0]["native_metrics"][0]["value"], 0.0
             )
             self.assertEqual(
-                report["native_profiler_review"]["passes"][0]["intervals"][
-                    "service_ns"
-                ],
+                report["native_profiler_review"]["passes"][0]["intervals"]["service_ns"],
                 10,
             )
 
@@ -145,9 +137,7 @@ class RocpdEvidence(unittest.TestCase):
                 )
             ]
         )
-        self.assertIn(
-            "unselected kernels", result["passes"][0]["hypotheses"][0]["contradiction"]
-        )
+        self.assertIn("unselected kernels", result["passes"][0]["hypotheses"][0]["contradiction"])
         self.assertFalse(result["performance_promotion_allowed"])
 
     def test_unknown_schema_cross_process_orphan_and_duplicate_identities_fail(self):

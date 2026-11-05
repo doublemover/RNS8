@@ -1,18 +1,63 @@
 """Shareable session environment: explicit allowlist, never a full process dump."""
+
 from __future__ import annotations
 
 import re
 from typing import Mapping
 
-VISIBILITY_KEYS = ("HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL", "CUDA_VISIBLE_DEVICES")
+VISIBILITY_KEYS = (
+    "HIP_VISIBLE_DEVICES",
+    "ROCR_VISIBLE_DEVICES",
+    "GPU_DEVICE_ORDINAL",
+    "CUDA_VISIBLE_DEVICES",
+)
 OVERRIDE_KEYS = ("HSA_OVERRIDE_GFX_VERSION", "HSA_XNACK", "HSA_ENABLE_SDMA")
-PATH_KEYS = ("ROCM_PATH", "HIP_PATH", "HIP_CLANG_PATH", "HIP_DEVICE_LIB_PATH", "LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH")
-ALLOWLIST = (*VISIBILITY_KEYS, *OVERRIDE_KEYS, *PATH_KEYS, "OMP_NUM_THREADS", "SLURM_JOB_ID", "SLURM_STEP_ID")
+PATH_KEYS = (
+    "ROCM_PATH",
+    "HIP_PATH",
+    "HIP_CLANG_PATH",
+    "HIP_DEVICE_LIB_PATH",
+    "LD_LIBRARY_PATH",
+    "LIBRARY_PATH",
+    "CPATH",
+)
+ALLOWLIST = (
+    *VISIBILITY_KEYS,
+    *OVERRIDE_KEYS,
+    *PATH_KEYS,
+    "OMP_NUM_THREADS",
+    "SLURM_JOB_ID",
+    "SLURM_STEP_ID",
+)
 RUNTIME_MAPPING_KEYS = (*VISIBILITY_KEYS, "RNS8_RANK", "RNS8_WORLD_SIZE", "RNS8_MULTI_GPU_MODE")
-BUILD_ENV_KEYS = ("PATH", "HOME", "USERPROFILE", "TMP", "TEMP", "TMPDIR", "SystemRoot", "SYSTEMROOT",
-                  "COMSPEC", "PATHEXT", "ProgramFiles", "ProgramFiles(x86)", "ProgramData", "LOCALAPPDATA",
-                  "INCLUDE", "LIB", "LIBPATH", "VSINSTALLDIR", "VCINSTALLDIR", "VCToolsInstallDir",
-                  "WindowsSdkDir", "WindowsSDKVersion", "VSCMD_ARG_TGT_ARCH", "LANG", "LC_ALL", "TZ")
+BUILD_ENV_KEYS = (
+    "PATH",
+    "HOME",
+    "USERPROFILE",
+    "TMP",
+    "TEMP",
+    "TMPDIR",
+    "SystemRoot",
+    "SYSTEMROOT",
+    "COMSPEC",
+    "PATHEXT",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramData",
+    "LOCALAPPDATA",
+    "INCLUDE",
+    "LIB",
+    "LIBPATH",
+    "VSINSTALLDIR",
+    "VCINSTALLDIR",
+    "VCToolsInstallDir",
+    "WindowsSdkDir",
+    "WindowsSDKVersion",
+    "VSCMD_ARG_TGT_ARCH",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+)
 
 
 def safe_value(value: str | None) -> str | None:
@@ -20,7 +65,11 @@ def safe_value(value: str | None) -> str | None:
         return None
     # Path variables occasionally contain authenticated URLs. Do not serialize
     # credentials, query parameters, control characters or unbounded values.
-    if len(value) > 4096 or re.search(r"[\x00-\x1f\x7f]", value) or re.search(r"https?://", value, re.I):
+    if (
+        len(value) > 4096
+        or re.search(r"[\x00-\x1f\x7f]", value)
+        or re.search(r"https?://", value, re.I)
+    ):
         return "<redacted: unsafe environment value>"
     return value
 
@@ -37,10 +86,16 @@ def execution_blockers(environment: Mapping[str, str]) -> list[str]:
     blockers = []
     for key in VISIBILITY_KEYS:
         if key in environment:
-            blockers.append(key + " is inherited; ordinal remapping is ambiguous. Use an unmasked allocation and explicit --devices.")
+            blockers.append(
+                key
+                + " is inherited; ordinal remapping is ambiguous. Use an unmasked allocation and explicit --devices."
+            )
     for key in OVERRIDE_KEYS:
         if key in environment:
-            blockers.append(key + " is inherited; diagnostic runtime overrides cannot qualify a baseline session.")
+            blockers.append(
+                key
+                + " is inherited; diagnostic runtime overrides cannot qualify a baseline session."
+            )
     return blockers
 
 
@@ -56,5 +111,8 @@ def isolated_environment(environment: Mapping[str, str], device: int) -> dict[st
 
 def build_environment(environment: Mapping[str, str]) -> dict[str, str]:
     """Forward required local process/build values, never cloud/auth variables."""
-    return {key: value for key in (*BUILD_ENV_KEYS, *ALLOWLIST)
-            if (value := environment.get(key)) is not None and safe_value(value) == value}
+    return {
+        key: value
+        for key in (*BUILD_ENV_KEYS, *ALLOWLIST)
+        if (value := environment.get(key)) is not None and safe_value(value) == value
+    }

@@ -178,12 +178,10 @@ TEST_CASE("internal plan lowering description classifies domains and continuatio
   vector_packing.output_domain = RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64;
   vector_packing.next_op_flags =
       RNS8_NEXT_OP_FINAL_EXPORT | RNS8_NEXT_OP_NATIVE_GEMM | RNS8_NEXT_OP_NATIVE_TO_RNS_CONVERTIBLE;
-  std::snprintf(vector_packing.input_domain_name, sizeof(vector_packing.input_domain_name), "%s", "native_i64_u64_current");
-  std::snprintf(
-      vector_packing.output_domain_name,
-      sizeof(vector_packing.output_domain_name),
-      "%s",
-      "native_i64_u64_current");
+  std::snprintf(vector_packing.input_domain_name, sizeof(vector_packing.input_domain_name), "%s",
+                "native_i64_u64_current");
+  std::snprintf(vector_packing.output_domain_name, sizeof(vector_packing.output_domain_name), "%s",
+                "native_i64_u64_current");
   rns8_plan_schedule_info vector_schedule{};
   vector_schedule.max_selected_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   const auto vector_lowering =
@@ -299,8 +297,10 @@ TEST_CASE("CK plan packing info reports target-specific transient pack workspace
   CHECK(packing.output_device_current == 1);
   CHECK((packing.next_op_flags & RNS8_NEXT_OP_RNS_GEMM) != 0);
   constexpr int64_t ck_shape_alignment = RNS8_CK_SHAPE_ALIGNMENT;
-  constexpr int64_t padded_m = ((m + ck_shape_alignment - 1) / ck_shape_alignment) * ck_shape_alignment;
-  constexpr int64_t padded_n = ((n + ck_shape_alignment - 1) / ck_shape_alignment) * ck_shape_alignment;
+  constexpr int64_t padded_m =
+      ((m + ck_shape_alignment - 1) / ck_shape_alignment) * ck_shape_alignment;
+  constexpr int64_t padded_n =
+      ((n + ck_shape_alignment - 1) / ck_shape_alignment) * ck_shape_alignment;
   CHECK(packing.a_pack_workspace_bytes == static_cast<uint64_t>(padded_m * k));
   CHECK(packing.b_pack_workspace_bytes == static_cast<uint64_t>(padded_n * k));
   CHECK(packing.accumulator_workspace_bytes == static_cast<uint64_t>(padded_m * padded_n));
@@ -406,4 +406,3 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   rns8_destroy_context(ctx);
 }
 #endif
-

@@ -19,9 +19,21 @@ from check_dependencies_lib.config import LINUX_CDNA_TARGETS, LINUX_RDNA_TARGETS
 
 DEFAULT_OUT_DIR = Path("temp") / "target-validation-reports"
 READY_STATES = {"pass", "passed", "ok", "available", "captured", "complete", "success", True}
-NOT_READY_STATES = {"fail", "failed", "missing", "unavailable", "not_run", "not-requested", "unknown", False, None}
+NOT_READY_STATES = {
+    "fail",
+    "failed",
+    "missing",
+    "unavailable",
+    "not_run",
+    "not-requested",
+    "unknown",
+    False,
+    None,
+}
 VALIDATION_PHASES = ("build", "ctest", "smoke", "release_capture", "profiler")
-TARGET_POLICY = "platform_inventory_is_descriptive_qualification_is_candidate_artifact_session_bound"
+TARGET_POLICY = (
+    "platform_inventory_is_descriptive_qualification_is_candidate_artifact_session_bound"
+)
 NO_CROSS_TARGET_POLICY = "windows_rdna_cdna_evidence_groups_are_not_interchangeable"
 
 
@@ -63,7 +75,9 @@ def target_family(target_id: str | None) -> dict[str, Any]:
     }
 
 
-def infer_host_os(capture: dict[str, Any] | None = None, record: dict[str, Any] | None = None) -> str:
+def infer_host_os(
+    capture: dict[str, Any] | None = None, record: dict[str, Any] | None = None
+) -> str:
     if record is not None:
         for key in ("host_os", "os", "platform"):
             value = _clean_string(record.get(key))
@@ -77,9 +91,15 @@ def infer_host_os(capture: dict[str, Any] | None = None, record: dict[str, Any] 
     if capture is not None:
         compiler = capture.get("compiler") if isinstance(capture.get("compiler"), dict) else {}
         compiler_id = str(compiler.get("id") or "").lower()
-        toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
+        toolchain = (
+            capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
+        )
         hip_root = str(toolchain.get("hip_root") or toolchain.get("hipcc_path") or "")
-        if compiler_id in {"msvc", "clang-cl"} or re.match(r"^[A-Za-z]:[\\/]", hip_root) or hip_root.endswith(".exe"):
+        if (
+            compiler_id in {"msvc", "clang-cl"}
+            or re.match(r"^[A-Za-z]:[\\/]", hip_root)
+            or hip_root.endswith(".exe")
+        ):
             return "windows"
         if hip_root.startswith("/") or compiler_id in {"gcc", "clang"}:
             return "linux"
@@ -95,7 +115,9 @@ def evidence_group_key(host_os: str, target_id: str | None, version: str | None)
     return f"os={host_os};target={target_id or 'unknown'};toolchain={version or 'unknown'}"
 
 
-def target_cache_key(target_id: str | None, device_name: Any, version: str | None, hip_runtime_version: Any) -> str:
+def target_cache_key(
+    target_id: str | None, device_name: Any, version: str | None, hip_runtime_version: Any
+) -> str:
     return (
         f"arch={target_id or 'unknown'};"
         f"device_name={_clean_string(device_name) or 'unknown'};"
@@ -143,11 +165,15 @@ def _phase_ready(status: str) -> bool:
 
 
 def _accelerators_from_capture(capture: dict[str, Any]) -> dict[str, str]:
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
     backend = capture.get("backend_selected")
     accelerators: dict[str, str] = {}
     if isinstance(backend, str) and backend in {"hipblaslt", "ck", "rocwmma"}:
-        status = "available" if metadata.get("compiled_kernel_available") is True else "capture_present"
+        status = (
+            "available" if metadata.get("compiled_kernel_available") is True else "capture_present"
+        )
         accelerators[backend] = status
     library = metadata.get("accelerator_library")
     if isinstance(library, str) and library:
@@ -186,22 +212,36 @@ def _bool_or_none(value: Any) -> bool | None:
 
 def _optional_topology_fields(source: dict[str, Any]) -> dict[str, Any]:
     return {
-        "multi_gpu_mode": _clean_string(source.get("multi_gpu_mode") or source.get("RNS8_MULTI_GPU_MODE")),
-        "rank": _int_or_none(source.get("rank") if source.get("rank") is not None else source.get("RNS8_RANK")),
-        "world_size": _int_or_none(
-            source.get("world_size") if source.get("world_size") is not None else source.get("RNS8_WORLD_SIZE")
+        "multi_gpu_mode": _clean_string(
+            source.get("multi_gpu_mode") or source.get("RNS8_MULTI_GPU_MODE")
         ),
-        "device_bdf": _clean_string(source.get("device_bdf") or source.get("pci_bdf") or source.get("pci_bus_id")),
+        "rank": _int_or_none(
+            source.get("rank") if source.get("rank") is not None else source.get("RNS8_RANK")
+        ),
+        "world_size": _int_or_none(
+            source.get("world_size")
+            if source.get("world_size") is not None
+            else source.get("RNS8_WORLD_SIZE")
+        ),
+        "device_bdf": _clean_string(
+            source.get("device_bdf") or source.get("pci_bdf") or source.get("pci_bus_id")
+        ),
         "numa_node": _int_or_none(source.get("numa_node")),
-        "xgmi_peers": source.get("xgmi_peers") if isinstance(source.get("xgmi_peers"), list) else None,
+        "xgmi_peers": source.get("xgmi_peers")
+        if isinstance(source.get("xgmi_peers"), list)
+        else None,
         "rocprofv3_ready": _bool_or_none(source.get("rocprofv3_ready")),
         "rccl_ready": _bool_or_none(source.get("rccl_ready")),
         "rccl_tests_ready": _bool_or_none(source.get("rccl_tests_ready")),
     }
 
 
-def _cache_eligibility_from_capture(capture: dict[str, Any], target: dict[str, Any], host_os: str) -> dict[str, Any]:
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+def _cache_eligibility_from_capture(
+    capture: dict[str, Any], target: dict[str, Any], host_os: str
+) -> dict[str, Any]:
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
     blockers: list[str] = []
     if not target.get("target_id"):
         blockers.append("missing_target_id")
@@ -209,7 +249,10 @@ def _cache_eligibility_from_capture(capture: dict[str, Any], target: dict[str, A
         blockers.append("missing_host_os")
     if metadata.get("performance_validated") is not True:
         blockers.append("performance_not_validated")
-    if capture.get("comparison_baseline", {}).get("status") != "reviewed_release_same_contract_baseline":
+    if (
+        capture.get("comparison_baseline", {}).get("status")
+        != "reviewed_release_same_contract_baseline"
+    ):
         blockers.append("missing_reviewed_release_baseline")
     return {
         "eligible": not blockers,
@@ -222,16 +265,28 @@ def capture_target(path: Path) -> dict[str, Any]:
     capture = load_capture(path)
     validate_capture(capture, path)
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
-    target = capture.get("target_variant") if isinstance(capture.get("target_variant"), dict) else {}
-    toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    target = (
+        capture.get("target_variant") if isinstance(capture.get("target_variant"), dict) else {}
+    )
+    toolchain = (
+        capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
+    )
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
     target_id = _target_id(target.get("target_id") or device.get("gcn_arch"))
     family = target_family(target_id)
     host_os = infer_host_os(capture=capture)
-    version = _clean_string(toolchain.get("hip_sdk_or_rocm_version") or metadata.get("accelerator_version"))
+    version = _clean_string(
+        toolchain.get("hip_sdk_or_rocm_version") or metadata.get("accelerator_version")
+    )
     group_key = evidence_group_key(host_os, target_id, version)
     device_index = target.get("device_index", device.get("device_index", device.get("device_id")))
-    runtime_env = capture.get("runtime_environment") if isinstance(capture.get("runtime_environment"), dict) else {}
+    runtime_env = (
+        capture.get("runtime_environment")
+        if isinstance(capture.get("runtime_environment"), dict)
+        else {}
+    )
     cache_key = _clean_string(target.get("target_cache_key")) or target_cache_key(
         target_id,
         target.get("device_name") or device.get("device_name") or device.get("name"),
@@ -259,17 +314,27 @@ def capture_target(path: Path) -> dict[str, Any]:
         "device_name": device.get("name"),
         "visible_device_count": target.get(
             "visible_device_count",
-            device.get("visible_device_count", target.get("visible_gpu_count", device.get("visible_gpu_count"))),
+            device.get(
+                "visible_device_count",
+                target.get("visible_gpu_count", device.get("visible_gpu_count")),
+            ),
         ),
         "visible_gpu_count": target.get(
             "visible_gpu_count",
-            device.get("visible_gpu_count", target.get("visible_device_count", device.get("visible_device_count"))),
+            device.get(
+                "visible_gpu_count",
+                target.get("visible_device_count", device.get("visible_device_count")),
+            ),
         ),
         "node_gpu_count": target.get("node_gpu_count", device.get("node_gpu_count")),
         **_optional_topology_fields({**device, **target, **runtime_env}),
         "target_cache_key": cache_key,
-        "runtime_observed_cache_key": target_cache_key(_target_id(device.get("gcn_arch")),
-            device.get("name"), version, device.get("hip_runtime_version")),
+        "runtime_observed_cache_key": target_cache_key(
+            _target_id(device.get("gcn_arch")),
+            device.get("name"),
+            version,
+            device.get("hip_runtime_version"),
+        ),
         "target_instance_id": instance_id,
         "global_mem_bytes": device.get("global_mem_bytes"),
         "hip_runtime_version": device.get("hip_runtime_version"),
@@ -296,7 +361,9 @@ def capture_target(path: Path) -> dict[str, Any]:
         row["candidate_identity_blockers"] = []
     except (ValueError, TypeError, KeyError):
         row["candidate_binding"] = None
-        row["candidate_identity_blockers"] = ["candidate_compiled_artifact_request_or_runtime_identity_missing"]
+        row["candidate_identity_blockers"] = [
+            "candidate_compiled_artifact_request_or_runtime_identity_missing"
+        ]
     return row
 
 
@@ -314,7 +381,9 @@ def _status_records_from_json(path: Path) -> list[dict[str, Any]]:
 
 
 def status_target(path: Path, record: dict[str, Any], index: int) -> dict[str, Any]:
-    target_id = _target_id(record.get("target_id") or record.get("gcn_arch") or record.get("target"))
+    target_id = _target_id(
+        record.get("target_id") or record.get("gcn_arch") or record.get("target")
+    )
     family = target_family(target_id)
     host_os = infer_host_os(record=record)
     toolchain = record.get("hip_toolchain") if isinstance(record.get("hip_toolchain"), dict) else {}
@@ -325,7 +394,9 @@ def status_target(path: Path, record: dict[str, Any], index: int) -> dict[str, A
         or toolchain.get("rocm_version")
     )
     phases = {phase: _phase_status(record, phase) for phase in VALIDATION_PHASES}
-    cache = record.get("cache_eligibility") if isinstance(record.get("cache_eligibility"), dict) else {}
+    cache = (
+        record.get("cache_eligibility") if isinstance(record.get("cache_eligibility"), dict) else {}
+    )
     blockers = [str(item) for item in cache.get("blockers", []) if isinstance(item, str)]
     device_index = record.get("device_index")
     cache_key = _clean_string(record.get("target_cache_key")) or target_cache_key(
@@ -357,7 +428,8 @@ def status_target(path: Path, record: dict[str, Any], index: int) -> dict[str, A
         "hip_runtime_version": record.get("hip_runtime_version"),
         "hip_driver_version": record.get("hip_driver_version") or record.get("driver_version"),
         "hip_sdk_or_rocm_version": version,
-        "configured_amdgpu_targets": record.get("configured_amdgpu_targets") or record.get("amdgpu_targets"),
+        "configured_amdgpu_targets": record.get("configured_amdgpu_targets")
+        or record.get("amdgpu_targets"),
         "clock_power_caveat": record.get("clock_power_caveat"),
         "accelerator_status": _accelerators_from_status(record),
         "validation_phases": phases,
@@ -463,22 +535,29 @@ def _coverage_summary(groups: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_report(captures: list[Path], status_paths: list[Path] | None = None,
-                 qualification_paths: list[Path] | None = None) -> dict[str, Any]:
+def build_report(
+    captures: list[Path],
+    status_paths: list[Path] | None = None,
+    qualification_paths: list[Path] | None = None,
+) -> dict[str, Any]:
     receipt_index = defaultdict(list)
     for receipt_path in qualification_paths or []:
         raw = load_evidence_json(receipt_path)
         candidate = raw.get("candidate") if isinstance(raw, dict) else None
         digest = candidate.get("identity_sha256") if isinstance(candidate, dict) else None
         if not isinstance(digest, str) or re.fullmatch("[0-9a-f]{64}", digest) is None:
-            raise ValueError("qualification receipt has no bound candidate capture: " + str(receipt_path))
+            raise ValueError(
+                "qualification receipt has no bound candidate capture: " + str(receipt_path)
+            )
         receipt_index[digest].append(receipt_path)
     evidence = EvidenceStore()
     rows = [capture_target(path) for path in captures]
     rows.extend(load_status_targets(status_paths or []))
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        groups[str(row.get("target_validation_group") or row.get("target_id") or "unknown")].append(row)
+        groups[str(row.get("target_validation_group") or row.get("target_id") or "unknown")].append(
+            row
+        )
 
     report_groups = []
     for key, value in sorted(groups.items()):
@@ -491,17 +570,35 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None,
                 continue
             binding = row.get("candidate_binding")
             if binding is None:
-                qualifications.append(dict(schema=VERDICT_SCHEMA, candidate=None, eligible=False,
-                    blockers=row["candidate_identity_blockers"], path=row["path"]))
+                qualifications.append(
+                    dict(
+                        schema=VERDICT_SCHEMA,
+                        candidate=None,
+                        eligible=False,
+                        blockers=row["candidate_identity_blockers"],
+                        path=row["path"],
+                    )
+                )
                 continue
             capture = load_capture(Path(row["path"]))
-            qualifications.append(candidate_verdict(binding, capture,
-                receipt_index.get(binding["identity_sha256"], []), store=evidence))
+            qualifications.append(
+                candidate_verdict(
+                    binding,
+                    capture,
+                    receipt_index.get(binding["identity_sha256"], []),
+                    store=evidence,
+                )
+            )
         qualified = [item for item in qualifications if item["eligible"] is True]
-        eligibility = dict(eligible=bool(qualified), blockers=[] if qualified else ["no_candidate_bound_qualification"],
-            qualified_capture_sha256=sorted(item["candidate"]["capture_sha256"] for item in qualified),
+        eligibility = dict(
+            eligible=bool(qualified),
+            blockers=[] if qualified else ["no_candidate_bound_qualification"],
+            qualified_capture_sha256=sorted(
+                item["candidate"]["capture_sha256"] for item in qualified
+            ),
             scope="only_explicitly_listed_candidate_receipts_not_a_platform_wide_pass",
-            cross_target_promotion_allowed=False)
+            cross_target_promotion_allowed=False,
+        )
         report_groups.append(
             {
                 "target_validation_group": key,
@@ -519,49 +616,117 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None,
                     }
                 ),
                 "hip_runtime_versions": sorted(
-                    {str(row.get("hip_runtime_version")) for row in value if row.get("hip_runtime_version") is not None}
+                    {
+                        str(row.get("hip_runtime_version"))
+                        for row in value
+                        if row.get("hip_runtime_version") is not None
+                    }
                 ),
                 "hip_driver_versions": sorted(
-                    {str(row.get("hip_driver_version")) for row in value if row.get("hip_driver_version") is not None}
+                    {
+                        str(row.get("hip_driver_version"))
+                        for row in value
+                        if row.get("hip_driver_version") is not None
+                    }
                 ),
                 "global_mem_bytes_values": sorted(
-                    {str(row.get("global_mem_bytes")) for row in value if row.get("global_mem_bytes") is not None}
+                    {
+                        str(row.get("global_mem_bytes"))
+                        for row in value
+                        if row.get("global_mem_bytes") is not None
+                    }
                 ),
-                "device_names": sorted({str(row.get("device_name")) for row in value if row.get("device_name")}),
-                "device_indices": sorted({str(row.get("device_index")) for row in value if row.get("device_index") is not None}),
+                "device_names": sorted(
+                    {str(row.get("device_name")) for row in value if row.get("device_name")}
+                ),
+                "device_indices": sorted(
+                    {
+                        str(row.get("device_index"))
+                        for row in value
+                        if row.get("device_index") is not None
+                    }
+                ),
                 "visible_device_counts": sorted(
-                    {str(row.get("visible_device_count")) for row in value if row.get("visible_device_count") is not None}
+                    {
+                        str(row.get("visible_device_count"))
+                        for row in value
+                        if row.get("visible_device_count") is not None
+                    }
                 ),
                 "visible_gpu_counts": sorted(
-                    {str(row.get("visible_gpu_count")) for row in value if row.get("visible_gpu_count") is not None}
+                    {
+                        str(row.get("visible_gpu_count"))
+                        for row in value
+                        if row.get("visible_gpu_count") is not None
+                    }
                 ),
                 "node_gpu_counts": sorted(
-                    {str(row.get("node_gpu_count")) for row in value if row.get("node_gpu_count") is not None}
+                    {
+                        str(row.get("node_gpu_count"))
+                        for row in value
+                        if row.get("node_gpu_count") is not None
+                    }
                 ),
                 "multi_gpu_modes": sorted(
                     {str(row.get("multi_gpu_mode")) for row in value if row.get("multi_gpu_mode")}
                 ),
-                "ranks": sorted({str(row.get("rank")) for row in value if row.get("rank") is not None}),
-                "world_sizes": sorted({str(row.get("world_size")) for row in value if row.get("world_size") is not None}),
-                "device_bdfs": sorted({str(row.get("device_bdf")) for row in value if row.get("device_bdf")}),
-                "numa_nodes": sorted({str(row.get("numa_node")) for row in value if row.get("numa_node") is not None}),
+                "ranks": sorted(
+                    {str(row.get("rank")) for row in value if row.get("rank") is not None}
+                ),
+                "world_sizes": sorted(
+                    {
+                        str(row.get("world_size"))
+                        for row in value
+                        if row.get("world_size") is not None
+                    }
+                ),
+                "device_bdfs": sorted(
+                    {str(row.get("device_bdf")) for row in value if row.get("device_bdf")}
+                ),
+                "numa_nodes": sorted(
+                    {str(row.get("numa_node")) for row in value if row.get("numa_node") is not None}
+                ),
                 "rocprofv3_ready_values": sorted(
-                    {str(row.get("rocprofv3_ready")).lower() for row in value if row.get("rocprofv3_ready") is not None}
+                    {
+                        str(row.get("rocprofv3_ready")).lower()
+                        for row in value
+                        if row.get("rocprofv3_ready") is not None
+                    }
                 ),
                 "rccl_ready_values": sorted(
-                    {str(row.get("rccl_ready")).lower() for row in value if row.get("rccl_ready") is not None}
+                    {
+                        str(row.get("rccl_ready")).lower()
+                        for row in value
+                        if row.get("rccl_ready") is not None
+                    }
                 ),
                 "rccl_tests_ready_values": sorted(
-                    {str(row.get("rccl_tests_ready")).lower() for row in value if row.get("rccl_tests_ready") is not None}
+                    {
+                        str(row.get("rccl_tests_ready")).lower()
+                        for row in value
+                        if row.get("rccl_tests_ready") is not None
+                    }
                 ),
                 "target_cache_keys": sorted(
-                    {str(row.get("target_cache_key")) for row in value if row.get("target_cache_key")}
+                    {
+                        str(row.get("target_cache_key"))
+                        for row in value
+                        if row.get("target_cache_key")
+                    }
                 ),
                 "target_instance_ids": sorted(
-                    {str(row.get("target_instance_id")) for row in value if row.get("target_instance_id")}
+                    {
+                        str(row.get("target_instance_id"))
+                        for row in value
+                        if row.get("target_instance_id")
+                    }
                 ),
                 "configured_amdgpu_targets": sorted(
-                    {str(row.get("configured_amdgpu_targets")) for row in value if row.get("configured_amdgpu_targets")}
+                    {
+                        str(row.get("configured_amdgpu_targets"))
+                        for row in value
+                        if row.get("configured_amdgpu_targets")
+                    }
                 ),
                 "validation_phases": phases,
                 "phase_status_counts": phase_counts,
@@ -570,9 +735,13 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None,
                 "candidate_qualifications": qualifications,
                 "cache_eligibility": eligibility,
                 "capture_count": sum(1 for row in value if row.get("source_kind") == "capture"),
-                "status_record_count": sum(1 for row in value if row.get("source_kind") == "target_status"),
+                "status_record_count": sum(
+                    1 for row in value if row.get("source_kind") == "target_status"
+                ),
                 "cross_target_promotion_allowed": False,
-                "source_kinds": sorted({str(row.get("source_kind")) for row in value if row.get("source_kind")}),
+                "source_kinds": sorted(
+                    {str(row.get("source_kind")) for row in value if row.get("source_kind")}
+                ),
                 "rows": value,
             }
         )
@@ -580,11 +749,16 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None,
         evidence.finish()
     except (OSError, ValueError):
         for group in report_groups:
-            group["cache_eligibility"].update(eligible=False, blockers=["qualification_artifacts_changed_during_review"],
-                qualified_capture_sha256=[])
+            group["cache_eligibility"].update(
+                eligible=False,
+                blockers=["qualification_artifacts_changed_during_review"],
+                qualified_capture_sha256=[],
+            )
             for candidate in group["candidate_qualifications"]:
                 candidate["eligible"] = False
-                candidate["blockers"] = sorted(set(candidate["blockers"] + ["qualification_artifacts_changed_during_review"]))
+                candidate["blockers"] = sorted(
+                    set(candidate["blockers"] + ["qualification_artifacts_changed_during_review"])
+                )
     coverage = _coverage_summary(report_groups)
     return {
         "schema_version": 3,
@@ -641,17 +815,29 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
                 blockers=", ".join(eligibility.get("blockers") or []),
             )
         )
-    lines.extend(["", "## Candidate qualification", "",
-                  "| capture | backend | kernel | artifact SHA256 | ready | blockers |",
-                  "| --- | --- | --- | --- | --- | --- |"])
+    lines.extend(
+        [
+            "",
+            "## Candidate qualification",
+            "",
+            "| capture | backend | kernel | artifact SHA256 | ready | blockers |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+    )
     from markdown_tables import markdown_cell as cell
+
     for group in report["groups"]:
         for verdict in group.get("candidate_qualifications", []):
             candidate = verdict.get("candidate") or {}
             identity = candidate.get("identity") or {}
-            values = [candidate.get("capture", verdict.get("path")), identity.get("backend_selected"),
-                      identity.get("selected_kernel"), identity.get("executable_sha256"),
-                      verdict["eligible"], ", ".join(verdict.get("blockers", []))]
+            values = [
+                candidate.get("capture", verdict.get("path")),
+                identity.get("backend_selected"),
+                identity.get("selected_kernel"),
+                identity.get("executable_sha256"),
+                verdict["eligible"],
+                ", ".join(verdict.get("blockers", [])),
+            ]
             lines.append("| " + " | ".join(cell(value) for value in values) + " |")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"json": str(json_path), "markdown": str(md_path)}
@@ -667,8 +853,13 @@ def main() -> int:
         default=[],
         help="JSON target validation status records for build/CTest/smoke/profiler readiness",
     )
-    parser.add_argument("--qualification-receipt", type=Path, action="append", default=[],
-                        help="versioned candidate/session/run-bound raw phase qualification")
+    parser.add_argument(
+        "--qualification-receipt",
+        type=Path,
+        action="append",
+        default=[],
+        help="versioned candidate/session/run-bound raw phase qualification",
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

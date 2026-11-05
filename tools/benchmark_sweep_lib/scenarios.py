@@ -93,7 +93,9 @@ def _tuple_or_default(value: Any, *, label: str, default: tuple[Any, ...]) -> tu
     return default if converted is None else converted
 
 
-def _string_tuple_or_default(value: Any, *, label: str, default: tuple[str, ...]) -> tuple[str, ...]:
+def _string_tuple_or_default(
+    value: Any, *, label: str, default: tuple[str, ...]
+) -> tuple[str, ...]:
     values = _tuple_or_default(value, label=label, default=default)
     for item in values:
         if not isinstance(item, str) or not item:
@@ -159,7 +161,9 @@ def _case_from_data(value: Any, cases: dict[str, SweepCase], *, label: str) -> S
         tile_n=_required_int(value, "tile_n", label=case_label, positive=True),
         bound_mode=_required_string(value, "bound_mode", label=case_label),
         input_profile=_required_string(value, "input_profile", label=case_label),
-        require_adaptive=_bool_or_default(value, "require_adaptive", label=case_label, default=False),
+        require_adaptive=_bool_or_default(
+            value, "require_adaptive", label=case_label, default=False
+        ),
         promotable=_bool_or_default(value, "promotable", label=case_label, default=True),
     )
 
@@ -194,7 +198,9 @@ def _metadata(raw: dict[str, Any], *, label: str) -> dict[str, Any] | None:
 def _scenario_review_mode(raw: dict[str, Any], *, label: str) -> str:
     value = _required_string(raw, "review_mode_expectation", label=label)
     if value not in SCENARIO_REVIEW_MODES:
-        raise SystemExit(f"{label}.review_mode_expectation must be a registered scenario review mode")
+        raise SystemExit(
+            f"{label}.review_mode_expectation must be a registered scenario review mode"
+        )
     return value
 
 
@@ -205,7 +211,9 @@ def _promotion_eligibility(raw: dict[str, Any], *, label: str) -> str:
     return value
 
 
-def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = None) -> list[ScenarioItem]:
+def load_scenario_data_family(
+    path: Path, cases: dict[str, SweepCase] | None = None
+) -> list[ScenarioItem]:
     cases = cases or {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -226,10 +234,20 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
         if not isinstance(raw, dict):
             raise SystemExit(f"{label} must be an object")
         annotated_prefix = (raw.get("metadata") or {}).get("prefix")
-        if annotated_prefix is not None and raw.get("prefix_policy") == "fixed-requested" and annotated_prefix != raw.get("max_prefix"):
-            raise SystemExit(f"{label}.metadata.prefix must equal the requested fixed max_prefix; executed prefix is separate capture evidence")
+        if (
+            annotated_prefix is not None
+            and raw.get("prefix_policy") == "fixed-requested"
+            and annotated_prefix != raw.get("max_prefix")
+        ):
+            raise SystemExit(
+                f"{label}.metadata.prefix must equal the requested fixed max_prefix; executed prefix is separate capture evidence"
+            )
         grouped_tasks = raw.get("grouped_dispatch_tasks", 1)
-        if not isinstance(grouped_tasks, int) or isinstance(grouped_tasks, bool) or grouped_tasks <= 0:
+        if (
+            not isinstance(grouped_tasks, int)
+            or isinstance(grouped_tasks, bool)
+            or grouped_tasks <= 0
+        ):
             raise SystemExit(f"{label}.grouped_dispatch_tasks must be a positive integer")
         resident_candidate = (
             _required_string(raw, "resident_redesign_candidate", label=label)
@@ -242,9 +260,13 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             default=(),
         )
         if resident_dimensions and not resident_candidate:
-            raise SystemExit(f"{label}.resident_redesign_dimensions requires resident_redesign_candidate")
+            raise SystemExit(
+                f"{label}.resident_redesign_dimensions requires resident_redesign_candidate"
+            )
         if resident_candidate and not resident_dimensions:
-            raise SystemExit(f"{label}.resident_redesign_candidate requires resident_redesign_dimensions")
+            raise SystemExit(
+                f"{label}.resident_redesign_candidate requires resident_redesign_dimensions"
+            )
         item = ScenarioItem(
             family,
             _required_string(raw, "name", label=label),
@@ -256,13 +278,17 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             _scenario_review_mode(raw, label=label),
             _promotion_eligibility(raw, label=label),
             backends=_optional_tuple(raw.get("backends"), label=f"{label}.backends"),
-            pack_mode=_required_string(raw, "pack_mode", label=label) if "pack_mode" in raw else "per_repeat_repack",
+            pack_mode=_required_string(raw, "pack_mode", label=label)
+            if "pack_mode" in raw
+            else "per_repeat_repack",
             finite_moduli=_finite_moduli(raw.get("finite_moduli"), label=f"{label}.finite_moduli"),
             exact_wide_limb_counts=_exact_wide_limb_counts(
                 raw.get("exact_wide_limb_counts"),
                 label=f"{label}.exact_wide_limb_counts",
             ),
-            residue_chain_length=_required_int(raw, "residue_chain_length", label=label, positive=True)
+            residue_chain_length=_required_int(
+                raw, "residue_chain_length", label=label, positive=True
+            )
             if "residue_chain_length" in raw
             else 1,
             residue_chain_final_export=_bool_or_default(
@@ -280,12 +306,18 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             output_ld_padding=_required_int(raw, "output_ld_padding", label=label)
             if "output_ld_padding" in raw
             else 0,
-            host_api_batch_size=_required_int(raw, "host_api_batch_size", label=label, positive=True)
+            host_api_batch_size=_required_int(
+                raw, "host_api_batch_size", label=label, positive=True
+            )
             if "host_api_batch_size" in raw
             else 1,
             oneshot=_bool_or_default(raw, "oneshot", label=label, default=False),
-            native_to_rns_bridge=_bool_or_default(raw, "native_to_rns_bridge", label=label, default=False),
-            vector_to_rns_chain=_bool_or_default(raw, "vector_to_rns_chain", label=label, default=False),
+            native_to_rns_bridge=_bool_or_default(
+                raw, "native_to_rns_bridge", label=label, default=False
+            ),
+            vector_to_rns_chain=_bool_or_default(
+                raw, "vector_to_rns_chain", label=label, default=False
+            ),
             vector_to_rns_chain_host_repack_control=_bool_or_default(
                 raw,
                 "vector_to_rns_chain_host_repack_control",
@@ -315,7 +347,9 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 label=label,
                 default=False,
             ),
-            modulus_set=_required_string(raw, "modulus_set", label=label) if "modulus_set" in raw else "default",
+            modulus_set=_required_string(raw, "modulus_set", label=label)
+            if "modulus_set" in raw
+            else "default",
             tile_shape_variant=_required_string(raw, "tile_shape_variant", label=label)
             if "tile_shape_variant" in raw
             else "default",
@@ -327,8 +361,12 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             else "default_garner",
             grouped_dispatch_tasks=grouped_tasks,
             hip_graph_replay=_bool_or_default(raw, "hip_graph_replay", label=label, default=False),
-            workload_proxy=_required_string(raw, "workload_proxy", label=label) if "workload_proxy" in raw else "none",
-            resident_lifetime=_bool_or_default(raw, "resident_lifetime", label=label, default=False),
+            workload_proxy=_required_string(raw, "workload_proxy", label=label)
+            if "workload_proxy" in raw
+            else "none",
+            resident_lifetime=_bool_or_default(
+                raw, "resident_lifetime", label=label, default=False
+            ),
             workspace_arena=_bool_or_default(raw, "workspace_arena", label=label, default=False),
             adaptive_grouped_scheduler=_bool_or_default(
                 raw,
@@ -336,12 +374,20 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 label=label,
                 default=False,
             ),
-            streaming_overlap=_bool_or_default(raw, "streaming_overlap", label=label, default=False),
-            k_block_policy=_required_string(raw, "k_block_policy", label=label) if "k_block_policy" in raw else "auto",
+            streaming_overlap=_bool_or_default(
+                raw, "streaming_overlap", label=label, default=False
+            ),
+            k_block_policy=_required_string(raw, "k_block_policy", label=label)
+            if "k_block_policy" in raw
+            else "auto",
             resident_redesign_candidate=resident_candidate,
             resident_redesign_dimensions=resident_dimensions,
-            release_gate=_required_string(raw, "release_gate", label=label) if "release_gate" in raw else "none",
-            verification_amortization=_required_string(raw, "verification_amortization", label=label)
+            release_gate=_required_string(raw, "release_gate", label=label)
+            if "release_gate" in raw
+            else "none",
+            verification_amortization=_required_string(
+                raw, "verification_amortization", label=label
+            )
             if "verification_amortization" in raw
             else "none",
             error_detection_policy=_required_string(raw, "error_detection_policy", label=label)
@@ -363,13 +409,17 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
         )
         if item.transient_uniform_small_inputs:
             if item.semantics not in {"bounded-i64", "bounded-u64"}:
-                raise SystemExit(f"{label}.transient_uniform_small_inputs requires bounded i64/u64 semantics")
+                raise SystemExit(
+                    f"{label}.transient_uniform_small_inputs requires bounded i64/u64 semantics"
+                )
             if item.case.input_profile != "uniform-small" or item.case.bound_mode != "global":
                 raise SystemExit(
                     f"{label}.transient_uniform_small_inputs requires uniform-small global-bound inputs"
                 )
             if item.backends != ("hip-direct",):
-                raise SystemExit(f"{label}.transient_uniform_small_inputs requires backends=[\"hip-direct\"]")
+                raise SystemExit(
+                    f'{label}.transient_uniform_small_inputs requires backends=["hip-direct"]'
+                )
             if item.pack_mode != "per_repeat_repack" or item.oneshot:
                 raise SystemExit(
                     f"{label}.transient_uniform_small_inputs cannot combine with packed reuse or one-shot"
@@ -397,22 +447,43 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 "exact-wide-signed",
                 "exact-wide-unsigned",
             }:
-                raise SystemExit(f"{label}.sparse_a_4_to_2 requires finite-u8, bounded RNS, or exact-wide RNS semantics")
+                raise SystemExit(
+                    f"{label}.sparse_a_4_to_2 requires finite-u8, bounded RNS, or exact-wide RNS semantics"
+                )
             if item.case.k % 4 != 0:
                 raise SystemExit(f"{label}.sparse_a_4_to_2 requires K divisible by 4")
-            if item.semantics in {
-                "bounded-i64",
-                "bounded-u64",
-                "exact-wide-signed",
-                "exact-wide-unsigned",
-            } and item.case.input_profile != "uniform-small":
-                raise SystemExit(f"{label}.sparse_a_4_to_2 RNS scenarios require uniform-small input_profile")
+            if (
+                item.semantics
+                in {
+                    "bounded-i64",
+                    "bounded-u64",
+                    "exact-wide-signed",
+                    "exact-wide-unsigned",
+                }
+                and item.case.input_profile != "uniform-small"
+            ):
+                raise SystemExit(
+                    f"{label}.sparse_a_4_to_2 RNS scenarios require uniform-small input_profile"
+                )
             if item.pack_mode != "per_repeat_repack":
-                raise SystemExit(f"{label}.sparse_a_4_to_2 cannot use packed-input reuse in this pass")
-            supported_backends = {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"}
-            unsupported = [backend for backend in item.backends or () if backend not in supported_backends]
+                raise SystemExit(
+                    f"{label}.sparse_a_4_to_2 cannot use packed-input reuse in this pass"
+                )
+            supported_backends = {
+                "cpu",
+                "hip-direct",
+                "hipblaslt",
+                "ck",
+                "rocwmma",
+                "amdgpu-builtins",
+            }
+            unsupported = [
+                backend for backend in item.backends or () if backend not in supported_backends
+            ]
             if unsupported:
-                raise SystemExit(f"{label}.sparse_a_4_to_2 supports only CPU/direct/accelerator backends")
+                raise SystemExit(
+                    f"{label}.sparse_a_4_to_2 supports only CPU/direct/accelerator backends"
+                )
             if (
                 item.oneshot
                 or item.host_api_batch_size > 1
@@ -428,9 +499,13 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                     f"{label}.sparse_a_4_to_2 supports only persistent single-capture scenarios in this pass"
                 )
         elif item.sparse_a_4_to_2_dense_baseline:
-            raise SystemExit(f"{label}.sparse_a_4_to_2_dense_baseline requires sparse_a_4_to_2=true")
+            raise SystemExit(
+                f"{label}.sparse_a_4_to_2_dense_baseline requires sparse_a_4_to_2=true"
+            )
         if item.sparse_a_4_to_2_dense_baseline and item.backends and "cpu" in item.backends:
-            raise SystemExit(f"{label}.sparse_a_4_to_2_dense_baseline requires GPU dense baseline backends")
+            raise SystemExit(
+                f"{label}.sparse_a_4_to_2_dense_baseline requires GPU dense baseline backends"
+            )
         _validate_fixed_prefix_static_host_export(item, label=label)
         items.append(item)
     return items
@@ -449,5 +524,3 @@ def load_scenario_data_catalog(directory: Path) -> dict[str, list[ScenarioItem]]
     if not catalog:
         raise SystemExit(f"{directory}: no scenario data files found")
     return catalog
-
-

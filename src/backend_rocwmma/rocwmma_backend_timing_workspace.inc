@@ -34,25 +34,24 @@ void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* 
   std::snprintf(buffer, size, "rocwmma_prefix_%02d_%s", prefix_index, suffix);
 }
 
-
-
-void record_synchronized_host_timing(
-    const char* label,
-    const char* alias,
-    std::chrono::steady_clock::time_point start) {
+void record_synchronized_host_timing(const char* label, const char* alias,
+                                     std::chrono::steady_clock::time_point start) {
   (void)hipDeviceSynchronize();
   const auto stop = std::chrono::steady_clock::now();
   const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
-  rns8::detail::hip_direct_timing_record_failure(label,"synchronized_host_fallback",-1);
-  rns8::detail::hip_direct_timing_record_sample((std::string("host_synchronized_fallback:")+label).c_str(), microseconds);
+  rns8::detail::hip_direct_timing_record_failure(label, "synchronized_host_fallback", -1);
+  rns8::detail::hip_direct_timing_record_sample(
+      (std::string("host_synchronized_fallback:") + label).c_str(), microseconds);
   if (alias && alias[0] != '\0') {
-    rns8::detail::hip_direct_timing_record_failure(alias,"synchronized_host_fallback",-1);
-    rns8::detail::hip_direct_timing_record_sample((std::string("host_synchronized_fallback:")+alias).c_str(), microseconds);
+    rns8::detail::hip_direct_timing_record_failure(alias, "synchronized_host_fallback", -1);
+    rns8::detail::hip_direct_timing_record_sample(
+        (std::string("host_synchronized_fallback:") + alias).c_str(), microseconds);
   }
 }
 
 template <typename Fn>
-hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn,hipStream_t stream=nullptr) {
+hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn,
+                            hipStream_t stream = nullptr) {
   if (stream || !rns8::detail::hip_direct_timing_enabled()) {
     return fn();
   }
@@ -81,7 +80,8 @@ hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn,hipStr
       }
       if (sync_status == hipSuccess) {
         float milliseconds = 0.0f;
-        hipError_t elapsed_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
+        hipError_t elapsed_status =
+            hipEventElapsedTime(&milliseconds, events.start(), events.stop());
         if (elapsed_status != hipSuccess) {
           (void)hipDeviceSynchronize();
           elapsed_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
@@ -109,42 +109,29 @@ bool checked_i32_shape(int64_t value) {
   return value > 0 && value <= static_cast<int64_t>(kRns8MaxInt);
 }
 
-
-
-
-
-bool rocwmma_workspace_requirements_u64(
-    int64_t max_m,
-    int64_t max_n,
-    int64_t k,
-    uint64_t* a_bytes,
-    uint64_t* b_bytes) {
+bool rocwmma_workspace_requirements_u64(int64_t max_m, int64_t max_n, int64_t k, uint64_t* a_bytes,
+                                        uint64_t* b_bytes) {
   rns8::detail::PackedGemmLayout layout;
-  if(!a_bytes || !b_bytes || max_m<=0 || max_n<=0 || k<=0 || !rns8::detail::rocwmma_packed_gemm_layout(max_m,max_n,k,layout))return false;
-  *a_bytes=layout.a_bytes;*b_bytes=layout.b_bytes;
+  if (!a_bytes || !b_bytes || max_m <= 0 || max_n <= 0 || k <= 0 ||
+      !rns8::detail::rocwmma_packed_gemm_layout(max_m, max_n, k, layout))
+    return false;
+  *a_bytes = layout.a_bytes;
+  *b_bytes = layout.b_bytes;
   return true;
 }
 
-int zero_tile_residues(
-    int8_t* c_base,
-    int64_t m,
-    int64_t ldc,
-    int64_t row_offset,
-    int64_t col_offset,
-    int64_t row_extent,
-    int64_t col_extent,
-    uint32_t selected_prefix) {
+int zero_tile_residues(int8_t* c_base, int64_t m, int64_t ldc, int64_t row_offset,
+                       int64_t col_offset, int64_t row_extent, int64_t col_extent,
+                       uint32_t selected_prefix) {
   for (uint32_t p = 0; p < selected_prefix; ++p) {
-    auto* tile_c = c_base + static_cast<uint64_t>(p) * static_cast<uint64_t>(m) * static_cast<uint64_t>(ldc) +
-                   static_cast<uint64_t>(row_offset) * static_cast<uint64_t>(ldc) +
-                   static_cast<uint64_t>(col_offset);
+    auto* tile_c =
+        c_base + static_cast<uint64_t>(p) * static_cast<uint64_t>(m) * static_cast<uint64_t>(ldc) +
+        static_cast<uint64_t>(row_offset) * static_cast<uint64_t>(ldc) +
+        static_cast<uint64_t>(col_offset);
     const hipError_t status = timed_hip_launch("rocwmma_zero_output_tile_memset", nullptr, [&]() {
-      return hipMemset2D(
-          tile_c,
-          static_cast<std::size_t>(ldc) * sizeof(int8_t),
-          0,
-          static_cast<std::size_t>(col_extent) * sizeof(int8_t),
-          static_cast<std::size_t>(row_extent));
+      return hipMemset2D(tile_c, static_cast<std::size_t>(ldc) * sizeof(int8_t), 0,
+                         static_cast<std::size_t>(col_extent) * sizeof(int8_t),
+                         static_cast<std::size_t>(row_extent));
     });
     if (status != hipSuccess) {
       return rocwmma_backend_failure;
@@ -153,16 +140,16 @@ int zero_tile_residues(
   return rocwmma_success;
 }
 
-__device__ uint32_t reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus, uint32_t reciprocal) {
+__device__ uint32_t reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus,
+                                                    uint32_t reciprocal) {
   return rns8::detail::finite_u8::reduce_u32_small_modulus(value, modulus, reciprocal);
 }
 
 __host__ __device__ __forceinline__ bool rocwmma_static_modulus_supported(uint32_t modulus) {
-  return modulus>=2 && modulus<=256;
+  return modulus >= 2 && modulus <= 256;
 }
 
 __device__ int8_t reduce_to_centered_device(int32_t value, int modulus, uint32_t reciprocal) {
-  return rns8::detail::finite_u8::reduce_to_centered_i32(
-      value, static_cast<uint32_t>(modulus), reciprocal);
+  return rns8::detail::finite_u8::reduce_to_centered_i32(value, static_cast<uint32_t>(modulus),
+                                                         reciprocal);
 }
-

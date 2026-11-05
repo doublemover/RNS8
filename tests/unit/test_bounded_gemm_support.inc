@@ -37,12 +37,8 @@ rns8_gemm_desc u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   return desc;
 }
 
-rns8_matrix_desc matrix_desc(
-    int64_t rows,
-    int64_t cols,
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint32_t max_prefix = 0) {
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics,
+                             rns8_bound_kind bound_kind, uint32_t max_prefix = 0) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -56,10 +52,8 @@ rns8_matrix_desc matrix_desc(
   return desc;
 }
 
-template <typename T>
-void check_all_equal(const std::vector<T>& values, T expected) {
+template <typename T> void check_all_equal(const std::vector<T>& values, T expected) {
   for (const T& value : values) {
     CHECK(value == expected);
   }
 }
-

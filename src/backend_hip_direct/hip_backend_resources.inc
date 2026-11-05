@@ -68,7 +68,7 @@ rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out) {
   }
   g_hip_direct_allocate_calls.fetch_add(1, std::memory_order_relaxed);
   g_hip_direct_allocated_bytes.fetch_add(static_cast<uint64_t>(bytes), std::memory_order_relaxed);
-  observation.allocated(ptr,bytes,AllocationObservationDomain::device);
+  observation.allocated(ptr, bytes, AllocationObservationDomain::device);
   *out = ptr;
   return RNS8_SUCCESS;
 #else
@@ -94,7 +94,7 @@ rns8_status hip_direct_free(int device_id, void* ptr) {
     return RNS8_BACKEND_FAILURE;
   }
   g_hip_direct_free_calls.fetch_add(1, std::memory_order_relaxed);
-  observation.released(ptr,AllocationObservationDomain::device);
+  observation.released(ptr, AllocationObservationDomain::device);
   return RNS8_SUCCESS;
 #else
   (void)device_id;
@@ -117,7 +117,8 @@ rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes) {
   // implicit dependency on that write. Finish initialization before publishing
   // the allocation; synchronizing only its stream avoids a device-wide fence.
   const hipError_t err = hipMemset(ptr, 0, bytes);
-  if (err != hipSuccess) return RNS8_BACKEND_FAILURE;
+  if (err != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
   return hipStreamSynchronize(nullptr) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -127,7 +128,8 @@ rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes) {
 #endif
 }
 
-rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src, std::size_t bytes) {
+rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src,
+                                           std::size_t bytes) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!dst || !src || bytes == 0) {
     return RNS8_INVALID_ARGUMENT;
@@ -136,8 +138,9 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  const hipError_t err =
-      timed_hip_operation("residue_d2h_sync", [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToHost); });
+  const hipError_t err = timed_hip_operation("residue_d2h_sync", [&]() {
+    return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToHost);
+  });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -148,12 +151,8 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
 #endif
 }
 
-rns8_status hip_direct_copy_host_to_device_labeled(
-    int device_id,
-    const char* timing_label,
-    void* dst,
-    const void* src,
-    std::size_t bytes) {
+rns8_status hip_direct_copy_host_to_device_labeled(int device_id, const char* timing_label,
+                                                   void* dst, const void* src, std::size_t bytes) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!timing_label || timing_label[0] == '\0' || !dst || !src || bytes == 0) {
     return RNS8_INVALID_ARGUMENT;
@@ -162,8 +161,8 @@ rns8_status hip_direct_copy_host_to_device_labeled(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  const hipError_t err =
-      timed_hip_operation(timing_label, [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyHostToDevice); });
+  const hipError_t err = timed_hip_operation(
+      timing_label, [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyHostToDevice); });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -175,23 +174,26 @@ rns8_status hip_direct_copy_host_to_device_labeled(
 #endif
 }
 
-rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src, std::size_t bytes) {
+rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src,
+                                           std::size_t bytes) {
   return hip_direct_copy_host_to_device_labeled(device_id, "residue_h2d_sync", dst, src, bytes);
 }
 
-rns8_status hip_direct_upload_host_matrix(int device_id, const char* timing_label,
-    void* dst, std::size_t capacity, const void* src, const HostUploadPlan& plan) {
-  if (!timing_label || !*timing_label || !dst || !src || !plan.rows ||
-      !plan.row_bytes || capacity < plan.device_bytes || !plan.device_bytes)
+rns8_status hip_direct_upload_host_matrix(int device_id, const char* timing_label, void* dst,
+                                          std::size_t capacity, const void* src,
+                                          const HostUploadPlan& plan) {
+  if (!timing_label || !*timing_label || !dst || !src || !plan.rows || !plan.row_bytes ||
+      capacity < plan.device_bytes || !plan.device_bytes)
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   const auto status = set_hip_device(device_id);
-  if (status != RNS8_SUCCESS) return status;
+  if (status != RNS8_SUCCESS)
+    return status;
   const auto error = timed_hip_operation(timing_label, [&]() {
     return plan.contiguous()
-        ? tracked_sync_copy(dst, src, plan.device_bytes, hipMemcpyHostToDevice)
-        : tracked_sync_copy_2d(dst, plan.row_bytes, src, plan.source_pitch_bytes,
-                              plan.row_bytes, plan.rows, hipMemcpyHostToDevice);
+               ? tracked_sync_copy(dst, src, plan.device_bytes, hipMemcpyHostToDevice)
+               : tracked_sync_copy_2d(dst, plan.row_bytes, src, plan.source_pitch_bytes,
+                                      plan.row_bytes, plan.rows, hipMemcpyHostToDevice);
   });
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -200,7 +202,8 @@ rns8_status hip_direct_upload_host_matrix(int device_id, const char* timing_labe
 #endif
 }
 
-rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const void* src, std::size_t bytes) {
+rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const void* src,
+                                             std::size_t bytes) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!dst || !src || bytes == 0) {
     return RNS8_INVALID_ARGUMENT;
@@ -209,8 +212,9 @@ rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const voi
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  const hipError_t err =
-      timed_hip_operation("residue_d2d_sync", [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToDevice); });
+  const hipError_t err = timed_hip_operation("residue_d2d_sync", [&]() {
+    return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToDevice);
+  });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -221,16 +225,11 @@ rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const voi
 #endif
 }
 
-rns8_status hip_direct_copy_compact_matrix_device_to_host(
-    int device_id,
-    const char* timing_label,
-    void* dst,
-    int64_t dst_ld,
-    const void* src,
-    int64_t rows,
-    int64_t cols,
-    std::size_t cell_bytes,
-    bool default_padded_staging) {
+rns8_status hip_direct_copy_compact_matrix_device_to_host(int device_id, const char* timing_label,
+                                                          void* dst, int64_t dst_ld,
+                                                          const void* src, int64_t rows,
+                                                          int64_t cols, std::size_t cell_bytes,
+                                                          bool default_padded_staging) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!timing_label) {
     return RNS8_INVALID_ARGUMENT;
@@ -239,9 +238,8 @@ rns8_status hip_direct_copy_compact_matrix_device_to_host(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  const hipError_t err =
-      copy_compact_matrix_device_to_host(
-          device_id, timing_label, dst, dst_ld, src, rows, cols, cell_bytes, default_padded_staging);
+  const hipError_t err = copy_compact_matrix_device_to_host(
+      device_id, timing_label, dst, dst_ld, src, rows, cols, cell_bytes, default_padded_staging);
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -257,7 +255,8 @@ rns8_status hip_direct_copy_compact_matrix_device_to_host(
 #endif
 }
 
-rns8_status hip_direct_ensure_upload_buffer(int device_id, std::size_t bytes, void** buffer, std::size_t* capacity) {
+rns8_status hip_direct_ensure_upload_buffer(int device_id, std::size_t bytes, void** buffer,
+                                            std::size_t* capacity) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!buffer || !capacity || bytes == 0) {
     return RNS8_INVALID_ARGUMENT;
@@ -289,4 +288,3 @@ rns8_status hip_direct_ensure_upload_buffer(int device_id, std::size_t bytes, vo
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-

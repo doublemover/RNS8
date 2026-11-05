@@ -178,7 +178,9 @@ def exact_wide_entry(key_suffix: str = "", *, export_variant: str = "default") -
 
 
 def write_cache(path: Path, entries: list[dict]) -> None:
-    path.write_text(json.dumps({"schema_version": 1, "entries": entries}, indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps({"schema_version": 1, "entries": entries}, indent=2), encoding="utf-8"
+    )
 
 
 def write_ledger(
@@ -237,7 +239,10 @@ def check_default_path(root: Path) -> None:
             profile = root / "profile"
             os.environ["LOCALAPPDATA"] = str(local)
             os.environ["USERPROFILE"] = str(profile)
-            assert install_autotune_cache.default_autotune_cache_path() == local / "rns8-gemm" / "autotune.json"
+            assert (
+                install_autotune_cache.default_autotune_cache_path()
+                == local / "rns8-gemm" / "autotune.json"
+            )
             os.environ.pop("LOCALAPPDATA", None)
             assert (
                 install_autotune_cache.default_autotune_cache_path()
@@ -248,9 +253,15 @@ def check_default_path(root: Path) -> None:
             home = root / "home"
             os.environ["XDG_CACHE_HOME"] = str(xdg)
             os.environ["HOME"] = str(home)
-            assert install_autotune_cache.default_autotune_cache_path() == xdg / "rns8-gemm" / "autotune.json"
+            assert (
+                install_autotune_cache.default_autotune_cache_path()
+                == xdg / "rns8-gemm" / "autotune.json"
+            )
             os.environ.pop("XDG_CACHE_HOME", None)
-            assert install_autotune_cache.default_autotune_cache_path() == home / ".cache" / "rns8-gemm" / "autotune.json"
+            assert (
+                install_autotune_cache.default_autotune_cache_path()
+                == home / ".cache" / "rns8-gemm" / "autotune.json"
+            )
     finally:
         for name, value in old.items():
             restore_env(name, value)
@@ -273,13 +284,18 @@ def main() -> int:
         write_cache(source_a, [replacement])
         write_cache(source_b, [finite, vector, vector_gemv])
 
-        dry_run = install_autotune_cache.install_cache([source_a, source_b], destination, dry_run=True)
+        dry_run = install_autotune_cache.install_cache(
+            [source_a, source_b], destination, dry_run=True
+        )
         assert dry_run["dry_run"] is True
         assert dry_run["replace_existing"] is False
         assert dry_run["installed_entries"] == 4
-        assert json.loads(destination.read_text(encoding="utf-8"))["entries"][0]["measured_medians_us"][
-            "end_to_end"
-        ] == 4.0
+        assert (
+            json.loads(destination.read_text(encoding="utf-8"))["entries"][0][
+                "measured_medians_us"
+            ]["end_to_end"]
+            == 4.0
+        )
 
         try:
             install_autotune_cache.install_cache([source_a, source_b], destination)
@@ -289,7 +305,12 @@ def main() -> int:
             raise AssertionError("cache install accepted a write without a promotion ledger")
 
         install_ledger = root / "install-promotion-ledger.json"
-        write_ledger(install_ledger, [replacement, finite, vector, vector_gemv], variance=True, variance_ready=True)
+        write_ledger(
+            install_ledger,
+            [replacement, finite, vector, vector_gemv],
+            variance=True,
+            variance_ready=True,
+        )
         summary = install_autotune_cache.install_cache(
             [source_a, source_b],
             destination,
@@ -308,13 +329,14 @@ def main() -> int:
         assert [item["key"] for item in installed] == sorted(item["key"] for item in installed)
         assert any(item["finite_modulus"] == 251 for item in installed)
         assert any(item["selected_backend"] == "hip-vector-alu-int64" for item in installed)
-        assert any(item["selected_kernel"] == "hip_vector_alu_i64_gemv_n1_exact_192b_v1" for item in installed)
+        assert any(
+            item["selected_kernel"] == "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
+            for item in installed
+        )
         assert any(item["measured_medians_us"]["end_to_end"] == 1.5 for item in installed)
 
         exact_default = exact_wide_entry("-exact")
-        exact_fixed_limb = exact_wide_entry(
-            "-exact", export_variant="exact-wide-fixed-limb-export"
-        )
+        exact_fixed_limb = exact_wide_entry("-exact", export_variant="exact-wide-fixed-limb-export")
         exact_selector_source = root / "exact-selector-cache.json"
         write_cache(exact_selector_source, [exact_default, exact_fixed_limb])
         try:
@@ -322,7 +344,9 @@ def main() -> int:
         except install_autotune_cache.AutotuneCacheInstallError as exc:
             assert "selector_review_only_cache_entry_not_runtime_installable" in str(exc)
         else:
-            raise AssertionError("selector-review-only entry was accepted by the default runtime cache install")
+            raise AssertionError(
+                "selector-review-only entry was accepted by the default runtime cache install"
+            )
         exact_selector_summary = install_autotune_cache.install_cache(
             [exact_selector_source],
             destination,
@@ -330,7 +354,10 @@ def main() -> int:
             allow_selector_review_cache=True,
         )
         assert exact_default["key"] != exact_fixed_limb["key"]
-        assert exact_default["key"] in exact_fixed_limb["key"] or "export_selector_hash" in exact_fixed_limb["key"]
+        assert (
+            exact_default["key"] in exact_fixed_limb["key"]
+            or "export_selector_hash" in exact_fixed_limb["key"]
+        )
         assert any(
             item["cache_scope"] == "selector_review_only_non_default"
             and item["export_variant"] == "exact-wide-fixed-limb-export"
@@ -355,7 +382,9 @@ def main() -> int:
         except install_autotune_cache.AutotuneCacheInstallError as exc:
             assert "key_export_variant_mismatch" in str(exc)
         else:
-            raise AssertionError("non-default export selector without selector key fields was accepted")
+            raise AssertionError(
+                "non-default export selector without selector key fields was accepted"
+            )
 
         stale_selector_hash = copy.deepcopy(exact_fixed_limb)
         stale_selector_hash["export_selector_hash"] = "badbadbadbadbad0"
@@ -400,7 +429,9 @@ def main() -> int:
         missing_ledger = root / "missing-promotion-ledger.json"
         write_ledger(missing_ledger, [finite])
         try:
-            install_autotune_cache.install_cache([source_a], destination, promotion_ledgers=[missing_ledger])
+            install_autotune_cache.install_cache(
+                [source_a], destination, promotion_ledgers=[missing_ledger]
+            )
         except install_autotune_cache.AutotuneCacheInstallError as exc:
             assert "missing_promotion_ledger_entry" in str(exc)
         else:
@@ -409,7 +440,9 @@ def main() -> int:
         blocked_ledger = root / "blocked-promotion-ledger.json"
         write_ledger(blocked_ledger, [replacement], blockers=["speedup_inside_variance_margin"])
         try:
-            install_autotune_cache.install_cache([source_a], destination, promotion_ledgers=[blocked_ledger])
+            install_autotune_cache.install_cache(
+                [source_a], destination, promotion_ledgers=[blocked_ledger]
+            )
         except install_autotune_cache.AutotuneCacheInstallError as exc:
             assert "promotion_ledger_blocked" in str(exc)
             assert "speedup_inside_variance_margin" in str(exc)
@@ -439,7 +472,14 @@ def main() -> int:
         assert variance_summary["require_variance_gate"] is True
 
         target_ledger = root / "target-promotion-ledger.json"
-        write_ledger(target_ledger, [replacement], variance=True, variance_ready=True, target_gate=True, target_ready=True)
+        write_ledger(
+            target_ledger,
+            [replacement],
+            variance=True,
+            variance_ready=True,
+            target_gate=True,
+            target_ready=True,
+        )
         try:
             install_autotune_cache.install_cache(
                 [source_a],
@@ -455,7 +495,9 @@ def main() -> int:
 
         cdna = copy.deepcopy(replacement)
         cdna["target_id"] = "gfx942"
-        cdna["validation_status"] = install_autotune_cache.reviewed_release_status_for_target(cdna["target_id"])
+        cdna["validation_status"] = install_autotune_cache.reviewed_release_status_for_target(
+            cdna["target_id"]
+        )
         cdna["key"] = cdna["key"].replace("target_id=gfx1100", "target_id=gfx942", 1)
         cdna_source = root / "cdna-source.json"
         write_cache(cdna_source, [cdna])
@@ -475,7 +517,14 @@ def main() -> int:
             raise AssertionError("CDNA cache entry installed without target validation gate")
 
         cdna_ledger = root / "cdna-target-ledger.json"
-        write_ledger(cdna_ledger, [cdna], variance=True, variance_ready=True, target_gate=True, target_ready=True)
+        write_ledger(
+            cdna_ledger,
+            [cdna],
+            variance=True,
+            variance_ready=True,
+            target_gate=True,
+            target_ready=True,
+        )
         try:
             install_autotune_cache.install_cache(
                 [cdna_source],
@@ -487,7 +536,9 @@ def main() -> int:
         except install_autotune_cache.AutotuneCacheInstallError as exc:
             assert "promotion_ledger_candidate_target_receipt_invalid" in str(exc)
         else:
-            raise AssertionError("CDNA target gate accepted booleans without candidate phase receipts")
+            raise AssertionError(
+                "CDNA target gate accepted booleans without candidate phase receipts"
+            )
 
         bad = copy.deepcopy(finite)
         bad["key"] = bad["key"].replace(";finite_modulus=251", "")
@@ -501,8 +552,12 @@ def main() -> int:
             raise AssertionError("invalid finite cache entry was accepted")
 
         stale_finite_kernel = entry("-finite256", finite_modulus=256)
-        stale_finite_kernel["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
-        stale_finite_kernel["kernel_family"] = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
+        stale_finite_kernel["selected_kernel"] = (
+            "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
+        )
+        stale_finite_kernel["kernel_family"] = (
+            "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
+        )
         stale_finite_kernel["key"] = stale_finite_kernel["key"].replace(
             "kernel=ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
             "kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
@@ -517,7 +572,9 @@ def main() -> int:
             raise AssertionError("stale finite CK kernel cache entry was accepted")
 
         legacy_target_key = entry()
-        legacy_target_key["key"] = legacy_target_key["key"].replace(";target_id=gfx1100;", ";target=gfx1100;")
+        legacy_target_key["key"] = legacy_target_key["key"].replace(
+            ";target_id=gfx1100;", ";target=gfx1100;"
+        )
         legacy_target_source = root / "legacy-target-key.json"
         write_cache(legacy_target_source, [legacy_target_key])
         try:
@@ -586,7 +643,10 @@ def main() -> int:
             {
                 "key": vector_exact_wide["key"]
                 .replace("semantics=bounded_u64", "semantics=exact_wide_unsigned")
-                .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_exact_192b_v1"),
+                .replace(
+                    "kernel=hip_vector_alu_u64_exact_192b_v1",
+                    "kernel=hip_vector_alu_u64_exact_192b_v1",
+                ),
                 "semantic_contract": "exact_wide_unsigned",
             }
         )
@@ -599,7 +659,9 @@ def main() -> int:
         else:
             raise AssertionError("non-bounded vector cache entry was accepted")
 
-        stale_vector_gemv = vector_entry("-stale-vector-gemv", semantics="bounded_i64", m=256, n=1, k=4096)
+        stale_vector_gemv = vector_entry(
+            "-stale-vector-gemv", semantics="bounded_i64", m=256, n=1, k=4096
+        )
         stale_vector_gemv["selected_kernel"] = "hip_vector_alu_i64_exact_192b_v1"
         stale_vector_gemv["kernel_family"] = "hip_vector_alu_i64_exact_192b_v1"
         stale_vector_gemv["key"] = stale_vector_gemv["key"].replace(
@@ -618,8 +680,7 @@ def main() -> int:
         stale_kernel = entry("-stale-kernel")
         stale_kernel.update(
             {
-                "key": stale_kernel["key"]
-                .replace(
+                "key": stale_kernel["key"].replace(
                     "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
                     "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0",
                 ),

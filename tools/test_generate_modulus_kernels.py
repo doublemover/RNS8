@@ -1,4 +1,5 @@
 """Deterministic source/manifest and bounded-domain generator regressions."""
+
 import hashlib
 from pathlib import Path
 import tempfile

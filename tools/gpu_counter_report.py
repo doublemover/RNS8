@@ -21,12 +21,14 @@ from markdown_tables import markdown_cell
 from observation_cohorts import canonical_work
 from perf_variance_report import execution_cohort
 from timing_eligibility import capture_identity
-from evidence_database_lib.work_model import classify_bottleneck, estimate_work, roofline_target_for_row
-
-
-COUNTER_REPORT_POLICY = (
-    "explanation_evidence_only_not_a_correctness_gate_not_a_performance_claim"
+from evidence_database_lib.work_model import (
+    classify_bottleneck,
+    estimate_work,
+    roofline_target_for_row,
 )
+
+
+COUNTER_REPORT_POLICY = "explanation_evidence_only_not_a_correctness_gate_not_a_performance_claim"
 DEFAULT_OUT_DIR = Path("temp") / "gpu-counter-reports"
 COUNTER_VALUE_RE = re.compile(r"^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 RESOURCE_SIGNAL_FIELDS = [
@@ -139,7 +141,8 @@ def _numeric_summary(values: list[float], total_count: int) -> dict[str, Any]:
 
 
 def _merged_counter_metrics(counter_reports: list[dict[str, Any]]) -> dict[str, float]:
-    totals: dict[str, float] = {}; counts: dict[str, int] = {}
+    totals: dict[str, float] = {}
+    counts: dict[str, int] = {}
     for report in counter_reports:
         for key, count in (report.get("numeric_metric_counts") or {}).items():
             total = _number((report.get("numeric_metric_totals") or {}).get(key))
@@ -151,11 +154,17 @@ def _merged_counter_metrics(counter_reports: list[dict[str, Any]]) -> dict[str, 
 
 def _counter_group_identity(record: dict[str, Any]) -> dict[str, Any]:
     def first(names):
-        return next((str(record[name]) for name in names if record.get(name) not in (None, "")), None)
-    return {"kernel": first(("KernelName", "Kernel_Name", "kernel_name", "kernel", "Kernel")),
-            "phase": first(("phase", "Phase")), "device": first(("device_id", "DeviceId", "Device_ID", "gpu-id")),
-            "execution_id": first(("execution_id", "run_id", "RunId")),
-            "unit": first(("unit", "Unit", "Units"))}
+        return next(
+            (str(record[name]) for name in names if record.get(name) not in (None, "")), None
+        )
+
+    return {
+        "kernel": first(("KernelName", "Kernel_Name", "kernel_name", "kernel", "Kernel")),
+        "phase": first(("phase", "Phase")),
+        "device": first(("device_id", "DeviceId", "Device_ID", "gpu-id")),
+        "execution_id": first(("execution_id", "run_id", "RunId")),
+        "unit": first(("unit", "Unit", "Units")),
+    }
 
 
 def _merged_counter_groups(reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -163,17 +172,39 @@ def _merged_counter_groups(reports: list[dict[str, Any]]) -> list[dict[str, Any]
     for report in reports:
         for group in report.get("kernel_metric_groups", []):
             key = json.dumps(group["identity"], sort_keys=True)
-            entry = groups.setdefault(key, {"identity": group["identity"], "record_count": 0,
-                "numeric_metric_totals": {}, "numeric_metric_counts": {}, "numeric_metric_minimum": {}, "numeric_metric_maximum": {}})
+            entry = groups.setdefault(
+                key,
+                {
+                    "identity": group["identity"],
+                    "record_count": 0,
+                    "numeric_metric_totals": {},
+                    "numeric_metric_counts": {},
+                    "numeric_metric_minimum": {},
+                    "numeric_metric_maximum": {},
+                },
+            )
             entry["record_count"] += group["record_count"]
             for metric, count in group["numeric_metric_counts"].items():
-                entry["numeric_metric_counts"][metric] = entry["numeric_metric_counts"].get(metric, 0) + count
-                entry["numeric_metric_totals"][metric] = entry["numeric_metric_totals"].get(metric, 0.0) + group["numeric_metric_totals"][metric]
-                entry["numeric_metric_minimum"][metric] = min(entry["numeric_metric_minimum"].get(metric, float("inf")), group["numeric_metric_minimum"][metric])
-                entry["numeric_metric_maximum"][metric] = max(entry["numeric_metric_maximum"].get(metric, -float("inf")), group["numeric_metric_maximum"][metric])
+                entry["numeric_metric_counts"][metric] = (
+                    entry["numeric_metric_counts"].get(metric, 0) + count
+                )
+                entry["numeric_metric_totals"][metric] = (
+                    entry["numeric_metric_totals"].get(metric, 0.0)
+                    + group["numeric_metric_totals"][metric]
+                )
+                entry["numeric_metric_minimum"][metric] = min(
+                    entry["numeric_metric_minimum"].get(metric, float("inf")),
+                    group["numeric_metric_minimum"][metric],
+                )
+                entry["numeric_metric_maximum"][metric] = max(
+                    entry["numeric_metric_maximum"].get(metric, -float("inf")),
+                    group["numeric_metric_maximum"][metric],
+                )
     for entry in groups.values():
         entry["numeric_metric_average"] = _merged_counter_metrics([entry])
-        entry["aggregation_semantics"] = "per_metric_observation_mean_preserved_units_not_time_weighted_rate"
+        entry["aggregation_semantics"] = (
+            "per_metric_observation_mean_preserved_units_not_time_weighted_rate"
+        )
     return [groups[key] for key in sorted(groups)]
 
 
@@ -221,9 +252,9 @@ def _isa_resource_summary(isa_reports: list[dict[str, Any]]) -> dict[str, Any]:
             for name, value in histogram.items():
                 number = _number(value)
                 if number is not None:
-                    totals["matrix_instruction_histogram"][str(name)] = (
-                        int(totals["matrix_instruction_histogram"].get(str(name), 0)) + int(number)
-                    )
+                    totals["matrix_instruction_histogram"][str(name)] = int(
+                        totals["matrix_instruction_histogram"].get(str(name), 0)
+                    ) + int(number)
         for key in max_keys:
             value = _number(instruction_totals.get(key))
             if value is not None:
@@ -239,10 +270,16 @@ def _counter_resource_summary(
     groups = _merged_counter_groups(counter_reports)
     symbols = {capture.get("selected_kernel")}
     symbols.update(report.get("selected_symbol") for report in isa_reports)
-    selected = [group for group in groups if group["identity"]["kernel"] in symbols and
-                group["identity"]["kernel"] is not None and
-                group["identity"]["execution_id"] == capture.get("execution_id") and capture.get("execution_id") and
-                group["identity"]["device"] in (None, str((capture.get("device") or {}).get("device_id")))]
+    selected = [
+        group
+        for group in groups
+        if group["identity"]["kernel"] in symbols
+        and group["identity"]["kernel"] is not None
+        and group["identity"]["execution_id"] == capture.get("execution_id")
+        and capture.get("execution_id")
+        and group["identity"]["device"]
+        in (None, str((capture.get("device") or {}).get("device_id")))
+    ]
     # A scalar resource summary must not silently choose between phases/units.
     # All matching groups remain available for per-kernel/phase interpretation.
     isa_totals = _isa_resource_summary(isa_reports)
@@ -273,9 +310,14 @@ def _counter_resource_summary(
         "global_store_instruction_count": isa_totals["global_store"],
         "lds_instruction_mentions": isa_totals["lds_mentions"],
         "wait_instruction_count": isa_totals["wait_instructions"],
-        "matrix_instruction_count": isa_totals["matrix_instruction_count"] or isa_totals["wmma"] + isa_totals["mfma"],
-        "dense_integer_matrix_instruction_count": isa_totals["dense_integer_matrix_instruction_count"],
-        "sparse_integer_matrix_instruction_count": isa_totals["sparse_integer_matrix_instruction_count"],
+        "matrix_instruction_count": isa_totals["matrix_instruction_count"]
+        or isa_totals["wmma"] + isa_totals["mfma"],
+        "dense_integer_matrix_instruction_count": isa_totals[
+            "dense_integer_matrix_instruction_count"
+        ],
+        "sparse_integer_matrix_instruction_count": isa_totals[
+            "sparse_integer_matrix_instruction_count"
+        ],
         "matrix_instruction_histogram": isa_totals["matrix_instruction_histogram"],
         "bottleneck_class": bottleneck.get("bottleneck_class"),
         "bottleneck_phase": bottleneck.get("bottleneck_phase"),
@@ -291,7 +333,9 @@ def _counter_resource_summary(
 def _resource_signal_coverage(resource_summary: dict[str, Any]) -> dict[str, str]:
     coverage = {}
     for field in RESOURCE_SIGNAL_FIELDS:
-        coverage[field] = "present" if _number(resource_summary.get(field)) is not None else "missing"
+        coverage[field] = (
+            "present" if _number(resource_summary.get(field)) is not None else "missing"
+        )
     return coverage
 
 
@@ -302,11 +346,7 @@ def _evidence_status(
     resource_summary: dict[str, Any],
 ) -> dict[str, Any]:
     isa_totals = _isa_resource_summary(isa_reports)
-    isa_total_count = sum(
-        int(value)
-        for value in isa_totals.values()
-        if _number(value) is not None
-    )
+    isa_total_count = sum(int(value) for value in isa_totals.values() if _number(value) is not None)
     isa_status = "missing"
     if isa_reports and isa_total_count > 0:
         isa_status = "present"
@@ -368,37 +408,67 @@ def load_counter_file(path: Path, top_limit: int) -> dict[str, Any]:
     else:
         raise RuntimeError(f"counter input must be .json or .csv: {path}")
 
-    numeric_totals: dict[str, float] = {}; numeric_counts: dict[str, int] = {}
-    numeric_minimum: dict[str, float] = {}; numeric_maximum: dict[str, float] = {}
-    nonnumeric_keys: set[str] = set(); groups = {}
+    numeric_totals: dict[str, float] = {}
+    numeric_counts: dict[str, int] = {}
+    numeric_minimum: dict[str, float] = {}
+    numeric_maximum: dict[str, float] = {}
+    nonnumeric_keys: set[str] = set()
+    groups = {}
     for record in records:
         identity = _counter_group_identity(record)
         group_key = json.dumps(identity, sort_keys=True)
-        group = groups.setdefault(group_key, {"identity": identity, "record_count": 0,
-            "numeric_metric_totals": {}, "numeric_metric_counts": {}, "numeric_metric_minimum": {}, "numeric_metric_maximum": {}})
+        group = groups.setdefault(
+            group_key,
+            {
+                "identity": identity,
+                "record_count": 0,
+                "numeric_metric_totals": {},
+                "numeric_metric_counts": {},
+                "numeric_metric_minimum": {},
+                "numeric_metric_maximum": {},
+            },
+        )
         group["record_count"] += 1
         for key, value in record.items():
             number = _number(value)
-            if number is None: nonnumeric_keys.add(str(key)); continue
+            if number is None:
+                nonnumeric_keys.add(str(key))
+                continue
             # Keep explicit units separate; never average percent and fraction.
             metric = str(key) + (" [" + identity["unit"] + "]" if identity["unit"] else "")
             numeric_totals[metric] = numeric_totals.get(metric, 0.0) + number
             numeric_counts[metric] = numeric_counts.get(metric, 0) + 1
             numeric_minimum[metric] = min(numeric_minimum.get(metric, float("inf")), number)
             numeric_maximum[metric] = max(numeric_maximum.get(metric, -float("inf")), number)
-            group["numeric_metric_totals"][metric] = group["numeric_metric_totals"].get(metric, 0.0) + number
-            group["numeric_metric_counts"][metric] = group["numeric_metric_counts"].get(metric, 0) + 1
-            group["numeric_metric_minimum"][metric] = min(group["numeric_metric_minimum"].get(metric, float("inf")), number)
-            group["numeric_metric_maximum"][metric] = max(group["numeric_metric_maximum"].get(metric, -float("inf")), number)
+            group["numeric_metric_totals"][metric] = (
+                group["numeric_metric_totals"].get(metric, 0.0) + number
+            )
+            group["numeric_metric_counts"][metric] = (
+                group["numeric_metric_counts"].get(metric, 0) + 1
+            )
+            group["numeric_metric_minimum"][metric] = min(
+                group["numeric_metric_minimum"].get(metric, float("inf")), number
+            )
+            group["numeric_metric_maximum"][metric] = max(
+                group["numeric_metric_maximum"].get(metric, -float("inf")), number
+            )
     averages = {key: numeric_totals[key] / numeric_counts[key] for key in sorted(numeric_totals)}
-    return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-        "format": suffix.lstrip("."), "record_count": len(records),
-        "numeric_metric_count": len(averages), "nonnumeric_keys": sorted(nonnumeric_keys - set(averages)),
-        "numeric_metric_totals": numeric_totals, "numeric_metric_counts": numeric_counts,
-        "numeric_metric_minimum": numeric_minimum, "numeric_metric_maximum": numeric_maximum,
-        "numeric_metric_average": averages, "kernel_metric_groups": [groups[key] for key in sorted(groups)],
+    return {
+        "path": str(path),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "format": suffix.lstrip("."),
+        "record_count": len(records),
+        "numeric_metric_count": len(averages),
+        "nonnumeric_keys": sorted(nonnumeric_keys - set(averages)),
+        "numeric_metric_totals": numeric_totals,
+        "numeric_metric_counts": numeric_counts,
+        "numeric_metric_minimum": numeric_minimum,
+        "numeric_metric_maximum": numeric_maximum,
+        "numeric_metric_average": averages,
+        "kernel_metric_groups": [groups[key] for key in sorted(groups)],
         "aggregation_scope": "all_observations_diagnostic_not_selected_kernel_resource_requirement",
-        "top_numeric_metrics_by_abs_average": _top_numeric_metrics(averages, top_limit)}
+        "top_numeric_metrics_by_abs_average": _top_numeric_metrics(averages, top_limit),
+    }
 
 
 def load_isa_summary(path: Path) -> dict[str, Any]:
@@ -429,23 +499,46 @@ def report_for_capture(
     dispatch_receipts: list[Path] | None = None,
 ) -> dict[str, Any]:
     from target_qualification import EvidenceStore
+
     store = EvidenceStore()
-    _, capture = store.json(dict(path=str(capture_path.resolve()), sha256=file_digest(capture_path)), capture_path.parent)
+    _, capture = store.json(
+        dict(path=str(capture_path.resolve()), sha256=file_digest(capture_path)),
+        capture_path.parent,
+    )
     validate_capture(capture, capture_path)
     counter_reports = [load_counter_file(path, top_limit) for path in counter_paths]
     isa_inventory = [load_isa_summary(path) for path in isa_paths]
     from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
-    association = lookup_isa_resources(load_isa_index(isa_paths), capture.get("backend_selected"),
-        (capture.get("device") or {}).get("gcn_arch"), capture)
-    isa_reports = [{"instruction_totals": report["isa_symbols"][0]["counts"],
-                    "selected_symbol": report["isa_selected_symbol"]}
-                   for report in association.get("isa_resource_reports", [])]
+
+    association = lookup_isa_resources(
+        load_isa_index(isa_paths),
+        capture.get("backend_selected"),
+        (capture.get("device") or {}).get("gcn_arch"),
+        capture,
+    )
+    isa_reports = [
+        {
+            "instruction_totals": report["isa_symbols"][0]["counts"],
+            "selected_symbol": report["isa_selected_symbol"],
+        }
+        for report in association.get("isa_resource_reports", [])
+    ]
     event_medians = _event_medians(capture)
     resource_summary = _counter_resource_summary(capture, counter_reports, isa_reports)
-    evidence_status = _evidence_status(counter_reports, isa_reports, event_medians, resource_summary)
+    evidence_status = _evidence_status(
+        counter_reports, isa_reports, event_medians, resource_summary
+    )
     from amd_profiler_evidence import validate_dispatch_receipt
-    native = [validate_dispatch_receipt(dict(path=str(path.resolve()), sha256=file_digest(path)),
-        capture=capture, store=store, parent=capture_path.parent) for path in dispatch_receipts or []]
+
+    native = [
+        validate_dispatch_receipt(
+            dict(path=str(path.resolve()), sha256=file_digest(path)),
+            capture=capture,
+            store=store,
+            parent=capture_path.parent,
+        )
+        for path in dispatch_receipts or []
+    ]
     store.finish()
     return {
         "schema_version": 1,
@@ -525,12 +618,17 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
     native_review = report.get("native_profiler_review") or {}
     lines.append(str(native_review.get("conclusion", "no native dispatch receipt")))
     for step in native_review.get("next_experiments", []):
-        lines.append("- "+step)
+        lines.append("- " + step)
     lines.append("")
     if report.get("native_profiler_evidence"):
-        lines.extend(["Native observations retain per-pass units and dimensions. Full observations are in JSON.",
-            "", "| Pass | Process | Agent | Queue | Dispatch | Metric | Value | Unit | XCC / SE / Instance | Missingness |",
-            "| ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | --- | --- |"])
+        lines.extend(
+            [
+                "Native observations retain per-pass units and dimensions. Full observations are in JSON.",
+                "",
+                "| Pass | Process | Agent | Queue | Dispatch | Metric | Value | Unit | XCC / SE / Instance | Missingness |",
+                "| ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | --- | --- |",
+            ]
+        )
         remaining = 200
         omitted = 0
         for index, receipt in enumerate(report["native_profiler_evidence"]):
@@ -538,21 +636,37 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
                 if remaining == 0:
                     omitted += 1
                     continue
-                values = [index, metric["process_id"], metric["agent_id"], metric["queue_id"],
-                    metric["dispatch_id"], metric["raw_name"], metric["value"], metric["unit"],
-                    " / ".join(str(metric[key]) if metric[key] is not None else "unknown"
-                               for key in ("xcc", "shader_engine", "instance")),
-                    metric["missingness"] or "observed"]
-                lines.append("| "+" | ".join(markdown_cell(value) for value in values)+" |")
+                values = [
+                    index,
+                    metric["process_id"],
+                    metric["agent_id"],
+                    metric["queue_id"],
+                    metric["dispatch_id"],
+                    metric["raw_name"],
+                    metric["value"],
+                    metric["unit"],
+                    " / ".join(
+                        str(metric[key]) if metric[key] is not None else "unknown"
+                        for key in ("xcc", "shader_engine", "instance")
+                    ),
+                    metric["missingness"] or "observed",
+                ]
+                lines.append("| " + " | ".join(markdown_cell(value) for value in values) + " |")
                 remaining -= 1
         if omitted:
-            lines.extend(["", str(omitted)+" additional native metrics are retained in JSON."])
+            lines.extend(["", str(omitted) + " additional native metrics are retained in JSON."])
         lines.append("")
 
     lines.extend(["## ISA Summaries", ""])
     if report["isa_summaries"]:
-        lines.extend(["| object | backend | target | symbols | matrix | dense int | sparse int | WMMA | MFMA | stores | LDS | waits |"])
-        lines.extend(["| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"])
+        lines.extend(
+            [
+                "| object | backend | target | symbols | matrix | dense int | sparse int | WMMA | MFMA | stores | LDS | waits |"
+            ]
+        )
+        lines.extend(
+            ["| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+        )
         for item in report["isa_summaries"]:
             totals = item.get("instruction_totals") or {}
             lines.append(
@@ -633,14 +747,24 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
         )
         groups.setdefault(key, []).append(report)
     group_rows = []
-    for (target_id, roofline, semantics, work_contract, cohort, kernel), rows in sorted(groups.items()):
-        rows = sorted(rows, key=lambda row: (str(row["capture"].get("capture_sha256")), str(row["capture"].get("path"))))
+    for (target_id, roofline, semantics, work_contract, cohort, kernel), rows in sorted(
+        groups.items()
+    ):
+        rows = sorted(
+            rows,
+            key=lambda row: (
+                str(row["capture"].get("capture_sha256")),
+                str(row["capture"].get("path")),
+            ),
+        )
         total_count = len(rows)
         signal_summary = {}
         for field in RESOURCE_SIGNAL_FIELDS:
             values = [
                 number
-                for number in (_number((row.get("resource_summary") or {}).get(field)) for row in rows)
+                for number in (
+                    _number((row.get("resource_summary") or {}).get(field)) for row in rows
+                )
                 if number is not None
             ]
             signal_summary[field] = _numeric_summary(values, total_count)
@@ -665,26 +789,40 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
         group_rows.append(
             {
                 "target_id": target_id,
-                "work_contract_key": work_contract, "execution_cohort": cohort, "selected_kernel": kernel,
+                "work_contract_key": work_contract,
+                "execution_cohort": cohort,
+                "selected_kernel": kernel,
                 "aggregation_semantics": "descriptive_per_capture_resource_distribution_not_independent_performance_evidence",
                 "roofline_target": roofline,
                 "semantics": semantics,
                 "capture_count": total_count,
                 "backends": sorted({str(row["capture"].get("backend_selected")) for row in rows}),
-                "selected_kernels": sorted({str(row["capture"].get("selected_kernel")) for row in rows}),
+                "selected_kernels": sorted(
+                    {str(row["capture"].get("selected_kernel")) for row in rows}
+                ),
                 "bottleneck_classes": sorted(
-                    {str((row.get("resource_summary") or {}).get("bottleneck_class")) for row in rows}
+                    {
+                        str((row.get("resource_summary") or {}).get("bottleneck_class"))
+                        for row in rows
+                    }
                 ),
                 "event_bottlenecks": sorted(
-                    {str((row.get("resource_summary") or {}).get("event_bottleneck_class")) for row in rows}
+                    {
+                        str((row.get("resource_summary") or {}).get("event_bottleneck_class"))
+                        for row in rows
+                    }
                 ),
                 "counter_evidence": "present"
                 if any(row.get("counter_inputs") for row in rows)
                 else "missing",
-                "isa_evidence": "present" if any(row.get("isa_summaries") for row in rows) else "missing",
+                "isa_evidence": "present"
+                if any(row.get("isa_summaries") for row in rows)
+                else "missing",
                 "counter_input_count": sum(len(row.get("counter_inputs") or []) for row in rows),
                 "isa_summary_count": sum(len(row.get("isa_summaries") or []) for row in rows),
-                "gpu_event_capture_count": sum(1 for row in rows if row.get("gpu_event_medians_us")),
+                "gpu_event_capture_count": sum(
+                    1 for row in rows if row.get("gpu_event_medians_us")
+                ),
                 "evidence_status_counts": status_counts,
                 "missing_evidence": missing_evidence,
                 "resource_signal_summary": signal_summary,
@@ -699,11 +837,15 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "summary": {
             "captures_with_counter_exports": sum(1 for row in reports if row.get("counter_inputs")),
             "captures_with_isa_summaries": sum(1 for row in reports if row.get("isa_summaries")),
-            "captures_with_gpu_event_medians": sum(1 for row in reports if row.get("gpu_event_medians_us")),
+            "captures_with_gpu_event_medians": sum(
+                1 for row in reports if row.get("gpu_event_medians_us")
+            ),
             "groups_with_missing_counter_exports": sum(
                 1 for row in group_rows if row.get("counter_evidence") == "missing"
             ),
-            "groups_with_missing_isa_summaries": sum(1 for row in group_rows if row.get("isa_evidence") == "missing"),
+            "groups_with_missing_isa_summaries": sum(
+                1 for row in group_rows if row.get("isa_evidence") == "missing"
+            ),
         },
         "groups": group_rows,
         "reports": reports,
@@ -800,7 +942,9 @@ def load_attachment_manifest(path: Path | None) -> dict[str, dict[str, list[Path
             raise RuntimeError("attachment manifest entries require a capture string")
         manifest[capture] = {
             "dispatch_receipts": _resolve_manifest_paths(base_dir, entry.get("dispatch_receipts")),
-            "counters": _resolve_manifest_paths(base_dir, entry.get("counters") or entry.get("counter")),
+            "counters": _resolve_manifest_paths(
+                base_dir, entry.get("counters") or entry.get("counter")
+            ),
             "isa_summaries": _resolve_manifest_paths(
                 base_dir,
                 entry.get("isa_summaries") or entry.get("isa_summary") or entry.get("isa"),
@@ -835,7 +979,9 @@ def build_reports(
     dispatch_receipts: list[Path] | None = None,
 ) -> list[dict[str, Any]]:
     if dispatch_receipts and len(capture_paths) != 1:
-        raise ValueError("global native dispatch receipts require one capture; use per-capture manifest attachments for a batch")
+        raise ValueError(
+            "global native dispatch receipts require one capture; use per-capture manifest attachments for a batch"
+        )
     reports = []
     for capture_path in capture_paths:
         counters, isa_summaries = attachments_for_capture(
@@ -850,27 +996,56 @@ def build_reports(
             if entry:
                 native.extend(entry.get("dispatch_receipts") or [])
                 break
-        reports.append(report_for_capture(capture_path, counters, isa_summaries, top_limit, list(dict.fromkeys(native))))
+        reports.append(
+            report_for_capture(
+                capture_path, counters, isa_summaries, top_limit, list(dict.fromkeys(native))
+            )
+        )
     return reports
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("captures", type=Path, nargs="+", help="schema-v4 benchmark JSON captures")
-    parser.add_argument("--counter", action="append", type=Path, default=[], help="CSV or JSON profiler counter export")
-    parser.add_argument("--isa-summary", action="append", type=Path, default=[], help="gpu_isa_report.py JSON summary")
-    parser.add_argument("--dispatch-receipt", action="append", type=Path, default=[],
-                        help="raw-bound native profiler receipt for one capture; use attachment manifest for batches")
+    parser.add_argument(
+        "--counter",
+        action="append",
+        type=Path,
+        default=[],
+        help="CSV or JSON profiler counter export",
+    )
+    parser.add_argument(
+        "--isa-summary",
+        action="append",
+        type=Path,
+        default=[],
+        help="gpu_isa_report.py JSON summary",
+    )
+    parser.add_argument(
+        "--dispatch-receipt",
+        action="append",
+        type=Path,
+        default=[],
+        help="raw-bound native profiler receipt for one capture; use attachment manifest for batches",
+    )
     parser.add_argument(
         "--attachment-manifest",
         type=Path,
         help="JSON map from capture path/name/stem to per-capture counter and ISA summary files",
     )
-    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="temp-only report directory")
-    parser.add_argument("--top", type=int, default=20, help="top numeric counter metrics to include")
+    parser.add_argument(
+        "--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="temp-only report directory"
+    )
+    parser.add_argument(
+        "--top", type=int, default=20, help="top numeric counter metrics to include"
+    )
     parser.add_argument("--json", action="store_true", help="print combined JSON report to stdout")
     parser.add_argument("--no-markdown", action="store_true", help="write only JSON report files")
-    parser.add_argument("--batch", action="store_true", help="also write a batch report grouped by target/roofline/semantic")
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        help="also write a batch report grouped by target/roofline/semantic",
+    )
     return parser.parse_args()
 
 
@@ -895,7 +1070,18 @@ def main() -> int:
         outputs.extend(Path(path) for path in write_batch_reports(batch, args.out_dir).values())
 
     if args.json:
-        print(json.dumps({"valid": True, "batch": batch, "reports": reports, "outputs": [str(path) for path in outputs]}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "valid": True,
+                    "batch": batch,
+                    "reports": reports,
+                    "outputs": [str(path) for path in outputs],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
     else:
         print("GPU counter report: PASS")
         for out_path in outputs:

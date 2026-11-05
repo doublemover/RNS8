@@ -21,7 +21,7 @@ struct Plan {
 // Immutable default-basis plans, initialized once on the host. Leaves retain
 // their original channel index; each merge overwrites its left child's slot.
 #if !defined(__HIP_DEVICE_COMPILE__)
-const Plan &plan(uint32_t prefix);
+const Plan& plan(uint32_t prefix);
 #endif
 RNS8_CRT_HD inline int compare(Wide a, Wide b) {
   for (int i = 2; i >= 0; --i)
@@ -98,13 +98,11 @@ RNS8_CRT_HD inline Wide multiply_bounded(Wide a, Wide b) {
   }
   return r;
 }
-RNS8_CRT_HD inline Wide merge(Wide left, Wide right, const Merge &node) {
+RNS8_CRT_HD inline Wide merge(Wide left, Wide right, const Merge& node) {
   const auto reduced = reduce(left, node.b);
-  const auto delta = compare(right, reduced) >= 0
-                         ? subtract(right, reduced)
-                         : subtract(node.b, subtract(reduced, right));
-  return add(left, multiply_bounded(node.a,
-                                    multiply_mod(delta, node.inverse, node.b)));
+  const auto delta = compare(right, reduced) >= 0 ? subtract(right, reduced)
+                                                  : subtract(node.b, subtract(reduced, right));
+  return add(left, multiply_bounded(node.a, multiply_mod(delta, node.inverse, node.b)));
 }
 } // namespace rns8::detail::balanced_crt
 #undef RNS8_CRT_HD

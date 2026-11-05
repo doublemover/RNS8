@@ -43,7 +43,15 @@ CMAKE_OPTION_BACKENDS = {
     "RNS8_ENABLE_AMDGPU_BUILTINS": ["amdgpu-builtins"],
 }
 BACKEND_SYMBOL_MARKERS = {
-    "direct-hip": ["rns8_ring_gemm_i8_i32", "rns8_export", "finite", "exact_wide", "rns8_wrap_signed_radix", "rns8_wrap_native", "rns8_word_mod"],
+    "direct-hip": [
+        "rns8_ring_gemm_i8_i32",
+        "rns8_export",
+        "finite",
+        "exact_wide",
+        "rns8_wrap_signed_radix",
+        "rns8_wrap_native",
+        "rns8_word_mod",
+    ],
     "hipblaslt": ["rns8_hipblaslt", "pack_transpose", "reduce_i32_to_centered"],
     "ck": ["kernel_gemm_wmma", "ck_"],
     "rocwmma": ["rocwmma_i8_residue_gemm", "rocwmma_wrap64_byte_gemm36_candidate"],
@@ -85,28 +93,133 @@ METADATA_KEY_MAP = {
 
 def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
     capture = load_capture(path)
-    if capture.get("schema")=="rns8_residue_dot_microcase_v1":
+    if capture.get("schema") == "rns8_residue_dot_microcase_v1":
         from collect_residue_dot import validate_capture as validate_residue_capture
-        validate_residue_capture(capture,dict(case=capture.get('case'),run_id=capture.get('run_id'),arithmetic=capture.get('arithmetic')),capture.get('hooks_enabled') is True)
-        return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='residue-dot',benchmark_execution_mode=capture['case']['mode'],backend_selected='direct-hip',selected_kernel=capture['selected_kernel'],artifact_capture=capture['artifact_capture'],
-            build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=capture['case']['domain'],shape={k:capture['case'][k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout='centered_modulus_major',fusion_mode='same_scheduler_residue_inner_loop',generated_reducer_identity=None)
-    if capture.get("schema")=="rns8_wrap64_microcase_v1":
+
+        validate_residue_capture(
+            capture,
+            dict(
+                case=capture.get("case"),
+                run_id=capture.get("run_id"),
+                arithmetic=capture.get("arithmetic"),
+            ),
+            capture.get("hooks_enabled") is True,
+        )
+        return dict(
+            path=str(path),
+            label=label,
+            schema_version=capture["schema"],
+            benchmark="residue-dot",
+            benchmark_execution_mode=capture["case"]["mode"],
+            backend_selected="direct-hip",
+            selected_kernel=capture["selected_kernel"],
+            artifact_capture=capture["artifact_capture"],
+            build_manifest_sha256=hashlib.sha256(
+                json.dumps(
+                    capture["build_manifest"], sort_keys=True, separators=(",", ":")
+                ).encode()
+            ).hexdigest(),
+            semantics=capture["case"]["domain"],
+            shape={k: capture["case"][k] for k in ("m", "n", "k")},
+            target_id=capture["target"],
+            target_namespace="amdgcn",
+            review_group_key=None,
+            pack_layout="centered_modulus_major",
+            fusion_mode="same_scheduler_residue_inner_loop",
+            generated_reducer_identity=None,
+        )
+    if capture.get("schema") == "rns8_wrap64_microcase_v1":
         from collect_wrap64 import validate_capture as validate_wrap_capture
-        case={key:capture.get(key) for key in ('candidate','scope','m','n','k','pattern','reuse_count')}
-        case['device']=capture.get('device_requested')
-        validate_wrap_capture(capture,case,capture.get('run_id'),capture.get('repeats'),capture.get('warmups'))
-        backend='rocwmma' if case['candidate']=='rocwmma_corrected' else 'wrap64' if case['candidate']=='direct_v4' else 'direct-hip'
-        return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='wrap64',benchmark_execution_mode=case['scope'],backend_selected=backend,selected_kernel=capture['kernel_selection'],artifact_capture=capture.get('artifact_capture'),
-            build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=capture['semantics'],shape={k:case[k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout=capture['compute_layout'],fusion_mode='per_pair_unsigned_ring_fold',generated_reducer_identity=capture['arithmetic_certificate_sha256'])
-    if capture.get("schema")=="rns8_word_mod_microcase_v1":
-        from collect_word_mod_calibration import validate_capture as validate_word_capture, FLOAT_METHODS
-        keys=('device','method','scope','m','n','k','domain','modulus')
-        case={key:capture.get(key) for key in keys}
-        if case['method'] in FLOAT_METHODS:case.update({key:capture.get(key) for key in ('left_digits','right_digits','slab_k')})
-        validate_word_capture(capture,case,capture.get('run_id'),capture.get('repeats'),capture.get('warmups'))
-        recipe={key:capture.get(key) for key in ('floating_schedule','fp64_mfma_schedule','byte_wmma_schedule','canonical_dot4_schedule')}
-        return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='word-modular',benchmark_execution_mode=case['scope'],backend_selected='direct-hip',selected_kernel=capture['arithmetic_kernel'],artifact_capture=capture.get('artifact_capture'),
-            build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=case['domain'],shape={k:case[k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout=(capture.get('fp64_mfma_schedule') or {}).get('layout','canonical_native_u64'),fusion_mode=case['method'],generated_reducer_identity=hashlib.sha256(json.dumps(recipe,sort_keys=True,separators=(",", ":")).encode()).hexdigest())
+
+        case = {
+            key: capture.get(key)
+            for key in ("candidate", "scope", "m", "n", "k", "pattern", "reuse_count")
+        }
+        case["device"] = capture.get("device_requested")
+        validate_wrap_capture(
+            capture, case, capture.get("run_id"), capture.get("repeats"), capture.get("warmups")
+        )
+        backend = (
+            "rocwmma"
+            if case["candidate"] == "rocwmma_corrected"
+            else "wrap64"
+            if case["candidate"] == "direct_v4"
+            else "direct-hip"
+        )
+        return dict(
+            path=str(path),
+            label=label,
+            schema_version=capture["schema"],
+            benchmark="wrap64",
+            benchmark_execution_mode=case["scope"],
+            backend_selected=backend,
+            selected_kernel=capture["kernel_selection"],
+            artifact_capture=capture.get("artifact_capture"),
+            build_manifest_sha256=hashlib.sha256(
+                json.dumps(
+                    capture["build_manifest"], sort_keys=True, separators=(",", ":")
+                ).encode()
+            ).hexdigest(),
+            semantics=capture["semantics"],
+            shape={k: case[k] for k in ("m", "n", "k")},
+            target_id=capture["target"],
+            target_namespace="amdgcn",
+            review_group_key=None,
+            pack_layout=capture["compute_layout"],
+            fusion_mode="per_pair_unsigned_ring_fold",
+            generated_reducer_identity=capture["arithmetic_certificate_sha256"],
+        )
+    if capture.get("schema") == "rns8_word_mod_microcase_v1":
+        from collect_word_mod_calibration import (
+            validate_capture as validate_word_capture,
+            FLOAT_METHODS,
+        )
+
+        keys = ("device", "method", "scope", "m", "n", "k", "domain", "modulus")
+        case = {key: capture.get(key) for key in keys}
+        if case["method"] in FLOAT_METHODS:
+            case.update(
+                {key: capture.get(key) for key in ("left_digits", "right_digits", "slab_k")}
+            )
+        validate_word_capture(
+            capture, case, capture.get("run_id"), capture.get("repeats"), capture.get("warmups")
+        )
+        recipe = {
+            key: capture.get(key)
+            for key in (
+                "floating_schedule",
+                "fp64_mfma_schedule",
+                "byte_wmma_schedule",
+                "canonical_dot4_schedule",
+            )
+        }
+        return dict(
+            path=str(path),
+            label=label,
+            schema_version=capture["schema"],
+            benchmark="word-modular",
+            benchmark_execution_mode=case["scope"],
+            backend_selected="direct-hip",
+            selected_kernel=capture["arithmetic_kernel"],
+            artifact_capture=capture.get("artifact_capture"),
+            build_manifest_sha256=hashlib.sha256(
+                json.dumps(
+                    capture["build_manifest"], sort_keys=True, separators=(",", ":")
+                ).encode()
+            ).hexdigest(),
+            semantics=case["domain"],
+            shape={k: case[k] for k in ("m", "n", "k")},
+            target_id=capture["target"],
+            target_namespace="amdgcn",
+            review_group_key=None,
+            pack_layout=(capture.get("fp64_mfma_schedule") or {}).get(
+                "layout", "canonical_native_u64"
+            ),
+            fusion_mode=case["method"],
+            generated_reducer_identity=hashlib.sha256(
+                json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest(),
+        )
     validate_capture(capture, path)
     target = capture.get("target_variant")
     if not isinstance(target, dict):
@@ -123,7 +236,11 @@ def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
         "backend_selected": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "artifact_capture": capture.get("artifact_capture"),
-        "build_manifest_sha256": hashlib.sha256(json.dumps(capture.get("build_manifest"), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        "build_manifest_sha256": hashlib.sha256(
+            json.dumps(
+                capture.get("build_manifest"), sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest(),
         "semantics": capture.get("semantics"),
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
         "target_id": target.get("target_id") or (capture.get("device") or {}).get("gcn_arch"),
@@ -137,7 +254,9 @@ def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
 
 def discover_objects(build_tree: Path, backend: str) -> list[Path]:
     if backend == "all":
-        markers = sorted({marker for values in BACKEND_OBJECT_MARKERS.values() for marker in values})
+        markers = sorted(
+            {marker for values in BACKEND_OBJECT_MARKERS.values() for marker in values}
+        )
     else:
         markers = BACKEND_OBJECT_MARKERS.get(backend, [])
     candidates = sorted(
@@ -158,7 +277,13 @@ def read_cmake_cache(build_tree: Path | None) -> dict[str, str]:
         return {}
     values: dict[str, str] = {}
     for line in cache_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        if not line or line.startswith("//") or line.startswith("#") or ":" not in line or "=" not in line:
+        if (
+            not line
+            or line.startswith("//")
+            or line.startswith("#")
+            or ":" not in line
+            or "=" not in line
+        ):
             continue
         key, rest = line.split(":", 1)
         _type, value = rest.split("=", 1)
@@ -261,18 +386,40 @@ def scan_disassembly(disassembly: str) -> dict[str, Any]:
         "lds_mentions": 0,
         "wait_instructions": 0,
         "instruction_lines": len(mnemonics),
-        "packed_dot4":0,"scalar_integer_multiply_add":0,"byte_extract_permute":0,"lds_read":0,"lds_write":0,
+        "packed_dot4": 0,
+        "scalar_integer_multiply_add": 0,
+        "byte_extract_permute": 0,
+        "lds_read": 0,
+        "lds_write": 0,
     }
     matrix_histogram: dict[str, int] = {}
     matrix_families: set[str] = set()
     for line, mnemonic in mnemonics:
         lowered_line = line.lower()
         lowered_mnemonic = mnemonic.lower()
-        if lowered_mnemonic.startswith(('v_dot4_','v_dot4c_')):counts['packed_dot4']+=1
-        if lowered_mnemonic.startswith(('v_mul_lo_i32','v_mul_lo_u32','v_mad_i32','v_mad_u32','v_mad_i24','v_mad_u24','v_mul_i32_i24','v_mul_u32_u24')):counts['scalar_integer_multiply_add']+=1
-        if lowered_mnemonic.startswith(('v_bfe_','v_perm_','v_lshrrev_b32','v_lshlrev_b32','v_lshl_or_b32')):counts['byte_extract_permute']+=1
-        if lowered_mnemonic.startswith(('ds_read', 'ds_load')):counts['lds_read']+=1
-        if lowered_mnemonic.startswith(('ds_write', 'ds_store')):counts['lds_write']+=1
+        if lowered_mnemonic.startswith(("v_dot4_", "v_dot4c_")):
+            counts["packed_dot4"] += 1
+        if lowered_mnemonic.startswith(
+            (
+                "v_mul_lo_i32",
+                "v_mul_lo_u32",
+                "v_mad_i32",
+                "v_mad_u32",
+                "v_mad_i24",
+                "v_mad_u24",
+                "v_mul_i32_i24",
+                "v_mul_u32_u24",
+            )
+        ):
+            counts["scalar_integer_multiply_add"] += 1
+        if lowered_mnemonic.startswith(
+            ("v_bfe_", "v_perm_", "v_lshrrev_b32", "v_lshlrev_b32", "v_lshl_or_b32")
+        ):
+            counts["byte_extract_permute"] += 1
+        if lowered_mnemonic.startswith(("ds_read", "ds_load")):
+            counts["lds_read"] += 1
+        if lowered_mnemonic.startswith(("ds_write", "ds_store")):
+            counts["lds_write"] += 1
         family = matrix_mnemonic_family(lowered_mnemonic)
         if family is not None and MATRIX_MNEMONIC_RE.match(lowered_mnemonic):
             matrix_histogram[lowered_mnemonic] = matrix_histogram.get(lowered_mnemonic, 0) + 1
@@ -370,7 +517,9 @@ def code_object_metadata(readobj: str | None, code_object: Path) -> dict[str, di
     return parse_amdgpu_metadata(output)
 
 
-def merge_resource_metadata(counts: dict[str, Any], metadata: dict[str, Any] | None) -> dict[str, Any]:
+def merge_resource_metadata(
+    counts: dict[str, Any], metadata: dict[str, Any] | None
+) -> dict[str, Any]:
     if not metadata:
         return counts
     merged = dict(counts)
@@ -420,10 +569,18 @@ def sum_symbol_reports(symbol_reports: list[dict[str, Any]]) -> dict[str, Any]:
         "lds_mentions",
         "wait_instructions",
         "instruction_lines",
-        "packed_dot4", "scalar_integer_multiply_add", "byte_extract_permute", "lds_read", "lds_write",
+        "packed_dot4",
+        "scalar_integer_multiply_add",
+        "byte_extract_permute",
+        "lds_read",
+        "lds_write",
     ]
-    totals = {key: sum(int(report["counts"].get(key) or 0) for report in symbol_reports) for key in keys}
-    totals["matrix_instruction_histogram"] = _merge_histograms(symbol_reports, "matrix_instruction_histogram")
+    totals = {
+        key: sum(int(report["counts"].get(key) or 0) for report in symbol_reports) for key in keys
+    }
+    totals["matrix_instruction_histogram"] = _merge_histograms(
+        symbol_reports, "matrix_instruction_histogram"
+    )
     totals["matrix_instruction_families"] = sorted(
         {
             str(family)
@@ -443,7 +600,11 @@ def sum_symbol_reports(symbol_reports: list[dict[str, Any]]) -> dict[str, Any]:
         "wavefront_size",
         "occupancy",
     ]:
-        values = [report["counts"].get(key) for report in symbol_reports if report["counts"].get(key) is not None]
+        values = [
+            report["counts"].get(key)
+            for report in symbol_reports
+            if report["counts"].get(key) is not None
+        ]
         totals[key] = max(values) if values else None
     return totals
 
@@ -460,7 +621,12 @@ def load_matrix_instruction_candidates(path: Path | None, target: str) -> dict[s
         if not isinstance(arch, dict):
             continue
         aliases = {str(arch.get("architecture_query") or "").lower()}
-        for group_name in ("dense_integer_i32_instructions", "sparse_integer_i32_instructions", "dense_i8_i32_instructions", "sparse_i8_i32_instructions"):
+        for group_name in (
+            "dense_integer_i32_instructions",
+            "sparse_integer_i32_instructions",
+            "dense_i8_i32_instructions",
+            "sparse_i8_i32_instructions",
+        ):
             for item in arch.get(group_name) or []:
                 if isinstance(item, dict) and isinstance(item.get("architecture_query"), str):
                     aliases.add(item["architecture_query"].lower())
@@ -469,7 +635,12 @@ def load_matrix_instruction_candidates(path: Path | None, target: str) -> dict[s
         if target.lower() not in aliases:
             continue
         matched_architectures.append(str(arch.get("architecture_query") or target))
-        for group_name in ("dense_integer_i32_instructions", "sparse_integer_i32_instructions", "dense_i8_i32_instructions", "sparse_i8_i32_instructions"):
+        for group_name in (
+            "dense_integer_i32_instructions",
+            "sparse_integer_i32_instructions",
+            "dense_i8_i32_instructions",
+            "sparse_i8_i32_instructions",
+        ):
             for item in arch.get(group_name) or []:
                 if isinstance(item, dict) and isinstance(item.get("instruction"), str):
                     candidates.add(item["instruction"].lower())
@@ -483,7 +654,9 @@ def load_matrix_instruction_candidates(path: Path | None, target: str) -> dict[s
     }
 
 
-def correlate_matrix_instruction_report(report: dict[str, Any], candidates: dict[str, Any] | None) -> None:
+def correlate_matrix_instruction_report(
+    report: dict[str, Any], candidates: dict[str, Any] | None
+) -> None:
     if candidates is None:
         report["matrix_instruction_calculator_evidence"] = {
             "status": "not_attached",
@@ -491,18 +664,26 @@ def correlate_matrix_instruction_report(report: dict[str, Any], candidates: dict
         }
         return
     candidate_set = set(candidates.get("candidate_instructions") or [])
-    observed = set((report.get("instruction_totals") or {}).get("matrix_instruction_histogram") or {})
+    observed = set(
+        (report.get("instruction_totals") or {}).get("matrix_instruction_histogram") or {}
+    )
     report["matrix_instruction_calculator_evidence"] = {
         **candidates,
         "observed_instruction_count": len(observed),
-        "observed_in_calculator_candidates": {name: name in candidate_set for name in sorted(observed)},
+        "observed_in_calculator_candidates": {
+            name: name in candidate_set for name in sorted(observed)
+        },
         "observed_missing_from_calculator_candidates": sorted(observed - candidate_set),
     }
 
 
-def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, readobj_path: str | None) -> dict[str, Any]:
+def report_object(
+    config: IsaToolConfig, backend: str, rga_path: Path | None, readobj_path: str | None
+) -> dict[str, Any]:
     object_hash = hashlib.sha256(config.host_object.read_bytes()).hexdigest()
-    with extracted_device_code_object(config, "rns8-gpu-isa-", f"{config.host_object.stem}.fatbin") as code_object:
+    with extracted_device_code_object(
+        config, "rns8-gpu-isa-", f"{config.host_object.stem}.fatbin"
+    ) as code_object:
         code_hash = hashlib.sha256(code_object.read_bytes()).hexdigest()
         symbols = device_function_symbols(config.objdump, code_object)
         metadata = code_object_metadata(readobj_path, code_object)
@@ -510,12 +691,15 @@ def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, re
         symbol_reports = []
         for symbol in symbols_to_report:
             disassembly = selected_function_body(
-                disassemble_code_object(config.objdump, code_object, config.target, symbol), symbol)
+                disassemble_code_object(config.objdump, code_object, config.target, symbol), symbol
+            )
             symbol_metadata = metadata.get(symbol)
             symbol_reports.append(
                 {
                     "symbol": symbol,
-                    "counts": merge_resource_metadata(scan_disassembly(disassembly), symbol_metadata),
+                    "counts": merge_resource_metadata(
+                        scan_disassembly(disassembly), symbol_metadata
+                    ),
                     "metadata": symbol_metadata,
                     "disassembly_sha256": hashlib.sha256(disassembly.encode()).hexdigest(),
                 }
@@ -547,44 +731,73 @@ def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, re
         }
 
 
-def bind_selected_symbols(report: dict[str, Any], capture: dict[str, Any], artifact: Path,
-                          symbols: list[str], config: IsaToolConfig) -> None:
+def bind_selected_symbols(
+    report: dict[str, Any],
+    capture: dict[str, Any],
+    artifact: Path,
+    symbols: list[str],
+    config: IsaToolConfig,
+) -> None:
     """Prove artifact membership, not dynamic execution, for an explicit mapping."""
     from evidence_database_lib.isa import normalized_target, normalized_backend
+
     if not symbols or len(set(symbols)) != len(symbols):
         raise RuntimeError("selected static symbol mapping must be nonempty and unique")
     available = {entry["symbol"] for entry in report.get("symbols", [])}
     if not set(symbols) <= available:
         raise RuntimeError("selected symbol is absent from the inspected code object")
-    if normalized_backend(capture.get("backend_selected")) != normalized_backend(report.get("backend")):
+    if normalized_backend(capture.get("backend_selected")) != normalized_backend(
+        report.get("backend")
+    ):
         raise RuntimeError("capture and ISA backend differ")
     target = normalized_target(capture.get("target_id"))
     if target is None or target != normalized_target(report.get("target")):
         raise RuntimeError("capture and ISA concrete target differ or are unknown")
     identity = capture.get("artifact_capture") or {}
     artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
-    kind = "executable_sha256" if artifact_hash == identity.get("executable_sha256") else "shared_library_sha256"
+    kind = (
+        "executable_sha256"
+        if artifact_hash == identity.get("executable_sha256")
+        else "shared_library_sha256"
+    )
     if identity.get("unchanged_during_run") is not True or artifact_hash != identity.get(kind):
         raise RuntimeError("artifact is not the unchanged executable/library in the capture")
     if artifact_hash == report.get("object_sha256"):
         member_hash = report["code_object_sha256"]
     else:
-        artifact_config = IsaToolConfig(artifact, config.target, config.objcopy, config.objdump, config.bundler, config.scratch_root)
-        with extracted_device_code_object(artifact_config, "rns8-isa-artifact-", "artifact.fatbin") as member:
+        artifact_config = IsaToolConfig(
+            artifact,
+            config.target,
+            config.objcopy,
+            config.objdump,
+            config.bundler,
+            config.scratch_root,
+        )
+        with extracted_device_code_object(
+            artifact_config, "rns8-isa-artifact-", "artifact.fatbin"
+        ) as member:
             member_hash = hashlib.sha256(member.read_bytes()).hexdigest()
     if member_hash != report.get("code_object_sha256"):
-        raise RuntimeError("inspected code object does not match the captured artifact's target code object")
+        raise RuntimeError(
+            "inspected code object does not match the captured artifact's target code object"
+        )
     if hashlib.sha256(artifact.read_bytes()).hexdigest() != artifact_hash:
         raise RuntimeError("artifact changed during ISA association")
     if not isinstance(capture.get("selected_kernel"), str) or not capture["selected_kernel"]:
         raise RuntimeError("capture has no selected kernel identity")
     report["capture_binding"] = {
-        "schema": "rns8_selected_static_isa_binding_v1", "artifact_kind": kind,
-        "artifact_sha256": artifact_hash, "code_object_sha256": member_hash,
+        "schema": "rns8_selected_static_isa_binding_v1",
+        "artifact_kind": kind,
+        "artifact_sha256": artifact_hash,
+        "code_object_sha256": member_hash,
         "build_manifest_sha256": capture.get("build_manifest_sha256"),
-        "target": target, "selected_kernel": capture["selected_kernel"],
-        "symbols": sorted(symbols), "selection_evidence": "explicit_static_symbol_mapping",
-        "artifact_membership_verified": True, "dynamic_execution_proven": False}
+        "target": target,
+        "selected_kernel": capture["selected_kernel"],
+        "symbols": sorted(symbols),
+        "selection_evidence": "explicit_static_symbol_mapping",
+        "artifact_membership_verified": True,
+        "dynamic_execution_proven": False,
+    }
     report["static_inventory_only"] = False
 
 
@@ -593,7 +806,10 @@ def write_report(report: dict[str, Any], out_dir: Path) -> Path:
     safe_backend = str(report.get("backend") or "unknown").replace("/", "_")
     stem = Path(str(report["object"])).stem
     target = str(report.get("target") or "unknown")
-    out_path = out_dir / f"{stem}-{str(report.get('object_sha256') or 'unbound')[:16]}-{target}-{safe_backend}-isa-summary.json"
+    out_path = (
+        out_dir
+        / f"{stem}-{str(report.get('object_sha256') or 'unbound')[:16]}-{target}-{safe_backend}-isa-summary.json"
+    )
     out_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return out_path
 
@@ -619,7 +835,9 @@ def write_manifest(
         "skipped_object_count": len(skipped_objects),
     }
     manifest_path = out_dir / "gpu-isa-report-manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return manifest_path
 
 
@@ -629,43 +847,87 @@ def is_missing_hip_fatbin_error(exc: Exception) -> bool:
 
 
 def json_safe_config(config: IsaToolConfig) -> dict[str, Any]:
-    return {key: str(value) if isinstance(value, Path) else value for key, value in asdict(config).items()}
+    return {
+        key: str(value) if isinstance(value, Path) else value
+        for key, value in asdict(config).items()
+    }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--object", dest="objects", action="append", type=Path, help="compiled HIP host object")
-    parser.add_argument("--build-tree", type=Path, help="discover HIP objects under a CMake build tree")
+    parser.add_argument(
+        "--object", dest="objects", action="append", type=Path, help="compiled HIP host object"
+    )
+    parser.add_argument(
+        "--build-tree", type=Path, help="discover HIP objects under a CMake build tree"
+    )
     parser.add_argument(
         "--backend",
         default="all",
-        choices=["all", "direct-hip", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins", "wrap64", "vector-alu"],
+        choices=[
+            "all",
+            "direct-hip",
+            "hipblaslt",
+            "ck",
+            "rocwmma",
+            "amdgpu-builtins",
+            "wrap64",
+            "vector-alu",
+        ],
     )
     parser.add_argument("--target", required=True, help="AMDGPU target id, for example gfx1100")
-    parser.add_argument("--hipcc", type=Path, help="HIP compiler path; sibling LLVM tools are preferred")
+    parser.add_argument(
+        "--hipcc", type=Path, help="HIP compiler path; sibling LLVM tools are preferred"
+    )
     parser.add_argument("--llvm-objcopy", help="Override llvm-objcopy path")
     parser.add_argument("--llvm-objdump", help="Override llvm-objdump path")
     parser.add_argument("--llvm-readobj", help="Override llvm-readobj path")
     parser.add_argument("--clang-offload-bundler", help="Override clang-offload-bundler path")
-    parser.add_argument("--rga", type=Path, help="Optional RGA CLI path recorded in the report; not run by default")
-    parser.add_argument("--capture", type=Path, help="optional schema-v4 benchmark capture to validate and cross-link")
+    parser.add_argument(
+        "--rga", type=Path, help="Optional RGA CLI path recorded in the report; not run by default"
+    )
+    parser.add_argument(
+        "--capture",
+        type=Path,
+        help="optional schema-v4 benchmark capture to validate and cross-link",
+    )
     parser.add_argument("--capture-label", help="human label for the cross-linked capture")
-    parser.add_argument("--artifact", type=Path, help="exact captured executable/library; verify inspected code-object membership")
-    parser.add_argument("--selected-symbol", action="append", default=[], help="exact static symbol in the selected kernel mapping; repeatable, requires --capture and --artifact")
+    parser.add_argument(
+        "--artifact",
+        type=Path,
+        help="exact captured executable/library; verify inspected code-object membership",
+    )
+    parser.add_argument(
+        "--selected-symbol",
+        action="append",
+        default=[],
+        help="exact static symbol in the selected kernel mapping; repeatable, requires --capture and --artifact",
+    )
     parser.add_argument(
         "--matrix-instruction-report",
         type=Path,
         help="optional amd_matrix_instruction_report.py JSON used to cross-link observed matrix mnemonics",
     )
-    parser.add_argument("--scratch-root", type=Path, default=Path("temp"), help="ignored scratch directory")
-    parser.add_argument("--out-dir", type=Path, default=Path("temp") / "isa-reports", help="temp-only output directory")
+    parser.add_argument(
+        "--scratch-root", type=Path, default=Path("temp"), help="ignored scratch directory"
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("temp") / "isa-reports",
+        help="temp-only output directory",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    if bool(args.artifact) != bool(args.selected_symbol) or (args.selected_symbol and not args.capture):
-        raise RuntimeError("qualified static association requires --capture, --artifact and --selected-symbol together")
+    if bool(args.artifact) != bool(args.selected_symbol) or (
+        args.selected_symbol and not args.capture
+    ):
+        raise RuntimeError(
+            "qualified static association requires --capture, --artifact and --selected-symbol together"
+        )
     objects = list(args.objects or [])
     if args.build_tree:
         if not args.build_tree.exists():
@@ -690,8 +952,12 @@ def main() -> int:
         "scratch_root": args.scratch_root,
     }
     readobj_path = readobj_for_objdump(config_template["objdump"], args.llvm_readobj)
-    linked_capture = capture_metadata(args.capture, args.capture_label) if args.capture is not None else None
-    matrix_candidates = load_matrix_instruction_candidates(args.matrix_instruction_report, args.target)
+    linked_capture = (
+        capture_metadata(args.capture, args.capture_label) if args.capture is not None else None
+    )
+    matrix_candidates = load_matrix_instruction_candidates(
+        args.matrix_instruction_report, args.target
+    )
 
     outputs = []
     skipped_objects: list[dict[str, Any]] = []
@@ -722,7 +988,9 @@ def main() -> int:
         if linked_capture is not None:
             report["capture"] = linked_capture
             if args.artifact:
-                bind_selected_symbols(report, linked_capture, args.artifact, args.selected_symbol, config)
+                bind_selected_symbols(
+                    report, linked_capture, args.artifact, args.selected_symbol, config
+                )
         correlate_matrix_instruction_report(report, matrix_candidates)
         report["config"] = json_safe_config(config)
         outputs.append(write_report(report, args.out_dir))
@@ -752,7 +1020,9 @@ def main() -> int:
             reported_backends=reported_backends,
             out_dir=args.out_dir,
         )
-        raise RuntimeError("no ISA reports produced; skipped objects are recorded in gpu-isa-report-manifest.json")
+        raise RuntimeError(
+            "no ISA reports produced; skipped objects are recorded in gpu-isa-report-manifest.json"
+        )
     manifest_path = write_manifest(
         args=args,
         outputs=outputs,

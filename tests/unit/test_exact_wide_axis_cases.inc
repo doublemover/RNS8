@@ -50,7 +50,8 @@ TEST_CASE("exact-wide axis summaries use wide sums and ignore logical padding", 
   }
 }
 
-TEST_CASE("exact-wide axis bounds propagate through a heterogeneous unsigned chain", "[exact-axis]") {
+TEST_CASE("exact-wide axis bounds propagate through a heterogeneous unsigned chain",
+          "[exact-axis]") {
   ExactChainFixture f(RNS8_EXACT_WIDE_UNSIGNED, 3);
   const uint64_t a[] = {100, 0, 0, 0, 7, 0, 0, 0, 1};
   const uint64_t identity[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
@@ -58,7 +59,8 @@ TEST_CASE("exact-wide axis bounds propagate through a heterogeneous unsigned cha
   REQUIRE(rns8_pack_u64(f.ctx, f.matrices[1], identity, 3, 1) == RNS8_SUCCESS);
   REQUIRE(f.multiply(0, 1, 2) == RNS8_SUCCESS);
   CHECK(f.matrices[2]->exact_max_magnitude == 100);
-  for (const auto& axis : f.matrices[2]->exact_axis_ranges.rows) CHECK_FALSE(axis.sum_known);
+  for (const auto& axis : f.matrices[2]->exact_axis_ranges.rows)
+    CHECK_FALSE(axis.sum_known);
   REQUIRE(f.multiply(2, 1, 3) == RNS8_SUCCESS);
   CHECK(f.matrices[3]->exact_max_magnitude <= 300);
   std::vector<uint64_t> limbs(18);
@@ -81,7 +83,8 @@ TEST_CASE("exact-wide missing axis proofs retain scalar rejection and repacking 
   f.matrices[1]->exact_axis_ranges.cols.clear();
   REQUIRE(f.multiply(0, 1, 2) == RNS8_SUCCESS);
   CHECK(f.matrices[2]->exact_axis_ranges.rows.empty());
-  CHECK(f.matrices[2]->exact_max_magnitude == boost::multiprecision::cpp_int(2) * INT64_MAX * INT64_MAX);
+  CHECK(f.matrices[2]->exact_max_magnitude ==
+        boost::multiprecision::cpp_int(2) * INT64_MAX * INT64_MAX);
   const auto before = f.matrices[3]->residues;
   CHECK(f.multiply(2, 1, 3) == RNS8_RANGE_ERROR);
   CHECK(f.matrices[3]->residues == before);
@@ -92,8 +95,9 @@ TEST_CASE("exact-wide missing axis proofs retain scalar rejection and repacking 
   CHECK(f.matrices[3]->exact_max_magnitude == 0);
 }
 
-TEST_CASE("exact-wide rejected repack preserves axis proof and scalar commits clear stale summaries",
-          "[exact-axis]") {
+TEST_CASE(
+    "exact-wide rejected repack preserves axis proof and scalar commits clear stale summaries",
+    "[exact-axis]") {
   auto* ctx = create_cpu();
   auto md = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
   md.max_prefix = 1;
@@ -145,9 +149,10 @@ TEST_CASE("exact-wide axis bounds cover deterministic signed and unsigned differ
       REQUIRE(f.multiply(0, 1, 2) == RNS8_SUCCESS);
       std::vector<uint64_t> limbs(18);
       REQUIRE((semantics == RNS8_EXACT_WIDE_SIGNED
-                   ? rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[2], limbs.data(), 3, 2)
-                   : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[2], limbs.data(), 3,
-                                                           2)) == RNS8_SUCCESS);
+                   ? rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[2], limbs.data(),
+                                                         3, 2)
+                   : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[2],
+                                                           limbs.data(), 3, 2)) == RNS8_SUCCESS);
       for (int64_t row = 0; row < 3; ++row) {
         boost::multiprecision::cpp_int row_sum = 0;
         boost::multiprecision::cpp_int row_squared_sum = 0;
@@ -161,8 +166,9 @@ TEST_CASE("exact-wide axis bounds cover deterministic signed and unsigned differ
           CHECK(magnitude <= f.matrices[2]->exact_axis_ranges.cols[col].max_magnitude);
           row_sum += magnitude;
           row_squared_sum += exact * exact;
-          const auto expected = semantics == RNS8_EXACT_WIDE_SIGNED ? signed_twos_complement_limbs(exact, 2)
-                                                                    : unsigned_limbs(exact, 2);
+          const auto expected = semantics == RNS8_EXACT_WIDE_SIGNED
+                                    ? signed_twos_complement_limbs(exact, 2)
+                                    : unsigned_limbs(exact, 2);
           CHECK(limbs[2 * (row * 3 + col)] == expected[0]);
           CHECK(limbs[2 * (row * 3 + col) + 1] == expected[1]);
         }
@@ -195,18 +201,20 @@ TEST_CASE("exact-wide rectangular axis admission preserves padded exports", "[ex
     CHECK(f.matrices[2]->exact_axis_ranges.rows.size() == 2);
     CHECK(f.matrices[2]->exact_axis_ranges.cols.size() == 3);
     std::vector<uint64_t> limbs(16, 101);
-    REQUIRE((semantics == RNS8_EXACT_WIDE_SIGNED
-                 ? rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[2], limbs.data(), 4, 2)
-                 : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[2], limbs.data(), 4, 2)) ==
-            RNS8_SUCCESS);
+    REQUIRE(
+        (semantics == RNS8_EXACT_WIDE_SIGNED
+             ? rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[2], limbs.data(), 4, 2)
+             : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[2], limbs.data(), 4,
+                                                     2)) == RNS8_SUCCESS);
     for (int64_t col = 0; col < 3; ++col) {
       boost::multiprecision::cpp_int column_sum = 0;
       for (int64_t row = 0; row < 2; ++row) {
         const auto value = semantics == RNS8_EXACT_WIDE_SIGNED
                                ? rns8::detail::exact_i64_gemm_cell(a, 5, b, 4, row, col, 4)
                                : rns8::detail::exact_u64_gemm_cell(au, 5, bu, 4, row, col, 4);
-        const auto expected = semantics == RNS8_EXACT_WIDE_SIGNED ? signed_twos_complement_limbs(value, 2)
-                                                                  : unsigned_limbs(value, 2);
+        const auto expected = semantics == RNS8_EXACT_WIDE_SIGNED
+                                  ? signed_twos_complement_limbs(value, 2)
+                                  : unsigned_limbs(value, 2);
         CHECK(limbs[2 * (row * 4 + col)] == expected[0]);
         CHECK(limbs[2 * (row * 4 + col) + 1] == expected[1]);
         column_sum += boost::multiprecision::abs(value);

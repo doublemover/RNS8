@@ -1,10 +1,11 @@
 """Required semantic dispatch fields; raw capture values retain explicit admission."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True,slots=True,kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class SemanticContext:
     semantics: object
     prefix: object

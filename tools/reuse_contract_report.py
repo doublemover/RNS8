@@ -45,7 +45,11 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
     expanded: list[Path] = []
     for path in paths:
         if path.is_dir():
-            expanded.extend(sorted(item for item in path.rglob("*.json") if item.name not in NON_CAPTURE_JSON_NAMES))
+            expanded.extend(
+                sorted(
+                    item for item in path.rglob("*.json") if item.name not in NON_CAPTURE_JSON_NAMES
+                )
+            )
         else:
             expanded.append(path)
     return expanded
@@ -100,7 +104,9 @@ def gpu_events_available(capture: dict[str, Any] | None) -> bool:
     )
 
 
-def timing_summary_value(capture: dict[str, Any] | None, phase: str, statistic: str) -> float | None:
+def timing_summary_value(
+    capture: dict[str, Any] | None, phase: str, statistic: str
+) -> float | None:
     if capture is None:
         return None
     summary = capture.get("timing_summary_us")
@@ -158,13 +164,22 @@ def normalized_contract_key(capture: dict[str, Any]) -> str:
 
 
 def select_fastest(captures: list[dict[str, Any]]) -> dict[str, Any] | None:
-    timed = [capture for capture in captures if timing_summary_value(capture, "end_to_end", "median") is not None]
+    timed = [
+        capture
+        for capture in captures
+        if timing_summary_value(capture, "end_to_end", "median") is not None
+    ]
     if not timed:
         return None
-    return min(timed, key=lambda capture: timing_summary_value(capture, "end_to_end", "median") or float("inf"))
+    return min(
+        timed,
+        key=lambda capture: timing_summary_value(capture, "end_to_end", "median") or float("inf"),
+    )
 
 
-def break_even_repeats(baseline_us: float | None, reuse_steady_us: float | None, setup_us: float | None) -> int | None:
+def break_even_repeats(
+    baseline_us: float | None, reuse_steady_us: float | None, setup_us: float | None
+) -> int | None:
     if baseline_us is None or reuse_steady_us is None or setup_us is None:
         return None
     savings = baseline_us - reuse_steady_us
@@ -186,7 +201,9 @@ def setup_inclusive_per_repeat(capture: dict[str, Any], phase: str) -> float | N
     return phase_median + setup / repeats if phase == "end_to_end" else phase_median
 
 
-def phase_comparison(baseline: dict[str, Any] | None, reuse: dict[str, Any], phase: str) -> dict[str, Any]:
+def phase_comparison(
+    baseline: dict[str, Any] | None, reuse: dict[str, Any], phase: str
+) -> dict[str, Any]:
     baseline_median = timing_summary_value(baseline, phase, "median")
     reuse_median = timing_summary_value(reuse, phase, "median")
     setup_inclusive = setup_inclusive_per_repeat(reuse, phase)
@@ -224,7 +241,8 @@ def source_identity_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         runtime_reason = str(runtime_cache.get("reason") or "")
         reason = (
             runtime_reason
-            if runtime_reason not in {"missing_runtime_prepack_cache_metadata", "missing_reuse_contract_metadata"}
+            if runtime_reason
+            not in {"missing_runtime_prepack_cache_metadata", "missing_reuse_contract_metadata"}
             else "missing_device_allocation_metadata"
         )
         return {
@@ -273,7 +291,11 @@ def runtime_prepack_cache_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         }
     source_version = runtime_cache.get("source_version")
     cache_key = runtime_cache.get("cache_key")
-    source_version_valid = isinstance(source_version, int) and not isinstance(source_version, bool) and source_version > 0
+    source_version_valid = (
+        isinstance(source_version, int)
+        and not isinstance(source_version, bool)
+        and source_version > 0
+    )
     cache_key_source_match = (
         source_version_valid
         and isinstance(cache_key, str)
@@ -293,7 +315,8 @@ def runtime_prepack_cache_metadata(capture: dict[str, Any]) -> dict[str, Any]:
     reason = "available" if available else "runtime_prepack_cache_missing_" + "_".join(missing)
     return {
         "available": available,
-        "production_available": available and runtime_cache.get("production_prepack_cache_available") is True,
+        "production_available": available
+        and runtime_cache.get("production_prepack_cache_available") is True,
         "source_version": source_version if source_version_valid else None,
         "cache_key_hash": runtime_cache.get("cache_key_hash"),
         "cache_scope": runtime_cache.get("cache_scope"),
@@ -333,7 +356,11 @@ def reuse_contract_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "backend_fingerprint",
         "workspace_fingerprint",
     ]
-    missing = [key for key in required_strings if not isinstance(contract.get(key), str) or not contract.get(key)]
+    missing = [
+        key
+        for key in required_strings
+        if not isinstance(contract.get(key), str) or not contract.get(key)
+    ]
     available = contract.get("enabled") is True and not missing
     reason = "available" if available else "incomplete_reuse_contract_metadata"
     if contract.get("enabled") is not True:
@@ -364,7 +391,9 @@ def stale_source_rejection_metadata(
     source_identity: dict[str, Any],
     reuse_contract: dict[str, Any],
 ) -> dict[str, Any]:
-    source_version_inputs = reuse_contract.get("source_version_inputs") or source_identity.get("source_version_inputs")
+    source_version_inputs = reuse_contract.get("source_version_inputs") or source_identity.get(
+        "source_version_inputs"
+    )
     tracks_source_versions = (
         isinstance(source_version_inputs, str)
         and "source_version" in source_version_inputs
@@ -374,7 +403,11 @@ def stale_source_rejection_metadata(
     contract_declares_rejection = SOURCE_VERSION_REJECTION_REASON in invalidation_reasons
 
     if reuse_contract.get("available"):
-        available = bool(source_identity.get("available")) and tracks_source_versions and contract_declares_rejection
+        available = (
+            bool(source_identity.get("available"))
+            and tracks_source_versions
+            and contract_declares_rejection
+        )
         reason = "available" if available else "reuse_contract_missing_source_version_invalidation"
         proof_source = "reuse_contract.invalidation_reasons"
     else:
@@ -384,7 +417,11 @@ def stale_source_rejection_metadata(
             bool(source_identity.get("available"))
             and source_identity.get("source_version_inputs") == LEGACY_SOURCE_VERSION_POLICY
         )
-        reason = "legacy_device_allocation_source_version_identity" if available else "missing_stale_source_rejection_metadata"
+        reason = (
+            "legacy_device_allocation_source_version_identity"
+            if available
+            else "missing_stale_source_rejection_metadata"
+        )
         proof_source = "device_allocation.source_version_inputs"
 
     return {
@@ -403,11 +440,24 @@ def same_workload_family_metadata(
     best_nonreuse_baseline: dict[str, Any] | None,
 ) -> dict[str, Any]:
     reuse_key = normalized_contract_key(reuse)
-    same_backend_key = normalized_contract_key(same_backend_baseline) if same_backend_baseline is not None else None
-    best_key = normalized_contract_key(best_nonreuse_baseline) if best_nonreuse_baseline is not None else None
+    same_backend_key = (
+        normalized_contract_key(same_backend_baseline)
+        if same_backend_baseline is not None
+        else None
+    )
+    best_key = (
+        normalized_contract_key(best_nonreuse_baseline)
+        if best_nonreuse_baseline is not None
+        else None
+    )
     same_backend_match = same_backend_key == reuse_key
     best_match = best_key == reuse_key
-    available = same_backend_baseline is not None and best_nonreuse_baseline is not None and same_backend_match and best_match
+    available = (
+        same_backend_baseline is not None
+        and best_nonreuse_baseline is not None
+        and same_backend_match
+        and best_match
+    )
     blockers: list[str] = []
     if same_backend_baseline is None:
         blockers.append("missing_same_backend_nonreuse_baseline")
@@ -421,8 +471,12 @@ def same_workload_family_metadata(
         "available": available,
         "same_backend_match": same_backend_match,
         "best_nonreuse_match": best_match,
-        "same_backend_backend": backend_id(same_backend_baseline) if same_backend_baseline is not None else None,
-        "best_nonreuse_backend": backend_id(best_nonreuse_baseline) if best_nonreuse_baseline is not None else None,
+        "same_backend_backend": backend_id(same_backend_baseline)
+        if same_backend_baseline is not None
+        else None,
+        "best_nonreuse_backend": backend_id(best_nonreuse_baseline)
+        if best_nonreuse_baseline is not None
+        else None,
         "blockers": blockers,
     }
 
@@ -442,14 +496,22 @@ def selector_eligibility_metadata(
     if not release_review_pair:
         selector_blockers.append("not_release_review_pair")
     if not same_workload_family.get("available"):
-        selector_blockers.extend(same_workload_family.get("blockers") or ["same_workload_family_not_proven"])
+        selector_blockers.extend(
+            same_workload_family.get("blockers") or ["same_workload_family_not_proven"]
+        )
     if not source_identity.get("available"):
-        selector_blockers.append(str(source_identity.get("reason") or "missing_source_identity_metadata"))
+        selector_blockers.append(
+            str(source_identity.get("reason") or "missing_source_identity_metadata")
+        )
     if not stale_source_rejection.get("available"):
-        selector_blockers.append(str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata"))
+        selector_blockers.append(
+            str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata")
+        )
     if requires_runtime_prepack_cache:
         if not runtime_prepack_cache.get("available"):
-            selector_blockers.append(str(runtime_prepack_cache.get("reason") or "missing_runtime_prepack_cache_metadata"))
+            selector_blockers.append(
+                str(runtime_prepack_cache.get("reason") or "missing_runtime_prepack_cache_metadata")
+            )
         elif not runtime_prepack_cache.get("production_available"):
             selector_blockers.append("runtime_prepack_cache_not_production_available")
 
@@ -469,7 +531,10 @@ def selector_eligibility_metadata(
         and same_workload_family.get("available") is True
         and source_identity.get("available") is True
         and stale_source_rejection.get("available") is True
-        and (not requires_runtime_prepack_cache or runtime_prepack_cache.get("production_available") is True)
+        and (
+            not requires_runtime_prepack_cache
+            or runtime_prepack_cache.get("production_available") is True
+        )
         and reuse_contract.get("promotion_eligible") is not True
         and not selector_blockers
     )
@@ -481,9 +546,13 @@ def selector_eligibility_metadata(
         "capture_contract_available": contract_available,
         "runtime_prepack_cache_required": requires_runtime_prepack_cache,
         "runtime_prepack_cache_available": bool(runtime_prepack_cache.get("available")),
-        "runtime_prepack_cache_production_available": bool(runtime_prepack_cache.get("production_available")),
+        "runtime_prepack_cache_production_available": bool(
+            runtime_prepack_cache.get("production_available")
+        ),
         "blockers": sorted(set(selector_blockers)),
-        "reason": "explicit_workload_selector_ready" if explicit_ready else "selector_blocked_or_evidence_only",
+        "reason": "explicit_workload_selector_ready"
+        if explicit_ready
+        else "selector_blocked_or_evidence_only",
     }
 
 
@@ -513,7 +582,9 @@ def decision_for(
     if not source_identity.get("available"):
         blockers.append(str(source_identity.get("reason") or "missing_source_identity_metadata"))
     if not stale_source_rejection.get("available"):
-        blockers.append(str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata"))
+        blockers.append(
+            str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata")
+        )
     if gpu_backend(reuse) and not gpu_events_available(reuse):
         blockers.append("missing_reuse_gpu_events")
     if gpu_backend(same_backend_baseline) and not gpu_events_available(same_backend_baseline):
@@ -562,7 +633,9 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
         backend = backend_id(reuse)
         same_backend_baseline = select_fastest(nonreuse_by_contract_backend.get((key, backend), []))
         best_nonreuse_baseline = select_fastest(nonreuse_by_contract.get(key, []))
-        same_backend_phases = {phase: phase_comparison(same_backend_baseline, reuse, phase) for phase in PHASES}
+        same_backend_phases = {
+            phase: phase_comparison(same_backend_baseline, reuse, phase) for phase in PHASES
+        }
         best_nonreuse_per_repeat = setup_inclusive_per_repeat(reuse, "end_to_end")
         best_nonreuse_median = timing_summary_value(best_nonreuse_baseline, "end_to_end", "median")
         speedup_vs_best_nonreuse = (
@@ -583,8 +656,12 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
         source_identity = source_identity_metadata(reuse)
         reuse_contract = reuse_contract_metadata(reuse)
         runtime_prepack_cache = runtime_prepack_cache_metadata(reuse)
-        stale_source_rejection = stale_source_rejection_metadata(reuse, source_identity, reuse_contract)
-        same_workload_family = same_workload_family_metadata(reuse, same_backend_baseline, best_nonreuse_baseline)
+        stale_source_rejection = stale_source_rejection_metadata(
+            reuse, source_identity, reuse_contract
+        )
+        same_workload_family = same_workload_family_metadata(
+            reuse, same_backend_baseline, best_nonreuse_baseline
+        )
         decision, blockers = decision_for(
             same_backend_baseline,
             best_nonreuse_baseline,
@@ -595,7 +672,9 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             source_identity,
             stale_source_rejection,
         )
-        requires_runtime_prepack_cache = reuse.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache"
+        requires_runtime_prepack_cache = (
+            reuse.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache"
+        )
         release_review_pair = bool(
             same_backend_baseline is not None
             and best_nonreuse_baseline is not None
@@ -669,20 +748,29 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
     summary = {
         "reuse_captures": len(reuse_captures),
         "comparisons": len(comparisons),
-        "candidate_workload_wins": sum(1 for item in comparisons if item["decision"] == "candidate_workload_win"),
+        "candidate_workload_wins": sum(
+            1 for item in comparisons if item["decision"] == "candidate_workload_win"
+        ),
         "explicit_workload_selector_ready": sum(
             1
             for item in comparisons
-            if item.get("selector_eligibility", {}).get("explicit_workload_selector_eligible") is True
+            if item.get("selector_eligibility", {}).get("explicit_workload_selector_eligible")
+            is True
         ),
         "stale_source_rejection_ready": sum(
-            1 for item in comparisons if item.get("stale_source_rejection", {}).get("available") is True
+            1
+            for item in comparisons
+            if item.get("stale_source_rejection", {}).get("available") is True
         ),
         "same_workload_family_ready": sum(
-            1 for item in comparisons if item.get("same_workload_family", {}).get("available") is True
+            1
+            for item in comparisons
+            if item.get("same_workload_family", {}).get("available") is True
         ),
         "runtime_prepack_cache_ready": sum(
-            1 for item in comparisons if item.get("runtime_prepack_cache", {}).get("available") is True
+            1
+            for item in comparisons
+            if item.get("runtime_prepack_cache", {}).get("available") is True
         ),
         "runtime_prepack_cache_production_ready": sum(
             1
@@ -692,7 +780,9 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
         "prepack_setup_primary_phase_counts": dict(sorted(setup_phase_counts.items())),
         "deprioritized": sum(1 for item in comparisons if item["decision"] == "deprioritize"),
         "experimental": sum(1 for item in comparisons if item["decision"] == "keep_experimental"),
-        "missing_baselines": sum(1 for item in comparisons if item["decision"] == "missing_baseline"),
+        "missing_baselines": sum(
+            1 for item in comparisons if item["decision"] == "missing_baseline"
+        ),
     }
     return {"summary": summary, "comparisons": comparisons}
 
@@ -741,7 +831,9 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
         blockers = ",".join(item.get("blockers") or []) or "none"
         selector = item.get("selector_eligibility", {})
         stale = item.get("stale_source_rejection", {})
-        selector_note = "explicit-ready" if selector.get("explicit_workload_selector_eligible") else "blocked"
+        selector_note = (
+            "explicit-ready" if selector.get("explicit_workload_selector_eligible") else "blocked"
+        )
         stale_note = "ready" if stale.get("available") else fmt(stale.get("reason"))
         breakdown = item.get("prepack_setup_breakdown_us")
         breakdown_text = (
@@ -800,7 +892,9 @@ def parse_args() -> argparse.Namespace:
         action="append",
         help="capture file or directory; directories are searched recursively for JSON",
     )
-    parser.add_argument("--out-dir", type=Path, help="write JSON and Markdown reports under this directory")
+    parser.add_argument(
+        "--out-dir", type=Path, help="write JSON and Markdown reports under this directory"
+    )
     parser.add_argument("--json", action="store_true", help="print report JSON")
     parser.add_argument("--out-json", type=Path, help="write JSON report")
     parser.add_argument("--out-md", type=Path, help="write Markdown report")
@@ -820,7 +914,9 @@ def main() -> int:
                 print(f"{label}: {path}")
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
-        args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.out_json.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     if args.json or (not args.out_dir and not args.out_json):
         print(json.dumps(report, indent=2, sort_keys=True))
     if args.out_md:

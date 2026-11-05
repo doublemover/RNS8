@@ -10,7 +10,7 @@ inline int hipblaslt_host_clz(unsigned int value) noexcept {
   unsigned long index = 0;
   return _BitScanReverse(&index, value) ? 31 - int(index) : 32;
 }
-}
+} // namespace rns8::detail
 #pragma push_macro("__builtin_clz")
 #undef __builtin_clz
 #define __builtin_clz(value) ::rns8::detail::hipblaslt_host_clz(value)

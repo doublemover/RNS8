@@ -156,7 +156,10 @@ def main() -> int:
 
     stale_setup_inclusive = copy.deepcopy(reused)
     stale_setup_inclusive["reuse_contract"]["setup_amortized_us"] = -1
-    expect_invalid(stale_setup_inclusive, "reuse_contract.setup_amortized_us must be a nonnegative number or null")
+    expect_invalid(
+        stale_setup_inclusive,
+        "reuse_contract.setup_amortized_us must be a nonnegative number or null",
+    )
 
     stale_setup_policy = copy.deepcopy(reused)
     stale_setup_policy["reuse_contract"]["setup_inclusive_policy"] = "raw_per_repeat_only"
@@ -218,22 +221,30 @@ def main() -> int:
     validate_capture(bounded_export)
 
     stale_bounded_export_kernel = copy.deepcopy(bounded_export)
-    stale_bounded_export_kernel["export_variant"]["selected_kernel"] = "made_up_bounded_export_kernel"
+    stale_bounded_export_kernel["export_variant"]["selected_kernel"] = (
+        "made_up_bounded_export_kernel"
+    )
     stale_bounded_export_kernel["export_variant"]["selector_key"] = stale_bounded_export_kernel[
         "export_variant"
     ]["selector_key"].replace(
         "selected_kernel=hip_direct_export_i64_tiled_device",
         "selected_kernel=made_up_bounded_export_kernel",
     )
-    stale_bounded_export_kernel["exact_output_contract"]["kernel_identity"] = "made_up_bounded_export_kernel"
-    stale_bounded_export_kernel["reconstruction_variant"]["kernel_identity"] = "made_up_bounded_export_kernel"
+    stale_bounded_export_kernel["exact_output_contract"]["kernel_identity"] = (
+        "made_up_bounded_export_kernel"
+    )
+    stale_bounded_export_kernel["reconstruction_variant"]["kernel_identity"] = (
+        "made_up_bounded_export_kernel"
+    )
     expect_invalid(
         stale_bounded_export_kernel,
         "bounded_i64 export_variant.selected_kernel must be a registered bounded export kernel",
     )
 
     stale_bounded_contract_kernel = copy.deepcopy(bounded_export)
-    stale_bounded_contract_kernel["exact_output_contract"]["kernel_identity"] = "hip_direct_export_i64_device"
+    stale_bounded_contract_kernel["exact_output_contract"]["kernel_identity"] = (
+        "hip_direct_export_i64_device"
+    )
     expect_invalid(
         stale_bounded_contract_kernel,
         "exact_output_contract.kernel_identity must match export_variant.selected_kernel",
@@ -329,7 +340,9 @@ def main() -> int:
 
     stale_exact_domain = copy.deepcopy(exact)
     stale_exact_domain["exact_output_contract"]["requested_final_output"] = "linux_instinct_claim"
-    expect_invalid(stale_exact_domain, "exact_output_contract.requested_final_output must be one of")
+    expect_invalid(
+        stale_exact_domain, "exact_output_contract.requested_final_output must be one of"
+    )
 
     stale_export_kernel = copy.deepcopy(exact)
     stale_export_kernel["export_variant"]["selected_kernel"] = "made_up_exact_wide_export_kernel"
@@ -339,26 +352,30 @@ def main() -> int:
         "selected_kernel=hip_direct_export_exact_wide_signed_limbs_device",
         "selected_kernel=made_up_exact_wide_export_kernel",
     )
-    stale_export_kernel["exact_output_contract"]["kernel_identity"] = "made_up_exact_wide_export_kernel"
-    stale_export_kernel["reconstruction_variant"]["kernel_identity"] = "made_up_exact_wide_export_kernel"
+    stale_export_kernel["exact_output_contract"]["kernel_identity"] = (
+        "made_up_exact_wide_export_kernel"
+    )
+    stale_export_kernel["reconstruction_variant"]["kernel_identity"] = (
+        "made_up_exact_wide_export_kernel"
+    )
     expect_invalid(
         stale_export_kernel,
         "exact_wide_signed export_variant.selected_kernel must be a registered exact-wide export kernel",
     )
 
     stale_contract_kernel = copy.deepcopy(exact)
-    stale_contract_kernel["exact_output_contract"][
-        "kernel_identity"
-    ] = "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device"
+    stale_contract_kernel["exact_output_contract"]["kernel_identity"] = (
+        "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device"
+    )
     expect_invalid(
         stale_contract_kernel,
         "exact_output_contract.kernel_identity must match export_variant.selected_kernel",
     )
 
     stale_reconstruction_kernel = copy.deepcopy(exact)
-    stale_reconstruction_kernel["reconstruction_variant"][
-        "kernel_identity"
-    ] = "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device"
+    stale_reconstruction_kernel["reconstruction_variant"]["kernel_identity"] = (
+        "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device"
+    )
     expect_invalid(
         stale_reconstruction_kernel,
         "reconstruction_variant.kernel_identity must match export_variant.selected_kernel",
@@ -381,12 +398,16 @@ def main() -> int:
     expect_invalid(stale_export_mode, "export_variant.final_output_mode must be one of")
 
     stale_export_key = copy.deepcopy(exact)
-    stale_export_key["export_variant"]["selector_key"] = "semantics=exact_wide_signed;selected_kernel=other"
+    stale_export_key["export_variant"]["selector_key"] = (
+        "semantics=exact_wide_signed;selected_kernel=other"
+    )
     expect_invalid(stale_export_key, "export_variant.selector_key must include selected_kernel")
 
     stale_export_tile_flag = copy.deepcopy(exact)
     stale_export_tile_flag["export_variant"]["requires_tile_metadata"] = "false"
-    expect_invalid(stale_export_tile_flag, "export_variant.requires_tile_metadata must be a boolean")
+    expect_invalid(
+        stale_export_tile_flag, "export_variant.requires_tile_metadata must be a boolean"
+    )
 
     grouped = as_grouped_dispatch_capture(base)
     validate_capture(grouped)
@@ -445,9 +466,9 @@ def main() -> int:
     stale_adaptive_status["adaptive_grouped_scheduler"]["capture_status"] = (
         "metadata_only_unsupported_for_execution_path"
     )
-    stale_adaptive_status["adaptive_grouped_scheduler"][
-        "unsupported_reason"
-    ] = "adaptive_grouped_scheduler_not_executed_by_current_path"
+    stale_adaptive_status["adaptive_grouped_scheduler"]["unsupported_reason"] = (
+        "adaptive_grouped_scheduler_not_executed_by_current_path"
+    )
     expect_invalid(
         stale_adaptive_status,
         "adaptive_grouped_scheduler direct-HIP grouped-kernel captures must set capture_status=executed",
@@ -479,7 +500,9 @@ def main() -> int:
     )
 
     experimental_modulus = add_helper_lane_fields(copy.deepcopy(direct_hip_base))
-    experimental_modulus["selected_prefix"] = experimental_modulus["schedule_metadata"]["max_selected_prefix"]
+    experimental_modulus["selected_prefix"] = experimental_modulus["schedule_metadata"][
+        "max_selected_prefix"
+    ]
     experimental_modulus["requested_max_prefix"] = experimental_modulus["prefix"]
     experimental_modulus["contract_prefix_policy"] = "per_tile_minimum"
     experimental_modulus["residue_planes_requested"] = experimental_modulus["requested_max_prefix"]
@@ -488,7 +511,8 @@ def main() -> int:
         experimental_modulus["requested_max_prefix"] - experimental_modulus["selected_prefix"]
     )
     experimental_modulus["residue_plane_skip_fraction"] = (
-        experimental_modulus["residue_planes_skipped"] / experimental_modulus["requested_max_prefix"]
+        experimental_modulus["residue_planes_skipped"]
+        / experimental_modulus["requested_max_prefix"]
     )
     experimental_modulus["modulus_set"] = {
         "name": "default",
@@ -527,7 +551,9 @@ def main() -> int:
     }
     experimental_modulus["residue_count_policy"]["autotune_scope"] = "evidence_only_non_promoting"
     experimental_modulus["residue_count_policy"]["promotion_eligible"] = False
-    experimental_modulus["residue_count_policy"]["cache_promotion_blocker"] = "experimental_residue_count_policy"
+    experimental_modulus["residue_count_policy"]["cache_promotion_blocker"] = (
+        "experimental_residue_count_policy"
+    )
     validate_capture(experimental_modulus)
 
     stale_experimental_modulus_runtime = copy.deepcopy(experimental_modulus)
@@ -589,26 +615,36 @@ def main() -> int:
     fractional_overlap.update(
         benchmark="rns8_streaming_overlap_resident_b_pipeline",
         benchmark_execution_mode="benchmark_streaming_overlap_resident_b_pipeline",
-        backend_requested="hip-direct", backend_selected="hip-direct",
-        pack_mode="prepacked_reuse_b", prepack_reuse_operands=["B"],
-        per_modulus_gemm_estimate_applicable=False)
+        backend_requested="hip-direct",
+        backend_selected="hip-direct",
+        pack_mode="prepacked_reuse_b",
+        prepack_reuse_operands=["B"],
+        per_modulus_gemm_estimate_applicable=False,
+    )
     fractional_overlap["backend_metadata"] = copy.deepcopy(direct_hip_base["backend_metadata"])
     fractional_overlap["selected_kernel"] = "direct_hip_tiled_active_prefix_rns_gemm_v2"
     fractional_overlap["backend_metadata"].update(
         selected_kernel=fractional_overlap["selected_kernel"],
-        workspace_mode="resident_device_buffers", workspace_required_bytes=0,
+        workspace_mode="resident_device_buffers",
+        workspace_required_bytes=0,
         autotune_key=with_accumulator_key_fields(
             "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;"
             "tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
             "kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;epilogue=fused_centered_residue_then_crt_export",
-            fractional_overlap))
+            fractional_overlap,
+        ),
+    )
     fractional_overlap["timing_metadata"].update(
         benchmark_execution_mode="benchmark_streaming_overlap_resident_b_pipeline",
-        pack_mode="prepacked_reuse_b", prepack_reuse_operands=["B"],
-        gpu_event_timing_source_scope="direct_hip_streaming_overlap_multistream_operation_groups")
+        pack_mode="prepacked_reuse_b",
+        prepack_reuse_operands=["B"],
+        gpu_event_timing_source_scope="direct_hip_streaming_overlap_multistream_operation_groups",
+    )
     fractional_overlap["streaming_overlap"].update(
         stage_event_scope="direct_hip_streaming_overlap_multistream_operation_groups",
-        batch_wall_us=0.125 * fractional_overlap["repeats"], per_repeat_pipeline_us=0.125)
+        batch_wall_us=0.125 * fractional_overlap["repeats"],
+        per_repeat_pipeline_us=0.125,
+    )
     add_helper_lane_fields(fractional_overlap)
     validate_capture(fractional_overlap)
     for value in (True, -0.125, float("nan"), float("inf")):
@@ -658,7 +694,9 @@ def main() -> int:
 
     stale_cpu_selector_role = copy.deepcopy(optional)
     stale_cpu_selector_role["cpu_small_shape_selector"]["candidate_role"] = "magic_gpu"
-    expect_invalid(stale_cpu_selector_role, "cpu_small_shape_selector.candidate_role must be one of")
+    expect_invalid(
+        stale_cpu_selector_role, "cpu_small_shape_selector.candidate_role must be one of"
+    )
 
     stale_cpu_selector_routing = copy.deepcopy(optional)
     stale_cpu_selector_routing["cpu_small_shape_selector"]["runtime_routing_allowed"] = True

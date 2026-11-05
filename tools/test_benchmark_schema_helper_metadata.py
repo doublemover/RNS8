@@ -29,7 +29,9 @@ def main() -> int:
 
     bad_output_policy = copy.deepcopy(helper_lane)
     bad_output_policy["output_policy"]["destination_layout"] = "padded_row_major"
-    expect_invalid(bad_output_policy, "output_policy.destination_layout must match output_ld_padding")
+    expect_invalid(
+        bad_output_policy, "output_policy.destination_layout must match output_ld_padding"
+    )
 
     missing_target = copy.deepcopy(helper_lane)
     del missing_target["target_variant"]
@@ -41,7 +43,9 @@ def main() -> int:
 
     bad_allocation_counter = copy.deepcopy(helper_lane)
     bad_allocation_counter["device_allocation"]["measured_repeat_delta"]["allocated_bytes"] = -1
-    expect_invalid(bad_allocation_counter, "device_allocation.measured_repeat_delta.allocated_bytes")
+    expect_invalid(
+        bad_allocation_counter, "device_allocation.measured_repeat_delta.allocated_bytes"
+    )
 
     bad_scope = copy.deepcopy(helper_lane)
     bad_scope["device_allocation"]["transfer_scope"] = "physical_bus_traffic"
@@ -57,13 +61,15 @@ def main() -> int:
         expect_invalid(missing_transfer, "device_allocation.measured_repeat_delta." + field)
 
     direct_reducer = add_helper_lane_fields(copy.deepcopy(adaptive))
-    add_timing_helper_fields(direct_reducer, reducer="direct_hip_fixed_prefix_9_generated_reducer_v1")
+    add_timing_helper_fields(
+        direct_reducer, reducer="direct_hip_fixed_prefix_9_generated_reducer_v1"
+    )
     validate_capture(direct_reducer)
 
     exact_wide_prefix18_reducer = copy.deepcopy(direct_reducer)
-    exact_wide_prefix18_reducer["timing_metadata"][
-        "generated_reducer_identity"
-    ] = "direct_hip_fixed_prefix_18_generated_reducer_v1"
+    exact_wide_prefix18_reducer["timing_metadata"]["generated_reducer_identity"] = (
+        "direct_hip_fixed_prefix_18_generated_reducer_v1"
+    )
     validate_capture(exact_wide_prefix18_reducer)
 
     stale_reducer = copy.deepcopy(direct_reducer)

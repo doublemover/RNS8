@@ -4,6 +4,7 @@ Reuse the arithmetic verifier and calibrated critical-path predictor. Providers
 describe concrete kernels; the central gate checks identity, complete work and
 bounded resources before costs can rank a recipe. Runtime binding is separate.
 """
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
@@ -13,7 +14,12 @@ import math
 from typing import Protocol
 
 from analytical_planner import Rate, Stage, predict
-from arithmetic_certificate import ArithmeticCertificate, certificate_hash, verify, exact_form_admissible
+from arithmetic_certificate import (
+    ArithmeticCertificate,
+    certificate_hash,
+    verify,
+    exact_form_admissible,
+)
 
 U64_MAX = (1 << 64) - 1
 
@@ -108,7 +114,9 @@ class CandidateRecipe:
 
 
 class Provider(Protocol):
-    def enumerate(self, problem: ProblemContract, facts: tuple[ValueFacts, ...]) -> tuple[CandidateRecipe, ...]: ...
+    def enumerate(
+        self, problem: ProblemContract, facts: tuple[ValueFacts, ...]
+    ) -> tuple[CandidateRecipe, ...]: ...
 
 
 def _uint(value: object, positive: bool = False) -> bool:
@@ -120,7 +128,9 @@ def _digest(value: object) -> bool:
 
 
 def _identity(value: object) -> str:
-    return hashlib.sha256(json.dumps(asdict(value), sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(asdict(value), sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
 
 
 def _facts(facts: tuple[ValueFacts, ...]) -> dict[str, ValueFacts]:
@@ -130,29 +140,54 @@ def _facts(facts: tuple[ValueFacts, ...]) -> dict[str, ValueFacts]:
     if set(by_name) != {"A", "B"} or len(facts) != 2:
         raise ValueError("exactly one A and B fact is required")
     for f in facts:
-        if (not _uint(f.instance, True) or not _uint(f.generation, True)
-                or type(f.max_magnitude) is not int or f.max_magnitude < 0
-                or type(f.materializations) is not tuple or not f.materializations
-                or any(type(x) is not str or not x for x in f.materializations)
-                or len(set(f.materializations)) != len(f.materializations)):
+        if (
+            not _uint(f.instance, True)
+            or not _uint(f.generation, True)
+            or type(f.max_magnitude) is not int
+            or f.max_magnitude < 0
+            or type(f.materializations) is not tuple
+            or not f.materializations
+            or any(type(x) is not str or not x for x in f.materializations)
+            or len(set(f.materializations)) != len(f.materializations)
+        ):
             raise ValueError("invalid generation/range/materialization facts")
     return by_name
 
 
 def _problem(problem: ProblemContract) -> None:
-    if type(problem) is not ProblemContract or any(not _uint(x, True) for x in
-            (problem.m, problem.n, problem.k, problem.lda, problem.ldb, problem.ldc, problem.reuse_a, problem.reuse_b)):
+    if type(problem) is not ProblemContract or any(
+        not _uint(x, True)
+        for x in (
+            problem.m,
+            problem.n,
+            problem.k,
+            problem.lda,
+            problem.ldb,
+            problem.ldc,
+            problem.reuse_a,
+            problem.reuse_b,
+        )
+    ):
         raise ValueError("invalid problem dimensions or reuse")
     if problem.lda < problem.k or problem.ldb < problem.n or problem.ldc < problem.n:
         raise ValueError("invalid problem strides")
     if problem.expression != "A*B":
         raise ValueError("unsupported expression; epilogues require a composed recipe")
-    if problem.semantics not in {"finite_ring", "finite_field", "bounded_signed", "bounded_unsigned"}:
+    if problem.semantics not in {
+        "finite_ring",
+        "finite_field",
+        "bounded_signed",
+        "bounded_unsigned",
+    }:
         raise ValueError("unsupported arithmetic semantics")
     if problem.output_boundary not in {"resident_residues", "native_integer"}:
         raise ValueError("unsupported output boundary")
-    if (type(problem.basis) is not tuple or not problem.basis or len(problem.basis) > 20
-            or any(type(p) is not int or not 2 <= p <= 256 for p in problem.basis)):
+    if (
+        type(problem.basis) is not tuple
+        or not problem.basis
+        or len(problem.basis) > 20
+        or any(type(p) is not int or not 2 <= p <= 256 for p in problem.basis)
+    ):
         raise ValueError("invalid ordered byte basis")
     product = 1
     for p in problem.basis:
@@ -163,7 +198,9 @@ def _problem(problem: ProblemContract) -> None:
         raise ValueError("finite semantics require one named modulus")
 
 
-def _ordered_arena(regions: tuple[TemporaryRegion, ...], stages: tuple[Stage, ...], budget: int) -> dict:
+def _ordered_arena(
+    regions: tuple[TemporaryRegion, ...], stages: tuple[Stage, ...], budget: int
+) -> dict:
     """Reuse only after every declared reader is strictly before the next writer.
 
     This is a dependency proof, independent of predicted timing or incidental
@@ -173,7 +210,9 @@ def _ordered_arena(regions: tuple[TemporaryRegion, ...], stages: tuple[Stage, ..
     ancestors = {}
     pending = set(by_name)
     while pending:
-        ready = sorted(name for name in pending if all(dep in ancestors for dep in by_name[name].dependencies))
+        ready = sorted(
+            name for name in pending if all(dep in ancestors for dep in by_name[name].dependencies)
+        )
         if not ready:
             return {"status": "unknown", "reason": "cyclic_or_unknown_workspace_dependency"}
         for name in ready:
@@ -184,13 +223,17 @@ def _ordered_arena(regions: tuple[TemporaryRegion, ...], stages: tuple[Stage, ..
     def before(left, right):
         if left.retained or by_name[left.producer].retain_output:
             return False
-        return all(reader in ancestors[right.producer]
-                   for reader in (left.producer, *left.consumers))
+        return all(
+            reader in ancestors[right.producer] for reader in (left.producer, *left.consumers)
+        )
 
     placed, high_water = [], 0
     for region in regions:
-        occupied = sorted((offset, offset + prior.bytes) for prior, offset in placed
-                          if prior.bytes and not (before(prior, region) or before(region, prior)))
+        occupied = sorted(
+            (offset, offset + prior.bytes)
+            for prior, offset in placed
+            if prior.bytes and not (before(prior, region) or before(region, prior))
+        )
         offset = 0
         if region.bytes:
             for start, end in occupied:
@@ -209,17 +252,33 @@ def _ordered_arena(regions: tuple[TemporaryRegion, ...], stages: tuple[Stage, ..
         return {"status": "unsupported", "reason": "workspace_budget", "required_bytes": high_water}
     # One preallocated arena is resident for the entire recipe. Charge it once,
     # retained, rather than treating aliased regions as independent allocations.
-    priced = tuple(replace(stage, bytes_allocated=high_water if index == 0 else 0,
-                           retain_output=True if index == 0 else stage.retain_output)
-                   for index, stage in enumerate(stages))
-    return {"status": "success", "required_bytes": high_water,
-            "allocation_policy": "dependency_proven_shared_arena",
-            "regions": [{"name": region.name, "offset": offset, "bytes": region.bytes}
-                        for region, offset in placed], "stages": priced}
+    priced = tuple(
+        replace(
+            stage,
+            bytes_allocated=high_water if index == 0 else 0,
+            retain_output=True if index == 0 else stage.retain_output,
+        )
+        for index, stage in enumerate(stages)
+    )
+    return {
+        "status": "success",
+        "required_bytes": high_water,
+        "allocation_policy": "dependency_proven_shared_arena",
+        "regions": [
+            {"name": region.name, "offset": offset, "bytes": region.bytes}
+            for region, offset in placed
+        ],
+        "stages": priced,
+    }
 
 
 def checked_resources(plan: ResourcePlan, stages: tuple[Stage, ...], budget: int) -> dict:
-    if type(plan) is not ResourcePlan or plan.status not in {"success", "unsupported", "overflow", "unknown"}:
+    if type(plan) is not ResourcePlan or plan.status not in {
+        "success",
+        "unsupported",
+        "overflow",
+        "unknown",
+    }:
         return {"status": "unknown", "reason": "invalid_workspace_query"}
     if plan.status != "success":
         return {"status": plan.status, "reason": plan.reason}
@@ -235,11 +294,21 @@ def checked_resources(plan: ResourcePlan, stages: tuple[Stage, ...], budget: int
     allocation = {s.name: 0 for s in stages}
     retained = set()
     for region in plan.regions:
-        if (type(region) is not TemporaryRegion or not region.name or region.name in seen
-                or not _uint(region.bytes) or not _uint(region.alignment, True)
-                or region.alignment & (region.alignment - 1) or type(region.retained) is not bool
-                or region.producer not in names or len(set(region.consumers)) != len(region.consumers)
-                or any(c not in names or region.producer not in stages_by_name[c].dependencies for c in region.consumers)):
+        if (
+            type(region) is not TemporaryRegion
+            or not region.name
+            or region.name in seen
+            or not _uint(region.bytes)
+            or not _uint(region.alignment, True)
+            or region.alignment & (region.alignment - 1)
+            or type(region.retained) is not bool
+            or region.producer not in names
+            or len(set(region.consumers)) != len(region.consumers)
+            or any(
+                c not in names or region.producer not in stages_by_name[c].dependencies
+                for c in region.consumers
+            )
+        ):
             return {"status": "unknown", "reason": "invalid_region_or_lifetime"}
         seen.add(region.name)
         offset = (cursor + region.alignment - 1) & -region.alignment
@@ -257,24 +326,45 @@ def checked_resources(plan: ResourcePlan, stages: tuple[Stage, ...], budget: int
         return _ordered_arena(plan.regions, stages, budget)
     if cursor > budget:
         return {"status": "unsupported", "reason": "workspace_budget", "required_bytes": cursor}
-    priced_stages = tuple(replace(s, bytes_allocated=allocation[s.name], retain_output=s.retain_output or s.name in retained) for s in stages)
-    return {"status": "success", "required_bytes": cursor, "regions": offsets, "stages": priced_stages}
+    priced_stages = tuple(
+        replace(
+            s,
+            bytes_allocated=allocation[s.name],
+            retain_output=s.retain_output or s.name in retained,
+        )
+        for s in stages
+    )
+    return {
+        "status": "success",
+        "required_bytes": cursor,
+        "regions": offsets,
+        "stages": priced_stages,
+    }
 
 
-def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueFacts, ...],
-          target: TargetCapabilities, budget: int) -> dict:
+def admit(
+    recipe: CandidateRecipe,
+    problem: ProblemContract,
+    facts: tuple[ValueFacts, ...],
+    target: TargetCapabilities,
+    budget: int,
+) -> dict:
     """Costs cannot affect mathematical, capability or resource admissibility."""
     _problem(problem)
     values = _facts(facts)
     if not recipe.name or recipe.contract != problem or recipe.inputs != facts:
         raise ValueError("recipe contract or generation binding mismatch")
-    if not recipe.layout or any(not _uint(x, True) for x in (recipe.tile_m, recipe.tile_n, recipe.k_slab)):
+    if not recipe.layout or any(
+        not _uint(x, True) for x in (recipe.tile_m, recipe.tile_n, recipe.k_slab)
+    ):
         raise ValueError("invalid recipe tile or slab")
     if tuple(c.modulus for c in recipe.certificates) != problem.basis:
         raise ValueError("certificate coverage/order differs from basis")
     bound = problem.k * values["A"].max_magnitude * values["B"].max_magnitude
-    if (len(recipe.required_materializations) != 2 or any(required not in values[name].materializations
-            for name, required in zip(("A", "B"), recipe.required_materializations))):
+    if len(recipe.required_materializations) != 2 or any(
+        required not in values[name].materializations
+        for name, required in zip(("A", "B"), recipe.required_materializations)
+    ):
         raise ValueError("required input materialization is unavailable")
     for certificate in recipe.certificates:
         proof = verify(certificate)
@@ -282,13 +372,22 @@ def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueF
             raise ValueError(f"arithmetic: {proof['proof_failures']}")
         if certificate.semantics != problem.semantics or recipe.k_slab > certificate.safe_k:
             raise ValueError("certificate semantics or safe slab mismatch")
-        if problem.semantics.startswith("bounded_") and (certificate.basis != problem.basis or certificate.output_bound < bound):
+        if problem.semantics.startswith("bounded_") and (
+            certificate.basis != problem.basis or certificate.output_bound < bound
+        ):
             raise ValueError("insufficient generation-bound integer range")
-        if certificate.instruction.target != target.target or certificate.instruction.compiler != target.compiler:
+        if (
+            certificate.instruction.target != target.target
+            or certificate.instruction.compiler != target.compiler
+        ):
             raise ValueError("instruction target/compiler mismatch")
-    total = ((problem.m + recipe.tile_m - 1) // recipe.tile_m
-             * ((problem.n + recipe.tile_n - 1) // recipe.tile_n)
-             * ((problem.k + recipe.k_slab - 1) // recipe.k_slab) * len(problem.basis))
+    total = (
+        (problem.m + recipe.tile_m - 1)
+        // recipe.tile_m
+        * ((problem.n + recipe.tile_n - 1) // recipe.tile_n)
+        * ((problem.k + recipe.k_slab - 1) // recipe.k_slab)
+        * len(problem.basis)
+    )
     if total > U64_MAX:
         raise ValueError("work coverage overflow")
     end = 0
@@ -300,7 +399,11 @@ def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueF
         raise ValueError("incomplete work coverage")
     if not _digest(target.artifact_sha256) or not _uint(target.address_limit, True):
         raise ValueError("unknown target artifact or address domain")
-    for rows, cols, ld in ((problem.m, problem.k, problem.lda), (problem.k, problem.n, problem.ldb), (problem.m, problem.n, problem.ldc)):
+    for rows, cols, ld in (
+        (problem.m, problem.k, problem.lda),
+        (problem.k, problem.n, problem.ldb),
+        (problem.m, problem.n, problem.ldc),
+    ):
         if ((rows - 1) * ld + cols) * 8 > target.address_limit:
             raise ValueError("address domain overflow")
     capabilities = {(c.symbol, c.certificate_sha256, c.layout): c for c in target.kernels}
@@ -309,14 +412,23 @@ def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueF
     consumed_stages = {name for stage in recipe.stages for name in stage.dependencies}
     for stage in recipe.stages:
         for certificate in recipe.certificates:
-            capability = capabilities.get((stage.kernel_symbol, certificate_hash(certificate), recipe.layout))
-            if (capability is None or capability.opcode != certificate.instruction.opcode
-                    or not _digest(capability.instruction_evidence_sha256)
-                    or capability.instruction_evidence_sha256 != certificate.instruction.measured_evidence_sha256):
+            capability = capabilities.get(
+                (stage.kernel_symbol, certificate_hash(certificate), recipe.layout)
+            )
+            if (
+                capability is None
+                or capability.opcode != certificate.instruction.opcode
+                or not _digest(capability.instruction_evidence_sha256)
+                or capability.instruction_evidence_sha256
+                != certificate.instruction.measured_evidence_sha256
+            ):
                 raise ValueError("unsupported or unmeasured kernel/certificate/layout combination")
             if capability.output_boundary not in {"resident_residues", "native_integer"}:
                 raise ValueError("unknown kernel output boundary")
-            if stage.name not in consumed_stages and capability.output_boundary != problem.output_boundary:
+            if (
+                stage.name not in consumed_stages
+                and capability.output_boundary != problem.output_boundary
+            ):
                 raise ValueError("terminal kernel output boundary differs from requested result")
     resources = checked_resources(recipe.resources, recipe.stages, budget)
     if resources["status"] != "success":
@@ -324,8 +436,14 @@ def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueF
     return resources
 
 
-def shortlist(problem: ProblemContract, facts: tuple[ValueFacts, ...], target: TargetCapabilities,
-              profile: CostProfile, providers: tuple[Provider, ...], budget: int) -> dict:
+def shortlist(
+    problem: ProblemContract,
+    facts: tuple[ValueFacts, ...],
+    target: TargetCapabilities,
+    profile: CostProfile,
+    providers: tuple[Provider, ...],
+    budget: int,
+) -> dict:
     _problem(problem)
     _facts(facts)
     candidates, rejected, seen = [], [], set()
@@ -336,22 +454,51 @@ def shortlist(problem: ProblemContract, facts: tuple[ValueFacts, ...], target: T
             seen.add(recipe.name)
             try:
                 resources = admit(recipe, problem, facts, target, budget)
-                if (profile.target, profile.compiler, profile.artifact_sha256) != (target.target, target.compiler, target.artifact_sha256):
+                if (profile.target, profile.compiler, profile.artifact_sha256) != (
+                    target.target,
+                    target.compiler,
+                    target.artifact_sha256,
+                ):
                     raise ValueError("cost environment mismatch")
                 if any(s.kernel_symbol not in profile.kernel_symbols for s in recipe.stages):
                     raise ValueError("missing kernel calibration")
                 if len(dict(profile.rates)) != len(profile.rates):
                     raise ValueError("duplicate calibrated work term")
-                prediction = predict(resources.pop("stages"), dict(profile.rates), recipe.certificates[0], budget, target.target)
-                candidates.append({"name": recipe.name, "recipe_sha256": _identity(recipe),
-                                   "prediction": prediction, "resources": resources})
+                prediction = predict(
+                    resources.pop("stages"),
+                    dict(profile.rates),
+                    recipe.certificates[0],
+                    budget,
+                    target.target,
+                )
+                candidates.append(
+                    {
+                        "name": recipe.name,
+                        "recipe_sha256": _identity(recipe),
+                        "prediction": prediction,
+                        "resources": resources,
+                    }
+                )
             except ValueError as error:
                 rejected.append({"name": recipe.name, "reason": str(error)})
-    candidates.sort(key=lambda c: (c["prediction"]["latency_upper_ns"], c["resources"]["required_bytes"], c["name"]))
-    return {"schema": "rns8_recipe_shortlist_v1", "problem_sha256": _identity(problem),
-            "input_bindings": [dict(asdict(f), materializations=list(f.materializations)) for f in facts], "candidates": candidates,
-            "rejected": sorted(rejected, key=lambda x: x["name"]), "promotion_eligible": False,
-            "runtime_route_changed": False}
+    candidates.sort(
+        key=lambda c: (
+            c["prediction"]["latency_upper_ns"],
+            c["resources"]["required_bytes"],
+            c["name"],
+        )
+    )
+    return {
+        "schema": "rns8_recipe_shortlist_v1",
+        "problem_sha256": _identity(problem),
+        "input_bindings": [
+            dict(asdict(f), materializations=list(f.materializations)) for f in facts
+        ],
+        "candidates": candidates,
+        "rejected": sorted(rejected, key=lambda x: x["name"]),
+        "promotion_eligible": False,
+        "runtime_route_changed": False,
+    }
 
 
 def bind_current(recipe: CandidateRecipe, current: tuple[ValueFacts, ...]) -> None:
@@ -363,7 +510,13 @@ def bind_current(recipe: CandidateRecipe, current: tuple[ValueFacts, ...]) -> No
 def profile_from_calibrations(calibrations: tuple, expected: dict) -> CostProfile:
     """Use the existing independent-run/ISA/reference evidence admission gate."""
     from calibration_manifest import planner_rates
+
     rates = planner_rates(calibrations, expected)
     identity = calibrations[0].identity
-    return CostProfile(identity.target, identity.compiler, identity.artifact_sha256,
-                       tuple(sorted(rates.items())), tuple(sorted({c.identity.kernel_symbol for c in calibrations})))
+    return CostProfile(
+        identity.target,
+        identity.compiler,
+        identity.artifact_sha256,
+        tuple(sorted(rates.items())),
+        tuple(sorted({c.identity.kernel_symbol for c in calibrations})),
+    )

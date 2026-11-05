@@ -38,11 +38,7 @@ def review(receipts: list[dict]) -> dict:
     passes, next_steps = [], []
     for receipt in receipts:
         intervals = selected_interval_summary(receipt["observations"])
-        unknown = [
-            item
-            for item in receipt.get("native_metrics", [])
-            if item.get("missingness")
-        ]
+        unknown = [item for item in receipt.get("native_metrics", []) if item.get("missingness")]
         hypotheses = []
         if intervals["uncovered_span_ns"]:
             hypotheses.append(

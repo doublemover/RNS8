@@ -72,12 +72,8 @@ class DeviceObservations(unittest.TestCase):
             ).state,
             "verified",
         )
-        self.assertEqual(
-            capture_relation(capture(), parent, child)["state"], "verified"
-        )
-        self.assertEqual(
-            runtime_identity(parent["runtime_device_identity"]).runtime_ordinal, 4
-        )
+        self.assertEqual(capture_relation(capture(), parent, child)["state"], "verified")
+        self.assertEqual(runtime_identity(parent["runtime_device_identity"]).runtime_ordinal, 4)
         self.assertEqual(capture_observation(capture()).identity.runtime_ordinal, 0)
         other = inspection(0, device=5)
         self.assertEqual(
@@ -96,9 +92,7 @@ class DeviceObservations(unittest.TestCase):
         self.assertEqual(observation_relation(left, right).state, "mismatch")
         second["runtime_device_identity"]["uuid"] = None
         second["runtime_device_identity"]["valid_fields"] = 1
-        self.assertFalse(
-            distinct_execution_devices(left, inspection_observation(second))
-        )
+        self.assertFalse(distinct_execution_devices(left, inspection_observation(second)))
         self.assertEqual(
             identity_relation(
                 runtime_identity(identity(uuid=False)),
@@ -162,9 +156,7 @@ class DeviceObservations(unittest.TestCase):
             process_id=100,
             stdout=json.dumps(inspection(0)),
         )
-        self.assertEqual(
-            gpu_qualification.validate_result(item, result, inspection(4)), []
-        )
+        self.assertEqual(gpu_qualification.validate_result(item, result, inspection(4)), [])
         swapped = inspection(0, device=5)
         self.assertTrue(
             gpu_qualification.validate_result(

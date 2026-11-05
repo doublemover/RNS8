@@ -33,10 +33,11 @@ constexpr const char* runtime_model = "glibc";
 #else
 constexpr const char* runtime_model = "system-c-runtime";
 #endif
-}
+} // namespace
 
 rns8_status rns8_get_public_abi_info(rns8_public_abi_info* out) {
-  if (!out) return RNS8_INVALID_ARGUMENT;
+  if (!out)
+    return RNS8_INVALID_ARGUMENT;
   // Size admission reads only the documented mandatory prefix, including when
   // a C caller supplies a genuinely shorter allocation.
   uint64_t supplied_size = 0;

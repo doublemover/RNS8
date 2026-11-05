@@ -62,14 +62,11 @@ def frontend_metrics(
         "-ast-dump=json",
         str(path),
     ]
-    ast = object_value(
-        parse_evidence_json(command_output(command, output / "metrics-ast.json"))
-    )
+    ast = object_value(parse_evidence_json(command_output(command, output / "metrics-ast.json")))
     nodes = [
         node
         for node in walk(ast)
-        if node.get("kind") == "EnumDecl"
-        and node.get("name") == "rns8_abi_frontend_metrics"
+        if node.get("kind") == "EnumDecl" and node.get("name") == "rns8_abi_frontend_metrics"
     ]
     if len(nodes) != 1:
         raise ValueError("frontend did not emit the complete ABI metric inventory")
@@ -77,23 +74,16 @@ def frontend_metrics(
     expected = {"rns8_abi_metric_" + str(index) for index in range(len(names))}
     if set(values) != expected:
         raise ValueError("frontend metric inventory is incomplete")
-    return {
-        name: values["rns8_abi_metric_" + str(index)]
-        for index, name in enumerate(names)
-    }
+    return {name: values["rns8_abi_metric_" + str(index)] for index, name in enumerate(names)}
 
 
 def tuple_key(target: str, metrics: dict[str, int]) -> str:
     if metrics.get("sizeof:void_pointer") != 8 or metrics.get("CHAR_BIT") != 8:
-        raise ValueError(
-            "supported native ABI probes require 64-bit pointers and 8-bit bytes"
-        )
+        raise ValueError("supported native ABI probes require 64-bit pointers and 8-bit bytes")
     architecture = target.split("-", 1)[0]
     if architecture not in ("x86_64", "aarch64", "arm64"):
         raise ValueError("ABI target architecture has no reviewed policy")
-    system = (
-        "windows" if "windows" in target else "linux" if "linux" in target else None
-    )
+    system = "windows" if "windows" in target else "linux" if "linux" in target else None
     if system is None:
         raise ValueError("ABI target must be native Windows or Linux")
     model = (
@@ -108,9 +98,7 @@ def tuple_key(target: str, metrics: dict[str, int]) -> str:
     return system + "-" + architecture + "-" + model
 
 
-def discover(
-    include: Path, clang: Path, output: Path
-) -> tuple[Surface, Object, dict[str, int]]:
+def discover(include: Path, clang: Path, output: Path) -> tuple[Surface, Object, dict[str, int]]:
     cpp, receipt = frontend_surface(include, clang, output / "cpp", cpp=True)
     c, _ = frontend_surface(include, clang, output / "c", cpp=False)
     differences = surface_diff(cpp.to_json(), c.to_json())
@@ -149,8 +137,7 @@ def baseline_metrics(value: Object, key: str) -> dict[str, int]:
     entry = object_value(baselines[key])
     metrics = object_value(entry.get("metrics"))
     if not metrics or any(
-        type(item) is not int or not 0 <= item <= 0xFFFFFFFFFFFFFFFF
-        for item in metrics.values()
+        type(item) is not int or not 0 <= item <= 0xFFFFFFFFFFFFFFFF for item in metrics.values()
     ):
         raise ValueError("complete unsigned64 ABI layout baseline required for " + key)
     return dict(metrics)
@@ -183,9 +170,7 @@ def author(args) -> Object:
             layout_baselines={key: entry},
         )
     write_json(args.registry, result)
-    args.library_inventory.write_text(
-        library_inventory_source(surface), encoding="utf-8"
-    )
+    args.library_inventory.write_text(library_inventory_source(surface), encoding="utf-8")
     write_json(
         output / "author-receipt.json",
         dict(
@@ -212,9 +197,7 @@ def check_source(args) -> Object:
     expected = registry(args.registry)
     surface, receipt, metrics = discover(args.include, args.clang, output)
     differences = surface_diff(object_value(expected["surface"]), surface.to_json())
-    if args.library_inventory.read_text(encoding="utf-8") != library_inventory_source(
-        surface
-    ):
+    if args.library_inventory.read_text(encoding="utf-8") != library_inventory_source(surface):
         raise ValueError(
             "compiled ABI inventory is stale; regenerate and review it with the public declaration registry"
         )
@@ -290,22 +273,14 @@ def binary_exports(
             ],
             output,
         )
-        exports = {
-            line.split()[0].split("@", 1)[0]
-            for line in text.splitlines()
-            if line.split()
-        }
+        exports = {line.split()[0].split("@", 1)[0] for line in text.splitlines() if line.split()}
     public = {name for name in exports if name.startswith("rns8_")}
     if not public:
-        raise ValueError(
-            "empty public export inventory cannot qualify a shared library"
-        )
+        raise ValueError("empty public export inventory cannot qualify a shared library")
     return public
 
 
-def native_run(
-    command: list[str], output: Path, env: dict[str, str] | None = None
-) -> Object:
+def native_run(command: list[str], output: Path, env: dict[str, str] | None = None) -> Object:
     result = subprocess.run(
         command,
         capture_output=True,
@@ -317,26 +292,17 @@ def native_run(
         check=False,
     )
     output.write_text(result.stdout, encoding="utf-8")
-    output.with_suffix(output.suffix + ".stderr").write_text(
-        result.stderr, encoding="utf-8"
-    )
+    output.with_suffix(output.suffix + ".stderr").write_text(result.stderr, encoding="utf-8")
     if result.returncode:
         raise ValueError("installed ABI consumer failed: " + str(output))
     value = object_value(parse_evidence_json(result.stdout))
-    if (
-        value.get("schema") != LAYOUT_SCHEMA
-        or value.get("native_device_raw_enum_cases") != 9
-    ):
-        raise ValueError(
-            "installed ABI consumer did not emit complete layout/CPU smoke evidence"
-        )
+    if value.get("schema") != LAYOUT_SCHEMA or value.get("native_device_raw_enum_cases") != 9:
+        raise ValueError("installed ABI consumer did not emit complete layout/CPU smoke evidence")
     if value.get("all_external_enum_paths_covered") is not False:
         raise ValueError("installed ABI consumer overstates behavioral scope")
     for name in ("library_compiler_id", "library_runtime_model", "declaration_sha256"):
         if not isinstance(value.get(name), str) or not value[name]:
-            raise ValueError(
-                "installed ABI consumer omitted library provenance: " + name
-            )
+            raise ValueError("installed ABI consumer omitted library provenance: " + name)
     return value
 
 
@@ -348,9 +314,7 @@ def native_build_profile(build: Path, compilers: dict[str, Path]) -> Object:
         raise ValueError("both native consumer compile commands are required")
     filenames = {Path(str(object_value(item).get("file"))).name for item in commands}
     if not {"probe.c", "probe.cpp"} <= filenames:
-        raise ValueError(
-            "both native consumer languages are missing from compile commands"
-        )
+        raise ValueError("both native consumer languages are missing from compile commands")
     definitions = list(build.glob("CMakeFiles/*/CMakeCCompiler.cmake"))
     definitions += list(build.glob("CMakeFiles/*/CMakeCXXCompiler.cmake"))
     if len(definitions) != 2:
@@ -368,9 +332,7 @@ def native_build_profile(build: Path, compilers: dict[str, Path]) -> Object:
         arguments = entry.get("arguments")
         if isinstance(command, str):
             texts.append(command)
-        elif isinstance(arguments, list) and all(
-            isinstance(word, str) for word in arguments
-        ):
+        elif isinstance(arguments, list) and all(isinstance(word, str) for word in arguments):
             texts.extend(arguments)
         else:
             raise ValueError("native compile command has no actual arguments")
@@ -438,8 +400,7 @@ def negative_consumers(
             1,
         ),
         "member": native_probe_source(surface, copied, layout),
-        "missing_export": "#define rns8_get_public_abi_info rns8_abi_missing_export\n"
-        + probe,
+        "missing_export": "#define rns8_get_public_abi_info rns8_abi_missing_export\n" + probe,
     }
     if bodies["enum"] == probe:
         raise ValueError("ABI enum negative control was not inserted")
@@ -464,9 +425,7 @@ def negative_consumers(
     return targets
 
 
-def run_negative_consumers(
-    cmake: Path, build: Path, targets: list[str], output: Path
-) -> Object:
+def run_negative_consumers(cmake: Path, build: Path, targets: list[str], output: Path) -> Object:
     results = {}
     for target in targets:
         command = [
@@ -492,9 +451,7 @@ def run_negative_consumers(
         log.write_text(process.stdout, encoding="utf-8")
         log.with_suffix(".stderr").write_text(process.stderr, encoding="utf-8")
         if process.returncode == 0:
-            raise ValueError(
-                "seeded ABI mismatch unexpectedly compiled/linked: " + target
-            )
+            raise ValueError("seeded ABI mismatch unexpectedly compiled/linked: " + target)
         diagnostics = (process.stdout + "\n" + process.stderr).lower()
         if "_missing_export_" in target:
             explained = "rns8_abi_missing_export" in diagnostics and any(
@@ -508,13 +465,10 @@ def run_negative_consumers(
         elif "_member_" in target:
             explained = "public member type" in diagnostics
         else:
-            explained = (
-                "static assertion" in diagnostics or "error c2338" in diagnostics
-            )
+            explained = "static assertion" in diagnostics or "error c2338" in diagnostics
         if not explained:
             raise ValueError(
-                "negative ABI build failed without the expected mismatch diagnostic: "
-                + target
+                "negative ABI build failed without the expected mismatch diagnostic: " + target
             )
         # The successful ordinary build establishes toolchain readiness. Keep
         # the failed command and diagnostics for inspection, never execute it.
@@ -541,15 +495,11 @@ def check_installed(args) -> Object:
     differences = surface_diff(object_value(expected["surface"]), surface.to_json())
     if differences:
         write_json(output / "declaration-diff.json", dict(changes=differences))
-        raise ValueError(
-            "installed declarations differ from the reviewed public inventory"
-        )
+        raise ValueError("installed declarations differ from the reviewed public inventory")
     key = tuple_key(str(frontend["target"]), metrics)
     layout = baseline_metrics(expected, key)
     if layout != metrics:
-        raise ValueError(
-            "installed frontend layout differs from the reviewed native tuple"
-        )
+        raise ValueError("installed frontend layout differs from the reviewed native tuple")
     source = output / "consumer"
     source.mkdir()
     probe = native_probe_source(surface, include, layout)
@@ -576,8 +526,7 @@ def check_installed(args) -> Object:
     profile = native_build_profile(build, dict(c=args.cc, cpp=args.cxx))
     markers = list(build.glob("installed-binary-*.txt"))
     binaries = {
-        Path(path.read_text(encoding="utf-8").strip()).resolve(strict=True)
-        for path in markers
+        Path(path.read_text(encoding="utf-8").strip()).resolve(strict=True) for path in markers
     }
     if len(binaries) != 1:
         raise ValueError("installed target binary was not resolved uniquely")
@@ -607,11 +556,7 @@ def check_installed(args) -> Object:
     results = {}
     for language in ("c", "cpp"):
         executable = (
-            "rns8_abi_"
-            + args.linkage
-            + "_"
-            + language
-            + (".exe" if os.name == "nt" else "")
+            "rns8_abi_" + args.linkage + "_" + language + (".exe" if os.name == "nt" else "")
         )
         candidates = [
             path.resolve(strict=True)
@@ -619,22 +564,14 @@ def check_installed(args) -> Object:
             if path.is_file()
         ]
         if len(candidates) != 1:
-            raise ValueError(
-                "one native ABI consumer executable required for " + language
-            )
-        result = native_run(
-            [str(candidates[0])], output / (language + "-native.json"), environment
-        )
+            raise ValueError("one native ABI consumer executable required for " + language)
+        result = native_run([str(candidates[0])], output / (language + "-native.json"), environment)
         if not same_evidence_value(result.get("metrics"), layout):
             raise ValueError(
-                "native "
-                + language
-                + " compiler layout differs from installed/reviewed headers"
+                "native " + language + " compiler layout differs from installed/reviewed headers"
             )
         if result.get("declaration_sha256") != declaration_sha256(surface):
-            raise ValueError(
-                "native library declaration digest does not match installed headers"
-            )
+            raise ValueError("native library declaration digest does not match installed headers")
         results[language] = dict(
             executable=str(candidates[0]),
             sha256=sha256(candidates[0]),
@@ -643,9 +580,7 @@ def check_installed(args) -> Object:
     negatives = run_negative_consumers(args.cmake, build, negative_targets, output)
     export_receipt = None
     if args.linkage == "shared":
-        exports = binary_exports(
-            binary, args.llvm_readobj, args.llvm_nm, output / "exports.txt"
-        )
+        exports = binary_exports(binary, args.llvm_readobj, args.llvm_nm, output / "exports.txt")
         missing = sorted(set(surface.functions) - exports)
         unexpected = sorted(exports - set(surface.functions))
         if missing or unexpected:
@@ -653,9 +588,7 @@ def check_installed(args) -> Object:
                 output / "export-diff.json",
                 dict(missing=missing, unexpected=unexpected),
             )
-            raise ValueError(
-                "shared exports differ from the complete public C symbol inventory"
-            )
+            raise ValueError("shared exports differ from the complete public C symbol inventory")
         reader = args.llvm_readobj if os.name == "nt" else args.llvm_nm
         export_receipt = dict(
             symbols=sorted(exports), reader=str(reader), reader_sha256=sha256(reader)
@@ -667,21 +600,15 @@ def check_installed(args) -> Object:
     elf = None
     elf_arguments = (args.abidw, args.abidiff, args.abigail_version, args.elf_baseline)
     if any(item is not None for item in elf_arguments):
-        if (
-            not all(item is not None for item in elf_arguments)
-            or args.linkage != "shared"
-        ):
+        if not all(item is not None for item in elf_arguments) or args.linkage != "shared":
             raise ValueError(
                 "ELF comparison needs shared linkage, both pinned tools, version and baseline"
             )
         from abi_binary_types import compare_elf
 
-        observations = [
-            object_value(entry["observation"]) for entry in results.values()
-        ]
+        observations = [object_value(entry["observation"]) for entry in results.values()]
         models = {
-            (item["library_compiler_id"], item["library_runtime_model"])
-            for item in observations
+            (item["library_compiler_id"], item["library_runtime_model"]) for item in observations
         }
         if len(models) != 1:
             raise ValueError(
@@ -746,9 +673,7 @@ def main() -> int:
         )
         if name != "installed":
             child.add_argument("--include", type=Path, default=ROOT / "include")
-            child.add_argument(
-                "--library-inventory", type=Path, default=DEFAULT_LIBRARY_INVENTORY
-            )
+            child.add_argument("--library-inventory", type=Path, default=DEFAULT_LIBRARY_INVENTORY)
         else:
             child.add_argument("--prefix", type=Path, required=True)
             child.add_argument("--linkage", choices=("static", "shared"), required=True)
@@ -760,9 +685,7 @@ def main() -> int:
                 ),
                 ("cmake", ("cmake",)),
             ):
-                found = next(
-                    (path for name in names if (path := shutil.which(name))), None
-                )
+                found = next((path for name in names if (path := shutil.which(name))), None)
                 child.add_argument(
                     "--" + option,
                     type=Path,

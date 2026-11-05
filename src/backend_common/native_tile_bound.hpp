@@ -19,17 +19,19 @@ struct NativeAdaptiveWork {
 };
 // Offsets describe admitted prefix buckets 0..20. Zero tiles have no work.
 // Widen before multiplying: UINT32_MAX tiles times twenty groups fits uint64.
-RNS8_BOUND_HD constexpr uint64_t native_adaptive_work_count(
-    const uint32_t* offsets, uint32_t capacity, uint32_t group) {
-  if (!offsets || !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4)) return 0;
+RNS8_BOUND_HD constexpr uint64_t native_adaptive_work_count(const uint32_t* offsets,
+                                                            uint32_t capacity, uint32_t group) {
+  if (!offsets || !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4))
+    return 0;
   uint64_t count = 0;
   for (uint32_t prefix = 1; prefix <= capacity; ++prefix)
     count += uint64_t{offsets[prefix + 1] - offsets[prefix]} * ((prefix + group - 1) / group);
   return count;
 }
-RNS8_BOUND_HD constexpr NativeAdaptiveWork native_adaptive_work(
-    const uint32_t* offsets, uint32_t capacity, uint32_t group, uint64_t ordinal) {
-  if (!offsets || !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4)) return {};
+RNS8_BOUND_HD constexpr NativeAdaptiveWork
+native_adaptive_work(const uint32_t* offsets, uint32_t capacity, uint32_t group, uint64_t ordinal) {
+  if (!offsets || !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4))
+    return {};
   for (uint32_t prefix = 1; prefix <= capacity; ++prefix) {
     const uint32_t groups = (prefix + group - 1) / group;
     const uint64_t count = uint64_t{offsets[prefix + 1] - offsets[prefix]} * groups;
@@ -69,7 +71,8 @@ RNS8_BOUND_HD constexpr NativeTileBound native_tile_max_bound(uint64_t a, uint64
   }
   return out;
 }
-RNS8_BOUND_HD constexpr NativeTileBound native_l1_product_bound(uint64_t maximum, uint64_t low, uint64_t high) {
+RNS8_BOUND_HD constexpr NativeTileBound native_l1_product_bound(uint64_t maximum, uint64_t low,
+                                                                uint64_t high) {
   auto result = native_tile_max_bound(maximum, low, 1);
   const auto upper = native_tile_max_bound(maximum, high, 1);
   const uint64_t old = result.magnitude[1];
@@ -79,21 +82,25 @@ RNS8_BOUND_HD constexpr NativeTileBound native_l1_product_bound(uint64_t maximum
 }
 RNS8_BOUND_HD constexpr bool native_bound_less(const NativeTileBound& a, const NativeTileBound& b) {
   for (int limb = 2; limb >= 0; --limb)
-    if (a.magnitude[limb] != b.magnitude[limb]) return a.magnitude[limb] < b.magnitude[limb];
+    if (a.magnitude[limb] != b.magnitude[limb])
+      return a.magnitude[limb] < b.magnitude[limb];
   return false;
 }
-RNS8_BOUND_HD constexpr NativeTileBound native_axis_l1_bound(
-    const NativeAxisSummary& a, const NativeAxisSummary& b, uint32_t k) {
+RNS8_BOUND_HD constexpr NativeTileBound
+native_axis_l1_bound(const NativeAxisSummary& a, const NativeAxisSummary& b, uint32_t k) {
   auto bound = native_tile_max_bound(a.maximum, b.maximum, k);
   const auto left = native_l1_product_bound(a.maximum, b.l1_low, b.l1_high);
   const auto right = native_l1_product_bound(b.maximum, a.l1_low, a.l1_high);
-  if (native_bound_less(left, bound)) bound = left;
-  if (native_bound_less(right, bound)) bound = right;
+  if (native_bound_less(left, bound))
+    bound = left;
+  if (native_bound_less(right, bound))
+    bound = right;
   return bound;
 }
 // Sum only disjoint K-panel bounds: total native K <= UINT32_MAX bounds the
 // exact result below 2^160, so three limbs cannot overflow.
-RNS8_BOUND_HD constexpr void add_native_panel_bound(NativeTileBound& total, const NativeTileBound& panel) {
+RNS8_BOUND_HD constexpr void add_native_panel_bound(NativeTileBound& total,
+                                                    const NativeTileBound& panel) {
   uint64_t carry = 0;
   for (int limb = 0; limb < 3; ++limb) {
     const uint64_t old = total.magnitude[limb];
@@ -104,8 +111,9 @@ RNS8_BOUND_HD constexpr void add_native_panel_bound(NativeTileBound& total, cons
   }
 }
 // products has 21 rows including P0=1. Caller supplies the fixed basis table.
-RNS8_BOUND_HD inline void select_native_bound_prefix(
-    NativeTileBound& bound, bool signed_result, uint32_t capacity, const uint64_t products[21][3]) {
+RNS8_BOUND_HD inline void select_native_bound_prefix(NativeTileBound& bound, bool signed_result,
+                                                     uint32_t capacity,
+                                                     const uint64_t products[21][3]) {
   if (!(bound.magnitude[0] | bound.magnitude[1] | bound.magnitude[2])) {
     bound.required_prefix = 0;
     return;
@@ -125,7 +133,10 @@ RNS8_BOUND_HD inline void select_native_bound_prefix(
         compare = products[prefix][limb] > threshold[limb] ? 1 : -1;
         break;
       }
-    if (compare > 0) { bound.required_prefix = prefix; return; }
+    if (compare > 0) {
+      bound.required_prefix = prefix;
+      return;
+    }
   }
 }
 } // namespace rns8::detail

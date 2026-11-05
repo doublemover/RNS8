@@ -1,16 +1,10 @@
-extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
-    const int64_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix,
-    void* stream) {
+extern "C" int rns8_hip_direct_pack_i64_device_on_stream(const int64_t* d_src, int8_t* d_residues,
+                                                         int rows, int cols, int ld, int prefix,
+                                                         void* stream) {
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const int64_t total =
-      static_cast<int64_t>(prefix) * elements;
+  const int64_t total = static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
   const int fixed_quad_blocks = static_cast<int>(((elements + 3) / 4 + threads - 1) / threads);
@@ -55,86 +49,65 @@ extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
     RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(18);
     RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_PACK_I64_FIXED_PREFIX
-    default:
-      if (contiguous) {
-        hipLaunchKernelGGL(
-            rns8_pack_i64_contiguous_kernel,
-            dim3(blocks),
-            dim3(threads),
-            0,
-            hip_stream,
-            d_src,
-            d_residues,
-            rows,
-            cols,
-            prefix);
-      } else {
-        hipLaunchKernelGGL(
-            rns8_pack_i64_kernel,
-            dim3(blocks),
-            dim3(threads),
-            0,
-            hip_stream,
-            d_src,
-            d_residues,
-            rows,
-            cols,
-            ld,
-            prefix);
-      }
-      break;
+  default:
+    if (contiguous) {
+      hipLaunchKernelGGL(rns8_pack_i64_contiguous_kernel, dim3(blocks), dim3(threads), 0,
+                         hip_stream, d_src, d_residues, rows, cols, prefix);
+    } else {
+      hipLaunchKernelGGL(rns8_pack_i64_kernel, dim3(blocks), dim3(threads), 0, hip_stream, d_src,
+                         d_residues, rows, cols, ld, prefix);
+    }
+    break;
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_i64_fixed_all_device(
-    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix) {
+extern "C" int rns8_hip_direct_pack_i64_fixed_all_device(const int64_t* source, int8_t* residues,
+                                                         int rows, int cols, int ld, int prefix) {
   const int64_t cells = int64_t{rows} * cols;
   const int blocks = static_cast<int>((cells + 255) / 256);
   switch (prefix) {
 #define RNS8_ADDITIONAL_FIXED(P) \
     case P: hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<P>), \
         dim3(blocks), dim3(256), 0, nullptr, source, residues, rows, cols, ld); break
-    RNS8_ADDITIONAL_FIXED(10); RNS8_ADDITIONAL_FIXED(11); RNS8_ADDITIONAL_FIXED(12);
-    RNS8_ADDITIONAL_FIXED(13); RNS8_ADDITIONAL_FIXED(14); RNS8_ADDITIONAL_FIXED(15);
-    RNS8_ADDITIONAL_FIXED(16); RNS8_ADDITIONAL_FIXED(17); RNS8_ADDITIONAL_FIXED(19);
+    RNS8_ADDITIONAL_FIXED(10);
+    RNS8_ADDITIONAL_FIXED(11);
+    RNS8_ADDITIONAL_FIXED(12);
+    RNS8_ADDITIONAL_FIXED(13);
+    RNS8_ADDITIONAL_FIXED(14);
+    RNS8_ADDITIONAL_FIXED(15);
+    RNS8_ADDITIONAL_FIXED(16);
+    RNS8_ADDITIONAL_FIXED(17);
+    RNS8_ADDITIONAL_FIXED(19);
 #undef RNS8_ADDITIONAL_FIXED
-    default: return rns8_hip_direct_pack_i64_device_on_stream(source, residues, rows, cols, ld, prefix, nullptr);
+  default:
+    return rns8_hip_direct_pack_i64_device_on_stream(source, residues, rows, cols, ld, prefix,
+                                                     nullptr);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_i64_generic_device(
-    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix) {
+extern "C" int rns8_hip_direct_pack_i64_generic_device(const int64_t* source, int8_t* residues,
+                                                       int rows, int cols, int ld, int prefix) {
   const int64_t total = int64_t{rows} * cols * prefix;
-  hipLaunchKernelGGL(rns8_pack_i64_kernel, dim3((total + 255) / 256), dim3(256),
-                    0, nullptr, source, residues, rows, cols, ld, prefix);
+  hipLaunchKernelGGL(rns8_pack_i64_kernel, dim3((total + 255) / 256), dim3(256), 0, nullptr, source,
+                     residues, rows, cols, ld, prefix);
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_i64_device(
-    const int64_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
-  return rns8_hip_direct_pack_i64_device_on_stream(d_src, d_residues, rows, cols, ld, prefix, nullptr);
+extern "C" int rns8_hip_direct_pack_i64_device(const int64_t* d_src, int8_t* d_residues, int rows,
+                                               int cols, int ld, int prefix) {
+  return rns8_hip_direct_pack_i64_device_on_stream(d_src, d_residues, rows, cols, ld, prefix,
+                                                   nullptr);
 }
 
-extern "C" int rns8_hip_direct_pack_u64_device_on_stream(
-    const uint64_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix,
-    void* stream) {
+extern "C" int rns8_hip_direct_pack_u64_device_on_stream(const uint64_t* d_src, int8_t* d_residues,
+                                                         int rows, int cols, int ld, int prefix,
+                                                         void* stream) {
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const int64_t total =
-      static_cast<int64_t>(prefix) * elements;
+  const int64_t total = static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
   const int fixed_quad_blocks = static_cast<int>(((elements + 3) / 4 + threads - 1) / threads);
@@ -179,59 +152,31 @@ extern "C" int rns8_hip_direct_pack_u64_device_on_stream(
     RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(18);
     RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_PACK_U64_FIXED_PREFIX
-    default:
-      if (contiguous) {
-        hipLaunchKernelGGL(
-            rns8_pack_u64_contiguous_kernel,
-            dim3(blocks),
-            dim3(threads),
-            0,
-            hip_stream,
-            d_src,
-            d_residues,
-            rows,
-            cols,
-            prefix);
-      } else {
-        hipLaunchKernelGGL(
-            rns8_pack_u64_kernel,
-            dim3(blocks),
-            dim3(threads),
-            0,
-            hip_stream,
-            d_src,
-            d_residues,
-            rows,
-            cols,
-            ld,
-            prefix);
-      }
-      break;
+  default:
+    if (contiguous) {
+      hipLaunchKernelGGL(rns8_pack_u64_contiguous_kernel, dim3(blocks), dim3(threads), 0,
+                         hip_stream, d_src, d_residues, rows, cols, prefix);
+    } else {
+      hipLaunchKernelGGL(rns8_pack_u64_kernel, dim3(blocks), dim3(threads), 0, hip_stream, d_src,
+                         d_residues, rows, cols, ld, prefix);
+    }
+    break;
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_u64_device(
-    const uint64_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
-  return rns8_hip_direct_pack_u64_device_on_stream(d_src, d_residues, rows, cols, ld, prefix, nullptr);
+extern "C" int rns8_hip_direct_pack_u64_device(const uint64_t* d_src, int8_t* d_residues, int rows,
+                                               int cols, int ld, int prefix) {
+  return rns8_hip_direct_pack_u64_device_on_stream(d_src, d_residues, rows, cols, ld, prefix,
+                                                   nullptr);
 }
 
-extern "C" int rns8_hip_direct_pack_i64_grouped_device(
-    const int64_t* d_src,
-    int8_t* const* d_residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
-  if (!d_src || !d_residue_ptrs || task_count <= 0 || src_task_stride <= 0 ||
-      rows <= 0 || cols <= 0 || ld < cols || prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
+extern "C" int rns8_hip_direct_pack_i64_grouped_device(const int64_t* d_src,
+                                                       int8_t* const* d_residue_ptrs,
+                                                       int task_count, int64_t src_task_stride,
+                                                       int rows, int cols, int ld, int prefix) {
+  if (!d_src || !d_residue_ptrs || task_count <= 0 || src_task_stride <= 0 || rows <= 0 ||
+      cols <= 0 || ld < cols || prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const int threads = 256;
@@ -285,53 +230,27 @@ extern "C" int rns8_hip_direct_pack_i64_grouped_device(
     RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(18);
     RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX
-    default:
-      if (contiguous) {
-        hipLaunchKernelGGL(
-            rns8_pack_i64_grouped_contiguous_kernel,
-            dim3(blocks, task_count),
-            dim3(threads),
-            0,
-            nullptr,
-            d_src,
-            d_residue_ptrs,
-            task_count,
-            src_task_stride,
-            rows,
-            cols,
-            prefix);
-      } else {
-        hipLaunchKernelGGL(
-            rns8_pack_i64_grouped_kernel,
-            dim3(blocks, task_count),
-            dim3(threads),
-            0,
-            nullptr,
-            d_src,
-            d_residue_ptrs,
-            task_count,
-            src_task_stride,
-            rows,
-            cols,
-            ld,
-            prefix);
-      }
-      break;
+  default:
+    if (contiguous) {
+      hipLaunchKernelGGL(rns8_pack_i64_grouped_contiguous_kernel, dim3(blocks, task_count),
+                         dim3(threads), 0, nullptr, d_src, d_residue_ptrs, task_count,
+                         src_task_stride, rows, cols, prefix);
+    } else {
+      hipLaunchKernelGGL(rns8_pack_i64_grouped_kernel, dim3(blocks, task_count), dim3(threads), 0,
+                         nullptr, d_src, d_residue_ptrs, task_count, src_task_stride, rows, cols,
+                         ld, prefix);
+    }
+    break;
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_u64_grouped_device(
-    const uint64_t* d_src,
-    int8_t* const* d_residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
-  if (!d_src || !d_residue_ptrs || task_count <= 0 || src_task_stride <= 0 ||
-      rows <= 0 || cols <= 0 || ld < cols || prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
+extern "C" int rns8_hip_direct_pack_u64_grouped_device(const uint64_t* d_src,
+                                                       int8_t* const* d_residue_ptrs,
+                                                       int task_count, int64_t src_task_stride,
+                                                       int rows, int cols, int ld, int prefix) {
+  if (!d_src || !d_residue_ptrs || task_count <= 0 || src_task_stride <= 0 || rows <= 0 ||
+      cols <= 0 || ld < cols || prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const int threads = 256;
@@ -385,51 +304,27 @@ extern "C" int rns8_hip_direct_pack_u64_grouped_device(
     RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(18);
     RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX
-    default:
-      if (contiguous) {
-        hipLaunchKernelGGL(
-            rns8_pack_u64_grouped_contiguous_kernel,
-            dim3(blocks, task_count),
-            dim3(threads),
-            0,
-            nullptr,
-            d_src,
-            d_residue_ptrs,
-            task_count,
-            src_task_stride,
-            rows,
-            cols,
-            prefix);
-      } else {
-        hipLaunchKernelGGL(
-            rns8_pack_u64_grouped_kernel,
-            dim3(blocks, task_count),
-            dim3(threads),
-            0,
-            nullptr,
-            d_src,
-            d_residue_ptrs,
-            task_count,
-            src_task_stride,
-            rows,
-            cols,
-            ld,
-            prefix);
-      }
-      break;
+  default:
+    if (contiguous) {
+      hipLaunchKernelGGL(rns8_pack_u64_grouped_contiguous_kernel, dim3(blocks, task_count),
+                         dim3(threads), 0, nullptr, d_src, d_residue_ptrs, task_count,
+                         src_task_stride, rows, cols, prefix);
+    } else {
+      hipLaunchKernelGGL(rns8_pack_u64_grouped_kernel, dim3(blocks, task_count), dim3(threads), 0,
+                         nullptr, d_src, d_residue_ptrs, task_count, src_task_stride, rows, cols,
+                         ld, prefix);
+    }
+    break;
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(
-    const uint8_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int modulus,
-    void* stream) {
-  if (!d_src || !d_residues || rows <= 0 || cols <= 0 || ld < cols || modulus < 2 || modulus > 256) {
+extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(const uint8_t* d_src,
+                                                                int8_t* d_residues, int rows,
+                                                                int cols, int ld, int modulus,
+                                                                void* stream) {
+  if (!d_src || !d_residues || rows <= 0 || cols <= 0 || ld < cols || modulus < 2 ||
+      modulus > 256) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
@@ -477,56 +372,29 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(
   }
 #undef RNS8_LAUNCH_PACK_U8_FIXED_MODULUS
   if (contiguous) {
-    hipLaunchKernelGGL(
-        rns8_pack_u8_modulus_contiguous_kernel,
-        dim3(blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        modulus);
+    hipLaunchKernelGGL(rns8_pack_u8_modulus_contiguous_kernel, dim3(blocks), dim3(threads), 0,
+                       hip_stream, d_src, d_residues, rows, cols, modulus);
   } else {
-    hipLaunchKernelGGL(
-        rns8_pack_u8_modulus_kernel,
-        dim3(blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld,
-        modulus);
+    hipLaunchKernelGGL(rns8_pack_u8_modulus_kernel, dim3(blocks), dim3(threads), 0, hip_stream,
+                       d_src, d_residues, rows, cols, ld, modulus);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_u8_modulus_device(
-    const uint8_t* d_src,
-    int8_t* d_residues,
-    int rows,
-    int cols,
-    int ld,
-    int modulus) {
-  return rns8_hip_direct_pack_u8_modulus_device_on_stream(d_src, d_residues, rows, cols, ld, modulus, nullptr);
+extern "C" int rns8_hip_direct_pack_u8_modulus_device(const uint8_t* d_src, int8_t* d_residues,
+                                                      int rows, int cols, int ld, int modulus) {
+  return rns8_hip_direct_pack_u8_modulus_device_on_stream(d_src, d_residues, rows, cols, ld,
+                                                          modulus, nullptr);
 }
 
-extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
-    const uint8_t* d_src,
-    int8_t* const* d_residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int modulus) {
+extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(const uint8_t* d_src,
+                                                              int8_t* const* d_residue_ptrs,
+                                                              int task_count,
+                                                              int64_t src_task_stride, int rows,
+                                                              int cols, int ld, int modulus) {
   if (!d_src || !d_residue_ptrs || task_count <= 0 || rows <= 0 || cols <= 0 || ld < cols ||
-      src_task_stride < static_cast<int64_t>(rows) * static_cast<int64_t>(ld) ||
-      modulus < 2 || modulus > 256) {
+      src_task_stride < static_cast<int64_t>(rows) * static_cast<int64_t>(ld) || modulus < 2 ||
+      modulus > 256) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const int threads = 256;
@@ -577,60 +445,28 @@ extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
   }
 #undef RNS8_LAUNCH_GROUPED_PACK_U8_FIXED_MODULUS
   if (contiguous) {
-    hipLaunchKernelGGL(
-        rns8_pack_u8_grouped_modulus_contiguous_kernel,
-        dim3(blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residue_ptrs,
-        task_count,
-        src_task_stride,
-        rows,
-        cols,
-        modulus);
+    hipLaunchKernelGGL(rns8_pack_u8_grouped_modulus_contiguous_kernel, dim3(blocks, task_count),
+                       dim3(threads), 0, nullptr, d_src, d_residue_ptrs, task_count,
+                       src_task_stride, rows, cols, modulus);
   } else {
-    hipLaunchKernelGGL(
-        rns8_pack_u8_grouped_modulus_kernel,
-        dim3(blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residue_ptrs,
-        task_count,
-        src_task_stride,
-        rows,
-        cols,
-        ld,
-        modulus);
+    hipLaunchKernelGGL(rns8_pack_u8_grouped_modulus_kernel, dim3(blocks, task_count), dim3(threads),
+                       0, nullptr, d_src, d_residue_ptrs, task_count, src_task_stride, rows, cols,
+                       ld, modulus);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-int rns8_hip_direct_ring_gemm_i8_on_stream(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int modulus_index,
-    int selected_prefix,
-    int safe_k_block,
-    hipStream_t stream) {
-  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus <= 0 ||
-      modulus_index < 0 || selected_prefix <= 0 || modulus_index >= selected_prefix ||
-      selected_prefix > kRns8DefaultModulusCount ||
+int rns8_hip_direct_ring_gemm_i8_on_stream(const int8_t* d_a, const int8_t* d_b, int8_t* d_c, int m,
+                                           int n, int k, int lda, int ldb, int ldc, int modulus,
+                                           uint32_t modulus_reciprocal, int modulus_index,
+                                           int selected_prefix, int safe_k_block,
+                                           hipStream_t stream) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      modulus <= 0 || modulus_index < 0 || selected_prefix <= 0 ||
+      modulus_index >= selected_prefix || selected_prefix > kRns8DefaultModulusCount ||
       modulus != rns8_default_moduli_host[modulus_index] ||
-      modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
-      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+      modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) || safe_k_block <= 0 ||
+      safe_k_block > kRns8SafeInt32KBlock) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const dim3 block(kRns8HipTileN, kRns8HipTileM);
@@ -641,25 +477,9 @@ int rns8_hip_direct_ring_gemm_i8_on_stream(
   while (k_offset < k && err == hipSuccess) {
     const int k_remaining = k - k_offset;
     const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
-    hipLaunchKernelGGL(
-        rns8_ring_gemm_i8_i32_tiled_kernel,
-        grid,
-        block,
-        0,
-        stream,
-        d_a,
-        d_b,
-        d_c,
-        m,
-        n,
-        k_offset,
-        k_block,
-        lda,
-        ldb,
-        ldc,
-        modulus,
-        modulus_reciprocal,
-        accumulate);
+    hipLaunchKernelGGL(rns8_ring_gemm_i8_i32_tiled_kernel, grid, block, 0, stream, d_a, d_b, d_c, m,
+                       n, k_offset, k_block, lda, ldb, ldc, modulus, modulus_reciprocal,
+                       accumulate);
     err = hipGetLastError();
     k_offset += k_block;
     accumulate = 1;
@@ -667,36 +487,27 @@ int rns8_hip_direct_ring_gemm_i8_on_stream(
   return static_cast<int>(err);
 }
 
-
-
 // Small and four-cell pack wrappers
-extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
+extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(const int64_t* src,
+                                                                int8_t* residues, int rows,
+                                                                int cols, int ld, int prefix) {
   const int total = rows * cols * prefix;
   const int block = 256;
-  rns8_persistent_small_pack_i64_kernel<<<(total + block - 1) / block, block>>>(
-      src, residues, rows, cols, ld, prefix);
+  rns8_persistent_small_pack_i64_kernel<<<(total + block - 1) / block, block>>>(src, residues, rows,
+                                                                                cols, ld, prefix);
   // Enqueue-only internal contract; the owning public pack waits once.
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int prefix) {
+extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(const int64_t* src, int8_t* residues,
+                                                               int rows, int cols, int prefix) {
   const int block = 256;
-  const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols) * static_cast<int64_t>(prefix);
+  const int64_t total =
+      static_cast<int64_t>(rows) * static_cast<int64_t>(cols) * static_cast<int64_t>(prefix);
   const int cells_per_block = block * 4;
-  rns8_pack_i64_4wide_coalesced_kernel<<<static_cast<int>((total + cells_per_block - 1) / cells_per_block), block>>>(
+  rns8_pack_i64_4wide_coalesced_kernel<<<
+      static_cast<int>((total + cells_per_block - 1) / cells_per_block), block>>>(
       src, residues, rows, cols, prefix);
   // Enqueue-only internal contract; the owning public pack waits once.
   return static_cast<int>(hipGetLastError());
 }
-

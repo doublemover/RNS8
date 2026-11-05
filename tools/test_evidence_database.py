@@ -69,7 +69,7 @@ def main() -> int:
                                 "modulus_role": "generic_non_hot_prime",
                                 "prime_or_composite": "prime",
                             },
-                        }
+                        },
                     ],
                 }
             ),
@@ -88,7 +88,9 @@ def main() -> int:
                                 {
                                     "capture": str(hip_capture),
                                     "promotable": False,
-                                    "promotion_blockers": ["missing_required_baseline:cpu-reference"],
+                                    "promotion_blockers": [
+                                        "missing_required_baseline:cpu-reference"
+                                    ],
                                     "primary_loss_phase_vs_direct_hip": "rns_gemm",
                                     "speedup_vs_direct_hip": None,
                                     "speedup_vs_vector_alu": None,
@@ -161,7 +163,9 @@ def main() -> int:
         captures = evidence_database.load_validated_captures([hip_capture, ck_capture])
         original_isa = json.loads(isa_report.read_text())
         ck_bound = next(c for c in captures if c["backend_selected"] == "ck")
-        isa_report.write_text(json.dumps(synthetic_static_isa_report(ck_bound, original_isa["instruction_totals"])))
+        isa_report.write_text(
+            json.dumps(synthetic_static_isa_report(ck_bound, original_isa["instruction_totals"]))
+        )
         captures[0]["timing_summary_us"]["pack_a"] = {"avg": 24.0, "median": 24.0, "p95": 24.0}
         captures[0]["timing_summary_us"]["pack_b"] = {"avg": 16.0, "median": 16.0, "p95": 16.0}
         database = evidence_database.build_database(

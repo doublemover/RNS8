@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from benchmark_references import cached_arguments,prepare,DEFAULT_INDEX
+from benchmark_references import cached_arguments, prepare, DEFAULT_INDEX
 
 from evidence_database_lib.isa import load_isa_index
 from diagnostic_companion import load_bindings
@@ -16,6 +16,7 @@ from .execution import autotune_cache_path, execute_sweep_entries, validate_path
 from .reports import write_markdown_report, write_scenario_manifest
 from .review import attach_cache_write_status, review_captures, write_promoted_cache_entries
 
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -23,8 +24,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="print supported scenario names as JSON and exit without creating captures",
     )
-    parser.add_argument("--reference-cache-dir",type=Path,help="read-only full integer reference cache for eligible single products; fixtures restored before execution")
-    parser.add_argument("--reference-cache-index",type=Path,default=DEFAULT_INDEX)
+    parser.add_argument(
+        "--reference-cache-dir",
+        type=Path,
+        help="read-only full integer reference cache for eligible single products; fixtures restored before execution",
+    )
+    parser.add_argument("--reference-cache-index", type=Path, default=DEFAULT_INDEX)
     parser.add_argument("--bench", type=Path, help="path to rns8-bench executable")
     parser.add_argument(
         "--bench-for",
@@ -39,7 +44,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=Path("temp") / "benchmark-sweeps" / "windows-gfx1100",
         help="ignored output directory for raw captures and review report",
     )
-    parser.add_argument("--capture", type=Path, action="append", default=[], help="existing capture to review")
+    parser.add_argument(
+        "--capture", type=Path, action="append", default=[], help="existing capture to review"
+    )
     parser.add_argument(
         "--lint-scenarios",
         action="store_true",
@@ -62,7 +69,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         help="gpu_isa_report.py JSON summary or directory of *-isa-summary.json reports to attach to review candidates",
     )
-    parser.add_argument("--diagnostic-binding",type=Path,action="append",default=[],help="immutable matched production/diagnostic sidecar; revalidated without modifying captures")
+    parser.add_argument(
+        "--diagnostic-binding",
+        type=Path,
+        action="append",
+        default=[],
+        help="immutable matched production/diagnostic sidecar; revalidated without modifying captures",
+    )
     parser.add_argument("--review-only", action="store_true", help="only review --capture files")
     parser.add_argument(
         "--dry-run",
@@ -106,17 +119,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=[*scenario_names(), "all", "release-candidates"],
         help="run a named scenario corpus family; repeatable, or use all/release-candidates",
     )
-    parser.add_argument("--backend", dest="backends", action="append", help="backend to sweep; repeatable")
-    parser.add_argument("--semantics", action="append", help="benchmark semantics to sweep; repeatable")
+    parser.add_argument(
+        "--backend", dest="backends", action="append", help="backend to sweep; repeatable"
+    )
+    parser.add_argument(
+        "--semantics", action="append", help="benchmark semantics to sweep; repeatable"
+    )
     parser.add_argument("--case", action="append", help="global case NAME:M,N,K; repeatable")
     parser.add_argument(
         "--adaptive-case",
         action="append",
         help="adaptive case NAME:M,N,K,TILE_M,TILE_N[,INPUT_PROFILE]; repeatable",
     )
-    parser.add_argument("--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable")
-    parser.add_argument("--modulus", type=int, action="append", help="finite-u8 modulus; repeatable")
-    parser.add_argument("--exact-wide-limbs", type=int, action="append", help="exact-wide output limb count; repeatable")
+    parser.add_argument(
+        "--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable"
+    )
+    parser.add_argument(
+        "--modulus", type=int, action="append", help="finite-u8 modulus; repeatable"
+    )
+    parser.add_argument(
+        "--exact-wide-limbs",
+        type=int,
+        action="append",
+        help="exact-wide output limb count; repeatable",
+    )
     parser.add_argument(
         "--bound-source",
         choices=["static-profile", "input-scan"],
@@ -261,14 +287,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="include exact-wide output limb counts 1, 2, 3, 4, 8, 16, and 32",
     )
-    parser.add_argument("--include-default-adaptive", action="store_true", help="include default adaptive bounded cases")
+    parser.add_argument(
+        "--include-default-adaptive",
+        action="store_true",
+        help="include default adaptive bounded cases",
+    )
     parser.add_argument(
         "--include-adaptive-workloads",
         action="store_true",
         help="include profile-driven adaptive bounded workload cases",
     )
-    parser.add_argument("--adaptive-only", action="store_true", help="run only adaptive cases, skipping global cases")
-    parser.add_argument("--include-wrap64", action="store_true", help="include wrap64 CPU/direct-HIP captures")
+    parser.add_argument(
+        "--adaptive-only",
+        action="store_true",
+        help="run only adaptive cases, skipping global cases",
+    )
+    parser.add_argument(
+        "--include-wrap64", action="store_true", help="include wrap64 CPU/direct-HIP captures"
+    )
     parser.add_argument(
         "--include-rocwmma-wrap64-candidate",
         dest="include_wrap64_rocwmma_candidate",
@@ -305,8 +341,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="capture only bounded/finite CPU/direct-HIP public one-shot API runs for the selected global cases",
     )
-    parser.add_argument("--release-matrix", action="store_true", help="use promotable release bounded shapes 64..1024")
-    parser.add_argument("--include-exploratory-large", action="store_true", help="include 2048/4096/8192 exploratory shapes")
+    parser.add_argument(
+        "--release-matrix",
+        action="store_true",
+        help="use promotable release bounded shapes 64..1024",
+    )
+    parser.add_argument(
+        "--include-exploratory-large",
+        action="store_true",
+        help="include 2048/4096/8192 exploratory shapes",
+    )
     parser.add_argument(
         "--review-mode",
         choices=["smoke", "release"],
@@ -356,13 +400,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--cpu-threads must be non-negative")
     if args.cpu_parallel_threshold < 0:
         parser.error("--cpu-parallel-threshold must be non-negative")
-    for option_name in ["hip_visible_devices", "rocr_visible_devices", "gpu_device_ordinal", "gpu_shards"]:
+    for option_name in [
+        "hip_visible_devices",
+        "rocr_visible_devices",
+        "gpu_device_ordinal",
+        "gpu_shards",
+    ]:
         value = getattr(args, option_name, None)
         if value is None:
             continue
         parts = [part.strip() for part in value.split(",")]
         if not parts or any(not part.isdecimal() for part in parts):
-            parser.error(f"--{option_name.replace('_', '-')} must be a comma-separated list of nonnegative device indices")
+            parser.error(
+                f"--{option_name.replace('_', '-')} must be a comma-separated list of nonnegative device indices"
+            )
     if args.gpu_shards and (args.hip_visible_devices or args.rocr_visible_devices):
         parser.error(
             "--gpu-shards sets HIP_VISIBLE_DEVICES and ROCR_VISIBLE_DEVICES per shard and cannot be combined "
@@ -417,7 +468,9 @@ def list_scenarios_payload() -> dict[str, object]:
     }
 
 
-def release_preflight_readiness(args: argparse.Namespace, entries: list[SweepCommand]) -> dict[str, object]:
+def release_preflight_readiness(
+    args: argparse.Namespace, entries: list[SweepCommand]
+) -> dict[str, object]:
     release_candidate_count = sum(
         1
         for entry in entries
@@ -529,7 +582,8 @@ def main() -> int:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
         if args.reference_cache_dir:
-            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
+            for entry in entries:
+                entry.command[:] = cached_arguments(entry.command, args.reference_cache_dir)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
         lint_errors = validate_scenario_catalog(scenario_data_dir())
         output = {
@@ -548,7 +602,8 @@ def main() -> int:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
         if args.reference_cache_dir:
-            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
+            for entry in entries:
+                entry.command[:] = cached_arguments(entry.command, args.reference_cache_dir)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
         release_readiness = release_preflight_readiness(args, entries)
         command_paths = write_command_plan(entries, args.out_root, release_readiness)
@@ -572,13 +627,20 @@ def main() -> int:
             raise SystemExit("--bench is required unless --review-only is used")
         entries = sweep_command_entries(args)
         if args.reference_cache_dir:
-            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
-        if args.reference_cache_dir:prepare(args.reference_cache_index,args.reference_cache_dir)
+            for entry in entries:
+                entry.command[:] = cached_arguments(entry.command, args.reference_cache_dir)
+        if args.reference_cache_dir:
+            prepare(args.reference_cache_index, args.reference_cache_dir)
         execution_stats = execute_sweep_entries(entries, args, capture_paths)
 
     captures = validate_paths(capture_paths)
     isa_index = load_required_isa_index(args.isa_report) if args.isa_report else None
-    report = review_captures(captures, review_mode=args.review_mode, isa_index=isa_index, diagnostic_bindings=load_bindings(args.diagnostic_binding))
+    report = review_captures(
+        captures,
+        review_mode=args.review_mode,
+        isa_index=isa_index,
+        diagnostic_bindings=load_bindings(args.diagnostic_binding),
+    )
     promoted = 0
     cache_path = args.autotune_cache or autotune_cache_path()
     if args.write_autotune_cache:

@@ -5,7 +5,7 @@ TEST_CASE(
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   const int64_t extrema[]{0, 1, -1, INT64_MIN, INT64_MAX, 127, -128};
-  const auto center = [](const cpp_int &value, uint32_t modulus) {
+  const auto center = [](const cpp_int& value, uint32_t modulus) {
     int residue = (value % modulus).convert_to<int>();
     if (residue < 0)
       residue += modulus;
@@ -83,13 +83,13 @@ TEST_CASE(
           }
         const auto input = [&](std::size_t component) {
           return ComplexResidueView<const int8_t>{
-              static_cast<const int8_t *>(buffers[component].get()), rows[component],
+              static_cast<const int8_t*>(buffers[component].get()), rows[component],
               cols[component], ld[component], basis};
         };
         const ComplexResiduePair<const int8_t> a{input(0), input(1)}, b{input(2), input(3)};
         const ComplexResiduePair<int8_t> c{
-            {static_cast<int8_t *>(buffers[4].get()), m, n, ld[4], basis},
-            {static_cast<int8_t *>(buffers[5].get()), m, n, ld[5], basis}};
+            {static_cast<int8_t*>(buffers[4].get()), m, n, ld[4], basis},
+            {static_cast<int8_t*>(buffers[5].get()), m, n, ld[5], basis}};
         const cpp_int maximum = shape == 5 ? cpp_int(8) : cpp_int(1) << (shape == 7 ? 70 : 63);
         const ComplexMagnitudeBounds bounds{maximum, maximum, maximum, maximum};
         for (const auto method :
@@ -113,11 +113,13 @@ TEST_CASE(
                                                    before.size()) == RNS8_SUCCESS);
             REQUIRE(before == planes[component]);
           }
-          const auto resources=plan_complex_residue_product(a,b,c,bounds,method,UINT64_MAX);
-          REQUIRE(resources.status==RNS8_SUCCESS);
-          CHECK(resources.staged_real_offset()==resources.products_offset());
-          CHECK(resources.staged_imag_offset()==resources.products_offset()+resources.product_bytes);
-          REQUIRE(hip_direct_gemm_complex_residues(0, a, b, c, bounds, method, resources.scratch_bytes,
+          const auto resources = plan_complex_residue_product(a, b, c, bounds, method, UINT64_MAX);
+          REQUIRE(resources.status == RNS8_SUCCESS);
+          CHECK(resources.staged_real_offset() == resources.products_offset());
+          CHECK(resources.staged_imag_offset() ==
+                resources.products_offset() + resources.product_bytes);
+          REQUIRE(hip_direct_gemm_complex_residues(0, a, b, c, bounds, method,
+                                                   resources.scratch_bytes,
                                                    committed) == RNS8_SUCCESS);
           REQUIRE(committed);
           for (std::size_t component = 4; component < 6; ++component) {

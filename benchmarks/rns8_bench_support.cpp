@@ -10,19 +10,19 @@
 #include <utility>
 
 #ifndef RNS8_CONFIGURED_HIP_ENABLED
-#  define RNS8_CONFIGURED_HIP_ENABLED 0
+#define RNS8_CONFIGURED_HIP_ENABLED 0
 #endif
 
 #if RNS8_CONFIGURED_HIP_ENABLED
-#  include <hip/hip_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif
 
 #ifndef RNS8_GIT_COMMIT
-#  define RNS8_GIT_COMMIT "unknown"
+#define RNS8_GIT_COMMIT "unknown"
 #endif
 
 #ifndef RNS8_SOURCE_DIR
-#  define RNS8_SOURCE_DIR "."
+#define RNS8_SOURCE_DIR "."
 #endif
 
 namespace rns8::bench {
@@ -37,7 +37,8 @@ const HostClockCalibration& host_clock_calibration() {
     }
     std::sort(overhead.begin(), overhead.end());
     const double nominal_tick = duration_us(std::chrono::steady_clock::duration{1});
-    return HostClockCalibration{overhead[500], overhead[950], std::max(nominal_tick, 5 * overhead[950])};
+    return HostClockCalibration{overhead[500], overhead[950],
+                                std::max(nominal_tick, 5 * overhead[950])};
   }();
   return calibration;
 }
@@ -115,24 +116,24 @@ std::string json_escape(const std::string& input) {
   std::ostringstream out;
   for (const char ch : input) {
     switch (ch) {
-      case '\\':
-        out << "\\\\";
-        break;
-      case '"':
-        out << "\\\"";
-        break;
-      case '\n':
-        out << "\\n";
-        break;
-      case '\r':
-        out << "\\r";
-        break;
-      case '\t':
-        out << "\\t";
-        break;
-      default:
-        out << ch;
-        break;
+    case '\\':
+      out << "\\\\";
+      break;
+    case '"':
+      out << "\\\"";
+      break;
+    case '\n':
+      out << "\\n";
+      break;
+    case '\r':
+      out << "\\r";
+      break;
+    case '\t':
+      out << "\\t";
+      break;
+    default:
+      out << ch;
+      break;
     }
   }
   return out.str();
@@ -150,11 +151,13 @@ std::string command_line(int argc, char** argv) {
 }
 
 std::string trim_ascii_whitespace(std::string value) {
-  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' || value.back() == '\t')) {
+  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' ||
+                            value.back() == '\t')) {
     value.pop_back();
   }
   std::size_t first = 0;
-  while (first < value.size() && (value[first] == '\n' || value[first] == '\r' || value[first] == ' ' || value[first] == '\t')) {
+  while (first < value.size() && (value[first] == '\n' || value[first] == '\r' ||
+                                  value[first] == ' ' || value[first] == '\t')) {
     ++first;
   }
   if (first > 0) {
@@ -257,7 +260,8 @@ std::string compiler_version() {
   return std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__) + "." +
          std::to_string(__clang_patchlevel__);
 #elif defined(__GNUC__)
-  return std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__);
+  return std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." +
+         std::to_string(__GNUC_PATCHLEVEL__);
 #else
   return "unknown";
 #endif
@@ -290,13 +294,15 @@ void print_json_string_or_null(std::ostream& output, const std::string& value) {
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label) {
   const auto u_rows = static_cast<uint64_t>(rows);
   const auto u_cols = static_cast<uint64_t>(cols);
-  if (u_cols != 0 && u_rows > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) / u_cols) {
+  if (u_cols != 0 &&
+      u_rows > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) / u_cols) {
     usage_error(std::string("matrix size overflows size_t for ") + label);
   }
   return static_cast<std::size_t>(u_rows * u_cols);
 }
 
-std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count, const char* label) {
+std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count,
+                                  const char* label) {
   const std::size_t elements = checked_elements(rows, cols, label);
   if (limb_count == 0 || elements > std::numeric_limits<std::size_t>::max() / limb_count) {
     usage_error(std::string("limb output size overflows size_t for ") + label);
@@ -318,4 +324,4 @@ std::size_t checked_add_bytes(std::size_t lhs, std::size_t rhs, const char* labe
   return lhs + rhs;
 }
 
-}  // namespace rns8::bench
+} // namespace rns8::bench

@@ -26,11 +26,10 @@ struct PlanLoweringDescription {
   bool reusable_b_prepack_available = false;
 };
 
-PlanLoweringDescription describe_plan_lowering(
-    const rns8_plan_backend_info& backend,
-    const rns8_plan_packing_info& packing,
-    const rns8_plan_schedule_info& schedule);
+PlanLoweringDescription describe_plan_lowering(const rns8_plan_backend_info& backend,
+                                               const rns8_plan_packing_info& packing,
+                                               const rns8_plan_schedule_info& schedule);
 
-}  // namespace rns8::detail
+} // namespace rns8::detail
 
-#endif  // RNS8_CORE_PLAN_LOWERING_HPP
+#endif // RNS8_CORE_PLAN_LOWERING_HPP

@@ -16,8 +16,12 @@ def _environment(value: object) -> tuple[tuple[str, str], ...]:
     result: list[tuple[str, str]] = []
     size = 0
     for key, item in value.items():
-        if (type(key) is not str or not key or not relevant_environment_key(key)
-                or type(item) is not str):
+        if (
+            type(key) is not str
+            or not key
+            or not relevant_environment_key(key)
+            or type(item) is not str
+        ):
             raise ValueError("native environment has an unknown or invalid key/value")
         key_size, item_size = len(key.encode("utf-8")), len(item.encode("utf-8"))
         if key_size > 256 or item_size > 4096:
@@ -63,19 +67,11 @@ def execution_observation(
         if required:
             raise ValueError("native execution environment witness is missing")
         return None
-    if (
-        not isinstance(value, dict)
-        or set(value) != FIELDS
-        or value.get("schema") != SCHEMA
-    ):
+    if not isinstance(value, dict) or set(value) != FIELDS or value.get("schema") != SCHEMA:
         raise ValueError("versioned native execution environment witness required")
     if value["state"] == "not_requested":
-        if required or any(
-            value[key] is not None for key in ("arguments", "before", "after")
-        ):
-            raise ValueError(
-                "native execution environment observation was not requested"
-            )
+        if required or any(value[key] is not None for key in ("arguments", "before", "after")):
+            raise ValueError("native execution environment observation was not requested")
         return None
     if value["state"] != "stable":
         raise ValueError("native execution environment changed or did not complete")
@@ -93,25 +89,17 @@ def validate_execution_request(
     capture: Mapping[str, object], request: Mapping[str, object], *, required: bool = False
 ) -> ExecutionObservation | None:
     arguments = request.get("arguments")
-    count = (
-        arguments.count("--record-execution-environment")
-        if isinstance(arguments, list)
-        else 0
-    )
+    count = arguments.count("--record-execution-environment") if isinstance(arguments, list) else 0
     if count > 1:
         raise ValueError("native environment observation flag is ambiguous")
     observed = execution_observation(capture, required=required or count == 1)
     if observed is not None and count != 1:
-        raise ValueError(
-            "native environment witness has no explicit observation request"
-        )
+        raise ValueError("native environment witness has no explicit observation request")
     if observed is not None and (
         list(observed.arguments) != request.get("arguments")
         or observed.environment != request.get("environment")
     ):
-        raise ValueError(
-            "native argv/environment differs from its bound execution request"
-        )
+        raise ValueError("native argv/environment differs from its bound execution request")
     return observed
 
 

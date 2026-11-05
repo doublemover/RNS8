@@ -7,8 +7,17 @@
 namespace rns8::detail::trace {
 
 enum class Phase : uint32_t {
-  preparation, source_pack, proof, dispatch, reduction, export_result,
-  completion, publication, oracle, cleanup, public_call
+  preparation,
+  source_pack,
+  proof,
+  dispatch,
+  reduction,
+  export_result,
+  completion,
+  publication,
+  oracle,
+  cleanup,
+  public_call
 };
 enum class Role : uint32_t { unclassified, setup, warmup, measured, oracle, teardown };
 enum class Outcome : uint32_t { host_scope_closed, completed, failed, abandoned };
@@ -43,19 +52,22 @@ Parent exchange_parent(Parent) noexcept;
 uint64_t next_operation() noexcept;
 
 class Scope {
- public:
+public:
   explicit Scope(Phase phase) noexcept : Scope(phase, current_tag()) {}
-  Scope(Phase phase, Tag tag) noexcept : token_(begin(phase, tag, current_parent())),
-      parent_(token_.active ? exchange_parent({token_.range, true}) : Parent{}),
-      previous_(exchange_tag(tag)) {}
+  Scope(Phase phase, Tag tag) noexcept
+      : token_(begin(phase, tag, current_parent())),
+        parent_(token_.active ? exchange_parent({token_.range, true}) : Parent{}),
+        previous_(exchange_tag(tag)) {}
   ~Scope() {
     exchange_tag(previous_);
-    if (token_.active) exchange_parent(parent_);
+    if (token_.active)
+      exchange_parent(parent_);
     finish(token_, Outcome::host_scope_closed);
   }
   Scope(const Scope&) = delete;
   Scope& operator=(const Scope&) = delete;
- private:
+
+private:
   Token token_;
   Parent parent_;
   Tag previous_;
@@ -64,7 +76,7 @@ class Scope {
 // Start/stop ranges carry their own tag and may finish on another thread.
 // Their lifetime is independent of a submitter's nested host stack.
 class AsyncRange {
- public:
+public:
   AsyncRange() noexcept = default;
   ~AsyncRange() { finish(token_, Outcome::abandoned); }
   AsyncRange(const AsyncRange&) = delete;
@@ -82,26 +94,29 @@ class AsyncRange {
     token_ = begin(phase, tag, current_parent());
   }
   void complete(Outcome outcome) noexcept { finish(token_, outcome); }
- private:
+
+private:
   Token token_;
 };
 class IterationScope {
- public:
+public:
   IterationScope(Role role, uint64_t iteration) noexcept
-      : scope_(Phase::public_call, {next_operation(), iteration, role, OperationNamespace::benchmark_iteration}) {}
- private:
+      : scope_(Phase::public_call,
+               {next_operation(), iteration, role, OperationNamespace::benchmark_iteration}) {}
+
+private:
   Scope scope_;
 };
 #else
 class Scope {
- public:
+public:
   explicit Scope(Phase) noexcept {}
   Scope(Phase, Tag) noexcept {}
   Scope(const Scope&) = delete;
   Scope& operator=(const Scope&) = delete;
 };
 class AsyncRange {
- public:
+public:
   AsyncRange() noexcept = default;
   AsyncRange(const AsyncRange&) = delete;
   AsyncRange& operator=(const AsyncRange&) = delete;
@@ -111,9 +126,9 @@ class AsyncRange {
   void complete(Outcome) noexcept {}
 };
 class IterationScope {
- public:
+public:
   IterationScope(Role, uint64_t) noexcept {}
 };
 #endif
 
-}  // namespace rns8::detail::trace
+} // namespace rns8::detail::trace

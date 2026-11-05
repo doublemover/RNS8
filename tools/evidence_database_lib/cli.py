@@ -9,12 +9,25 @@ from .isa import load_isa_index
 from .outputs import write_outputs
 from .rows import build_database
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--capture", type=Path, action="append", required=True, help="capture file or directory")
-    parser.add_argument("--review-report", type=Path, action="append", default=[], help="benchmark_sweep review_report.json")
-    parser.add_argument("--scenario-manifest", type=Path, action="append", default=[], help="scenario_manifest.json")
-    parser.add_argument("--isa-report", type=Path, action="append", default=[], help="ISA summary file or directory")
+    parser.add_argument(
+        "--capture", type=Path, action="append", required=True, help="capture file or directory"
+    )
+    parser.add_argument(
+        "--review-report",
+        type=Path,
+        action="append",
+        default=[],
+        help="benchmark_sweep review_report.json",
+    )
+    parser.add_argument(
+        "--scenario-manifest", type=Path, action="append", default=[], help="scenario_manifest.json"
+    )
+    parser.add_argument(
+        "--isa-report", type=Path, action="append", default=[], help="ISA summary file or directory"
+    )
     parser.add_argument(
         "--skip-invalid",
         action="store_true",

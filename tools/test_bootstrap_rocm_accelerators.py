@@ -45,7 +45,10 @@ def main() -> int:
 
         expect(report["dry_run"] is True, "dry-run flag should be recorded")
         expect(report["record_written"] is False, "dry-run must not claim a written record")
-        expect(report["record_path"] == str(probe_root / "bootstrap_rocm_accelerators.json"), "record path mismatch")
+        expect(
+            report["record_path"] == str(probe_root / "bootstrap_rocm_accelerators.json"),
+            "record path mismatch",
+        )
         expect(not probe_root.exists(), "dry-run must not create the probe root")
 
         planned = report["planned_actions"]
@@ -55,13 +58,23 @@ def main() -> int:
 
         submodules = report["submodules"]["items"]
         for name in ("ck", "rocwmma"):
-            expect(submodules[name]["planned_command"], f"{name} submodule command should be recorded")
+            expect(
+                submodules[name]["planned_command"], f"{name} submodule command should be recorded"
+            )
 
         probes = report["probes"]["items"]
         for name in ("ck", "rocwmma"):
-            expect(probes[name]["status"] == "dry_run_probe_planned", f"{name} probe status mismatch")
-            expect(probes[name]["primitive_probe_status"] == "DRY_RUN_PLANNED", f"{name} primitive status mismatch")
-            expect(probes[name]["source"].startswith(str(probe_root)), f"{name} source should stay under probe root")
+            expect(
+                probes[name]["status"] == "dry_run_probe_planned", f"{name} probe status mismatch"
+            )
+            expect(
+                probes[name]["primitive_probe_status"] == "DRY_RUN_PLANNED",
+                f"{name} primitive status mismatch",
+            )
+            expect(
+                probes[name]["source"].startswith(str(probe_root)),
+                f"{name} source should stay under probe root",
+            )
 
     print("bootstrap ROCm accelerator dry-run self-test: PASS")
     return 0

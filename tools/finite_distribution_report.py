@@ -76,7 +76,9 @@ def _release_ready(capture: dict[str, Any]) -> bool:
 
 
 def _gpu_events_available(capture: dict[str, Any]) -> bool:
-    timing = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    timing = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
     return (
         timing.get("gpu_event_timing") is True
         and timing.get("gpu_event_timing_status") == "available"
@@ -108,7 +110,9 @@ def _row(capture: dict[str, Any]) -> dict[str, Any]:
         "target_id": "cpu" if backend == "cpu-reference" else _target_id(capture),
         "release_ready": _release_ready(capture),
         "gpu_events_required": backend != "cpu-reference",
-        "gpu_events_available": True if backend == "cpu-reference" else _gpu_events_available(capture),
+        "gpu_events_available": True
+        if backend == "cpu-reference"
+        else _gpu_events_available(capture),
         "median_end_to_end_us": median_phase(capture, "end_to_end"),
         "median_pack_us": median_phase(capture, "pack"),
         "median_gemm_us": median_phase(capture, "rns_gemm"),
@@ -135,7 +139,8 @@ def _baseline_key(key: tuple[str, int, int, int, int, str]) -> tuple[str, int, i
 
 def _winner(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     best = best_row(rows)
-    if best is None: return None
+    if best is None:
+        return None
     return {
         "backend": best.get("backend"),
         "selected_kernel": best.get("selected_kernel"),
@@ -148,7 +153,11 @@ def _backend_row(rows: list[dict[str, Any]], backend: str) -> dict[str, Any] | N
 
 
 def _ratio(numerator: Any, denominator: Any) -> float | None:
-    if not isinstance(numerator, (int, float)) or not isinstance(denominator, (int, float)) or denominator <= 0:
+    if (
+        not isinstance(numerator, (int, float))
+        or not isinstance(denominator, (int, float))
+        or denominator <= 0
+    ):
         return None
     return float(numerator) / float(denominator)
 
@@ -166,7 +175,10 @@ def _blockers(rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]]) -
         blockers.append("missing_full_uniform_baseline")
     if any(row.get("release_ready") is not True for row in rows):
         blockers.append("not_release_reviewed")
-    if any(row.get("gpu_events_required") is True and row.get("gpu_events_available") is not True for row in rows):
+    if any(
+        row.get("gpu_events_required") is True and row.get("gpu_events_available") is not True
+        for row in rows
+    ):
         blockers.append("missing_required_gpu_events")
     return blockers
 
@@ -183,7 +195,9 @@ def _classification(
     cpu = _backend_row(rows, "cpu-reference")
     baseline_cpu = _backend_row(baseline_rows, "cpu-reference")
     blockers = _blockers(rows, baseline_rows)
-    backend_changed = bool(winner and baseline_winner and winner.get("backend") != baseline_winner.get("backend"))
+    backend_changed = bool(
+        winner and baseline_winner and winner.get("backend") != baseline_winner.get("backend")
+    )
     pack_ratio = _ratio(
         direct.get("median_pack_us") if direct else None,
         baseline_direct.get("median_pack_us") if baseline_direct else None,
@@ -225,21 +239,30 @@ def _classification(
 
 
 def build_report(inputs: list[Path]) -> dict[str, Any]:
-    loaded = [capture for capture in load_report_captures(inputs) if capture.get("semantics") in FINITE_SEMANTICS]
+    loaded = [
+        capture
+        for capture in load_report_captures(inputs)
+        if capture.get("semantics") in FINITE_SEMANTICS
+    ]
     raw_count = len(loaded)
     loaded = aggregate_captures(loaded)
     grouped: dict[tuple[str, int, int, int, int, str], list[dict[str, Any]]] = defaultdict(list)
     for capture in loaded:
         grouped[_group_key(capture)].append(_row(capture))
 
-    grouped = {(*key, *partition): members for key, rows in grouped.items()
-               for partition, members in partition_rows(rows)}
+    grouped = {
+        (*key, *partition): members
+        for key, rows in grouped.items()
+        for partition, members in partition_rows(rows)
+    }
     groups: list[dict[str, Any]] = []
     disposition_counts: dict[str, int] = defaultdict(int)
     distribution_counts: dict[str, int] = defaultdict(int)
     for key in sorted(grouped):
         semantics, modulus, m, n, k, distribution = key[:6]
-        rows = sorted(grouped[key], key=lambda row: (str(row.get("backend")), str(row.get("selected_kernel"))))
+        rows = sorted(
+            grouped[key], key=lambda row: (str(row.get("backend")), str(row.get("selected_kernel")))
+        )
         baseline_rows = grouped.get(_baseline_key(key), [])
         classification = _classification(rows, baseline_rows, distribution)
         disposition_counts[classification["disposition"]] += 1
@@ -272,7 +295,9 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
 
 def write_outputs(report: dict[str, Any], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "finite-distribution-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    (out_dir / "finite-distribution-report.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
     lines = [
         "# Finite Distribution Report",
         "",
@@ -302,7 +327,9 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> None:
                 disposition=group["disposition"],
             )
         )
-    (out_dir / "finite-distribution-report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (out_dir / "finite-distribution-report.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
 
 
 def _format_ratio(value: Any) -> str:

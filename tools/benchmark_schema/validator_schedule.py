@@ -32,6 +32,7 @@ from metadata_registry_constants import (
     VECTOR_ALU_SELECTED_KERNELS,
 )
 
+
 class ValidatorScheduleMixin:
     def _validate_phase_availability(self, metadata: dict[str, Any]) -> None:
         availability = metadata.get("phase_availability")
@@ -45,30 +46,42 @@ class ValidatorScheduleMixin:
             if scheduling.get("timed") is not True:
                 self._error("timing_metadata.phase_availability.scheduling.timed must be true")
             if scheduling.get("timing_key") != "scheduling":
-                self._error("timing_metadata.phase_availability.scheduling.timing_key must be scheduling")
+                self._error(
+                    "timing_metadata.phase_availability.scheduling.timing_key must be scheduling"
+                )
             expected_scope = (
                 "benchmark_static_wrap64_rocwmma_candidate_schedule"
                 if self._is_wrap64_rocwmma_candidate()
                 else "one_time_schedule_info_query"
             )
             if scheduling.get("scope") != expected_scope:
-                self._error(f"timing_metadata.phase_availability.scheduling.scope must be {expected_scope}")
+                self._error(
+                    f"timing_metadata.phase_availability.scheduling.scope must be {expected_scope}"
+                )
             if not isinstance(scheduling.get("reason"), str) or not scheduling.get("reason"):
-                self._error("timing_metadata.phase_availability.scheduling.reason must be a nonempty string")
+                self._error(
+                    "timing_metadata.phase_availability.scheduling.reason must be a nonempty string"
+                )
 
         global_bound_scan = availability.get(GLOBAL_BOUND_TIMING_PHASE)
         input_scan = self.data.get("bound_source") == "input_scan"
         global_input_scan = input_scan and self.data.get("bound_mode", "global") == "global"
         if global_input_scan and not isinstance(global_bound_scan, dict):
-            self._error("timing_metadata.phase_availability.global_bound_scan must be an object for input_scan captures")
+            self._error(
+                "timing_metadata.phase_availability.global_bound_scan must be an object for input_scan captures"
+            )
         elif global_bound_scan is not None:
             if not isinstance(global_bound_scan, dict):
-                self._error("timing_metadata.phase_availability.global_bound_scan must be an object")
+                self._error(
+                    "timing_metadata.phase_availability.global_bound_scan must be an object"
+                )
             else:
                 expected_timed = global_input_scan
                 expected_key = GLOBAL_BOUND_TIMING_PHASE if global_input_scan else None
                 expected_scope = (
-                    "input_row_column_abs_summary" if global_input_scan else "not_applicable_static_profile"
+                    "input_row_column_abs_summary"
+                    if global_input_scan
+                    else "not_applicable_static_profile"
                 )
                 if global_bound_scan.get("timed") is not expected_timed:
                     self._error(
@@ -85,20 +98,28 @@ class ValidatorScheduleMixin:
                         "timing_metadata.phase_availability.global_bound_scan.scope must be "
                         f"{expected_scope}"
                     )
-                if not isinstance(global_bound_scan.get("reason"), str) or not global_bound_scan.get("reason"):
-                    self._error("timing_metadata.phase_availability.global_bound_scan.reason must be a nonempty string")
+                if not isinstance(
+                    global_bound_scan.get("reason"), str
+                ) or not global_bound_scan.get("reason"):
+                    self._error(
+                        "timing_metadata.phase_availability.global_bound_scan.reason must be a nonempty string"
+                    )
 
         per_tile = self.data.get("bound_mode") == "per_tile"
         tile_bound_scan = availability.get(PER_TILE_TIMING_PHASE)
         if per_tile and not isinstance(tile_bound_scan, dict):
-            self._error("timing_metadata.phase_availability.tile_bound_scan must be an object for per-tile captures")
+            self._error(
+                "timing_metadata.phase_availability.tile_bound_scan must be an object for per-tile captures"
+            )
         elif tile_bound_scan is not None:
             if not isinstance(tile_bound_scan, dict):
                 self._error("timing_metadata.phase_availability.tile_bound_scan must be an object")
             else:
                 expected_timed = per_tile
                 expected_key = PER_TILE_TIMING_PHASE if per_tile else None
-                expected_scope = "exact_seeded_input_prepass" if per_tile else "not_applicable_global_bound"
+                expected_scope = (
+                    "exact_seeded_input_prepass" if per_tile else "not_applicable_global_bound"
+                )
                 if tile_bound_scan.get("timed") is not expected_timed:
                     self._error(
                         "timing_metadata.phase_availability.tile_bound_scan.timed must be "
@@ -114,20 +135,28 @@ class ValidatorScheduleMixin:
                         "timing_metadata.phase_availability.tile_bound_scan.scope must be "
                         f"{expected_scope}"
                     )
-                if not isinstance(tile_bound_scan.get("reason"), str) or not tile_bound_scan.get("reason"):
-                    self._error("timing_metadata.phase_availability.tile_bound_scan.reason must be a nonempty string")
+                if not isinstance(tile_bound_scan.get("reason"), str) or not tile_bound_scan.get(
+                    "reason"
+                ):
+                    self._error(
+                        "timing_metadata.phase_availability.tile_bound_scan.reason must be a nonempty string"
+                    )
 
         reuse_packed = self.data.get("reuse_packed_inputs") is True
         prepack = availability.get("prepack_setup")
         if reuse_packed and not isinstance(prepack, dict):
-            self._error("timing_metadata.phase_availability.prepack_setup must be an object for prepacked reuse")
+            self._error(
+                "timing_metadata.phase_availability.prepack_setup must be an object for prepacked reuse"
+            )
         elif prepack is not None:
             if not isinstance(prepack, dict):
                 self._error("timing_metadata.phase_availability.prepack_setup must be an object")
             else:
                 expected_timed = reuse_packed
                 expected_key = "prepack_setup_us" if reuse_packed else None
-                expected_scope = "one_time_before_warmups" if reuse_packed else "not_requested_per_repeat_repack"
+                expected_scope = (
+                    "one_time_before_warmups" if reuse_packed else "not_requested_per_repeat_repack"
+                )
                 if prepack.get("timed") is not expected_timed:
                     self._error(
                         f"timing_metadata.phase_availability.prepack_setup.timed must be {str(expected_timed).lower()}"
@@ -137,7 +166,10 @@ class ValidatorScheduleMixin:
                         f"timing_metadata.phase_availability.prepack_setup.timing_key must be {expected_key}"
                     )
                 expected_breakdown_key = "prepack_setup_breakdown_us" if reuse_packed else None
-                if "breakdown_key" in prepack and prepack.get("breakdown_key") != expected_breakdown_key:
+                if (
+                    "breakdown_key" in prepack
+                    and prepack.get("breakdown_key") != expected_breakdown_key
+                ):
                     self._error(
                         "timing_metadata.phase_availability.prepack_setup.breakdown_key must be "
                         f"{expected_breakdown_key}"
@@ -147,7 +179,9 @@ class ValidatorScheduleMixin:
                         f"timing_metadata.phase_availability.prepack_setup.scope must be {expected_scope}"
                     )
                 if not isinstance(prepack.get("reason"), str) or not prepack.get("reason"):
-                    self._error("timing_metadata.phase_availability.prepack_setup.reason must be a nonempty string")
+                    self._error(
+                        "timing_metadata.phase_availability.prepack_setup.reason must be a nonempty string"
+                    )
 
         reduction = availability.get("reduction")
         if not isinstance(reduction, dict):
@@ -170,13 +204,20 @@ class ValidatorScheduleMixin:
         else:
             expected_scope = "fused_into_rns_gemm"
         if reduction.get("scope") != expected_scope:
-            self._error(f"timing_metadata.phase_availability.reduction.scope must be {expected_scope}")
+            self._error(
+                f"timing_metadata.phase_availability.reduction.scope must be {expected_scope}"
+            )
         if not isinstance(reduction.get("reason"), str) or not reduction.get("reason"):
-            self._error("timing_metadata.phase_availability.reduction.reason must be a nonempty string")
+            self._error(
+                "timing_metadata.phase_availability.reduction.reason must be a nonempty string"
+            )
 
     def _timing_phases(self) -> list[str]:
         phases = list(TIMING_PHASES)
-        if self.data.get("bound_source") == "input_scan" and self.data.get("bound_mode", "global") == "global":
+        if (
+            self.data.get("bound_source") == "input_scan"
+            and self.data.get("bound_mode", "global") == "global"
+        ):
             phases.insert(0, GLOBAL_BOUND_TIMING_PHASE)
         if self.data.get("bound_mode") == "per_tile":
             phases.insert(phases.index("matrix_alloc"), PER_TILE_TIMING_PHASE)
@@ -231,7 +272,9 @@ class ValidatorScheduleMixin:
             self._error(f"schedule_metadata.source must be {expected_source}")
         schedule_bound_kind = schedule.get("bound_kind")
         if schedule_bound_kind is not None:
-            if not isinstance(schedule_bound_kind, str) or not text_choice(schedule_bound_kind, BOUND_KINDS):
+            if not isinstance(schedule_bound_kind, str) or not text_choice(
+                schedule_bound_kind, BOUND_KINDS
+            ):
                 self._error(f"schedule_metadata.bound_kind must be one of {sorted(BOUND_KINDS)}")
             elif schedule_bound_kind != self.data.get("bound_kind"):
                 self._error("schedule_metadata.bound_kind must match bound_kind")
@@ -279,7 +322,9 @@ class ValidatorScheduleMixin:
         tile_count = schedule.get("tile_count")
         if _is_int(tile_rows) and _is_int(tile_cols) and _is_int(tile_count):
             if tile_rows <= 0 or tile_cols <= 0 or tile_count != tile_rows * tile_cols:
-                self._error("schedule_metadata tile grid must have positive rows/cols and matching tile_count")
+                self._error(
+                    "schedule_metadata tile grid must have positive rows/cols and matching tile_count"
+                )
         min_required = schedule.get("min_required_prefix")
         max_required = schedule.get("max_required_prefix")
         min_selected = schedule.get("min_selected_prefix")
@@ -316,7 +361,9 @@ class ValidatorScheduleMixin:
                 self._error(f"schedule_metadata.{key} must be a nonnegative integer")
         if zero_count is not None:
             if not _is_int(zero_count) or zero_count < 0:
-                self._error("schedule_metadata.zero_output_tile_count must be a nonnegative integer")
+                self._error(
+                    "schedule_metadata.zero_output_tile_count must be a nonnegative integer"
+                )
             elif _is_int(tile_count) and zero_count > tile_count:
                 self._error("schedule_metadata.zero_output_tile_count must be <= tile_count")
         if zero_fraction is not None:
@@ -325,34 +372,60 @@ class ValidatorScheduleMixin:
             elif _is_int(zero_count) and _is_int(tile_count) and tile_count > 0:
                 expected = zero_count / tile_count
                 if abs(float(zero_fraction) - expected) > 0.000001:
-                    self._error("schedule_metadata.zero_output_tile_fraction must match zero_output_tile_count/tile_count")
+                    self._error(
+                        "schedule_metadata.zero_output_tile_fraction must match zero_output_tile_count/tile_count"
+                    )
         if zero_planes is not None:
             if not _is_int(zero_planes) or zero_planes < 0:
-                self._error("schedule_metadata.zero_output_selected_residue_planes must be a nonnegative integer")
+                self._error(
+                    "schedule_metadata.zero_output_selected_residue_planes must be a nonnegative integer"
+                )
         if zero_active is not None:
             if not isinstance(zero_active, bool):
                 self._error("schedule_metadata.zero_output_skip_active must be a boolean")
             elif _is_int(zero_count) and zero_active != (zero_count > 0):
-                self._error("schedule_metadata.zero_output_skip_active must match zero_output_tile_count > 0")
+                self._error(
+                    "schedule_metadata.zero_output_skip_active must match zero_output_tile_count > 0"
+                )
         if _is_int(zero_count):
             if zero_count > 0 and (not _is_int(flags) or (flags & TILE_SCHEDULE_ZERO_OUTPUT) == 0):
-                self._error("schedule_metadata zero_output_tile_count requires ZERO_OUTPUT schedule flag")
+                self._error(
+                    "schedule_metadata zero_output_tile_count requires ZERO_OUTPUT schedule flag"
+                )
             if zero_count == 0 and _is_int(flags) and (flags & TILE_SCHEDULE_ZERO_OUTPUT) != 0:
-                self._error("schedule_metadata ZERO_OUTPUT flag requires zero_output_tile_count > 0")
+                self._error(
+                    "schedule_metadata ZERO_OUTPUT flag requires zero_output_tile_count > 0"
+                )
         elif _is_int(flags) and (flags & TILE_SCHEDULE_ZERO_OUTPUT) != 0:
             self._error("schedule_metadata ZERO_OUTPUT flag requires zero_output_tile_count")
         if _is_int(zero_planes) and _is_int(zero_count) and zero_count == 0 and zero_planes != 0:
-            self._error("schedule_metadata.zero_output_selected_residue_planes must be zero when no zero tiles are skipped")
-        if _is_int(zero_a_rows) and _is_int(planner_zero_a_rows) and zero_a_rows != planner_zero_a_rows:
-            self._error("schedule_metadata planner_zero_a_row_count must match zero_a_row_proof_count")
-        if _is_int(zero_b_cols) and _is_int(planner_zero_b_cols) and zero_b_cols != planner_zero_b_cols:
-            self._error("schedule_metadata planner_zero_b_col_count must match zero_b_col_proof_count")
+            self._error(
+                "schedule_metadata.zero_output_selected_residue_planes must be zero when no zero tiles are skipped"
+            )
+        if (
+            _is_int(zero_a_rows)
+            and _is_int(planner_zero_a_rows)
+            and zero_a_rows != planner_zero_a_rows
+        ):
+            self._error(
+                "schedule_metadata planner_zero_a_row_count must match zero_a_row_proof_count"
+            )
+        if (
+            _is_int(zero_b_cols)
+            and _is_int(planner_zero_b_cols)
+            and zero_b_cols != planner_zero_b_cols
+        ):
+            self._error(
+                "schedule_metadata planner_zero_b_col_count must match zero_b_col_proof_count"
+            )
         if (
             _is_int(zero_row_col_products)
             and _is_int(planner_zero_row_col_products)
             and zero_row_col_products != planner_zero_row_col_products
         ):
-            self._error("schedule_metadata planner_zero_row_col_product_count must match zero_row_col_product_count")
+            self._error(
+                "schedule_metadata planner_zero_row_col_product_count must match zero_row_col_product_count"
+            )
         row_col_counts_valid = (
             _is_int(zero_a_rows)
             and _is_int(zero_b_cols)
@@ -371,14 +444,20 @@ class ValidatorScheduleMixin:
             if _is_int(m_value) and _is_int(n_value):
                 expected_products = zero_a_rows * n_value + (m_value - zero_a_rows) * zero_b_cols
                 if zero_row_col_products != expected_products:
-                    self._error("schedule_metadata.zero_row_col_product_count must match zero row/column product coverage")
+                    self._error(
+                        "schedule_metadata.zero_row_col_product_count must match zero row/column product coverage"
+                    )
                 if zero_row_col_products > m_value * n_value:
                     self._error("schedule_metadata.zero_row_col_product_count must be <= m*n")
             row_col_flag = _is_int(flags) and (flags & TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0
             if zero_row_col_products > 0 and not row_col_flag:
-                self._error("schedule_metadata zero_row_col_product_count requires ZERO_ROW_COL_PRODUCT schedule flag")
+                self._error(
+                    "schedule_metadata zero_row_col_product_count requires ZERO_ROW_COL_PRODUCT schedule flag"
+                )
             if zero_row_col_products == 0 and row_col_flag:
-                self._error("schedule_metadata ZERO_ROW_COL_PRODUCT flag requires zero_row_col_product_count > 0")
+                self._error(
+                    "schedule_metadata ZERO_ROW_COL_PRODUCT flag requires zero_row_col_product_count > 0"
+                )
             per_tile_bounded = (
                 text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"})
                 and self.data.get("bound_mode") == "per_tile"
@@ -392,7 +471,9 @@ class ValidatorScheduleMixin:
                 or planner_zero_row_col_products != 0
                 or row_col_flag
             ):
-                self._error("non-per-tile bounded captures must use zero row/column proof counts of 0")
+                self._error(
+                    "non-per-tile bounded captures must use zero row/column proof counts of 0"
+                )
 
     def _validate_bound_discovery_metadata(self) -> None:
         bound_source = self.data.get("bound_source")
@@ -425,7 +506,12 @@ class ValidatorScheduleMixin:
                 self._error(f"bound_discovery.{key} must be a nonnegative integer")
         if _is_int(selected_bound) and _is_int(top_bound) and selected_bound != top_bound:
             self._error("bound_discovery.selected_bound must match bound")
-        if _is_int(static_bound) and _is_int(selected_bound) and selected_bound > static_bound and static_bound != 0:
+        if (
+            _is_int(static_bound)
+            and _is_int(selected_bound)
+            and selected_bound > static_bound
+            and static_bound != 0
+        ):
             self._error("bound_discovery.selected_bound must not exceed static_bound")
 
         if source == "static_profile_contract":
@@ -443,7 +529,9 @@ class ValidatorScheduleMixin:
                 "zero_col_count",
             ]:
                 if discovery.get(key) is not None:
-                    self._error(f"static_profile_contract captures must use bound_discovery.{key}=null")
+                    self._error(
+                        f"static_profile_contract captures must use bound_discovery.{key}=null"
+                    )
             return
 
         if source == "input_exact_tile_bounds":
@@ -463,12 +551,16 @@ class ValidatorScheduleMixin:
                 "zero_col_count",
             ]:
                 if discovery.get(key) is not None:
-                    self._error(f"input_exact_tile_bounds captures must use bound_discovery.{key}=null")
+                    self._error(
+                        f"input_exact_tile_bounds captures must use bound_discovery.{key}=null"
+                    )
             tile_bounds = self.data.get("tile_bounds_u64")
             if not isinstance(tile_bounds, dict):
                 self._error("input_exact_tile_bounds captures must include tile_bounds_u64")
             elif tile_bounds.get("source") != "exact_seeded_input_prepass":
-                self._error("input_exact_tile_bounds captures must use tile_bounds_u64.source=exact_seeded_input_prepass")
+                self._error(
+                    "input_exact_tile_bounds captures must use tile_bounds_u64.source=exact_seeded_input_prepass"
+                )
             if _is_int(selected_bound) and selected_bound != 0:
                 self._error("input_exact_tile_bounds captures must use selected_bound=0")
             return
@@ -499,9 +591,13 @@ class ValidatorScheduleMixin:
             if _is_int(static_bound) and static_bound != 0:
                 expected = min(expected, static_bound)
             if discovered != expected:
-                self._error("bound_discovery.discovered_global_bound must equal the minimum safe candidate bound")
+                self._error(
+                    "bound_discovery.discovered_global_bound must equal the minimum safe candidate bound"
+                )
         if _is_int(discovered) and _is_int(selected_bound) and discovered != selected_bound:
-            self._error("input_scan bound_discovery.discovered_global_bound must match selected_bound")
+            self._error(
+                "input_scan bound_discovery.discovered_global_bound must match selected_bound"
+            )
         if _is_int(discovery.get("zero_row_count")) and _is_int(self.data.get("m")):
             if discovery.get("zero_row_count") > self.data.get("m"):
                 self._error("bound_discovery.zero_row_count must be <= m")
@@ -539,7 +635,11 @@ class ValidatorScheduleMixin:
         ]:
             if not _is_int(self.data.get(key)) or self.data.get(key) < 0:
                 self._error(f"{key} must be a nonnegative integer")
-        if not _is_number(skip_fraction) or float(skip_fraction) < 0.0 or float(skip_fraction) > 1.0:
+        if (
+            not _is_number(skip_fraction)
+            or float(skip_fraction) < 0.0
+            or float(skip_fraction) > 1.0
+        ):
             self._error("residue_plane_skip_fraction must be a number in [0, 1]")
         if not isinstance(policy, str) or not text_choice(policy, CONTRACT_PREFIX_POLICIES):
             self._error(f"contract_prefix_policy must be one of {sorted(CONTRACT_PREFIX_POLICIES)}")
@@ -547,10 +647,18 @@ class ValidatorScheduleMixin:
             self._error("requested_max_prefix must match prefix")
 
         if text_choice(semantics, NON_RNS_PREFIX_SEMANTICS):
-            if selected != 0 or requested != 0 or planes_requested != 0 or planes_selected != 0 or planes_skipped != 0:
+            if (
+                selected != 0
+                or requested != 0
+                or planes_requested != 0
+                or planes_selected != 0
+                or planes_skipped != 0
+            ):
                 self._error("non-RNS captures must report zero prefix policy plane counts")
             if policy != "semantic_specific_no_rns_prefix":
-                self._error("non-RNS captures must use contract_prefix_policy=semantic_specific_no_rns_prefix")
+                self._error(
+                    "non-RNS captures must use contract_prefix_policy=semantic_specific_no_rns_prefix"
+                )
             if _is_number(skip_fraction) and not _close(float(skip_fraction), 0.0):
                 self._error("non-RNS captures must use residue_plane_skip_fraction=0")
             return
@@ -570,31 +678,48 @@ class ValidatorScheduleMixin:
                     and schedule.get("min_selected_prefix") > selected
                 ):
                     self._error("schedule_metadata.min_selected_prefix must be <= selected_prefix")
-            expected_skipped = max(int(requested) - int(selected), 0) if _is_int(requested) and _is_int(selected) else None
+            expected_skipped = (
+                max(int(requested) - int(selected), 0)
+                if _is_int(requested) and _is_int(selected)
+                else None
+            )
             if expected_skipped is not None and planes_skipped != expected_skipped:
-                self._error("residue_planes_skipped must equal requested_max_prefix - selected_prefix")
+                self._error(
+                    "residue_planes_skipped must equal requested_max_prefix - selected_prefix"
+                )
             if _is_int(requested) and planes_requested != requested:
                 self._error("residue_planes_requested must match requested_max_prefix")
             if _is_int(selected) and planes_selected != selected:
                 self._error("residue_planes_selected must match selected_prefix")
             if _is_int(requested) and requested > 0 and expected_skipped is not None:
                 expected_fraction = float(expected_skipped) / float(requested)
-                if _is_number(skip_fraction) and not _close(float(skip_fraction), expected_fraction):
+                if _is_number(skip_fraction) and not _close(
+                    float(skip_fraction), expected_fraction
+                ):
                     self._error("residue_plane_skip_fraction must match skipped/requested")
             if policy == "semantic_specific_no_rns_prefix":
                 self._error("RNS captures must not use semantic_specific_no_rns_prefix")
             if policy == "per_tile_minimum" and bound_mode != "per_tile":
                 self._error("contract_prefix_policy=per_tile_minimum requires bound_mode=per_tile")
-            if text_choice(policy, {"minimum_proven", "fixed_requested_residue_chain"}) and bound_mode != "global":
+            if (
+                text_choice(policy, {"minimum_proven", "fixed_requested_residue_chain"})
+                and bound_mode != "global"
+            ):
                 self._error(f"contract_prefix_policy={policy} requires bound_mode=global")
-            if text_choice(policy, {"fixed_requested", "fixed_requested_residue_chain"}) and _is_int(selected) and _is_int(prefix):
+            if (
+                text_choice(policy, {"fixed_requested", "fixed_requested_residue_chain"})
+                and _is_int(selected)
+                and _is_int(prefix)
+            ):
                 if selected != prefix or planes_skipped != 0:
                     self._error(f"contract_prefix_policy={policy} requires selected_prefix=prefix")
             if policy == "minimum_proven" and isinstance(schedule, dict):
                 if schedule.get("adaptive_execution_applied") is True:
                     self._error("global minimum_proven captures must not apply adaptive execution")
                 if schedule.get("prefix_group_count") != 1:
-                    self._error("global minimum_proven captures must use one uniform selected prefix group")
+                    self._error(
+                        "global minimum_proven captures must use one uniform selected prefix group"
+                    )
             return
 
         self._error(f"prefix policy metadata is not supported for semantics {semantics}")
@@ -612,7 +737,11 @@ class ValidatorScheduleMixin:
         for key in ["source", "pattern", "order"]:
             if not isinstance(tile_bounds.get(key), str) or not tile_bounds.get(key):
                 self._error(f"tile_bounds_u64.{key} must be a nonempty string")
-        expected_pattern = "exact_output_tile_max_abs_v1" if semantics == "bounded_i64" else "exact_output_tile_max_unsigned_v1"
+        expected_pattern = (
+            "exact_output_tile_max_abs_v1"
+            if semantics == "bounded_i64"
+            else "exact_output_tile_max_unsigned_v1"
+        )
         if tile_bounds.get("source") != "exact_seeded_input_prepass":
             self._error("tile_bounds_u64.source must be exact_seeded_input_prepass")
         if tile_bounds.get("pattern") != expected_pattern:
@@ -656,14 +785,17 @@ class ValidatorScheduleMixin:
                     "schedule_metadata.adaptive_execution_applied=false"
                 )
         elif schedule.get("adaptive_execution_applied") is not True:
-            self._error("per-tile adaptive captures must set schedule_metadata.adaptive_execution_applied=true")
+            self._error(
+                "per-tile adaptive captures must set schedule_metadata.adaptive_execution_applied=true"
+            )
         selected_kernel = self.data.get("selected_kernel")
         if not isinstance(selected_kernel, str) or not selected_kernel:
             self._error("per-tile adaptive captures must report selected_kernel")
         else:
             selected_backend = self.data.get("backend_selected")
             zero_output_tiles = (
-                _is_int(schedule.get("zero_output_tile_count")) and schedule.get("zero_output_tile_count") > 0
+                _is_int(schedule.get("zero_output_tile_count"))
+                and schedule.get("zero_output_tile_count") > 0
             )
             zero_row_col_products = (
                 _is_int(schedule.get("zero_row_col_product_count"))
@@ -677,7 +809,9 @@ class ValidatorScheduleMixin:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1
             else:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3
-            finite_semantics = text_choice(self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"})
+            finite_semantics = text_choice(
+                self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"}
+            )
             amdgpu_expected_kernel = (
                 "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
                 if finite_semantics
@@ -724,58 +858,101 @@ class ValidatorScheduleMixin:
                 if family:
                     expected_kernel = ck_selected_kernel(family, tiled=True)
             if expected_kernel is not None and selected_kernel != expected_kernel:
-                self._error(f"per-tile adaptive {selected_backend} captures must use selected_kernel={expected_kernel}")
-            if selected_backend == "hip-vector-alu-int64" and not text_choice(selected_kernel, VECTOR_ALU_SELECTED_KERNELS):
-                self._error("per-tile adaptive hip-vector-alu-int64 captures must use a known vector-ALU selected_kernel")
+                self._error(
+                    f"per-tile adaptive {selected_backend} captures must use selected_kernel={expected_kernel}"
+                )
+            if selected_backend == "hip-vector-alu-int64" and not text_choice(
+                selected_kernel, VECTOR_ALU_SELECTED_KERNELS
+            ):
+                self._error(
+                    "per-tile adaptive hip-vector-alu-int64 captures must use a known vector-ALU selected_kernel"
+                )
         prefix_group_count = schedule.get("prefix_group_count")
         max_selected = schedule.get("max_selected_prefix")
         min_selected = schedule.get("min_selected_prefix")
         adaptive_prefix_expected = _is_int(prefix_group_count) and prefix_group_count > 1
-        if isinstance(schedule.get("adaptive_prefix_active"), bool) and schedule.get("adaptive_prefix_active") != adaptive_prefix_expected:
-            self._error("schedule_metadata.adaptive_prefix_active must match prefix_group_count > 1")
+        if (
+            isinstance(schedule.get("adaptive_prefix_active"), bool)
+            and schedule.get("adaptive_prefix_active") != adaptive_prefix_expected
+        ):
+            self._error(
+                "schedule_metadata.adaptive_prefix_active must match prefix_group_count > 1"
+            )
         adaptive_skip_expected = _is_int(max_selected) and _is_int(prefix) and max_selected < prefix
-        if isinstance(schedule.get("adaptive_skip_active"), bool) and schedule.get("adaptive_skip_active") != adaptive_skip_expected:
-            self._error("schedule_metadata.adaptive_skip_active must match max_selected_prefix < prefix")
+        if (
+            isinstance(schedule.get("adaptive_skip_active"), bool)
+            and schedule.get("adaptive_skip_active") != adaptive_skip_expected
+        ):
+            self._error(
+                "schedule_metadata.adaptive_skip_active must match max_selected_prefix < prefix"
+            )
         if _is_int(prefix_group_count) and prefix_group_count <= 0:
             self._error("per-tile adaptive captures must use at least one prefix group")
         if _is_int(min_selected) and min_selected <= 0:
-            self._error("schedule_metadata.min_selected_prefix must be positive for per-tile adaptive captures")
+            self._error(
+                "schedule_metadata.min_selected_prefix must be positive for per-tile adaptive captures"
+            )
         if _is_int(max_selected) and _is_int(prefix) and max_selected > prefix:
             self._error("schedule_metadata.max_selected_prefix must be <= prefix")
-        if schedule.get("adaptive_prefix_active") is not True and schedule.get("adaptive_skip_active") is not True:
+        if (
+            schedule.get("adaptive_prefix_active") is not True
+            and schedule.get("adaptive_skip_active") is not True
+        ):
             self._error("per-tile adaptive captures must apply prefix grouping or prefix skipping")
         metadata = self.data.get("timing_metadata")
         if isinstance(metadata, dict) and not is_censored_gpu_event_capture(self.data):
             if self.data.get("backend_selected") == "hip-direct":
                 if metadata.get("gpu_event_timing") is not True:
-                    self._error("direct-HIP per-tile adaptive captures must include HIP event timings")
-                expected_scope = "direct_hip_bounded_adaptive_default_stream_backend_operation_groups"
+                    self._error(
+                        "direct-HIP per-tile adaptive captures must include HIP event timings"
+                    )
+                expected_scope = (
+                    "direct_hip_bounded_adaptive_default_stream_backend_operation_groups"
+                )
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                    self._error(
+                        f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                    )
             elif self.data.get("backend_selected") == "ck":
                 if metadata.get("gpu_event_timing") is not True:
-                    self._error("CK per-tile adaptive captures must include HIP event operation-group timings")
+                    self._error(
+                        "CK per-tile adaptive captures must include HIP event operation-group timings"
+                    )
                 expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                    self._error(
+                        f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                    )
             elif self.data.get("backend_selected") == "rocwmma":
                 if metadata.get("gpu_event_timing") is not True:
-                    self._error("rocWMMA per-tile adaptive captures must include HIP event operation-group timings")
+                    self._error(
+                        "rocWMMA per-tile adaptive captures must include HIP event operation-group timings"
+                    )
                 expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                    self._error(
+                        f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                    )
             elif self.data.get("backend_selected") == "amdgpu-builtins":
                 if metadata.get("gpu_event_timing") is not True:
-                    self._error("AMDGPU builtin per-tile adaptive captures must include HIP event operation-group timings")
+                    self._error(
+                        "AMDGPU builtin per-tile adaptive captures must include HIP event operation-group timings"
+                    )
                 expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                    self._error(
+                        f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                    )
             elif self.data.get("backend_selected") == "hip-vector-alu-int64":
                 if metadata.get("gpu_event_timing") is not True:
-                    self._error("vector-ALU per-tile adaptive captures must include HIP event operation-group timings")
+                    self._error(
+                        "vector-ALU per-tile adaptive captures must include HIP event operation-group timings"
+                    )
                 expected_scope = "vector_alu_default_stream_native_int64_operation_groups"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                    self._error(
+                        f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                    )
         backend_metadata = self.data.get("backend_metadata")
         if isinstance(backend_metadata, dict):
             expected_epilogues = {
@@ -802,14 +979,20 @@ class ValidatorScheduleMixin:
                 ),
             }
             expected_workspace = expected_workspaces.get(
-                self.data.get("backend_selected"), "resident_device_buffers_with_active_prefix_tiled_schedule"
+                self.data.get("backend_selected"),
+                "resident_device_buffers_with_active_prefix_tiled_schedule",
             )
             if self.data.get("backend_selected") == "ck":
-                if not text_choice(backend_metadata.get("workspace_mode"), {
-                    "resident_device_buffers_with_ck_canonical_pack_workspace",
-                    "resident_device_buffers_with_ck_centered_pack_workspace",
-                }):
-                    self._error("per-tile adaptive CK captures must use a known CK pack workspace mode")
+                if not text_choice(
+                    backend_metadata.get("workspace_mode"),
+                    {
+                        "resident_device_buffers_with_ck_canonical_pack_workspace",
+                        "resident_device_buffers_with_ck_centered_pack_workspace",
+                    },
+                ):
+                    self._error(
+                        "per-tile adaptive CK captures must use a known CK pack workspace mode"
+                    )
             elif backend_metadata.get("workspace_mode") != expected_workspace:
                 self._error(
                     f"per-tile adaptive captures must use backend_metadata.workspace_mode={expected_workspace}"
@@ -828,4 +1011,3 @@ class ValidatorScheduleMixin:
                 self._error(
                     f"per-tile adaptive captures must use backend_metadata.isa_evidence={expected_isa}"
                 )
-

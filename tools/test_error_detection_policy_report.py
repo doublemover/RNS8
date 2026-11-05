@@ -9,7 +9,10 @@ from pathlib import Path
 
 import error_detection_policy_report
 from test_benchmark_sweep_support import finite_capture
-from test_review_reference_support import add_synthetic_full_reference, write_policy_review as write_review_report
+from test_review_reference_support import (
+    add_synthetic_full_reference,
+    write_policy_review as write_review_report,
+)
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -47,8 +50,6 @@ def error_detecting_capture() -> dict:
     return add_synthetic_full_reference(capture)
 
 
-
-
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -57,7 +58,9 @@ def main() -> int:
         write_review_report(tmp / "review_report.json", capture_path)
         report = error_detection_policy_report.build_report([tmp])
         assert report["schema"] == "rns8_error_detection_policy_report_v1"
-        assert report["rank39_gate_complete"] is True, json.dumps(report["blocker_counts"], indent=2)
+        assert report["rank39_gate_complete"] is True, json.dumps(
+            report["blocker_counts"], indent=2
+        )
         row = report["rows"][0]
         assert row["ready"] is True
         assert row["mode"] == "probabilistic_product_check"
@@ -71,7 +74,9 @@ def main() -> int:
         no_cpu_report = error_detection_policy_report.build_report([no_cpu])
         assert no_cpu_report["rank39_gate_complete"] is False
         assert "cpu_reference_baseline_missing" in no_cpu_report["rows"][0]["blockers"]
-        assert "cpu_reference_marked_missing_required_baseline" in no_cpu_report["rows"][0]["blockers"]
+        assert (
+            "cpu_reference_marked_missing_required_baseline" in no_cpu_report["rows"][0]["blockers"]
+        )
 
         cache_eligible = tmp / "cache-eligible"
         cache_eligible.mkdir()
@@ -92,7 +97,9 @@ def main() -> int:
         public_scope.mkdir()
         public_capture = error_detecting_capture()
         public_capture["scenario_metadata"]["promotion_eligibility"] = "release_review_candidate"
-        public_capture["scenario_metadata"]["metadata"]["promotion_scope"] = "release_review_candidate"
+        public_capture["scenario_metadata"]["metadata"]["promotion_scope"] = (
+            "release_review_candidate"
+        )
         public_capture_path = public_scope / "error-detecting.json"
         write_json(public_capture_path, public_capture)
         write_review_report(public_scope / "review_report.json", public_capture_path)

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <climits>
 #if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
-static_assert(CHAR_BIT==8 && sizeof(uint64_t)==8 && __BYTE_ORDER__==__ORDER_LITTLE_ENDIAN__,
+static_assert(CHAR_BIT == 8 && sizeof(uint64_t) == 8 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__,
               "canonical wrap64 GPU storage requires little-endian eight-byte uint64_t");
 #endif
 
@@ -20,10 +20,13 @@ constexpr int kWrap64LowProductPairCount =
     (kWrap64LowProductDiagonals * (kWrap64LowProductDiagonals + 1)) / 2;
 constexpr int kWrap64TileThreads = kWrap64TileM * kWrap64TileN;
 constexpr int kWrap64ColPairTileThreads = kWrap64TileM * (kWrap64TileN / 2);
-static_assert(kWrap64LowProductPairCount == 36, "low 64-bit wrap64 uses exactly 36 byte-product pairs");
-static_assert(sizeof(uint64_t) == kWrap64ByteLimbs, "wrap64 compact cell staging requires 64-bit cells");
+static_assert(kWrap64LowProductPairCount == 36,
+              "low 64-bit wrap64 uses exactly 36 byte-product pairs");
+static_assert(sizeof(uint64_t) == kWrap64ByteLimbs,
+              "wrap64 compact cell staging requires 64-bit cells");
 
-__device__ int64_t rns8_wrap64_compact_limb_index(int64_t row, int64_t col, int64_t cols, uint32_t limb) {
+__device__ int64_t rns8_wrap64_compact_limb_index(int64_t row, int64_t col, int64_t cols,
+                                                  uint32_t limb) {
   return ((row * cols + col) * kWrap64ByteLimbs) + static_cast<int64_t>(limb);
 }
 
@@ -39,7 +42,8 @@ __device__ int32_t rns8_wrap64_signed_i8_product_correction(uint8_t a, uint8_t b
 }
 
 __device__ uint32_t rns8_wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b) {
-  const int32_t signed_product = rns8_wrap64_signed_i8_lane_value(a) * rns8_wrap64_signed_i8_lane_value(b);
+  const int32_t signed_product =
+      rns8_wrap64_signed_i8_lane_value(a) * rns8_wrap64_signed_i8_lane_value(b);
   const int32_t corrected = signed_product + rns8_wrap64_signed_i8_product_correction(a, b);
   return static_cast<uint32_t>(corrected);
 }
@@ -89,10 +93,9 @@ __device__ uint64_t rns8_wrap64_low64_from_diagonals(const Accumulator* diagonal
 }
 
 template <typename Accumulator>
-__device__ void rns8_wrap64_accumulate_byte_gemm36_from_packed_cells(
-    uint64_t a_value,
-    uint64_t b_value,
-    Accumulator* diagonals) {
+__device__ void rns8_wrap64_accumulate_byte_gemm36_from_packed_cells(uint64_t a_value,
+                                                                     uint64_t b_value,
+                                                                     Accumulator* diagonals) {
   const uint8_t a0 = rns8_wrap64_packed_limb_byte(a_value, 0);
   const uint8_t a1 = rns8_wrap64_packed_limb_byte(a_value, 1);
   const uint8_t a2 = rns8_wrap64_packed_limb_byte(a_value, 2);
@@ -120,69 +123,52 @@ __device__ void rns8_wrap64_accumulate_byte_gemm36_from_packed_cells(
                   rns8_wrap64_unsigned_byte_product(a1, b2) +
                   rns8_wrap64_unsigned_byte_product(a2, b1) +
                   rns8_wrap64_unsigned_byte_product(a3, b0);
-  diagonals[4] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b4)) +
-                  rns8_wrap64_unsigned_byte_product(a1, b3) +
-                  rns8_wrap64_unsigned_byte_product(a2, b2) +
-                  rns8_wrap64_unsigned_byte_product(a3, b1) +
-                  rns8_wrap64_unsigned_byte_product(a4, b0);
-  diagonals[5] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b5)) +
-                  rns8_wrap64_unsigned_byte_product(a1, b4) +
-                  rns8_wrap64_unsigned_byte_product(a2, b3) +
-                  rns8_wrap64_unsigned_byte_product(a3, b2) +
-                  rns8_wrap64_unsigned_byte_product(a4, b1) +
-                  rns8_wrap64_unsigned_byte_product(a5, b0);
-  diagonals[6] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b6)) +
-                  rns8_wrap64_unsigned_byte_product(a1, b5) +
-                  rns8_wrap64_unsigned_byte_product(a2, b4) +
-                  rns8_wrap64_unsigned_byte_product(a3, b3) +
-                  rns8_wrap64_unsigned_byte_product(a4, b2) +
-                  rns8_wrap64_unsigned_byte_product(a5, b1) +
-                  rns8_wrap64_unsigned_byte_product(a6, b0);
-  diagonals[7] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b7)) +
-                  rns8_wrap64_unsigned_byte_product(a1, b6) +
-                  rns8_wrap64_unsigned_byte_product(a2, b5) +
-                  rns8_wrap64_unsigned_byte_product(a3, b4) +
-                  rns8_wrap64_unsigned_byte_product(a4, b3) +
-                  rns8_wrap64_unsigned_byte_product(a5, b2) +
-                  rns8_wrap64_unsigned_byte_product(a6, b1) +
-                  rns8_wrap64_unsigned_byte_product(a7, b0);
+  diagonals[4] +=
+      static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b4)) +
+      rns8_wrap64_unsigned_byte_product(a1, b3) + rns8_wrap64_unsigned_byte_product(a2, b2) +
+      rns8_wrap64_unsigned_byte_product(a3, b1) + rns8_wrap64_unsigned_byte_product(a4, b0);
+  diagonals[5] +=
+      static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b5)) +
+      rns8_wrap64_unsigned_byte_product(a1, b4) + rns8_wrap64_unsigned_byte_product(a2, b3) +
+      rns8_wrap64_unsigned_byte_product(a3, b2) + rns8_wrap64_unsigned_byte_product(a4, b1) +
+      rns8_wrap64_unsigned_byte_product(a5, b0);
+  diagonals[6] +=
+      static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b6)) +
+      rns8_wrap64_unsigned_byte_product(a1, b5) + rns8_wrap64_unsigned_byte_product(a2, b4) +
+      rns8_wrap64_unsigned_byte_product(a3, b3) + rns8_wrap64_unsigned_byte_product(a4, b2) +
+      rns8_wrap64_unsigned_byte_product(a5, b1) + rns8_wrap64_unsigned_byte_product(a6, b0);
+  diagonals[7] +=
+      static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b7)) +
+      rns8_wrap64_unsigned_byte_product(a1, b6) + rns8_wrap64_unsigned_byte_product(a2, b5) +
+      rns8_wrap64_unsigned_byte_product(a3, b4) + rns8_wrap64_unsigned_byte_product(a4, b3) +
+      rns8_wrap64_unsigned_byte_product(a5, b2) + rns8_wrap64_unsigned_byte_product(a6, b1) +
+      rns8_wrap64_unsigned_byte_product(a7, b0);
 }
 
-__global__ void rns8_wrap64_pack_u64_kernel(
-    const uint64_t* src,
-    uint8_t* byte_limbs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld) {
+__global__ void rns8_wrap64_pack_u64_kernel(const uint64_t* src, uint8_t* byte_limbs, int64_t rows,
+                                            int64_t cols, int64_t ld) {
   const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
   if (row >= rows || col >= cols) {
     return;
   }
-  rns8_store_u64_limbs_vectorized(
-      byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
+  rns8_store_u64_limbs_vectorized(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0),
+                                  src[row * ld + col]);
 }
 
-__global__ void rns8_wrap64_pack_u64_scalar_kernel(
-    const uint64_t* src,
-    uint8_t* byte_limbs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld) {
+__global__ void rns8_wrap64_pack_u64_scalar_kernel(const uint64_t* src, uint8_t* byte_limbs,
+                                                   int64_t rows, int64_t cols, int64_t ld) {
   const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
   if (row >= rows || col >= cols) {
     return;
   }
-  rns8_store_u64_limbs_scalar(
-      byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
+  rns8_store_u64_limbs_scalar(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0),
+                              src[row * ld + col]);
 }
 
-__global__ void rns8_wrap64_pack_u64_contiguous4_kernel(
-    const uint64_t* src,
-    uint8_t* byte_limbs,
-    int64_t rows,
-    int64_t cols) {
+__global__ void rns8_wrap64_pack_u64_contiguous4_kernel(const uint64_t* src, uint8_t* byte_limbs,
+                                                        int64_t rows, int64_t cols) {
   const int64_t base_cell =
       (static_cast<int64_t>(blockIdx.x) * blockDim.x + static_cast<int64_t>(threadIdx.x)) * 4;
   const int64_t total_cells = rows * cols;
@@ -196,13 +182,9 @@ __global__ void rns8_wrap64_pack_u64_contiguous4_kernel(
 }
 
 template <typename Accumulator>
-__device__ void rns8_wrap64_byte_gemm36_tiled_kernel_impl(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+__device__ void rns8_wrap64_byte_gemm36_tiled_kernel_impl(const uint8_t* a_limbs,
+                                                          const uint8_t* b_limbs, uint8_t* c_limbs,
+                                                          int64_t m, int64_t n, int64_t k) {
   // Stage compact cells once; all unsigned byte lanes are still extracted explicitly below.
   __shared__ uint64_t a_tile[kWrap64TileM * kWrap64TileK];
   __shared__ uint64_t b_tile[kWrap64TileK * kWrap64TileN];
@@ -211,10 +193,12 @@ __device__ void rns8_wrap64_byte_gemm36_tiled_kernel_impl(
   const int64_t tile_row = static_cast<int64_t>(blockIdx.y);
   const int64_t row = tile_row * kWrap64TileM + threadIdx.y;
   const int64_t col = tile_col * kWrap64TileN + threadIdx.x;
-  const int thread_index = static_cast<int>(threadIdx.y) * kWrap64TileN + static_cast<int>(threadIdx.x);
+  const int thread_index =
+      static_cast<int>(threadIdx.y) * kWrap64TileN + static_cast<int>(threadIdx.x);
   const bool stores_output = row < m && col < n;
 
-  // Strict mod 2^64 needs only the low eight product diagonals; higher diagonals are multiples of 2^64.
+  // Strict mod 2^64 needs only the low eight product diagonals; higher diagonals are multiples of
+  // 2^64.
   Accumulator diagonals[kWrap64LowProductDiagonals] = {};
   for (int64_t k_base = 0; k_base < k; k_base += kWrap64TileK) {
     const int64_t k_extent = k - k_base < kWrap64TileK ? k - k_base : kWrap64TileK;
@@ -266,34 +250,24 @@ __device__ void rns8_wrap64_byte_gemm36_tiled_kernel_impl(
   rns8_store_u64_limbs_vectorized(dst, rns8_wrap64_low64_from_diagonals(diagonals));
 }
 
-__global__ void rns8_wrap64_byte_gemm36_tiled_u32acc_kernel(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+__global__ void rns8_wrap64_byte_gemm36_tiled_u32acc_kernel(const uint8_t* a_limbs,
+                                                            const uint8_t* b_limbs,
+                                                            uint8_t* c_limbs, int64_t m, int64_t n,
+                                                            int64_t k) {
   rns8_wrap64_byte_gemm36_tiled_kernel_impl<uint32_t>(a_limbs, b_limbs, c_limbs, m, n, k);
 }
 
-__global__ void rns8_wrap64_byte_gemm36_tiled_u64acc_kernel(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+__global__ void rns8_wrap64_byte_gemm36_tiled_u64acc_kernel(const uint8_t* a_limbs,
+                                                            const uint8_t* b_limbs,
+                                                            uint8_t* c_limbs, int64_t m, int64_t n,
+                                                            int64_t k) {
   rns8_wrap64_byte_gemm36_tiled_kernel_impl<uint64_t>(a_limbs, b_limbs, c_limbs, m, n, k);
 }
 
 template <typename Accumulator>
-__device__ void rns8_wrap64_byte_gemm36_colpair_kernel_impl(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+__device__ void
+rns8_wrap64_byte_gemm36_colpair_kernel_impl(const uint8_t* a_limbs, const uint8_t* b_limbs,
+                                            uint8_t* c_limbs, int64_t m, int64_t n, int64_t k) {
   __shared__ uint64_t a_tile[kWrap64TileM * kWrap64TileK];
   __shared__ uint64_t b_tile[kWrap64TileK * kWrap64TileN];
 
@@ -313,7 +287,8 @@ __device__ void rns8_wrap64_byte_gemm36_colpair_kernel_impl(
   for (int64_t k_base = 0; k_base < k; k_base += kWrap64TileK) {
     const int64_t k_extent = k - k_base < kWrap64TileK ? k - k_base : kWrap64TileK;
 
-    for (int cell = thread_index; cell < kWrap64TileM * kWrap64TileK; cell += kWrap64ColPairTileThreads) {
+    for (int cell = thread_index; cell < kWrap64TileM * kWrap64TileK;
+         cell += kWrap64ColPairTileThreads) {
       const int local_k = cell % kWrap64TileK;
       const int local_row = cell / kWrap64TileK;
       const int64_t global_row = tile_row * kWrap64TileM + local_row;
@@ -326,7 +301,8 @@ __device__ void rns8_wrap64_byte_gemm36_colpair_kernel_impl(
       a_tile[cell] = value;
     }
 
-    for (int cell = thread_index; cell < kWrap64TileK * kWrap64TileN; cell += kWrap64ColPairTileThreads) {
+    for (int cell = thread_index; cell < kWrap64TileK * kWrap64TileN;
+         cell += kWrap64ColPairTileThreads) {
       const int local_col = cell % kWrap64TileN;
       const int local_k = cell / kWrap64TileN;
       const int64_t global_col = tile_col * kWrap64TileN + local_col;
@@ -368,35 +344,26 @@ __device__ void rns8_wrap64_byte_gemm36_colpair_kernel_impl(
   }
 }
 
-__global__ void rns8_wrap64_byte_gemm36_colpair_u32acc_kernel(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+__global__ void rns8_wrap64_byte_gemm36_colpair_u32acc_kernel(const uint8_t* a_limbs,
+                                                              const uint8_t* b_limbs,
+                                                              uint8_t* c_limbs, int64_t m,
+                                                              int64_t n, int64_t k) {
   rns8_wrap64_byte_gemm36_colpair_kernel_impl<uint32_t>(a_limbs, b_limbs, c_limbs, m, n, k);
 }
 
-__global__ void rns8_wrap64_export_u64_kernel(
-    const uint8_t* byte_limbs,
-    uint64_t* dst,
-    int64_t rows,
-    int64_t cols) {
+__global__ void rns8_wrap64_export_u64_kernel(const uint8_t* byte_limbs, uint64_t* dst,
+                                              int64_t rows, int64_t cols) {
   const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
   if (row >= rows || col >= cols) {
     return;
   }
-  dst[row * cols + col] =
-      rns8_load_u64_limbs_vectorized(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
+  dst[row * cols + col] = rns8_load_u64_limbs_vectorized(
+      byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
 }
 
-__global__ void rns8_wrap64_export_u64_scalar_kernel(
-    const uint8_t* byte_limbs,
-    uint64_t* dst,
-    int64_t rows,
-    int64_t cols) {
+__global__ void rns8_wrap64_export_u64_scalar_kernel(const uint8_t* byte_limbs, uint64_t* dst,
+                                                     int64_t rows, int64_t cols) {
   const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
   if (row >= rows || col >= cols) {
@@ -406,11 +373,8 @@ __global__ void rns8_wrap64_export_u64_scalar_kernel(
       rns8_load_u64_limbs_scalar(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
 }
 
-__global__ void rns8_wrap64_export_u64_contiguous4_kernel(
-    const uint8_t* byte_limbs,
-    uint64_t* dst,
-    int64_t rows,
-    int64_t cols) {
+__global__ void rns8_wrap64_export_u64_contiguous4_kernel(const uint8_t* byte_limbs, uint64_t* dst,
+                                                          int64_t rows, int64_t cols) {
   const int64_t base_cell =
       (static_cast<int64_t>(blockIdx.x) * blockDim.x + static_cast<int64_t>(threadIdx.x)) * 4;
   const int64_t total_cells = rows * cols;
@@ -423,204 +387,102 @@ __global__ void rns8_wrap64_export_u64_contiguous4_kernel(
   }
 }
 
-}  // namespace
+} // namespace
 
-extern "C" int rns8_wrap64_hip_pack_u64_device_on_stream(
-    const uint64_t* src,
-    uint8_t* byte_limbs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    void* stream_ptr) {
+extern "C" int rns8_wrap64_hip_pack_u64_device_on_stream(const uint64_t* src, uint8_t* byte_limbs,
+                                                         int64_t rows, int64_t cols, int64_t ld,
+                                                         void* stream_ptr) {
   hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
   if (ld == cols && rns8::detail::wrap64_hip_uses_contiguous4_pack_export(rows, cols)) {
     constexpr int threads = 256;
     const int64_t packed_cells = (rows * cols + 3) / 4;
     const dim3 blocks(static_cast<unsigned int>((packed_cells + threads - 1) / threads));
-    hipLaunchKernelGGL(
-        rns8_wrap64_pack_u64_contiguous4_kernel,
-        blocks,
-        dim3(threads),
-        0,
-        stream,
-        src,
-        byte_limbs,
-        rows,
-        cols);
+    hipLaunchKernelGGL(rns8_wrap64_pack_u64_contiguous4_kernel, blocks, dim3(threads), 0, stream,
+                       src, byte_limbs, rows, cols);
     return static_cast<int>(hipGetLastError());
   }
 
   constexpr int threads_x = 16;
   constexpr int threads_y = 16;
   const dim3 threads(threads_x, threads_y);
-  const dim3 blocks(
-      static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
-      static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
+  const dim3 blocks(static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
+                    static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
   if (rns8::detail::wrap64_hip_uses_vectorized_pack_export(rows, cols)) {
-    hipLaunchKernelGGL(
-        rns8_wrap64_pack_u64_kernel,
-        blocks,
-        threads,
-        0,
-        stream,
-        src,
-        byte_limbs,
-        rows,
-        cols,
-        ld);
+    hipLaunchKernelGGL(rns8_wrap64_pack_u64_kernel, blocks, threads, 0, stream, src, byte_limbs,
+                       rows, cols, ld);
   } else {
-    hipLaunchKernelGGL(
-        rns8_wrap64_pack_u64_scalar_kernel,
-        blocks,
-        threads,
-        0,
-        stream,
-        src,
-        byte_limbs,
-        rows,
-        cols,
-        ld);
+    hipLaunchKernelGGL(rns8_wrap64_pack_u64_scalar_kernel, blocks, threads, 0, stream, src,
+                       byte_limbs, rows, cols, ld);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_wrap64_hip_pack_u64_device(
-    const uint64_t* src,
-    uint8_t* byte_limbs,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld) {
+extern "C" int rns8_wrap64_hip_pack_u64_device(const uint64_t* src, uint8_t* byte_limbs,
+                                               int64_t rows, int64_t cols, int64_t ld) {
   return rns8_wrap64_hip_pack_u64_device_on_stream(src, byte_limbs, rows, cols, ld, nullptr);
 }
 
-extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    void* stream_ptr) {
+extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(const uint8_t* a_limbs,
+                                                                const uint8_t* b_limbs,
+                                                                uint8_t* c_limbs, int64_t m,
+                                                                int64_t n, int64_t k,
+                                                                void* stream_ptr) {
   hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
   const int64_t tile_rows = (m + kWrap64TileM - 1) / kWrap64TileM;
   const int64_t tile_cols = (n + kWrap64TileN - 1) / kWrap64TileN;
   const dim3 blocks(static_cast<unsigned int>(tile_cols), static_cast<unsigned int>(tile_rows));
   if (rns8::detail::wrap64_hip_uses_colpair_kernel(m, n, k)) {
     const dim3 threads(kWrap64TileN / 2, kWrap64TileM);
-    hipLaunchKernelGGL(
-        rns8_wrap64_byte_gemm36_colpair_u32acc_kernel,
-        blocks,
-        threads,
-        0,
-        stream,
-        a_limbs,
-        b_limbs,
-        c_limbs,
-        m,
-        n,
-        k);
+    hipLaunchKernelGGL(rns8_wrap64_byte_gemm36_colpair_u32acc_kernel, blocks, threads, 0, stream,
+                       a_limbs, b_limbs, c_limbs, m, n, k);
   } else if (rns8::detail::wrap64_hip_uses_u32_accumulator(k)) {
     const dim3 threads(kWrap64TileN, kWrap64TileM);
-    hipLaunchKernelGGL(
-        rns8_wrap64_byte_gemm36_tiled_u32acc_kernel,
-        blocks,
-        threads,
-        0,
-        stream,
-        a_limbs,
-        b_limbs,
-        c_limbs,
-        m,
-        n,
-        k);
+    hipLaunchKernelGGL(rns8_wrap64_byte_gemm36_tiled_u32acc_kernel, blocks, threads, 0, stream,
+                       a_limbs, b_limbs, c_limbs, m, n, k);
   } else {
     const dim3 threads(kWrap64TileN, kWrap64TileM);
-    hipLaunchKernelGGL(
-        rns8_wrap64_byte_gemm36_tiled_u64acc_kernel,
-        blocks,
-        threads,
-        0,
-        stream,
-        a_limbs,
-        b_limbs,
-        c_limbs,
-        m,
-        n,
-        k);
+    hipLaunchKernelGGL(rns8_wrap64_byte_gemm36_tiled_u64acc_kernel, blocks, threads, 0, stream,
+                       a_limbs, b_limbs, c_limbs, m, n, k);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
-  return rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(a_limbs, b_limbs, c_limbs, m, n, k, nullptr);
+extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(const uint8_t* a_limbs,
+                                                      const uint8_t* b_limbs, uint8_t* c_limbs,
+                                                      int64_t m, int64_t n, int64_t k) {
+  return rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(a_limbs, b_limbs, c_limbs, m, n, k,
+                                                          nullptr);
 }
 
-extern "C" int rns8_wrap64_hip_export_u64_device_on_stream(
-    const uint8_t* byte_limbs,
-    uint64_t* dst,
-    int64_t rows,
-    int64_t cols,
-    void* stream_ptr) {
+extern "C" int rns8_wrap64_hip_export_u64_device_on_stream(const uint8_t* byte_limbs, uint64_t* dst,
+                                                           int64_t rows, int64_t cols,
+                                                           void* stream_ptr) {
   hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
   if (rns8::detail::wrap64_hip_uses_contiguous4_pack_export(rows, cols)) {
     constexpr int threads = 256;
     const int64_t packed_cells = (rows * cols + 3) / 4;
     const dim3 blocks(static_cast<unsigned int>((packed_cells + threads - 1) / threads));
-    hipLaunchKernelGGL(
-        rns8_wrap64_export_u64_contiguous4_kernel,
-        blocks,
-        dim3(threads),
-        0,
-        stream,
-        byte_limbs,
-        dst,
-        rows,
-        cols);
+    hipLaunchKernelGGL(rns8_wrap64_export_u64_contiguous4_kernel, blocks, dim3(threads), 0, stream,
+                       byte_limbs, dst, rows, cols);
     return static_cast<int>(hipGetLastError());
   }
 
   constexpr int threads_x = 16;
   constexpr int threads_y = 16;
   const dim3 threads(threads_x, threads_y);
-  const dim3 blocks(
-      static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
-      static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
+  const dim3 blocks(static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
+                    static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
   if (rns8::detail::wrap64_hip_uses_vectorized_pack_export(rows, cols)) {
-    hipLaunchKernelGGL(
-        rns8_wrap64_export_u64_kernel,
-        blocks,
-        threads,
-        0,
-        stream,
-        byte_limbs,
-        dst,
-        rows,
-        cols);
+    hipLaunchKernelGGL(rns8_wrap64_export_u64_kernel, blocks, threads, 0, stream, byte_limbs, dst,
+                       rows, cols);
   } else {
-    hipLaunchKernelGGL(
-        rns8_wrap64_export_u64_scalar_kernel,
-        blocks,
-        threads,
-        0,
-        stream,
-        byte_limbs,
-        dst,
-        rows,
-        cols);
+    hipLaunchKernelGGL(rns8_wrap64_export_u64_scalar_kernel, blocks, threads, 0, stream, byte_limbs,
+                       dst, rows, cols);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_wrap64_hip_export_u64_device(
-    const uint8_t* byte_limbs,
-    uint64_t* dst,
-    int64_t rows,
-    int64_t cols) {
+extern "C" int rns8_wrap64_hip_export_u64_device(const uint8_t* byte_limbs, uint64_t* dst,
+                                                 int64_t rows, int64_t cols) {
   return rns8_wrap64_hip_export_u64_device_on_stream(byte_limbs, dst, rows, cols, nullptr);
 }

@@ -4,8 +4,8 @@
 namespace rns8::detail {
 // A magnitude envelope bounds every sequential or tree-reduction partial.
 // Check divisions before multiplication; rejection leaves the output untouched.
-inline bool native_partial_sum_bound(uint64_t a, uint64_t b, uint64_t k,
-                                     uint64_t limit, uint64_t &bound) {
+inline bool native_partial_sum_bound(uint64_t a, uint64_t b, uint64_t k, uint64_t limit,
+                                     uint64_t& bound) {
   if (!k)
     return false;
   if (!a || !b) {

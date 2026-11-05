@@ -26,7 +26,9 @@ class CacheWrapExactCases(unittest.TestCase):
         ck, direct, cpu, report = finite_review_cohort()
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "finite-autotune.json"
-            promoted = benchmark_sweep.write_promoted_cache_entries(report, [ck, direct, cpu], cache_path)
+            promoted = benchmark_sweep.write_promoted_cache_entries(
+                report, [ck, direct, cpu], cache_path
+            )
             benchmark_sweep.attach_cache_write_status(report, True, cache_path, promoted)
             assert promoted == 0
             assert not cache_path.exists()
@@ -43,7 +45,9 @@ class CacheWrapExactCases(unittest.TestCase):
 
         wrap64_direct = wrap64_capture("hip-direct", 200)
         wrap64_cpu = wrap64_capture("wrap64-byte-limb", 500)
-        wrap64_report = benchmark_sweep.review_captures([wrap64_direct, wrap64_cpu], review_mode="release")
+        wrap64_report = benchmark_sweep.review_captures(
+            [wrap64_direct, wrap64_cpu], review_mode="release"
+        )
         assert wrap64_report["promotable_autotune_entries"] == []
         wrap64_group = wrap64_report["groups"][0]
         assert wrap64_group["semantics"] == "wrap_u64_mod_2_64"
@@ -51,7 +55,8 @@ class CacheWrapExactCases(unittest.TestCase):
         assert wrap64_group["release_review_satisfied"] is True
         assert wrap64_group["fastest_promotable"] is None
         blockers_by_backend = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in wrap64_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in wrap64_group["candidates"]
         }
         assert "not_accelerator_backend" in blockers_by_backend["hip-direct"]
         assert "not_accelerator_backend" in blockers_by_backend["wrap64-byte-limb"]
@@ -66,16 +71,20 @@ class CacheWrapExactCases(unittest.TestCase):
         assert candidate_group["missing_required_baselines"] == []
         assert wrap64_candidate_report["promotable_autotune_entries"] == []
         candidate_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in candidate_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in candidate_group["candidates"]
         }
-        assert "internal_candidate_not_public_backend" in candidate_blockers[
-            benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND
-        ]
+        assert (
+            "internal_candidate_not_public_backend"
+            in candidate_blockers[benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND]
+        )
 
         exact_ck = exact_wide_capture("ck", 170)
         exact_direct = exact_wide_capture("hip-direct", 300)
         exact_cpu = exact_wide_capture("cpu-reference", 520)
-        exact_report = benchmark_sweep.review_captures([exact_ck, exact_direct, exact_cpu], review_mode="release")
+        exact_report = benchmark_sweep.review_captures(
+            [exact_ck, exact_direct, exact_cpu], review_mode="release"
+        )
         exact_group = exact_report["groups"][0]
         assert exact_group["semantics"] == "exact_wide_signed"
         assert exact_group["required_baselines"] == ["cpu-reference", "hip-direct"]
@@ -83,7 +92,10 @@ class CacheWrapExactCases(unittest.TestCase):
         assert exact_report["promotable_autotune_entries"] == []
 
         exact_blocked = benchmark_sweep.review_captures([exact_ck], review_mode="release")
-        assert exact_blocked["groups"][0]["missing_required_baselines"] == ["cpu-reference", "hip-direct"]
+        assert exact_blocked["groups"][0]["missing_required_baselines"] == [
+            "cpu-reference",
+            "hip-direct",
+        ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             bounded_ck = bounded_capture("ck", 180)
@@ -98,11 +110,15 @@ class CacheWrapExactCases(unittest.TestCase):
             assert bounded_report["promotable_autotune_entries"] == []
             cache_path = Path(temp_dir) / "autotune.json"
             promoted = benchmark_sweep.write_promoted_cache_entries(
-                bounded_report, [bounded_ck, bounded_direct, bounded_vector, bounded_cpu], cache_path
+                bounded_report,
+                [bounded_ck, bounded_direct, bounded_vector, bounded_cpu],
+                cache_path,
             )
             assert promoted == 0
             assert not cache_path.exists()
-            entry = benchmark_sweep.cache_entry_from_capture(bounded_ck, "synthetic_serialization_only")
+            entry = benchmark_sweep.cache_entry_from_capture(
+                bounded_ck, "synthetic_serialization_only"
+            )
             assert entry["epilogue"] == bounded_ck["backend_metadata"]["epilogue_mode"]
             assert entry["measured_medians_us"]["pack_a"] == 70.0
             assert entry["measured_medians_us"]["pack_b"] == 30.0

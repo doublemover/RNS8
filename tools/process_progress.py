@@ -41,9 +41,7 @@ def _artifact_bytes(roots: Sequence[Path], stop_after: int) -> int:
                     for entry in entries:
                         entries_seen += 1
                         if entries_seen > 100000:
-                            raise ValueError(
-                                "owned artifact tree exceeds its entry budget"
-                            )
+                            raise ValueError("owned artifact tree exceeds its entry budget")
                         pending.append(Path(entry.path))
             elif path.is_file():
                 total += info.st_size
@@ -77,9 +75,7 @@ def run_capture(
         or timeout_seconds <= 0
         or heartbeat_seconds <= 0
     ):
-        raise ValueError(
-            "timeouts and heartbeat intervals must be finite positive numbers"
-        )
+        raise ValueError("timeouts and heartbeat intervals must be finite positive numbers")
     if type(max_output_bytes) is not int or max_output_bytes < 1:
         raise ValueError("positive stdout/stderr capture budget required")
     if isinstance(artifact_roots, (str, bytes)):
@@ -205,9 +201,7 @@ def run_capture(
                     limit = "owned_artifact_bytes"
                     stop_process_tree()
                     break
-            if process.poll() is not None and not any(
-                reader.is_alive() for reader in readers
-            ):
+            if process.poll() is not None and not any(reader.is_alive() for reader in readers):
                 break
             if now - start >= timeout_seconds:
                 timed_out = True
@@ -246,9 +240,7 @@ def run_capture(
             if reader is not None and reader.ident is not None:
                 reader.join(timeout=2)
             if reader is not None and reader.is_alive():
-                capture_error = (
-                    "owned process output did not close during bounded cleanup"
-                )
+                capture_error = "owned process output did not close during bounded cleanup"
             else:
                 pipe.close()
     if exceeded.is_set():
@@ -273,11 +265,7 @@ def run_capture(
             outputs.append(decoded.replace("\r\n", "\n").replace("\r", "\n"))
         captured = stored
     elapsed = time.monotonic() - start
-    state = (
-        limit
-        or capture_error
-        or ("TIMEOUT" if timed_out else f"exit={process.returncode}")
-    )
+    state = limit or capture_error or ("TIMEOUT" if timed_out else f"exit={process.returncode}")
     print(f"[{label}] {state} elapsed={elapsed:.1f}s", file=sys.stderr, flush=True)
     return dict(
         command=command,

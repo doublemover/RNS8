@@ -44,7 +44,11 @@ def main() -> int:
                             "rccl_ready": False,
                             "rccl_tests_ready": False,
                             "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
-                            "accelerators": {"hipblaslt": "available", "ck": "available", "rocwmma": "available"},
+                            "accelerators": {
+                                "hipblaslt": "available",
+                                "ck": "available",
+                                "rocwmma": "available",
+                            },
                             "evidence": {
                                 "build": "pass",
                                 "ctest": "pass",
@@ -69,7 +73,11 @@ def main() -> int:
                             "driver_version": "70100000",
                             "global_mem_bytes": 68719476736,
                             "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
-                            "accelerators": {"hipblaslt": "missing", "ck": "available", "rocwmma": "available"},
+                            "accelerators": {
+                                "hipblaslt": "missing",
+                                "ck": "available",
+                                "rocwmma": "available",
+                            },
                             "evidence": {
                                 "build": "pass",
                                 "ctest": "pass",
@@ -100,7 +108,10 @@ def main() -> int:
                                 "rccl_ready": False,
                                 "rccl_tests_ready": False,
                                 "evidence": {"smoke": "pass"},
-                                "cache_eligibility": {"eligible": False, "blockers": ["smoke_only"]},
+                                "cache_eligibility": {
+                                    "eligible": False,
+                                    "blockers": ["smoke_only"],
+                                },
                             }
                             for rank in range(4)
                         ],
@@ -127,7 +138,10 @@ def main() -> int:
                                     "release_capture": "missing",
                                     "profiler": "missing" if rank == 7 else "pass",
                                 },
-                                "cache_eligibility": {"eligible": False, "blockers": ["release_capture_missing"]},
+                                "cache_eligibility": {
+                                    "eligible": False,
+                                    "blockers": ["release_capture_missing"],
+                                },
                             }
                             for rank in range(8)
                         ],
@@ -137,7 +151,10 @@ def main() -> int:
                             "rocm_version": "7.1",
                             "gpu_name": "Radeon RX 9070 XT",
                             "evidence": {"build": "pass", "ctest": "missing"},
-                            "cache_eligibility": {"eligible": False, "blockers": ["release_capture_missing"]},
+                            "cache_eligibility": {
+                                "eligible": False,
+                                "blockers": ["release_capture_missing"],
+                            },
                         },
                         {
                             "host_os": "linux",
@@ -244,7 +261,9 @@ def main() -> int:
             "RNS8_WORLD_SIZE": "4",
         }
         capture_path = tmp / "capture-shard.json"
-        capture_path.write_text(json.dumps(capture_with_shard, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        capture_path.write_text(
+            json.dumps(capture_with_shard, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         report = target_validation_report.build_report([capture_path], [])
         groups = {group["target_validation_group"]: group for group in report["groups"]}
         windows = groups["os=windows;target=gfx1100;toolchain=7.1"]

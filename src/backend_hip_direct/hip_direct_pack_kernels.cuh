@@ -1,10 +1,5 @@
-__global__ void rns8_pack_i64_kernel(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
+__global__ void rns8_pack_i64_kernel(const int64_t* src, int8_t* residues, int rows, int cols,
+                                     int ld, int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -16,15 +11,12 @@ __global__ void rns8_pack_i64_kernel(
   const int row = static_cast<int>(element / cols);
   const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
   const int modulus = rns8_default_moduli_device[modulus_index];
-  residues[idx] = rns8_center_i64_device(__builtin_nontemporal_load(&src[static_cast<int64_t>(row) * ld + col]), modulus);
+  residues[idx] = rns8_center_i64_device(
+      __builtin_nontemporal_load(&src[static_cast<int64_t>(row) * ld + col]), modulus);
 }
 
-__global__ void rns8_pack_i64_contiguous_kernel(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int prefix) {
+__global__ void rns8_pack_i64_contiguous_kernel(const int64_t* src, int8_t* residues, int rows,
+                                                int cols, int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -37,13 +29,8 @@ __global__ void rns8_pack_i64_contiguous_kernel(
   residues[idx] = rns8_center_i64_device(src[cell], modulus);
 }
 
-__global__ void rns8_pack_u64_kernel(
-    const uint64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
+__global__ void rns8_pack_u64_kernel(const uint64_t* src, int8_t* residues, int rows, int cols,
+                                     int ld, int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -55,15 +42,12 @@ __global__ void rns8_pack_u64_kernel(
   const int row = static_cast<int>(element / cols);
   const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
   const int modulus = rns8_default_moduli_device[modulus_index];
-  residues[idx] = rns8_center_u64_device(__builtin_nontemporal_load(&src[static_cast<int64_t>(row) * ld + col]), modulus);
+  residues[idx] = rns8_center_u64_device(
+      __builtin_nontemporal_load(&src[static_cast<int64_t>(row) * ld + col]), modulus);
 }
 
-__global__ void rns8_pack_u64_contiguous_kernel(
-    const uint64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int prefix) {
+__global__ void rns8_pack_u64_contiguous_kernel(const uint64_t* src, int8_t* residues, int rows,
+                                                int cols, int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -77,12 +61,8 @@ __global__ void rns8_pack_u64_contiguous_kernel(
 }
 
 template <int Prefix>
-__global__ void rns8_pack_i64_fixed_prefix_kernel(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ld) {
+__global__ void rns8_pack_i64_fixed_prefix_kernel(const int64_t* src, int8_t* residues, int rows,
+                                                  int cols, int ld) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (cell >= elements) {
@@ -100,11 +80,8 @@ __global__ void rns8_pack_i64_fixed_prefix_kernel(
 }
 
 template <int Prefix>
-__global__ void rns8_pack_i64_fixed_prefix_contiguous_kernel(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_i64_fixed_prefix_contiguous_kernel(const int64_t* src, int8_t* residues,
+                                                             int rows, int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (cell >= elements) {
@@ -120,11 +97,9 @@ __global__ void rns8_pack_i64_fixed_prefix_contiguous_kernel(
 }
 
 template <int Prefix>
-__global__ void rns8_pack_i64_fixed_prefix_contiguous_pair_kernel(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_i64_fixed_prefix_contiguous_pair_kernel(const int64_t* src,
+                                                                  int8_t* residues, int rows,
+                                                                  int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
   if (cell >= elements) {
@@ -139,17 +114,16 @@ __global__ void rns8_pack_i64_fixed_prefix_contiguous_pair_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has_second) {
-      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
   }
 }
 
 template <int Prefix>
-__global__ void rns8_pack_i64_fixed_prefix_contiguous_quad_kernel(
-    const int64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_i64_fixed_prefix_contiguous_quad_kernel(const int64_t* src,
+                                                                  int8_t* residues, int rows,
+                                                                  int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
   if (cell >= elements) {
@@ -168,24 +142,23 @@ __global__ void rns8_pack_i64_fixed_prefix_contiguous_quad_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has1) {
-      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
     if (has2) {
-      residues[output + 2] = rns8_center_i64_default_modulus_fixed_device(value2, modulus_index, modulus);
+      residues[output + 2] =
+          rns8_center_i64_default_modulus_fixed_device(value2, modulus_index, modulus);
     }
     if (has3) {
-      residues[output + 3] = rns8_center_i64_default_modulus_fixed_device(value3, modulus_index, modulus);
+      residues[output + 3] =
+          rns8_center_i64_default_modulus_fixed_device(value3, modulus_index, modulus);
     }
   }
 }
 
 template <int Prefix>
-__global__ void rns8_pack_u64_fixed_prefix_kernel(
-    const uint64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ld) {
+__global__ void rns8_pack_u64_fixed_prefix_kernel(const uint64_t* src, int8_t* residues, int rows,
+                                                  int cols, int ld) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (cell >= elements) {
@@ -203,11 +176,8 @@ __global__ void rns8_pack_u64_fixed_prefix_kernel(
 }
 
 template <int Prefix>
-__global__ void rns8_pack_u64_fixed_prefix_contiguous_kernel(
-    const uint64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_u64_fixed_prefix_contiguous_kernel(const uint64_t* src, int8_t* residues,
+                                                             int rows, int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (cell >= elements) {
@@ -223,11 +193,9 @@ __global__ void rns8_pack_u64_fixed_prefix_contiguous_kernel(
 }
 
 template <int Prefix>
-__global__ void rns8_pack_u64_fixed_prefix_contiguous_pair_kernel(
-    const uint64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_u64_fixed_prefix_contiguous_pair_kernel(const uint64_t* src,
+                                                                  int8_t* residues, int rows,
+                                                                  int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
   if (cell >= elements) {
@@ -242,17 +210,16 @@ __global__ void rns8_pack_u64_fixed_prefix_contiguous_pair_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has_second) {
-      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
   }
 }
 
 template <int Prefix>
-__global__ void rns8_pack_u64_fixed_prefix_contiguous_quad_kernel(
-    const uint64_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_u64_fixed_prefix_contiguous_quad_kernel(const uint64_t* src,
+                                                                  int8_t* residues, int rows,
+                                                                  int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
   if (cell >= elements) {
@@ -271,26 +238,25 @@ __global__ void rns8_pack_u64_fixed_prefix_contiguous_quad_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has1) {
-      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
     if (has2) {
-      residues[output + 2] = rns8_center_u64_default_modulus_fixed_device(value2, modulus_index, modulus);
+      residues[output + 2] =
+          rns8_center_u64_default_modulus_fixed_device(value2, modulus_index, modulus);
     }
     if (has3) {
-      residues[output + 3] = rns8_center_u64_default_modulus_fixed_device(value3, modulus_index, modulus);
+      residues[output + 3] =
+          rns8_center_u64_default_modulus_fixed_device(value3, modulus_index, modulus);
     }
   }
 }
 
 template <int Prefix>
-__global__ void rns8_pack_i64_grouped_fixed_prefix_kernel(
-    const int64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld) {
+__global__ void rns8_pack_i64_grouped_fixed_prefix_kernel(const int64_t* src,
+                                                          int8_t* const* residue_ptrs,
+                                                          int task_count, int64_t src_task_stride,
+                                                          int rows, int cols, int ld) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -314,13 +280,10 @@ __global__ void rns8_pack_i64_grouped_fixed_prefix_kernel(
 }
 
 template <int Prefix>
-__global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_kernel(
-    const int64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+__global__ void
+rns8_pack_i64_grouped_fixed_prefix_contiguous_kernel(const int64_t* src,
+                                                     int8_t* const* residue_ptrs, int task_count,
+                                                     int64_t src_task_stride, int rows, int cols) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -342,12 +305,8 @@ __global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_kernel(
 
 template <int Prefix>
 __global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_pair_kernel(
-    const int64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+    const int64_t* src, int8_t* const* residue_ptrs, int task_count, int64_t src_task_stride,
+    int rows, int cols) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -368,19 +327,16 @@ __global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_pair_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has_second) {
-      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
   }
 }
 
 template <int Prefix>
 __global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_quad_kernel(
-    const int64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+    const int64_t* src, int8_t* const* residue_ptrs, int task_count, int64_t src_task_stride,
+    int rows, int cols) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -405,26 +361,25 @@ __global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_quad_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has1) {
-      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
     if (has2) {
-      residues[output + 2] = rns8_center_i64_default_modulus_fixed_device(value2, modulus_index, modulus);
+      residues[output + 2] =
+          rns8_center_i64_default_modulus_fixed_device(value2, modulus_index, modulus);
     }
     if (has3) {
-      residues[output + 3] = rns8_center_i64_default_modulus_fixed_device(value3, modulus_index, modulus);
+      residues[output + 3] =
+          rns8_center_i64_default_modulus_fixed_device(value3, modulus_index, modulus);
     }
   }
 }
 
 template <int Prefix>
-__global__ void rns8_pack_u64_grouped_fixed_prefix_kernel(
-    const uint64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld) {
+__global__ void rns8_pack_u64_grouped_fixed_prefix_kernel(const uint64_t* src,
+                                                          int8_t* const* residue_ptrs,
+                                                          int task_count, int64_t src_task_stride,
+                                                          int rows, int cols, int ld) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -448,13 +403,10 @@ __global__ void rns8_pack_u64_grouped_fixed_prefix_kernel(
 }
 
 template <int Prefix>
-__global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_kernel(
-    const uint64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+__global__ void
+rns8_pack_u64_grouped_fixed_prefix_contiguous_kernel(const uint64_t* src,
+                                                     int8_t* const* residue_ptrs, int task_count,
+                                                     int64_t src_task_stride, int rows, int cols) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -476,12 +428,8 @@ __global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_kernel(
 
 template <int Prefix>
 __global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_pair_kernel(
-    const uint64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+    const uint64_t* src, int8_t* const* residue_ptrs, int task_count, int64_t src_task_stride,
+    int rows, int cols) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -502,19 +450,16 @@ __global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_pair_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has_second) {
-      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
   }
 }
 
 template <int Prefix>
 __global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_quad_kernel(
-    const uint64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+    const uint64_t* src, int8_t* const* residue_ptrs, int task_count, int64_t src_task_stride,
+    int rows, int cols) {
   const int task = blockIdx.y;
   if (task >= task_count) {
     return;
@@ -539,26 +484,23 @@ __global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_quad_kernel(
     const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
     residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has1) {
-      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+      residues[output + 1] =
+          rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
     }
     if (has2) {
-      residues[output + 2] = rns8_center_u64_default_modulus_fixed_device(value2, modulus_index, modulus);
+      residues[output + 2] =
+          rns8_center_u64_default_modulus_fixed_device(value2, modulus_index, modulus);
     }
     if (has3) {
-      residues[output + 3] = rns8_center_u64_default_modulus_fixed_device(value3, modulus_index, modulus);
+      residues[output + 3] =
+          rns8_center_u64_default_modulus_fixed_device(value3, modulus_index, modulus);
     }
   }
 }
 
-__global__ void rns8_pack_i64_grouped_kernel(
-    const int64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
+__global__ void rns8_pack_i64_grouped_kernel(const int64_t* src, int8_t* const* residue_ptrs,
+                                             int task_count, int64_t src_task_stride, int rows,
+                                             int cols, int ld, int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t per_task_total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -577,14 +519,10 @@ __global__ void rns8_pack_i64_grouped_kernel(
   residues[idx] = rns8_center_i64_device(value, modulus);
 }
 
-__global__ void rns8_pack_i64_grouped_contiguous_kernel(
-    const int64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int prefix) {
+__global__ void rns8_pack_i64_grouped_contiguous_kernel(const int64_t* src,
+                                                        int8_t* const* residue_ptrs, int task_count,
+                                                        int64_t src_task_stride, int rows, int cols,
+                                                        int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t per_task_total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -600,15 +538,9 @@ __global__ void rns8_pack_i64_grouped_contiguous_kernel(
   residues[idx] = rns8_center_i64_device(value, modulus);
 }
 
-__global__ void rns8_pack_u64_grouped_kernel(
-    const uint64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
+__global__ void rns8_pack_u64_grouped_kernel(const uint64_t* src, int8_t* const* residue_ptrs,
+                                             int task_count, int64_t src_task_stride, int rows,
+                                             int cols, int ld, int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t per_task_total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -627,14 +559,10 @@ __global__ void rns8_pack_u64_grouped_kernel(
   residues[idx] = rns8_center_u64_device(value, modulus);
 }
 
-__global__ void rns8_pack_u64_grouped_contiguous_kernel(
-    const uint64_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int prefix) {
+__global__ void rns8_pack_u64_grouped_contiguous_kernel(const uint64_t* src,
+                                                        int8_t* const* residue_ptrs, int task_count,
+                                                        int64_t src_task_stride, int rows, int cols,
+                                                        int prefix) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t per_task_total = elements * static_cast<int64_t>(prefix);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -650,13 +578,8 @@ __global__ void rns8_pack_u64_grouped_contiguous_kernel(
   residues[idx] = rns8_center_u64_device(value, modulus);
 }
 
-__global__ void rns8_pack_u8_modulus_kernel(
-    const uint8_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ld,
-    int modulus) {
+__global__ void rns8_pack_u8_modulus_kernel(const uint8_t* src, int8_t* residues, int rows,
+                                            int cols, int ld, int modulus) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (idx >= elements) {
@@ -667,12 +590,8 @@ __global__ void rns8_pack_u8_modulus_kernel(
   residues[idx] = rns8_center_u8_device(src[static_cast<int64_t>(row) * ld + col], modulus);
 }
 
-__global__ void rns8_pack_u8_modulus_contiguous_kernel(
-    const uint8_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int modulus) {
+__global__ void rns8_pack_u8_modulus_contiguous_kernel(const uint8_t* src, int8_t* residues,
+                                                       int rows, int cols, int modulus) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (idx >= elements) {
@@ -681,15 +600,9 @@ __global__ void rns8_pack_u8_modulus_contiguous_kernel(
   residues[idx] = rns8_center_u8_device(src[idx], modulus);
 }
 
-__global__ void rns8_pack_u8_grouped_modulus_kernel(
-    const uint8_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld,
-    int modulus) {
+__global__ void rns8_pack_u8_grouped_modulus_kernel(const uint8_t* src, int8_t* const* residue_ptrs,
+                                                    int task_count, int64_t src_task_stride,
+                                                    int rows, int cols, int ld, int modulus) {
   const int task = blockIdx.y;
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
@@ -703,14 +616,11 @@ __global__ void rns8_pack_u8_grouped_modulus_kernel(
   residue_ptrs[task][idx] = rns8_center_u8_device(value, modulus);
 }
 
-__global__ void rns8_pack_u8_grouped_modulus_contiguous_kernel(
-    const uint8_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int modulus) {
+__global__ void rns8_pack_u8_grouped_modulus_contiguous_kernel(const uint8_t* src,
+                                                               int8_t* const* residue_ptrs,
+                                                               int task_count,
+                                                               int64_t src_task_stride, int rows,
+                                                               int cols, int modulus) {
   const int task = blockIdx.y;
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
@@ -722,12 +632,8 @@ __global__ void rns8_pack_u8_grouped_modulus_contiguous_kernel(
 }
 
 template <int Modulus>
-__global__ void rns8_pack_u8_fixed_modulus_kernel(
-    const uint8_t* src,
-    int8_t* residues,
-    int rows,
-    int cols,
-    int ld) {
+__global__ void rns8_pack_u8_fixed_modulus_kernel(const uint8_t* src, int8_t* residues, int rows,
+                                                  int cols, int ld) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (idx >= elements) {
@@ -735,15 +641,13 @@ __global__ void rns8_pack_u8_fixed_modulus_kernel(
   }
   const int row = static_cast<int>(idx / cols);
   const int col = static_cast<int>(idx - static_cast<int64_t>(row) * cols);
-  residues[idx] = rns8_center_u8_fixed_modulus_device<Modulus>(src[static_cast<int64_t>(row) * ld + col]);
+  residues[idx] =
+      rns8_center_u8_fixed_modulus_device<Modulus>(src[static_cast<int64_t>(row) * ld + col]);
 }
 
 template <int Modulus>
-__global__ void rns8_pack_u8_fixed_modulus_contiguous_kernel(
-    const uint8_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_u8_fixed_modulus_contiguous_kernel(const uint8_t* src, int8_t* residues,
+                                                             int rows, int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (idx >= elements) {
@@ -753,11 +657,9 @@ __global__ void rns8_pack_u8_fixed_modulus_contiguous_kernel(
 }
 
 template <int Modulus>
-__global__ void rns8_pack_u8_fixed_modulus_contiguous_pair_kernel(
-    const uint8_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_u8_fixed_modulus_contiguous_pair_kernel(const uint8_t* src,
+                                                                  int8_t* residues, int rows,
+                                                                  int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t idx = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
   if (idx >= elements) {
@@ -771,11 +673,9 @@ __global__ void rns8_pack_u8_fixed_modulus_contiguous_pair_kernel(
 }
 
 template <int Modulus>
-__global__ void rns8_pack_u8_fixed_modulus_contiguous_quad_kernel(
-    const uint8_t* src,
-    int8_t* residues,
-    int rows,
-    int cols) {
+__global__ void rns8_pack_u8_fixed_modulus_contiguous_quad_kernel(const uint8_t* src,
+                                                                  int8_t* residues, int rows,
+                                                                  int cols) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t idx = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
   if (idx >= elements) {
@@ -797,14 +697,10 @@ __global__ void rns8_pack_u8_fixed_modulus_contiguous_quad_kernel(
 }
 
 template <int Modulus>
-__global__ void rns8_pack_u8_grouped_fixed_modulus_kernel(
-    const uint8_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols,
-    int ld) {
+__global__ void rns8_pack_u8_grouped_fixed_modulus_kernel(const uint8_t* src,
+                                                          int8_t* const* residue_ptrs,
+                                                          int task_count, int64_t src_task_stride,
+                                                          int rows, int cols, int ld) {
   const int task = blockIdx.y;
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
@@ -819,13 +715,10 @@ __global__ void rns8_pack_u8_grouped_fixed_modulus_kernel(
 }
 
 template <int Modulus>
-__global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_kernel(
-    const uint8_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+__global__ void
+rns8_pack_u8_grouped_fixed_modulus_contiguous_kernel(const uint8_t* src,
+                                                     int8_t* const* residue_ptrs, int task_count,
+                                                     int64_t src_task_stride, int rows, int cols) {
   const int task = blockIdx.y;
   const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
@@ -838,12 +731,8 @@ __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_kernel(
 
 template <int Modulus>
 __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_pair_kernel(
-    const uint8_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+    const uint8_t* src, int8_t* const* residue_ptrs, int task_count, int64_t src_task_stride,
+    int rows, int cols) {
   const int task = blockIdx.y;
   const int64_t idx = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
@@ -861,12 +750,8 @@ __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_pair_kernel(
 
 template <int Modulus>
 __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_quad_kernel(
-    const uint8_t* src,
-    int8_t* const* residue_ptrs,
-    int task_count,
-    int64_t src_task_stride,
-    int rows,
-    int cols) {
+    const uint8_t* src, int8_t* const* residue_ptrs, int task_count, int64_t src_task_stride,
+    int rows, int cols) {
   const int task = blockIdx.y;
   const int64_t idx = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
@@ -890,62 +775,59 @@ __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_quad_kernel(
   }
 }
 
-
 // VOPD-friendly dual-issue pack kernel: process two source elements per thread
 // using paired VALU instructions for better ILP on RDNA3
-__global__ void rns8_pack_native_i64_to_rns_8wide_vopd_kernel(
-    const int64_t* __restrict__ src,
-    int8_t* __restrict__ dst,
-    int rows,
-    int cols,
-    int ld,
-    int prefix,
-    int plane,
-    int modulus) {
+__global__ void rns8_pack_native_i64_to_rns_8wide_vopd_kernel(const int64_t* __restrict__ src,
+                                                              int8_t* __restrict__ dst, int rows,
+                                                              int cols, int ld, int prefix,
+                                                              int plane, int modulus) {
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   // 8 cells per thread for VOPD utilization
   const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 8;
-  if (cell >= elements) return;
+  if (cell >= elements)
+    return;
 
   int8_t* plane_base = dst + static_cast<int64_t>(plane) * elements;
 
-  #pragma unroll
+#pragma unroll
   for (int c = 0; c < 8; ++c) {
-    if (cell + c >= elements) break;
+    if (cell + c >= elements)
+      break;
     const int64_t row = (cell + c) / cols;
     const int64_t col = (cell + c) - row * cols;
     int64_t value = src[row * static_cast<int64_t>(ld) + col];
     int64_t reduced = value % static_cast<int64_t>(modulus);
-    if (reduced < 0) reduced += modulus;
+    if (reduced < 0)
+      reduced += modulus;
     plane_base[cell + c] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
   }
 }
 
 // Four scalar cells per thread. This is not a vector-load or ISA guarantee.
-__global__ void rns8_pack_i64_4wide_coalesced_kernel(
-    const int64_t* __restrict__ src,
-    int8_t* __restrict__ residues,
-    int rows,
-    int cols,
-    int prefix) {
+__global__ void rns8_pack_i64_4wide_coalesced_kernel(const int64_t* __restrict__ src,
+                                                     int8_t* __restrict__ residues, int rows,
+                                                     int cols, int prefix) {
   // Process 4 cells per thread. Uses cols as stride (same as standard kernel
   // when ld==cols, which is guaranteed by the dispatch guard).
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cells_per_thread = 4;
   const int64_t total = elements * static_cast<int64_t>(prefix);
-  const int64_t base_cell = static_cast<int64_t>(blockIdx.x) * blockDim.x * cells_per_thread
-                            + static_cast<int64_t>(threadIdx.x) * cells_per_thread;
-  if (base_cell >= total) return;
+  const int64_t base_cell = static_cast<int64_t>(blockIdx.x) * blockDim.x * cells_per_thread +
+                            static_cast<int64_t>(threadIdx.x) * cells_per_thread;
+  if (base_cell >= total)
+    return;
 
   // A four-cell group may straddle a plane boundary when elements % 4 != 0.
   // Resolve the plane for every output lane so no residue is skipped.
 #pragma unroll
   for (int c = 0; c < cells_per_thread; ++c) {
     const int64_t index = base_cell + c;
-    if (index >= total) break;
+    if (index >= total)
+      break;
     const int modulus_index = static_cast<int>(index / elements);
     const int64_t element = index - static_cast<int64_t>(modulus_index) * elements;
-    residues[index] = rns8_center_i64_device(src[element], rns8_default_moduli_device[modulus_index]);
+    residues[index] =
+        rns8_center_i64_device(src[element], rns8_default_moduli_device[modulus_index]);
   }
 }
 
@@ -953,17 +835,14 @@ __global__ void rns8_pack_i64_4wide_coalesced_kernel(
 // Single kernel processes all planes for small shapes (rows*cols <= 4096).
 // Eliminates per-plane launch overhead on tiny shapes.
 
-__global__ void rns8_persistent_small_pack_i64_kernel(
-    const int64_t* __restrict__ src,
-    int8_t* __restrict__ residues,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
+__global__ void rns8_persistent_small_pack_i64_kernel(const int64_t* __restrict__ src,
+                                                      int8_t* __restrict__ residues, int rows,
+                                                      int cols, int ld, int prefix) {
   const int cells_per_plane = rows * cols;
   const int total_cells = cells_per_plane * prefix;
   const int cell = blockIdx.x * blockDim.x + threadIdx.x;
-  if (cell >= total_cells) return;
+  if (cell >= total_cells)
+    return;
 
   const int plane = cell / cells_per_plane;
   const int element = cell - plane * cells_per_plane;
@@ -973,6 +852,7 @@ __global__ void rns8_persistent_small_pack_i64_kernel(
 
   int64_t value = src[static_cast<int64_t>(row) * ld + col];
   int64_t reduced = value % static_cast<int64_t>(modulus);
-  if (reduced < 0) reduced += modulus;
+  if (reduced < 0)
+    reduced += modulus;
   residues[cell] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
 }

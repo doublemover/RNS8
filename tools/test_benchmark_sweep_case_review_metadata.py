@@ -28,17 +28,23 @@ class ReviewMetadataCases(unittest.TestCase):
         from test_capture_identity_support import synthetic_isa_index
         from benchmark_sweep_lib.review import build_review_summary
 
-
         ck = finite_capture("ck", 190)
         direct = finite_capture("hip-direct", 300)
         cpu = finite_capture("cpu-reference", 500)
         for capture in (ck, direct, cpu):
-            capture["tile_shape_variant"] = {"name": "finite-ring-u8-default-128x128", "tile_m": 128, "tile_n": 128, "tile_k": 256}
+            capture["tile_shape_variant"] = {
+                "name": "finite-ring-u8-default-128x128",
+                "tile_m": 128,
+                "tile_n": 128,
+                "tile_k": 256,
+            }
         smoke_report = benchmark_sweep.review_captures([ck, direct, cpu])
         assert smoke_report["schema_version"] == 3
         assert smoke_report["review_mode"] == "smoke"
         assert smoke_report["promotable_autotune_entries"] == []
-        assert "not_release_review" in smoke_report["groups"][0]["candidates"][0]["promotion_blockers"]
+        assert (
+            "not_release_review" in smoke_report["groups"][0]["candidates"][0]["promotion_blockers"]
+        )
 
         report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
         benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
@@ -59,7 +65,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert report["summary"]["loss_phase_by_shape_family"] == {}
         assert report["summary"]["loss_phase_by_scenario_family"] == {}
         assert {item["work"] for item in report["summary"]["next_work"]} == {
-            "attach_pack_a_b_phase_split_timing_before_pack_kernel_work", "address_compute_bound",
+            "attach_pack_a_b_phase_split_timing_before_pack_kernel_work",
+            "address_compute_bound",
         }
         group = report["groups"][0]
         ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
@@ -70,7 +77,9 @@ class ReviewMetadataCases(unittest.TestCase):
         assert group["scenario_families"] == []
         assert group["scenario_names"] == []
         assert len(group["phase_ratio_summary"]) == 3
-        ck_phase_summary = next(item for item in group["phase_ratio_summary"] if item["backend"] == "ck")
+        ck_phase_summary = next(
+            item for item in group["phase_ratio_summary"] if item["backend"] == "ck"
+        )
         assert ck_phase_summary["slowest_phase_vs_direct_hip"] is None
         assert ck_phase_summary["phase_speedups_vs_direct_hip"]["end_to_end"] > 1.0
         assert group["missing_required_baselines"] == []
@@ -114,8 +123,12 @@ class ReviewMetadataCases(unittest.TestCase):
         amdgpu_metadata["accelerator_library"] = "AMDGPU builtins"
         amdgpu_metadata["accelerator_version"] = "compiled_target_specific"
         amdgpu_metadata["capability_status"] = "implemented_opt_in_amdgpu_builtin_backend"
-        amdgpu_metadata["epilogue_mode"] = "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export"
-        amdgpu_metadata["workspace_mode"] = "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
+        amdgpu_metadata["epilogue_mode"] = (
+            "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export"
+        )
+        amdgpu_metadata["workspace_mode"] = (
+            "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
+        )
         amdgpu_metadata["isa_evidence"] = "amdgpu_builtin_matrix_isa_gate_no_divide"
         amdgpu_metadata["matrix_instruction_family"] = "wmma"
         amdgpu_metadata["matrix_instruction_shape"] = "16x16x16"
@@ -136,22 +149,37 @@ class ReviewMetadataCases(unittest.TestCase):
         amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
             amdgpu_metadata["autotune_key"]
             .replace("backend=ck", "backend=amdgpu-builtins")
-            .replace("kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2", f"kernel={amdgpu_kernel}")
+            .replace(
+                "kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
+                f"kernel={amdgpu_kernel}",
+            )
             .replace(
                 "epilogue=ck_fused_centered_residue_then_canonical_u8_export",
                 "epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
             ),
             amdgpu,
         )
-        amdgpu_missing_isa_report = benchmark_sweep.review_captures([amdgpu, direct, cpu], review_mode="release")
+        amdgpu_missing_isa_report = benchmark_sweep.review_captures(
+            [amdgpu, direct, cpu], review_mode="release"
+        )
         amdgpu_missing_isa_group = amdgpu_missing_isa_report["groups"][0]
         amdgpu_missing_isa_candidate = next(
-            item for item in amdgpu_missing_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+            item
+            for item in amdgpu_missing_isa_group["candidates"]
+            if item["backend"] == "amdgpu-builtins"
         )
         assert amdgpu_missing_isa_report["promotable_autotune_entries"] == []
-        assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candidate["promotion_blockers"]
-        amdgpu_missing_isa_next_work = {row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]}
-        assert "attach_compiled_matrix_isa_reports_before_builtin_promotion" in amdgpu_missing_isa_next_work
+        assert (
+            "missing_amdgpu_builtin_matrix_isa_histogram"
+            in amdgpu_missing_isa_candidate["promotion_blockers"]
+        )
+        amdgpu_missing_isa_next_work = {
+            row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]
+        }
+        assert (
+            "attach_compiled_matrix_isa_reports_before_builtin_promotion"
+            in amdgpu_missing_isa_next_work
+        )
 
         amdgpu_wrong_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu4": 4})
         amdgpu_wrong_isa_report = benchmark_sweep.review_captures(
@@ -161,13 +189,29 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         amdgpu_wrong_isa_group = amdgpu_wrong_isa_report["groups"][0]
         amdgpu_wrong_isa_candidate = next(
-            item for item in amdgpu_wrong_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+            item
+            for item in amdgpu_wrong_isa_group["candidates"]
+            if item["backend"] == "amdgpu-builtins"
         )
-        assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_wrong_isa_candidate["promotion_blockers"]
-        assert "missing_selected_amdgpu_builtin_matrix_instruction" in amdgpu_wrong_isa_candidate["promotion_blockers"]
-        assert amdgpu_wrong_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
-        amdgpu_wrong_isa_next_work = {row["work"] for row in amdgpu_wrong_isa_report["summary"]["next_work"]}
-        assert "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction" in amdgpu_wrong_isa_next_work
+        assert (
+            "missing_amdgpu_builtin_matrix_isa_histogram"
+            not in amdgpu_wrong_isa_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_selected_amdgpu_builtin_matrix_instruction"
+            in amdgpu_wrong_isa_candidate["promotion_blockers"]
+        )
+        assert (
+            amdgpu_wrong_isa_candidate["expected_matrix_instruction_mnemonic"]
+            == "v_wmma_i32_16x16x16_iu8"
+        )
+        amdgpu_wrong_isa_next_work = {
+            row["work"] for row in amdgpu_wrong_isa_report["summary"]["next_work"]
+        }
+        assert (
+            "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction"
+            in amdgpu_wrong_isa_next_work
+        )
 
         amdgpu_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu8": 4})
         amdgpu_with_isa_report = benchmark_sweep.review_captures(
@@ -177,19 +221,39 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         amdgpu_with_isa_group = amdgpu_with_isa_report["groups"][0]
         amdgpu_with_isa_candidate = next(
-            item for item in amdgpu_with_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+            item
+            for item in amdgpu_with_isa_group["candidates"]
+            if item["backend"] == "amdgpu-builtins"
         )
-        assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_with_isa_candidate["promotion_blockers"]
-        assert "missing_selected_amdgpu_builtin_matrix_instruction" not in amdgpu_with_isa_candidate["promotion_blockers"]
-        assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32_16x16x16_iu8": 4}
-        assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
+        assert (
+            "missing_amdgpu_builtin_matrix_isa_histogram"
+            not in amdgpu_with_isa_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_selected_amdgpu_builtin_matrix_instruction"
+            not in amdgpu_with_isa_candidate["promotion_blockers"]
+        )
+        assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {
+            "v_wmma_i32_16x16x16_iu8": 4
+        }
+        assert (
+            amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"]
+            == "v_wmma_i32_16x16x16_iu8"
+        )
         assert amdgpu_with_isa_report["promotable_autotune_entries"] == []
-        assert "diagnostic_instrumented_host_time_not_production_evidence" in amdgpu_with_isa_candidate["promotion_blockers"]
+        assert (
+            "diagnostic_instrumented_host_time_not_production_evidence"
+            in amdgpu_with_isa_candidate["promotion_blockers"]
+        )
 
         amdgpu_wrong_semantic_kernel = copy.deepcopy(amdgpu)
-        amdgpu_wrong_semantic_kernel_name = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
+        amdgpu_wrong_semantic_kernel_name = (
+            "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
+        )
         amdgpu_wrong_semantic_kernel["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
-        amdgpu_wrong_semantic_kernel["backend_metadata"]["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
+        amdgpu_wrong_semantic_kernel["backend_metadata"]["selected_kernel"] = (
+            amdgpu_wrong_semantic_kernel_name
+        )
         amdgpu_wrong_semantic_report = benchmark_sweep.review_captures(
             [amdgpu_wrong_semantic_kernel, direct, cpu],
             review_mode="release",
@@ -197,14 +261,21 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         amdgpu_wrong_semantic_group = amdgpu_wrong_semantic_report["groups"][0]
         amdgpu_wrong_semantic_candidate = next(
-            item for item in amdgpu_wrong_semantic_group["candidates"] if item["backend"] == "amdgpu-builtins"
+            item
+            for item in amdgpu_wrong_semantic_group["candidates"]
+            if item["backend"] == "amdgpu-builtins"
         )
         assert (
             "amdgpu_builtin_selected_kernel_semantic_target_mismatch"
             in amdgpu_wrong_semantic_candidate["promotion_blockers"]
         )
-        amdgpu_wrong_semantic_next_work = {row["work"] for row in amdgpu_wrong_semantic_report["summary"]["next_work"]}
-        assert "align_amdgpu_builtin_selected_kernel_with_semantics_and_target" in amdgpu_wrong_semantic_next_work
+        amdgpu_wrong_semantic_next_work = {
+            row["work"] for row in amdgpu_wrong_semantic_report["summary"]["next_work"]
+        }
+        assert (
+            "align_amdgpu_builtin_selected_kernel_with_semantics_and_target"
+            in amdgpu_wrong_semantic_next_work
+        )
 
         skinny_cpu = bounded_capture("cpu-reference", 5000)
         skinny_direct = bounded_capture("hip-direct", 300)
@@ -223,24 +294,46 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         stale_skinny_group = stale_skinny_report["groups"][0]
-        stale_direct_candidate = next(item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct")
-        stale_vector_candidate = next(
-            item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-vector-alu-int64"
+        stale_direct_candidate = next(
+            item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct"
         )
-        assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_direct_candidate["promotion_blockers"]
-        assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_direct_candidate["promotion_blockers"]
+        stale_vector_candidate = next(
+            item
+            for item in stale_skinny_group["candidates"]
+            if item["backend"] == "hip-vector-alu-int64"
+        )
+        assert (
+            "missing_direct_hip_skinny_gemv_kernel_identity"
+            in stale_direct_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_direct_hip_skinny_gemv_execution_mode"
+            in stale_direct_candidate["promotion_blockers"]
+        )
         assert "missing_skinny_gemv_gpu_event_phase" in stale_direct_candidate["promotion_blockers"]
-        assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_vector_candidate["promotion_blockers"]
-        assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_vector_candidate["promotion_blockers"]
+        assert (
+            "missing_vector_alu_skinny_gemv_kernel_identity"
+            in stale_vector_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_vector_alu_skinny_gemv_execution_mode"
+            in stale_vector_candidate["promotion_blockers"]
+        )
         assert "missing_skinny_gemv_gpu_event_phase" in stale_vector_candidate["promotion_blockers"]
-        stale_skinny_next_work = {row["work"] for row in stale_skinny_report["summary"]["next_work"]}
+        stale_skinny_next_work = {
+            row["work"] for row in stale_skinny_report["summary"]["next_work"]
+        }
         assert "select_direct_hip_skinny_gemv_kernel_before_promotion" in stale_skinny_next_work
 
         valid_skinny_direct = copy.deepcopy(skinny_direct)
         valid_skinny_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_n1_i64_v1"
-        valid_skinny_direct["backend_metadata"]["selected_kernel"] = valid_skinny_direct["selected_kernel"]
+        valid_skinny_direct["backend_metadata"]["selected_kernel"] = valid_skinny_direct[
+            "selected_kernel"
+        ]
         valid_skinny_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_n1_resident_rns"
-        valid_skinny_direct["timing_metadata"]["benchmark_execution_mode"] = valid_skinny_direct["benchmark_execution_mode"]
+        valid_skinny_direct["timing_metadata"]["benchmark_execution_mode"] = valid_skinny_direct[
+            "benchmark_execution_mode"
+        ]
         valid_skinny_direct["timing_metadata"]["gpu_event_phase_order"] = [
             "direct_hip_prefix9_pack_a",
             "direct_hip_prefix9_pack_b",
@@ -252,10 +345,21 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         valid_skinny_group = valid_skinny_report["groups"][0]
-        valid_direct_candidate = next(item for item in valid_skinny_group["candidates"] if item["backend"] == "hip-direct")
-        assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_direct_candidate["promotion_blockers"]
-        assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_direct_candidate["promotion_blockers"]
-        assert "missing_skinny_gemv_gpu_event_phase" not in valid_direct_candidate["promotion_blockers"]
+        valid_direct_candidate = next(
+            item for item in valid_skinny_group["candidates"] if item["backend"] == "hip-direct"
+        )
+        assert (
+            "missing_direct_hip_skinny_gemv_kernel_identity"
+            not in valid_direct_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_direct_hip_skinny_gemv_execution_mode"
+            not in valid_direct_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_skinny_gemv_gpu_event_phase"
+            not in valid_direct_candidate["promotion_blockers"]
+        )
         assert valid_skinny_group["fastest_production_route"]["backend"] == "hip-direct"
 
         skinny_small_n_cpu = bounded_capture("cpu-reference", 5000)
@@ -275,23 +379,50 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         stale_small_n_candidate = next(
-            item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+            item
+            for item in stale_small_n_report["groups"][0]["candidates"]
+            if item["backend"] == "hip-direct"
         )
         stale_small_n_vector_candidate = next(
-            item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-vector-alu-int64"
+            item
+            for item in stale_small_n_report["groups"][0]["candidates"]
+            if item["backend"] == "hip-vector-alu-int64"
         )
-        assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_small_n_candidate["promotion_blockers"]
-        assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_small_n_candidate["promotion_blockers"]
-        assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_candidate["promotion_blockers"]
-        assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_small_n_vector_candidate["promotion_blockers"]
-        assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_small_n_vector_candidate["promotion_blockers"]
-        assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_vector_candidate["promotion_blockers"]
+        assert (
+            "missing_direct_hip_skinny_gemv_kernel_identity"
+            in stale_small_n_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_direct_hip_skinny_gemv_execution_mode"
+            in stale_small_n_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_skinny_gemv_gpu_event_phase" in stale_small_n_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_vector_alu_skinny_gemv_kernel_identity"
+            in stale_small_n_vector_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_vector_alu_skinny_gemv_execution_mode"
+            in stale_small_n_vector_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_skinny_gemv_gpu_event_phase"
+            in stale_small_n_vector_candidate["promotion_blockers"]
+        )
 
         valid_small_n_direct = copy.deepcopy(skinny_small_n_direct)
         valid_small_n_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
-        valid_small_n_direct["backend_metadata"]["selected_kernel"] = valid_small_n_direct["selected_kernel"]
-        valid_small_n_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_small_n_resident_rns"
-        valid_small_n_direct["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_direct["benchmark_execution_mode"]
+        valid_small_n_direct["backend_metadata"]["selected_kernel"] = valid_small_n_direct[
+            "selected_kernel"
+        ]
+        valid_small_n_direct["benchmark_execution_mode"] = (
+            "direct_hip_skinny_gemv_small_n_resident_rns"
+        )
+        valid_small_n_direct["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_direct[
+            "benchmark_execution_mode"
+        ]
         valid_small_n_direct["timing_metadata"]["gpu_event_phase_order"] = [
             "direct_hip_prefix9_pack_a",
             "direct_hip_prefix9_pack_b",
@@ -303,17 +434,34 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         valid_small_n_candidate = next(
-            item for item in valid_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+            item
+            for item in valid_small_n_report["groups"][0]["candidates"]
+            if item["backend"] == "hip-direct"
         )
-        assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_small_n_candidate["promotion_blockers"]
-        assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_small_n_candidate["promotion_blockers"]
-        assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_candidate["promotion_blockers"]
+        assert (
+            "missing_direct_hip_skinny_gemv_kernel_identity"
+            not in valid_small_n_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_direct_hip_skinny_gemv_execution_mode"
+            not in valid_small_n_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_skinny_gemv_gpu_event_phase"
+            not in valid_small_n_candidate["promotion_blockers"]
+        )
 
         valid_small_n_vector = copy.deepcopy(skinny_small_n_vector)
         valid_small_n_vector["selected_kernel"] = "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
-        valid_small_n_vector["backend_metadata"]["selected_kernel"] = valid_small_n_vector["selected_kernel"]
-        valid_small_n_vector["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
-        valid_small_n_vector["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_vector["benchmark_execution_mode"]
+        valid_small_n_vector["backend_metadata"]["selected_kernel"] = valid_small_n_vector[
+            "selected_kernel"
+        ]
+        valid_small_n_vector["benchmark_execution_mode"] = (
+            "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+        )
+        valid_small_n_vector["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_vector[
+            "benchmark_execution_mode"
+        ]
         valid_small_n_vector["timing_metadata"]["gpu_event_phase_order"] = [
             "vector_alu_input_h2d",
             "vector_alu_status_memset",
@@ -330,9 +478,18 @@ class ReviewMetadataCases(unittest.TestCase):
             for item in valid_small_n_vector_report["groups"][0]["candidates"]
             if item["backend"] == "hip-vector-alu-int64"
         )
-        assert "missing_vector_alu_skinny_gemv_kernel_identity" not in valid_small_n_vector_candidate["promotion_blockers"]
-        assert "missing_vector_alu_skinny_gemv_execution_mode" not in valid_small_n_vector_candidate["promotion_blockers"]
-        assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_vector_candidate["promotion_blockers"]
+        assert (
+            "missing_vector_alu_skinny_gemv_kernel_identity"
+            not in valid_small_n_vector_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_vector_alu_skinny_gemv_execution_mode"
+            not in valid_small_n_vector_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_skinny_gemv_gpu_event_phase"
+            not in valid_small_n_vector_candidate["promotion_blockers"]
+        )
 
         native_bridge = bounded_capture("hip-direct", 220)
         native_bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
@@ -342,11 +499,20 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         native_bridge_candidate = next(
-            item for item in native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+            item
+            for item in native_bridge_report["groups"][0]["candidates"]
+            if item["backend"] == "hip-direct"
         )
-        assert "missing_native_to_rns_bridge_forced_metadata" in native_bridge_candidate["promotion_blockers"]
-        assert "missing_native_to_rns_handoff_scope" in native_bridge_candidate["promotion_blockers"]
-        native_bridge_next_work = {row["work"] for row in native_bridge_report["summary"]["next_work"]}
+        assert (
+            "missing_native_to_rns_bridge_forced_metadata"
+            in native_bridge_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_native_to_rns_handoff_scope" in native_bridge_candidate["promotion_blockers"]
+        )
+        native_bridge_next_work = {
+            row["work"] for row in native_bridge_report["summary"]["next_work"]
+        }
         assert "attach_native_to_rns_bridge_forced_metadata" in native_bridge_next_work
 
         valid_native_bridge = copy.deepcopy(native_bridge)
@@ -374,13 +540,25 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         valid_native_bridge_candidate = next(
-            item for item in valid_native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+            item
+            for item in valid_native_bridge_report["groups"][0]["candidates"]
+            if item["backend"] == "hip-direct"
         )
-        assert "missing_native_to_rns_bridge_forced_metadata" not in valid_native_bridge_candidate["promotion_blockers"]
-        assert "missing_native_to_rns_handoff_scope" not in valid_native_bridge_candidate["promotion_blockers"]
-        valid_native_bridge_diagnostics = valid_native_bridge_candidate["native_to_rns_handoff_diagnostics"]
+        assert (
+            "missing_native_to_rns_bridge_forced_metadata"
+            not in valid_native_bridge_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_native_to_rns_handoff_scope"
+            not in valid_native_bridge_candidate["promotion_blockers"]
+        )
+        valid_native_bridge_diagnostics = valid_native_bridge_candidate[
+            "native_to_rns_handoff_diagnostics"
+        ]
         assert valid_native_bridge_diagnostics["execution_mode"] == "auto_native_to_rns_bridge"
-        assert valid_native_bridge_diagnostics["conversion_event_label"] == "native_i64_to_rns_kernel"
+        assert (
+            valid_native_bridge_diagnostics["conversion_event_label"] == "native_i64_to_rns_kernel"
+        )
         assert valid_native_bridge_diagnostics["conversion_median_us"] == 12.0
         assert valid_native_bridge_diagnostics["consumer_gemm_median_us"] == 48.0
         assert valid_native_bridge_diagnostics["conversion_share_of_consumer_gemm"] == 0.25
@@ -388,7 +566,9 @@ class ReviewMetadataCases(unittest.TestCase):
         sparse_amdgpu = copy.deepcopy(amdgpu)
         sparse_amdgpu["_path"] = "amdgpu-sparse-a.json"
         sparse_amdgpu["k"] = 64
-        sparse_amdgpu["input_distribution"] = "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group"
+        sparse_amdgpu["input_distribution"] = (
+            "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group"
+        )
         sparse_amdgpu["scenario_metadata"] = {
             "family": "sparse-a-4-to-2",
             "name": "finite-u8-sparse-a-review-fixture",
@@ -406,7 +586,9 @@ class ReviewMetadataCases(unittest.TestCase):
         sparse_amdgpu["backend_metadata"]["matrix_a_value_contract"] = (
             "unsigned_u8_public_values_centered_for_matrix_core"
         )
-        sparse_amdgpu["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+        sparse_amdgpu["backend_metadata"]["matrix_b_value_contract"] = (
+            "dense_b_public_u8_centered_for_matrix_core"
+        )
         sparse_amdgpu["backend_metadata"]["matrix_sparse_contract"] = "a_4_to_2_structured_k_v1"
         sparse_amdgpu["backend_metadata"]["matrix_sparse_dense_operand"] = "B"
         sparse_amdgpu["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = (
@@ -422,9 +604,13 @@ class ReviewMetadataCases(unittest.TestCase):
             "kernel=amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1;"
             "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
         )
-        sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(sparse_key, sparse_amdgpu)
+        sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+            sparse_key, sparse_amdgpu
+        )
         bad_sparse = copy.deepcopy(sparse_amdgpu)
-        bad_sparse["backend_metadata"]["autotune_key"] = bad_sparse["backend_metadata"]["autotune_key"].replace(
+        bad_sparse["backend_metadata"]["autotune_key"] = bad_sparse["backend_metadata"][
+            "autotune_key"
+        ].replace(
             "sparse_nonzeros_per_group=2;",
             "",
         )
@@ -435,7 +621,10 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         bad_sparse_candidate = bad_sparse_report["groups"][0]["candidates"][0]
         assert bad_sparse_candidate["backend"] == "amdgpu-builtins-sparse-a-runtime"
-        assert "missing_sparse_a_4_to_2_autotune_contract" in bad_sparse_candidate["promotion_blockers"]
+        assert (
+            "missing_sparse_a_4_to_2_autotune_contract"
+            in bad_sparse_candidate["promotion_blockers"]
+        )
         bad_sparse_next_work = {row["work"] for row in bad_sparse_report["summary"]["next_work"]}
         assert "attach_sparse_a_4_to_2_autotune_contract_metadata" in bad_sparse_next_work
         valid_sparse_report = benchmark_sweep.review_captures(
@@ -444,8 +633,14 @@ class ReviewMetadataCases(unittest.TestCase):
             isa_index=synthetic_isa_index(sparse_amdgpu, {"v_smfmac_i32_16x16x64_i8": 4}),
         )
         valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
-        assert "missing_sparse_a_4_to_2_autotune_contract" not in valid_sparse_candidate["promotion_blockers"]
-        assert valid_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_16x16x64_i8"
+        assert (
+            "missing_sparse_a_4_to_2_autotune_contract"
+            not in valid_sparse_candidate["promotion_blockers"]
+        )
+        assert (
+            valid_sparse_candidate["expected_matrix_instruction_mnemonic"]
+            == "v_smfmac_i32_16x16x64_i8"
+        )
 
         wide_sparse_amdgpu = copy.deepcopy(sparse_amdgpu)
         wide_sparse_amdgpu["m"] = 128
@@ -453,8 +648,12 @@ class ReviewMetadataCases(unittest.TestCase):
         wide_sparse_amdgpu["k"] = 128
         wide_sparse_amdgpu["device"]["gcn_arch"] = "gfx942"
         wide_sparse_amdgpu["configured_amdgpu_targets"] = "gfx942"
-        wide_sparse_amdgpu["selected_kernel"] = "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1"
-        wide_sparse_amdgpu["backend_metadata"]["selected_kernel"] = wide_sparse_amdgpu["selected_kernel"]
+        wide_sparse_amdgpu["selected_kernel"] = (
+            "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1"
+        )
+        wide_sparse_amdgpu["backend_metadata"]["selected_kernel"] = wide_sparse_amdgpu[
+            "selected_kernel"
+        ]
         wide_sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "32x32x32"
         wide_sparse_key = (
             "backend=amdgpu-builtins;target_id=gfx942;semantics=finite_ring_u8;m=128;n=128;k=128;"
@@ -475,20 +674,35 @@ class ReviewMetadataCases(unittest.TestCase):
             isa_index=synthetic_isa_index(wide_sparse_amdgpu, {"v_smfmac_i32_32x32x32_i8": 4}),
         )
         wide_sparse_candidate = wide_sparse_report["groups"][0]["candidates"][0]
-        assert wide_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_32x32x32_i8"
-        assert "amdgpu_builtin_selected_kernel_semantic_target_mismatch" not in wide_sparse_candidate["promotion_blockers"]
-        assert "missing_amdgpu_builtin_matrix_isa_histogram" not in wide_sparse_candidate["promotion_blockers"]
+        assert (
+            wide_sparse_candidate["expected_matrix_instruction_mnemonic"]
+            == "v_smfmac_i32_32x32x32_i8"
+        )
+        assert (
+            "amdgpu_builtin_selected_kernel_semantic_target_mismatch"
+            not in wide_sparse_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_amdgpu_builtin_matrix_isa_histogram"
+            not in wide_sparse_candidate["promotion_blockers"]
+        )
 
         amdgpu_tile = copy.deepcopy(amdgpu)
-        amdgpu_tile["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
+        amdgpu_tile["selected_kernel"] = (
+            "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
+        )
         amdgpu_tile["backend_metadata"]["selected_kernel"] = amdgpu_tile["selected_kernel"]
         amdgpu_tile["backend_metadata"]["matrix_instruction_family"] = "mfma"
         amdgpu_tile["backend_metadata"]["matrix_instruction_shape"] = "16x16x32"
         amdgpu_tile["backend_metadata"]["matrix_instruction_dtype"] = "i8"
         amdgpu_tile["backend_metadata"]["matrix_instruction_sparsity"] = "dense"
         amdgpu_tile["backend_metadata"]["matrix_operand_signedness"] = "signed_i8x_signed_i8"
-        amdgpu_tile["backend_metadata"]["matrix_a_value_contract"] = "dense_a_public_u8_centered_for_matrix_core"
-        amdgpu_tile["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+        amdgpu_tile["backend_metadata"]["matrix_a_value_contract"] = (
+            "dense_a_public_u8_centered_for_matrix_core"
+        )
+        amdgpu_tile["backend_metadata"]["matrix_b_value_contract"] = (
+            "dense_b_public_u8_centered_for_matrix_core"
+        )
         amdgpu_tile["backend_metadata"]["matrix_sparse_contract"] = None
         amdgpu_tile["backend_metadata"]["matrix_sparse_dense_operand"] = None
         amdgpu_tile["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = None
@@ -505,15 +719,27 @@ class ReviewMetadataCases(unittest.TestCase):
             isa_index=synthetic_isa_index(amdgpu_tile, {"v_mfma_i32_16x16x32_i8": 4}),
         )
         amdgpu_tile_candidate = next(
-            item for item in amdgpu_tile_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
+            item
+            for item in amdgpu_tile_report["groups"][0]["candidates"]
+            if item["backend"] == "amdgpu-builtins"
         )
-        assert "amdgpu_builtin_tile_variant_kernel_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
-        assert "amdgpu_builtin_tile_variant_shape_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
+        assert (
+            "amdgpu_builtin_tile_variant_kernel_mismatch"
+            in amdgpu_tile_candidate["promotion_blockers"]
+        )
+        assert (
+            "amdgpu_builtin_tile_variant_shape_mismatch"
+            in amdgpu_tile_candidate["promotion_blockers"]
+        )
 
         amdgpu_tile_wide_finite = copy.deepcopy(amdgpu_tile)
         amdgpu_tile_wide_finite["device"]["gcn_arch"] = "gfx942"
-        amdgpu_tile_wide_finite["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1"
-        amdgpu_tile_wide_finite["backend_metadata"]["selected_kernel"] = amdgpu_tile_wide_finite["selected_kernel"]
+        amdgpu_tile_wide_finite["selected_kernel"] = (
+            "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1"
+        )
+        amdgpu_tile_wide_finite["backend_metadata"]["selected_kernel"] = amdgpu_tile_wide_finite[
+            "selected_kernel"
+        ]
         amdgpu_tile_wide_finite["backend_metadata"]["matrix_instruction_shape"] = "32x32x16"
         amdgpu_tile_wide_finite["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
         amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"] = (
@@ -530,11 +756,22 @@ class ReviewMetadataCases(unittest.TestCase):
             isa_index=synthetic_isa_index(amdgpu_tile_wide_finite, {"v_mfma_i32_32x32x16_i8": 4}),
         )
         amdgpu_tile_wide_candidate = next(
-            item for item in amdgpu_tile_wide_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
+            item
+            for item in amdgpu_tile_wide_report["groups"][0]["candidates"]
+            if item["backend"] == "amdgpu-builtins"
         )
-        assert "amdgpu_builtin_tile_variant_kernel_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
-        assert "amdgpu_builtin_tile_variant_shape_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
-        assert amdgpu_tile_wide_candidate["expected_matrix_instruction_mnemonic"] == "v_mfma_i32_32x32x16_i8"
+        assert (
+            "amdgpu_builtin_tile_variant_kernel_mismatch"
+            not in amdgpu_tile_wide_candidate["promotion_blockers"]
+        )
+        assert (
+            "amdgpu_builtin_tile_variant_shape_mismatch"
+            not in amdgpu_tile_wide_candidate["promotion_blockers"]
+        )
+        assert (
+            amdgpu_tile_wide_candidate["expected_matrix_instruction_mnemonic"]
+            == "v_mfma_i32_32x32x16_i8"
+        )
 
         summary_fixture_group = {
             "semantics": "bounded_i64",
@@ -616,11 +853,21 @@ class ReviewMetadataCases(unittest.TestCase):
         assert summary_fixture["missing_required_baseline_group_count"] == 1
         assert summary_fixture["checksum_mismatch_group_count"] == 1
         assert summary_fixture["review_blocker_counts"]["not_accelerator_backend"] == 1
-        assert summary_fixture["review_blocker_counts"]["scenario_scope_not_autotune_promotable"] == 1
+        assert (
+            summary_fixture["review_blocker_counts"]["scenario_scope_not_autotune_promotable"] == 1
+        )
         assert summary_fixture["actionable_blocker_counts"]["not_faster_than_direct_hip"] == 1
         assert summary_fixture["actionable_blocker_counts"]["not_faster_than_vector_alu"] == 1
-        assert summary_fixture["actionable_blocker_counts"]["graph_not_faster_than_non_graph_setup_inclusive"] == 1
-        assert summary_fixture["actionable_blocker_counts"]["missing_graph_setup_inclusive_timing"] == 1
+        assert (
+            summary_fixture["actionable_blocker_counts"][
+                "graph_not_faster_than_non_graph_setup_inclusive"
+            ]
+            == 1
+        )
+        assert (
+            summary_fixture["actionable_blocker_counts"]["missing_graph_setup_inclusive_timing"]
+            == 1
+        )
         assert summary_fixture["loss_phase_counts"] == {"pack": 1}
         assert summary_fixture["loss_phase_by_backend"] == {"ck": {"pack": 1}}
         assert summary_fixture["loss_phase_by_semantics"] == {"bounded_i64": {"pack": 1}}
@@ -637,16 +884,28 @@ class ReviewMetadataCases(unittest.TestCase):
         assert "fix_checksum_mismatches_before_performance_promotion" in next_work_items
         assert "fix_missing_required_baselines_or_reclassify_invalid_scenarios" in next_work_items
         assert "reduce_prepack_setup_or_reuse_steady_state_cost" in next_work_items
-        assert "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence" in next_work_items
+        assert (
+            "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence"
+            in next_work_items
+        )
         assert "improve_graph_replay_break_even_or_keep_graph_benchmark_only" in next_work_items
         assert "fix_graph_setup_inclusive_timing_metadata" in next_work_items
-        assert "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner" in next_work_items
-        assert "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion" in next_work_items
+        assert (
+            "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner"
+            in next_work_items
+        )
+        assert (
+            "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion"
+            in next_work_items
+        )
         assert "optimize_a_side_pack_kernel_or_prepack_a_reuse" in next_work_items
         assert "enable_source_versioned_pack_elision_for_repeated_inputs" in next_work_items
         assert "optimize_pack_phase" in next_work_items
         assert "address_pack_bound" in next_work_items
-        assert "treat_direct_hip_as_current_production_winner_and_target_accelerator_loss_phases" in next_work_items
+        assert (
+            "treat_direct_hip_as_current_production_winner_and_target_accelerator_loss_phases"
+            in next_work_items
+        )
 
         checksum_bad_ck = copy.deepcopy(ck)
         checksum_bad_ck["checksum_u64"] = checksum_bad_ck["checksum_u64"] + 1
@@ -659,7 +918,9 @@ class ReviewMetadataCases(unittest.TestCase):
         assert checksum_mismatch_group["checksum_reference_backend"] == "cpu-reference"
         assert checksum_mismatch_group["checksum_consistent"] is False
         assert checksum_mismatch_group["checksum_mismatches"] == ["ck"]
-        checksum_bad_candidate = next(item for item in checksum_mismatch_group["candidates"] if item["backend"] == "ck")
+        checksum_bad_candidate = next(
+            item for item in checksum_mismatch_group["candidates"] if item["backend"] == "ck"
+        )
         assert checksum_bad_candidate["checksum_matches_reference"] is False
         assert "checksum_mismatch_vs_reference" in checksum_bad_candidate["promotion_blockers"]
 
@@ -705,9 +966,12 @@ class ReviewMetadataCases(unittest.TestCase):
         assert implementation_split_report["group_count"] == 1
         implementation_split_group = implementation_split_report["groups"][0]
         assert implementation_split_group["missing_required_baselines"] == []
-        assert {
-            candidate["backend"] for candidate in implementation_split_group["candidates"]
-        } == {"ck", "cpu-reference", "hip-direct", "hip-vector-alu-int64"}
+        assert {candidate["backend"] for candidate in implementation_split_group["candidates"]} == {
+            "ck",
+            "cpu-reference",
+            "hip-direct",
+            "hip-vector-alu-int64",
+        }
 
         missing_export_metadata_ck = copy.deepcopy(bounded_ck)
         missing_export_metadata_ck.pop("exact_output_contract", None)
@@ -722,9 +986,18 @@ class ReviewMetadataCases(unittest.TestCase):
             item for item in missing_export_metadata_group["candidates"] if item["backend"] == "ck"
         )
         assert missing_export_metadata_report["promotable_autotune_entries"] == []
-        assert "missing_final_output_contract_metadata" in missing_export_metadata_candidate["promotion_blockers"]
-        assert "missing_export_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
-        assert "missing_reconstruction_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+        assert (
+            "missing_final_output_contract_metadata"
+            in missing_export_metadata_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_export_variant_metadata"
+            in missing_export_metadata_candidate["promotion_blockers"]
+        )
+        assert (
+            "missing_reconstruction_variant_metadata"
+            in missing_export_metadata_candidate["promotion_blockers"]
+        )
 
         bounded_chain_ck = bounded_capture("ck", 200)
         bounded_chain_direct = bounded_capture("hip-direct", 450)
@@ -753,7 +1026,9 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         chain_group = chain_report["groups"][0]
-        chain_ck_candidate = next(item for item in chain_group["candidates"] if item["backend"] == "ck")
+        chain_ck_candidate = next(
+            item for item in chain_group["candidates"] if item["backend"] == "ck"
+        )
         assert chain_group["required_baselines"] == ["cpu-reference", "hip-direct"]
         assert chain_group["missing_required_baselines"] == []
         assert "missing_required_baselines" not in chain_ck_candidate["promotion_blockers"]
@@ -761,19 +1036,27 @@ class ReviewMetadataCases(unittest.TestCase):
 
         eventless_ck = finite_capture("ck", 190)
         remove_gpu_events(eventless_ck)
-        eventless_report = benchmark_sweep.review_captures([eventless_ck, direct, cpu], review_mode="release")
+        eventless_report = benchmark_sweep.review_captures(
+            [eventless_ck, direct, cpu], review_mode="release"
+        )
         eventless_group = eventless_report["groups"][0]
         assert eventless_report["promotable_autotune_entries"] == []
         assert eventless_group["fastest_promotable"] is None
-        eventless_candidate = next(item for item in eventless_group["candidates"] if item["backend"] == "ck")
+        eventless_candidate = next(
+            item for item in eventless_group["candidates"] if item["backend"] == "ck"
+        )
         assert "missing_required_gpu_events" in eventless_candidate["promotion_blockers"]
 
         cpu_faster = finite_capture("cpu-reference", 100)
-        cpu_faster_report = benchmark_sweep.review_captures([ck, direct, cpu_faster], review_mode="release")
+        cpu_faster_report = benchmark_sweep.review_captures(
+            [ck, direct, cpu_faster], review_mode="release"
+        )
         cpu_faster_group = cpu_faster_report["groups"][0]
         assert cpu_faster_report["promotable_autotune_entries"] == []
         assert cpu_faster_group["fastest_promotable"] is None
-        cpu_faster_candidate = next(item for item in cpu_faster_group["candidates"] if item["backend"] == "ck")
+        cpu_faster_candidate = next(
+            item for item in cpu_faster_group["candidates"] if item["backend"] == "ck"
+        )
         assert "not_faster_than_cpu_reference" in cpu_faster_candidate["promotion_blockers"]
 
         cpu_anchor = finite_capture("cpu-reference", 100)
@@ -784,9 +1067,13 @@ class ReviewMetadataCases(unittest.TestCase):
             "correctness_anchor": True,
             "timed_cpu_baseline": False,
         }
-        anchor_report = benchmark_sweep.review_captures([ck, direct, cpu_anchor], review_mode="release")
+        anchor_report = benchmark_sweep.review_captures(
+            [ck, direct, cpu_anchor], review_mode="release"
+        )
         anchor_group = anchor_report["groups"][0]
-        anchor_ck_candidate = next(item for item in anchor_group["candidates"] if item["backend"] == "ck")
+        anchor_ck_candidate = next(
+            item for item in anchor_group["candidates"] if item["backend"] == "ck"
+        )
         assert anchor_report["promotable_autotune_entries"] == []
         assert anchor_group["release_review_satisfied"] is True
         assert "cpu-reference" not in anchor_group["warmup_counts"]
@@ -808,7 +1095,9 @@ class ReviewMetadataCases(unittest.TestCase):
         }
         reuse_candidate_metadata = copy.deepcopy(reuse_baseline_metadata)
         reuse_candidate_metadata["name"] = "bounded-i64-512-production-reuse-b"
-        reuse_candidate_metadata["metadata"]["reuse_contract_role"] = "stable_b_production_candidate"
+        reuse_candidate_metadata["metadata"]["reuse_contract_role"] = (
+            "stable_b_production_candidate"
+        )
 
         reuse_cpu = bounded_capture("cpu-reference", 5000)
         reuse_direct = bounded_capture("hip-direct", 800)
@@ -827,7 +1116,9 @@ class ReviewMetadataCases(unittest.TestCase):
         reuse_rocwmma_candidate["avg_prepack_setup_us"] = 9000.0
         reuse_rocwmma_candidate["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
         reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_operands"] = ["B"]
-        reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+        reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_strategy"] = (
+            "rocwmma_reusable_b_cache"
+        )
         set_phase(reuse_rocwmma_candidate, 600)
         reuse_rocwmma_candidate["reuse_contract"] = {
             "setup_cost_us": 90.0,
@@ -836,24 +1127,44 @@ class ReviewMetadataCases(unittest.TestCase):
             "setup_inclusive_median_end_to_end_us": 610.0,
         }
         reuse_report = benchmark_sweep.review_captures(
-            [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, reuse_rocwmma_candidate],
+            [
+                reuse_cpu,
+                reuse_direct,
+                reuse_vector,
+                reuse_rocwmma_baseline,
+                reuse_rocwmma_candidate,
+            ],
             review_mode="release",
         )
         reuse_candidate_group = next(
             group
             for group in reuse_report["groups"]
-            if any(candidate["capture"] == "rocwmma-reuse-b-production.json" for candidate in group["candidates"])
+            if any(
+                candidate["capture"] == "rocwmma-reuse-b-production.json"
+                for candidate in group["candidates"]
+            )
         )
         reuse_candidate = reuse_candidate_group["candidates"][0]
         assert reuse_candidate["promotable"] is False
-        assert "diagnostic_instrumented_host_time_not_production_evidence" in reuse_candidate["promotion_blockers"]
+        assert (
+            "diagnostic_instrumented_host_time_not_production_evidence"
+            in reuse_candidate["promotion_blockers"]
+        )
         assert reuse_candidate["selection_end_to_end_us"] == 610.0
         assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] == 90.0
-        assert reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"] == 610.0
-        assert reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_end_to_end_us"] == 900.0
+        assert (
+            reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"]
+            == 610.0
+        )
+        assert (
+            reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_end_to_end_us"]
+            == 900.0
+        )
         assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
         assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
-        assert "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
+        assert (
+            "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
+        )
         assert reuse_report["promotable_autotune_entries"] == []
         assert reuse_candidate["selection_end_to_end_us"] == 610.0
 
@@ -871,11 +1182,17 @@ class ReviewMetadataCases(unittest.TestCase):
         slow_group = next(
             group
             for group in slow_reuse_report["groups"]
-            if any(candidate["capture"] == "rocwmma-reuse-b-slow.json" for candidate in group["candidates"])
+            if any(
+                candidate["capture"] == "rocwmma-reuse-b-slow.json"
+                for candidate in group["candidates"]
+            )
         )
         slow_candidate = slow_group["candidates"][0]
         assert slow_candidate["promotable"] is False
-        assert "reuse_not_faster_than_best_nonreuse_setup_inclusive" in slow_candidate["promotion_blockers"]
+        assert (
+            "reuse_not_faster_than_best_nonreuse_setup_inclusive"
+            in slow_candidate["promotion_blockers"]
+        )
 
         graph_baseline = mark_reused_pack(bounded_capture("hip-direct", 1000))
         graph_baseline["scenario_metadata"] = {
@@ -883,12 +1200,17 @@ class ReviewMetadataCases(unittest.TestCase):
             "name": "bounded-i64-full-pack-export-512-baseline",
             "promotion_eligibility": "release_review_candidate",
             "output_domain": "host_export",
-            "metadata": {"workflow_name": "hip_graph_replay", "graph_role": "same_contract_non_graph_baseline"},
+            "metadata": {
+                "workflow_name": "hip_graph_replay",
+                "graph_role": "same_contract_non_graph_baseline",
+            },
         }
         graph_candidate = copy.deepcopy(graph_baseline)
         graph_candidate["_path"] = "hip-direct-graph.json"
         graph_candidate["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
-        graph_candidate["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
+        graph_candidate["timing_metadata"]["benchmark_execution_mode"] = (
+            "hip_graph_replay_bounded_pack_gemm_export"
+        )
         graph_candidate["scenario_metadata"] = copy.deepcopy(graph_baseline["scenario_metadata"])
         graph_candidate["scenario_metadata"]["name"] = "bounded-i64-full-pack-export-512-graph"
         graph_candidate["scenario_metadata"]["metadata"]["graph_role"] = "graph_replay_candidate"
@@ -901,11 +1223,15 @@ class ReviewMetadataCases(unittest.TestCase):
             "instantiate_us": 8.0,
         }
         set_phase(graph_candidate, 900)
-        graph_report = benchmark_sweep.review_captures([graph_baseline, graph_candidate], review_mode="release")
+        graph_report = benchmark_sweep.review_captures(
+            [graph_baseline, graph_candidate], review_mode="release"
+        )
         graph_group = next(
             group
             for group in graph_report["groups"]
-            if any(candidate["capture"] == "hip-direct-graph.json" for candidate in group["candidates"])
+            if any(
+                candidate["capture"] == "hip-direct-graph.json" for candidate in group["candidates"]
+            )
         )
         graph_review = graph_group["candidates"][0]["hip_graph_replay_review"]
         assert graph_review["baseline_setup_inclusive_median_end_to_end_us"] == 1000.0 + 11.0 / 9.0
@@ -936,7 +1262,10 @@ class ReviewMetadataCases(unittest.TestCase):
         assert group["duplicate_backends"] == []
         assert group["finite_modulus"] == 255
         assert group["fastest_promotable"] is None
-        assert "diagnostic_instrumented_host_time_not_production_evidence" in group["candidates"][0]["promotion_blockers"]
+        assert (
+            "diagnostic_instrumented_host_time_not_production_evidence"
+            in group["candidates"][0]["promotion_blockers"]
+        )
         assert group["candidates"][0]["bottleneck"]["class"] in {
             "compute_bound",
             "export_bound",
@@ -968,7 +1297,10 @@ class ReviewMetadataCases(unittest.TestCase):
             item for item in non_promoting_group["candidates"] if item["backend"] == "ck"
         )
         assert non_promoting_ck_candidate["scenario_promotion_scope"] == "non_promoting_modulus_map"
-        assert "scenario_scope_not_autotune_promotable" in non_promoting_ck_candidate["promotion_blockers"]
+        assert (
+            "scenario_scope_not_autotune_promotable"
+            in non_promoting_ck_candidate["promotion_blockers"]
+        )
         assert "missing_required_baselines" not in non_promoting_ck_candidate["promotion_blockers"]
         assert "not_faster_than_direct_hip" not in non_promoting_ck_candidate["promotion_blockers"]
 
@@ -984,7 +1316,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_target_group["gpu_target_identity_complete"] is False
         assert missing_target_group["gpu_target_compatible"] is False
         missing_target_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_target_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_target_group["candidates"]
         }
         assert "missing_gpu_target_id" in missing_target_blockers["ck"]
 
@@ -1000,7 +1333,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_target_group["gpu_target_identity_complete"] is True
         assert mismatched_target_group["gpu_target_compatible"] is False
         mismatched_target_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_target_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_target_group["candidates"]
         }
         assert "gpu_target_mismatch" in mismatched_target_blockers["ck"]
 
@@ -1016,7 +1350,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_version_group["hip_toolchain_version_complete"] is False
         assert missing_version_group["hip_toolchain_version_compatible"] is False
         missing_version_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_version_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_version_group["candidates"]
         }
         assert "missing_hip_toolchain_version" in missing_version_blockers["ck"]
 
@@ -1032,7 +1367,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_version_group["hip_toolchain_version_complete"] is True
         assert mismatched_version_group["hip_toolchain_version_compatible"] is False
         mismatched_version_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_version_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_version_group["candidates"]
         }
         assert "hip_toolchain_version_mismatch" in mismatched_version_blockers["ck"]
 
@@ -1048,7 +1384,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_configured_group["configured_target_identity_complete"] is False
         assert missing_configured_group["configured_target_compatible"] is False
         missing_configured_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_configured_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_configured_group["candidates"]
         }
         assert "missing_configured_gpu_target" in missing_configured_blockers["ck"]
 
@@ -1064,7 +1401,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_configured_group["configured_target_identity_complete"] is True
         assert mismatched_configured_group["configured_target_compatible"] is False
         mismatched_configured_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_configured_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_configured_group["candidates"]
         }
         assert "configured_gpu_target_mismatch" in mismatched_configured_blockers["ck"]
 
@@ -1080,7 +1418,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_runtime_group["hip_runtime_version_complete"] is False
         assert missing_runtime_group["hip_runtime_version_compatible"] is False
         missing_runtime_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_runtime_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_runtime_group["candidates"]
         }
         assert "missing_hip_runtime_version" in missing_runtime_blockers["ck"]
 
@@ -1096,7 +1435,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_runtime_group["hip_runtime_version_complete"] is True
         assert mismatched_runtime_group["hip_runtime_version_compatible"] is False
         mismatched_runtime_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_runtime_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_runtime_group["candidates"]
         }
         assert "hip_runtime_version_mismatch" in mismatched_runtime_blockers["ck"]
 
@@ -1112,7 +1452,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_driver_group["hip_driver_version_complete"] is False
         assert missing_driver_group["hip_driver_version_compatible"] is False
         missing_driver_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_driver_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_driver_group["candidates"]
         }
         assert "missing_hip_driver_version" in missing_driver_blockers["ck"]
 
@@ -1128,7 +1469,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_driver_group["hip_driver_version_complete"] is True
         assert mismatched_driver_group["hip_driver_version_compatible"] is False
         mismatched_driver_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_driver_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_driver_group["candidates"]
         }
         assert "hip_driver_version_mismatch" in mismatched_driver_blockers["ck"]
 
@@ -1144,7 +1486,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_compiler_group["compiler_identity_complete"] is False
         assert missing_compiler_group["compiler_identity_compatible"] is False
         missing_compiler_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_compiler_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_compiler_group["candidates"]
         }
         assert "missing_compiler_identity" in missing_compiler_blockers["ck"]
 
@@ -1160,7 +1503,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_compiler_group["compiler_identity_complete"] is True
         assert mismatched_compiler_group["compiler_identity_compatible"] is False
         mismatched_compiler_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_compiler_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_compiler_group["candidates"]
         }
         assert "compiler_identity_mismatch" in mismatched_compiler_blockers["ck"]
 
@@ -1176,7 +1520,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_git_group["git_commit_identity_complete"] is False
         assert missing_git_group["git_commit_identity_compatible"] is False
         missing_git_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_git_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_git_group["candidates"]
         }
         assert "missing_git_commit" in missing_git_blockers["ck"]
 
@@ -1192,7 +1537,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_git_group["git_commit_identity_complete"] is True
         assert mismatched_git_group["git_commit_identity_compatible"] is False
         mismatched_git_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_git_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_git_group["candidates"]
         }
         assert "git_commit_mismatch" in mismatched_git_blockers["ck"]
 
@@ -1208,7 +1554,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_warmups_group["warmup_count_complete"] is False
         assert missing_warmups_group["warmup_count_compatible"] is False
         missing_warmups_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_warmups_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_warmups_group["candidates"]
         }
         assert "missing_warmup_count" in missing_warmups_blockers["ck"]
 
@@ -1224,7 +1571,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_warmups_group["warmup_count_complete"] is True
         assert mismatched_warmups_group["warmup_count_compatible"] is False
         mismatched_warmups_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_warmups_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_warmups_group["candidates"]
         }
         assert "warmup_count_mismatch" in mismatched_warmups_blockers["ck"]
 
@@ -1240,7 +1588,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert missing_repeats_group["repeat_count_complete"] is False
         assert missing_repeats_group["repeat_count_compatible"] is False
         missing_repeats_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_repeats_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in missing_repeats_group["candidates"]
         }
         assert "missing_repeat_count" in missing_repeats_blockers["ck"]
 
@@ -1256,7 +1605,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert mismatched_repeats_group["repeat_count_complete"] is True
         assert mismatched_repeats_group["repeat_count_compatible"] is False
         mismatched_repeats_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_repeats_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in mismatched_repeats_group["candidates"]
         }
         assert "repeat_count_mismatch" in mismatched_repeats_blockers["ck"]
 
@@ -1268,7 +1618,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert duplicate_ck_report["promotable_autotune_entries"] == []
         assert duplicate_ck_group["duplicate_backends"] == ["ck"]
         duplicate_ck_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in duplicate_ck_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in duplicate_ck_group["candidates"]
         }
         assert "duplicate_backend_capture" in duplicate_ck_blockers["ck"]
 
@@ -1285,7 +1636,8 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         assert host_batch_group["duplicate_backends"] == []
         host_batch_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in host_batch_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in host_batch_group["candidates"]
         }
         assert "host_api_batch_not_autotune_promotable" in host_batch_blockers["ck-hostbatch"]
 
@@ -1318,8 +1670,13 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         assert scenario_split_report["group_count"] == 2
-        assert {tuple(group["scenario_families"]) for group in scenario_split_report["groups"]} == {("many-small",), ("small-oneshot",)}
-        assert all(group["checksum_consistent"] is True for group in scenario_split_report["groups"])
+        assert {tuple(group["scenario_families"]) for group in scenario_split_report["groups"]} == {
+            ("many-small",),
+            ("small-oneshot",),
+        }
+        assert all(
+            group["checksum_consistent"] is True for group in scenario_split_report["groups"]
+        )
 
         reuse_report = benchmark_sweep.review_captures(
             [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
@@ -1327,11 +1684,14 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         reuse_group = reuse_report["groups"][0]
         assert reuse_group["source_metadata"]["pack_modes"] == ["prepacked_reuse"]
-        assert reuse_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
+        assert reuse_group["source_metadata"]["prepack_reuse_strategies"] == [
+            "persistent_matrix_residency"
+        ]
         assert reuse_group["source_metadata"]["prepack_reuse_operands"] == ["A/B"]
         assert reuse_report["promotable_autotune_entries"] == []
         reuse_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in reuse_group["candidates"]
         }
         assert "missing_same_backend_nonreuse_baseline" in reuse_blockers["ck"]
         assert "missing_best_nonreuse_contract_baseline" in reuse_blockers["ck"]
@@ -1343,10 +1703,13 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         reuse_a_group = reuse_a_report["groups"][0]
         assert reuse_a_group["source_metadata"]["pack_modes"] == ["prepacked_reuse_a"]
-        assert reuse_a_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
+        assert reuse_a_group["source_metadata"]["prepack_reuse_strategies"] == [
+            "persistent_matrix_residency"
+        ]
         assert reuse_a_group["source_metadata"]["prepack_reuse_operands"] == ["A"]
         reuse_a_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_a_group["candidates"]
+            candidate["backend"]: candidate["promotion_blockers"]
+            for candidate in reuse_a_group["candidates"]
         }
         assert "missing_same_backend_nonreuse_baseline" in reuse_a_blockers["ck"]
         assert "missing_best_nonreuse_contract_baseline" in reuse_a_blockers["ck"]
@@ -1363,7 +1726,9 @@ class ReviewMetadataCases(unittest.TestCase):
                 "promotion_scope": "reuse_contract_evidence_only",
             },
         }
-        reuse_evidence_report = benchmark_sweep.review_captures([reuse_evidence_direct], review_mode="release")
+        reuse_evidence_report = benchmark_sweep.review_captures(
+            [reuse_evidence_direct], review_mode="release"
+        )
         reuse_evidence_group = reuse_evidence_report["groups"][0]
         assert reuse_evidence_group["required_baselines"] == []
         assert reuse_evidence_group["missing_required_baselines"] == []
@@ -1373,7 +1738,9 @@ class ReviewMetadataCases(unittest.TestCase):
         assert "scenario_scope_not_autotune_promotable" in reuse_evidence_blockers
 
         graph_evidence_direct = mark_reused_a_pack(direct)
-        graph_evidence_direct["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+        graph_evidence_direct["timing_metadata"]["benchmark_execution_mode"] = (
+            "hip_graph_replay_resident_rns_chain"
+        )
         graph_evidence_direct["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
         graph_evidence_direct["scenario_metadata"] = {
             "family": "hip-graph-replay",
@@ -1384,7 +1751,9 @@ class ReviewMetadataCases(unittest.TestCase):
                 "graph_role": "graph_replay_candidate",
             },
         }
-        graph_evidence_report = benchmark_sweep.review_captures([graph_evidence_direct], review_mode="release")
+        graph_evidence_report = benchmark_sweep.review_captures(
+            [graph_evidence_direct], review_mode="release"
+        )
         graph_evidence_group = graph_evidence_report["groups"][0]
         assert graph_evidence_group["required_baselines"] == []
         assert graph_evidence_group["missing_required_baselines"] == []
@@ -1409,27 +1778,45 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         assert variant_report["group_count"] == 2
-        assert sorted(group["contract_key"].split("reconstruction_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == ["default_garner", "tree_crt_candidate"]
-        assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == [
+        assert sorted(
+            group["contract_key"].split("reconstruction_variant=", 1)[1].split(";", 1)[0]
+            for group in variant_report["groups"]
+        ) == ["default_garner", "tree_crt_candidate"]
+        assert sorted(
+            group["contract_key"].split("export_variant=", 1)[1].split(";", 1)[0]
+            for group in variant_report["groups"]
+        ) == [
             "compact-d2h-export-candidate",
             "tree-crt-export-candidate",
         ]
 
-
         for field in ("build_manifest", "artifact_capture"):
-            missing = finite_capture("ck",190)
+            missing = finite_capture("ck", 190)
             missing.pop(field)
-            provenance_report = benchmark_sweep.review_captures([missing,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+            provenance_report = benchmark_sweep.review_captures(
+                [missing, finite_capture("hip-direct", 300), finite_capture("cpu-reference", 500)],
+                review_mode="release",
+            )
             assert not provenance_report["promotable_autotune_entries"]
-        dirty = finite_capture("ck",190)
+        dirty = finite_capture("ck", 190)
         dirty["build_manifest"]["source_dirty"] = True
-        provenance_report = benchmark_sweep.review_captures([dirty,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+        provenance_report = benchmark_sweep.review_captures(
+            [dirty, finite_capture("hip-direct", 300), finite_capture("cpu-reference", 500)],
+            review_mode="release",
+        )
         assert not provenance_report["promotable_autotune_entries"]
 
         for field in ("dependency_digest", "linkage", "identity_scope"):
-            incomplete=finite_capture("ck",190)
+            incomplete = finite_capture("ck", 190)
             incomplete["build_manifest"].pop(field)
-            provenance_report=benchmark_sweep.review_captures([incomplete,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+            provenance_report = benchmark_sweep.review_captures(
+                [
+                    incomplete,
+                    finite_capture("hip-direct", 300),
+                    finite_capture("cpu-reference", 500),
+                ],
+                review_mode="release",
+            )
             assert not provenance_report["promotable_autotune_entries"]
 
 

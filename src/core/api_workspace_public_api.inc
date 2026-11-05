@@ -1,13 +1,16 @@
-static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* plan, rns8_workspace** out,
-    const rns8_locality_desc* locality) {
+static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* plan,
+                                         rns8_workspace** out, const rns8_locality_desc* locality) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
-    if(locality && !rns8::detail::locality_descriptor_valid(*locality))return RNS8_INVALID_ARGUMENT;
-    if(locality && (plan->backend!=RNS8_BACKEND_HIP_DIRECT || plan->tile_schedule.empty()))return RNS8_UNSUPPORTED_BACKEND;
-    if (ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+    if (locality && !rns8::detail::locality_descriptor_valid(*locality))
+      return RNS8_INVALID_ARGUMENT;
+    if (locality && (plan->backend != RNS8_BACKEND_HIP_DIRECT || plan->tile_schedule.empty()))
+      return RNS8_UNSUPPORTED_BACKEND;
+    if (ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (!plan_schedule_contract_matches(*plan)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -22,8 +25,11 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
     initialize_workspace_identity(*workspace, *ctx, *plan);
     initialize_workspace_schedule_contract(*workspace, *plan);
     initialize_workspace_backend_metadata(*workspace, *plan);
-    if(plan->backend==RNS8_BACKEND_CPU_AMX){const auto status=rns8::detail::cpu_amx_prepare(*plan,workspace->cpu_amx);
-      if(status!=RNS8_SUCCESS)return status;}
+    if (plan->backend == RNS8_BACKEND_CPU_AMX) {
+      const auto status = rns8::detail::cpu_amx_prepare(*plan, workspace->cpu_amx);
+      if (status != RNS8_SUCCESS)
+        return status;
+    }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
       std::vector<rns8_plan_tile_schedule_entry> active_entries;
       if (!plan->tile_schedule.empty()) {
@@ -31,12 +37,10 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
             std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
           return RNS8_RANGE_ERROR;
         }
-        if (!build_active_prefix_tile_schedule(
-                *plan,
-                active_entries,
-                workspace->hip_tile_schedule_active_offsets,
-                workspace->hip_tile_schedule_active_counts,
-                workspace->hip_tile_schedule_active_prefix_count)) {
+        if (!build_active_prefix_tile_schedule(*plan, active_entries,
+                                               workspace->hip_tile_schedule_active_offsets,
+                                               workspace->hip_tile_schedule_active_counts,
+                                               workspace->hip_tile_schedule_active_prefix_count)) {
           return RNS8_INVALID_ARGUMENT;
         }
         if (active_entries.size() >
@@ -44,19 +48,27 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
           return RNS8_RANGE_ERROR;
         }
       }
-      if(locality) {
-        const auto status=rns8::detail::lower_locality_schedule(active_entries,static_cast<uint64_t>(plan->desc.k),
-            *locality,ctx->device_info.gcn_arch,workspace->locality_info);
-        if(status!=RNS8_SUCCESS)return status;
+      if (locality) {
+        const auto status = rns8::detail::lower_locality_schedule(
+            active_entries, static_cast<uint64_t>(plan->desc.k), *locality,
+            ctx->device_info.gcn_arch, workspace->locality_info);
+        if (status != RNS8_SUCCESS)
+          return status;
       }
-      const bool zero_masks_requested = (plan->desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
+      const bool zero_masks_requested =
+          (plan->desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
       const bool upload_device_tile_schedule =
           !plan->tile_schedule.empty() && hip_direct_gemm_requires_device_tile_schedule(*plan);
-      const std::size_t zero_a_bytes = zero_masks_requested ? plan->zero_a_rows.size() * sizeof(uint8_t) : 0;
-      const std::size_t zero_b_bytes = zero_masks_requested ? plan->zero_b_cols.size() * sizeof(uint8_t) : 0;
+      const std::size_t zero_a_bytes =
+          zero_masks_requested ? plan->zero_a_rows.size() * sizeof(uint8_t) : 0;
+      const std::size_t zero_b_bytes =
+          zero_masks_requested ? plan->zero_b_cols.size() * sizeof(uint8_t) : 0;
       const std::size_t schedule_bytes =
-          upload_device_tile_schedule ? plan->tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry) : 0;
-      const std::size_t active_schedule_bytes = active_entries.size() * sizeof(rns8_plan_tile_schedule_entry);
+          upload_device_tile_schedule
+              ? plan->tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry)
+              : 0;
+      const std::size_t active_schedule_bytes =
+          active_entries.size() * sizeof(rns8_plan_tile_schedule_entry);
       std::size_t explicitly_assigned_workspace_bytes = 0;
       const auto count_explicit_workspace_region = [&](std::size_t bytes) -> bool {
         if (explicitly_assigned_workspace_bytes > std::numeric_limits<std::size_t>::max() - bytes) {
@@ -65,15 +77,18 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
         explicitly_assigned_workspace_bytes += bytes;
         return true;
       };
-      if (!count_explicit_workspace_region(zero_a_bytes) || !count_explicit_workspace_region(zero_b_bytes) ||
+      if (!count_explicit_workspace_region(zero_a_bytes) ||
+          !count_explicit_workspace_region(zero_b_bytes) ||
           !count_explicit_workspace_region(schedule_bytes) ||
           !count_explicit_workspace_region(active_schedule_bytes)) {
         return RNS8_RANGE_ERROR;
       }
-      if (plan->backend_workspace_required_bytes > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      if (plan->backend_workspace_required_bytes >
+          static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
         return RNS8_RANGE_ERROR;
       }
-      const std::size_t declared_workspace_bytes = static_cast<std::size_t>(plan->backend_workspace_required_bytes);
+      const std::size_t declared_workspace_bytes =
+          static_cast<std::size_t>(plan->backend_workspace_required_bytes);
       const std::size_t scratch_bytes =
           declared_workspace_bytes > explicitly_assigned_workspace_bytes
               ? declared_workspace_bytes - explicitly_assigned_workspace_bytes
@@ -102,8 +117,8 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
         return RNS8_RANGE_ERROR;
       }
       if (arena_bytes != 0) {
-        rns8_status status =
-            workspace->arena_owner.allocate_alias(ctx->device_id, arena_bytes, workspace->hip_workspace_arena);
+        rns8_status status = workspace->arena_owner.allocate_alias(ctx->device_id, arena_bytes,
+                                                                   workspace->hip_workspace_arena);
         if (status != RNS8_SUCCESS) {
           return status;
         }
@@ -130,10 +145,12 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
         workspace->hip_zero_b_cols_bytes = zero_b_bytes;
         workspace->hip_tile_schedule = assign_region(schedule_bytes);
         workspace->hip_tile_schedule_bytes = schedule_bytes;
-        workspace->hip_tile_schedule_count = schedule_bytes != 0 ? static_cast<uint64_t>(plan->tile_schedule.size()) : 0;
+        workspace->hip_tile_schedule_count =
+            schedule_bytes != 0 ? static_cast<uint64_t>(plan->tile_schedule.size()) : 0;
         workspace->hip_tile_schedule_active_entries = assign_region(active_schedule_bytes);
         workspace->hip_tile_schedule_active_entries_bytes = active_schedule_bytes;
-        workspace->hip_tile_schedule_active_entries_count = static_cast<uint64_t>(active_entries.size());
+        workspace->hip_tile_schedule_active_entries_count =
+            static_cast<uint64_t>(active_entries.size());
         workspace->hip_workspace_scratch = assign_region(scratch_bytes);
         workspace->hip_workspace_scratch_bytes = scratch_bytes;
         if (zero_a_bytes != 0) {
@@ -146,13 +163,12 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
         }
         if (status == RNS8_SUCCESS && schedule_bytes != 0) {
           status = rns8::detail::hip_direct_copy_host_to_device(
-              ctx->device_id, workspace->hip_tile_schedule, plan->tile_schedule.data(), schedule_bytes);
+              ctx->device_id, workspace->hip_tile_schedule, plan->tile_schedule.data(),
+              schedule_bytes);
         }
         if (status == RNS8_SUCCESS && active_schedule_bytes != 0) {
           status = rns8::detail::hip_direct_copy_host_to_device(
-              ctx->device_id,
-              workspace->hip_tile_schedule_active_entries,
-              active_entries.data(),
+              ctx->device_id, workspace->hip_tile_schedule_active_entries, active_entries.data(),
               active_schedule_bytes);
         }
         if (status != RNS8_SUCCESS) {
@@ -171,13 +187,14 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
           !hipblaslt_workspace_bytes_for_plan(*plan, workspace_bytes)) {
         return RNS8_RANGE_ERROR;
       }
-      rns8_status status =
-          workspace->int32_scratch_owner.allocate_alias(ctx->device_id, scratch_bytes, workspace->hipblaslt_int32_scratch);
+      rns8_status status = workspace->int32_scratch_owner.allocate_alias(
+          ctx->device_id, scratch_bytes, workspace->hipblaslt_int32_scratch);
       if (status != RNS8_SUCCESS) {
         return status;
       }
       workspace->hipblaslt_int32_scratch_bytes = scratch_bytes;
-      status = workspace->matmul_workspace_owner.allocate_alias(ctx->device_id, workspace_bytes, workspace->hipblaslt_workspace);
+      status = workspace->matmul_workspace_owner.allocate_alias(ctx->device_id, workspace_bytes,
+                                                                workspace->hipblaslt_workspace);
       if (status != RNS8_SUCCESS) {
         return status;
       }
@@ -187,13 +204,15 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
       if (!rns8::detail::accelerator_backend_compiled(plan->backend)) {
         return RNS8_UNSUPPORTED_BACKEND;
       }
-      if (plan->backend_workspace_required_bytes > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      if (plan->backend_workspace_required_bytes >
+          static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
         return RNS8_RANGE_ERROR;
       }
-      const std::size_t workspace_bytes = static_cast<std::size_t>(plan->backend_workspace_required_bytes);
+      const std::size_t workspace_bytes =
+          static_cast<std::size_t>(plan->backend_workspace_required_bytes);
       if (workspace_bytes != 0) {
-        rns8_status status =
-            workspace->accelerator_workspace_owner.allocate_alias(ctx->device_id, workspace_bytes, workspace->accelerator_workspace);
+        rns8_status status = workspace->accelerator_workspace_owner.allocate_alias(
+            ctx->device_id, workspace_bytes, workspace->accelerator_workspace);
         if (status != RNS8_SUCCESS) {
           return status;
         }
@@ -205,29 +224,39 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
   });
 }
 
-rns8_status rns8_create_workspace(rns8_context* ctx,const rns8_plan* plan,rns8_workspace** out) {
-  return create_workspace_impl(ctx,plan,out,nullptr);
+rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8_workspace** out) {
+  return create_workspace_impl(ctx, plan, out, nullptr);
 }
-rns8_status rns8_create_locality_workspace(rns8_context* ctx,const rns8_plan* plan,
-    const rns8_locality_desc* desc,rns8_workspace** out) {
-  if(!desc){if(out)*out=nullptr;return RNS8_INVALID_ARGUMENT;}
-  return create_workspace_impl(ctx,plan,out,desc);
+rns8_status rns8_create_locality_workspace(rns8_context* ctx, const rns8_plan* plan,
+                                           const rns8_locality_desc* desc, rns8_workspace** out) {
+  if (!desc) {
+    if (out)
+      *out = nullptr;
+    return RNS8_INVALID_ARGUMENT;
+  }
+  return create_workspace_impl(ctx, plan, out, desc);
 }
-rns8_status rns8_get_workspace_locality_info(const rns8_workspace* workspace,rns8_locality_info* out) {
-  if(!workspace || !out || out->struct_size!=sizeof(*out) || out->abi_version!=RNS8_ABI_VERSION)return RNS8_INVALID_ARGUMENT;
-  if(workspace->locality_info.struct_size!=sizeof(*out))return RNS8_UNSUPPORTED_BACKEND;
-  *out=workspace->locality_info;return RNS8_SUCCESS;
+rns8_status rns8_get_workspace_locality_info(const rns8_workspace* workspace,
+                                             rns8_locality_info* out) {
+  if (!workspace || !out || out->struct_size != sizeof(*out) ||
+      out->abi_version != RNS8_ABI_VERSION)
+    return RNS8_INVALID_ARGUMENT;
+  if (workspace->locality_info.struct_size != sizeof(*out))
+    return RNS8_UNSUPPORTED_BACKEND;
+  *out = workspace->locality_info;
+  return RNS8_SUCCESS;
 }
 
 rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
-  if (workspace && workspace->prepared_references) return RNS8_BUSY;
+  if (workspace && workspace->prepared_references)
+    return RNS8_BUSY;
   if (workspace) {
     const rns8_status status = release_workspace_resources(*workspace);
-    if (status != RNS8_SUCCESS) return status;
+    if (status != RNS8_SUCCESS)
+      return status;
     delete workspace;
     return status;
   }
   delete workspace;
   return RNS8_SUCCESS;
 }
-

@@ -1,4 +1,5 @@
-void initialize_workspace_identity(rns8_workspace& workspace, const rns8_context& ctx, const rns8_plan& plan) {
+void initialize_workspace_identity(rns8_workspace& workspace, const rns8_context& ctx,
+                                   const rns8_plan& plan) {
   workspace.semantics = plan.desc.semantics;
   workspace.bound_kind = plan.desc.bound_kind;
   workspace.m = plan.desc.m;
@@ -48,12 +49,12 @@ void initialize_workspace_backend_metadata(rns8_workspace& workspace, const rns8
   workspace.backend_performance_validated = plan.backend_performance_validated;
 }
 
-bool workspace_identity_matches_plan(
-    const rns8_context& ctx,
-    const rns8_plan& plan,
-    const rns8_workspace& workspace) {
-  if (ctx.hip_failure_poisoned) return false;
-  if (workspace.in_flight) return false;
+bool workspace_identity_matches_plan(const rns8_context& ctx, const rns8_plan& plan,
+                                     const rns8_workspace& workspace) {
+  if (ctx.hip_failure_poisoned)
+    return false;
+  if (workspace.in_flight)
+    return false;
   if (!context_accepts_backend(ctx, plan.backend) || workspace.backend != plan.backend) {
     return false;
   }
@@ -70,7 +71,8 @@ bool workspace_identity_matches_plan(
   return true;
 }
 
-bool workspace_schedule_contract_matches_plan(const rns8_plan& plan, const rns8_workspace& workspace) {
+bool workspace_schedule_contract_matches_plan(const rns8_plan& plan,
+                                              const rns8_workspace& workspace) {
   if (plan.validated_contract && workspace.validated_plan_contract &&
       plan.validated_contract != workspace.validated_plan_contract &&
       plan.validated_contract != workspace.equivalent_plan_contract) {
@@ -79,13 +81,13 @@ bool workspace_schedule_contract_matches_plan(const rns8_plan& plan, const rns8_
     // canonical structural equality, then retain its immutable identity.
     if (plan.validated_contract->fingerprint != workspace.validated_plan_contract->fingerprint ||
         plan.validated_contract->canonical_workspace_key !=
-            workspace.validated_plan_contract->canonical_workspace_key) return false;
+            workspace.validated_plan_contract->canonical_workspace_key)
+      return false;
     workspace.equivalent_plan_contract = plan.validated_contract;
   }
   return workspace.bound == plan.desc.bound &&
          workspace.finite_modulus == plan.desc.finite_modulus &&
-         workspace.tile_m == plan.desc.tile_m &&
-         workspace.tile_n == plan.desc.tile_n &&
+         workspace.tile_m == plan.desc.tile_m && workspace.tile_n == plan.desc.tile_n &&
          workspace.schedule_tile_rows == plan.schedule_tile_rows &&
          workspace.schedule_tile_cols == plan.schedule_tile_cols &&
          workspace.schedule_tile_count == plan.schedule_tile_count &&
@@ -104,7 +106,8 @@ bool workspace_schedule_contract_matches_plan(const rns8_plan& plan, const rns8_
          workspace.schedule_fingerprint == plan_workspace_fingerprint(plan);
 }
 
-bool workspace_backend_metadata_matches_plan(const rns8_plan& plan, const rns8_workspace& workspace) {
+bool workspace_backend_metadata_matches_plan(const rns8_plan& plan,
+                                             const rns8_workspace& workspace) {
   return workspace.backend_workspace_required_bytes == plan.backend_workspace_required_bytes &&
          workspace.backend_selected_kernel == plan.backend_selected_kernel &&
          workspace.backend_library == plan.backend_library &&
@@ -125,7 +128,8 @@ rns8_status release_workspace_device_buffer(int device_id, T*& ptr, std::size_t&
     return RNS8_SUCCESS;
   }
   const rns8_status status = rns8::detail::hip_direct_free(device_id, ptr);
-  if (status != RNS8_SUCCESS) return status;
+  if (status != RNS8_SUCCESS)
+    return status;
   ptr = nullptr;
   bytes = 0;
   return status;
@@ -190,10 +194,12 @@ void reset_workspace_hipblaslt_b_prepack_contract(rns8_workspace& workspace) {
 }
 
 rns8_status release_workspace_resources(rns8_workspace& workspace) {
-  if (workspace.in_flight) return RNS8_BUSY;
+  if (workspace.in_flight)
+    return RNS8_BUSY;
   if (workspace.adaptive_summary_owner.pending()) {
-    const auto drained=rns8::detail::hip_direct_synchronize(workspace.hip_device_id);
-    if (drained!=RNS8_SUCCESS) return drained;
+    const auto drained = rns8::detail::hip_direct_synchronize(workspace.hip_device_id);
+    if (drained != RNS8_SUCCESS)
+      return drained;
     workspace.adaptive_summary_owner.mark_completed();
   }
   rns8_status status = RNS8_SUCCESS;
@@ -209,8 +215,7 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
         workspace.hip_device_id, workspace.hip_tile_schedule, workspace.hip_tile_schedule_bytes));
     workspace.hip_tile_schedule_count = 0;
     keep_first_error(release_workspace_device_buffer(
-        workspace.hip_device_id,
-        workspace.hip_tile_schedule_active_entries,
+        workspace.hip_device_id, workspace.hip_tile_schedule_active_entries,
         workspace.hip_tile_schedule_active_entries_bytes));
     workspace.hip_tile_schedule_active_entries_count = 0;
     keep_first_error(release_workspace_device_buffer(
@@ -221,34 +226,47 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
   reset_workspace_active_schedule_contract(workspace);
   keep_first_error(workspace.bilinear_scratch_owner.reset());
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if(workspace.bilinear_stream.reset()!=hipSuccess)keep_first_error(RNS8_BACKEND_FAILURE);
+  if (workspace.bilinear_stream.reset() != hipSuccess)
+    keep_first_error(RNS8_BACKEND_FAILURE);
 #endif
   keep_first_error(workspace.exact_auto_scratch_owner.reset());
   keep_first_error(workspace.adaptive_summary_owner.reset());
   workspace.adaptive_summary_identity[0] = {};
   workspace.adaptive_summary_identity[1] = {};
-  keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
-  if (!workspace.hip_workspace_arena) clear_workspace_arena_contract(workspace);
-  keep_first_error(workspace.int32_scratch_owner.reset_alias(workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
-  keep_first_error(workspace.matmul_workspace_owner.reset_alias(workspace.hipblaslt_workspace, workspace.hipblaslt_workspace_bytes));
-  keep_first_error(workspace.a_prepack_owner.reset_alias(workspace.hipblaslt_a_prepack_cache, workspace.hipblaslt_a_prepack_cache_bytes));
-  if (!workspace.hipblaslt_a_prepack_cache) reset_workspace_hipblaslt_a_prepack_contract(workspace);
-  else workspace.hipblaslt_a_prepack_current = false;
-  keep_first_error(workspace.b_prepack_owner.reset_alias(workspace.hipblaslt_b_prepack_cache, workspace.hipblaslt_b_prepack_cache_bytes));
-  if (!workspace.hipblaslt_b_prepack_cache) reset_workspace_hipblaslt_b_prepack_contract(workspace);
-  else workspace.hipblaslt_b_prepack_current = false;
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.accelerator_auxiliary, workspace.accelerator_auxiliary_bytes));
-  keep_first_error(workspace.accelerator_workspace_owner.reset_alias(workspace.accelerator_workspace, workspace.accelerator_workspace_bytes));
+  keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena,
+                                                     workspace.hip_workspace_arena_bytes));
+  if (!workspace.hip_workspace_arena)
+    clear_workspace_arena_contract(workspace);
+  keep_first_error(workspace.int32_scratch_owner.reset_alias(
+      workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
+  keep_first_error(workspace.matmul_workspace_owner.reset_alias(
+      workspace.hipblaslt_workspace, workspace.hipblaslt_workspace_bytes));
+  keep_first_error(workspace.a_prepack_owner.reset_alias(
+      workspace.hipblaslt_a_prepack_cache, workspace.hipblaslt_a_prepack_cache_bytes));
+  if (!workspace.hipblaslt_a_prepack_cache)
+    reset_workspace_hipblaslt_a_prepack_contract(workspace);
+  else
+    workspace.hipblaslt_a_prepack_current = false;
+  keep_first_error(workspace.b_prepack_owner.reset_alias(
+      workspace.hipblaslt_b_prepack_cache, workspace.hipblaslt_b_prepack_cache_bytes));
+  if (!workspace.hipblaslt_b_prepack_cache)
+    reset_workspace_hipblaslt_b_prepack_contract(workspace);
+  else
+    workspace.hipblaslt_b_prepack_current = false;
+  keep_first_error(release_workspace_device_buffer(workspace.hip_device_id,
+                                                   workspace.accelerator_auxiliary,
+                                                   workspace.accelerator_auxiliary_bytes));
+  keep_first_error(workspace.accelerator_workspace_owner.reset_alias(
+      workspace.accelerator_workspace, workspace.accelerator_workspace_bytes));
   return status;
 }
 
-rns8_status validate_plan_context_workspace(
-    const rns8_context& ctx,
-    const rns8_plan& plan,
-    const rns8_workspace& workspace) {
-  if (workspace.in_flight) return RNS8_BUSY;
-  if((plan.backend==RNS8_BACKEND_CPU_AMX)!=bool(workspace.cpu_amx))return RNS8_INVALID_ARGUMENT;
+rns8_status validate_plan_context_workspace(const rns8_context& ctx, const rns8_plan& plan,
+                                            const rns8_workspace& workspace) {
+  if (workspace.in_flight)
+    return RNS8_BUSY;
+  if ((plan.backend == RNS8_BACKEND_CPU_AMX) != bool(workspace.cpu_amx))
+    return RNS8_INVALID_ARGUMENT;
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -285,8 +303,8 @@ rns8_status validate_plan_context_workspace(
       return RNS8_INVALID_ARGUMENT;
     }
     const bool scheduled = !plan.tile_schedule.empty();
-    if (scheduled && plan.tile_schedule.size() >
-                         std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
+    if (scheduled && plan.tile_schedule.size() > std::numeric_limits<std::size_t>::max() /
+                                                     sizeof(rns8_plan_tile_schedule_entry)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const std::size_t expected_schedule_bytes =
@@ -310,9 +328,9 @@ rns8_status validate_plan_context_workspace(
     }
   } else if (workspace.hip_tile_schedule || workspace.hip_tile_schedule_bytes != 0 ||
              workspace.hip_tile_schedule_count != 0 ||
-             !active_prefix_tile_schedule_workspace_empty(workspace) ||
-             workspace.hip_zero_a_rows || workspace.hip_zero_a_rows_bytes != 0 ||
-             workspace.hip_zero_b_cols || workspace.hip_zero_b_cols_bytes != 0) {
+             !active_prefix_tile_schedule_workspace_empty(workspace) || workspace.hip_zero_a_rows ||
+             workspace.hip_zero_a_rows_bytes != 0 || workspace.hip_zero_b_cols ||
+             workspace.hip_zero_b_cols_bytes != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {

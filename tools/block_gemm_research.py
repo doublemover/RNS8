@@ -1,4 +1,5 @@
 """Division-free one-level Strassen oracle; no GPU or speedup qualification."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -29,8 +30,9 @@ STRASSEN = (
 def verify_program(program: tuple[Product, ...]) -> dict:
     if not program or len(program) > 32:
         raise ValueError("bounded nonempty program required")
-    if any(len(v) != 4 or any(type(x) is not int for x in v)
-           for p in program for v in (p.a, p.b, p.c)):
+    if any(
+        len(v) != 4 or any(type(x) is not int for x in v) for p in program for v in (p.a, p.b, p.c)
+    ):
         raise ValueError("four integer coefficients required per operand/output")
     failures = []
     for c in range(4):
@@ -42,9 +44,13 @@ def verify_program(program: tuple[Product, ...]) -> dict:
                 if actual != expected:
                     failures.append([c, a, b, actual, expected])
     payload = [[p.a, p.b, p.c] for p in program]
-    return {"polynomial_identity_verified": not failures, "failures": failures,
-            "sha256": hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest(),
-            "division_free": True, "hardware_qualified": False}
+    return {
+        "polynomial_identity_verified": not failures,
+        "failures": failures,
+        "sha256": hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest(),
+        "division_free": True,
+        "hardware_qualified": False,
+    }
 
 
 def _shape(a: list[list[int]]) -> tuple[int, int]:
@@ -95,10 +101,15 @@ def one_level(a: list[list[int]], b: list[list[int]], modulus: int) -> tuple[lis
                     if coefficient and row < m and col < n:
                         output[row][col] = centered(output[row][col] + coefficient * value, modulus)
     cap = modulus // 2
-    return output, {"program": verify_program(STRASSEN), "modulus": modulus,
-                    "padded_shape": [2 * tm, 2 * tn, 2 * tk], "subproducts": 7,
-                    "max_transform_abs_bound": 2 * cap,
-                    "packed_operand_abs_bound": cap,
-                    "term_reduction_accumulator_abs_bound": cap * cap + modulus - 1,
-                    "max_live_transform_elements": tm * tk + tk * tn,
-                    "stored_product_matrices": 0, "runtime_dispatch_eligible": False}
+    return output, {
+        "program": verify_program(STRASSEN),
+        "modulus": modulus,
+        "padded_shape": [2 * tm, 2 * tn, 2 * tk],
+        "subproducts": 7,
+        "max_transform_abs_bound": 2 * cap,
+        "packed_operand_abs_bound": cap,
+        "term_reduction_accumulator_abs_bound": cap * cap + modulus - 1,
+        "max_live_transform_elements": tm * tk + tk * tn,
+        "stored_product_matrices": 0,
+        "runtime_dispatch_eligible": False,
+    }

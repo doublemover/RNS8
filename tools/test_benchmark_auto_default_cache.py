@@ -73,7 +73,9 @@ def write_reviewed_cache(path: Path, capture: dict) -> dict:
     if not entry.get("key"):
         raise SystemExit("explicit backend capture did not report an autotune key")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"schema_version": 1, "entries": [entry]}, indent=2, sort_keys=True) + "\n")
+    path.write_text(
+        json.dumps({"schema_version": 1, "entries": [entry]}, indent=2, sort_keys=True) + "\n"
+    )
     return entry
 
 
@@ -113,7 +115,9 @@ def main() -> int:
         root = Path(temp)
         explicit_env = os.environ.copy()
         explicit_env["RNS8_AUTOTUNE_CACHE_PATH"] = str(root / "unused-explicit-cache.json")
-        explicit_capture_path = out_dir / f"explicit-{requested_backend}-{safe_name(semantics)}.json"
+        explicit_capture_path = (
+            out_dir / f"explicit-{requested_backend}-{safe_name(semantics)}.json"
+        )
         explicit = run_capture(
             bench,
             ["--backend", requested_backend, *common],
@@ -123,7 +127,11 @@ def main() -> int:
         validate(schema, explicit_capture_path)
         selected_backend = explicit.get("backend_selected")
         selected_kernel = explicit.get("selected_kernel")
-        metadata = explicit.get("backend_metadata") if isinstance(explicit.get("backend_metadata"), dict) else {}
+        metadata = (
+            explicit.get("backend_metadata")
+            if isinstance(explicit.get("backend_metadata"), dict)
+            else {}
+        )
         explicit_key = metadata.get("autotune_key")
 
         auto_env = os.environ.copy()
@@ -131,38 +139,56 @@ def main() -> int:
         cache_path = default_cache_path(auto_env, root)
         entry = write_reviewed_cache(cache_path, explicit)
 
-        auto_capture_path = out_dir / f"default-cache-auto-{requested_backend}-{safe_name(semantics)}.json"
+        auto_capture_path = (
+            out_dir / f"default-cache-auto-{requested_backend}-{safe_name(semantics)}.json"
+        )
         auto = run_capture(bench, ["--backend", "auto", *common], auto_capture_path, auto_env)
         validate(schema, auto_capture_path)
 
     if auto.get("backend_requested") != "auto":
         raise SystemExit(f"expected backend_requested=auto, got {auto.get('backend_requested')!r}")
     if auto.get("backend_selected") != selected_backend:
-        raise SystemExit(f"expected AUTO to select {selected_backend!r}, got {auto.get('backend_selected')!r}")
+        raise SystemExit(
+            f"expected AUTO to select {selected_backend!r}, got {auto.get('backend_selected')!r}"
+        )
     if auto.get("selected_kernel") != selected_kernel:
-        raise SystemExit(f"expected AUTO kernel {selected_kernel!r}, got {auto.get('selected_kernel')!r}")
+        raise SystemExit(
+            f"expected AUTO kernel {selected_kernel!r}, got {auto.get('selected_kernel')!r}"
+        )
 
-    auto_metadata = auto.get("backend_metadata") if isinstance(auto.get("backend_metadata"), dict) else {}
+    auto_metadata = (
+        auto.get("backend_metadata") if isinstance(auto.get("backend_metadata"), dict) else {}
+    )
     if auto_metadata.get("performance_validated") is not True:
         raise SystemExit("default-cache AUTO hit must report performance_validated=true")
     if auto_metadata.get("autotune_key") != explicit_key or entry.get("key") != explicit_key:
-        raise SystemExit("AUTO selected a different autotune key than the reviewed default-cache entry")
+        raise SystemExit(
+            "AUTO selected a different autotune key than the reviewed default-cache entry"
+        )
 
     timing = auto.get("timing_metadata") if isinstance(auto.get("timing_metadata"), dict) else {}
     if timing.get("gpu_event_timing") is not True and not is_censored_gpu_event_capture(auto):
-        raise SystemExit("default-cache AUTO hit must report GPU event timing or explicit censored diagnostics")
+        raise SystemExit(
+            "default-cache AUTO hit must report GPU event timing or explicit censored diagnostics"
+        )
     scope = timing.get("gpu_event_timing_source_scope")
     if selected_backend == "hipblaslt":
         expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
     elif semantics in {"finite-u8-ring", "finite-u8-field"}:
-        expected_scope = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+        expected_scope = (
+            "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+        )
     else:
-        expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
+        expected_scope = (
+            "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
+        )
     if timing.get("gpu_event_timing") is True and scope != expected_scope:
         raise SystemExit(f"expected GPU event source scope {expected_scope!r}, got {scope!r}")
 
     if auto.get("semantics") != explicit.get("semantics"):
-        raise SystemExit(f"expected AUTO semantics {explicit.get('semantics')!r}, got {auto.get('semantics')!r}")
+        raise SystemExit(
+            f"expected AUTO semantics {explicit.get('semantics')!r}, got {auto.get('semantics')!r}"
+        )
 
     print(f"benchmark AUTO default-cache smoke ({selected_backend}, {auto.get('semantics')}): PASS")
     return 0

@@ -14,7 +14,8 @@ TEST_CASE("bounded i64 oneshot handles signs and cancellation") {
   const int64_t B_cancel[] = {1, -1};
   int64_t C_cancel[] = {99};
   auto cancel_desc = i64_desc(1, 1, 2, 1);
-  CHECK(rns8_gemm_i64_oneshot(ctx, &cancel_desc, A_cancel, 2, B_cancel, 1, C_cancel, 1) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_i64_oneshot(ctx, &cancel_desc, A_cancel, 2, B_cancel, 1, C_cancel, 1) ==
+        RNS8_SUCCESS);
   CHECK(C_cancel[0] == 0);
 
   rns8_destroy_context(ctx);
@@ -80,7 +81,8 @@ TEST_CASE("bounded CPU full-width outputs preserve padded leading dimensions") {
     B[ldb + 1] = 1;
 
     auto desc = i64_desc(m, n, k, uint64_t{1} << 63u);
-    REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+            RNS8_SUCCESS);
     CHECK(C[0] == std::numeric_limits<int64_t>::min());
     CHECK(C[1] == 0);
     CHECK(C[2] == sentinel);
@@ -111,7 +113,8 @@ TEST_CASE("bounded CPU full-width outputs preserve padded leading dimensions") {
     B[ldb + 1] = 1;
 
     auto desc = u64_desc(m, n, k, std::numeric_limits<uint64_t>::max());
-    REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+            RNS8_SUCCESS);
     CHECK(C[0] == std::numeric_limits<uint64_t>::max());
     CHECK(C[1] == std::numeric_limits<uint64_t>::max() - 1u);
     CHECK(C[2] == sentinel);
@@ -194,9 +197,9 @@ TEST_CASE("bounded input-range descriptors derive output bounds and run persiste
   CHECK(info.lhs_bound == desc.lhs_bound);
   CHECK(info.rhs_bound == desc.rhs_bound);
   CHECK(std::strcmp(info.bound_contract, "input_range_and_k_derived_output_bound") == 0);
-  CHECK(info.min_required_prefix == rns8::detail::required_prefix_for_range(
-                                      rns8::detail::cpp_int(2) *
-                                      rns8::detail::cpp_int(info.effective_bound)));
+  CHECK(info.min_required_prefix ==
+        rns8::detail::required_prefix_for_range(rns8::detail::cpp_int(2) *
+                                                rns8::detail::cpp_int(info.effective_bound)));
   CHECK(info.max_selected_prefix == info.min_required_prefix);
 
   REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
@@ -403,4 +406,3 @@ TEST_CASE("bounded prefix-9 is the first full-width i64 and u64 contract") {
 
   rns8_destroy_context(ctx);
 }
-

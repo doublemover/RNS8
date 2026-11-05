@@ -1,4 +1,5 @@
 """Polynomial certificate plus exact composite/prime ring and tail oracles."""
+
 from dataclasses import replace
 import random
 
@@ -12,11 +13,19 @@ def main() -> int:
     rng = random.Random(144)
     for modulus in range(2, 257):
         for m, n, k in ((1, 1, 1), (3, 5, 7), (4, 4, 4), (1, 8, 3)):
-            a = [[rng.choice((-128, 127, 0, modulus, -modulus, rng.randrange(-1000, 1000))) for _ in range(k)] for _ in range(m)]
+            a = [
+                [
+                    rng.choice((-128, 127, 0, modulus, -modulus, rng.randrange(-1000, 1000)))
+                    for _ in range(k)
+                ]
+                for _ in range(m)
+            ]
             b = [[rng.randrange(-1000, 1000) for _ in range(n)] for _ in range(k)]
             actual, report = one_level(a, b, modulus)
-            expected = [[centered(sum(a[i][q] * b[q][j] for q in range(k)), modulus)
-                         for j in range(n)] for i in range(m)]
+            expected = [
+                [centered(sum(a[i][q] * b[q][j] for q in range(k)), modulus) for j in range(n)]
+                for i in range(m)
+            ]
             assert actual == expected, (modulus, m, n, k)
             assert report["packed_operand_abs_bound"] <= 128
             assert report["stored_product_matrices"] == 0

@@ -87,7 +87,9 @@ def phase_comparison(baseline: dict[str, Any], batch: dict[str, Any], phase: str
     baseline_median = timing_summary_value(baseline, phase, "median")
     batch_aggregate_median = timing_summary_value(batch, phase, "median")
     batch_per_task_median = (
-        batch_aggregate_median / batch_size if batch_aggregate_median is not None and batch_size > 0 else None
+        batch_aggregate_median / batch_size
+        if batch_aggregate_median is not None and batch_size > 0
+        else None
     )
     speedup = (
         baseline_median / batch_per_task_median
@@ -120,11 +122,15 @@ def select_independent_baseline(candidates: list[dict[str, Any]]) -> dict[str, A
     valid = [
         capture
         for capture in candidates
-        if not is_host_api_batch(capture) and timing_summary_value(capture, "end_to_end", "median") is not None
+        if not is_host_api_batch(capture)
+        and timing_summary_value(capture, "end_to_end", "median") is not None
     ]
     if not valid:
         return None
-    return min(valid, key=lambda capture: timing_summary_value(capture, "end_to_end", "median") or float("inf"))
+    return min(
+        valid,
+        key=lambda capture: timing_summary_value(capture, "end_to_end", "median") or float("inf"),
+    )
 
 
 def decision_for(
@@ -150,7 +156,9 @@ def decision_for(
             blockers.append("missing_host_batch_gpu_events")
         if gpu_backend(same_backend_baseline) and not gpu_events_available(same_backend_baseline):
             blockers.append("missing_independent_gpu_events")
-        if gpu_backend(best_independent_baseline) and not gpu_events_available(best_independent_baseline):
+        if gpu_backend(best_independent_baseline) and not gpu_events_available(
+            best_independent_baseline
+        ):
             blockers.append("missing_best_independent_gpu_events")
     same_backend_speedup = same_backend_phases["end_to_end"].get("per_task_speedup_vs_independent")
     if same_backend_speedup is None or speedup_vs_best_independent is None:
@@ -180,7 +188,9 @@ def compare_host_batches(captures: list[dict[str, Any]]) -> dict[str, Any]:
     for batch in sorted(host_batches, key=lambda item: str(item.get("_path"))):
         key = contract_key(batch)
         backend = backend_id(batch)
-        same_backend_baseline = select_independent_baseline(by_contract_backend.get((key, backend), []))
+        same_backend_baseline = select_independent_baseline(
+            by_contract_backend.get((key, backend), [])
+        )
         best_independent_baseline = select_independent_baseline(by_contract.get(key, []))
         phases = {
             phase: phase_comparison(same_backend_baseline, batch, phase)
@@ -233,7 +243,9 @@ def compare_host_batches(captures: list[dict[str, Any]]) -> dict[str, Any]:
                     and release_satisfied(best_independent_baseline)
                     and release_satisfied(batch)
                 ),
-                "host_batch_gpu_events": gpu_events_available(batch) if gpu_backend(batch) else None,
+                "host_batch_gpu_events": gpu_events_available(batch)
+                if gpu_backend(batch)
+                else None,
                 "same_backend_independent_gpu_events": gpu_events_available(same_backend_baseline)
                 if same_backend_baseline is not None and gpu_backend(same_backend_baseline)
                 else None,
@@ -252,7 +264,9 @@ def compare_host_batches(captures: list[dict[str, Any]]) -> dict[str, Any]:
         "candidate_wins": sum(1 for item in comparisons if item["decision"] == "candidate_win"),
         "deprioritized": sum(1 for item in comparisons if item["decision"] == "deprioritize"),
         "experimental": sum(1 for item in comparisons if item["decision"] == "keep_experimental"),
-        "missing_baselines": sum(1 for item in comparisons if item["decision"] == "missing_baseline"),
+        "missing_baselines": sum(
+            1 for item in comparisons if item["decision"] == "missing_baseline"
+        ),
     }
     return {"summary": summary, "comparisons": comparisons}
 
@@ -294,7 +308,9 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                 per_task=phase.get("batch_per_task_median_us"),
                 speedup=None if speedup is None else round(float(speedup), 4),
                 best=best_text,
-                workload_speedup=None if workload_speedup is None else round(float(workload_speedup), 4),
+                workload_speedup=None
+                if workload_speedup is None
+                else round(float(workload_speedup), 4),
                 decision=item.get("decision"),
                 blockers=blockers,
             )
@@ -323,7 +339,9 @@ def main() -> int:
     report = compare_host_batches(captures)
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
-        args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.out_json.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     else:
         print(json.dumps(report, indent=2, sort_keys=True))
     if args.out_md:

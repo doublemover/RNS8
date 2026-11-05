@@ -11,7 +11,9 @@ import tempfile
 from pathlib import Path
 
 
-def run_command(exe: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def run_command(
+    exe: Path, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(exe), *args],
         check=False,
@@ -49,7 +51,9 @@ def main() -> int:
 
     hipblaslt = run_command(inspect_exe, "--backend", "hipblaslt")
     if hipblaslt.returncode == 0:
-        expect_text(hipblaslt.stdout, "capability_status: implemented_baseline_backend", "hipblaslt")
+        expect_text(
+            hipblaslt.stdout, "capability_status: implemented_baseline_backend", "hipblaslt"
+        )
         expect_text(
             hipblaslt.stdout,
             "selected_kernel:   hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
@@ -86,7 +90,9 @@ def main() -> int:
 
     rocwmma = run_command(inspect_exe, "--backend", "rocwmma")
     if rocwmma.returncode == 0:
-        expect_text(rocwmma.stdout, "capability_status: implemented_opt_in_rocwmma_backend", "rocwmma")
+        expect_text(
+            rocwmma.stdout, "capability_status: implemented_opt_in_rocwmma_backend", "rocwmma"
+        )
         expect_text(
             rocwmma.stdout,
             "selected_kernel:   rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
@@ -109,7 +115,9 @@ def main() -> int:
     expect_exit(cpu, 0, "cpu-reference json")
     expect_text(cpu.stdout, '"backend": "cpu-reference"', "cpu-reference json")
     expect_text(cpu.stdout, '"hip_available": 0', "cpu-reference json")
-    selector_shadow = run_command(inspect_exe, "--backend", "cpu-reference", "--json", "--selector-shadow")
+    selector_shadow = run_command(
+        inspect_exe, "--backend", "cpu-reference", "--json", "--selector-shadow"
+    )
     expect_exit(selector_shadow, 0, "selector shadow json")
     expect_text(selector_shadow.stdout, '"selector_shadow": {', "selector shadow json")
     expect_text(
@@ -117,7 +125,9 @@ def main() -> int:
         '"conservative_family_boundary": "exact_cache_selection_unchanged_family_advisory_only"',
         "selector shadow json",
     )
-    expect_text(selector_shadow.stdout, '"selected_family": "cpu_reference_family"', "selector shadow json")
+    expect_text(
+        selector_shadow.stdout, '"selected_family": "cpu_reference_family"', "selector shadow json"
+    )
 
     with tempfile.TemporaryDirectory() as temp_dir:
         env = os.environ.copy()

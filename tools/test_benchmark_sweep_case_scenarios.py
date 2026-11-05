@@ -28,13 +28,25 @@ class ScenariosCases(unittest.TestCase):
         assert adaptive.bound_mode == "per-tile"
         assert adaptive.input_profile == "uniform-small"
         assert adaptive.require_adaptive is True
-        adaptive_profile = benchmark_sweep.parse_case("adaptive-bands:256,256,512,64,64,adaptive-bands", adaptive=True)
+        adaptive_profile = benchmark_sweep.parse_case(
+            "adaptive-bands:256,256,512,64,64,adaptive-bands", adaptive=True
+        )
         assert adaptive_profile.input_profile == "adaptive-bands"
         assert benchmark_sweep.backend_allowed_for("wrap-u64", parsed, "wrap64-byte-limb") is True
-        assert benchmark_sweep.backend_allowed_for("bounded-i64", parsed, "wrap64-byte-limb") is False
-        assert benchmark_sweep.backend_allowed_for("finite-u8-ring", parsed, "hip-vector-alu-int64") is False
+        assert (
+            benchmark_sweep.backend_allowed_for("bounded-i64", parsed, "wrap64-byte-limb") is False
+        )
+        assert (
+            benchmark_sweep.backend_allowed_for("finite-u8-ring", parsed, "hip-vector-alu-int64")
+            is False
+        )
         assert benchmark_sweep.backend_allowed_for("exact-wide-signed", parsed, "ck") is True
-        assert benchmark_sweep.backend_allowed_for("exact-wide-unsigned", parsed, "hip-vector-alu-int64") is False
+        assert (
+            benchmark_sweep.backend_allowed_for(
+                "exact-wide-unsigned", parsed, "hip-vector-alu-int64"
+            )
+            is False
+        )
         assert benchmark_sweep.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
         assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
         assert benchmark_sweep.cli_backend("rocwmma") == "rocwmma"
@@ -53,10 +65,25 @@ class ScenariosCases(unittest.TestCase):
             for item in payload["items"]:
                 assert isinstance(item.get("case"), dict)
                 assert isinstance(item.get("backends"), list) and item["backends"]
-                assert isinstance(item.get("review_mode_expectation"), str) and item["review_mode_expectation"]
+                assert (
+                    isinstance(item.get("review_mode_expectation"), str)
+                    and item["review_mode_expectation"]
+                )
                 assert item["review_mode_expectation"] in {"smoke", "release"}
-                assert isinstance(item.get("promotion_eligibility"), str) and item["promotion_eligibility"]
-                for key in ["name", "m", "n", "k", "tile_m", "tile_n", "bound_mode", "input_profile"]:
+                assert (
+                    isinstance(item.get("promotion_eligibility"), str)
+                    and item["promotion_eligibility"]
+                )
+                for key in [
+                    "name",
+                    "m",
+                    "n",
+                    "k",
+                    "tile_m",
+                    "tile_n",
+                    "bound_mode",
+                    "input_profile",
+                ]:
                     assert key in item["case"]
         for scenario_name in [
             "bound-discovery",
@@ -112,13 +139,17 @@ class ScenariosCases(unittest.TestCase):
         for family, items in catalog.items():
             for item in items:
                 if item.verification_amortization != "none":
-                    assert "cpu" in item.backends, f"{family}/{item.name} verification amortization requires CPU baseline"
+                    assert "cpu" in item.backends, (
+                        f"{family}/{item.name} verification amortization requires CPU baseline"
+                    )
                 if item.error_detection_policy != "none":
-                    assert "cpu" in item.backends, f"{family}/{item.name} error detection policy requires CPU baseline"
+                    assert "cpu" in item.backends, (
+                        f"{family}/{item.name} error detection policy requires CPU baseline"
+                    )
                 if item.cpu_small_shape_selector != "none":
-                    assert (
-                        item.cpu_small_shape_selector in cpu_selector_policies_with_cpu
-                    ), f"{family}/{item.name} CPU selector review requires paired CPU baseline"
+                    assert item.cpu_small_shape_selector in cpu_selector_policies_with_cpu, (
+                        f"{family}/{item.name} CPU selector review requires paired CPU baseline"
+                    )
                     assert item.promotion_eligibility == "cpu_selector_threshold_evidence_only"
                 if item.incremental_result_cache != "none":
                     result_cache_group = (
@@ -126,9 +157,9 @@ class ScenariosCases(unittest.TestCase):
                         if isinstance(item.metadata, dict)
                         else item.name
                     )
-                    assert (
-                        result_cache_group in result_cache_groups_with_cpu
-                    ), f"{family}/{item.name} result-cache review group requires CPU baseline"
+                    assert result_cache_group in result_cache_groups_with_cpu, (
+                        f"{family}/{item.name} result-cache review group requires CPU baseline"
+                    )
                     assert item.promotion_eligibility in {
                         "result_cache_research_only",
                         "result_cache_contract_candidate",
@@ -136,7 +167,11 @@ class ScenariosCases(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_path = Path(temp_dir) / "bad_scenario.json"
-            payload = json.loads((benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(encoding="utf-8"))
+            payload = json.loads(
+                (benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(
+                    encoding="utf-8"
+                )
+            )
             payload["items"][0]["review_mode_expectation"] = "unregistered_review_mode"
             scenario_path.write_text(json.dumps(payload), encoding="utf-8")
             try:
@@ -146,7 +181,11 @@ class ScenariosCases(unittest.TestCase):
             else:
                 raise AssertionError("expected stale scenario review mode to fail validation")
 
-            payload = json.loads((benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(encoding="utf-8"))
+            payload = json.loads(
+                (benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(
+                    encoding="utf-8"
+                )
+            )
             payload["items"][0]["promotion_eligibility"] = "unregistered_promotion_scope"
             scenario_path.write_text(json.dumps(payload), encoding="utf-8")
             try:
@@ -200,8 +239,15 @@ class ScenariosCases(unittest.TestCase):
             None,
             modulus_args,
         )
-        assert "--modulus-set" in modulus_command and "experimental:prefix5-byte-ladder-search" in modulus_command
-        tile_item = next(item for item in catalog["tile-shape-sweeps"] if item.tile_shape_variant == "direct-hip-bounded-512-64x64")
+        assert (
+            "--modulus-set" in modulus_command
+            and "experimental:prefix5-byte-ladder-search" in modulus_command
+        )
+        tile_item = next(
+            item
+            for item in catalog["tile-shape-sweeps"]
+            if item.tile_shape_variant == "direct-hip-bounded-512-64x64"
+        )
         tile_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, tile_item)
         tile_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
@@ -212,11 +258,20 @@ class ScenariosCases(unittest.TestCase):
             None,
             tile_args,
         )
-        assert "--tile-shape-variant" in tile_command and "direct-hip-bounded-512-64x64" in tile_command
+        assert (
+            "--tile-shape-variant" in tile_command
+            and "direct-hip-bounded-512-64x64" in tile_command
+        )
         graph_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
         assert {item.hip_graph_replay for item in catalog["hip-graph-replay"]} == {False, True}
         assert all(item.family == "hip-graph-replay" for item in catalog["hip-graph-replay"])
-        assert any(not item.hip_graph_replay and item.semantics == graph_item.semantics and item.case == graph_item.case and item.pack_mode == graph_item.pack_mode for item in catalog["hip-graph-replay"])
+        assert any(
+            not item.hip_graph_replay
+            and item.semantics == graph_item.semantics
+            and item.case == graph_item.case
+            and item.pack_mode == graph_item.pack_mode
+            for item in catalog["hip-graph-replay"]
+        )
         graph_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, graph_item)
         graph_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
@@ -283,7 +338,9 @@ class ScenariosCases(unittest.TestCase):
                 "workspace_reuse",
             ),
         )
-        resident_redesign_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, resident_redesign_item)
+        resident_redesign_args = benchmark_sweep.scenario_args_for_item(
+            scenario_base_args, resident_redesign_item
+        )
         resident_redesign_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
             "hip-direct",
@@ -296,9 +353,14 @@ class ScenariosCases(unittest.TestCase):
         assert "--resident-redesign-candidate" in resident_redesign_command
         assert "grouped_active_schedule_v3" in resident_redesign_command
         assert "--resident-redesign-dimensions" in resident_redesign_command
-        assert "data_layout,tile_shape,export_interaction,schedule_upload,workspace_reuse" in resident_redesign_command
+        assert (
+            "data_layout,tile_shape,export_interaction,schedule_upload,workspace_reuse"
+            in resident_redesign_command
+        )
         adaptive_group_item = catalog["adaptive-grouped-scheduler"][0]
-        adaptive_group_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, adaptive_group_item)
+        adaptive_group_args = benchmark_sweep.scenario_args_for_item(
+            scenario_base_args, adaptive_group_item
+        )
         adaptive_group_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
             "hip-direct",
@@ -332,9 +394,14 @@ class ScenariosCases(unittest.TestCase):
             None,
             release_args,
         )
-        assert "--release-gate" in release_command and "large-release-validation-4096-budgeted" in release_command
+        assert (
+            "--release-gate" in release_command
+            and "large-release-validation-4096-budgeted" in release_command
+        )
         error_detection_item = catalog["error-detecting-fast-path"][0]
-        error_detection_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, error_detection_item)
+        error_detection_args = benchmark_sweep.scenario_args_for_item(
+            scenario_base_args, error_detection_item
+        )
         error_detection_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
             "hip-direct",
@@ -347,7 +414,9 @@ class ScenariosCases(unittest.TestCase):
         assert "--error-detection-policy" in error_detection_command
         assert "freivalds_two_round_product_check_research" in error_detection_command
         cpu_selector_item = catalog["cpu-small-shape-selector"][0]
-        cpu_selector_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, cpu_selector_item)
+        cpu_selector_args = benchmark_sweep.scenario_args_for_item(
+            scenario_base_args, cpu_selector_item
+        )
         cpu_selector_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
             "hip-direct",
@@ -360,7 +429,9 @@ class ScenariosCases(unittest.TestCase):
         assert "--cpu-small-shape-selector" in cpu_selector_command
         assert "bounded_i64_32_cpu_cutoff_review" in cpu_selector_command
         incremental_item = catalog["incremental-result-cache"][0]
-        incremental_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, incremental_item)
+        incremental_args = benchmark_sweep.scenario_args_for_item(
+            scenario_base_args, incremental_item
+        )
         incremental_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
             "hip-direct",
@@ -393,11 +464,18 @@ class ScenariosCases(unittest.TestCase):
             for item in broader_chain_items
         } == {
             (semantics, shape, independent)
-            for semantics in ["bounded-i64", "bounded-u64", "exact-wide-signed", "exact-wide-unsigned"]
+            for semantics in [
+                "bounded-i64",
+                "bounded-u64",
+                "exact-wide-signed",
+                "exact-wide-unsigned",
+            ]
             for shape in [512, 1024]
             for independent in [False, True]
         }
-        broader_chain_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, broader_chain_items[0])
+        broader_chain_args = benchmark_sweep.scenario_args_for_item(
+            scenario_base_args, broader_chain_items[0]
+        )
         broader_chain_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
             "hip-direct",
@@ -412,7 +490,12 @@ class ScenariosCases(unittest.TestCase):
 
         exact_wide_output_chain_items = catalog["exact-wide-output-chain-broader"]
         assert {
-            (item.semantics, item.case.m, item.residue_chain_length, item.residue_chain_final_export)
+            (
+                item.semantics,
+                item.case.m,
+                item.residue_chain_length,
+                item.residue_chain_final_export,
+            )
             for item in exact_wide_output_chain_items
         } == {
             (semantics, shape, chain, final_export)
@@ -420,7 +503,9 @@ class ScenariosCases(unittest.TestCase):
             for shape in [512, 1024]
             for chain, final_export in [(3, False), (4, False), (4, True)]
         }
-        residue_item = next(item for item in exact_wide_output_chain_items if not item.residue_chain_final_export)
+        residue_item = next(
+            item for item in exact_wide_output_chain_items if not item.residue_chain_final_export
+        )
         residue_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, residue_item)
         residue_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
@@ -434,7 +519,6 @@ class ScenariosCases(unittest.TestCase):
         assert "--residue-chain-length" in residue_command and "3" in residue_command
         assert "--residue-chain-final-export" not in residue_command
         assert "--next-op-hint" in residue_command and "rns-gemm" in residue_command
-
 
 
 if __name__ == "__main__":

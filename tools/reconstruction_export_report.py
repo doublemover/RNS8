@@ -24,8 +24,6 @@ REQUIRED_VARIANT_CLASSES = {
 BASELINE_EXPORT_VARIANTS = {"default", "exact-wide-fixed-limb-export"}
 
 
-
-
 def _relative(path: Path) -> str:
     try:
         return str(path.resolve().relative_to(REPO_ROOT)).replace("\\", "/")
@@ -50,13 +48,11 @@ def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]
         capture = load_report_capture(path, from_directory=from_directory)
         if capture is None:
             continue
-        if isinstance(capture.get("export_variant"), dict) or isinstance(capture.get("reconstruction_variant"), dict):
+        if isinstance(capture.get("export_variant"), dict) or isinstance(
+            capture.get("reconstruction_variant"), dict
+        ):
             captures.append((path, capture))
     return captures, skipped
-
-
-
-
 
 
 def _timing_median(capture: dict[str, Any], phase: str) -> float | None:
@@ -103,14 +99,22 @@ def _variant_class(export: dict[str, Any], reconstruction: dict[str, Any]) -> st
     return "other_export_reconstruction_variant"
 
 
-def _row_for_capture(path: Path, capture: dict[str, Any], review_index: ReviewIndex) -> dict[str, Any]:
-    export = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+def _row_for_capture(
+    path: Path, capture: dict[str, Any], review_index: ReviewIndex
+) -> dict[str, Any]:
+    export = (
+        capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    )
     reconstruction = (
-        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+        capture.get("reconstruction_variant")
+        if isinstance(capture.get("reconstruction_variant"), dict)
+        else {}
     )
     review = review_index.lookup(path, capture)
-    numerical = review.get('numerical_reference') if review else None
-    reference_blockers = list(review.get('review_reader_blockers') or []) if review else ['review_reference_missing']
+    numerical = review.get("numerical_reference") if review else None
+    reference_blockers = (
+        list(review.get("review_reader_blockers") or []) if review else ["review_reference_missing"]
+    )
     missing = review.get("missing_required_baselines") if isinstance(review, dict) else []
     duplicates = review.get("duplicate_backends") if isinstance(review, dict) else []
     release_ready = (
@@ -120,7 +124,8 @@ def _row_for_capture(path: Path, capture: dict[str, Any], review_index: ReviewIn
         and not missing
         and not duplicates
         and not reference_blockers
-        and isinstance(numerical, dict) and numerical.get('passed') is True
+        and isinstance(numerical, dict)
+        and numerical.get("passed") is True
     )
     return {
         "capture_path": _relative(path),
@@ -144,8 +149,10 @@ def _row_for_capture(path: Path, capture: dict[str, Any], review_index: ReviewIn
         "final_output_mode": export.get("final_output_mode"),
         "selected_kernel": export.get("selected_kernel") or capture.get("selected_kernel"),
         "selector_key": export.get("selector_key"),
-        "promotion_eligible": export.get("promotion_eligible") is True and reconstruction.get("promotion_eligible") is not False,
-        "promotion_blocker": export.get("promotion_blocker") or reconstruction.get("promotion_blocker"),
+        "promotion_eligible": export.get("promotion_eligible") is True
+        and reconstruction.get("promotion_eligible") is not False,
+        "promotion_blocker": export.get("promotion_blocker")
+        or reconstruction.get("promotion_blocker"),
         "median_end_to_end_us": _timing_median(capture, "end_to_end"),
         "median_export_us": _timing_median(capture, "crt_export"),
         "gpu_events_complete": _gpu_events_complete(capture),
@@ -185,8 +192,8 @@ def _candidate_blockers(candidate: dict[str, Any], baseline: dict[str, Any] | No
     blockers: list[str] = []
     if baseline is None:
         return ["missing_default_baseline"]
-    blockers.extend('candidate:' + item for item in candidate.get('reference_blockers', []))
-    blockers.extend('baseline:' + item for item in baseline.get('reference_blockers', []))
+    blockers.extend("candidate:" + item for item in candidate.get("reference_blockers", []))
+    blockers.extend("baseline:" + item for item in baseline.get("reference_blockers", []))
     if not candidate["release_review_ready"]:
         blockers.append("candidate_release_review_not_ready")
     if not baseline["release_review_ready"]:
@@ -214,7 +221,11 @@ def _comparison_for(candidate: dict[str, Any], baseline: dict[str, Any] | None) 
     blockers = _candidate_blockers(candidate, baseline)
     if blockers:
         disposition = "blocked"
-    elif end_to_end_speedup is not None and end_to_end_speedup > 1.01 and candidate["promotion_eligible"]:
+    elif (
+        end_to_end_speedup is not None
+        and end_to_end_speedup > 1.01
+        and candidate["promotion_eligible"]
+    ):
         disposition = "promote locally"
     elif end_to_end_speedup is not None and end_to_end_speedup > 1.01:
         disposition = "keep experimental"
@@ -244,10 +255,14 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
     for row in rows:
         if row["variant_class"] in REQUIRED_VARIANT_CLASSES:
             baselines = baseline_by_key.get(_comparison_key(row), [])
-            baseline = min(
-                baselines,
-                key=lambda item: item.get("median_end_to_end_us") or float("inf"),
-            ) if baselines else None
+            baseline = (
+                min(
+                    baselines,
+                    key=lambda item: item.get("median_end_to_end_us") or float("inf"),
+                )
+                if baselines
+                else None
+            )
             comparisons.append(_comparison_for(row, baseline))
 
     class_summary: dict[str, dict[str, Any]] = {}
@@ -259,7 +274,9 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
             "classified_count": len(classified),
             "ready": bool(classified),
             "dispositions": sorted({item["disposition"] for item in class_comparisons}),
-            "blockers": sorted({blocker for item in class_comparisons for blocker in item["blockers"]}),
+            "blockers": sorted(
+                {blocker for item in class_comparisons for blocker in item["blockers"]}
+            ),
         }
 
     return {
@@ -328,8 +345,12 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
                 backend=candidate.get("backend"),
                 baseline_us=baseline.get("median_end_to_end_us", ""),
                 candidate_us=candidate.get("median_end_to_end_us", ""),
-                e2e=f"{item['speedup_end_to_end']:.3f}" if item.get("speedup_end_to_end") is not None else "",
-                export=f"{item['speedup_export']:.3f}" if item.get("speedup_export") is not None else "",
+                e2e=f"{item['speedup_end_to_end']:.3f}"
+                if item.get("speedup_end_to_end") is not None
+                else "",
+                export=f"{item['speedup_export']:.3f}"
+                if item.get("speedup_export") is not None
+                else "",
                 disposition=item["disposition"],
             )
         )
@@ -339,7 +360,9 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("inputs", nargs="+", type=Path, help="capture files or directories containing captures")
+    parser.add_argument(
+        "inputs", nargs="+", type=Path, help="capture files or directories containing captures"
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--require-complete", action="store_true")

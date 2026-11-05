@@ -15,7 +15,8 @@ constexpr double duration_us(std::chrono::duration<Rep, Period> duration) {
   return std::chrono::duration<double, std::micro>(duration).count();
 }
 
-inline double elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
+inline double elapsed_us(std::chrono::steady_clock::time_point start,
+                         std::chrono::steady_clock::time_point end) {
   return duration_us(end - start);
 }
 
@@ -62,10 +63,11 @@ void print_json_string_or_null(std::ostream& output, const std::string& value);
 
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label);
 
-std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count, const char* label);
+std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count,
+                                  const char* label);
 
 std::size_t checked_bytes(std::size_t elements, std::size_t element_size, const char* label);
 
 std::size_t checked_add_bytes(std::size_t lhs, std::size_t rhs, const char* label);
 
-}  // namespace rns8::bench
+} // namespace rns8::bench

@@ -43,7 +43,10 @@ def _rank20_scope(capture: dict[str, Any]) -> bool:
     semantics = str(capture.get("semantics"))
     if semantics not in {"bounded_i64", "bounded_u64"}:
         return True
-    return capture.get("input_distribution") not in {"signed_uniform_-16_16", "unsigned_uniform_0_16"}
+    return capture.get("input_distribution") not in {
+        "signed_uniform_-16_16",
+        "unsigned_uniform_0_16",
+    }
 
 
 def _comparison_profile(
@@ -65,7 +68,9 @@ def _comparison_profile(
 
 def build_direct_hip_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
     base = reuse_contract_report.compare_reuse_contracts(captures)
-    captures_by_path = {_capture_path(capture): capture for capture in captures if _capture_path(capture)}
+    captures_by_path = {
+        _capture_path(capture): capture for capture in captures if _capture_path(capture)
+    }
     comparisons: list[dict[str, Any]] = []
     by_profile: dict[str, Counter[str]] = defaultdict(Counter)
     rank20_scope_count = 0
@@ -88,13 +93,20 @@ def build_direct_hip_report_from_captures(captures: list[dict[str, Any]]) -> dic
         "explicit_workload_selector_ready": sum(
             1
             for item in comparisons
-            if item.get("selector_eligibility", {}).get("explicit_workload_selector_eligible") is True
+            if item.get("selector_eligibility", {}).get("explicit_workload_selector_eligible")
+            is True
         ),
         "same_workload_family_ready": sum(
-            1 for item in comparisons if item.get("same_workload_family", {}).get("available") is True
+            1
+            for item in comparisons
+            if item.get("same_workload_family", {}).get("available") is True
         ),
-        "missing_baselines": sum(1 for item in comparisons if item.get("decision") == "missing_baseline"),
-        "experimental": sum(1 for item in comparisons if item.get("decision") == "keep_experimental"),
+        "missing_baselines": sum(
+            1 for item in comparisons if item.get("decision") == "missing_baseline"
+        ),
+        "experimental": sum(
+            1 for item in comparisons if item.get("decision") == "keep_experimental"
+        ),
         "deprioritized": sum(1 for item in comparisons if item.get("decision") == "deprioritize"),
         "profiles": {
             profile: dict(sorted(counter.items()))
@@ -111,7 +123,10 @@ def build_direct_hip_report_from_captures(captures: list[dict[str, Any]]) -> dic
 
 
 def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = [reuse_contract_report.load_validated_capture(path) for path in reuse_contract_report.expand_inputs(paths)]
+    captures = [
+        reuse_contract_report.load_validated_capture(path)
+        for path in reuse_contract_report.expand_inputs(paths)
+    ]
     report = build_direct_hip_report_from_captures(captures)
     return {"capture_count": len(captures), **report}
 
@@ -183,9 +198,15 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("captures", type=Path, nargs="*", help="schema-v4 benchmark JSON captures or directories")
-    parser.add_argument("--capture", type=Path, action="append", help="additional capture file or directory")
-    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="write JSON and Markdown reports here")
+    parser.add_argument(
+        "captures", type=Path, nargs="*", help="schema-v4 benchmark JSON captures or directories"
+    )
+    parser.add_argument(
+        "--capture", type=Path, action="append", help="additional capture file or directory"
+    )
+    parser.add_argument(
+        "--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="write JSON and Markdown reports here"
+    )
     parser.add_argument("--json", action="store_true", help="print report JSON")
     return parser.parse_args()
 

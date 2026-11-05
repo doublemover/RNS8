@@ -21,7 +21,9 @@ def write_capture(path: Path, capture: dict) -> None:
     write_independent_fixture_pair(path, capture)
 
 
-def finite_map_capture(backend: str, end_to_end: int, *, shape: int = 64, modulus: int = 255) -> dict:
+def finite_map_capture(
+    backend: str, end_to_end: int, *, shape: int = 64, modulus: int = 255
+) -> dict:
     capture = finite_capture(backend, end_to_end)
     old_shape = f"m={capture['m']};n={capture['n']};k={capture['k']}"
     new_shape = f"m={shape};n={shape};k={shape}"
@@ -31,7 +33,9 @@ def finite_map_capture(backend: str, end_to_end: int, *, shape: int = 64, modulu
     capture["finite_modulus"] = modulus
     metadata = capture["backend_metadata"]
     metadata["autotune_key"] = metadata["autotune_key"].replace(old_shape, new_shape)
-    metadata["autotune_key"] = metadata["autotune_key"].replace("finite_modulus=255", f"finite_modulus={modulus}")
+    metadata["autotune_key"] = metadata["autotune_key"].replace(
+        "finite_modulus=255", f"finite_modulus={modulus}"
+    )
     capture["command_line"] = (
         f"rns8-bench --backend {backend} --semantics finite-u8-ring --modulus {modulus} "
         f"--m {shape} --n {shape} --k {shape} --warmups 3 --repeats 9 --seed 13"
@@ -107,7 +111,10 @@ def main() -> int:
 
         generic_prime = copy.deepcopy(group)
         assert finite_modulus_map_report._modulus_class(127) == "prime"
-        assert finite_modulus_map_report._modulus_role("finite_ring_u8", 127) == "generic_non_hot_prime"
+        assert (
+            finite_modulus_map_report._modulus_role("finite_ring_u8", 127)
+            == "generic_non_hot_prime"
+        )
         assert finite_modulus_map_report._modulus_class(256) == "power_of_two"
         assert finite_modulus_map_report._modulus_role("finite_ring_u8", 256) == "hot_power_of_two"
         assert generic_prime["promotion_eligible"] is False

@@ -6,25 +6,13 @@
 #include <limits>
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_vector_alu_i64_gemm_device(
-    int device_id,
-    const int64_t* a,
-    const int64_t* b,
-    int64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k,bool exact_width);
+extern "C" int rns8_vector_alu_i64_gemm_device(int device_id, const int64_t* a, const int64_t* b,
+                                               int64_t* c, uint32_t* status, int64_t m, int64_t n,
+                                               int64_t k, bool exact_width);
 
-extern "C" int rns8_vector_alu_u64_gemm_device(
-    int device_id,
-    const uint64_t* a,
-    const uint64_t* b,
-    uint64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k,bool exact_width);
+extern "C" int rns8_vector_alu_u64_gemm_device(int device_id, const uint64_t* a, const uint64_t* b,
+                                               uint64_t* c, uint32_t* status, int64_t m, int64_t n,
+                                               int64_t k, bool exact_width);
 #endif
 
 namespace rns8::detail {
@@ -82,32 +70,22 @@ const char* vector_u64_event_label(int64_t n, int64_t k) {
   return "vector_alu_u64_kernel";
 }
 
-}  // namespace
+} // namespace
 
-rns8_status vector_alu_gemm_i64_device(
-    int device_id,
-    const void* device_a,
-    const void* device_b,
-    void* device_c,
-    void* device_status,
-    int64_t m,
-    int64_t n,
-    int64_t k,bool exact_width) {
+rns8_status vector_alu_gemm_i64_device(int device_id, const void* device_a, const void* device_b,
+                                       void* device_c, void* device_status, int64_t m, int64_t n,
+                                       int64_t k, bool exact_width) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const char* event_label = exact_width?"vector_alu_i64_gemv_exact_width_kernel":vector_i64_event_label(n,k);
+  const char* event_label =
+      exact_width ? "vector_alu_i64_gemv_exact_width_kernel" : vector_i64_event_label(n, k);
   const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_i64_gemm_device(
-        device_id,
-        static_cast<const int64_t*>(device_a),
-        static_cast<const int64_t*>(device_b),
-        static_cast<int64_t*>(device_c),
-        static_cast<uint32_t*>(device_status),
-        m,
-        n,
-        k,exact_width);
+        device_id, static_cast<const int64_t*>(device_a), static_cast<const int64_t*>(device_b),
+        static_cast<int64_t*>(device_c), static_cast<uint32_t*>(device_status), m, n, k,
+        exact_width);
   });
   return status == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -123,30 +101,20 @@ rns8_status vector_alu_gemm_i64_device(
 #endif
 }
 
-rns8_status vector_alu_gemm_u64_device(
-    int device_id,
-    const void* device_a,
-    const void* device_b,
-    void* device_c,
-    void* device_status,
-    int64_t m,
-    int64_t n,
-    int64_t k,bool exact_width) {
+rns8_status vector_alu_gemm_u64_device(int device_id, const void* device_a, const void* device_b,
+                                       void* device_c, void* device_status, int64_t m, int64_t n,
+                                       int64_t k, bool exact_width) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const char* event_label = exact_width?"vector_alu_u64_gemv_exact_width_kernel":vector_u64_event_label(n,k);
+  const char* event_label =
+      exact_width ? "vector_alu_u64_gemv_exact_width_kernel" : vector_u64_event_label(n, k);
   const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_u64_gemm_device(
-        device_id,
-        static_cast<const uint64_t*>(device_a),
-        static_cast<const uint64_t*>(device_b),
-        static_cast<uint64_t*>(device_c),
-        static_cast<uint32_t*>(device_status),
-        m,
-        n,
-        k,exact_width);
+        device_id, static_cast<const uint64_t*>(device_a), static_cast<const uint64_t*>(device_b),
+        static_cast<uint64_t*>(device_c), static_cast<uint32_t*>(device_status), m, n, k,
+        exact_width);
   });
   return status == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -162,4 +130,4 @@ rns8_status vector_alu_gemm_u64_device(
 #endif
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

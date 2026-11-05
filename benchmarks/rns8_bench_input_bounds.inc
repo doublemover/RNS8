@@ -1,12 +1,11 @@
-void fill_bounded_i64_inputs(
-    const Args& args,
-    std::vector<int64_t>& A,
-    std::vector<int64_t>& B,
-    std::mt19937_64& rng) {
+void fill_bounded_i64_inputs(const Args& args, std::vector<int64_t>& A, std::vector<int64_t>& B,
+                             std::mt19937_64& rng) {
   if (args.input_profile == InputProfile::UniformSmall) {
     std::uniform_int_distribution<int64_t> dist(-16, 16);
-    for (auto& value : A) value = dist(rng);
-    for (auto& value : B) value = dist(rng);
+    for (auto& value : A)
+      value = dist(rng);
+    for (auto& value : B)
+      value = dist(rng);
     return;
   }
   for (int64_t row = 0; row < args.m; ++row) {
@@ -23,15 +22,14 @@ void fill_bounded_i64_inputs(
   }
 }
 
-void fill_bounded_u64_inputs(
-    const Args& args,
-    std::vector<uint64_t>& A,
-    std::vector<uint64_t>& B,
-    std::mt19937_64& rng) {
+void fill_bounded_u64_inputs(const Args& args, std::vector<uint64_t>& A, std::vector<uint64_t>& B,
+                             std::mt19937_64& rng) {
   if (args.input_profile == InputProfile::UniformSmall) {
     std::uniform_int_distribution<uint64_t> dist(0, 16);
-    for (auto& value : A) value = dist(rng);
-    for (auto& value : B) value = dist(rng);
+    for (auto& value : A)
+      value = dist(rng);
+    for (auto& value : B)
+      value = dist(rng);
     return;
   }
   for (int64_t row = 0; row < args.m; ++row) {
@@ -59,7 +57,8 @@ uint64_t sample_nonzero_sparse_u64(std::mt19937_64& rng) {
   return dist(rng);
 }
 
-void fill_sparse_a_4_to_2_bounded_i64_input(const Args& args, std::vector<int64_t>& A, std::mt19937_64& rng) {
+void fill_sparse_a_4_to_2_bounded_i64_input(const Args& args, std::vector<int64_t>& A,
+                                            std::mt19937_64& rng) {
   std::fill(A.begin(), A.end(), int64_t{0});
   std::uniform_int_distribution<uint32_t> first_lane_dist(0, 2);
   for (int64_t row = 0; row < args.m; ++row) {
@@ -74,7 +73,8 @@ void fill_sparse_a_4_to_2_bounded_i64_input(const Args& args, std::vector<int64_
   }
 }
 
-void fill_sparse_a_4_to_2_bounded_u64_input(const Args& args, std::vector<uint64_t>& A, std::mt19937_64& rng) {
+void fill_sparse_a_4_to_2_bounded_u64_input(const Args& args, std::vector<uint64_t>& A,
+                                            std::mt19937_64& rng) {
   std::fill(A.begin(), A.end(), uint64_t{0});
   std::uniform_int_distribution<uint32_t> first_lane_dist(0, 2);
   for (int64_t row = 0; row < args.m; ++row) {
@@ -120,10 +120,8 @@ std::vector<int8_t> make_uniform_small_i8_inputs(const std::vector<uint64_t>& va
 }
 
 template <typename T>
-std::vector<uint8_t> make_sparse_a_4_to_2_rns_planes(
-    const Args& args,
-    uint32_t prefix,
-    const std::vector<T>& values) {
+std::vector<uint8_t> make_sparse_a_4_to_2_rns_planes(const Args& args, uint32_t prefix,
+                                                     const std::vector<T>& values) {
   if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     usage_error("sparse-A RNS packing requires a selected nonzero prefix");
   }
@@ -136,12 +134,15 @@ std::vector<uint8_t> make_sparse_a_4_to_2_rns_planes(
         const std::size_t dense_index = static_cast<std::size_t>(row * args.k + col);
         int8_t residue = 0;
         if constexpr (std::is_signed_v<T>) {
-          residue = rns8::detail::centered_residue(rns8::detail::cpp_int(values[dense_index]), modulus);
+          residue =
+              rns8::detail::centered_residue(rns8::detail::cpp_int(values[dense_index]), modulus);
         } else {
-          residue = rns8::detail::centered_residue(rns8::detail::cpp_int(values[dense_index]), modulus);
+          residue =
+              rns8::detail::centered_residue(rns8::detail::cpp_int(values[dense_index]), modulus);
         }
         const std::size_t plane_index =
-            (static_cast<std::size_t>(p) * static_cast<std::size_t>(args.m) + static_cast<std::size_t>(row)) *
+            (static_cast<std::size_t>(p) * static_cast<std::size_t>(args.m) +
+             static_cast<std::size_t>(row)) *
                 static_cast<std::size_t>(args.k) +
             static_cast<std::size_t>(col);
         planes[plane_index] = static_cast<uint8_t>(residue);
@@ -170,7 +171,8 @@ rns8_sparse_matrix_desc sparse_a_4_to_2_rns_desc(const Args& args, uint32_t pref
 }
 
 uint64_t benchmark_bound(const Args& args) {
-  if (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+  if (exact_wide_benchmark_semantics(args.semantics) ||
+      args.semantics == BenchSemantics::WrapU64Mod2_64 ||
       finite_benchmark_semantics(args.semantics) || args.bound_mode == BoundMode::PerTile) {
     return 0;
   }
@@ -197,7 +199,8 @@ uint64_t benchmark_bound(const Args& args) {
     }
     const uint64_t chain_multiplier = u_k * 16u;
     for (uint32_t chain_index = 1; chain_index < args.residue_chain_length; ++chain_index) {
-      if (chain_multiplier != 0 && bound > std::numeric_limits<uint64_t>::max() / chain_multiplier) {
+      if (chain_multiplier != 0 &&
+          bound > std::numeric_limits<uint64_t>::max() / chain_multiplier) {
         usage_error("bounded residue chain benchmark bound exceeds uint64_t");
       }
       bound *= chain_multiplier;
@@ -262,11 +265,8 @@ struct GlobalBoundScanStats {
 };
 
 template <typename T>
-GlobalBoundScanStats compute_global_bound_scan(
-    const Args& args,
-    const std::vector<T>& A,
-    const std::vector<T>& B,
-    uint64_t static_bound) {
+GlobalBoundScanStats compute_global_bound_scan(const Args& args, const std::vector<T>& A,
+                                               const std::vector<T>& B, uint64_t static_bound) {
   GlobalBoundScanStats stats{};
 
   for (int64_t row = 0; row < args.m; ++row) {
@@ -303,14 +303,16 @@ GlobalBoundScanStats compute_global_bound_scan(
       checked_mul_bound(stats.row_abs_sum_max, stats.col_abs_max, "row-sum/column-max");
   stats.candidate_row_max_col_sum =
       checked_mul_bound(stats.row_abs_max, stats.col_abs_sum_max, "row-max/column-sum");
-  stats.discovered_bound = std::min(stats.candidate_row_sum_col_max, stats.candidate_row_max_col_sum);
+  stats.discovered_bound =
+      std::min(stats.candidate_row_sum_col_max, stats.candidate_row_max_col_sum);
   if (static_bound != 0) {
     stats.discovered_bound = std::min(stats.discovered_bound, static_bound);
   }
   return stats;
 }
 
-void record_global_bound_scan(BenchmarkResult& result, const GlobalBoundScanStats& stats, uint64_t static_bound) {
+void record_global_bound_scan(BenchmarkResult& result, const GlobalBoundScanStats& stats,
+                              uint64_t static_bound) {
   result.global_bound_scan_available = true;
   result.static_bound = static_bound;
   result.discovered_global_bound = stats.discovered_bound;
@@ -325,12 +327,9 @@ void record_global_bound_scan(BenchmarkResult& result, const GlobalBoundScanStat
 }
 
 template <typename T>
-uint64_t resolve_bounded_global_bound(
-    const Args& args,
-    const std::vector<T>& A,
-    const std::vector<T>& B,
-    uint64_t static_bound,
-    BenchmarkResult& result) {
+uint64_t resolve_bounded_global_bound(const Args& args, const std::vector<T>& A,
+                                      const std::vector<T>& B, uint64_t static_bound,
+                                      BenchmarkResult& result) {
   result.static_bound = static_bound;
   result.effective_bound = static_bound;
   result.effective_bound_available = true;
@@ -417,17 +416,16 @@ uint64_t count_set_flags(const std::vector<uint8_t>& flags) {
   return count;
 }
 
-uint64_t zero_row_col_product_count(int64_t m, int64_t n, uint64_t zero_a_rows, uint64_t zero_b_cols) {
+uint64_t zero_row_col_product_count(int64_t m, int64_t n, uint64_t zero_a_rows,
+                                    uint64_t zero_b_cols) {
   const uint64_t rows = static_cast<uint64_t>(m);
   const uint64_t cols = static_cast<uint64_t>(n);
   const uint64_t nonzero_a_rows = rows - zero_a_rows;
   return zero_a_rows * cols + nonzero_a_rows * zero_b_cols;
 }
 
-TileBoundScanResult compute_i64_tile_bounds(
-    const Args& args,
-    const std::vector<int64_t>& A,
-    const std::vector<int64_t>& B) {
+TileBoundScanResult compute_i64_tile_bounds(const Args& args, const std::vector<int64_t>& A,
+                                            const std::vector<int64_t>& B) {
   const auto u_k = static_cast<uint64_t>(args.k);
   if (u_k > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) / 256u) {
     usage_error("bounded-i64 per-tile benchmark k is too large for exact int64 tile-bound prepass");
@@ -442,10 +440,12 @@ TileBoundScanResult compute_i64_tile_bounds(
   scan.zero_b_cols = invert_nonzero_flags(nonzero_b_cols);
   for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
     const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
-    const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
+    const int64_t row_end =
+        std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
     for (uint64_t tile_col = 0; tile_col < tile_cols; ++tile_col) {
       const int64_t col_begin = static_cast<int64_t>(tile_col * static_cast<uint64_t>(args.tile_n));
-      const int64_t col_end = std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
+      const int64_t col_end =
+          std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
       if (!range_has_nonzero_flag(nonzero_a_rows, row_begin, row_end) ||
           !range_has_nonzero_flag(nonzero_b_cols, col_begin, col_end)) {
         continue;
@@ -461,9 +461,11 @@ TileBoundScanResult compute_i64_tile_bounds(
           }
           int64_t acc = 0;
           for (int64_t kk = 0; kk < args.k; ++kk) {
-            acc += A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];
+            acc +=
+                A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];
           }
-          const uint64_t abs_value = acc < 0 ? static_cast<uint64_t>(-acc) : static_cast<uint64_t>(acc);
+          const uint64_t abs_value =
+              acc < 0 ? static_cast<uint64_t>(-acc) : static_cast<uint64_t>(acc);
           tile_max = std::max(tile_max, abs_value);
         }
       }
@@ -472,13 +474,12 @@ TileBoundScanResult compute_i64_tile_bounds(
   return scan;
 }
 
-TileBoundScanResult compute_u64_tile_bounds(
-    const Args& args,
-    const std::vector<uint64_t>& A,
-    const std::vector<uint64_t>& B) {
+TileBoundScanResult compute_u64_tile_bounds(const Args& args, const std::vector<uint64_t>& A,
+                                            const std::vector<uint64_t>& B) {
   const auto u_k = static_cast<uint64_t>(args.k);
   if (u_k > std::numeric_limits<uint64_t>::max() / 256u) {
-    usage_error("bounded-u64 per-tile benchmark k is too large for exact uint64 tile-bound prepass");
+    usage_error(
+        "bounded-u64 per-tile benchmark k is too large for exact uint64 tile-bound prepass");
   }
   const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
   const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
@@ -490,10 +491,12 @@ TileBoundScanResult compute_u64_tile_bounds(
   scan.zero_b_cols = invert_nonzero_flags(nonzero_b_cols);
   for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
     const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
-    const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
+    const int64_t row_end =
+        std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
     for (uint64_t tile_col = 0; tile_col < tile_cols; ++tile_col) {
       const int64_t col_begin = static_cast<int64_t>(tile_col * static_cast<uint64_t>(args.tile_n));
-      const int64_t col_end = std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
+      const int64_t col_end =
+          std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
       if (!range_has_nonzero_flag(nonzero_a_rows, row_begin, row_end) ||
           !range_has_nonzero_flag(nonzero_b_cols, col_begin, col_end)) {
         continue;
@@ -509,7 +512,8 @@ TileBoundScanResult compute_u64_tile_bounds(
           }
           uint64_t acc = 0;
           for (int64_t kk = 0; kk < args.k; ++kk) {
-            acc += A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];
+            acc +=
+                A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];
           }
           tile_max = std::max(tile_max, acc);
         }
@@ -537,8 +541,7 @@ void record_tile_bounds(BenchmarkResult& result, std::vector<uint64_t> bounds) {
   result.tile_bound_hash = hash;
 }
 
-template <typename Fn>
-void record_timed_tile_bounds(BenchmarkResult& result, Fn&& compute_bounds) {
+template <typename Fn> void record_timed_tile_bounds(BenchmarkResult& result, Fn&& compute_bounds) {
   const auto scan_start = std::chrono::steady_clock::now();
   auto scan = compute_bounds();
   const auto scan_end = std::chrono::steady_clock::now();
@@ -548,17 +551,16 @@ void record_timed_tile_bounds(BenchmarkResult& result, Fn&& compute_bounds) {
   result.zero_b_cols = std::move(scan.zero_b_cols);
   result.zero_a_row_proof_count = count_set_flags(result.zero_a_rows);
   result.zero_b_col_proof_count = count_set_flags(result.zero_b_cols);
-  result.zero_row_col_product_count =
-      zero_row_col_product_count(
-          result.zero_a_rows.empty() ? 0 : static_cast<int64_t>(result.zero_a_rows.size()),
-          result.zero_b_cols.empty() ? 0 : static_cast<int64_t>(result.zero_b_cols.size()),
-          result.zero_a_row_proof_count,
-          result.zero_b_col_proof_count);
+  result.zero_row_col_product_count = zero_row_col_product_count(
+      result.zero_a_rows.empty() ? 0 : static_cast<int64_t>(result.zero_a_rows.size()),
+      result.zero_b_cols.empty() ? 0 : static_cast<int64_t>(result.zero_b_cols.size()),
+      result.zero_a_row_proof_count, result.zero_b_col_proof_count);
   record_tile_bounds(result, std::move(scan.bounds));
 }
 
 uint32_t benchmark_prefix(const Args& args) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+      finite_benchmark_semantics(args.semantics)) {
     return 0;
   }
   if (args.max_prefix_override != 0) {
@@ -575,7 +577,8 @@ bool fixed_requested_prefix_policy(const Args& args) {
 }
 
 const char* prefix_policy_name(const Args& args, const BenchmarkResult& result) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+      finite_benchmark_semantics(args.semantics)) {
     return "semantic_specific_no_rns_prefix";
   }
   if (args.bound_mode == BoundMode::PerTile && !fixed_requested_prefix_policy(args)) {
@@ -587,14 +590,16 @@ const char* prefix_policy_name(const Args& args, const BenchmarkResult& result) 
   if (fixed_requested_prefix_policy(args)) {
     return "fixed_requested";
   }
-  if (result.schedule_info_available && result.schedule_info.max_selected_prefix < benchmark_prefix(args)) {
+  if (result.schedule_info_available &&
+      result.schedule_info.max_selected_prefix < benchmark_prefix(args)) {
     return "minimum_proven";
   }
   return "minimum_proven";
 }
 
 uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& result) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+      finite_benchmark_semantics(args.semantics)) {
     return 0;
   }
   if (result.schedule_info_available && result.schedule_info.max_selected_prefix > 0) {
@@ -627,12 +632,10 @@ rns8_backend_kind requested_backend_for_plan_desc(const Args& args) {
   return native_to_rns_bridge_requested(args) ? RNS8_BACKEND_HIP_DIRECT : args.backend;
 }
 
-rns8_gemm_desc gemm_desc(
-    const Args& args,
-    uint64_t bound,
-    const std::vector<uint64_t>* tile_bounds = nullptr,
-    const std::vector<uint8_t>* zero_a_rows = nullptr,
-    const std::vector<uint8_t>* zero_b_cols = nullptr) {
+rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound,
+                         const std::vector<uint64_t>* tile_bounds = nullptr,
+                         const std::vector<uint8_t>* zero_a_rows = nullptr,
+                         const std::vector<uint8_t>* zero_b_cols = nullptr) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -647,11 +650,12 @@ rns8_gemm_desc gemm_desc(
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
   if (args.exact_scalar_first) {
-    if (!exact_wide_benchmark_semantics(args.semantics)) usage_error("scalar-first proof requires exact-wide semantics");
+    if (!exact_wide_benchmark_semantics(args.semantics))
+      usage_error("scalar-first proof requires exact-wide semantics");
     desc.flags |= RNS8_PLAN_EXACT_SCALAR_FIRST;
   }
-  if (fixed_requested_prefix_policy(args) &&
-      (bounded_benchmark_semantics(args.semantics) || exact_wide_benchmark_semantics(args.semantics))) {
+  if (fixed_requested_prefix_policy(args) && (bounded_benchmark_semantics(args.semantics) ||
+                                              exact_wide_benchmark_semantics(args.semantics))) {
     desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
   }
   if (finite_benchmark_semantics(args.semantics)) {
@@ -670,11 +674,8 @@ rns8_gemm_desc gemm_desc(
     if (bounded_benchmark_semantics(args.semantics) && zero_a_rows && zero_b_cols &&
         zero_a_rows->size() == static_cast<std::size_t>(args.m) &&
         zero_b_cols->size() == static_cast<std::size_t>(args.n) &&
-        zero_row_col_product_count(
-            args.m,
-            args.n,
-            count_set_flags(*zero_a_rows),
-            count_set_flags(*zero_b_cols)) != 0) {
+        zero_row_col_product_count(args.m, args.n, count_set_flags(*zero_a_rows),
+                                   count_set_flags(*zero_b_cols)) != 0) {
       desc.flags |= RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
       desc.zero_a_rows = zero_a_rows->data();
       desc.zero_a_rows_count = static_cast<uint64_t>(zero_a_rows->size());
@@ -684,4 +685,3 @@ rns8_gemm_desc gemm_desc(
   }
   return desc;
 }
-

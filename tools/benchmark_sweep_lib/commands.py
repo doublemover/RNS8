@@ -58,7 +58,9 @@ def visibility_env_overrides(args: argparse.Namespace) -> dict[str, str]:
     return env
 
 
-def apply_visibility_environment(args: argparse.Namespace, entries: list[SweepCommand]) -> list[SweepCommand]:
+def apply_visibility_environment(
+    args: argparse.Namespace, entries: list[SweepCommand]
+) -> list[SweepCommand]:
     base_env = visibility_env_overrides(args)
     shard_spec = getattr(args, "gpu_shards", None)
     if not shard_spec:
@@ -99,7 +101,10 @@ def default_cases(args: argparse.Namespace) -> list[SweepCase]:
     shapes = PROMOTABLE_RELEASE_SHAPES if args.release_matrix else [64, 128]
     if args.include_exploratory_large:
         shapes = [*shapes, *EXPLORATORY_RELEASE_SHAPES]
-    return [parse_case(f"{shape},{shape},{shape}", promotable=shape in PROMOTABLE_RELEASE_SHAPES) for shape in shapes]
+    return [
+        parse_case(f"{shape},{shape},{shape}", promotable=shape in PROMOTABLE_RELEASE_SHAPES)
+        for shape in shapes
+    ]
 
 
 def adaptive_cases(args: argparse.Namespace) -> list[SweepCase]:
@@ -120,7 +125,9 @@ def wrap64_cases(args: argparse.Namespace) -> list[SweepCase]:
     if args.include_exploratory_large:
         shapes = [*shapes, *EXPLORATORY_RELEASE_SHAPES]
     return [
-        parse_case(f"wrap64-{shape}:{shape},{shape},{shape}", promotable=shape in PROMOTABLE_RELEASE_SHAPES)
+        parse_case(
+            f"wrap64-{shape}:{shape},{shape},{shape}", promotable=shape in PROMOTABLE_RELEASE_SHAPES
+        )
         for shape in shapes
     ]
 
@@ -158,6 +165,7 @@ def exact_wide_limb_counts_for(semantics: str, args: argparse.Namespace) -> list
 def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     return load_scenario_data_catalog(scenario_data_dir())
 
+
 def scenario_names() -> list[str]:
     return sorted(scenario_catalog())
 
@@ -168,17 +176,30 @@ def selected_scenario_items(args: argparse.Namespace) -> list[ScenarioItem]:
         return []
     for selector in SPECIAL_SCENARIO_SELECTORS:
         if selector in requested and len(requested) > 1:
-            raise SystemExit(f"--scenario {selector} cannot be combined with other --scenario values")
+            raise SystemExit(
+                f"--scenario {selector} cannot be combined with other --scenario values"
+            )
     catalog = scenario_catalog()
-    unknown = [name for name in requested if name not in SPECIAL_SCENARIO_SELECTORS and name not in catalog]
+    unknown = [
+        name for name in requested if name not in SPECIAL_SCENARIO_SELECTORS and name not in catalog
+    ]
     if unknown:
-        raise SystemExit(f"--scenario must be one of {scenario_names() + list(SPECIAL_SCENARIO_SELECTORS)}, got {unknown}")
-    names = scenario_names() if any(name in {"all", "release-candidates"} for name in requested) else requested
+        raise SystemExit(
+            f"--scenario must be one of {scenario_names() + list(SPECIAL_SCENARIO_SELECTORS)}, got {unknown}"
+        )
+    names = (
+        scenario_names()
+        if any(name in {"all", "release-candidates"} for name in requested)
+        else requested
+    )
     release_candidates_only = "release-candidates" in requested and "all" not in requested
     items: list[ScenarioItem] = []
     for name in names:
         for item in catalog[name]:
-            if release_candidates_only and item.promotion_eligibility != RELEASE_CANDIDATE_PROMOTION_SCOPE:
+            if (
+                release_candidates_only
+                and item.promotion_eligibility != RELEASE_CANDIDATE_PROMOTION_SCOPE
+            ):
                 continue
             items.append(item)
     return items
@@ -191,33 +212,47 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.reuse_packed_b = item.pack_mode == "prepacked_reuse_b"
     scenario_args.residue_chain_length = item.residue_chain_length
     scenario_args.residue_chain_final_export = item.residue_chain_final_export
-    scenario_args.residue_chain_independent_final_export = item.residue_chain_independent_final_export
+    scenario_args.residue_chain_independent_final_export = (
+        item.residue_chain_independent_final_export
+    )
     scenario_args.output_ld_padding = item.output_ld_padding
     scenario_args.host_api_batch_size = item.host_api_batch_size
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
     scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
-    scenario_args.vector_to_rns_chain_host_repack_control = item.vector_to_rns_chain_host_repack_control
+    scenario_args.vector_to_rns_chain_host_repack_control = (
+        item.vector_to_rns_chain_host_repack_control
+    )
     scenario_args.transient_uniform_small_inputs = item.transient_uniform_small_inputs
     scenario_args.sparse_a_4_to_2 = item.sparse_a_4_to_2
     scenario_args.sparse_a_4_to_2_dense_baseline = item.sparse_a_4_to_2_dense_baseline
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
-    scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
+    scenario_args.max_prefix = (
+        item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
+    )
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
     scenario_args.next_op_hint = item.next_op_hint or getattr(args, "next_op_hint", None)
     scenario_args.residue_channel_fusion = item.residue_channel_fusion
     scenario_args.modulus_set = item.modulus_set or getattr(args, "modulus_set", "default")
-    scenario_args.tile_shape_variant = item.tile_shape_variant or getattr(args, "tile_shape_variant", "default")
+    scenario_args.tile_shape_variant = item.tile_shape_variant or getattr(
+        args, "tile_shape_variant", "default"
+    )
     scenario_args.export_variant = item.export_variant or getattr(args, "export_variant", "default")
-    scenario_args.reconstruction_variant = item.reconstruction_variant or getattr(args, "reconstruction_variant", "default_garner")
+    scenario_args.reconstruction_variant = item.reconstruction_variant or getattr(
+        args, "reconstruction_variant", "default_garner"
+    )
     scenario_args.grouped_dispatch_tasks = item.grouped_dispatch_tasks
     scenario_args.hip_graph_replay = item.hip_graph_replay
     scenario_args.workload_proxy = item.workload_proxy or getattr(args, "workload_proxy", "none")
-    scenario_args.resident_lifetime = item.resident_lifetime or getattr(args, "resident_lifetime", False)
+    scenario_args.resident_lifetime = item.resident_lifetime or getattr(
+        args, "resident_lifetime", False
+    )
     scenario_args.workspace_arena = item.workspace_arena or getattr(args, "workspace_arena", False)
     scenario_args.adaptive_grouped_scheduler = item.adaptive_grouped_scheduler or getattr(
         args, "adaptive_grouped_scheduler", False
     )
-    scenario_args.streaming_overlap = item.streaming_overlap or getattr(args, "streaming_overlap", False)
+    scenario_args.streaming_overlap = item.streaming_overlap or getattr(
+        args, "streaming_overlap", False
+    )
     scenario_args.k_block_policy = item.k_block_policy or getattr(args, "k_block_policy", "auto")
     scenario_args.resident_redesign_candidate = item.resident_redesign_candidate or getattr(
         args, "resident_redesign_candidate", ""
@@ -226,12 +261,16 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
         args, "resident_redesign_dimensions", ()
     )
     scenario_args.release_gate = (
-        item.release_gate if item.release_gate and item.release_gate != "none" else getattr(args, "release_gate", "none")
+        item.release_gate
+        if item.release_gate and item.release_gate != "none"
+        else getattr(args, "release_gate", "none")
     )
     scenario_args.verification_amortization = item.verification_amortization or getattr(
         args, "verification_amortization", "none"
     )
-    scenario_args.error_detection_policy = item.error_detection_policy or getattr(args, "error_detection_policy", "none")
+    scenario_args.error_detection_policy = item.error_detection_policy or getattr(
+        args, "error_detection_policy", "none"
+    )
     scenario_args.cpu_small_shape_selector = item.cpu_small_shape_selector or getattr(
         args, "cpu_small_shape_selector", "none"
     )
@@ -283,7 +322,11 @@ def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> 
         backends = [backend for backend in backends if backend in HOST_API_BATCH_BACKENDS]
     if item.hip_graph_replay:
         backends = [backend for backend in backends if backend == "hip-direct"]
-    if item.semantics == "wrap-u64" and item.include_wrap64_candidate and args.include_wrap64_rocwmma_candidate:
+    if (
+        item.semantics == "wrap-u64"
+        and item.include_wrap64_candidate
+        and args.include_wrap64_rocwmma_candidate
+    ):
         backends.append(WRAP64_ROCWMMA_CANDIDATE_BACKEND)
     return list(dict.fromkeys(backends))
 
@@ -318,7 +361,8 @@ def scenario_metadata(
         "native_to_rns_bridge": item.native_to_rns_bridge,
         "vector_to_rns_chain": item.vector_to_rns_chain,
         "vector_to_rns_chain_host_repack_control": item.vector_to_rns_chain_host_repack_control,
-        "transient_uniform_small_inputs": item.transient_uniform_small_inputs and backend == "hip-direct",
+        "transient_uniform_small_inputs": item.transient_uniform_small_inputs
+        and backend == "hip-direct",
         "sparse_a_4_to_2": item.sparse_a_4_to_2,
         "sparse_a_4_to_2_dense_baseline": item.sparse_a_4_to_2_dense_baseline,
         "next_op_hint": item.next_op_hint,
@@ -344,7 +388,9 @@ def scenario_metadata(
         "incremental_result_cache": item.incremental_result_cache,
         "cpu_reference_mode": getattr(scenario_args, "cpu_reference_mode", "timed-baseline"),
         "cpu_threads": int(getattr(scenario_args, "cpu_threads", 0) or 0),
-        "cpu_parallel_threshold": int(getattr(scenario_args, "cpu_parallel_threshold", 1 << 20) or 0),
+        "cpu_parallel_threshold": int(
+            getattr(scenario_args, "cpu_parallel_threshold", 1 << 20) or 0
+        ),
         "progress": bool(getattr(scenario_args, "progress", False)),
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
@@ -360,10 +406,18 @@ def scenario_metadata(
 
 def default_backends_for(semantics: str, case: SweepCase) -> list[str]:
     if semantics == "bounded-i64":
-        return ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"] if case.bound_mode == "per-tile" else BOUNDED_BACKENDS
+        return (
+            ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"]
+            if case.bound_mode == "per-tile"
+            else BOUNDED_BACKENDS
+        )
     if semantics == "bounded-u64":
         backends = [backend for backend in BOUNDED_BACKENDS if backend != "ck"]
-        return [backend for backend in backends if backend != "hipblaslt"] if case.bound_mode == "per-tile" else backends
+        return (
+            [backend for backend in backends if backend != "hipblaslt"]
+            if case.bound_mode == "per-tile"
+            else backends
+        )
     if semantics in {"finite-u8-ring", "finite-u8-field"}:
         return FINITE_BACKENDS
     if semantics in {"exact-wide-signed", "exact-wide-unsigned"}:
@@ -396,10 +450,9 @@ def cpu_reference_capture_backend(backend: str) -> bool:
 
 
 def capture_timing_counts(args: argparse.Namespace, backend: str) -> tuple[int, int]:
-    if (
-        getattr(args, "cpu_reference_mode", "timed-baseline") == "correctness-anchor"
-        and cpu_reference_capture_backend(backend)
-    ):
+    if getattr(
+        args, "cpu_reference_mode", "timed-baseline"
+    ) == "correctness-anchor" and cpu_reference_capture_backend(backend):
         return 0, 1
     return int(args.warmups), int(args.repeats)
 
@@ -425,7 +478,10 @@ def capture_name(
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
         parts.append(f"mod{modulus}")
-    if semantics in EXACT_WIDE_SEMANTICS and exact_wide_limb_count not in (None, DEFAULT_EXACT_WIDE_LIMB_COUNT):
+    if semantics in EXACT_WIDE_SEMANTICS and exact_wide_limb_count not in (
+        None,
+        DEFAULT_EXACT_WIDE_LIMB_COUNT,
+    ):
         parts.append(f"limbs{exact_wide_limb_count}")
     if semantics in RNS_CHAIN_SEMANTICS and residue_chain_length > 1:
         parts.append(f"chain{residue_chain_length}")
@@ -468,8 +524,16 @@ def command_for(
     *,
     oneshot: bool = False,
 ) -> list[str]:
-    tile_m = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_m
-    tile_n = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_n
+    tile_m = (
+        16
+        if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
+        else case.tile_m
+    )
+    tile_n = (
+        16
+        if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
+        else case.tile_n
+    )
     warmups, repeats = capture_timing_counts(args, backend)
     command = [
         str(bench),
@@ -497,10 +561,12 @@ def command_for(
         str(args.seed),
     ]
     command.extend(["--cpu-threads", str(int(getattr(args, "cpu_threads", 0) or 0))])
-    command.extend([
-        "--cpu-parallel-threshold",
-        str(int(getattr(args, "cpu_parallel_threshold", 1 << 20) or 0)),
-    ])
+    command.extend(
+        [
+            "--cpu-parallel-threshold",
+            str(int(getattr(args, "cpu_parallel_threshold", 1 << 20) or 0)),
+        ]
+    )
     command.extend(["--cpu-reference-mode", getattr(args, "cpu_reference_mode", "timed-baseline")])
     if getattr(args, "progress", False):
         command.append("--progress")
@@ -596,7 +662,9 @@ def command_for(
         command.extend(["--resident-redesign-candidate", resident_redesign_candidate])
         dimensions = getattr(args, "resident_redesign_dimensions", ())
         if dimensions:
-            command.extend(["--resident-redesign-dimensions", ",".join(str(item) for item in dimensions)])
+            command.extend(
+                ["--resident-redesign-dimensions", ",".join(str(item) for item in dimensions)]
+            )
     release_gate = getattr(args, "release_gate", "none")
     if release_gate and release_gate != "none":
         command.extend(["--release-gate", release_gate])
@@ -642,22 +710,34 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                 "residue-fusion, residue-chain, or input-scan modes"
             )
         if args.backends:
-            args.backends = [backend for backend in args.backends if backend in HOST_API_BATCH_BACKENDS]
-    semantics_values = [normalize_semantics(item) for item in (args.semantics or ["bounded-i64", "bounded-u64"])]
+            args.backends = [
+                backend for backend in args.backends if backend in HOST_API_BATCH_BACKENDS
+            ]
+    semantics_values = [
+        normalize_semantics(item) for item in (args.semantics or ["bounded-i64", "bounded-u64"])
+    ]
     cases = [*([] if args.adaptive_only else default_cases(args)), *adaptive_cases(args)]
     if args.adaptive_only and not cases:
-        raise SystemExit("--adaptive-only requires --adaptive-case, --include-default-adaptive, or --include-adaptive-workloads")
-    if (args.include_wrap64 or args.include_wrap64_rocwmma_candidate) and "wrap-u64" not in semantics_values:
+        raise SystemExit(
+            "--adaptive-only requires --adaptive-case, --include-default-adaptive, or --include-adaptive-workloads"
+        )
+    if (
+        args.include_wrap64 or args.include_wrap64_rocwmma_candidate
+    ) and "wrap-u64" not in semantics_values:
         semantics_values.append("wrap-u64")
     if args.include_exact_wide:
         for exact_semantics in EXACT_WIDE_SEMANTICS:
             if exact_semantics not in semantics_values:
                 semantics_values.append(exact_semantics)
-    if (getattr(args, "prefix_policy", None) or getattr(args, "max_prefix", None) is not None) and any(
+    if (
+        getattr(args, "prefix_policy", None) or getattr(args, "max_prefix", None) is not None
+    ) and any(
         semantics not in {"bounded-i64", "bounded-u64", "exact-wide-signed", "exact-wide-unsigned"}
         for semantics in semantics_values
     ):
-        raise SystemExit("--prefix-policy and --max-prefix are only valid for bounded or exact-wide RNS sweeps")
+        raise SystemExit(
+            "--prefix-policy and --max-prefix are only valid for bounded or exact-wide RNS sweeps"
+        )
     if getattr(args, "bound_source", None) == "input-scan" and any(
         semantics not in {"bounded-i64", "bounded-u64"} for semantics in semantics_values
     ):
@@ -669,15 +749,21 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
     if getattr(args, "residue_channel_fusion", False):
         if requested_pack_mode(args) != "per_repeat_repack":
             raise SystemExit("--residue-channel-fusion cannot be combined with packed-input reuse")
-        if getattr(args, "prefix_policy", None) != "fixed-requested" or getattr(args, "max_prefix", None) not in {9, None}:
-            raise SystemExit("--residue-channel-fusion requires --prefix-policy fixed-requested and --max-prefix 9")
+        if getattr(args, "prefix_policy", None) != "fixed-requested" or getattr(
+            args, "max_prefix", None
+        ) not in {9, None}:
+            raise SystemExit(
+                "--residue-channel-fusion requires --prefix-policy fixed-requested and --max-prefix 9"
+            )
         if any(semantics not in BOUNDED_SEMANTICS for semantics in semantics_values):
             raise SystemExit("--residue-channel-fusion is only valid for bounded semantics")
     if getattr(args, "hip_graph_replay", False):
         if getattr(args, "residue_chain_final_export", False) or getattr(
             args, "residue_chain_independent_final_export", False
         ):
-            raise SystemExit("--hip-graph-replay cannot be combined with residue-chain final-export modes")
+            raise SystemExit(
+                "--hip-graph-replay cannot be combined with residue-chain final-export modes"
+            )
         full_bounded_pack_export_graph = (
             args.residue_chain_length == 1
             and requested_pack_mode(args) == "per_repeat_repack"
@@ -712,18 +798,33 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                 "--hip-graph-replay requires either bounded/finite/wrap64 single-GEMM host-output no-reuse mode or "
                 "--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm"
             )
-        if host_api_batch_size > 1 or getattr(args, "include_oneshot", False) or getattr(args, "oneshot_only", False):
-            raise SystemExit("--hip-graph-replay cannot be combined with host batching or one-shot sweeps")
-        if getattr(args, "native_to_rns_bridge", False) or getattr(args, "vector_to_rns_chain", False):
-            raise SystemExit("--hip-graph-replay cannot be combined with bridge or vector-to-RNS chain sweeps")
+        if (
+            host_api_batch_size > 1
+            or getattr(args, "include_oneshot", False)
+            or getattr(args, "oneshot_only", False)
+        ):
+            raise SystemExit(
+                "--hip-graph-replay cannot be combined with host batching or one-shot sweeps"
+            )
+        if getattr(args, "native_to_rns_bridge", False) or getattr(
+            args, "vector_to_rns_chain", False
+        ):
+            raise SystemExit(
+                "--hip-graph-replay cannot be combined with bridge or vector-to-RNS chain sweeps"
+            )
         if getattr(args, "residue_channel_fusion", False):
             raise SystemExit("--hip-graph-replay cannot be combined with residue-channel fusion")
         if getattr(args, "bound_source", None) == "input-scan":
             raise SystemExit("--hip-graph-replay currently requires static-profile bounds")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
-    if getattr(args, "residue_chain_independent_final_export", False) and args.residue_chain_length <= 1:
-        raise SystemExit("--residue-chain-independent-final-export requires --residue-chain-length > 1")
+    if (
+        getattr(args, "residue_chain_independent_final_export", False)
+        and args.residue_chain_length <= 1
+    ):
+        raise SystemExit(
+            "--residue-chain-independent-final-export requires --residue-chain-length > 1"
+        )
     if getattr(args, "residue_chain_final_export", False) and args.residue_chain_length <= 1:
         raise SystemExit("--residue-chain-final-export requires --residue-chain-length > 1")
     if (
@@ -732,9 +833,13 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
     ) and getattr(args, "next_op_hint", None) == "rns-gemm":
         raise SystemExit("residue-chain final-export modes cannot use --next-op-hint rns-gemm")
     if args.residue_chain_length > 1:
-        non_rns_chain = [semantics for semantics in semantics_values if semantics not in RNS_CHAIN_SEMANTICS]
+        non_rns_chain = [
+            semantics for semantics in semantics_values if semantics not in RNS_CHAIN_SEMANTICS
+        ]
         if non_rns_chain:
-            raise SystemExit("--residue-chain-length > 1 currently requires bounded or exact-wide RNS semantics")
+            raise SystemExit(
+                "--residue-chain-length > 1 currently requires bounded or exact-wide RNS semantics"
+            )
     if getattr(args, "residue_chain_independent_final_export", False):
         non_independent_chain = [
             semantics
@@ -742,9 +847,13 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             if semantics not in BOUNDED_SEMANTICS and semantics not in EXACT_WIDE_SEMANTICS
         ]
         if non_independent_chain:
-            raise SystemExit("--residue-chain-independent-final-export supports bounded or exact-wide RNS semantics only")
+            raise SystemExit(
+                "--residue-chain-independent-final-export supports bounded or exact-wide RNS semantics only"
+            )
         if requested_pack_mode(args) != "per_repeat_repack":
-            raise SystemExit("--residue-chain-independent-final-export cannot be combined with packed-input reuse")
+            raise SystemExit(
+                "--residue-chain-independent-final-export cannot be combined with packed-input reuse"
+            )
         if any(
             [
                 getattr(args, "include_oneshot", False),
@@ -778,10 +887,18 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
         for case in active_cases:
             if args.residue_chain_length > 1 and (case.m != case.n or case.n != case.k):
                 raise SystemExit("--residue-chain-length > 1 currently requires square RNS cases")
-            if args.residue_chain_length > 1 and semantics in BOUNDED_SEMANTICS and case.bound_mode != "global":
-                raise SystemExit("bounded --residue-chain-length > 1 currently requires global bound mode")
+            if (
+                args.residue_chain_length > 1
+                and semantics in BOUNDED_SEMANTICS
+                and case.bound_mode != "global"
+            ):
+                raise SystemExit(
+                    "bounded --residue-chain-length > 1 currently requires global bound mode"
+                )
             backends = args.backends or (
-                wrap64_backends_for(args) if semantics == "wrap-u64" else default_backends_for(semantics, case)
+                wrap64_backends_for(args)
+                if semantics == "wrap-u64"
+                else default_backends_for(semantics, case)
             )
             if host_api_batch_size > 1:
                 backends = [backend for backend in backends if backend in HOST_API_BATCH_BACKENDS]
@@ -803,7 +920,9 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 continue
                             bench = backend_benches.get(backend, args.bench)
                             if bench is None:
-                                raise SystemExit(f"no benchmark executable configured for backend {backend}")
+                                raise SystemExit(
+                                    f"no benchmark executable configured for backend {backend}"
+                                )
                             name = capture_name(
                                 semantics,
                                 case,
@@ -820,7 +939,15 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                     getattr(args, "residue_chain_independent_final_export", False)
                                 ),
                             )
-                            command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
+                            command = command_for(
+                                bench,
+                                backend,
+                                semantics,
+                                case,
+                                modulus,
+                                exact_wide_limb_count,
+                                args,
+                            )
                             commands.append(SweepCommand(name, command, args.out_root / name))
                     if (include_oneshot or oneshot_only) and (
                         (semantics in BOUNDED_SEMANTICS and case.bound_mode == "global")
@@ -834,7 +961,9 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                         for backend in oneshot_backends:
                             bench = backend_benches.get(backend, args.bench)
                             if bench is None:
-                                raise SystemExit(f"no benchmark executable configured for backend {backend}")
+                                raise SystemExit(
+                                    f"no benchmark executable configured for backend {backend}"
+                                )
                             name = capture_name(
                                 semantics,
                                 case,
@@ -910,7 +1039,9 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             int(getattr(args, "host_api_batch_size", 1) or 1) != 1,
         ]
     ):
-        raise SystemExit("--scenario cannot be combined with manual sweep shape/reuse/include flags")
+        raise SystemExit(
+            "--scenario cannot be combined with manual sweep shape/reuse/include flags"
+        )
 
     backend_benches = parse_backend_bench(args.bench_for)
     semantics_filter = {normalize_semantics(item) for item in (args.semantics or [])}
@@ -922,7 +1053,9 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
         backends = scenario_backends_for_item(args, item)
         if not backends:
             continue
-        finite_moduli = finite_moduli_for(item.semantics, args) if args.modulus else list(item.finite_moduli)
+        finite_moduli = (
+            finite_moduli_for(item.semantics, args) if args.modulus else list(item.finite_moduli)
+        )
         if args.exact_wide_limbs:
             exact_wide_counts = exact_wide_limb_counts_for(item.semantics, args)
         else:
@@ -943,12 +1076,18 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                     ):
                         continue
                     bench = backend_benches.get(backend)
-                    if bench is None and (item.native_to_rns_bridge or item.vector_to_rns_chain) and backend == "auto":
+                    if (
+                        bench is None
+                        and (item.native_to_rns_bridge or item.vector_to_rns_chain)
+                        and backend == "auto"
+                    ):
                         bench = backend_benches.get("hip-direct")
                     if bench is None:
                         bench = args.bench
                     if bench is None:
-                        raise SystemExit(f"no benchmark executable configured for backend {backend}")
+                        raise SystemExit(
+                            f"no benchmark executable configured for backend {backend}"
+                        )
                     base_name = capture_name(
                         item.semantics,
                         item.case,
@@ -962,7 +1101,8 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         item.host_api_batch_size,
                         item.hip_graph_replay,
                         oneshot=item.oneshot,
-                        transient_uniform_small_inputs=item.transient_uniform_small_inputs and backend == "hip-direct",
+                        transient_uniform_small_inputs=item.transient_uniform_small_inputs
+                        and backend == "hip-direct",
                         residue_chain_independent_final_export=item.residue_chain_independent_final_export,
                         sparse_a_4_to_2=item.sparse_a_4_to_2,
                         sparse_a_4_to_2_dense_baseline=item.sparse_a_4_to_2_dense_baseline,
@@ -1002,5 +1142,3 @@ def sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
 
 def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]]:
     return [(entry.name, entry.command, entry.output) for entry in sweep_command_entries(args)]
-
-

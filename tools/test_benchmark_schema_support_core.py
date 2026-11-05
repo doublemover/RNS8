@@ -25,7 +25,9 @@ def expect_invalid(data: dict, needle: str) -> None:
     except BenchmarkSchemaError as exc:
         message = str(exc)
         if needle not in message:
-            raise AssertionError(f"expected validation error containing {needle!r}, got {message!r}") from exc
+            raise AssertionError(
+                f"expected validation error containing {needle!r}, got {message!r}"
+            ) from exc
         return
     raise AssertionError(f"expected validation error containing {needle!r}")
 
@@ -36,7 +38,11 @@ def zero_summary() -> dict:
 
 def summary(values: list[float]) -> dict:
     ordered = sorted(values)
-    return {"avg": sum(values) / len(values), "median": ordered[len(ordered) // 2], "p95": ordered[-1]}
+    return {
+        "avg": sum(values) / len(values),
+        "median": ordered[len(ordered) // 2],
+        "p95": ordered[-1],
+    }
 
 
 def ck_deep_chain_event_phases(prefix_count: int) -> list[str]:
@@ -69,7 +75,9 @@ def add_ck_chain_gpu_events(capture: dict, prefix_count: int) -> None:
     phases = ck_deep_chain_event_phases(prefix_count)
     repeats = capture["repeats"]
     capture["timing_metadata"]["gpu_event_timing"] = True
-    capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_residue_current_chain_backend_hooks"
+    capture["timing_metadata"]["gpu_event_timing_reason"] = (
+        "captured_by_residue_current_chain_backend_hooks"
+    )
     capture["timing_metadata"]["gpu_event_timing_status"] = "available"
     capture["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
     capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
@@ -147,7 +155,7 @@ def as_host_api_batch_capture(capture: dict) -> dict:
     batch_size = 4
     batch["benchmark"] = "rns8_host_api_batch_persistent_resident"
     batch["benchmark_execution_mode"] = "benchmark_host_api_batch"
-    batch["command_line"] = f'{batch["command_line"]} --host-api-batch-size {batch_size}'
+    batch["command_line"] = f"{batch['command_line']} --host-api-batch-size {batch_size}"
     batch["timing_note"] = (
         "host wall-clock timings for benchmark-owned host API batching; raw timings are aggregate batch totals"
     )
@@ -197,8 +205,6 @@ def as_host_api_batch_capture(capture: dict) -> dict:
     return batch
 
 
-
-
 def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dict:
     bridge = copy.deepcopy(capture)
     bridge["benchmark"] = "rns8_bounded_gemm_native_to_rns_bridge"
@@ -206,7 +212,9 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     bridge["backend_requested"] = "auto"
     bridge["backend_selected"] = "hip-direct"
     bridge["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
-    bridge["bound_kind"] = "global_max_abs" if bridge["semantics"] == "bounded_i64" else "global_max_unsigned"
+    bridge["bound_kind"] = (
+        "global_max_abs" if bridge["semantics"] == "bounded_i64" else "global_max_unsigned"
+    )
     bridge["bound_mode"] = "global"
     bridge["bound"] = 16384
     bridge["tile_bounds_u64"] = None
@@ -250,7 +258,9 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     metadata["prepack_reuse_operands"] = []
     metadata["prepack_reuse_strategy"] = "none"
     metadata["gpu_event_timing_reason"] = "captured_by_direct_hip_native_to_rns_bridge_hooks"
-    metadata["gpu_event_timing_source_scope"] = "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
+    metadata["gpu_event_timing_source_scope"] = (
+        "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
+    )
     metadata["gpu_event_timing_caveat"] = (
         "HIP event timings record direct-HIP pack/export operation groups plus forced native-to-RNS conversion"
     )
@@ -317,7 +327,9 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     bridge["gpu_event_timings_us"]["rns_gemm"] = [
         value + 2.0 for value in bridge["gpu_event_timings_us"]["rns_gemm_kernel_group"]
     ]
-    bridge["gpu_event_timings_us"] = {phase: bridge["gpu_event_timings_us"][phase] for phase in phases}
+    bridge["gpu_event_timings_us"] = {
+        phase: bridge["gpu_event_timings_us"][phase] for phase in phases
+    }
     bridge["gpu_event_timing_summary_us"] = {
         phase: summary(values) for phase, values in bridge["gpu_event_timings_us"].items()
     }
@@ -352,7 +364,11 @@ def as_vector_to_rns_chain_capture(
         chain["avg_prepack_setup_us"] = 321.0
     chain["command_line"] = (
         "rns8-bench --backend auto --semantics bounded-i64 --m 65 --n 65 --k 64 "
-        + ("--vector-to-rns-chain-host-repack-control" if host_repack_control else "--vector-to-rns-chain")
+        + (
+            "--vector-to-rns-chain-host-repack-control"
+            if host_repack_control
+            else "--vector-to-rns-chain"
+        )
         + (" --reuse-packed-b" if reuse_consumer_b else "")
         + " --warmups 1 --repeats 3 --seed 7"
     )
@@ -416,7 +432,9 @@ def as_vector_to_rns_chain_capture(
     metadata["phase_availability"]["prepack_setup"] = {
         "timed": reuse_consumer_b,
         "timing_key": "prepack_setup_us" if reuse_consumer_b else None,
-        "scope": "one_time_before_warmups" if reuse_consumer_b else "not_requested_per_repeat_repack",
+        "scope": "one_time_before_warmups"
+        if reuse_consumer_b
+        else "not_requested_per_repeat_repack",
         "reason": (
             "prepacked B once before warmups and reused for every measured repeat"
             if reuse_consumer_b
@@ -516,5 +534,3 @@ def add_per_tile_input_scan_fields(capture: dict) -> dict:
     }
     capture["command_line"] = f"{capture['command_line']} --bound-source input-scan"
     return capture
-
-

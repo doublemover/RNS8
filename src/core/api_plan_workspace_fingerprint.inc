@@ -15,18 +15,22 @@ uint64_t signed_to_fingerprint(int64_t value) {
   return static_cast<uint64_t>(value);
 }
 
-static uint64_t compute_plan_workspace_fingerprint(const rns8_plan& plan, std::vector<uint64_t>* key) {
+static uint64_t compute_plan_workspace_fingerprint(const rns8_plan& plan,
+                                                   std::vector<uint64_t>* key) {
   ++plan_validation_work.fingerprint_traversals;
   const auto mix = [&](uint64_t hash, uint64_t value) {
-    if (key) key->push_back(value);
+    if (key)
+      key->push_back(value);
     return workspace_fingerprint_mix(hash, value);
   };
   const auto mix_string = [&](uint64_t hash, const std::string& value) {
     // Include length before bytes in the structural key, so concatenations
     // cannot confuse boundaries. Keep the existing fingerprint algorithm.
-    if (key) key->push_back(value.size());
+    if (key)
+      key->push_back(value.size());
     for (const unsigned char c : value) {
-      if (key) key->push_back(c);
+      if (key)
+        key->push_back(c);
       hash = workspace_fingerprint_mix(hash, c);
     }
     return workspace_fingerprint_mix(hash, value.size());
@@ -61,7 +65,8 @@ static uint64_t compute_plan_workspace_fingerprint(const rns8_plan& plan, std::v
   hash = mix(hash, plan.zero_b_col_count);
   hash = mix(hash, plan.zero_row_col_product_count);
   hash = mix(hash, plan.backend_workspace_required_bytes);
-  if(plan.backend==RNS8_BACKEND_CPU_AMX)hash=mix(hash,plan.cpu_amx_prepared_threads);
+  if (plan.backend == RNS8_BACKEND_CPU_AMX)
+    hash = mix(hash, plan.cpu_amx_prepared_threads);
   hash = mix_string(hash, plan.backend_selected_kernel);
   hash = mix_string(hash, plan.backend_library);
   hash = mix_string(hash, plan.backend_library_version);
@@ -71,7 +76,9 @@ static uint64_t compute_plan_workspace_fingerprint(const rns8_plan& plan, std::v
   hash = mix_string(hash, plan.backend_isa_evidence);
   hash = mix_string(hash, plan.backend_target_id);
   hash = mix_string(hash, plan.backend_autotune_key);
-  hash = mix_string(hash, plan.arithmetic_guard ? arithmetic::canonical(plan.arithmetic_guard->certificate) : "missing");
+  hash = mix_string(hash, plan.arithmetic_guard
+                              ? arithmetic::canonical(plan.arithmetic_guard->certificate)
+                              : "missing");
   hash = mix(hash, static_cast<uint64_t>(plan.tile_bounds.size()));
   for (const uint64_t bound : plan.tile_bounds) {
     hash = mix(hash, bound);
@@ -110,10 +117,13 @@ uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
 
 bool seal_plan_contract(rns8_plan& plan) {
   plan.validated_contract.reset();
-  if (!plan.arithmetic_guard || !plan.arithmetic_guard->checked.admitted() || !revalidate_plan_schedule_contract(plan)) return false;
+  if (!plan.arithmetic_guard || !plan.arithmetic_guard->checked.admitted() ||
+      !revalidate_plan_schedule_contract(plan))
+    return false;
   auto contract = std::make_shared<rns8_validated_plan_contract>();
   contract->arithmetic_guard = plan.arithmetic_guard;
-  contract->fingerprint = compute_plan_workspace_fingerprint(plan, &contract->canonical_workspace_key);
+  contract->fingerprint =
+      compute_plan_workspace_fingerprint(plan, &contract->canonical_workspace_key);
   // These facts are separately checked by workspace validation; also preserve
   // them in the complete equivalence key rather than relying on a hash.
   contract->canonical_workspace_key.push_back(static_cast<uint64_t>(plan.backend));
@@ -137,16 +147,19 @@ bool seal_plan_contract(rns8_plan& plan) {
     if (rows > INT32_MAX || cols > INT32_MAX || rows > uint64_t{INT32_MAX} / cols) {
       launch.i32_launch_qualified = false;
     } else {
-      launch.max_row_blocks = std::max(launch.max_row_blocks, static_cast<uint32_t>((rows + 15) / 16));
-      launch.max_col_blocks = std::max(launch.max_col_blocks, static_cast<uint32_t>((cols + 15) / 16));
+      launch.max_row_blocks =
+          std::max(launch.max_row_blocks, static_cast<uint32_t>((rows + 15) / 16));
+      launch.max_col_blocks =
+          std::max(launch.max_col_blocks, static_cast<uint32_t>((cols + 15) / 16));
       launch.max_elements = std::max(launch.max_elements, static_cast<uint32_t>(rows * cols));
     }
     if (!zero)
-      for (uint32_t p = 0; p < entry.selected_prefix; ++p) ++contract->active_counts[p];
+      for (uint32_t p = 0; p < entry.selected_prefix; ++p)
+        ++contract->active_counts[p];
   }
   launch.uniform_zero_selected_prefix = uniform_zero ? first_prefix : 0;
   plan.validated_contract = std::move(contract);
   return true;
 }
 
-}  // namespace rns8::detail::api
+} // namespace rns8::detail::api

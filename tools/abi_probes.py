@@ -19,10 +19,7 @@ def metric_expressions(surface: Surface) -> dict[str, str]:
         "CHAR_BIT": "CHAR_BIT",
     }
     for name in sorted(
-        set(surface.records)
-        | set(surface.enums)
-        | set(surface.callbacks)
-        | set(surface.aliases)
+        set(surface.records) | set(surface.enums) | set(surface.callbacks) | set(surface.aliases)
     ):
         values["sizeof:" + name] = "sizeof(" + name + ")"
         values["alignof:" + name] = "RNS8_ABI_ALIGNOF(" + name + ")"
@@ -31,12 +28,8 @@ def metric_expressions(surface: Surface) -> dict[str, str]:
         values["alignof:" + name + "_pointer"] = "RNS8_ABI_ALIGNOF(" + name + "*)"
     for name, fields in surface.records.items():
         for field, _ in fields:
-            values["offsetof:" + name + "." + field] = (
-                "offsetof(" + name + "," + field + ")"
-            )
-            values["field_size:" + name + "." + field] = (
-                "sizeof(((" + name + "*)0)->" + field + ")"
-            )
+            values["offsetof:" + name + "." + field] = "offsetof(" + name + "," + field + ")"
+            values["field_size:" + name + "." + field] = "sizeof(((" + name + "*)0)->" + field + ")"
     for name in surface.constants:
         values["constant:" + name] = name
     for constants in surface.enums.values():
@@ -50,9 +43,7 @@ def metric_expressions(surface: Surface) -> dict[str, str]:
 def includes(surface: Surface, include_root: Path) -> str:
     root = include_root.resolve(strict=True)
     if any(character in str(root) for character in ('"', "\n", "\r")):
-        raise ValueError(
-            "ABI include path cannot be represented safely in a C header directive"
-        )
+        raise ValueError("ABI include path cannot be represented safely in a C header directive")
     result = []
     for header in surface.headers:
         path = (root / header).resolve(strict=True)
@@ -93,18 +84,12 @@ def declaration_assertions(surface: Surface, *, references: bool = True) -> str:
     ]
     for name in surface.enums:
         result.append(
-            "RNS8_ABI_ASSERT(sizeof("
-            + name
-            + ")==4 && RNS8_ABI_ALIGNOF("
-            + name
-            + ")==4);"
+            "RNS8_ABI_ASSERT(sizeof(" + name + ")==4 && RNS8_ABI_ALIGNOF(" + name + ")==4);"
         )
     result.append("#ifdef __cplusplus")
     for name in surface.records:
         result.append(
-            "static_assert(std::is_standard_layout<"
-            + name
-            + '>::value, "public C record layout");'
+            "static_assert(std::is_standard_layout<" + name + '>::value, "public C record layout");'
         )
     result.append("#endif")
     field_index = 0
@@ -117,31 +102,19 @@ def declaration_assertions(surface: Surface, *, references: bool = True) -> str:
     result.append('#ifdef __cplusplus\nextern "C" {\n#endif')
     names = [*surface.functions, *surface.header_functions]
     for index, name in enumerate(names):
-        signature = (
-            surface.functions.get(name) or surface.header_functions[name]
-        ).replace("()", "(void)")
+        signature = (surface.functions.get(name) or surface.header_functions[name]).replace(
+            "()", "(void)"
+        )
         opening = signature.find("(")
         if opening < 1:
             raise ValueError("unsupported frontend function type: " + name)
         alias = "rns8_abi_function_" + str(index)
         result.append(
-            "typedef "
-            + signature[:opening]
-            + "(*"
-            + alias
-            + ")"
-            + signature[opening:]
-            + ";"
+            "typedef " + signature[:opening] + "(*" + alias + ")" + signature[opening:] + ";"
         )
         if references and name in surface.functions:
             result.append(
-                "static "
-                + alias
-                + " volatile rns8_abi_reference_"
-                + str(index)
-                + "=&"
-                + name
-                + ";"
+                "static " + alias + " volatile rns8_abi_reference_" + str(index) + "=&" + name + ";"
             )
     result.append("#ifdef __cplusplus\n}\n#endif")
     for category, entries in (
@@ -153,18 +126,12 @@ def declaration_assertions(surface: Surface, *, references: bool = True) -> str:
             result.append(typedef_declaration(signature, expected))
             result.append("RNS8_ABI_TYPE(" + name + "," + expected + ");")
     for index, name in enumerate(names):
-        result.append(
-            "RNS8_ABI_FUNCTION(" + name + ",rns8_abi_function_" + str(index) + ");"
-        )
-    result.extend(
-        ("#undef RNS8_ABI_MEMBER", "#undef RNS8_ABI_TYPE", "#undef RNS8_ABI_FUNCTION")
-    )
+        result.append("RNS8_ABI_FUNCTION(" + name + ",rns8_abi_function_" + str(index) + ");")
+    result.extend(("#undef RNS8_ABI_MEMBER", "#undef RNS8_ABI_TYPE", "#undef RNS8_ABI_FUNCTION"))
     return "\n".join(result) + "\n"
 
 
-def metric_frontend_source(
-    surface: Surface, include_root: Path
-) -> tuple[str, list[str]]:
+def metric_frontend_source(surface: Surface, include_root: Path) -> tuple[str, list[str]]:
     metrics = metric_expressions(surface)
     # Layout extraction needs only constant expressions, not instantiated C++ traits.
     # Keep type/signature assertions in the actual library and native consumers.
@@ -311,8 +278,7 @@ def native_probe_source(
     metrics = metric_expressions(surface)
     source += "static const rns8_public_abi_metric rns8_expected_metrics[] = {\n"
     source += ",\n".join(
-        '  {"' + name + '",(uint64_t)(' + expression + ")}"
-        for name, expression in metrics.items()
+        '  {"' + name + '",(uint64_t)(' + expression + ")}" for name, expression in metrics.items()
     )
     source += "\n};\n"
 
@@ -353,8 +319,12 @@ static void rns8_abi_json_text(const char* text) {
             + "));\n"
         )
     source += '  printf("},\\"library_compiler_id\\":");rns8_abi_json_text(library.compiler_id);\n'
-    source += '  printf(",\\"library_runtime_model\\":");rns8_abi_json_text(library.runtime_model);\n'
-    source += '  printf(",\\"declaration_sha256\\":");rns8_abi_json_text(library.declaration_sha256);\n'
+    source += (
+        '  printf(",\\"library_runtime_model\\":");rns8_abi_json_text(library.runtime_model);\n'
+    )
+    source += (
+        '  printf(",\\"declaration_sha256\\":");rns8_abi_json_text(library.declaration_sha256);\n'
+    )
     source += '  printf(",\\"native_device_raw_enum_cases\\":9,\\"all_external_enum_paths_covered\\":false}\\n");\n  return 0;\n}\n'
     return source
 
@@ -365,13 +335,8 @@ def installed_consumer_cmake(prefix: Path, linkage: str, config_dir: Path) -> st
     target = "rns8::rns8_static" if linkage == "static" else "rns8::rns8"
     prefix = prefix.resolve(strict=True)
     config_dir = config_dir.resolve(strict=True)
-    if any(
-        character in str(prefix) + str(config_dir)
-        for character in ('"', ";", "$", "\n", "\r")
-    ):
-        raise ValueError(
-            "ABI package path cannot be represented safely in a CMake literal"
-        )
+    if any(character in str(prefix) + str(config_dir) for character in ('"', ";", "$", "\n", "\r")):
+        raise ValueError("ABI package path cannot be represented safely in a CMake literal")
     # find_package has one explicit package location; RNS8 headers are included
     # by absolute installed paths in generated source, never a source-tree fallback.
     return (
@@ -405,9 +370,7 @@ def library_inventory_source(surface: Surface) -> str:
     source += POLICY_PREAMBLE + declaration_assertions(surface, references=False)
     source += "\nnamespace {\n"
     source += (
-        'constexpr char rns8_public_declaration_sha256[] = "'
-        + declaration_sha256(surface)
-        + '";\n'
+        'constexpr char rns8_public_declaration_sha256[] = "' + declaration_sha256(surface) + '";\n'
     )
     source += "constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {\n"
     source += ",\n".join(

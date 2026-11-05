@@ -17,7 +17,9 @@ class TypecheckGate(unittest.TestCase):
     def test_scope_is_nonempty_strict_and_excludes_only_named_negative_inputs(self):
         scope = checked_scope()
         self.assertEqual(len(scope["strict_modules"]), 5)
-        self.assertEqual(set(scope["negative_inputs"].values()), {"arg-type", "typeddict-item", "name-defined"})
+        self.assertEqual(
+            set(scope["negative_inputs"].values()), {"arg-type", "typeddict-item", "name-defined"}
+        )
         self.assertIn("tools/execution_observation.py", scope["strict_modules"])
 
     def fake_runner(self, command, **kwargs):
@@ -30,8 +32,15 @@ class TypecheckGate(unittest.TestCase):
             source = command[-1]
             code = checked_scope()["negative_inputs"][source]
             output, returned = source + ":1: error: authored rejection [" + code + "]", 1
-        return dict(command=command, process_id=123, returncode=returned, timed_out=False,
-                    stdout=output, stderr="", elapsed_seconds=0.01)
+        return dict(
+            command=command,
+            process_id=123,
+            returncode=returned,
+            timed_out=False,
+            stdout=output,
+            stderr="",
+            elapsed_seconds=0.01,
+        )
 
     def checker(self, directory):
         path = Path(directory) / ("mypy.exe" if os.name == "nt" else "mypy")
@@ -40,7 +49,9 @@ class TypecheckGate(unittest.TestCase):
 
     def test_gate_requires_expected_negative_diagnostics_and_reports_remaining_scope(self):
         with tempfile.TemporaryDirectory() as temporary:
-            result = run_checks(tool_bin=self.checker(temporary), self_test=True, runner=self.fake_runner)
+            result = run_checks(
+                tool_bin=self.checker(temporary), self_test=True, runner=self.fake_runner
+            )
         self.assertEqual(len(result["negative_controls"]), 3)
         self.assertEqual(result["explicit_strict_module_count"], 5)
         self.assertGreater(result["outside_explicit_strict_scope_count"], 0)
@@ -49,6 +60,7 @@ class TypecheckGate(unittest.TestCase):
 
     def test_wrong_checker_clean_negative_or_wrong_error_cannot_pass(self):
         for mutation in ("version", "no_error", "wrong_error", "truncated"):
+
             def runner(command, *, _mutation=mutation, **kwargs):
                 value = self.fake_runner(command, **kwargs)
                 if _mutation == "version" and kwargs["label"] == "mypy-version":
@@ -61,6 +73,7 @@ class TypecheckGate(unittest.TestCase):
                     elif _mutation == "truncated":
                         value["limit_exceeded"] = "output"
                 return value
+
             with tempfile.TemporaryDirectory() as temporary:
                 with self.assertRaises(ValueError):
                     run_checks(tool_bin=self.checker(temporary), self_test=True, runner=runner)
@@ -68,7 +81,11 @@ class TypecheckGate(unittest.TestCase):
     def test_blanket_import_skip_or_empty_scope_is_an_error(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for name in ("mypy.ini", "metadata/python-typecheck-scope.json", "metadata/first-party-inventory.json"):
+            for name in (
+                "mypy.ini",
+                "metadata/python-typecheck-scope.json",
+                "metadata/first-party-inventory.json",
+            ):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / name, path)

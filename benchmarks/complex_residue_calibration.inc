@@ -1,7 +1,7 @@
 namespace {
-int calibrate_complex(const std::string &candidate, uint32_t m, uint32_t n, uint32_t k,
+int calibrate_complex(const std::string& candidate, uint32_t m, uint32_t n, uint32_t k,
                       uint32_t prefix, uint32_t group, bool unsigned_inputs, uint32_t repeats,
-                      uint32_t warmups, const std::string &run_id) {
+                      uint32_t warmups, const std::string& run_id) {
   using Wide = boost::multiprecision::int256_t;
   if (group != 1 || unsigned_inputs || prefix != 20 || run_id.empty() ||
       uint64_t(m) * n * k > 1073741824)
@@ -16,14 +16,14 @@ int calibrate_complex(const std::string &candidate, uint32_t m, uint32_t n, uint
   std::mt19937_64 rng(3135);
   for (std::size_t j = 0; j < native.size(); ++j) {
     native[j].resize(j < 2 ? ac : bc);
-    for (auto &value : native[j]) {
+    for (auto& value : native[j]) {
       const uint64_t bits = rng();
       std::memcpy(&value, &bits, sizeof(value));
     }
     native[j][0] = j % 2 ? INT64_MAX : INT64_MIN;
   }
   std::array<std::vector<int8_t>, 2> expected;
-  for (auto &output : expected)
+  for (auto& output : expected)
     output.assign(cc * prefix + 8, 99);
   {
     std::array<std::vector<Wide>, 4> values;
@@ -58,7 +58,7 @@ int calibrate_complex(const std::string &candidate, uint32_t m, uint32_t n, uint
               "complex fixed-width reference differs from independent cpp_int audit");
         for (uint32_t p = 0; p < prefix; ++p) {
           const int modulus = rns8_default_modulus(p);
-          const auto centered = [modulus](const Wide &value) {
+          const auto centered = [modulus](const Wide& value) {
             int result = (value % modulus).convert_to<int>();
             if (result < 0)
               result += modulus;
@@ -92,20 +92,20 @@ int calibrate_complex(const std::string &candidate, uint32_t m, uint32_t n, uint
           .count();
   const ComplexResidueBasis basis{ComplexResidueDomain::wide_signed, 1, prefix, 0};
   const ComplexResiduePair<const int8_t> a{
-      {static_cast<const int8_t *>(residues[0].get()), m, k, k, basis},
-      {static_cast<const int8_t *>(residues[1].get()), m, k, k, basis}};
+      {static_cast<const int8_t*>(residues[0].get()), m, k, k, basis},
+      {static_cast<const int8_t*>(residues[1].get()), m, k, k, basis}};
   const ComplexResiduePair<const int8_t> b{
-      {static_cast<const int8_t *>(residues[2].get()), k, n, n, basis},
-      {static_cast<const int8_t *>(residues[3].get()), k, n, n, basis}};
-  const ComplexResiduePair<int8_t> c{{static_cast<int8_t *>(outputs[0].get()), m, n, n, basis},
-                                     {static_cast<int8_t *>(outputs[1].get()), m, n, n, basis}};
+      {static_cast<const int8_t*>(residues[2].get()), k, n, n, basis},
+      {static_cast<const int8_t*>(residues[3].get()), k, n, n, basis}};
+  const ComplexResiduePair<int8_t> c{{static_cast<int8_t*>(outputs[0].get()), m, n, n, basis},
+                                     {static_cast<int8_t*>(outputs[1].get()), m, n, n, basis}};
   const cpp_int magnitude = cpp_int(1) << 63;
   const ComplexMagnitudeBounds bounds{magnitude, magnitude, magnitude, magnitude};
   const auto plan = plan_complex_residue_product(a, b, c, bounds, method, UINT64_MAX);
   check(plan.status);
   const auto prepare = [&] {
     const std::vector<int8_t> poison(expected[0].size(), 99);
-    for (auto &output : outputs)
+    for (auto& output : outputs)
       check(hip_direct_copy_host_to_device(0, output.get(), poison.data(), poison.size()));
   };
   const auto execute = [&] {
@@ -139,7 +139,7 @@ int calibrate_complex(const std::string &candidate, uint32_t m, uint32_t n, uint
         std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count();
     hip_direct_timing_flush_pending_events();
     nlohmann::json events = nlohmann::json::array();
-    for (const auto &event : hip_direct_timing_snapshot())
+    for (const auto& event : hip_direct_timing_snapshot())
       events.push_back(
           {{"label", event.label},
            {"elapsed_ns", event.microseconds > 0 ? nlohmann::json(event.microseconds * 1000)
@@ -183,10 +183,12 @@ int calibrate_complex(const std::string &candidate, uint32_t m, uint32_t n, uint
                         {"output_contract", "paired_exact_signed_residues_no_integer_export"},
                         {"real_products", plan.products},
                         {"scratch_peak_bytes", plan.scratch_bytes},
-                        {"scratch_accounting", "explicit_queried_capacity_not_measured_peak_or_HBM"},
+                        {"scratch_accounting",
+                         "explicit_queried_capacity_not_measured_peak_or_HBM"},
                         {"scratch_layout_version", ComplexResidueScratch::layout_version},
                         {"reused_internal_stage_bytes", plan.reused_stage_capacity_bytes()},
-                        {"stage_ownership", "p0_p1_after_cell_local_product_loads_public_paired_commit_unchanged"},
+                        {"stage_ownership",
+                         "p0_p1_after_cell_local_product_loads_public_paired_commit_unchanged"},
                         {"native_input_storage_bytes", 2 * (ac + bc) * 8},
                         {"residue_input_storage_bytes", 2 * (ac + bc) * prefix},
                         {"residue_output_bytes", 2 * cc * prefix},

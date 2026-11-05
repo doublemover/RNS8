@@ -17,7 +17,13 @@ from compiled_binary_identity import canonical_digest
 from benchmark_request import file_digest
 from reference_verdict import numerical_contract, checksum_u64
 from target_qualification import EvidenceStore
-from device_observation import capture_observation, IdentityUnavailable, IdentityMismatch, RuntimeDeviceIdentity, distinct_runtime_identities
+from device_observation import (
+    capture_observation,
+    IdentityUnavailable,
+    IdentityMismatch,
+    RuntimeDeviceIdentity,
+    distinct_runtime_identities,
+)
 from multigpu_observation import validate_binding as validate_observation_binding
 from markdown_tables import markdown_cell as cell
 
@@ -153,7 +159,9 @@ def _record_key(record: dict[str, Any]) -> tuple[int | str | None, int | None]:
     return record.get("device_index"), _as_int(record.get("rank"))
 
 
-def _target_lookup(records: list[dict[str, Any]]) -> tuple[dict[Any, dict[str, Any]], dict[int, dict[str, Any]]]:
+def _target_lookup(
+    records: list[dict[str, Any]],
+) -> tuple[dict[Any, dict[str, Any]], dict[int, dict[str, Any]]]:
     by_device: dict[Any, dict[str, Any]] = {}
     by_rank: dict[int, dict[str, Any]] = {}
     for record in records:
@@ -191,15 +199,31 @@ def _row_for_capture(
     dry_run = capture.get("dry_run") is True
     path_device, path_rank = _parse_device_from_path(path), _parse_rank_from_path(path)
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
-    runtime = capture.get("runtime_environment") if isinstance(capture.get("runtime_environment"), dict) else {}
-    rank = observation["rank"] if observation else _as_int(capture.get("rank")) if dry_run else _as_int(runtime.get("RNS8_RANK"))
+    runtime = (
+        capture.get("runtime_environment")
+        if isinstance(capture.get("runtime_environment"), dict)
+        else {}
+    )
+    rank = (
+        observation["rank"]
+        if observation
+        else _as_int(capture.get("rank"))
+        if dry_run
+        else _as_int(runtime.get("RNS8_RANK"))
+    )
     if rank is None:
         rank = path_rank
     selector = observation["selected_parent_ordinal"] if observation else path_device
     record = status_by_device.get(str(selector)) if selector is not None else None
     record = record or (status_by_rank.get(rank) if rank is not None else None) or {}
     physical = physical_by_device.get(str(selector), {}) if selector is not None else {}
-    world = observation["world_size"] if observation else _as_int(capture.get("world_size")) if dry_run else _as_int(runtime.get("RNS8_WORLD_SIZE"))
+    world = (
+        observation["world_size"]
+        if observation
+        else _as_int(capture.get("world_size"))
+        if dry_run
+        else _as_int(runtime.get("RNS8_WORLD_SIZE"))
+    )
     if world is None:
         world = _as_int(record.get("world_size"))
     if selector is None:
@@ -222,24 +246,40 @@ def _row_for_capture(
     exact_work = observation.get("exact_work") if observation else None
     if exact_case is None and not dry_run and schema_status == "pass":
         try:
-            exact_work = dict(case_id=case, mathematical_contract=numerical_contract(capture),
-                backend=capture.get("backend_selected"), selected_kernel=capture.get("selected_kernel"),
-                build_manifest_sha256=canonical_digest(capture.get("build_manifest")))
+            exact_work = dict(
+                case_id=case,
+                mathematical_contract=numerical_contract(capture),
+                backend=capture.get("backend_selected"),
+                selected_kernel=capture.get("selected_kernel"),
+                build_manifest_sha256=canonical_digest(capture.get("build_manifest")),
+            )
             exact_case = canonical_digest(exact_work)
         except (ValueError, TypeError, KeyError):
             pass
-    schema_log = path.with_name(f"benchmark-schema-rank{rank}.log") if rank is not None else path.with_suffix(".schema.log")
+    schema_log = (
+        path.with_name(f"benchmark-schema-rank{rank}.log")
+        if rank is not None
+        else path.with_suffix(".schema.log")
+    )
     blockers = []
     if schema_status not in {"pass", "dry_run"}:
         blockers.append("schema_failed")
     if not dry_run:
         if observation is None:
-            blockers.append("capture_observation_invalid" if observation_error else "capture_observation_unbound")
+            blockers.append(
+                "capture_observation_invalid"
+                if observation_error
+                else "capture_observation_unbound"
+            )
         if exact_case is None:
             blockers.append("exact_case_identity_missing")
         for intended in (record, physical):
             intended_target = intended.get("target_id") or intended.get("target_arch")
-            if intended_target and target and str(intended_target).split(":")[0] != str(target).split(":")[0]:
+            if (
+                intended_target
+                and target
+                and str(intended_target).split(":")[0] != str(target).split(":")[0]
+            ):
                 blockers.append("observed_target_mismatch")
             intended_bdf = intended.get("device_bdf") or intended.get("bdf")
             if intended_bdf and bdf and str(intended_bdf).lower() != bdf:
@@ -247,8 +287,10 @@ def _row_for_capture(
             expected_uuid = intended.get("hip_uuid")
             if expected_uuid and uuid and expected_uuid != uuid:
                 blockers.append("observed_device_mapping_mismatch")
-        if observation and ((path_rank is not None and path_rank != rank) or
-                            (path_device is not None and str(path_device) != str(selector))):
+        if observation and (
+            (path_rank is not None and path_rank != rank)
+            or (path_device is not None and str(path_device) != str(selector))
+        ):
             blockers.append("observed_device_mapping_mismatch")
         if observation and record and _as_int(record.get("rank")) != rank:
             blockers.append("observed_device_mapping_mismatch")
@@ -275,25 +317,54 @@ def _row_for_capture(
     binding_status = "verified" if observation else "planned" if dry_run else "unbound"
     if observation and set(blockers).intersection(CRITICAL_EXIT_BLOCKERS):
         binding_status = "contradictory"
-    target_status = "planned" if dry_run and record else "pass" if binding_status == "verified" and record else "unqualified"
-    return dict(capture=str(path), rank=rank, world_size=world, physical_device_id=selector,
+    target_status = (
+        "planned"
+        if dry_run and record
+        else "pass"
+        if binding_status == "verified" and record
+        else "unqualified"
+    )
+    return dict(
+        capture=str(path),
+        rank=rank,
+        world_size=world,
+        physical_device_id=selector,
         device_id_namespace="unmasked_parent_HIP_runtime_ordinal_selector",
         observed_runtime_ordinal=device.get("device_id") if not dry_run else None,
-        target_arch=target, device_name=name, device_bdf=bdf, hip_uuid=uuid,
-        expected_target_arch=expected_target, expected_device_name=record.get("gpu_name") or physical.get("device_name"),
-        expected_device_bdf=expected_bdf, numa_node=record.get("numa_node", physical.get("numa_node")),
-        multi_gpu_mode=record.get("multi_gpu_mode") or runtime.get("RNS8_MULTI_GPU_MODE") or "embarrassingly_parallel_shards",
-        schema_status=schema_status, schema_error=schema_error, schema_log_status=log_status,
+        target_arch=target,
+        device_name=name,
+        device_bdf=bdf,
+        hip_uuid=uuid,
+        expected_target_arch=expected_target,
+        expected_device_name=record.get("gpu_name") or physical.get("device_name"),
+        expected_device_bdf=expected_bdf,
+        numa_node=record.get("numa_node", physical.get("numa_node")),
+        multi_gpu_mode=record.get("multi_gpu_mode")
+        or runtime.get("RNS8_MULTI_GPU_MODE")
+        or "embarrassingly_parallel_shards",
+        schema_status=schema_status,
+        schema_error=schema_error,
+        schema_log_status=log_status,
         target_validation_status=target_status,
         observation_binding_status=binding_status,
-        observation_binding=observation, observation_error=observation_issue,
-        median_end_to_end_us=_median_us(capture), checksum_u64=checksum,
-        backend_selected=capture.get("backend_selected"), semantics=capture.get("semantics"),
-        shape={key: capture.get(key) for key in ("m", "n", "k")}, seed=capture.get("seed"),
-        finite_modulus=capture.get("finite_modulus"), case_id=case, exact_case_sha256=exact_case, exact_work=exact_work,
-        execution_id=capture.get("execution_id"), rocprofv3_ready=record.get("rocprofv3_ready"),
-        rccl_ready=record.get("rccl_ready"), rccl_tests_ready=record.get("rccl_tests_ready"),
-        blockers=sorted(set(blockers)))
+        observation_binding=observation,
+        observation_error=observation_issue,
+        median_end_to_end_us=_median_us(capture),
+        checksum_u64=checksum,
+        backend_selected=capture.get("backend_selected"),
+        semantics=capture.get("semantics"),
+        shape={key: capture.get(key) for key in ("m", "n", "k")},
+        seed=capture.get("seed"),
+        finite_modulus=capture.get("finite_modulus"),
+        case_id=case,
+        exact_case_sha256=exact_case,
+        exact_work=exact_work,
+        execution_id=capture.get("execution_id"),
+        rocprofv3_ready=record.get("rocprofv3_ready"),
+        rccl_ready=record.get("rccl_ready"),
+        rccl_tests_ready=record.get("rccl_tests_ready"),
+        blockers=sorted(set(blockers)),
+    )
 
 
 def _discover_captures(shards_dir: Path | None, explicit: list[Path]) -> list[Path]:
@@ -368,8 +439,12 @@ def _launch_coverage(summary, status_paths, rows, records):
         rank_cases.add(key)
     if not expected_cases:
         expected_cases = {case for _, case in rank_cases}
-    missing_cases = [{"rank": rank, "case": case} for rank in sorted(expected)
-                     for case in sorted(expected_cases) if (rank, case) not in rank_cases]
+    missing_cases = [
+        {"rank": rank, "case": case}
+        for rank in sorted(expected)
+        for case in sorted(expected_cases)
+        if (rank, case) not in rank_cases
+    ]
     if missing_cases:
         blockers.add("missing_cases")
     return devices, sorted(expected - observed), missing_cases, blockers
@@ -390,7 +465,11 @@ def _checksum_groups(rows: list[dict[str, Any]]) -> dict[str, list[Any]]:
 
 
 def _case_timing_outliers(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    valid = [float(row["median_end_to_end_us"]) for row in rows if isinstance(row.get("median_end_to_end_us"), (int, float))]
+    valid = [
+        float(row["median_end_to_end_us"])
+        for row in rows
+        if isinstance(row.get("median_end_to_end_us"), (int, float))
+    ]
     if len(valid) < 3:
         return []
     median = statistics.median(valid)
@@ -403,7 +482,8 @@ def _case_timing_outliers(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "threshold_us": threshold,
         }
         for row in rows
-        if isinstance(row.get("median_end_to_end_us"), (int, float)) and float(row["median_end_to_end_us"]) > threshold
+        if isinstance(row.get("median_end_to_end_us"), (int, float))
+        and float(row["median_end_to_end_us"]) > threshold
     ]
 
 
@@ -414,8 +494,10 @@ def _timing_outliers(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             groups[row["exact_case_sha256"]].append(row)
     result = []
     for exact, group in groups.items():
-        result.extend({**item, "exact_case_sha256": exact, "case_id": group[0]["case_id"]}
-                      for item in _case_timing_outliers(group))
+        result.extend(
+            {**item, "exact_case_sha256": exact, "case_id": group[0]["case_id"]}
+            for item in _case_timing_outliers(group)
+        )
     return result
 
 
@@ -449,8 +531,15 @@ def _observed_launch(observations: dict) -> tuple[dict, list, list]:
         return {}, [], []
     facts = list(observations.values())
     first = facts[0]
-    contexts = {(item["session_id"], item["run_id"], tuple(item["requested_devices"]),
-                 tuple(item["expected_cases"])) for item in facts}
+    contexts = {
+        (
+            item["session_id"],
+            item["run_id"],
+            tuple(item["requested_devices"]),
+            tuple(item["expected_cases"]),
+        )
+        for item in facts
+    }
     blockers = [] if len(contexts) == 1 else ["observation_sessions_ambiguous"]
     devices, cases = first["requested_devices"], set(first["expected_cases"])
     records = []
@@ -459,13 +548,27 @@ def _observed_launch(observations: dict) -> tuple[dict, list, list]:
         if not found:
             continue
         actual = found[0]["observation"]["observed"]
-        records.append(dict(rank=rank, world_size=len(devices), device_index=device,
-            target_id=actual["architecture"], gpu_name=actual["name"],
-            device_bdf=actual["identity"]["pci_bdf"], hip_uuid=actual["identity"]["uuid"],
-            multi_gpu_mode="embarrassingly_parallel_shards",
-            validation=dict(smoke="pass" if cases <= {item["case_id"] for item in found} else "missing"),
-            source="verified_runtime_observation_receipts"))
-    return dict(requested_devices=devices, world_size=len(devices), cases=sorted(cases)), records, blockers
+        records.append(
+            dict(
+                rank=rank,
+                world_size=len(devices),
+                device_index=device,
+                target_id=actual["architecture"],
+                gpu_name=actual["name"],
+                device_bdf=actual["identity"]["pci_bdf"],
+                hip_uuid=actual["identity"]["uuid"],
+                multi_gpu_mode="embarrassingly_parallel_shards",
+                validation=dict(
+                    smoke="pass" if cases <= {item["case_id"] for item in found} else "missing"
+                ),
+                source="verified_runtime_observation_receipts",
+            )
+        )
+    return (
+        dict(requested_devices=devices, world_size=len(devices), cases=sorted(cases)),
+        records,
+        blockers,
+    )
 
 
 def _observation_conflicts(rows: list[dict]) -> set[str]:
@@ -491,12 +594,13 @@ def _observation_conflicts(rows: list[dict]) -> set[str]:
         identity = RuntimeDeviceIdentity(**facts["observation"]["observed"]["identity"])
         previous = identities.get(selected)
         if previous is not None and not (
-                previous.uuid == identity.uuid and previous.pci_bdf == identity.pci_bdf):
+            previous.uuid == identity.uuid and previous.pci_bdf == identity.pci_bdf
+        ):
             blockers.add("ambiguous_execution_device_mapping")
         identities[selected] = identity
     values = list(identities.items())
     for index, (selector, identity) in enumerate(values):
-        for other_selector, other in values[index+1:]:
+        for other_selector, other in values[index + 1 :]:
             if selector != other_selector and not distinct_runtime_identities(identity, other):
                 blockers.add("ambiguous_execution_device_mapping")
     return blockers
@@ -510,15 +614,18 @@ def build_report(
     observation_receipts: list[Path] | None = None,
 ) -> dict[str, Any]:
     store = EvidenceStore()
-    observations, observation_errors, receipt_errors = _load_observations(observation_receipts or [], store)
+    observations, observation_errors, receipt_errors = _load_observations(
+        observation_receipts or [], store
+    )
     observed_intent, observed_records, observation_blockers = _observed_launch(observations)
     summary, env_summary_status = _load_json_with_status(env_summary)
     records = _status_records(target_status or [])
     if observed_intent and not summary:
         summary = dict(observed_intent, source="verified_session_launch_intent")
     elif observed_intent and summary.get("requested_devices") is not None:
-        if (not isinstance(summary["requested_devices"], list) or
-                list(map(str, summary["requested_devices"])) != list(map(str, observed_intent["requested_devices"]))):
+        if not isinstance(summary["requested_devices"], list) or list(
+            map(str, summary["requested_devices"])
+        ) != list(map(str, observed_intent["requested_devices"])):
             observation_blockers.append("launch_inventory_invalid")
     if not records:
         records = observed_records
@@ -526,8 +633,14 @@ def build_report(
     physical_by_device = _env_physical_lookup(summary)
     capture_paths = _discover_captures(shards_dir, [*captures, *observations, *observation_errors])
     rows = [
-        _row_for_capture(path, status_by_device, status_by_rank, physical_by_device,
-                         observations.get(path.resolve()), observation_errors.get(path.resolve()))
+        _row_for_capture(
+            path,
+            status_by_device,
+            status_by_rank,
+            physical_by_device,
+            observations.get(path.resolve()),
+            observation_errors.get(path.resolve()),
+        )
         for path in capture_paths
     ]
     try:
@@ -540,14 +653,19 @@ def build_report(
                 row["observation_binding_status"] = "invalid"
                 row["target_validation_status"] = "unqualified"
     checksum_groups = _checksum_groups(rows)
-    checksum_mismatch_groups = {key: values for key, values in checksum_groups.items() if len(values) > 1}
+    checksum_mismatch_groups = {
+        key: values for key, values in checksum_groups.items() if len(values) > 1
+    }
     expected_devices, missing_ranks, missing_cases, coverage_blockers = _launch_coverage(
-        summary, target_status or [], rows, records)
+        summary, target_status or [], rows, records
+    )
     if observed_intent:
         actual_cases = {(row["rank"], row["case_id"]) for row in rows}
         for rank in range(len(observed_intent["requested_devices"])):
             for case in observed_intent["cases"]:
-                if (rank, case) not in actual_cases and dict(rank=rank, case=case) not in missing_cases:
+                if (rank, case) not in actual_cases and dict(
+                    rank=rank, case=case
+                ) not in missing_cases:
                     missing_cases.append(dict(rank=rank, case=case))
                     coverage_blockers.add("missing_cases")
     failed_ranks = sorted(
@@ -563,7 +681,10 @@ def build_report(
     blockers = set(coverage_blockers) | set(observation_blockers) | conflicts
     if conflicts:
         for row in rows:
-            if row["schema_status"] != "dry_run" and row["observation_binding_status"] == "verified":
+            if (
+                row["schema_status"] != "dry_run"
+                and row["observation_binding_status"] == "verified"
+            ):
                 row["observation_binding_status"] = "contradictory"
                 row["target_validation_status"] = "unqualified"
                 row["blockers"] = sorted(set(row["blockers"]) | conflicts)
@@ -587,18 +708,31 @@ def build_report(
         "schema": "rns8_multigpu_shard_report_v2",
         "observation_receipt_errors": receipt_errors,
         "observation_receipts": [str(path) for path in observation_receipts or []],
-        "qualified_observation_count": sum(row["observation_binding_status"] == "verified" for row in rows),
-        "unqualified_ranks": sorted({row["rank"] for row in rows if row["rank"] is not None and
-                                    row["schema_status"] != "dry_run" and row["observation_binding_status"] != "verified"}),
+        "qualified_observation_count": sum(
+            row["observation_binding_status"] == "verified" for row in rows
+        ),
+        "unqualified_ranks": sorted(
+            {
+                row["rank"]
+                for row in rows
+                if row["rank"] is not None
+                and row["schema_status"] != "dry_run"
+                and row["observation_binding_status"] != "verified"
+            }
+        ),
         "capture_count": len(capture_paths),
         "status_record_count": len(records),
         "env_summary": str(env_summary) if env_summary else None,
         "target_status": [str(path) for path in target_status or []],
         "env_summary_status": env_summary_status,
-        "world_sizes": sorted({str(row.get("world_size")) for row in rows if row.get("world_size") is not None}),
+        "world_sizes": sorted(
+            {str(row.get("world_size")) for row in rows if row.get("world_size") is not None}
+        ),
         "observed_ranks": sorted({int(row["rank"]) for row in rows if row.get("rank") is not None}),
         "expected_devices": expected_devices,
-        "execution_status": "not_executed" if rows and all(row["schema_status"] == "dry_run" for row in rows) else "executed_or_incomplete",
+        "execution_status": "not_executed"
+        if rows and all(row["schema_status"] == "dry_run" for row in rows)
+        else "executed_or_incomplete",
         "missing_cases": missing_cases,
         "missing_ranks": missing_ranks,
         "failed_ranks": failed_ranks,
@@ -607,7 +741,9 @@ def build_report(
         "timing_outliers": timing_outliers,
         "rocprofv3_ready_values": sorted({str(row.get("rocprofv3_ready")).lower() for row in rows}),
         "rccl_ready_values": sorted({str(row.get("rccl_ready")).lower() for row in rows}),
-        "rccl_tests_ready_values": sorted({str(row.get("rccl_tests_ready")).lower() for row in rows}),
+        "rccl_tests_ready_values": sorted(
+            {str(row.get("rccl_tests_ready")).lower() for row in rows}
+        ),
         "promotion_eligible": False,
         "promotion_blockers": sorted(blockers),
         "rows": rows,
@@ -666,7 +802,9 @@ def main() -> int:
     parser.add_argument("--target-status", action="append", type=Path, default=[])
     parser.add_argument("--shards-dir", type=Path)
     parser.add_argument("--observation-receipt", action="append", type=Path, default=[])
-    parser.add_argument("--observation-dir", type=Path, help="directory emitted by multigpu_observation.py")
+    parser.add_argument(
+        "--observation-dir", type=Path, help="directory emitted by multigpu_observation.py"
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
@@ -675,8 +813,10 @@ def main() -> int:
         env_summary=args.env_summary,
         target_status=args.target_status,
         shards_dir=args.shards_dir,
-        observation_receipts=[*args.observation_receipt,
-            *(sorted(args.observation_dir.glob("*.binding.json")) if args.observation_dir else [])],
+        observation_receipts=[
+            *args.observation_receipt,
+            *(sorted(args.observation_dir.glob("*.binding.json")) if args.observation_dir else []),
+        ],
     )
     outputs = write_outputs(report, args.out_dir)
     if args.json:

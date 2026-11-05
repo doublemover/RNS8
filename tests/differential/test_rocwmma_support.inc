@@ -5,7 +5,7 @@ int default_visible_hip_test_device() {
 }
 
 class HipBuffer {
- public:
+public:
   explicit HipBuffer(std::size_t bytes) {
     REQUIRE(bytes > 0);
     REQUIRE(hipSetDevice(default_visible_hip_test_device()) == hipSuccess);
@@ -22,16 +22,14 @@ class HipBuffer {
   HipBuffer(const HipBuffer&) = delete;
   HipBuffer& operator=(const HipBuffer&) = delete;
 
-  void* get() const {
-    return ptr_;
-  }
+  void* get() const { return ptr_; }
 
- private:
+private:
   void* ptr_ = nullptr;
 };
 
 class HipScratchBuffer {
- public:
+public:
   ~HipScratchBuffer() {
     if (ptr_) {
       (void)hipSetDevice(default_visible_hip_test_device());
@@ -44,15 +42,11 @@ class HipScratchBuffer {
 
   HipScratchBuffer() = default;
 
-  void** ptr_address() {
-    return &ptr_;
-  }
+  void** ptr_address() { return &ptr_; }
 
-  std::size_t* bytes_address() {
-    return &bytes_;
-  }
+  std::size_t* bytes_address() { return &bytes_; }
 
- private:
+private:
   void* ptr_ = nullptr;
   std::size_t bytes_ = 0;
 };
@@ -63,7 +57,8 @@ rns8_context* create_backend_context(rns8_backend_kind backend) {
   options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = backend;
   rns8_context* ctx = nullptr;
-  const int device_id = backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : default_visible_hip_test_device();
+  const int device_id =
+      backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : default_visible_hip_test_device();
   REQUIRE(rns8_create_context(device_id, &options, &ctx) == RNS8_SUCCESS);
   return ctx;
 }
@@ -79,7 +74,8 @@ bool rocwmma_available() {
   return status == RNS8_SUCCESS;
 }
 
-rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                                rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -93,7 +89,8 @@ rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
   return desc;
 }
 
-rns8_gemm_desc bounded_u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+rns8_gemm_desc bounded_u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                                rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -107,12 +104,8 @@ rns8_gemm_desc bounded_u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
   return desc;
 }
 
-rns8_gemm_desc per_tile_u64_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<uint64_t>& bounds,
-    rns8_backend_kind backend) {
+rns8_gemm_desc per_tile_u64_desc(int64_t m, int64_t n, int64_t k,
+                                 const std::vector<uint64_t>& bounds, rns8_backend_kind backend) {
   rns8_gemm_desc desc = bounded_u64_desc(m, n, k, 0, backend);
   desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
   desc.tile_m = 64;
@@ -122,13 +115,8 @@ rns8_gemm_desc per_tile_u64_desc(
   return desc;
 }
 
-rns8_gemm_desc finite_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    rns8_semantics semantics,
-    rns8_backend_kind backend,
-    uint16_t modulus = 0) {
+rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics semantics,
+                           rns8_backend_kind backend, uint16_t modulus = 0) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -171,12 +159,8 @@ rns8_gemm_desc exact_unsigned_desc(int64_t m, int64_t n, int64_t k, rns8_backend
   return desc;
 }
 
-rns8_matrix_desc matrix_desc(
-    int64_t rows,
-    int64_t cols,
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint32_t prefix = 0) {
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics,
+                             rns8_bound_kind bound_kind, uint32_t prefix = 0) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -206,34 +190,23 @@ void require_same_u64(const std::vector<uint64_t>& expected, const std::vector<u
   }
 }
 
-void require_wrap64_output_matches_oracle(
-    const std::vector<uint64_t>& A,
-    int64_t lda,
-    const std::vector<uint64_t>& B,
-    int64_t ldb,
-    const std::vector<uint64_t>& C,
-    int64_t ldc,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+void require_wrap64_output_matches_oracle(const std::vector<uint64_t>& A, int64_t lda,
+                                          const std::vector<uint64_t>& B, int64_t ldb,
+                                          const std::vector<uint64_t>& C, int64_t ldc, int64_t m,
+                                          int64_t n, int64_t k) {
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
-            rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+            rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row,
+                                                                  col, k));
     }
   }
 }
 
-void require_wrap64_sampled_output_matches_oracle(
-    const std::vector<uint64_t>& A,
-    int64_t lda,
-    const std::vector<uint64_t>& B,
-    int64_t ldb,
-    const std::vector<uint64_t>& C,
-    int64_t ldc,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+void require_wrap64_sampled_output_matches_oracle(const std::vector<uint64_t>& A, int64_t lda,
+                                                  const std::vector<uint64_t>& B, int64_t ldb,
+                                                  const std::vector<uint64_t>& C, int64_t ldc,
+                                                  int64_t m, int64_t n, int64_t k) {
   std::vector<uint64_t> sample_offsets;
   const auto add_sample = [&](int64_t row, int64_t col) {
     REQUIRE(row >= 0);
@@ -259,7 +232,8 @@ void require_wrap64_sampled_output_matches_oracle(
     const int64_t row = static_cast<int64_t>(offset / static_cast<uint64_t>(n));
     const int64_t col = static_cast<int64_t>(offset % static_cast<uint64_t>(n));
     CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
-          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row,
+                                                                col, k));
   }
 }
 
@@ -309,8 +283,7 @@ uint64_t wrap64_candidate_b_value(int64_t row, int64_t col, std::mt19937_64& rng
 }
 
 void require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(
-    const Wrap64CandidateShape& shape,
-    bool exhaustive_oracle = true) {
+    const Wrap64CandidateShape& shape, bool exhaustive_oracle = true) {
   INFO(shape.name);
 
   const int device_id = default_visible_hip_test_device();
@@ -349,47 +322,25 @@ void require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(
   HipScratchBuffer upload_buffer;
   HipScratchBuffer export_buffer;
 
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              device_id,
-              A.data(),
-              upload_buffer.ptr_address(),
-              upload_buffer.bytes_address(),
-              a_limbs.get(),
-              shape.m,
-              shape.k,
-              lda) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              device_id,
-              B.data(),
-              upload_buffer.ptr_address(),
-              upload_buffer.bytes_address(),
-              b_limbs.get(),
-              shape.k,
-              shape.n,
-              ldb) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(device_id, A.data(), upload_buffer.ptr_address(),
+                                                   upload_buffer.bytes_address(), a_limbs.get(),
+                                                   shape.m, shape.k, lda) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(device_id, B.data(), upload_buffer.ptr_address(),
+                                                   upload_buffer.bytes_address(), b_limbs.get(),
+                                                   shape.k, shape.n, ldb) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
-              device_id, a_limbs.get(), b_limbs.get(), direct_limbs.get(), shape.m, shape.n, shape.k) ==
-          RNS8_SUCCESS);
+              device_id, a_limbs.get(), b_limbs.get(), direct_limbs.get(), shape.m, shape.n,
+              shape.k) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::rocwmma_wrap64_gemm_byte_limbs_candidate_device(
-              device_id, a_limbs.get(), b_limbs.get(), rocwmma_limbs.get(), shape.m, shape.n, shape.k) ==
-          RNS8_SUCCESS);
+              device_id, a_limbs.get(), b_limbs.get(), rocwmma_limbs.get(), shape.m, shape.n,
+              shape.k) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              device_id,
-              direct_limbs.get(),
-              export_buffer.ptr_address(),
-              export_buffer.bytes_address(),
-              shape.m,
-              shape.n,
-              direct_out.data(),
+              device_id, direct_limbs.get(), export_buffer.ptr_address(),
+              export_buffer.bytes_address(), shape.m, shape.n, direct_out.data(),
               ldc) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              device_id,
-              rocwmma_limbs.get(),
-              export_buffer.ptr_address(),
-              export_buffer.bytes_address(),
-              shape.m,
-              shape.n,
-              rocwmma_out.data(),
+              device_id, rocwmma_limbs.get(), export_buffer.ptr_address(),
+              export_buffer.bytes_address(), shape.m, shape.n, rocwmma_out.data(),
               ldc) == RNS8_SUCCESS);
 
   for (int64_t row = 0; row < shape.m; ++row) {
@@ -400,10 +351,11 @@ void require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(
   }
   require_same_u64(direct_out, rocwmma_out);
   if (exhaustive_oracle) {
-    require_wrap64_output_matches_oracle(A, lda, B, ldb, rocwmma_out, ldc, shape.m, shape.n, shape.k);
+    require_wrap64_output_matches_oracle(A, lda, B, ldb, rocwmma_out, ldc, shape.m, shape.n,
+                                         shape.k);
   } else {
-    require_wrap64_sampled_output_matches_oracle(A, lda, B, ldb, rocwmma_out, ldc, shape.m, shape.n, shape.k);
+    require_wrap64_sampled_output_matches_oracle(A, lda, B, ldb, rocwmma_out, ldc, shape.m, shape.n,
+                                                 shape.k);
   }
 }
 #endif
-

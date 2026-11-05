@@ -1,12 +1,5 @@
-__global__ void pack_a_rowmajor_kernel(
-    const int8_t* a,
-    int8_t* packed,
-    int rows,
-    int padded_rows,
-    int valid_k_block,
-    int gemm_k_block,
-    int lda,
-    int k_offset) {
+__global__ void pack_a_rowmajor_kernel(const int8_t* a, int8_t* packed, int rows, int padded_rows,
+                                       int valid_k_block, int gemm_k_block, int lda, int k_offset) {
   const int kk = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
   const int row = static_cast<int>(blockIdx.y * blockDim.y + threadIdx.y);
   if (row >= padded_rows || kk >= gemm_k_block) {
@@ -16,15 +9,9 @@ __global__ void pack_a_rowmajor_kernel(
       row < rows && kk < valid_k_block ? a[row * lda + k_offset + kk] : static_cast<int8_t>(0);
 }
 
-__global__ void pack_b_colmajor_kernel(
-    const int8_t* b,
-    int8_t* packed,
-    int valid_k_block,
-    int gemm_k_block,
-    int n,
-    int padded_n,
-    int ldb,
-    int k_offset) {
+__global__ void pack_b_colmajor_kernel(const int8_t* b, int8_t* packed, int valid_k_block,
+                                       int gemm_k_block, int n, int padded_n, int ldb,
+                                       int k_offset) {
   const int kk = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
   const int col = static_cast<int>(blockIdx.y * blockDim.y + threadIdx.y);
   if (col >= padded_n || kk >= gemm_k_block) {
@@ -34,93 +21,88 @@ __global__ void pack_b_colmajor_kernel(
       col < n && kk < valid_k_block ? b[(k_offset + kk) * ldb + col] : static_cast<int8_t>(0);
 }
 
-__global__ void pack_b_colmajor_prefix_kernel(
-    const int8_t* b,
-    int8_t* packed,
-    uint64_t packed_plane_bytes,
-    int valid_k_block,
-    int gemm_k_block,
-    int n,
-    int padded_n,
-    int ldb) {
+__global__ void pack_b_colmajor_prefix_kernel(const int8_t* b, int8_t* packed,
+                                              uint64_t packed_plane_bytes, int valid_k_block,
+                                              int gemm_k_block, int n, int padded_n, int ldb) {
   const int kk = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
   const int col = static_cast<int>(blockIdx.y * blockDim.y + threadIdx.y);
   const uint32_t modulus_index = static_cast<uint32_t>(blockIdx.z);
   if (col >= padded_n || kk >= gemm_k_block) {
     return;
   }
-  const int64_t b_plane_offset =
-      static_cast<int64_t>(modulus_index) * static_cast<int64_t>(valid_k_block) * static_cast<int64_t>(ldb);
+  const int64_t b_plane_offset = static_cast<int64_t>(modulus_index) *
+                                 static_cast<int64_t>(valid_k_block) * static_cast<int64_t>(ldb);
   const uint64_t packed_plane_offset = static_cast<uint64_t>(modulus_index) * packed_plane_bytes;
-  const uint64_t packed_index =
-      packed_plane_offset + static_cast<uint64_t>(col) * static_cast<uint64_t>(gemm_k_block) + static_cast<uint64_t>(kk);
-  const int64_t b_index = b_plane_offset + static_cast<int64_t>(kk) * static_cast<int64_t>(ldb) + col;
+  const uint64_t packed_index = packed_plane_offset +
+                                static_cast<uint64_t>(col) * static_cast<uint64_t>(gemm_k_block) +
+                                static_cast<uint64_t>(kk);
+  const int64_t b_index =
+      b_plane_offset + static_cast<int64_t>(kk) * static_cast<int64_t>(ldb) + col;
   packed[packed_index] = col < n && kk < valid_k_block ? b[b_index] : static_cast<int8_t>(0);
 }
 
 __device__ int rocwmma_default_modulus_device(int modulus_index) {
   switch (modulus_index) {
-    case 0:
-      return 256;
-    case 1:
-      return 255;
-    case 2:
-      return 253;
-    case 3:
-      return 251;
-    case 4:
-      return 247;
-    case 5:
-      return 239;
-    case 6:
-      return 233;
-    case 7:
-      return 229;
-    case 8:
-      return 227;
-    case 9:
-      return 223;
-    case 10:
-      return 217;
-    case 11:
-      return 211;
-    case 12:
-      return 199;
-    case 13:
-      return 197;
-    case 14:
-      return 193;
-    case 15:
-      return 191;
-    case 16:
-      return 181;
-    case 17:
-      return 179;
-    case 18:
-      return 173;
-    case 19:
-      return 167;
-    case 20:
-      return 163;
-    case 21:
-      return 157;
-    case 22:
-      return 151;
-    case 23:
-      return 149;
-    case 24:
-      return 139;
-    case 25:
-      return 137;
-    case 26:
-      return 131;
-    default:
-      return 127;
+  case 0:
+    return 256;
+  case 1:
+    return 255;
+  case 2:
+    return 253;
+  case 3:
+    return 251;
+  case 4:
+    return 247;
+  case 5:
+    return 239;
+  case 6:
+    return 233;
+  case 7:
+    return 229;
+  case 8:
+    return 227;
+  case 9:
+    return 223;
+  case 10:
+    return 217;
+  case 11:
+    return 211;
+  case 12:
+    return 199;
+  case 13:
+    return 197;
+  case 14:
+    return 193;
+  case 15:
+    return 191;
+  case 16:
+    return 181;
+  case 17:
+    return 179;
+  case 18:
+    return 173;
+  case 19:
+    return 167;
+  case 20:
+    return 163;
+  case 21:
+    return 157;
+  case 22:
+    return 151;
+  case 23:
+    return 149;
+  case 24:
+    return 139;
+  case 25:
+    return 137;
+  case 26:
+    return 131;
+  default:
+    return 127;
   }
 }
 
-template <int Modulus>
-__device__ int8_t rocwmma_center_i64_fixed_modulus_device(int64_t value) {
+template <int Modulus> __device__ int8_t rocwmma_center_i64_fixed_modulus_device(int64_t value) {
   int64_t residue = value % static_cast<int64_t>(Modulus);
   residue += static_cast<int64_t>(Modulus) & -static_cast<int64_t>(residue < 0);
   const int64_t threshold = (static_cast<int64_t>(Modulus) + 1) / 2;
@@ -128,8 +110,7 @@ __device__ int8_t rocwmma_center_i64_fixed_modulus_device(int64_t value) {
   return static_cast<int8_t>(residue);
 }
 
-template <int Modulus>
-__device__ int8_t rocwmma_center_u64_fixed_modulus_device(uint64_t value) {
+template <int Modulus> __device__ int8_t rocwmma_center_u64_fixed_modulus_device(uint64_t value) {
   uint64_t residue = value % static_cast<uint64_t>(Modulus);
   const uint64_t threshold = (static_cast<uint64_t>(Modulus) + 1) / 2;
   residue -= static_cast<uint64_t>(Modulus) & (0u - static_cast<uint64_t>(residue >= threshold));
@@ -138,136 +119,131 @@ __device__ int8_t rocwmma_center_u64_fixed_modulus_device(uint64_t value) {
 
 __device__ int8_t rocwmma_center_native_b_device(int64_t value, int modulus_index) {
   switch (modulus_index) {
-    case 0:
-      return rocwmma_center_i64_fixed_modulus_device<256>(value);
-    case 1:
-      return rocwmma_center_i64_fixed_modulus_device<255>(value);
-    case 2:
-      return rocwmma_center_i64_fixed_modulus_device<253>(value);
-    case 3:
-      return rocwmma_center_i64_fixed_modulus_device<251>(value);
-    case 4:
-      return rocwmma_center_i64_fixed_modulus_device<247>(value);
-    case 5:
-      return rocwmma_center_i64_fixed_modulus_device<239>(value);
-    case 6:
-      return rocwmma_center_i64_fixed_modulus_device<233>(value);
-    case 7:
-      return rocwmma_center_i64_fixed_modulus_device<229>(value);
-    case 8:
-      return rocwmma_center_i64_fixed_modulus_device<227>(value);
-    case 9:
-      return rocwmma_center_i64_fixed_modulus_device<223>(value);
-    case 10:
-      return rocwmma_center_i64_fixed_modulus_device<217>(value);
-    case 11:
-      return rocwmma_center_i64_fixed_modulus_device<211>(value);
-    case 12:
-      return rocwmma_center_i64_fixed_modulus_device<199>(value);
-    case 13:
-      return rocwmma_center_i64_fixed_modulus_device<197>(value);
-    case 14:
-      return rocwmma_center_i64_fixed_modulus_device<193>(value);
-    case 15:
-      return rocwmma_center_i64_fixed_modulus_device<191>(value);
-    case 16:
-      return rocwmma_center_i64_fixed_modulus_device<181>(value);
-    case 17:
-      return rocwmma_center_i64_fixed_modulus_device<179>(value);
-    case 18:
-      return rocwmma_center_i64_fixed_modulus_device<173>(value);
-    case 19:
-      return rocwmma_center_i64_fixed_modulus_device<167>(value);
-    case 20:
-      return rocwmma_center_i64_fixed_modulus_device<163>(value);
-    case 21:
-      return rocwmma_center_i64_fixed_modulus_device<157>(value);
-    case 22:
-      return rocwmma_center_i64_fixed_modulus_device<151>(value);
-    case 23:
-      return rocwmma_center_i64_fixed_modulus_device<149>(value);
-    case 24:
-      return rocwmma_center_i64_fixed_modulus_device<139>(value);
-    case 25:
-      return rocwmma_center_i64_fixed_modulus_device<137>(value);
-    case 26:
-      return rocwmma_center_i64_fixed_modulus_device<131>(value);
-    default:
-      return rocwmma_center_i64_fixed_modulus_device<127>(value);
+  case 0:
+    return rocwmma_center_i64_fixed_modulus_device<256>(value);
+  case 1:
+    return rocwmma_center_i64_fixed_modulus_device<255>(value);
+  case 2:
+    return rocwmma_center_i64_fixed_modulus_device<253>(value);
+  case 3:
+    return rocwmma_center_i64_fixed_modulus_device<251>(value);
+  case 4:
+    return rocwmma_center_i64_fixed_modulus_device<247>(value);
+  case 5:
+    return rocwmma_center_i64_fixed_modulus_device<239>(value);
+  case 6:
+    return rocwmma_center_i64_fixed_modulus_device<233>(value);
+  case 7:
+    return rocwmma_center_i64_fixed_modulus_device<229>(value);
+  case 8:
+    return rocwmma_center_i64_fixed_modulus_device<227>(value);
+  case 9:
+    return rocwmma_center_i64_fixed_modulus_device<223>(value);
+  case 10:
+    return rocwmma_center_i64_fixed_modulus_device<217>(value);
+  case 11:
+    return rocwmma_center_i64_fixed_modulus_device<211>(value);
+  case 12:
+    return rocwmma_center_i64_fixed_modulus_device<199>(value);
+  case 13:
+    return rocwmma_center_i64_fixed_modulus_device<197>(value);
+  case 14:
+    return rocwmma_center_i64_fixed_modulus_device<193>(value);
+  case 15:
+    return rocwmma_center_i64_fixed_modulus_device<191>(value);
+  case 16:
+    return rocwmma_center_i64_fixed_modulus_device<181>(value);
+  case 17:
+    return rocwmma_center_i64_fixed_modulus_device<179>(value);
+  case 18:
+    return rocwmma_center_i64_fixed_modulus_device<173>(value);
+  case 19:
+    return rocwmma_center_i64_fixed_modulus_device<167>(value);
+  case 20:
+    return rocwmma_center_i64_fixed_modulus_device<163>(value);
+  case 21:
+    return rocwmma_center_i64_fixed_modulus_device<157>(value);
+  case 22:
+    return rocwmma_center_i64_fixed_modulus_device<151>(value);
+  case 23:
+    return rocwmma_center_i64_fixed_modulus_device<149>(value);
+  case 24:
+    return rocwmma_center_i64_fixed_modulus_device<139>(value);
+  case 25:
+    return rocwmma_center_i64_fixed_modulus_device<137>(value);
+  case 26:
+    return rocwmma_center_i64_fixed_modulus_device<131>(value);
+  default:
+    return rocwmma_center_i64_fixed_modulus_device<127>(value);
   }
 }
 
 __device__ int8_t rocwmma_center_native_b_device(uint64_t value, int modulus_index) {
   switch (modulus_index) {
-    case 0:
-      return rocwmma_center_u64_fixed_modulus_device<256>(value);
-    case 1:
-      return rocwmma_center_u64_fixed_modulus_device<255>(value);
-    case 2:
-      return rocwmma_center_u64_fixed_modulus_device<253>(value);
-    case 3:
-      return rocwmma_center_u64_fixed_modulus_device<251>(value);
-    case 4:
-      return rocwmma_center_u64_fixed_modulus_device<247>(value);
-    case 5:
-      return rocwmma_center_u64_fixed_modulus_device<239>(value);
-    case 6:
-      return rocwmma_center_u64_fixed_modulus_device<233>(value);
-    case 7:
-      return rocwmma_center_u64_fixed_modulus_device<229>(value);
-    case 8:
-      return rocwmma_center_u64_fixed_modulus_device<227>(value);
-    case 9:
-      return rocwmma_center_u64_fixed_modulus_device<223>(value);
-    case 10:
-      return rocwmma_center_u64_fixed_modulus_device<217>(value);
-    case 11:
-      return rocwmma_center_u64_fixed_modulus_device<211>(value);
-    case 12:
-      return rocwmma_center_u64_fixed_modulus_device<199>(value);
-    case 13:
-      return rocwmma_center_u64_fixed_modulus_device<197>(value);
-    case 14:
-      return rocwmma_center_u64_fixed_modulus_device<193>(value);
-    case 15:
-      return rocwmma_center_u64_fixed_modulus_device<191>(value);
-    case 16:
-      return rocwmma_center_u64_fixed_modulus_device<181>(value);
-    case 17:
-      return rocwmma_center_u64_fixed_modulus_device<179>(value);
-    case 18:
-      return rocwmma_center_u64_fixed_modulus_device<173>(value);
-    case 19:
-      return rocwmma_center_u64_fixed_modulus_device<167>(value);
-    case 20:
-      return rocwmma_center_u64_fixed_modulus_device<163>(value);
-    case 21:
-      return rocwmma_center_u64_fixed_modulus_device<157>(value);
-    case 22:
-      return rocwmma_center_u64_fixed_modulus_device<151>(value);
-    case 23:
-      return rocwmma_center_u64_fixed_modulus_device<149>(value);
-    case 24:
-      return rocwmma_center_u64_fixed_modulus_device<139>(value);
-    case 25:
-      return rocwmma_center_u64_fixed_modulus_device<137>(value);
-    case 26:
-      return rocwmma_center_u64_fixed_modulus_device<131>(value);
-    default:
-      return rocwmma_center_u64_fixed_modulus_device<127>(value);
+  case 0:
+    return rocwmma_center_u64_fixed_modulus_device<256>(value);
+  case 1:
+    return rocwmma_center_u64_fixed_modulus_device<255>(value);
+  case 2:
+    return rocwmma_center_u64_fixed_modulus_device<253>(value);
+  case 3:
+    return rocwmma_center_u64_fixed_modulus_device<251>(value);
+  case 4:
+    return rocwmma_center_u64_fixed_modulus_device<247>(value);
+  case 5:
+    return rocwmma_center_u64_fixed_modulus_device<239>(value);
+  case 6:
+    return rocwmma_center_u64_fixed_modulus_device<233>(value);
+  case 7:
+    return rocwmma_center_u64_fixed_modulus_device<229>(value);
+  case 8:
+    return rocwmma_center_u64_fixed_modulus_device<227>(value);
+  case 9:
+    return rocwmma_center_u64_fixed_modulus_device<223>(value);
+  case 10:
+    return rocwmma_center_u64_fixed_modulus_device<217>(value);
+  case 11:
+    return rocwmma_center_u64_fixed_modulus_device<211>(value);
+  case 12:
+    return rocwmma_center_u64_fixed_modulus_device<199>(value);
+  case 13:
+    return rocwmma_center_u64_fixed_modulus_device<197>(value);
+  case 14:
+    return rocwmma_center_u64_fixed_modulus_device<193>(value);
+  case 15:
+    return rocwmma_center_u64_fixed_modulus_device<191>(value);
+  case 16:
+    return rocwmma_center_u64_fixed_modulus_device<181>(value);
+  case 17:
+    return rocwmma_center_u64_fixed_modulus_device<179>(value);
+  case 18:
+    return rocwmma_center_u64_fixed_modulus_device<173>(value);
+  case 19:
+    return rocwmma_center_u64_fixed_modulus_device<167>(value);
+  case 20:
+    return rocwmma_center_u64_fixed_modulus_device<163>(value);
+  case 21:
+    return rocwmma_center_u64_fixed_modulus_device<157>(value);
+  case 22:
+    return rocwmma_center_u64_fixed_modulus_device<151>(value);
+  case 23:
+    return rocwmma_center_u64_fixed_modulus_device<149>(value);
+  case 24:
+    return rocwmma_center_u64_fixed_modulus_device<139>(value);
+  case 25:
+    return rocwmma_center_u64_fixed_modulus_device<137>(value);
+  case 26:
+    return rocwmma_center_u64_fixed_modulus_device<131>(value);
+  default:
+    return rocwmma_center_u64_fixed_modulus_device<127>(value);
   }
 }
 
 template <typename NativeT>
-__global__ void pack_b_native_colmajor_prefix_kernel(
-    const NativeT* b,
-    int8_t* packed,
-    uint64_t packed_plane_bytes,
-    int valid_k_block,
-    int gemm_k_block,
-    int n,
-    int padded_n,
-    int ldb) {
+__global__ void pack_b_native_colmajor_prefix_kernel(const NativeT* b, int8_t* packed,
+                                                     uint64_t packed_plane_bytes, int valid_k_block,
+                                                     int gemm_k_block, int n, int padded_n,
+                                                     int ldb) {
   const int kk = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
   const int col = static_cast<int>(blockIdx.y * blockDim.y + threadIdx.y);
   const uint32_t modulus_index = static_cast<uint32_t>(blockIdx.z);
@@ -275,8 +251,9 @@ __global__ void pack_b_native_colmajor_prefix_kernel(
     return;
   }
   const uint64_t packed_plane_offset = static_cast<uint64_t>(modulus_index) * packed_plane_bytes;
-  const uint64_t packed_index =
-      packed_plane_offset + static_cast<uint64_t>(col) * static_cast<uint64_t>(gemm_k_block) + static_cast<uint64_t>(kk);
+  const uint64_t packed_index = packed_plane_offset +
+                                static_cast<uint64_t>(col) * static_cast<uint64_t>(gemm_k_block) +
+                                static_cast<uint64_t>(kk);
   if (col >= n || kk >= valid_k_block) {
     packed[packed_index] = 0;
     return;
@@ -285,23 +262,16 @@ __global__ void pack_b_native_colmajor_prefix_kernel(
   packed[packed_index] = rocwmma_center_native_b_device(value, static_cast<int>(modulus_index));
 }
 
-__global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_kernel(
-    const int8_t* a_pack,
-    const int8_t* b_pack,
-    int8_t* c,
-    int rows,
-    int cols,
-    int padded_rows,
-    int padded_cols,
-    int gemm_k_block,
-    int a_stride,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int accumulate) {
+__global__ void __launch_bounds__(kRns8WmmaWaveThreads)
+    rocwmma_i8_residue_gemm_kernel(const int8_t* a_pack, const int8_t* b_pack, int8_t* c, int rows,
+                                   int cols, int padded_rows, int padded_cols, int gemm_k_block,
+                                   int a_stride, int ldc, int modulus, uint32_t modulus_reciprocal,
+                                   int accumulate) {
   using namespace rocwmma;
-  using FragA = fragment<matrix_a, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, row_major>;
-  using FragB = fragment<matrix_b, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, col_major>;
+  using FragA =
+      fragment<matrix_a, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, row_major>;
+  using FragB =
+      fragment<matrix_b, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, col_major>;
   using FragAcc = fragment<accumulator, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int32_t>;
 
   __shared__ int32_t tile_acc[kRns8WmmaTileM * kRns8WmmaTileN];
@@ -347,36 +317,25 @@ __device__ int64_t wrap64_compact_limb_index(int64_t row, int64_t col, int64_t c
 }
 
 __device__ int8_t wrap64_signed_byte_lane(uint8_t value) {
-  return value < 128u ? static_cast<int8_t>(value) : static_cast<int8_t>(static_cast<int>(value) - 256);
+  return value < 128u ? static_cast<int8_t>(value)
+                      : static_cast<int8_t>(static_cast<int>(value) - 256);
 }
 
 __device__ int8_t wrap64_lane_component(uint8_t value, int high_bit_component) {
-  return high_bit_component != 0 ? static_cast<int8_t>(value >> 7u) : wrap64_signed_byte_lane(value);
+  return high_bit_component != 0 ? static_cast<int8_t>(value >> 7u)
+                                 : wrap64_signed_byte_lane(value);
 }
 
 __device__ void rocwmma_wrap64_accumulate_component(
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t k_base,
-    int valid_k,
-    int tile_row,
-    int tile_col,
-    int a_limb,
-    int b_limb,
-    int a_high_bit_component,
-    int b_high_bit_component,
-    int diagonal,
-    int64_t coefficient,
-    int8_t* a_pack,
-    int8_t* b_pack,
-    int32_t* tile_acc,
-    int64_t* diagonal_acc) {
+    const uint8_t* a_limbs, const uint8_t* b_limbs, int64_t m, int64_t n, int64_t k, int64_t k_base,
+    int valid_k, int tile_row, int tile_col, int a_limb, int b_limb, int a_high_bit_component,
+    int b_high_bit_component, int diagonal, int64_t coefficient, int8_t* a_pack, int8_t* b_pack,
+    int32_t* tile_acc, int64_t* diagonal_acc) {
   using namespace rocwmma;
-  using FragA = fragment<matrix_a, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, row_major>;
-  using FragB = fragment<matrix_b, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, col_major>;
+  using FragA =
+      fragment<matrix_a, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, row_major>;
+  using FragB =
+      fragment<matrix_b, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, col_major>;
   using FragAcc = fragment<accumulator, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int32_t>;
 
   const int lane = static_cast<int>(threadIdx.x);
@@ -428,4 +387,3 @@ __device__ void rocwmma_wrap64_accumulate_component(
   }
   __syncthreads();
 }
-

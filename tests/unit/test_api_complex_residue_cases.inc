@@ -6,7 +6,7 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
   for (bool hip : {false, true}) {
     if (hip && !direct_hip_compiled())
       continue;
-    rns8_context *ctx = nullptr;
+    rns8_context* ctx = nullptr;
     if (hip) {
       rns8_context_options options{};
       options.struct_size = sizeof(options);
@@ -19,23 +19,23 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
     desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
     if (hip)
       desc.requested_backend = RNS8_BACKEND_HIP_DIRECT;
-    rns8_plan *plan = nullptr;
-    rns8_workspace *workspace = nullptr;
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
     REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
     const auto md = exact_matrix_desc(2, 2, RNS8_EXACT_WIDE_SIGNED);
     rns8_matrix *ar = nullptr, *ai = nullptr, *br = nullptr, *bi = nullptr, *cr = nullptr,
                 *ci = nullptr;
-    for (auto **value : {&ar, &ai, &br, &bi, &cr, &ci})
+    for (auto** value : {&ar, &ai, &br, &bi, &cr, &ci})
       REQUIRE(rns8_create_matrix(ctx, &md, value) == RNS8_SUCCESS);
     std::array<std::vector<int64_t>, 4> values{{{INT64_MIN, INT64_MAX, 0, -7},
                                                 {4, -9, INT64_MAX, INT64_MIN},
                                                 {2, -3, 7, 11},
                                                 {-5, 1, 0, -6}}};
-    const std::array<rns8_matrix *, 4> inputs{ar, ai, br, bi};
+    const std::array<rns8_matrix*, 4> inputs{ar, ai, br, bi};
     for (std::size_t i = 0; i < inputs.size(); ++i)
       REQUIRE(rns8_pack_i64(ctx, inputs[i], values[i].data(), 2, 1) == RNS8_SUCCESS);
-    const auto exported = [&](rns8_matrix *matrix) {
+    const auto exported = [&](rns8_matrix* matrix) {
       std::array<uint64_t, 12> limbs{};
       REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, limbs.data(), 2, 3) ==
               RNS8_SUCCESS);
@@ -57,9 +57,10 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
         }
         const auto rg = cr->content_generation, ig = ci->content_generation;
         REQUIRE(rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, ci,
-                    method == ComplexProductMethod::three_real ? RNS8_COMPLEX_THREE_REAL_PRODUCTS
-                                                              : RNS8_COMPLEX_FOUR_REAL_PRODUCTS,
-                                          UINT64_MAX, workspace) == RNS8_SUCCESS);
+                                               method == ComplexProductMethod::three_real
+                                                   ? RNS8_COMPLEX_THREE_REAL_PRODUCTS
+                                                   : RNS8_COMPLEX_FOUR_REAL_PRODUCTS,
+                                               UINT64_MAX, workspace) == RNS8_SUCCESS);
         REQUIRE(cr->content_generation == rg + 1);
         REQUIRE(ci->content_generation == ig + 1);
         REQUIRE(cr->exact_range_prefix == plan->prefix);
@@ -67,7 +68,7 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
         REQUIRE_FALSE(cr->in_flight_writer);
         REQUIRE_FALSE(ci->in_flight_writer);
         REQUIRE_FALSE(workspace->in_flight);
-        for (auto *input : inputs)
+        for (auto* input : inputs)
           REQUIRE(input->in_flight_readers == 0);
         const auto real = exported(cr), imag = exported(ci);
         for (int row = 0; row < 2; ++row)
@@ -91,25 +92,39 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
     rns8_matrix* chain = nullptr;
     REQUIRE(rns8_create_matrix(ctx, &md, &chain) == RNS8_SUCCESS);
     rns8_resident_node nodes[2]{};
-    for (auto& node : nodes) { node.struct_size = sizeof(node); node.abi_version = RNS8_ABI_VERSION; }
+    for (auto& node : nodes) {
+      node.struct_size = sizeof(node);
+      node.abi_version = RNS8_ABI_VERSION;
+    }
     nodes[0].kind = RNS8_RESIDENT_COMPLEX_MATMUL;
-    nodes[0].plan = plan; nodes[0].workspace = workspace;
-    nodes[0].a = ar; nodes[0].a_imag = ai; nodes[0].b = br; nodes[0].b_imag = bi;
-    nodes[0].c = cr; nodes[0].c_imag = ci; nodes[0].max_staged_residue_bytes = UINT64_MAX;
+    nodes[0].plan = plan;
+    nodes[0].workspace = workspace;
+    nodes[0].a = ar;
+    nodes[0].a_imag = ai;
+    nodes[0].b = br;
+    nodes[0].b_imag = bi;
+    nodes[0].c = cr;
+    nodes[0].c_imag = ci;
+    nodes[0].max_staged_residue_bytes = UINT64_MAX;
     nodes[1].kind = RNS8_RESIDENT_MATMUL;
-    nodes[1].plan = plan; nodes[1].workspace = workspace;
-    nodes[1].a = cr; nodes[1].b = ci; nodes[1].c = chain;
+    nodes[1].plan = plan;
+    nodes[1].workspace = workspace;
+    nodes[1].a = cr;
+    nodes[1].b = ci;
+    nodes[1].c = chain;
     rns8_resident_graph* graph = nullptr;
     for (auto method : {RNS8_COMPLEX_THREE_REAL_PRODUCTS, RNS8_COMPLEX_FOUR_REAL_PRODUCTS}) {
       nodes[0].complex_method = method;
       REQUIRE(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_SUCCESS);
       CHECK(rns8_destroy_matrix(ci) == RNS8_BUSY);
       rns8_async_support_info support{};
-      support.struct_size = sizeof(support); support.abi_version = RNS8_ABI_VERSION;
+      support.struct_size = sizeof(support);
+      support.abi_version = RNS8_ABI_VERSION;
       REQUIRE(rns8_get_resident_graph_hip_support(graph, &support) == RNS8_SUCCESS);
       CHECK(support.support_status == (hip ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND));
       rns8_graph_execution_info info{};
-      info.struct_size = sizeof(info); info.abi_version = RNS8_ABI_VERSION;
+      info.struct_size = sizeof(info);
+      info.abi_version = RNS8_ABI_VERSION;
       REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
       CHECK(info.completed_nodes == 2);
       CHECK(exported(cr) == expected_real);
@@ -133,7 +148,8 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
           rns8_graph_completion_token token{};
           const auto before = hip_direct_allocation_counters_snapshot();
           REQUIRE((replay ? rns8_replay_resident_graph_hip(graph, stream.get(), &token)
-                          : rns8_submit_resident_graph_hip(graph, stream.get(), &token)) == RNS8_SUCCESS);
+                          : rns8_submit_resident_graph_hip(graph, stream.get(), &token)) ==
+                  RNS8_SUCCESS);
           CHECK(cr->in_flight_writer);
           CHECK(ci->in_flight_writer);
           CHECK(chain->in_flight_writer);
@@ -150,7 +166,8 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
           CHECK(exported(chain) == actual);
           CHECK_FALSE(cr->in_flight_writer);
           CHECK_FALSE(ci->in_flight_writer);
-          for (auto* input : inputs) CHECK(input->in_flight_readers == 0);
+          for (auto* input : inputs)
+            CHECK(input->in_flight_readers == 0);
           REQUIRE(rns8_replay_resident_graph_hip(graph, stream.get(), &token) == RNS8_SUCCESS);
           REQUIRE(rns8_cancel_resident_graph_hip(graph, token) == RNS8_SUCCESS);
           REQUIRE(rns8_wait_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
@@ -163,9 +180,11 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
         ++changed_values[0];
         REQUIRE(rns8_pack_i64(ctx, ai, changed_values.data(), 2, 0) == RNS8_SUCCESS);
         rns8_graph_completion_token changed_token{};
-        CHECK(rns8_replay_resident_graph_hip(graph, stream.get(), &changed_token) == RNS8_INVALID_ARGUMENT);
+        CHECK(rns8_replay_resident_graph_hip(graph, stream.get(), &changed_token) ==
+              RNS8_INVALID_ARGUMENT);
         REQUIRE(rns8_refresh_resident_graph_inputs(graph) == RNS8_SUCCESS);
-        REQUIRE(rns8_replay_resident_graph_hip(graph, stream.get(), &changed_token) == RNS8_SUCCESS);
+        REQUIRE(rns8_replay_resident_graph_hip(graph, stream.get(), &changed_token) ==
+                RNS8_SUCCESS);
         REQUIRE(rns8_wait_resident_graph_hip(graph, changed_token, &info) == RNS8_SUCCESS);
         REQUIRE(info.operation_status == RNS8_SUCCESS);
         auto changed_real = expected_real, changed_imag = expected_imag;
@@ -207,15 +226,19 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
       REQUIRE(rns8_create_matrix(ctx, &md, &chain_imag) == RNS8_SUCCESS);
       const auto saved = nodes[1];
       nodes[1].kind = RNS8_RESIDENT_COMPLEX_MATMUL;
-      nodes[1].a = cr; nodes[1].a_imag = ci;
-      nodes[1].b = br; nodes[1].b_imag = bi; nodes[1].c_imag = chain_imag;
+      nodes[1].a = cr;
+      nodes[1].a_imag = ci;
+      nodes[1].b = br;
+      nodes[1].b_imag = bi;
+      nodes[1].c_imag = chain_imag;
       nodes[1].max_staged_residue_bytes = UINT64_MAX;
       // Different 3M/4M scratch envelopes share one arena in both orders.
       for (auto first : {RNS8_COMPLEX_THREE_REAL_PRODUCTS, RNS8_COMPLEX_FOUR_REAL_PRODUCTS}) {
         CAPTURE(first);
         nodes[0].complex_method = first;
         nodes[1].complex_method = first == RNS8_COMPLEX_THREE_REAL_PRODUCTS
-            ? RNS8_COMPLEX_FOUR_REAL_PRODUCTS : RNS8_COMPLEX_THREE_REAL_PRODUCTS;
+                                      ? RNS8_COMPLEX_FOUR_REAL_PRODUCTS
+                                      : RNS8_COMPLEX_THREE_REAL_PRODUCTS;
         REQUIRE(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_SUCCESS);
         REQUIRE(rns8_capture_resident_graph_hip(graph) == RNS8_SUCCESS);
         hip_unique_stream stream;
@@ -224,9 +247,11 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
           CAPTURE(replay);
           rns8_graph_completion_token token{};
           REQUIRE((replay ? rns8_replay_resident_graph_hip(graph, stream.get(), &token)
-                          : rns8_submit_resident_graph_hip(graph, stream.get(), &token)) == RNS8_SUCCESS);
+                          : rns8_submit_resident_graph_hip(graph, stream.get(), &token)) ==
+                  RNS8_SUCCESS);
           rns8_graph_execution_info info{};
-          info.struct_size = sizeof(info); info.abi_version = RNS8_ABI_VERSION;
+          info.struct_size = sizeof(info);
+          info.abi_version = RNS8_ABI_VERSION;
           REQUIRE(rns8_wait_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
           REQUIRE(info.operation_status == RNS8_SUCCESS);
           CHECK(exported(cr) == expected_real);
@@ -236,11 +261,13 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
             for (int col = 0; col < 2; ++col) {
               cpp_int er = 0, ei = 0;
               for (int q = 0; q < 2; ++q) {
-                er += expected_real[row*2+q]*values[2][q*2+col] - expected_imag[row*2+q]*values[3][q*2+col];
-                ei += expected_real[row*2+q]*values[3][q*2+col] + expected_imag[row*2+q]*values[2][q*2+col];
+                er += expected_real[row * 2 + q] * values[2][q * 2 + col] -
+                      expected_imag[row * 2 + q] * values[3][q * 2 + col];
+                ei += expected_real[row * 2 + q] * values[3][q * 2 + col] +
+                      expected_imag[row * 2 + q] * values[2][q * 2 + col];
               }
-              CHECK(real[row*2+col] == er);
-              CHECK(imag[row*2+col] == ei);
+              CHECK(real[row * 2 + col] == er);
+              CHECK(imag[row * 2 + col] == ei);
             }
         }
         REQUIRE(rns8_destroy_resident_graph(graph) == RNS8_SUCCESS);
@@ -261,16 +288,17 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
     const auto old_r = exported(cr), old_i = exported(ci);
     const auto rg = cr->content_generation, ig = ci->content_generation;
     CHECK(rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, ci,
-        static_cast<rns8_complex_product_method>(UINT32_MAX), UINT64_MAX, workspace) ==
-        RNS8_INVALID_ARGUMENT);
+                                         static_cast<rns8_complex_product_method>(UINT32_MAX),
+                                         UINT64_MAX, workspace) == RNS8_INVALID_ARGUMENT);
     CHECK(rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, cr,
-        RNS8_COMPLEX_THREE_REAL_PRODUCTS, UINT64_MAX, workspace) == RNS8_INVALID_ARGUMENT);
+                                         RNS8_COMPLEX_THREE_REAL_PRODUCTS, UINT64_MAX,
+                                         workspace) == RNS8_INVALID_ARGUMENT);
     const auto call = [&](uint64_t budget = UINT64_MAX) {
       return rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, ci,
-                                       RNS8_COMPLEX_THREE_REAL_PRODUCTS, budget, workspace);
+                                            RNS8_COMPLEX_THREE_REAL_PRODUCTS, budget, workspace);
     };
     CHECK(call(0) == RNS8_WORKSPACE_TOO_SMALL);
-    for (auto *input : inputs) {
+    for (auto* input : inputs) {
       CHECK(complex_exact_signed_gemm(ctx, plan, {ar, ai}, {br, bi}, {input, ci},
                                       ComplexProductMethod::three_real, UINT64_MAX,
                                       workspace) == RNS8_INVALID_ARGUMENT);
@@ -291,7 +319,7 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
     CHECK(complex_exact_signed_gemm(ctx, plan, {ar, ai}, {br, bi}, {cr, cr},
                                     ComplexProductMethod::three_real, UINT64_MAX,
                                     workspace) == RNS8_INVALID_ARGUMENT);
-    for (auto *output : {cr, ci}) {
+    for (auto* output : {cr, ci}) {
       output->in_flight_readers = 1;
       CHECK(call() == RNS8_BUSY);
       output->in_flight_readers = 0;
@@ -336,7 +364,7 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
     CHECK(call() == RNS8_RANGE_ERROR);
     REQUIRE(exported(cr) == before_r);
     REQUIRE(exported(ci) == before_i);
-    for (auto *matrix : {ar, ai, br, bi, cr, ci})
+    for (auto* matrix : {ar, ai, br, bi, cr, ci})
       REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
     REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
     REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);

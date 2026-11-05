@@ -182,5 +182,3 @@ OPTIMIZATION_HINTS = {
     "mixed_phase_balance": "Compare phase-specific A/B runs before specializing a single phase.",
     "unclassified": "Capture stronger timing/event metadata before choosing an optimization target.",
 }
-
-

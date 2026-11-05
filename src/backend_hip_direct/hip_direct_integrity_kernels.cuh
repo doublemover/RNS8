@@ -6,13 +6,11 @@ __device__ uint32_t rns8_integrity_native_mod(uint64_t value, uint32_t q) {
   return static_cast<uint32_t>(value % q);
 }
 template <typename T>
-__global__ void
-rns8_integrity_check_kernel(const T *a, const T *b, const int8_t *candidate,
-                            int m, int n, int k, int lda, int ldb, int prefix,
-                            bool signed_value, rns8_u192_device bound,
-                            uint32_t *failures) {
-  const int64_t cell =
-                    static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x,
+__global__ void rns8_integrity_check_kernel(const T* a, const T* b, const int8_t* candidate, int m,
+                                            int n, int k, int lda, int ldb, int prefix,
+                                            bool signed_value, rns8_u192_device bound,
+                                            uint32_t* failures) {
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x,
                 cells = static_cast<int64_t>(m) * n;
   if (cell >= cells)
     return;
@@ -25,12 +23,9 @@ rns8_integrity_check_kernel(const T *a, const T *b, const int8_t *candidate,
     }
   }
   rns8_u192_device value{}, product{};
-  rns8_reconstruct_canonical_wide_device(candidate, cell, cells, prefix, &value,
-                                         &product);
-  const bool negative =
-      signed_value && rns8_u192_centered_is_negative_device(value, product);
-  const auto magnitude =
-      negative ? rns8_u192_sub_device(product, value) : value;
+  rns8_reconstruct_canonical_wide_device(candidate, cell, cells, prefix, &value, &product);
+  const bool negative = signed_value && rns8_u192_centered_is_negative_device(value, product);
+  const auto magnitude = negative ? rns8_u192_sub_device(product, value) : value;
   if (rns8_u192_compare_device(magnitude, bound) > 0) {
     atomicOr(failures, 2u);
     return;
@@ -43,9 +38,8 @@ rns8_integrity_check_kernel(const T *a, const T *b, const int8_t *candidate,
     for (int p = 0; p < 2; ++p) {
       const auto q = primes[p];
       // Each independent native product plus carried check is <=262^2+262.
-      checks[p] = (checks[p] + rns8_integrity_native_mod(av, q) *
-                                   rns8_integrity_native_mod(bv, q)) %
-                  q;
+      checks[p] =
+          (checks[p] + rns8_integrity_native_mod(av, q) * rns8_integrity_native_mod(bv, q)) % q;
     }
   }
   for (int p = 0; p < 2; ++p) {

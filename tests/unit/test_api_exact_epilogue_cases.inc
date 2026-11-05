@@ -1,12 +1,11 @@
-TEST_CASE(
-    "exact epilogue admits the full expression and preserves rejected outputs",
-    "[api][epilogue]") {
+TEST_CASE("exact epilogue admits the full expression and preserves rejected outputs",
+          "[api][epilogue]") {
   using boost::multiprecision::cpp_int;
   for (bool hip : {false, true}) {
     if (hip && !rns8::detail::api::direct_hip_compiled())
       continue;
     for (bool signed_values : {false, true}) {
-      rns8_context *ctx = nullptr;
+      rns8_context* ctx = nullptr;
       if (hip) {
         rns8_context_options options{};
         options.struct_size = sizeof(options);
@@ -15,23 +14,20 @@ TEST_CASE(
         REQUIRE(rns8_create_context(0, &options, &ctx) == RNS8_SUCCESS);
       } else
         ctx = create_cpu_context();
-      const auto semantics =
-          signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
+      const auto semantics = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
       auto desc = exact_desc(semantics, 2, 2, 2);
       if (hip)
         desc.requested_backend = RNS8_BACKEND_HIP_DIRECT;
       auto md = exact_matrix_desc(2, 2, semantics);
-      rns8_plan *plan = nullptr;
-      rns8_workspace *workspace = nullptr;
+      rns8_plan* plan = nullptr;
+      rns8_workspace* workspace = nullptr;
       REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
       REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
       rns8_matrix *a = nullptr, *b = nullptr, *d = nullptr, *c = nullptr;
-      for (auto **matrix : {&a, &b, &d, &c})
+      for (auto** matrix : {&a, &b, &d, &c})
         REQUIRE(rns8_create_matrix(ctx, &md, matrix) == RNS8_SUCCESS);
-      const std::vector<int64_t> av{1, 2, 3, 4}, bv{5, 6, 7, 8},
-          dv{9, 10, 11, 12};
-      const auto pack = [&](rns8_matrix *matrix,
-                            const std::vector<int64_t> &values) {
+      const std::vector<int64_t> av{1, 2, 3, 4}, bv{5, 6, 7, 8}, dv{9, 10, 11, 12};
+      const auto pack = [&](rns8_matrix* matrix, const std::vector<int64_t>& values) {
         if (signed_values)
           return rns8_pack_i64(ctx, matrix, values.data(), 2, 0);
         const std::vector<uint64_t> unsigned_data(values.begin(), values.end());
@@ -47,10 +43,11 @@ TEST_CASE(
         coefficients.emplace_back(-3, -7);
       }
       for (const auto [alpha, beta] : coefficients) {
-        REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, alpha, beta,
-                                      workspace) == RNS8_SUCCESS);
+        REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, alpha, beta, workspace) ==
+                RNS8_SUCCESS);
         rns8_prepared_execution* prepared = nullptr;
-        REQUIRE(rns8_prepare_exact_axpby(ctx, plan, a, b, d, c, alpha, beta, workspace, &prepared) == RNS8_SUCCESS);
+        REQUIRE(rns8_prepare_exact_axpby(ctx, plan, a, b, d, c, alpha, beta, workspace,
+                                         &prepared) == RNS8_SUCCESS);
         REQUIRE(rns8_destroy_matrix(d) == RNS8_BUSY);
         rns8_prepared_execution* conflicting = nullptr;
         REQUIRE(rns8_prepare_gemm(ctx, plan, a, b, d, workspace, &conflicting) == RNS8_SUCCESS);
@@ -62,7 +59,8 @@ TEST_CASE(
         rns8_completion_token token{};
         REQUIRE(rns8_execute_prepared(prepared, &token) == RNS8_SUCCESS);
         rns8_completion_info completion{};
-        completion.struct_size = sizeof(completion); completion.abi_version = RNS8_ABI_VERSION;
+        completion.struct_size = sizeof(completion);
+        completion.abi_version = RNS8_ABI_VERSION;
         REQUIRE(rns8_get_prepared_completion(prepared, token, &completion) == RNS8_SUCCESS);
         REQUIRE(completion.has_exact_epilogue == 1);
         REQUIRE(completion.alpha == alpha);
@@ -72,21 +70,17 @@ TEST_CASE(
         REQUIRE(completion.output_is_current);
         REQUIRE(rns8_destroy_prepared_execution(prepared) == RNS8_SUCCESS);
         uint64_t limbs[12]{};
-        REQUIRE((signed_values
-                     ? rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs,
-                                                           2, 3)
-                     : rns8_export_exact_wide_unsigned_limbs(
-                           ctx, plan, c, limbs, 2, 3)) == RNS8_SUCCESS);
+        REQUIRE((signed_values ? rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs, 2, 3)
+                               : rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, limbs, 2,
+                                                                       3)) == RNS8_SUCCESS);
         for (int row = 0; row < 2; ++row)
           for (int col = 0; col < 2; ++col) {
             cpp_int sum = 0;
             for (int q = 0; q < 2; ++q)
               sum += cpp_int(av[row * 2 + q]) * bv[q * 2 + col];
-            const cpp_int expected =
-                cpp_int(alpha) * sum + cpp_int(beta) * dv[row * 2 + col];
+            const cpp_int expected = cpp_int(alpha) * sum + cpp_int(beta) * dv[row * 2 + col];
             const int cell = row * 2 + col;
-            cpp_int actual = cpp_int(limbs[3 * cell]) +
-                             (cpp_int(limbs[3 * cell + 1]) << 64) +
+            cpp_int actual = cpp_int(limbs[3 * cell]) + (cpp_int(limbs[3 * cell + 1]) << 64) +
                              (cpp_int(limbs[3 * cell + 2]) << 128);
             if (signed_values && (limbs[3 * cell + 2] >> 63))
               actual -= cpp_int(1) << 192;
@@ -95,31 +89,32 @@ TEST_CASE(
       }
       const auto generation = c->content_generation;
       // Algebraic zeros do not waive admission of any original operand.
-      const auto a_prefix=a->exact_range_prefix;a->exact_range_prefix=0;
-      REQUIRE(rns8_gemm_exact_axpby(ctx,plan,a,b,d,c,0,0,workspace)==RNS8_RANGE_ERROR);
-      a->exact_range_prefix=a_prefix;CHECK(c->content_generation==generation);
+      const auto a_prefix = a->exact_range_prefix;
+      a->exact_range_prefix = 0;
+      REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, 0, 0, workspace) == RNS8_RANGE_ERROR);
+      a->exact_range_prefix = a_prefix;
+      CHECK(c->content_generation == generation);
       d->in_flight_writer = true;
       REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, 1, 1, workspace) == RNS8_BUSY);
       d->in_flight_writer = false;
       REQUIRE(c->content_generation == generation);
-      for (auto *alias : {a, b, d})
-        REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, alias, 1, 1,
-                                      workspace) == RNS8_INVALID_ARGUMENT);
+      for (auto* alias : {a, b, d})
+        REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, alias, 1, 1, workspace) ==
+                RNS8_INVALID_ARGUMENT);
       if (!signed_values)
-        REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, -1, 1,
-                                      workspace) == RNS8_INVALID_ARGUMENT);
+        REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, -1, 1, workspace) ==
+                RNS8_INVALID_ARGUMENT);
       REQUIRE(c->content_generation == generation);
       std::vector<int64_t> large(4, INT64_MAX);
       REQUIRE(pack(a, large) == RNS8_SUCCESS);
       REQUIRE(pack(b, large) == RNS8_SUCCESS);
-      REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, INT64_MAX, 1,
-                                    workspace) == RNS8_RANGE_ERROR);
+      REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, INT64_MAX, 1, workspace) ==
+              RNS8_RANGE_ERROR);
       REQUIRE(c->content_generation == generation);
       // The complete-expression bound admits alpha=0 even if AB itself would
       // exceed the root basis. No intermediate integer result is published.
-      REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, 0, 1, workspace) ==
-              RNS8_SUCCESS);
-      for (auto *matrix : {a, b, d, c})
+      REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, 0, 1, workspace) == RNS8_SUCCESS);
+      for (auto* matrix : {a, b, d, c})
         REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
       REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
       REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);

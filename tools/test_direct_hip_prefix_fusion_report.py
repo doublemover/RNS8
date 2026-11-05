@@ -39,7 +39,9 @@ def capture(
         "selected_prefix": 9,
         "requested_max_prefix": 9,
         "contract_prefix_policy": "fixed_requested",
-        "input_distribution": "signed_uniform_-16_16" if semantics == "bounded_i64" else "unsigned_uniform_0_16",
+        "input_distribution": "signed_uniform_-16_16"
+        if semantics == "bounded_i64"
+        else "unsigned_uniform_0_16",
         "seed": 20260606,
         "warmups": 3,
         "repeats": 9,
@@ -51,7 +53,11 @@ def capture(
         "timing_metadata": {
             "gpu_event_timing": True,
             "gpu_event_timing_status": "available",
-            "gpu_event_phase_order": ["oneshot_native_input_h2d", "rns_gemm_kernel_group", "crt_export"],
+            "gpu_event_phase_order": [
+                "oneshot_native_input_h2d",
+                "rns_gemm_kernel_group",
+                "crt_export",
+            ],
             "gpu_event_timing_source": "hipEventElapsedTime",
         },
     }
@@ -129,14 +135,18 @@ def main() -> int:
     assert summary["experimental"] == 1
     assert summary["legacy_before_captures"] == 1
 
-    one_shot = next(item for item in result["comparisons"] if item["kind"] == "prefix9_public_one_shot_colpair")
+    one_shot = next(
+        item for item in result["comparisons"] if item["kind"] == "prefix9_public_one_shot_colpair"
+    )
     assert one_shot["decision"] == "candidate_one_shot_win"
     assert one_shot["speedup_vs_legacy_v1"] == 3.0
     assert one_shot["resident_reference_faster"] is True
     assert "baseline_legacy_schema" in one_shot["blockers"]
 
     resident_row = next(
-        item for item in result["comparisons"] if item["kind"] == "prefix9_resident_selected_prefix_colpair"
+        item
+        for item in result["comparisons"]
+        if item["kind"] == "prefix9_resident_selected_prefix_colpair"
     )
     assert resident_row["decision"] == "deprioritize"
     assert resident_row["speedup_vs_resident_default"] == 0.75

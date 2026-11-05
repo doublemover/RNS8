@@ -23,9 +23,7 @@ from quality_policy import load_quality_lock
 
 class Quality(unittest.TestCase):
     def setUp(self):
-        self.policy = json.loads(
-            (ROOT / "metadata/first-party-inventory.json").read_text()
-        )
+        self.policy = json.loads((ROOT / "metadata/first-party-inventory.json").read_text())
 
     def test_roles_include_hip_fragments_spaces_unicode_and_exclude_immutable_outputs(
         self,
@@ -43,9 +41,7 @@ class Quality(unittest.TestCase):
             ],
             self.policy,
         )
-        self.assertEqual(
-            {row.role for row in rows}, {"cpp", "python", "bash", "workflow"}
-        )
+        self.assertEqual({row.role for row in rows}, {"cpp", "python", "bash", "workflow"})
         self.assertEqual(sum(row.role == "cpp" for row in rows), 2)
         for name in (
             "../src/a.cpp",
@@ -62,9 +58,7 @@ class Quality(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "metadata").mkdir()
-            (root / "metadata/first-party-inventory.json").write_text(
-                json.dumps(self.policy)
-            )
+            (root / "metadata/first-party-inventory.json").write_text(json.dumps(self.policy))
             paths = [
                 "src/a space λ.hip",
                 "tools/a.py",
@@ -115,12 +109,8 @@ class Quality(unittest.TestCase):
         self.assertIn("--Werror", check[0].argv)
         self.assertNotIn("-i", check[0].argv)
         self.assertIn("-i", fix[0].argv)
-        self.assertTrue(
-            any("--check" in row.argv for row in check if row.role == "python-format")
-        )
-        self.assertFalse(
-            any("--fix" in row.argv or "--unsafe-fixes" in row.argv for row in fix)
-        )
+        self.assertTrue(any("--check" in row.argv for row in check if row.role == "python-format"))
+        self.assertFalse(any("--fix" in row.argv or "--unsafe-fixes" in row.argv for row in fix))
         self.assertIn(
             "--source-path=SCRIPTDIR",
             next(row.argv for row in check if row.role == "bash"),
@@ -160,9 +150,9 @@ class Quality(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing"):
                 selected_tools(lock, tool_bin=directory)
             for row in lock["tools"]:
-                (
-                    directory / (row["name"] + (".exe" if os.name == "nt" else ""))
-                ).write_bytes(b"authored never executed")
+                (directory / (row["name"] + (".exe" if os.name == "nt" else ""))).write_bytes(
+                    b"authored never executed"
+                )
             with patch(
                 "quality.subprocess.run",
                 return_value=subprocess.CompletedProcess([], 0, "wrong 0.0.0", ""),
@@ -197,9 +187,7 @@ class Quality(unittest.TestCase):
                         member.size = 1024**3
                     else:
                         member.size = 8
-                    archive.addfile(
-                        member, io.BytesIO(b"AUTHORED") if member.size == 8 else None
-                    )
+                    archive.addfile(member, io.BytesIO(b"AUTHORED") if member.size == 8 else None)
                     if kind == "duplicate":
                         archive.addfile(member, io.BytesIO(b"AUTHORED"))
                 if kind == "regular":

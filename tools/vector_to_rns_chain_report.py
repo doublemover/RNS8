@@ -85,7 +85,10 @@ def chain_key(capture: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def release_reviewed(capture: dict[str, Any]) -> bool:
-    return int(capture.get("warmups") or 0) >= RELEASE_MIN_WARMUPS and int(capture.get("repeats") or 0) >= RELEASE_MIN_REPEATS
+    return (
+        int(capture.get("warmups") or 0) >= RELEASE_MIN_WARMUPS
+        and int(capture.get("repeats") or 0) >= RELEASE_MIN_REPEATS
+    )
 
 
 def event_complete(capture: dict[str, Any], required: list[str]) -> bool:
@@ -111,7 +114,9 @@ def vector_chain_captures(captures: list[dict[str, Any]]) -> list[dict[str, Any]
     ]
 
 
-def classify_pair(candidate: dict[str, Any] | None, control: dict[str, Any] | None) -> dict[str, Any]:
+def classify_pair(
+    candidate: dict[str, Any] | None, control: dict[str, Any] | None
+) -> dict[str, Any]:
     blockers: list[str] = []
     if candidate is None:
         blockers.append("missing_fused_device_candidate")
@@ -134,16 +139,24 @@ def classify_pair(candidate: dict[str, Any] | None, control: dict[str, Any] | No
     blockers.extend(numerical.blockers)
     blockers.extend("control:" + item for item in control_numerical.blockers)
     candidate_checksum, control_checksum = checksum_u64(candidate), checksum_u64(control)
-    checksum_match = candidate_checksum is not None and control_checksum is not None and candidate_checksum == control_checksum
+    checksum_match = (
+        candidate_checksum is not None
+        and control_checksum is not None
+        and candidate_checksum == control_checksum
+    )
     if not checksum_match:
         blockers.append("final_checksum_mismatch_or_missing")
     if not release_reviewed(candidate):
         blockers.append("candidate_not_release_reviewed")
     if not release_reviewed(control):
         blockers.append("control_not_release_reviewed")
-    if not event_complete(candidate, ["vector_alu_status_memset", "rns_gemm_kernel_group", "crt_export"]):
+    if not event_complete(
+        candidate, ["vector_alu_status_memset", "rns_gemm_kernel_group", "crt_export"]
+    ):
         blockers.append("candidate_missing_required_events")
-    if not event_complete(control, ["vector_alu_output_d2h", "vector_to_rns_host_repack_a", "rns_gemm_kernel_group"]):
+    if not event_complete(
+        control, ["vector_alu_output_d2h", "vector_to_rns_host_repack_a", "rns_gemm_kernel_group"]
+    ):
         blockers.append("control_missing_required_events")
 
     speedup = None
@@ -189,10 +202,14 @@ def build_report(captures: list[dict[str, Any]]) -> dict[str, Any]:
     selected = vector_chain_captures(captures)
     groups: dict[tuple[Any, ...], dict[str, list[dict[str, Any]]]] = {}
     for capture in selected:
-        groups.setdefault(chain_key(capture), {}).setdefault(control_mode(capture), []).append(capture)
+        groups.setdefault(chain_key(capture), {}).setdefault(control_mode(capture), []).append(
+            capture
+        )
 
     rows: list[dict[str, Any]] = []
-    for key, group in sorted(groups.items(), key=lambda item: tuple(str(value) for value in item[0])):
+    for key, group in sorted(
+        groups.items(), key=lambda item: tuple(str(value) for value in item[0])
+    ):
         candidate_observations = group.get("fused_device_native_to_rns", [])
         control_observations = group.get("host_export_repack_control", [])
         candidate = candidate_observations[-1] if candidate_observations else None
@@ -200,10 +217,16 @@ def build_report(captures: list[dict[str, Any]]) -> dict[str, Any]:
         classified = classify_pair(candidate, control)
         # Preserve every submitted numerical observation even before timing selection.
         anchors = [capture for capture in (candidate, control) if capture is not None]
-        numerical_observations = [reference_verdict(capture, anchors)
-                                  for capture in [*candidate_observations, *control_observations]]
-        numerical_blockers = sorted({item for verdict in numerical_observations for item in verdict.blockers})
-        classified["numerical_observations"] = [verdict.to_json() for verdict in numerical_observations]
+        numerical_observations = [
+            reference_verdict(capture, anchors)
+            for capture in [*candidate_observations, *control_observations]
+        ]
+        numerical_blockers = sorted(
+            {item for verdict in numerical_observations for item in verdict.blockers}
+        )
+        classified["numerical_observations"] = [
+            verdict.to_json() for verdict in numerical_observations
+        ]
         if numerical_blockers:
             classified["blockers"] = sorted(set(classified["blockers"]) | set(numerical_blockers))
             classified["disposition"] = "keep experimental"
@@ -239,7 +262,9 @@ def build_report(captures: list[dict[str, Any]]) -> dict[str, Any]:
 
 def write_outputs(report: dict[str, Any], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "vector-to-rns-chain-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    (out_dir / "vector-to-rns-chain-report.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
     lines = [
         "# Vector/Native-To-RNS Chain Report",
         "",
@@ -269,7 +294,9 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> None:
                 blockers=", ".join(row.get("blockers") or []),
             )
         )
-    (out_dir / "vector-to-rns-chain-report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (out_dir / "vector-to-rns-chain-report.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
 
 
 def main() -> None:

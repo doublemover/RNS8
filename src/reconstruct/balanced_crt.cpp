@@ -11,7 +11,7 @@ Wide wide(cpp_int x) {
   if (x < 0 || x >= (cpp_int(1) << 160))
     throw std::logic_error("CRT plan width");
   Wide out;
-  for (auto &limb : out.limb) {
+  for (auto& limb : out.limb) {
     limb = static_cast<uint64_t>(x & UINT64_MAX);
     x >>= 64;
   }
@@ -38,20 +38,16 @@ Plan make(uint32_t prefix) {
         cpp_int inv = 0, product = 1;
         for (uint32_t p = r; p < ends[r]; ++p) {
           const auto m = garner::kConstants.moduli[p];
-          const auto target =
-              garner::inverse(static_cast<uint32_t>(products[l] % m), m);
+          const auto target = garner::inverse(static_cast<uint32_t>(products[l] % m), m);
           const auto current = static_cast<uint32_t>(inv % m);
-          const auto local_inverse =
-              garner::inverse(static_cast<uint32_t>(product % m), m);
-          const auto coefficient =
-              ((target + m - current) % m) * local_inverse % m;
+          const auto local_inverse = garner::inverse(static_cast<uint32_t>(product % m), m);
+          const auto coefficient = ((target + m - current) % m) * local_inverse % m;
           inv += product * coefficient;
           product *= m;
         }
         if (product != products[r] || (products[l] * inv) % product != 1)
           throw std::logic_error("CRT plan inverse");
-        out.merges[out.count++] = {wide(products[l]), wide(products[r]),
-                                   wide(inv), l, r};
+        out.merges[out.count++] = {wide(products[l]), wide(products[r]), wide(inv), l, r};
         products[l] *= products[r];
         ends[l] = ends[r];
         (void)wide(products[l]);
@@ -63,7 +59,7 @@ Plan make(uint32_t prefix) {
   return out;
 }
 } // namespace
-const Plan &plan(uint32_t prefix) {
+const Plan& plan(uint32_t prefix) {
   if (!prefix || prefix > 20)
     throw std::invalid_argument("CRT prefix");
   static const auto plans = [] {
