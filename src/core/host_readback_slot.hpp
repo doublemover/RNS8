@@ -4,6 +4,7 @@
 #include "rns8/status.h"
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <new>
@@ -59,7 +60,8 @@ public:
     pending_ = false;
     bytes_ = 0;
   }
-  static constexpr std::size_t capacity = 8;
+  // Covers scalar flags and the maintained two/four-word admission proofs.
+  static constexpr std::size_t capacity = 4 * sizeof(uint64_t);
 
 private:
   Defer defer_;

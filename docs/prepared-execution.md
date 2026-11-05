@@ -40,9 +40,11 @@ uncertain completion keeps both allocations alive through deferred cleanup.
 This adds host ownership metadata to preparation, without another completion
 state machine. The new ownership controls await the combined validation batch.
 
-Internal scalar status/capability reads use a reusable eight-byte ordinary host
-slot. Success copies into the caller's status word; failure retires the owned
-destination through the same device drain, leaving the caller's word untouched.
+Internal scalar status/capability and two/four-word admission-proof reads use a
+reusable32-byte ordinary host slot. Success copies the complete result into the
+caller; failure retires the actual owned destination through the same device
+drain, leaving the caller's status/proof untouched. Failed16/32-byte private
+narrow readbacks therefore cannot retain a pointer into an expired stack frame.
 Pinned export staging likewise remains pending through its copy and retires on
 failure or unwinding. These changes do not establish real device-failure recovery
 or a measured performance improvement.

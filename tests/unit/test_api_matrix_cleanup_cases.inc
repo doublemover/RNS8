@@ -304,6 +304,27 @@ TEST_CASE("small status readbacks publish only after completion and retain faile
   Ops::deferred[0] = nullptr;
   Ops::deferred_count = 0;
   CHECK(retained.expired());
+  for (const auto bytes : {2 * sizeof(uint64_t), 4 * sizeof(uint64_t)}) {
+    std::array<uint64_t, 4> output_words{9, 9, 9, 9};
+    const auto unchanged_words = output_words;
+    const std::array<uint64_t, 4> computed_words{0, UINT64_MAX, UINT64_C(1) << 63, 127};
+    REQUIRE(slot.begin(3, bytes) == RNS8_SUCCESS);
+    std::memcpy(slot.data(), computed_words.data(), bytes);
+    slot.fail();
+    REQUIRE(Ops::deferred_count == 1);
+    auto* delayed = Ops::deferred[0];
+    REQUIRE(slot.begin(3, bytes) == RNS8_SUCCESS);
+    CHECK(slot.data() != delayed->pointer);
+    std::memcpy(delayed->pointer, computed_words.data(), bytes);
+    CHECK(output_words == unchanged_words);
+    std::memcpy(slot.data(), computed_words.data(), bytes);
+    REQUIRE(slot.complete(output_words.data()) == RNS8_SUCCESS);
+    for (size_t i = 0; i < output_words.size(); ++i)
+      CHECK(output_words[i] == (i < bytes / sizeof(uint64_t) ? computed_words[i] : 9));
+    delete delayed;
+    Ops::deferred[0] = nullptr;
+    Ops::deferred_count = 0;
+  }
   try {
     Slot unwinding(Ops::defer);
     REQUIRE(unwinding.begin(4, 4) == RNS8_SUCCESS);
