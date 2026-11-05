@@ -27,9 +27,9 @@ includes context/plan/workspace/matrix creation and input packing. Native/RNS
 setup before warm preparation has its own duration. Each sparse public call
 includes proof admission, execution, synchronization and publication. Directory
 allocation/upload and the context's first compiled capability probe now belong
-to preparation, inside warm setup or a cold batch as applicable. The current
-report adapter is being extended with the new storage query and an independent
-diagnostic observation of warm allocation/upload/probe activity. Dense RNS computation is the ordinary public control;
+to preparation, inside warm setup or a cold batch as applicable. Version 2 reports
+include the public storage query and a separate diagnostic batch that observes
+allocation, completed copies and native event counts. Dense RNS computation is the ordinary public control;
 no optimized CPU comparator or matrix-engine dense route is implied by its name.
 
 R is explicit in 1..256. One batch leaves one repeatedly overwritten output,
@@ -71,10 +71,11 @@ operand buffers are released before GPU setup and timing. The benchmark also
 checks that the public modulus product at prefix20 admits the complete signed
 full-expression bound, independently of runtime admission.
 
-Source content generations are private to the owner. The record exposes real
-public matrix instance IDs and import source versions, leaves content generation
-numbers null, and states that the public owner API checks them. It does not
-mislabel import source_version as an engine generation. Inputs are not repacked
+Sparse records expose the owners' queried source content generations alongside
+public matrix instance IDs and import source versions. Dense records leave the
+unqueried content generations null. The public sparse execution API validates
+the owner snapshots against the current sources; import source_version is not
+an engine generation. Inputs are not repacked
 after preparation. Cached generation invalidation and rollback are exercised by
 the separate owner fixtures, not inferred from this timing experiment.
 
@@ -92,14 +93,28 @@ operand buffers and GPU state are not charged as if simultaneously live.
 
 Expected packed bytes/directories and intersection counts come from the exact
 recipe and documented block format. They are explicitly modeled, not queried
-device counters or observed cache allocation. Actual sparse-cache allocation
-remains null because its public owner exposes no allocation query. The public
-matrix allocation API separately reports A/B/C requested payload capacities and
+device counters. Separate `sparse_storage` queries record each owner's role,
+device, prefix, source identity/generation, compiled matrix-method support,
+host directory capacity, device payload/directory requests, retained metadata
+object requests and preparation bound/budget. `sparse_retained_requested_bytes`
+sums the retained requests; it does not report allocator-rounded usage. The
+public matrix allocation API separately reports A/B/C payload capacities and
 cached upload/export/status/schedule staging at setup and after the final audit.
-These snapshots exclude sparse owners and transient peaks. Vector spare capacity,
-allocator overhead, context runtime and fixed metadata are outside the logical
-cap; it is not a process RSS/free-device-memory guarantee. The actual queried
-matrix capacities are also checked against the conservative execution envelope.
+These are snapshots, not transient peak or process RSS measurements. Allocator
+and driver rounding and context/runtime/TLS storage remain outside the cap.
+Queried capacities and sparse retained totals are checked against the envelope.
+
+After the production samples and sustained interval, one additional public batch
+records process/library allocation/free and completed H2D/D2H deltas plus complete
+native event-label counts. It is followed by another full independent output and
+padding audit. Storage queries and event timing are outside every reported
+production interval. The collector requires warm sparse replay to have exactly R
+intersection events and zero allocation/free, copies or capability probes. Cold
+diagnostics must account for both downloaded native snapshots, two uploaded
+directories and each nonempty packed payload, with checked destruction. The
+context capability is already observed by earlier calls, so this separate cold
+batch must not probe again. These checks are authored and await execution; they
+are not measured evidence that the warm route meets its contract.
 
 The executable receives the same immutable build manifest as other calibrators.
 The collector binds executable, case file, native dataset, interpreter, collector

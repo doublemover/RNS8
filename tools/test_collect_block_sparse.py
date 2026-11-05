@@ -44,6 +44,76 @@ def case_for(mode="sparse_scalar", **changes):
     )
 
 
+def sparse_observations(case, counts):
+    """Synthetic requested storage and counter receipts, never hardware evidence."""
+    dense = case["mode"] == "dense"
+    cold = case["mode"].endswith("_cold")
+    owners = []
+    if not dense:
+        for index, outer in enumerate((case["m"], case["n"])):
+            blocks = counts["modeled_a_blocks" if index == 0 else "modeled_b_blocks"]
+            directory = 4 * ((outer + 15) // 16 + 1 + blocks)
+            payload = blocks * 20 * 1024
+            owners.append(
+                dict(
+                    role=index + 1,
+                    prefix=20,
+                    device_id=case["device"],
+                    matrix_method_support="supported",
+                    source_instance=index + 1,
+                    source_generation=1,
+                    host_directory_capacity_bytes=directory,
+                    device_payload_bytes=payload,
+                    device_directory_bytes=directory,
+                    retained_metadata_object_bytes=512,
+                    preparation_peak_bound_bytes=2 * (directory + payload) + 2048,
+                    preparation_budget_bytes=BUDGET,
+                )
+            )
+    nonempty = sum(counts[key] > 0 for key in ("modeled_a_blocks", "modeled_b_blocks"))
+    diagnostic = dict(
+        scope="one_separate_public_batch_process_library_counters_and_native_events",
+        inside_timed_samples=False,
+        inside_sustained_interval=False,
+        observed_batches=1,
+        public_gemm_calls=case["reuse_count"],
+        allocation_epoch=1,
+        device_allocation_calls=2 + nonempty if cold else 0,
+        device_free_calls=2 + nonempty if cold else 0,
+        h2d_calls=2 + 2 * nonempty if cold else 0,
+        h2d_bytes=counts["modeled_packed_payload_bytes"] + counts["modeled_directory_bytes"]
+        if cold
+        else 0,
+        d2h_calls=2 if cold else 0,
+        d2h_bytes=8 * (case["m"] * case["k"] + case["k"] * case["n"]) if cold else 0,
+        capability_probe_events=0,
+        sparse_gemm_events=0 if dense else case["reuse_count"],
+        native_event_receipts_complete=True,
+        event_labels={
+            "synthetic_dense_kernel" if dense else "block_sparse_intersection_gemm_kernel": case[
+                "reuse_count"
+            ]
+        },
+    )
+    if cold:
+        diagnostic["event_labels"].update(residue_d2h_sync=2, residue_h2d_sync=2 + 2 * nonempty)
+    return dict(
+        content_generations=None if dense else [1, 1],
+        sparse_storage=owners,
+        sparse_retained_requested_bytes=sum(
+            owner[key]
+            for owner in owners
+            for key in (
+                "host_directory_capacity_bytes",
+                "device_payload_bytes",
+                "device_directory_bytes",
+                "retained_metadata_object_bytes",
+            )
+        ),
+        separate_batch_observation=diagnostic,
+    )
+
+
 def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
     case = case or case_for()
     capture = contract(case, run_id, repeats, warmups)
@@ -85,6 +155,7 @@ def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
             )
         )
     capture.update(
+        **sparse_observations(case, counts),
         device_name="synthetic GPU only",
         target="gfx1100",
         hip_runtime_version=70100000,
@@ -206,7 +277,7 @@ class Captures(unittest.TestCase):
                 validate_capture(capture, case, "fixture-run", 2, 1)
         for changes in (
             dict(source_versions=[True, True]),
-            dict(content_generations=[1, 1]),
+            dict(content_generations=[True, True]),
             dict(actual_cache_allocation_bytes=1),
             dict(modeled_a_blocks=True),
         ):
@@ -256,6 +327,107 @@ class Captures(unittest.TestCase):
         capture["target"] = "gfx942"
         with self.assertRaises(ValueError):
             validate_capture(capture, accelerated, "fixture-run", 2, 1)
+
+    def test_sparse_owner_identity_extent_budget_and_generation_controls(self):
+        changes = {
+            "role": (2, True),
+            "prefix": (19, True),
+            "device_id": (1, False),
+            "source_instance": (2, True),
+            "source_generation": (2, True),
+            "device_payload_bytes": (0, False),
+            "device_directory_bytes": (0, True),
+            "host_directory_capacity_bytes": (0, 21, True, BUDGET + 4),
+            "retained_metadata_object_bytes": (0, True, BUDGET + 1),
+            "preparation_peak_bound_bytes": (1, True, BUDGET + 1),
+            "preparation_budget_bytes": (0, True),
+            "matrix_method_support": (None, "guessed"),
+        }
+        for key, values in changes.items():
+            for value in values:
+                capture = fixture()
+                capture["sparse_storage"][0][key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    validate_capture(capture, BASE, "fixture-run", 2, 1)
+        for changes in (
+            dict(schema="rns8_block_sparse_microcase_v1"),
+            dict(sparse_storage=[]),
+            dict(content_generations=None),
+            dict(content_generations=[1]),
+            dict(content_generations=[True, 1]),
+            dict(sparse_retained_requested_bytes=0),
+            dict(sparse_retained_requested_bytes=True),
+            dict(actual_cache_allocation_bytes=None),
+        ):
+            capture = fixture()
+            capture.update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                validate_capture(capture, BASE, "fixture-run", 2, 1)
+        for mode in ("sparse_wmma", "sparse_hybrid"):
+            case = case_for(mode)
+            capture = fixture(case)
+            capture["sparse_storage"][0]["matrix_method_support"] = "unsupported"
+            with self.assertRaises(ValueError):
+                validate_capture(capture, case, "fixture-run", 2, 1)
+        scalar = fixture()
+        scalar["sparse_storage"][0]["matrix_method_support"] = "unsupported"
+        validate_capture(scalar, BASE, "fixture-run", 2, 1)
+        dense = case_for("dense")
+        for changes in (
+            dict(content_generations=[1, 1]),
+            dict(sparse_storage=[{}]),
+            dict(sparse_retained_requested_bytes=1),
+        ):
+            capture = fixture(dense)
+            capture.update(changes)
+            with self.assertRaises(ValueError):
+                validate_capture(capture, dense, "fixture-run", 2, 1)
+
+    def test_separate_diagnostic_scope_event_and_lifecycle_controls(self):
+        mutations = [
+            lambda d: d.update(scope="timed"),
+            lambda d: d.update(inside_timed_samples=True),
+            lambda d: d.update(inside_sustained_interval=True),
+            lambda d: d.update(observed_batches=True),
+            lambda d: d.update(public_gemm_calls=2),
+            lambda d: d.update(allocation_epoch=False),
+            lambda d: d.update(native_event_receipts_complete=False),
+            lambda d: d.update(event_labels={}),
+            lambda d: d.update(event_labels={"block_sparse_intersection_gemm_kernel": True}),
+            lambda d: d.update(sparse_gemm_events=0),
+            lambda d: d.update(capability_probe_events=1),
+            lambda d: d["event_labels"].update(block_sparse_prepare_capability=1),
+            lambda d: d["event_labels"].update(unexpected_warm_work=1),
+        ]
+        for key in (
+            "device_allocation_calls",
+            "device_free_calls",
+            "h2d_calls",
+            "h2d_bytes",
+            "d2h_calls",
+            "d2h_bytes",
+        ):
+            mutations.append(lambda d, key=key: d.update({key: 1}))
+            mutations.append(lambda d, key=key: d.update({key: False}))
+        for mutation in mutations:
+            capture = fixture()
+            mutation(capture["separate_batch_observation"])
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                validate_capture(capture, BASE, "fixture-run", 2, 1)
+        for pattern in ("dense", "mixed", "disjoint"):
+            case = case_for("sparse_scalar_cold", m=1, n=1, k=1, pattern=pattern)
+            for key in (
+                "device_allocation_calls",
+                "device_free_calls",
+                "h2d_calls",
+                "h2d_bytes",
+                "d2h_calls",
+                "d2h_bytes",
+            ):
+                capture = fixture(case)
+                capture["separate_batch_observation"][key] += 1
+                with self.subTest(pattern=pattern, key=key), self.assertRaises(ValueError):
+                    validate_capture(capture, case, "fixture-run", 2, 1)
 
     def test_tracked_manifests_have_complete_controls(self):
         root = case_root() / "block-sparse"

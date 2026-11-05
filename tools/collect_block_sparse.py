@@ -147,7 +147,7 @@ def checksum(data):
 def contract(case, run_id, repeats, warmups):
     cold = case["mode"].endswith("_cold")
     return {
-        "schema": "rns8_block_sparse_microcase_v1",
+        "schema": "rns8_block_sparse_microcase_v2",
         "promotion_eligible": False,
         "run_id": run_id,
         "backend_requested": "hip-direct",
@@ -165,8 +165,9 @@ def contract(case, run_id, repeats, warmups):
         "dataset_recipe": RECIPE,
         "dataset_seed": 3135,
         "source_versions": [1, 1],
-        "content_generations": None,
-        "content_generation_visibility": "opaque_handle_checked_by_public_owner_api",
+        "content_generation_visibility": "opaque_handle_checked_by_public_owner_api"
+        if case["mode"] == "dense"
+        else "sparse_owner_snapshot_validated_at_execution",
         "reference_method": "boost_int256_full_product_with_cpp_int_row_edge_audits",
         "reference_buffers_released_before_setup": True,
         "setup_scope": "context_plan_workspace_matrices_native_and_RNS_pack_then_optional_warm_prepare",
@@ -176,13 +177,12 @@ def contract(case, run_id, repeats, warmups):
         if cold
         else "reuse_public_prepared_sparse_GEMMs",
         "timer": "std_chrono_steady_clock_nanoseconds",
-        "actual_cache_allocation_bytes": None,
         "structure_origin": "deterministic_exact_zero_native_recipe_not_device_query",
         **structure(case),
         "memory_budget_bytes": BUDGET,
         "resident_payload_scope": "queried_after_input_packing_before_first_call",
-        "allocation_query_scope": "A_B_C_requested_capacity_and_cached_staging_at_two_boundaries_not_peak_or_sparse_cache",
-        "memory_exclusions": "allocator/vector spare capacity, context runtime and fixed metadata; logical payload only, not process RSS",
+        "allocation_query_scope": "A_B_C_requested_capacity_and_cached_staging_plus_separate_sparse_owner_queries_not_process_peak",
+        "memory_exclusions": "allocator/driver rounding and context/runtime/TLS storage; sparse vector capacity is queried; not process RSS",
         "exact_full_output_and_padding_checked": True,
         "verified_outputs_per_batch": 1,
     }
@@ -229,6 +229,186 @@ def validate_allocations(values, case, envelope):
         )
         total += record["host_payload_capacity_bytes"] + record["device_total_capacity_bytes"]
     demand(total <= envelope, "queried matrix capacities exceed conservative envelope")
+
+
+def validate_sparse_storage(capture, case, counts):
+    values = capture.get("sparse_storage")
+    dense = case["mode"] == "dense"
+    demand(
+        type(values) is list and len(values) == (0 if dense else 2), "missing sparse owner queries"
+    )
+    generations = capture.get("content_generations")
+    demand(
+        "content_generations" in capture
+        and (
+            generations is None
+            if dense
+            else type(generations) is list
+            and len(generations) == 2
+            and all(integer(value, 0, MASK - 1) for value in generations)
+        ),
+        "invalid sparse source generations",
+    )
+    fields = {
+        "role",
+        "prefix",
+        "device_id",
+        "matrix_method_support",
+        "source_instance",
+        "source_generation",
+        "host_directory_capacity_bytes",
+        "device_payload_bytes",
+        "device_directory_bytes",
+        "retained_metadata_object_bytes",
+        "preparation_peak_bound_bytes",
+        "preparation_budget_bytes",
+    }
+    retained = 0
+    for index, value in enumerate(values):
+        demand(type(value) is dict and set(value) == fields, "invalid sparse query fields")
+        blocks = counts["modeled_a_blocks" if index == 0 else "modeled_b_blocks"]
+        outer = case["m"] if index == 0 else case["n"]
+        directory = 4 * ((outer + 15) // 16 + 1 + blocks)
+        expected = dict(
+            role=index + 1,
+            prefix=20,
+            device_id=case["device"],
+            source_instance=capture["source_instance_ids"][index],
+            source_generation=generations[index],
+            device_payload_bytes=blocks * 20 * 1024,
+            device_directory_bytes=directory,
+            preparation_budget_bytes=BUDGET,
+        )
+        demand(
+            all(same(value[key], wanted) for key, wanted in expected.items()),
+            "sparse owner identity/extent mismatch",
+        )
+        demand(
+            value["matrix_method_support"] in ("supported", "unsupported")
+            and (
+                "wmma" not in case["mode"]
+                and "hybrid" not in case["mode"]
+                or value["matrix_method_support"] == "supported"
+            ),
+            "unqualified sparse matrix method",
+        )
+        for key, minimum in (
+            ("host_directory_capacity_bytes", directory),
+            ("retained_metadata_object_bytes", 1),
+            ("preparation_peak_bound_bytes", 1),
+        ):
+            demand(integer(value[key], minimum, BUDGET), "invalid sparse capacity: " + key)
+        demand(
+            value["host_directory_capacity_bytes"] % 4 == 0, "unaligned sparse directory capacity"
+        )
+        current = sum(
+            value[key]
+            for key in (
+                "host_directory_capacity_bytes",
+                "device_payload_bytes",
+                "device_directory_bytes",
+                "retained_metadata_object_bytes",
+            )
+        )
+        demand(
+            current <= value["preparation_peak_bound_bytes"], "sparse bound omits retained storage"
+        )
+        retained += current
+    demand(
+        same(capture.get("sparse_retained_requested_bytes"), retained),
+        "sparse retained total mismatch",
+    )
+    demand("actual_cache_allocation_bytes" not in capture, "retired sparse allocation alias")
+    return retained
+
+
+def validate_separate_observation(capture, case, counts):
+    value = capture.get("separate_batch_observation")
+    fixed = dict(
+        scope="one_separate_public_batch_process_library_counters_and_native_events",
+        inside_timed_samples=False,
+        inside_sustained_interval=False,
+        observed_batches=1,
+        public_gemm_calls=case["reuse_count"],
+        native_event_receipts_complete=True,
+    )
+    counters = {
+        "device_allocation_calls",
+        "device_free_calls",
+        "h2d_calls",
+        "h2d_bytes",
+        "d2h_calls",
+        "d2h_bytes",
+        "capability_probe_events",
+        "sparse_gemm_events",
+    }
+    demand(
+        type(value) is dict
+        and set(value) == {*fixed, *counters, "event_labels", "allocation_epoch"},
+        "missing native separate-batch observation",
+    )
+    demand(
+        all(same(value[key], expected) for key, expected in fixed.items()),
+        "diagnostic timing scope mismatch",
+    )
+    demand(
+        integer(value["allocation_epoch"], 1, MASK)
+        and all(integer(value[key], 0, MASK) for key in counters),
+        "invalid native diagnostic counters",
+    )
+    labels = value["event_labels"]
+    demand(
+        type(labels) is dict
+        and 0 < len(labels) <= 64
+        and all(
+            type(key) is str and 0 < len(key) <= 256 and integer(count, 1, MASK)
+            for key, count in labels.items()
+        ),
+        "missing native event denominator",
+    )
+    demand(
+        same(value["sparse_gemm_events"], labels.get("block_sparse_intersection_gemm_kernel", 0))
+        and same(
+            value["capability_probe_events"], labels.get("block_sparse_prepare_capability", 0)
+        ),
+        "contradictory native event counters",
+    )
+    if case["mode"] == "dense":
+        return
+    demand(
+        value["sparse_gemm_events"] == case["reuse_count"]
+        and value["capability_probe_events"] == 0,
+        "repeated sparse capability probe or omitted GEMM",
+    )
+    if not case["mode"].endswith("_cold"):
+        demand(
+            all(value[key] == 0 for key in counters - {"sparse_gemm_events"})
+            and labels == {"block_sparse_intersection_gemm_kernel": case["reuse_count"]},
+            "warm sparse replay repeated setup/transfers",
+        )
+    else:
+        nonempty = sum(counts[key] > 0 for key in ("modeled_a_blocks", "modeled_b_blocks"))
+        expected = dict(
+            device_allocation_calls=2 + nonempty,
+            device_free_calls=2 + nonempty,
+            h2d_calls=2 + 2 * nonempty,
+            h2d_bytes=counts["modeled_packed_payload_bytes"] + counts["modeled_directory_bytes"],
+            d2h_calls=2,
+            d2h_bytes=8 * (case["m"] * case["k"] + case["k"] * case["n"]),
+        )
+        demand(
+            all(same(value[key], wanted) for key, wanted in expected.items()),
+            "cold sparse preparation accounting mismatch",
+        )
+        demand(
+            labels
+            == {
+                "block_sparse_intersection_gemm_kernel": case["reuse_count"],
+                "residue_d2h_sync": 2,
+                "residue_h2d_sync": 2 + 2 * nonempty,
+            },
+            "cold sparse event denominator mismatch",
+        )
 
 
 def validate_capture(capture, case, run_id, repeats, warmups):
@@ -295,6 +475,8 @@ def validate_capture(capture, case, run_id, repeats, warmups):
         "invalid fixed Boost reference memory",
     )
     counts = structure(case)
+    retained = validate_sparse_storage(capture, case, counts)
+    validate_separate_observation(capture, case, counts)
     modeled = (
         80 * ab
         + 112 * mn
@@ -309,6 +491,7 @@ def validate_capture(capture, case, run_id, repeats, warmups):
     demand(
         integer(capture.get("logical_live_payload_envelope_bytes"), 1, BUDGET)
         and capture["logical_live_payload_envelope_bytes"] == envelope
+        and retained <= envelope
         and integer(capture.get("resident_payload_bytes"), 20 * (ab + mn), 64 * (ab + mn)),
         "invalid aggregate memory envelope",
     )

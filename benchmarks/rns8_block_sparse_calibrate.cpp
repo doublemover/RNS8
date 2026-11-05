@@ -1,12 +1,14 @@
 // Public generation-bound block-sparse ownership and whole-call cost controls.
 #include <rns8/rns8.h>
 #include <rns8/moduli.h>
+#include "backend_hip_direct/hip_backend.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <array>
 #include <charconv>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -212,6 +214,88 @@ rns8_matrix_storage_info storage(const rns8_matrix* matrix) {
   check(rns8_get_matrix_storage_info(matrix, &s));
   return s;
 }
+json sparse_storage(const rns8_block_sparse_operand* operand) {
+  rns8_block_sparse_storage_info s{};
+  s.struct_size = sizeof(s);
+  s.abi_version = RNS8_ABI_VERSION;
+  check(rns8_get_block_sparse_storage_info(operand, &s));
+  require(s.matrix_method_support == RNS8_SUCCESS ||
+              s.matrix_method_support == RNS8_UNSUPPORTED_BACKEND,
+          "invalid sparse capability observation");
+  return {{"role", s.role},
+          {"prefix", s.prefix},
+          {"device_id", s.device_id},
+          {"matrix_method_support",
+           s.matrix_method_support == RNS8_SUCCESS ? "supported" : "unsupported"},
+          {"source_instance", s.source_instance},
+          {"source_generation", s.source_generation},
+          {"host_directory_capacity_bytes", s.host_directory_capacity_bytes},
+          {"device_payload_bytes", s.device_payload_bytes},
+          {"device_directory_bytes", s.device_directory_bytes},
+          {"retained_metadata_object_bytes", s.retained_metadata_object_bytes},
+          {"preparation_peak_bound_bytes", s.preparation_peak_bound_bytes},
+          {"preparation_budget_bytes", s.preparation_budget_bytes}};
+}
+
+template <class Run> json observe_sparse_call(rns8_context* ctx, uint32_t reuse, Run&& run) {
+  using namespace rns8::detail;
+  struct Timing {
+    Timing() {
+      require(!hip_direct_timing_enabled(), "diagnostic timing was already enabled");
+      hip_direct_timing_reset();
+      hip_direct_timing_set_enabled(true);
+    }
+    ~Timing() {
+      hip_direct_timing_set_enabled(false);
+      hip_direct_timing_reset();
+    }
+  } timing;
+  auto observation = [&] {
+    rns8_allocation_observation value{};
+    value.struct_size = sizeof(value);
+    value.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_allocation_observation(ctx, &value));
+    return value;
+  };
+  const auto before = observation();
+  const auto copies_before = hip_direct_allocation_counters_snapshot();
+  run();
+  hip_direct_timing_flush_pending_events();
+  const auto copies_after = hip_direct_allocation_counters_snapshot();
+  const auto after = observation();
+  require(after.epoch == before.epoch, "allocation observation epoch changed");
+  require(hip_direct_timing_failures_complete() && hip_direct_timing_failure_snapshot().empty(),
+          "native diagnostic events are incomplete");
+  auto delta = [](uint64_t last, uint64_t first) {
+    require(last >= first, "native diagnostic counters went backwards");
+    return last - first;
+  };
+  json labels = json::object();
+  for (const auto& event : hip_direct_timing_snapshot()) {
+    require(!event.label.empty() && std::isfinite(event.microseconds) && event.microseconds >= 0,
+            "invalid native diagnostic event");
+    labels[event.label] = labels.value(event.label, uint64_t{0}) + 1;
+  }
+  return {
+      {"scope", "one_separate_public_batch_process_library_counters_and_native_events"},
+      {"inside_timed_samples", false},
+      {"inside_sustained_interval", false},
+      {"observed_batches", 1},
+      {"public_gemm_calls", reuse},
+      {"allocation_epoch", after.epoch},
+      {"device_allocation_calls",
+       delta(after.device.allocation_calls, before.device.allocation_calls)},
+      {"device_free_calls", delta(after.device.free_calls, before.device.free_calls)},
+      {"h2d_calls", delta(copies_after.h2d_calls, copies_before.h2d_calls)},
+      {"h2d_bytes", delta(copies_after.h2d_bytes, copies_before.h2d_bytes)},
+      {"d2h_calls", delta(copies_after.d2h_calls, copies_before.d2h_calls)},
+      {"d2h_bytes", delta(copies_after.d2h_bytes, copies_before.d2h_bytes)},
+      {"capability_probe_events", labels.value("block_sparse_prepare_capability", uint64_t{0})},
+      {"sparse_gemm_events", labels.value("block_sparse_intersection_gemm_kernel", uint64_t{0})},
+      {"native_event_receipts_complete", true},
+      {"event_labels", labels}};
+}
+
 uint64_t payload(const rns8_matrix_storage_info& s) {
   return s.host_residue_bytes + s.device_residue_bytes + s.host_byte_limb_bytes +
          s.device_byte_limb_bytes + s.host_native_bytes + s.device_native_bytes;
@@ -363,7 +447,8 @@ json run(const Case& c) {
   struct Batch {
     uint64_t preparation = 0, destruction = 0;
   };
-  const auto invoke = [&]() {
+  json sparse_owners = json::array();
+  const auto invoke = [&](bool observe = false) {
     Batch result;
     Sparse ca, cb;
     if (cold(c)) {
@@ -372,6 +457,9 @@ json run(const Case& c) {
       cb = prepare(B.get(), RNS8_BLOCK_SPARSE_RHS);
       result.preparation = ns(t);
     }
+    if (observe && !dense(c))
+      sparse_owners = {sparse_storage(cold(c) ? ca.get() : warm_a.get()),
+                       sparse_storage(cold(c) ? cb.get() : warm_b.get())};
     for (uint32_t i = 0; i < c.reuse; ++i) {
       rns8_status status;
       if (dense(c))
@@ -441,9 +529,18 @@ json run(const Case& c) {
       times.size() % 2
           ? double(times[times.size() / 2])
           : (double(times[times.size() / 2 - 1]) + double(times[times.size() / 2])) / 2;
+  // Metadata queries, event timing and this extra batch are outside all reported
+  // production intervals. The final independent output audit follows them.
+  const auto diagnostic = observe_sparse_call(ctx.get(), c.reuse, [&] { invoke(true); });
+  audit();
   const auto allocation_final = allocations(owned, modeled);
+  uint64_t sparse_retained = 0;
+  for (const auto& owner : sparse_owners)
+    for (const auto* key : {"host_directory_capacity_bytes", "device_payload_bytes",
+                            "device_directory_bytes", "retained_metadata_object_bytes"})
+      sparse_retained += owner.at(key).get<uint64_t>();
   return {
-      {"schema", "rns8_block_sparse_microcase_v1"},
+      {"schema", "rns8_block_sparse_microcase_v2"},
       {"promotion_eligible", false},
       {"run_id", c.run},
       {"backend_requested", "hip-direct"},
@@ -474,8 +571,11 @@ json run(const Case& c) {
       {"source_instance_ids", std::vector<uint64_t>{sa.matrix_instance_id, sb.matrix_instance_id}},
       {"output_instance_id", sc.matrix_instance_id},
       {"source_versions", std::vector<uint64_t>{sa.source_version, sb.source_version}},
-      {"content_generations", nullptr},
-      {"content_generation_visibility", "opaque_handle_checked_by_public_owner_api"},
+      {"content_generations", dense(c) ? json(nullptr)
+                                       : json::array({sparse_owners[0]["source_generation"],
+                                                      sparse_owners[1]["source_generation"]})},
+      {"content_generation_visibility", dense(c) ? "opaque_handle_checked_by_public_owner_api"
+                                                 : "sparse_owner_snapshot_validated_at_execution"},
       {"reference_method", "boost_int256_full_product_with_cpp_int_row_edge_audits"},
       {"reference_operand_storage_bytes", reference_bytes},
       {"reference_fixed_operand_object_bytes", sizeof(int256_t)},
@@ -497,7 +597,9 @@ json run(const Case& c) {
       {"modeled_b_blocks", counts.b_blocks},
       {"modeled_packed_payload_bytes", counts.payload},
       {"modeled_directory_bytes", counts.metadata},
-      {"actual_cache_allocation_bytes", nullptr},
+      {"sparse_storage", sparse_owners},
+      {"sparse_retained_requested_bytes", sparse_retained},
+      {"separate_batch_observation", diagnostic},
       {"structure_origin", "deterministic_exact_zero_native_recipe_not_device_query"},
       {"modeled_total_block_intersections", counts.intersections},
       {"modeled_empty_output_tiles", counts.empty_tiles},
@@ -511,10 +613,10 @@ json run(const Case& c) {
       {"matrix_allocations_at_setup", allocation_setup},
       {"matrix_allocations_after_final_audit", allocation_final},
       {"allocation_query_scope",
-       "A_B_C_requested_capacity_and_cached_staging_at_two_boundaries_not_peak_or_sparse_cache"},
+       "A_B_C_requested_capacity_and_cached_staging_plus_separate_sparse_owner_queries_not_process_peak"},
       {"plan_workspace_bytes", pi.workspace_required_bytes},
       {"memory_exclusions",
-       "allocator/vector spare capacity, context runtime and fixed metadata; logical payload only, not process RSS"},
+       "allocator/driver rounding and context/runtime/TLS storage; sparse vector capacity is queried; not process RSS"},
       {"exact_full_output_and_padding_checked", true},
       {"verified_outputs_per_batch", 1},
       {"samples", samples},
