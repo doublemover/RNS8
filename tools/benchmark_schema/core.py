@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from json_evidence import load_evidence_json
+from first_call_setup import inventory_errors
 from pathlib import Path
 from typing import Any
 from build_manifest import manifest_diagnostic_shape_valid
@@ -81,6 +82,8 @@ class _Validator(
             return
         self.version = version
         self._validate_v4()
+        for error in inventory_errors(self.data):
+            self._error(error)
         manifest = self.data.get("build_manifest")
         if manifest is not None:
             if not isinstance(manifest, dict):

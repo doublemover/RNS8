@@ -20,12 +20,54 @@ class MetadataContracts(unittest.TestCase):
             self.assertFalse(any(a.startswith('--sustained-') for a in args))
         capture=dict(warmups=0,repeats=1,timing_metadata=dict(host_instrumentation_state='hooks_disabled'),
             raw_timings_us=dict(planning=[10],matrix_alloc=[20],end_to_end=[30]))
+        capture["first_call_setup_inventory"] = dict(
+            schema="rns8_first_call_setup_inventory_v1", boundary="caller_buffers_ready_after_context_creation",
+            supported=True, components=dict(planning_workspace="raw_timings_us.planning",
+                matrix_allocation="raw_timings_us.matrix_alloc", prepack=None, completed_call="raw_timings_us.end_to_end"),
+            excluded=["context_creation", "caller_buffer_allocation", "input_generation", "independent_oracle"])
         self.assertEqual(first_call_setup(capture)['setup_plus_first_completed_call_us'],60)
-        for mutate in (lambda d:d.update(warmups=1),lambda d:d.update(repeats=9),
+        for mutate in (lambda d:d.pop("first_call_setup_inventory"),
+                lambda d:d["first_call_setup_inventory"].update(supported=1),
+                lambda d:d["first_call_setup_inventory"]["components"].update(prepack="prepack_setup_breakdown_us"),
+                lambda d:d["first_call_setup_inventory"]["components"].update(extra="raw_timings_us.planning"),
+                lambda d:d.update(warmups=1),lambda d:d.update(repeats=9),
                 lambda d:d['timing_metadata'].clear(),lambda d:d['raw_timings_us'].pop('matrix_alloc'),
                 lambda d:d['raw_timings_us'].update(end_to_end=[float('nan')])):
             bad=copy.deepcopy(capture);mutate(bad)
             with self.assertRaises(ValueError):first_call_setup(bad)
+    def test_reused_first_call_counts_one_parent_setup_without_double_counting(self):
+        for operands in (["A"], ["B"], ["A","B"]):
+            capture=dict(warmups=0,repeats=1,reuse_packed_inputs=True,prepack_reuse_operands=operands,
+                timing_metadata=dict(host_instrumentation_state="hooks_disabled"),
+                raw_timings_us=dict(planning=[10],matrix_alloc=[20],end_to_end=[30]),
+                first_call_setup_inventory=dict(schema="rns8_first_call_setup_inventory_v1",
+                    boundary="caller_buffers_ready_after_context_creation", supported=True,
+                    components=dict(planning_workspace="raw_timings_us.planning",matrix_allocation="raw_timings_us.matrix_alloc",
+                        prepack="prepack_setup_us",completed_call="raw_timings_us.end_to_end"),
+                    excluded=["context_creation","caller_buffer_allocation","input_generation","independent_oracle"]))
+            for cost in (0,100,200):
+                capture["prepack_setup_us"]=cost
+                # Child phases are intentionally enormous to catch double counting.
+                capture["prepack_setup_breakdown_us"]=dict(pack_a=9999,pack_b=9999)
+                result=first_call_setup(capture)
+                self.assertEqual(result["setup_plus_first_completed_call_us"],60+cost)
+                self.assertEqual(result["planning_allocation_and_prepared_input_invocation_us"],60)
+                self.assertTrue(result["prepack_included"])
+            for bad_cost in (None,True,-1,float("inf"),float("nan")):
+                capture["prepack_setup_us"]=bad_cost
+                with self.assertRaises(ValueError):first_call_setup(capture)
+            capture.pop("prepack_setup_us")
+            with self.assertRaises(ValueError):first_call_setup(capture)
+            capture["first_call_setup_inventory"]["supported"]=False
+            with self.assertRaises(ValueError):first_call_setup(capture)
+
+    def test_first_call_rejects_incomplete_owner_boundaries_before_collection(self):
+        for args in (["--hip-graph-replay"],["--streaming-overlap"],["--oneshot"],
+                     ["--residue-chain-length","2"],["--host-api-batch-size","2"],
+                     ["--grouped-dispatch","2"],["--native-to-rns-bridge"]):
+            with self.subTest(args=args),self.assertRaises(ValueError):
+                commands(Path("not-executed"),[dict(name="incomplete",arguments=args)],2,1,Path("out"),first_call=True)
+
     def test_all_declared_profiles_admit_the_initial_native_type_plan(self):
         root=Path(__file__).resolve().parents[1]
         for profile in ('hipblaslt-metadata.json','hipblaslt-prepack.json','hipblaslt-first-call.json'):

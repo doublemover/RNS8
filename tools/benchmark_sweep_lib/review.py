@@ -13,6 +13,7 @@ from build_manifest import manifest_provenance_complete, manifest_dependencies_c
 from timing_eligibility import phase_blockers, pair_blockers, comparison_record, capture_identity, bound_comparison_blockers
 from diagnostic_companion import production_evidence, binding_for_capture
 from review_contract import REVIEW_MODES, release_capture_satisfied
+from first_call_setup import review_first_call
 from reference_verdict import SCHEMA as NUMERICAL_REFERENCE_SCHEMA, checksum_u64 as capture_checksum, reference_verdict
 
 from .capture_metadata import (
@@ -2144,6 +2145,7 @@ def review_captures(
                 "phase_diagnostics": phase_ratios(item, direct_baseline, vector_baseline),
                 "phase_medians_us": phase_medians_for_capture(item),
                 "pack_diagnostics": pack_phase_diagnostics(item),
+                "first_call_setup": review_first_call(item),
                 "native_to_rns_handoff_diagnostics": native_to_rns_handoff_diagnostics(item),
                 "tile_shape_variant": (
                     item.get("tile_shape_variant", {}).get("name")

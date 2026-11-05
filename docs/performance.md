@@ -528,3 +528,21 @@ passes 28 GPU/CPU captures across all seven integer contracts, seven deliberate
 corrupt-file rejections, two cached exact-wide diagnostic pairs, and negative-input
 retained-recipe/stage captures. These are correctness and integration checks,
 not a new elapsed-performance campaign.
+
+
+Fresh first-call collection consumes the benchmark's versioned
+first_call_setup_inventory. For an ordinary persistent product, the complete
+caller-host boundary after context creation and caller-buffer preparation sums
+planning/workspace, matrix allocation, optional one-time prepacking and one
+completed call. Prepack A/B/cache subphases are children of the prepack total and
+are not added again. The narrower planning/allocation/prepared-input invocation
+sum remains available under its own name. Context creation, caller-buffer
+allocation, input generation and the independent oracle are excluded explicitly.
+
+The collector rejects graph, streaming and specialized-owner modes whose setup
+inventory is incomplete. Zero warmups do not make prior preparation free. A
+missing, unsupported or legacy inventory cannot produce a current complete
+first-call total. Review tools use the same accounting helper; first-call,
+steady and sustained observations remain separate. This source change does not
+replace historical measurements or claim that the October25 ordinary first-call
+table used prepacked inputs.

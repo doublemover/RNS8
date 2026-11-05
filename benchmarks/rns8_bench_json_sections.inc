@@ -342,6 +342,25 @@ void print_prepack_setup_breakdown_json(const BenchmarkResult& result, const cha
   std::cout << indent << "}";
 }
 
+void print_first_call_setup_inventory_json(const Args& args, const BenchmarkResult& result) {
+  // These parents are disjoint; prepack's A/B/cache subphases must not be added again.
+  const bool supported = !args.oneshot && !args.transient_uniform_small_inputs &&
+      !args.hip_graph_replay && !args.streaming_overlap && !args.native_to_rns_bridge &&
+      !args.resident_lifetime && !args.workspace_arena && !args.wrap64_rocwmma_candidate &&
+      !args.vector_to_rns_chain && !args.vector_alu_baseline && !runtime_vector_alu_backend(args) &&
+      !args.sparse_a_4_to_2 && !args.residue_channel_fusion && args.residue_chain_length == 1 &&
+      !host_api_batch_requested(args) && !grouped_dispatch_requested(args) &&
+      args.resident_redesign_candidate.empty() && (!args.reuse_packed_inputs || result.prepack_setup_available);
+  std::cout << "  \"first_call_setup_inventory\": {\"schema\": \"rns8_first_call_setup_inventory_v1\", "
+            << "\"boundary\": \"caller_buffers_ready_after_context_creation\", \"supported\": "
+            << (supported ? "true" : "false")
+            << ", \"components\": {\"planning_workspace\": \"raw_timings_us.planning\", "
+            << "\"matrix_allocation\": \"raw_timings_us.matrix_alloc\", \"prepack\": "
+            << (args.reuse_packed_inputs ? "\"prepack_setup_us\"" : "null")
+            << ", \"completed_call\": \"raw_timings_us.end_to_end\"}, "
+            << "\"excluded\": [\"context_creation\", \"caller_buffer_allocation\", \"input_generation\", \"independent_oracle\"]},\n";
+}
+
 void print_reuse_contract_json(
     const Args& args,
     const BenchmarkResult& result,

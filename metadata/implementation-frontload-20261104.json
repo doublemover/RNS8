@@ -736,8 +736,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/87",
       "requirements_sha256": "d8763286bd55b7f3b3cd3911bae95c434ae2a5fd891a01661c897c0485f87d32",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Emit a versioned disjoint fresh first-call setup inventory for ordinary persistent products. Share one accounting/admission helper across the collector, schema and review; add one-time prepack exactly once, preserve the accurately named narrower prepared-input invocation sum, and explicitly exclude context/caller-buffer allocation/input generation/oracle. Require the current supported inventory; reject known composed graph/pipeline/specialized owners before collection or from their unsupported producer inventory. Preserve fresh zero-warmup one-call identity and separate steady/sustained cohorts; fingerprint the helper in collection receipts. Author ordinary/A/B/A+B, zero/positive/missing/nonfinite prepack, duplicate/unknown inventory and unsupported-owner controls. CPU/HIP-host benchmark MSVC syntax, Python3.15 AST and undefined-name lint pass; no executable, fixture or benchmark execution. Historical ordinary October25 first-call observations are not recalculated or declared contaminated."
+      ],
       "remaining_source_items": []
     },
     {

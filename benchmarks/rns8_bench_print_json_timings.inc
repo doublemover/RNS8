@@ -1,6 +1,7 @@
     std::cout << "  \"gpu_event_timings_us\": null,\n";
     std::cout << "  \"gpu_event_timing_summary_us\": null,\n";
   }
+  print_first_call_setup_inventory_json(args, result);
   std::cout << "  \"plan_us\": " << result.plan_us << ",\n";
   if (global_bound_scan_available) {
     std::cout << "  \"global_bound_scan_us\": " << result.global_bound_scan_us << ",\n";

@@ -4,6 +4,7 @@ This collector executes only when explicitly invoked. Plan-only writes commands
 without starting a benchmark. Every output gets the existing artifact/run-ID
 capture envelope; instrumented and production programs remain separate cohorts.
 """
+from first_call_setup import first_call_setup, validate_first_call_arguments
 import argparse
 import hashlib
 import json
@@ -55,6 +56,8 @@ def commands(binary, cases, runs, seed, output, *, first_call=False, reference_d
         arguments=case["arguments"]
         if not isinstance(arguments,list) or not all(isinstance(x,str) for x in arguments): raise ValueError("arguments list")
         validate_initial_plan_capacity(arguments, name)
+        if first_call:
+            validate_first_call_arguments(arguments)
         if any(x.startswith(("--host-timing","--sustained-","--warmups","--repeats","--write-autotune","--reference-cache","--populate-reference","--verify-native-output")) for x in arguments):
             raise ValueError("collector owns timing/sampling controls and never writes a cache")
         first=int(hashlib.sha256(f"{seed}:{name}".encode()).hexdigest(),16)&1
@@ -77,23 +80,6 @@ def commands(binary, cases, runs, seed, output, *, first_call=False, reference_d
     return result
 
 
-def first_call_setup(capture):
-    """Sum only disjoint measured setup and one completed call after context creation."""
-    if (type(capture.get('warmups')) is not int or capture['warmups']!=0 or
-            type(capture.get('repeats')) is not int or capture['repeats']!=1 or
-            (capture.get('timing_metadata') or {}).get('host_instrumentation_state')!='hooks_disabled'):
-        raise ValueError('first-call evidence requires explicit hooks-disabled zero-warmup one-call capture')
-    values={}
-    for phase in ('planning','matrix_alloc','end_to_end'):
-        samples=(capture.get('raw_timings_us') or {}).get(phase)
-        if (not isinstance(samples,list) or len(samples)!=1 or type(samples[0]) not in (int,float) or
-                not math.isfinite(samples[0]) or samples[0]<0 or (phase=='end_to_end' and samples[0]==0)):
-            raise ValueError('first-call setup requires one measured planning/allocation/completed-call sample')
-        values[phase+'_us']=samples[0]
-    return dict(**values,setup_plus_first_completed_call_us=sum(values.values()),
-        scope='after_context_creation_planning_includes_workspace_then_matrix_allocation_then_completed_call',
-        context_creation_and_input_generation_included=False,independent_oracle_included=False)
-
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -108,6 +94,7 @@ def main():
     args=parser.parse_args()
     case_bytes=args.cases.read_bytes()
     collector_identity=dict(source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        first_call_contract_sha256=hashlib.sha256(Path(__file__).with_name('first_call_setup.py').read_bytes()).hexdigest(),
         case_manifest_sha256=hashlib.sha256(case_bytes).hexdigest())
     reference_directory = DEFAULT_CACHE if args.reference_cache else None
     reference_receipt = None
