@@ -11,7 +11,8 @@ from native_queue_schedule_contract import IDENTITIES as SCHEDULE_IDENTITIES, la
 from native_locality_contract import public_contract as locality_contract, ORDERS as LOCALITY_ORDERS
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
-from collect_native_calibration import strict_json, DEFAULT_MODULI
+from json_evidence import (parse_evidence_json as strict_json)
+from collect_native_calibration import (DEFAULT_MODULI)
 
 
 def integer(value, low, high):

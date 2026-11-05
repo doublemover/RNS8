@@ -65,9 +65,9 @@ def request_environment_identity(request: object) -> tuple[dict | None, str | No
     return {"schema": ENVIRONMENT_SCHEMA, "sha256": digest}, None
 
 
-def file_digest(path: Path) -> str:
+def file_digest(path: Path | str) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as stream:
+    with Path(path).open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()

@@ -9,7 +9,7 @@ import statistics
 import uuid
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
-from collect_native_calibration import strict_json
+from json_evidence import (parse_evidence_json as strict_json)
 
 
 def validate_case(c):

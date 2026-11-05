@@ -12,7 +12,7 @@ from build_manifest import manifest_provenance_complete
 from calibration_manifest import independent_run_interval
 from collect_int4_calibration import collection_plan
 from collect_lift_recipe import graph, bounds, validate_capture as validate_recipe
-from collect_native_calibration import strict_json
+from json_evidence import (parse_evidence_json as strict_json)
 from collect_native_integrity import MODULI, positive
 from product_stage_contract import price_cells,price_identity
 from product_dataset import inputs as dataset_inputs,identity as dataset_identity

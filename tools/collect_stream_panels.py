@@ -20,7 +20,9 @@ import sys
 import time
 import uuid
 from build_manifest import manifest_provenance_complete
-from collect_finite_verify import demand,integer,positive,same,strict_json,checksum,validate_provenance
+from evidence_scalars import (demand, integer, positive)
+from json_evidence import (parse_evidence_json as strict_json, same_evidence_value as same)
+from verification_contract import (checksum, validate_provenance)
 
 MODES=("incore","stream","stream-overlap")
 KEYS={"device","mode","m","n","k","domain","bits","prefix","panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","retained_b_budget_bytes","reuse"}

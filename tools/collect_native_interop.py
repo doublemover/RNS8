@@ -13,7 +13,7 @@ import statistics
 import uuid
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
-from collect_native_calibration import strict_json
+from json_evidence import (parse_evidence_json as strict_json)
 from collect_int4_calibration import collection_plan
 from collect_native_integrity import MODULI, positive
 

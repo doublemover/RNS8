@@ -8,7 +8,7 @@ import statistics
 import uuid
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
-from collect_native_calibration import strict_json
+from json_evidence import (parse_evidence_json as strict_json)
 from native_queue_schedule_contract import IDENTITIES, layout, work_counts, validate_dispatch_capture
 
 MODES = ("explicit", "task-major", "fair", "rank-select", "ordinary")

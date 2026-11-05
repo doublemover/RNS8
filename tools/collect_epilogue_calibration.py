@@ -7,7 +7,8 @@ from pathlib import Path
 import statistics
 import uuid
 from benchmark_sweep_lib.execution import run_command
-from collect_native_calibration import strict_json,DEFAULT_MODULI
+from json_evidence import (parse_evidence_json as strict_json)
+from collect_native_calibration import (DEFAULT_MODULI)
 from build_manifest import manifest_provenance_complete
 PROFILES={'extreme':(-(1<<63),(1<<63)-1),'zero':(0,0),'copy':(0,1),'unit':(1,1),'general':(-3,5),'channel-zero':(255,256)}
 

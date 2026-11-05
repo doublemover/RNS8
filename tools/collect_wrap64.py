@@ -14,7 +14,10 @@ import subprocess
 import sys
 import uuid
 from build_manifest import manifest_provenance_complete
-from collect_finite_verify import (BUDGET, MASK, checksum, demand, file_digest, integer, positive, same, strict_json, validate_provenance)
+from benchmark_request import (file_digest)
+from evidence_scalars import (demand, integer, positive)
+from json_evidence import (parse_evidence_json as strict_json, same_evidence_value as same)
+from verification_contract import (BUDGET, MASK, checksum, validate_provenance)
 RDNA_CANDIDATES = ("signed_radix", "native_u8", "direct_v4", "rocwmma_corrected")
 CDNA_CANDIDATES = ("signed_radix_mfma", "direct_v4", "native_u64")
 CANDIDATES = (*RDNA_CANDIDATES, "signed_radix_mfma", "native_u64")

@@ -1,9 +1,8 @@
 from benchmark_cases import case_root
 import copy
-from pathlib import Path
 import unittest
 from collect_research_kernels import validate_case, validate_capture
-from collect_native_calibration import strict_json
+from json_evidence import (parse_evidence_json as strict_json)
 from test_capture_identity_support import synthetic_identity
 
 
@@ -57,7 +56,6 @@ class ResearchCapture(unittest.TestCase):
                 validate_capture(bad, entry)
 
     def test_all_committed_cases_and_closed_domain(self):
-        root = Path(__file__).resolve().parents[1]
         for family in ('fp8', 'tdm'):
             for path in (case_root()/family).glob('*.json'):
                 case = validate_case(strict_json(path.read_text()))

@@ -15,7 +15,9 @@ import sys
 import time
 import uuid
 from build_manifest import manifest_provenance_complete
-from collect_finite_verify import demand, integer, positive, same, strict_json, checksum, validate_provenance
+from evidence_scalars import (demand, integer, positive)
+from json_evidence import (parse_evidence_json as strict_json, same_evidence_value as same)
+from verification_contract import (checksum, validate_provenance)
 
 INTEGER_METHODS=("baseline","packed_dot4","canonical_dot4","byte_wmma")
 MFMA_METHODS=("asymmetric_fp64_mfma","asymmetric_fp64_mfma_rows","asymmetric_fp64_mfma_columns")

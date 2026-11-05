@@ -16,8 +16,10 @@ import subprocess
 import sys
 import uuid
 from build_manifest import manifest_provenance_complete
-from collect_finite_verify import (BUDGET, MASK, demand, file_digest, integer,
-                                   positive, same, strict_json, validate_provenance)
+from benchmark_request import (file_digest)
+from evidence_scalars import (demand, integer, positive)
+from json_evidence import (parse_evidence_json as strict_json, same_evidence_value as same)
+from verification_contract import (BUDGET, MASK, validate_provenance)
 
 MODES = ("dense", "sparse_scalar", "sparse_wmma", "sparse_hybrid", "sparse_scalar_cold", "sparse_wmma_cold", "sparse_hybrid_cold")
 KEYS = {"device", "mode", "m", "n", "k", "pattern", "reuse_count", "hybrid_threshold"}

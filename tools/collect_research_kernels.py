@@ -10,7 +10,7 @@ from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 from mxfp_contract import mode_contract,modes,scale_schedule
 import hashlib
-from collect_native_calibration import strict_json
+from json_evidence import (parse_evidence_json as strict_json)
 from collect_int4_calibration import collection_plan, positive
 
 

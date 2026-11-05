@@ -8,10 +8,11 @@ import statistics
 import uuid
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
-from collect_native_calibration import strict_json
+from json_evidence import (parse_evidence_json as strict_json)
 from collect_int4_calibration import collection_plan
 from collect_native_interop import quantile
-from collect_finite_verify import demand,integer,same
+from evidence_scalars import (demand, integer)
+from json_evidence import (same_evidence_value as same)
 
 MODES=('pageable-sync','pinned-sync','pinned-stream','pinned-graph')
 KEYS={'schema','device','m','n','k','unsigned_inputs','dataset','mode','repeats','warmups','seed','max_payload_bytes'}

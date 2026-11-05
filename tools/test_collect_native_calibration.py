@@ -12,11 +12,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from collect_native_calibration import (
-    ADAPTIVE, BOUND_CONTROLS, CANDIDATES, CONVERSION, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
-    native_reuse_work, reuse_contract, summarize_encoded_reuse, conversion_contract, summarize_conversion,
-    scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
-)
+from json_evidence import (parse_evidence_json as strict_json)
+from collect_native_calibration import (ADAPTIVE, BOUND_CONTROLS, CANDIDATES, CONVERSION, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract, native_reuse_work, reuse_contract, summarize_encoded_reuse, conversion_contract, summarize_conversion, scheduling_contract, valid_sustained, validate_capture, validate_case)
 from native_locality_contract import private_contract as locality_contract
 from test_capture_identity_support import synthetic_identity
 

@@ -1,7 +1,6 @@
 """Authored synthetic collector/CLI fixtures; never performance evidence."""
 from benchmark_cases import case_root
 import argparse
-from copy import deepcopy
 import json
 import math
 import os
@@ -10,8 +9,9 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_finite_verify import (BUDGET, MODES, checksum, collect, contract, dataset,
-                                  load_cases, strict_json, validate_capture, validate_case)
+from json_evidence import (parse_evidence_json as strict_json)
+from verification_contract import (BUDGET, checksum)
+from collect_finite_verify import (MODES, collect, contract, dataset, load_cases, validate_capture, validate_case)
 from test_capture_identity_support import synthetic_identity
 
 BASE = dict(backend="cpu-reference", device=-1, mode="verify_only", m=2, n=3, k=65,

@@ -6,6 +6,11 @@ One fresh child process is one independent observation; within-child repeats are
 not independent runs. No ISA, default-route or integer-exactness promotion.
 """
 from __future__ import annotations
+from build_manifest import manifest_provenance_complete
+from benchmark_request import (file_digest)
+from evidence_scalars import (demand, integer, positive)
+from json_evidence import (parse_evidence_json as strict_json, same_evidence_value as same)
+from verification_contract import (BUDGET, MASK, checksum, validate_provenance)
 import argparse
 import hashlib
 import json
@@ -18,49 +23,21 @@ import statistics
 import subprocess
 import sys
 import uuid
-from build_manifest import manifest_provenance_complete
 
 SCHEMA = "rns8_finite_verify_microcase_v1"
 CASE_KEYS = {"backend", "device", "mode", "m", "n", "k", "modulus", "trials", "challenge_seed"}
 MODES = ("verify_only", "compute_verify", "full_reference")
-MASK = (1 << 64) - 1
 RECIPE = "splitmix64_finite_u8_seed3135_extrema_v1"
-BUDGET = 256 * 1024 * 1024
 
 
-def demand(value, why):
-    if not value:
-        raise ValueError(why)
 
 
-def integer(value, low, high):
-    return type(value) is int and low <= value <= high
 
 
-def positive(value):
-    return type(value) in (int, float) and math.isfinite(value) and value > 0
 
 
-def same(actual, expected):
-    if type(actual) is not type(expected):
-        return False
-    if isinstance(expected, list):
-        return len(actual) == len(expected) and all(same(a, b) for a, b in zip(actual, expected))
-    if isinstance(expected, dict):
-        return actual.keys() == expected.keys() and all(same(actual[key], value) for key, value in expected.items())
-    return actual == expected
 
 
-def strict_json(text):
-    def pairs(items):
-        result = {}
-        for key, value in items:
-            demand(key not in result, f"duplicate JSON key: {key}")
-            result[key] = value
-        return result
-    def constant(value):
-        raise ValueError(f"nonfinite JSON constant: {value}")
-    return json.loads(text, object_pairs_hook=pairs, parse_constant=constant)
 
 
 def validate_case(case):
@@ -89,11 +66,6 @@ def load_cases(path):
     return cases
 
 
-def checksum(data):
-    value = 14695981039346656037
-    for byte in data:
-        value = ((value ^ byte) * 1099511628211) & MASK
-    return f"{value:016x}"
 
 
 def dataset(case):
@@ -133,16 +105,6 @@ def contract(case, run_id, repeats, warmups):
             "memory_budget_bytes": BUDGET, "exact_full_output_and_padding_checked": True, "inputs_unchanged_checked": True}
 
 
-def validate_provenance(manifest, backend=None):
-    """Accept structural diagnostic evidence without upgrading its eligibility."""
-    demand(type(manifest) is dict and type(manifest.get("source_dirty")) is bool, "missing build provenance")
-    structural = dict(manifest, source_dirty=False)
-    if structural.get("dependency_digest") == "unavailable":
-        structural["dependency_digest"] = "0"*64
-    configuration = structural.get("configuration")
-    if isinstance(configuration, str):
-        structural["configuration"] = "\n".join("garner_table=OFF" if line.partition("=")[0] == "garner_table" else line for line in configuration.splitlines())
-    demand(manifest_provenance_complete(structural, backend), "invalid structural build provenance")
 
 
 def validate_capture(capture, case, run_id, repeats, warmups):
@@ -215,12 +177,6 @@ def validate_capture(capture, case, run_id, repeats, warmups):
     return {"build_manifest": manifest, **{key: capture[key] for key in ("backend_actual", "device_actual", "device_name", "target", "hip_runtime_version", "hip_driver_version")}}
 
 
-def file_digest(path):
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for block in iter(lambda: stream.read(1024*1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def collect(args):

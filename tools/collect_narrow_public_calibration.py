@@ -7,7 +7,8 @@ import math
 import statistics
 import uuid
 from collect_int4_calibration import collection_plan as shared_plan, positive
-from collect_native_calibration import strict_json, DEFAULT_MODULI
+from json_evidence import (parse_evidence_json as strict_json)
+from collect_native_calibration import (DEFAULT_MODULI)
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 
