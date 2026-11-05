@@ -18,6 +18,8 @@ TEST_CASE("narrow summary queries expose completed metadata without probing a de
   CHECK(info.wmma_capability_observed == 0);
   CHECK(info.retained_scan_bytes == 0);
   CHECK(info.retained_product_bytes == 0);
+  CHECK(info.retained_group_directory_bytes == 0);
+  CHECK(info.retained_group_task_count == 0);
   workspace.narrow_domains[0].identity.instance = 11;
   workspace.narrow_domains[0].identity.generation = 17;
   workspace.narrow_domains[1].identity.instance = 12;

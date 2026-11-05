@@ -611,6 +611,179 @@ void check_public_narrow_owner(rns8_narrow_product_method method, bool device_im
   CHECK(c->content_generation == generation);
   cleanup();
 }
+template <class T> void check_public_narrow_group(rns8_narrow_product_method method) {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  constexpr bool u = std::is_unsigned_v<T>;
+  constexpr int count = 3, m = 2, n = 3;
+  const int k = native_narrow_split(method) ? 4097 : 17;
+  const auto semantics = u ? RNS8_EXACT_WIDE_UNSIGNED : RNS8_EXACT_WIDE_SIGNED;
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto desc = exact_signed_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+  desc.semantics = semantics;
+  desc.max_prefix = 20;
+  desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_matrix *a[count]{}, *b[count]{}, *c[count]{};
+  rns8_workspace* workspace[count]{};
+  rns8_grouped_gemm_task tasks[count]{};
+  std::vector<T> av[count], bv[count];
+  for (int i = 0; i < count; ++i) {
+    auto am = matrix_desc(m, k, semantics, RNS8_BOUND_NONE);
+    auto bm = matrix_desc(k, n, semantics, RNS8_BOUND_NONE);
+    auto cm = matrix_desc(m, n, semantics, RNS8_BOUND_NONE);
+    am.max_prefix = bm.max_prefix = cm.max_prefix = 20;
+    am.flags = bm.flags = RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    REQUIRE(rns8_create_matrix(ctx, &am, &a[i]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &bm, &b[i]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &cm, &c[i]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace[i]) == RNS8_SUCCESS);
+    tasks[i] = {sizeof(tasks[i]), RNS8_ABI_VERSION, a[i], b[i], c[i], workspace[i]};
+    av[i].assign(size_t(m) * (k + 1), std::numeric_limits<T>::max());
+    bv[i].assign(size_t(k) * (n + 2), std::numeric_limits<T>::max());
+    for (int r = 0; r < m; ++r)
+      for (int q = 0; q < k; ++q)
+        av[i][size_t(r) * (k + 1) + q] =
+            u ? T((q + r + i) % 2 ? 255 : 0) : T((q + r + i) % 2 ? -128 : 127);
+    for (int q = 0; q < k; ++q)
+      for (int col = 0; col < n; ++col)
+        bv[i][size_t(q) * (n + 2) + col] =
+            u ? T(1 + (q + col * 11 + i) % 17) : T((q + col * 11 + i) % 17 - 8);
+    if constexpr (u) {
+      REQUIRE(rns8_pack_u64(ctx, a[i], av[i].data(), k + 1, 0) == RNS8_SUCCESS);
+      REQUIRE(rns8_pack_u64(ctx, b[i], bv[i].data(), n + 2, 0) == RNS8_SUCCESS);
+    } else {
+      REQUIRE(rns8_pack_i64(ctx, a[i], av[i].data(), k + 1, 0) == RNS8_SUCCESS);
+      REQUIRE(rns8_pack_i64(ctx, b[i], bv[i].data(), n + 2, 0) == RNS8_SUCCESS);
+    }
+  }
+  // Related GEMVs may share an operand; destination identity is never merged.
+  tasks[1].b = b[0];
+  const auto support = query_narrow_group_support(m, n, k, 20, method, count, UINT64_MAX);
+  const auto run = [&](uint64_t budget) {
+    return rns8_gemm_narrow_exact_grouped(ctx, plan, tasks, count, method, budget);
+  };
+  const auto close = [&] {
+    for (int i = 0; i < count; ++i) {
+      CHECK(rns8_destroy_matrix(c[i]) == RNS8_SUCCESS);
+      CHECK(rns8_destroy_matrix(b[i]) == RNS8_SUCCESS);
+      CHECK(rns8_destroy_matrix(a[i]) == RNS8_SUCCESS);
+      CHECK(rns8_destroy_workspace(workspace[i]) == RNS8_SUCCESS);
+    }
+    CHECK(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+    CHECK(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+  };
+  CHECK(run(support.scratch_bytes - 1) == RNS8_WORKSPACE_TOO_SMALL);
+  const auto first_status = run(support.scratch_bytes);
+  if (first_status == RNS8_UNSUPPORTED_BACKEND) {
+    close();
+    SKIP("compiled device lacks grouped byte WMMA");
+  }
+  REQUIRE(first_status == RNS8_SUCCESS);
+  const auto before = hip_direct_allocation_counters_snapshot();
+  REQUIRE(run(support.scratch_bytes) == RNS8_SUCCESS);
+  const auto after = hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == before.allocate_calls);
+  CHECK(after.free_calls == before.free_calls);
+  CHECK(after.h2d_calls == before.h2d_calls);
+  CHECK(after.d2h_calls == before.d2h_calls);
+  uint64_t generations[count]{};
+  for (int i = 0; i < count; ++i) {
+    generations[i] = c[i]->content_generation;
+    rns8_narrow_summary_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_narrow_summary_info(workspace[i], &info) == RNS8_SUCCESS);
+    CHECK(info.retained_group_directory_bytes == (i ? 0 : count * sizeof(NativeNarrowTask)));
+    CHECK(info.retained_group_task_count == (i ? 0 : count));
+    CHECK(info.retained_product_bytes == support.payload_bytes / count);
+    std::vector<uint64_t> output(m * n * 3);
+    const auto exported =
+        u ? rns8_export_exact_wide_unsigned_limbs(ctx, plan, c[i], output.data(), n, 3)
+          : rns8_export_exact_wide_signed_limbs(ctx, plan, c[i], output.data(), n, 3);
+    REQUIRE(exported == RNS8_SUCCESS);
+    for (int r = 0; r < m; ++r)
+      for (int col = 0; col < n; ++col) {
+        cpp_int expected = 0;
+        const auto& b_values = bv[i == 1 ? 0 : i];
+        for (int q = 0; q < k; ++q)
+          expected += cpp_int(av[i][size_t(r) * (k + 1) + q]) * b_values[size_t(q) * (n + 2) + col];
+        const auto cell = size_t(r * n + col) * 3;
+        cpp_int actual = cpp_int(output[cell]) + (cpp_int(output[cell + 1]) << 64) +
+                         (cpp_int(output[cell + 2]) << 128);
+        if (!u && (output[cell + 2] >> 63))
+          actual -= cpp_int(1) << 192;
+        CHECK(actual == expected);
+      }
+  }
+  c[2]->in_flight_readers = 1;
+  CHECK(run(support.scratch_bytes) == RNS8_BUSY);
+  c[2]->in_flight_readers = 0;
+  const auto original = tasks[2];
+  tasks[2].c = c[0];
+  CHECK(run(support.scratch_bytes) == RNS8_INVALID_ARGUMENT);
+  tasks[2] = original;
+  tasks[2].workspace = workspace[0];
+  CHECK(run(support.scratch_bytes) == RNS8_INVALID_ARGUMENT);
+  tasks[2] = original;
+  av[2][0] = u ? T(256) : native_narrow_byte_wmma(method) ? T(128) : T(INT64_MAX);
+  if constexpr (u)
+    REQUIRE(rns8_pack_u64(ctx, a[2], av[2].data(), k + 1, 0) == RNS8_SUCCESS);
+  else
+    REQUIRE(rns8_pack_i64(ctx, a[2], av[2].data(), k + 1, 0) == RNS8_SUCCESS);
+  CHECK(run(support.scratch_bytes) == RNS8_RANGE_ERROR);
+  for (int i = 0; i < count; ++i)
+    CHECK(c[i]->content_generation == generations[i]);
+  // Restore the changed task before injecting a late group write failure.
+  av[2][0] = 1;
+  if constexpr (u)
+    REQUIRE(rns8_pack_u64(ctx, a[2], av[2].data(), k + 1, 0) == RNS8_SUCCESS);
+  else
+    REQUIRE(rns8_pack_i64(ctx, a[2], av[2].data(), k + 1, 0) == RNS8_SUCCESS);
+  rns8_synchronous_test_hooks hooks{};
+  hooks.dispatch = [](void*, const char* phase, bool* started) {
+    if (std::strcmp(phase, "narrow_group_compute"))
+      return RNS8_SUCCESS;
+    *started = true;
+    return RNS8_BACKEND_FAILURE;
+  };
+  hooks.drain = [](void*) noexcept { return RNS8_BACKEND_FAILURE; };
+  ctx->synchronous_test_hooks = &hooks;
+  CHECK(run(support.scratch_bytes) == RNS8_BACKEND_FAILURE);
+  for (int i = 0; i < count; ++i) {
+    CHECK(workspace[i]->in_flight);
+    CHECK(c[i]->in_flight_writer);
+    CHECK_FALSE(c[i]->device_residues_current);
+  }
+  CHECK(workspace[0]->narrow_group_owner.pending());
+  ctx->synchronous_test_hooks = nullptr;
+  REQUIRE(rns8_drain_failed_work(ctx) == RNS8_SUCCESS);
+  for (int i = 0; i < count; ++i) {
+    CHECK_FALSE(workspace[i]->in_flight);
+    CHECK_FALSE(c[i]->in_flight_writer);
+  }
+  close();
+}
+
+TEST_CASE("grouped narrow kernels preserve independent proofs outputs and completion custody",
+          "[hip][narrow][group]") {
+  if (!hip_available())
+    SKIP("no HIP device for grouped narrow differential");
+  SECTION("signed scalar") {
+    check_public_narrow_group<int64_t>(RNS8_NARROW_SCALAR_FUSED_RNS);
+  }
+  SECTION("signed split K") {
+    check_public_narrow_group<int64_t>(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS);
+  }
+  SECTION("signed byte WMMA") {
+    check_public_narrow_group<int64_t>(RNS8_NARROW_BYTE_WMMA_FUSED_RNS);
+  }
+  SECTION("unsigned byte WMMA") {
+    check_public_narrow_group<uint64_t>(RNS8_NARROW_BYTE_WMMA_FUSED_RNS);
+  }
+}
+
 TEST_CASE("public narrow products preserve exact ownership and reject changed domains") {
   if (!hip_available())
     SKIP("no HIP device for public narrow ownership");

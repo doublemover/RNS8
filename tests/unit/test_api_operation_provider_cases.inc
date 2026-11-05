@@ -813,6 +813,22 @@ TEST_CASE(
     }
   }
   q.operation.algorithm = 0;
+  for (uint32_t method = 0; method < rns8::detail::native_narrow_method_count; ++method) {
+    auto group_query = q.operation;
+    group_query.algorithm = method;
+    group_query.output_limbs = 0;
+    group_query.execution_modes = RNS8_EXEC_GROUP;
+    const auto group =
+        rns8::detail::api::operation_support(target, group_query, RNS8_BACKEND_HIP_DIRECT);
+    if (method < 2) {
+      CHECK(group.status == RNS8_UNSUPPORTED_BACKEND);
+      CHECK(group.reason_code == RNS8_SUPPORT_EXECUTION_MODE);
+    } else if (rns8::detail::hip_direct_compiled()) {
+      CHECK(group.status == RNS8_SUCCESS);
+      CHECK(group.resource_status == 1); // Count-free query gives a per-task floor.
+      CHECK(group.supported_execution_modes & RNS8_EXEC_GROUP);
+    }
+  }
   q.operation.proof_flags = RNS8_QUERY_NATIVE_RETAINED;
   rns8_pipeline_candidate candidates[7]{};
   uint32_t count = 0;

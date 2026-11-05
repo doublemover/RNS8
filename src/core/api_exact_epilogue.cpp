@@ -71,18 +71,8 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
                                                   byte_wmma, max_scratch_bytes, fused, split_k);
     if (support.status != RNS8_SUCCESS)
       return support.status;
-    const auto native = [&](const rns8_matrix& input) -> const void* {
-      if (!(input.desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT) || !input.device_native_current ||
-          input.generation_exhausted || input.hip_device_id != ctx->device_id)
-        return nullptr;
-      const uint64_t bytes =
-          uint64_t(input.desc.rows) * uint64_t(input.desc.cols) * sizeof(uint64_t);
-      return unsigned_inputs
-                 ? (input.hip_native_u64_bytes == bytes ? input.hip_native_u64 : nullptr)
-                 : (input.hip_native_i64_bytes == bytes ? input.hip_native_i64 : nullptr);
-    };
-    const void* a = native(*A);
-    const void* b = native(*B);
+    const void* a = narrow_owned_native(*ctx, *A, unsigned_inputs);
+    const void* b = narrow_owned_native(*ctx, *B, unsigned_inputs);
     if (!a || !b)
       return RNS8_INVALID_ARGUMENT;
     cpp_int bound;
@@ -100,6 +90,8 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
     status = lease.hold_buffer(workspace->narrow_product_owner);
     if (status == RNS8_SUCCESS)
       status = lease.hold_buffer(workspace->narrow_scan_owner);
+    if (status == RNS8_SUCCESS)
+      status = lease.hold_buffer(workspace->narrow_group_owner);
     if (status != RNS8_SUCCESS)
       return lease.finish(status);
     return lease.finish([&]() -> rns8_status {
@@ -110,10 +102,16 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
       auto& scan = workspace->narrow_scan_owner;
       if (product.pending() || scan.pending())
         return RNS8_BACKEND_FAILURE;
+      if (workspace->narrow_group_owner.pending())
+        return RNS8_BACKEND_FAILURE;
+      status = workspace->narrow_group_owner.reset();
+      if (status != RNS8_SUCCESS)
+        return status;
+      workspace->narrow_group_tasks.clear();
       if ((product && product.device_id() != ctx->device_id) ||
           (scan && scan.device_id() != ctx->device_id))
         return RNS8_INVALID_ARGUMENT;
-      if (!support.payload_bytes) {
+      if (product.bytes() != support.payload_bytes) {
         status = product.reset();
         if (status != RNS8_SUCCESS)
           return status;
@@ -159,6 +157,7 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
   });
 }
 
+#include "core/api_narrow_group.inc"
 #include "core/api_adaptive_summary.inc"
 
 static rns8_status gemm_adaptive_exact_impl(rns8_context* ctx, const rns8_plan* plan,

@@ -1375,6 +1375,10 @@ typedef uint64_t rns8_abi_member_24_rns8_narrow_summary_info_19_retained_scan_by
 RNS8_ABI_MEMBER(rns8_narrow_summary_info,retained_scan_bytes,rns8_abi_member_24_rns8_narrow_summary_info_19_retained_scan_bytes);
 typedef uint64_t rns8_abi_member_24_rns8_narrow_summary_info_22_retained_product_bytes;
 RNS8_ABI_MEMBER(rns8_narrow_summary_info,retained_product_bytes,rns8_abi_member_24_rns8_narrow_summary_info_22_retained_product_bytes);
+typedef uint64_t rns8_abi_member_24_rns8_narrow_summary_info_30_retained_group_directory_bytes;
+RNS8_ABI_MEMBER(rns8_narrow_summary_info,retained_group_directory_bytes,rns8_abi_member_24_rns8_narrow_summary_info_30_retained_group_directory_bytes);
+typedef uint64_t rns8_abi_member_24_rns8_narrow_summary_info_25_retained_group_task_count;
+RNS8_ABI_MEMBER(rns8_narrow_summary_info,retained_group_task_count,rns8_abi_member_24_rns8_narrow_summary_info_25_retained_group_task_count);
 typedef uint64_t rns8_abi_member_24_rns8_narrow_summary_info_10_a_instance;
 RNS8_ABI_MEMBER(rns8_narrow_summary_info,a_instance,rns8_abi_member_24_rns8_narrow_summary_info_10_a_instance);
 typedef uint64_t rns8_abi_member_24_rns8_narrow_summary_info_12_a_generation;
@@ -3235,6 +3239,7 @@ typedef rns8_status (*rns8_abi_function_22_rns8_gemm_fp8_research)(rns8_fp8_reci
 typedef rns8_status (*rns8_abi_function_21_rns8_gemm_i64_oneshot)(rns8_context *, const rns8_gemm_desc *, const int64_t *, int64_t, const int64_t *, int64_t, int64_t *, int64_t);
 typedef rns8_status (*rns8_abi_function_14_rns8_gemm_int4)(rns8_int4_recipe *, const rns8_matrix *, rns8_matrix *, rns8_workspace *);
 typedef rns8_status (*rns8_abi_function_22_rns8_gemm_narrow_exact)(rns8_context *, const rns8_plan *, const rns8_matrix *, const rns8_matrix *, rns8_matrix *, rns8_narrow_product_method, uint64_t, rns8_workspace *);
+typedef rns8_status (*rns8_abi_function_30_rns8_gemm_narrow_exact_grouped)(rns8_context *, const rns8_plan *, const rns8_grouped_gemm_task *, uint32_t, rns8_narrow_product_method, uint64_t);
 typedef rns8_status (*rns8_abi_function_13_rns8_gemm_rns)(rns8_context *, const rns8_plan *, const rns8_matrix *, const rns8_matrix *, rns8_matrix *, rns8_workspace *);
 typedef rns8_status (*rns8_abi_function_21_rns8_gemm_rns_grouped)(rns8_context *, const rns8_plan *, const rns8_grouped_gemm_task *, uint32_t);
 typedef rns8_status (*rns8_abi_function_25_rns8_gemm_rns_incremental)(rns8_context *, const rns8_plan *, const rns8_matrix *, const rns8_matrix *, rns8_matrix *, rns8_workspace *, rns8_result_cache *, const rns8_dirty_region *, uint32_t);
@@ -3537,6 +3542,7 @@ RNS8_ABI_FUNCTION(rns8_gemm_fp8_research,rns8_abi_function_22_rns8_gemm_fp8_rese
 RNS8_ABI_FUNCTION(rns8_gemm_i64_oneshot,rns8_abi_function_21_rns8_gemm_i64_oneshot);
 RNS8_ABI_FUNCTION(rns8_gemm_int4,rns8_abi_function_14_rns8_gemm_int4);
 RNS8_ABI_FUNCTION(rns8_gemm_narrow_exact,rns8_abi_function_22_rns8_gemm_narrow_exact);
+RNS8_ABI_FUNCTION(rns8_gemm_narrow_exact_grouped,rns8_abi_function_30_rns8_gemm_narrow_exact_grouped);
 RNS8_ABI_FUNCTION(rns8_gemm_rns,rns8_abi_function_13_rns8_gemm_rns);
 RNS8_ABI_FUNCTION(rns8_gemm_rns_grouped,rns8_abi_function_21_rns8_gemm_rns_grouped);
 RNS8_ABI_FUNCTION(rns8_gemm_rns_incremental,rns8_abi_function_25_rns8_gemm_rns_incremental);
@@ -3710,7 +3716,7 @@ RNS8_ABI_FUNCTION(rns8_wait_resident_graph_hip_for,rns8_abi_function_32_rns8_wai
 #undef RNS8_ABI_FUNCTION
 
 namespace {
-constexpr char rns8_public_declaration_sha256[] = "8950d85bf6c88c8140587d2640457c9b6e90df11e24be6f65c0ff841f160dc6a";
+constexpr char rns8_public_declaration_sha256[] = "5903afe2cf90401bd4fcfa0c5c3c35c8b0ee3c66e08f9fac16d8bc7d0d5074ac";
 constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"CHAR_BIT",(uint64_t)(CHAR_BIT)},
   {"alignof:rns8_adaptive_bound_method",(uint64_t)(RNS8_ABI_ALIGNOF(rns8_adaptive_bound_method))},
@@ -4733,6 +4739,8 @@ constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"field_size:rns8_narrow_summary_info.b_instance",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->b_instance))},
   {"field_size:rns8_narrow_summary_info.b_reuses",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->b_reuses))},
   {"field_size:rns8_narrow_summary_info.reserved",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->reserved))},
+  {"field_size:rns8_narrow_summary_info.retained_group_directory_bytes",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->retained_group_directory_bytes))},
+  {"field_size:rns8_narrow_summary_info.retained_group_task_count",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->retained_group_task_count))},
   {"field_size:rns8_narrow_summary_info.retained_product_bytes",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->retained_product_bytes))},
   {"field_size:rns8_narrow_summary_info.retained_scan_bytes",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->retained_scan_bytes))},
   {"field_size:rns8_narrow_summary_info.struct_size",(uint64_t)(sizeof(((rns8_narrow_summary_info*)0)->struct_size))},
@@ -6249,6 +6257,8 @@ constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"offsetof:rns8_narrow_summary_info.b_instance",(uint64_t)(offsetof(rns8_narrow_summary_info,b_instance))},
   {"offsetof:rns8_narrow_summary_info.b_reuses",(uint64_t)(offsetof(rns8_narrow_summary_info,b_reuses))},
   {"offsetof:rns8_narrow_summary_info.reserved",(uint64_t)(offsetof(rns8_narrow_summary_info,reserved))},
+  {"offsetof:rns8_narrow_summary_info.retained_group_directory_bytes",(uint64_t)(offsetof(rns8_narrow_summary_info,retained_group_directory_bytes))},
+  {"offsetof:rns8_narrow_summary_info.retained_group_task_count",(uint64_t)(offsetof(rns8_narrow_summary_info,retained_group_task_count))},
   {"offsetof:rns8_narrow_summary_info.retained_product_bytes",(uint64_t)(offsetof(rns8_narrow_summary_info,retained_product_bytes))},
   {"offsetof:rns8_narrow_summary_info.retained_scan_bytes",(uint64_t)(offsetof(rns8_narrow_summary_info,retained_scan_bytes))},
   {"offsetof:rns8_narrow_summary_info.struct_size",(uint64_t)(offsetof(rns8_narrow_summary_info,struct_size))},

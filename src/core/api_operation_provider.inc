@@ -329,6 +329,8 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     if (!(query.proof_flags & RNS8_QUERY_NARROW_INPUT_PROOF))
       return reject(RNS8_RANGE_ERROR, RNS8_SUPPORT_MISSING_PROOF, "input_range",
                     "narrow arithmetic requires an actual input partial-sum proof");
+    if (rns8::detail::native_narrow_fused(query.algorithm))
+      out.supported_execution_modes |= RNS8_EXEC_GROUP;
     break;
   case RNS8_OP_CHECKED_CRT:
     if (!checked_crt_backend_supported(backend) || !rns8::detail::exact_wide_semantics(d.semantics))

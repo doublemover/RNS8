@@ -195,4 +195,32 @@ inline OperationSupport query_narrow_rns_support(int64_t m, int64_t n, int64_t k
       out.status == RNS8_SUCCESS ? OperationConstraint::none : OperationConstraint::scratch_budget;
   return out;
 }
+inline OperationSupport query_narrow_group_support(int64_t m, int64_t n, int64_t k, uint32_t prefix,
+                                                   uint32_t method, uint32_t count,
+                                                   uint64_t budget) {
+  OperationSupport out;
+  if (method >= native_narrow_method_count || count < 2 || count > 4096)
+    return out;
+  if (!native_narrow_fused(method)) {
+    out.status = RNS8_UNSUPPORTED_BACKEND;
+    out.constraint = OperationConstraint::operation;
+    return out;
+  }
+  out = query_narrow_rns_support(m, n, k, k, n, prefix, native_narrow_byte_wmma(method), UINT64_MAX,
+                                 true, native_narrow_split(method));
+  if (out.status != RNS8_SUCCESS)
+    return out;
+  const uint64_t directory = uint64_t(count) * sizeof(NativeNarrowTask);
+  if (out.scratch_bytes > (SIZE_MAX - directory) / count) {
+    out.status = RNS8_RANGE_ERROR;
+    out.constraint = OperationConstraint::address_span;
+    return out;
+  }
+  out.payload_bytes *= count;
+  out.scratch_bytes = out.scratch_bytes * count + directory;
+  out.status = out.scratch_bytes > budget ? RNS8_WORKSPACE_TOO_SMALL : RNS8_SUCCESS;
+  out.constraint =
+      out.status == RNS8_SUCCESS ? OperationConstraint::none : OperationConstraint::scratch_budget;
+  return out;
+}
 } // namespace rns8::detail

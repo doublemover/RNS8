@@ -2111,6 +2111,16 @@ uncertain device completion retains reservations and scratch for cleanup retry.
 See [split-K ownership](native-split-k.md). This does not promote split-K into
 AUTO or imply that the private native matrix-engine route shares this owner.
 
+The separate explicit native narrow family now has generation-bound exact
+input-domain certificates, scalar/byte-WMMA staged and fused RNS output, signed
+hierarchical K4096 native partials, and independent grouped fused dispatch.
+Its full-K magnitude envelope bounds every native partial; the complete CRT
+range proof remains independent. Grouped tasks retain distinct outputs and
+admit every task before any output write, with retained task directories and
+completion leases. These newer implementations remain source-only pending the
+combined runtime/ISA/performance batch; they do not enter AUTO. See
+[narrow owner and budgets](narrow-native-owner.md).
+
 Synchronous exports retain read reservations for all public output formats.
 An uncertain failure preserves the resident value and its generation while
 retaining its storage until a successful drain. One-shot native calls also

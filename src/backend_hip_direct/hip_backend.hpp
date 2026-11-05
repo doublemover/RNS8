@@ -343,6 +343,10 @@ rns8_status hip_direct_gemm_narrow_rns_certified_device(
     uint32_t prefix, bool byte_wmma, bool fused, const NativeWmmaDeviceCapability& capability,
     void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started,
     bool split_k = false);
+rns8_status hip_direct_launch_admitted_narrow_group(int device_id, const NativeNarrowTask* tasks,
+                                                    uint32_t count, int64_t m, int64_t n, int64_t k,
+                                                    uint32_t prefix, uint32_t method,
+                                                    bool unsigned_inputs, bool& commit_started);
 
 // Caller retains the scratch owner through uncertain completion. Publish only
 // after a completed owned readback of the full signed/unsigned native extrema.

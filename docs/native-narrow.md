@@ -28,9 +28,10 @@ unsigned accumulator behavior.
 These are explicit research candidates and do not replace full-width/RNS
 fallbacks. The [public narrow owner](narrow-native-owner.md) now binds input
 generations and cached extrema, supports staged/fused RNS output and explicit
-planner recipes, and includes a signed hierarchical split-K candidate. Grouped
-specialization, composed epilogues and measured one-shot/resident break-even
-remain open under #53. Output transaction owners invalidate a destination if
+planner recipes, a signed hierarchical split-K candidate and explicit batched
+scalar/byte-WMMA/split-K dispatch with independent task proofs and outputs.
+Measured one-shot/resident break-even remains open under #53; these newer
+sources are unexecuted. Output transaction owners invalidate a destination if
 a launched output write fails.
 
 Authored CPU/Boost and HIP fixtures cover partial-sum cap boundaries, signed and
@@ -40,4 +41,4 @@ at the same addresses. Registered applicable tests are covered by the
 [dated validation](local-all-features-20261023.md). The
 [larger-workload report](7900xtx-large-throughput-2026-10-23.md#native-bounded-integer-device-output)
 records scoped native-output timing. Broader target/ISA qualification and public
-dispatch integration remain separate gates.
+execution and performance qualification remain separate gates.

@@ -2553,11 +2553,26 @@ RNS8_API rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* 
                                             rns8_matrix* C, rns8_narrow_product_method method,
                                             uint64_t max_scratch_bytes, rns8_workspace* workspace);
 
+/* Explicit synchronous same-plan batch, 2..4096 independent tasks. Only fused
+ * scalar, byte WMMA and split-K methods are supported. Shared A/B inputs are
+ * allowed; all C and workspace handles must be distinct, and no C may be any
+ * task's input. Every task's native/CRT proof is admitted before any C write.
+ * max_scratch_bytes covers the complete group: each conservative task scratch
+ * plus its device task directory, retained in tasks[0].workspace. A failed
+ * grouped output launch invalidates all C; uncertain work retains all leases.
+ * This is actual batched kernel dispatch, not repeated public single calls. */
+RNS8_API rns8_status rns8_gemm_narrow_exact_grouped(rns8_context* ctx, const rns8_plan* plan,
+                                                    const rns8_grouped_gemm_task* tasks,
+                                                    uint32_t task_count,
+                                                    rns8_narrow_product_method method,
+                                                    uint64_t max_scratch_bytes);
+
 typedef struct rns8_narrow_summary_info {
   uint64_t struct_size;
   uint32_t abi_version, reserved;
   uint32_t wmma_capability_observed, wmma_capability_supported;
   uint64_t retained_scan_bytes, retained_product_bytes;
+  uint64_t retained_group_directory_bytes, retained_group_task_count;
   uint64_t a_instance, a_generation, b_instance, b_generation;
   uint64_t a_device_scans, b_device_scans;
   uint64_t a_reuses, b_reuses, a_host_proofs, b_host_proofs;

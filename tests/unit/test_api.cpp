@@ -219,6 +219,61 @@ TEST_CASE("narrow split-K resources charge all native partials and the retained 
   CHECK(native_narrow_fused(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS));
   CHECK_FALSE(native_narrow_byte_wmma(RNS8_NARROW_SPLIT_K_I64_FUSED_RNS));
 }
+TEST_CASE("narrow groups charge complete directories and reject malformed task contracts",
+          "[api][narrow][group][host]") {
+  using namespace rns8::detail;
+  for (auto method : {RNS8_NARROW_SCALAR_FUSED_RNS, RNS8_NARROW_BYTE_WMMA_FUSED_RNS,
+                      RNS8_NARROW_SPLIT_K_I64_FUSED_RNS})
+    for (uint32_t count : {2u, 3u, 4096u}) {
+      const auto task =
+          query_narrow_rns_support(2, 3, 4097, 4097, 3, 20, native_narrow_byte_wmma(method),
+                                   UINT64_MAX, true, native_narrow_split(method));
+      const auto group = query_narrow_group_support(2, 3, 4097, 20, method, count, UINT64_MAX);
+      REQUIRE(group.status == RNS8_SUCCESS);
+      CHECK(group.payload_bytes == task.payload_bytes * count);
+      CHECK(group.scratch_bytes == task.scratch_bytes * count + count * sizeof(NativeNarrowTask));
+      CHECK(query_narrow_group_support(2, 3, 4097, 20, method, count, group.scratch_bytes - 1)
+                .status == RNS8_WORKSPACE_TOO_SMALL);
+    }
+  for (uint32_t count : {0u, 1u, 4097u, UINT32_MAX})
+    CHECK(query_narrow_group_support(2, 3, 4097, 20, 2, count, UINT64_MAX).status ==
+          RNS8_INVALID_ARGUMENT);
+  for (uint32_t method : {5u, UINT32_MAX, UINT32_C(0x80000000)})
+    CHECK(query_narrow_group_support(2, 3, 4097, 20, method, 2, UINT64_MAX).status ==
+          RNS8_INVALID_ARGUMENT);
+  for (uint32_t method : {0u, 1u})
+    CHECK(query_narrow_group_support(2, 3, 4097, 20, method, 2, UINT64_MAX).status ==
+          RNS8_UNSUPPORTED_BACKEND);
+  rns8_context ctx;
+  rns8_plan plan;
+  rns8_matrix a, b, c[2];
+  rns8_workspace workspace[2];
+  rns8_grouped_gemm_task tasks[2]{};
+  for (unsigned i = 0; i < 2; ++i)
+    tasks[i] = {sizeof(tasks[i]), RNS8_ABI_VERSION, &a, &b, &c[i], &workspace[i]};
+  const auto run = [&] {
+    return rns8_gemm_narrow_exact_grouped(&ctx, &plan, tasks, 2, RNS8_NARROW_SCALAR_FUSED_RNS,
+                                          UINT64_MAX);
+  };
+  CHECK(run() == RNS8_UNSUPPORTED_BACKEND);
+  for (unsigned bad = 0; bad < 5; ++bad) {
+    const auto saved = tasks[1];
+    if (bad == 0)
+      tasks[1].struct_size = sizeof(uint64_t);
+    if (bad == 1)
+      ++tasks[1].abi_version;
+    if (bad == 2)
+      tasks[1].workspace = tasks[0].workspace;
+    if (bad == 3)
+      tasks[1].c = tasks[0].c;
+    if (bad == 4)
+      tasks[1].a = tasks[0].c;
+    CHECK(run() == RNS8_INVALID_ARGUMENT);
+    tasks[1] = saved;
+  }
+  CHECK_FALSE(workspace[0].in_flight);
+  CHECK_FALSE(workspace[1].in_flight);
+}
 TEST_CASE("synchronous failure leases invalidate only written outputs and release clean failures",
           "[api][lifetime]") {
   using namespace rns8::detail::api;

@@ -6,6 +6,15 @@
 namespace rns8::detail {
 inline constexpr uint32_t native_narrow_method_count = 5;
 inline constexpr uint32_t native_narrow_split_k = 4096;
+struct NativeNarrowTask {
+  const void* a = nullptr;
+  const void* b = nullptr;
+  int8_t* c = nullptr;
+  int64_t* partials = nullptr;
+  bool operator==(const NativeNarrowTask& other) const noexcept {
+    return a == other.a && b == other.b && c == other.c && partials == other.partials;
+  }
+};
 inline bool native_narrow_byte_wmma(uint32_t method) {
   return method == RNS8_NARROW_BYTE_WMMA || method == RNS8_NARROW_BYTE_WMMA_FUSED_RNS;
 }

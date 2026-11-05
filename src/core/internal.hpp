@@ -282,6 +282,8 @@ struct rns8_workspace {
   rns8::detail::hip_direct_device_buffer adaptive_summary_owner;
   rns8::detail::hip_direct_device_buffer narrow_product_owner;
   rns8::detail::hip_direct_device_buffer narrow_scan_owner;
+  rns8::detail::hip_direct_device_buffer narrow_group_owner;
+  std::vector<rns8::detail::NativeNarrowTask> narrow_group_tasks;
   rns8::detail::NativeDomainCertificate narrow_domains[2];
   rns8::detail::NativeWmmaDeviceCapability narrow_capability_observation;
   uint64_t narrow_device_scans[2]{}, narrow_reuses[2]{}, narrow_host_proofs[2]{};

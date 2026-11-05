@@ -10,6 +10,8 @@ extern "C" int rns8_hip_native_byte_wmma(const void*, const void*, void*, int, i
 extern "C" int rns8_hip_native_narrow_split_partials(const int64_t*, const int64_t*, int64_t*, int,
                                                      int, int, int, int);
 extern "C" int rns8_hip_native_narrow_split_encode(const int64_t*, int8_t*, int, int, int, int);
+extern "C" int rns8_hip_native_narrow_group_stage(const NativeNarrowTask*, int, int, int, int, int,
+                                                  uint32_t, bool, bool);
 #endif
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -261,6 +263,52 @@ rns8_status hip_direct_gemm_narrow_rns_certified_device(
   return encode_narrow_product(native_product, output, m, n, prefix, unsigned_inputs,
                                commit_started);
 #else
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_launch_admitted_narrow_group(int device_id, const NativeNarrowTask* tasks,
+                                                    uint32_t count, int64_t m, int64_t n, int64_t k,
+                                                    uint32_t prefix, uint32_t method,
+                                                    bool unsigned_inputs, bool& commit_started) {
+  commit_started = false;
+  const auto support = query_narrow_group_support(m, n, k, prefix, method, count, UINT64_MAX);
+  if (support.status != RNS8_SUCCESS)
+    return support.status;
+  if (!tasks)
+    return RNS8_INVALID_ARGUMENT;
+  if (unsigned_inputs && !native_narrow_byte_wmma(method))
+    return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto selected = set_hip_device(device_id);
+  if (selected != RNS8_SUCCESS)
+    return selected;
+  const bool split = native_narrow_split(method);
+  if (!split)
+    commit_started = true;
+  const auto first = timed_hip_operation(
+      split                             ? "narrow_group_split_k_partials"
+      : native_narrow_byte_wmma(method) ? "narrow_group_byte_wmma_fused_rns"
+                                        : "narrow_group_scalar_fused_rns",
+      [&] {
+        const auto error = static_cast<hipError_t>(
+            rns8_hip_native_narrow_group_stage(tasks, int(count), int(m), int(n), int(k),
+                                               int(prefix), method, unsigned_inputs, false));
+        return error == hipSuccess ? hipDeviceSynchronize() : error;
+      });
+  if (first != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  if (!split)
+    return RNS8_SUCCESS;
+  commit_started = true;
+  const auto merged = timed_hip_operation("narrow_group_split_k_encode", [&] {
+    const auto error = static_cast<hipError_t>(rns8_hip_native_narrow_group_stage(
+        tasks, int(count), int(m), int(n), int(k), int(prefix), method, unsigned_inputs, true));
+    return error == hipSuccess ? hipDeviceSynchronize() : error;
+  });
+  return merged == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

@@ -1,6 +1,16 @@
 #include "backend_common/abi_header.hpp"
 
 namespace {
+const void* narrow_owned_native(const rns8_context& ctx, const rns8_matrix& input,
+                                bool unsigned_inputs) {
+  if (!(input.desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT) || !input.device_native_current ||
+      input.generation_exhausted || input.hip_device_id != ctx.device_id)
+    return nullptr;
+  const uint64_t bytes = uint64_t(input.desc.rows) * uint64_t(input.desc.cols) * sizeof(uint64_t);
+  return unsigned_inputs ? (input.hip_native_u64_bytes == bytes ? input.hip_native_u64 : nullptr)
+                         : (input.hip_native_i64_bytes == bytes ? input.hip_native_i64 : nullptr);
+}
+
 rns8_status prepare_narrow_domains(rns8_context& ctx, const rns8_matrix& a, const rns8_matrix& b,
                                    const void* native_a, const void* native_b,
                                    rns8_workspace& workspace) {
@@ -80,6 +90,8 @@ rns8_status rns8_get_narrow_summary_info(const rns8_workspace* workspace,
   info.abi_version = RNS8_ABI_VERSION;
   info.retained_scan_bytes = workspace->narrow_scan_owner.bytes();
   info.retained_product_bytes = workspace->narrow_product_owner.bytes();
+  info.retained_group_directory_bytes = workspace->narrow_group_owner.bytes();
+  info.retained_group_task_count = workspace->narrow_group_tasks.size();
   const auto& capability = workspace->narrow_capability_observation;
   const bool observed =
       capability.provider == &rns8::detail::hip_direct_query_native_wmma_capability &&

@@ -110,7 +110,7 @@ private native-output measurements do not qualify this complete public call.
 Performance comparisons must include scan, native product, RNS encoding and
 allocation, against the same persistent-output contract and input reuse count.
 
-Grouped and asynchronous specialization and automatic promotion remain separate work.
+Asynchronous specialization and automatic promotion remain separate work.
 The explicit fused variants are described below. The default resident GEMM route
 is unchanged.
 
@@ -180,6 +180,44 @@ Boost/output/residue checks outside production intervals. Authored controls
 cover slab tails, K=65535/65536/65537, stale proofs, poisoned padding, exact
 budget boundaries and warm allocation reuse. Only source/frontend checks have
 run; target execution, ISA/resource inspection and speedup remain unmeasured.
+
+## Independent grouped narrow execution
+
+`rns8_gemm_narrow_exact_grouped` batches 2..4096 same-plan tasks with explicit
+fused scalar, byte-WMMA or signed split-K methods. It accepts the existing
+`rns8_grouped_gemm_task` descriptors. Tasks may share either input; destinations
+and workspaces must be distinct, and no destination may be any task's input.
+This surface represents independent products, not an implicitly ordered graph.
+Staged single-product methods report unsupported rather than executing a loop
+of single calls under a grouped label.
+
+Every task passes ordinary context/plan/workspace/currentness checks, its own
+exact CRT range proof and the current native domain/partial-sum admission before
+any output launch. The whole batch holds synchronous input/output/workspace
+leases. The scalar and byte-WMMA paths launch their existing arithmetic bodies
+with a device task directory; split-K batches partial production and merge in
+two launches. Each task's original destination is preserved. Grouped WMMA uses
+the same compiled capability and byte-signedness rules as the single route.
+
+The complete device budget covers the sum of the conservative per-task scratch
+and one four-pointer directory entry per task. The directory lives in the first
+task's workspace; its unchanged pointer inventory avoids repeated uploads.
+That inventory grants no numerical authority: input generation/domain proofs
+are validated on every call. Owned host upload bytes and all device buffers
+remain leased after uncertain failure. Inactive group directories and mismatched
+partial storage are released before replacement scans can allocate.
+`rns8_get_narrow_summary_info` reports retained group-directory bytes and cached
+task count separately from product/scan bytes. A generic GROUP operation query
+has no task-count field, so its resource result remains a per-task lower bound;
+the actual grouped entrypoint enforces the full checked batch budget.
+
+A failed admission preserves every C. Partial-only failure also preserves every
+C; a failed grouped output/merge launch invalidates all destinations. A failed
+drain keeps each workspace and destination reserved until observed completion,
+without publishing partial results. Authored CPU resource/descriptor and public
+Boost/HIP controls cover shared inputs, distinct outputs, cache reuse, invalid
+last-task domains, duplicate output/workspace rejection and failed-drain custody.
+They have not executed, and no grouped latency or speedup is claimed.
 
 The public narrow calibrator compares staged/fused scalar and WMMA, actual
 ordinary public RNS, explicit selected-prefix parallel RNS, and production

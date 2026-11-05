@@ -37,14 +37,21 @@ __global__ void rns8_native_byte_domain_kernel(const NativeT* source, int rows, 
   }
 }
 
-template <typename NativeT, bool Residues = false>
+template <typename NativeT, bool Residues = false, bool Grouped = false>
 __global__ __launch_bounds__(32) void rns8_native_byte_wmma_kernel(
     const NativeT* a, const NativeT* b, NativeT* c, int m, int n, int k, int lda, int ldb, int ldc,
-    int8_t* residues = nullptr, int prefix = 0) {
+    int8_t* residues = nullptr, int prefix = 0,
+    const rns8::detail::NativeNarrowTask* tasks = nullptr) {
 #if (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)) &&                      \
     __has_builtin(__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32)
   using fragment = int __attribute__((ext_vector_type(4)));
   using accumulator = int __attribute__((ext_vector_type(8)));
+  if constexpr (Grouped) {
+    const auto& task = tasks[blockIdx.z];
+    a = static_cast<const NativeT*>(task.a);
+    b = static_cast<const NativeT*>(task.b);
+    residues = task.c;
+  }
   const int lane = threadIdx.x;
   const int64_t tile_row = static_cast<int64_t>(blockIdx.y) * 16;
   const int64_t tile_col = static_cast<int64_t>(blockIdx.x) * 16;

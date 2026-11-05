@@ -681,8 +681,8 @@ extern "C" int rns8_hip_native_narrow_split_partials(const int64_t* a, const int
   const auto parts =
       (uint64_t(k) + rns8::detail::native_narrow_split_k - 1) / rns8::detail::native_narrow_split_k;
   const auto blocks = static_cast<unsigned>(uint64_t(m) * n * parts);
-  hipLaunchKernelGGL(rns8_native_narrow_split_partials_kernel, dim3(blocks), dim3(256), 0, nullptr,
-                     a, b, partials, m, n, k, lda, ldb);
+  hipLaunchKernelGGL((rns8_native_narrow_split_partials_kernel<false>), dim3(blocks), dim3(256), 0,
+                     nullptr, a, b, partials, m, n, k, lda, ldb);
   return static_cast<int>(hipGetLastError());
 }
 
@@ -691,9 +691,45 @@ extern "C" int rns8_hip_native_narrow_split_encode(const int64_t* partials, int8
   const auto blocks = static_cast<unsigned>((uint64_t(m) * n + 255) / 256);
   const int parts = int((uint64_t(k) + rns8::detail::native_narrow_split_k - 1) /
                         rns8::detail::native_narrow_split_k);
-  hipLaunchKernelGGL(rns8_native_narrow_split_encode_kernel, dim3(blocks), dim3(256), 0, nullptr,
-                     partials, residues, m, n, parts, prefix);
+  hipLaunchKernelGGL((rns8_native_narrow_split_encode_kernel<false>), dim3(blocks), dim3(256), 0,
+                     nullptr, partials, residues, m, n, parts, prefix);
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_native_narrow_group_stage(const rns8::detail::NativeNarrowTask* tasks,
+                                                  int count, int m, int n, int k, int prefix,
+                                                  uint32_t method, bool unsigned_inputs,
+                                                  bool merge) {
+  if (method == RNS8_NARROW_SPLIT_K_I64_FUSED_RNS) {
+    const int parts = int((uint64_t(k) + rns8::detail::native_narrow_split_k - 1) /
+                          rns8::detail::native_narrow_split_k);
+    if (merge)
+      hipLaunchKernelGGL((rns8_native_narrow_split_encode_kernel<true>),
+                         dim3((uint64_t(m) * n + 255) / 256, count), dim3(256), 0, nullptr, nullptr,
+                         nullptr, m, n, parts, prefix, tasks);
+    else
+      hipLaunchKernelGGL((rns8_native_narrow_split_partials_kernel<true>),
+                         dim3(uint64_t(m) * n * parts, count), dim3(256), 0, nullptr, nullptr,
+                         nullptr, nullptr, m, n, k, k, n, tasks);
+  } else if (merge)
+    return int(hipErrorInvalidValue);
+  else if (method == RNS8_NARROW_BYTE_WMMA_FUSED_RNS) {
+    const dim3 grid((uint64_t(n) + 15) / 16, (uint64_t(m) + 15) / 16, count);
+    if (unsigned_inputs)
+      hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<uint64_t, true, true>), grid, dim3(32), 0,
+                         nullptr, nullptr, nullptr, nullptr, m, n, k, k, n, n, nullptr, prefix,
+                         tasks);
+    else
+      hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<int64_t, true, true>), grid, dim3(32), 0,
+                         nullptr, nullptr, nullptr, nullptr, m, n, k, k, n, n, nullptr, prefix,
+                         tasks);
+  } else if (method == RNS8_NARROW_SCALAR_FUSED_RNS)
+    hipLaunchKernelGGL((rns8_native_i64_narrow_gemm_kernel<true, true>),
+                       dim3((uint64_t(m) * n + 255) / 256, count), dim3(256), 0, nullptr, nullptr,
+                       nullptr, nullptr, m, n, k, k, n, n, nullptr, prefix, tasks);
+  else
+    return int(hipErrorInvalidValue);
+  return int(hipGetLastError());
 }
 
 extern "C" int rns8_hip_native_i64_narrow_gemm(const int64_t* a, const int64_t* b, int64_t* c,

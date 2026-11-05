@@ -233,6 +233,8 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
   keep_first_error(workspace.adaptive_summary_owner.reset());
   keep_first_error(workspace.narrow_product_owner.reset());
   keep_first_error(workspace.narrow_scan_owner.reset());
+  keep_first_error(workspace.narrow_group_owner.reset());
+  workspace.narrow_group_tasks.clear();
   workspace.narrow_domains[0] = {};
   workspace.narrow_domains[1] = {};
   workspace.narrow_capability_observation = {};

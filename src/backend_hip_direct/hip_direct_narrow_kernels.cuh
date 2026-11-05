@@ -55,9 +55,17 @@ __global__ void rns8_native_domain_kernel(const uint64_t* source, int rows, int 
 
 // Each block owns one output and K slab. No atomics or output-sized partials
 // per residue plane: the native partials are merged once before RNS encoding.
-__global__ void rns8_native_narrow_split_partials_kernel(const int64_t* a, const int64_t* b,
-                                                         int64_t* partials, int m, int n, int k,
-                                                         int lda, int ldb) {
+template <bool Grouped = false>
+__global__ void
+rns8_native_narrow_split_partials_kernel(const int64_t* a, const int64_t* b, int64_t* partials,
+                                         int m, int n, int k, int lda, int ldb,
+                                         const rns8::detail::NativeNarrowTask* tasks = nullptr) {
+  if constexpr (Grouped) {
+    const auto& task = tasks[blockIdx.y];
+    a = static_cast<const int64_t*>(task.a);
+    b = static_cast<const int64_t*>(task.b);
+    partials = task.partials;
+  }
   __shared__ int64_t sums[256];
   const int64_t cells = int64_t(m) * n;
   const int64_t cell = int64_t(blockIdx.x) % cells;
@@ -79,8 +87,16 @@ __global__ void rns8_native_narrow_split_partials_kernel(const int64_t* a, const
     partials[int64_t(part) * cells + cell] = sums[0];
 }
 
-__global__ void rns8_native_narrow_split_encode_kernel(const int64_t* partials, int8_t* residues,
-                                                       int m, int n, int parts, int prefix) {
+template <bool Grouped = false>
+__global__ void
+rns8_native_narrow_split_encode_kernel(const int64_t* partials, int8_t* residues, int m, int n,
+                                       int parts, int prefix,
+                                       const rns8::detail::NativeNarrowTask* tasks = nullptr) {
+  if constexpr (Grouped) {
+    const auto& task = tasks[blockIdx.y];
+    partials = task.partials;
+    residues = task.c;
+  }
   const int64_t cell = int64_t(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t cells = int64_t(m) * n;
   if (cell >= cells)
@@ -93,10 +109,18 @@ __global__ void rns8_native_narrow_split_encode_kernel(const int64_t* partials, 
         rns8_center_i64_device(value, rns8_default_moduli_device[p]);
 }
 
-template <bool Residues = false>
-__global__ void rns8_native_i64_narrow_gemm_kernel(const int64_t* a, const int64_t* b, int64_t* c,
-                                                   int m, int n, int k, int lda, int ldb, int ldc,
-                                                   int8_t* residues = nullptr, int prefix = 0) {
+template <bool Residues = false, bool Grouped = false>
+__global__ void
+rns8_native_i64_narrow_gemm_kernel(const int64_t* a, const int64_t* b, int64_t* c, int m, int n,
+                                   int k, int lda, int ldb, int ldc, int8_t* residues = nullptr,
+                                   int prefix = 0,
+                                   const rns8::detail::NativeNarrowTask* tasks = nullptr) {
+  if constexpr (Grouped) {
+    const auto& task = tasks[blockIdx.y];
+    a = static_cast<const int64_t*>(task.a);
+    b = static_cast<const int64_t*>(task.b);
+    residues = task.c;
+  }
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (cell >= static_cast<int64_t>(m) * n)
     return;
