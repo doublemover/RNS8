@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import host_profile_native as native
+from test_execution_observation import capture as execution_capture
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -166,6 +167,65 @@ class NativePerf(unittest.TestCase):
                 native.main(["--input", str(self.data), "--pid", "41", "--output", str(output)]), 0
             )
         self.assertEqual(json.loads(output.read_text())["schema"], native.SCHEMA)
+
+    def test_capability_query_does_not_decode_and_keeps_unavailable_distinct(self):
+        selected = (ROOT / ".python-version").read_text().strip()
+        with (
+            patch.object(native.platform, "system", return_value="Linux"),
+            patch.object(native.platform, "python_version", return_value=selected),
+            patch.object(native.importlib, "import_module", return_value=self.binding()),
+        ):
+            self.assertEqual(native.capabilities()["state"], "available")
+            self.assertEqual(self.sessions, 0)
+        with (
+            patch.object(native.platform, "system", return_value="Linux"),
+            patch.object(native.platform, "python_version", return_value=selected),
+            patch.object(
+                native.importlib, "import_module", side_effect=ImportError("binding missing")
+            ),
+        ):
+            self.assertEqual(native.capabilities()["state"], "unavailable")
+        with (
+            patch.object(native.platform, "system", return_value="Windows"),
+            patch.object(native.importlib, "import_module", side_effect=AssertionError("import")),
+        ):
+            self.assertEqual(native.capabilities()["state"], "unsupported")
+
+    def test_native_benchmark_pid_binding_is_explicit_and_content_bound(self):
+        capture = execution_capture()
+        capture["process_id"] = 41
+        path = self.root / "benchmark.json"
+        path.write_text(json.dumps(capture))
+        output = self.root / "selected.json"
+        with patch.object(native, "decode", return_value=dict(schema=native.SCHEMA)) as decode:
+            self.assertEqual(
+                native.main(
+                    ["--input", str(self.data), "--capture", str(path), "--output", str(output)]
+                ),
+                0,
+            )
+        self.assertEqual(decode.call_args.args[1], 41)
+        report = json.loads(output.read_text())
+        self.assertEqual(report["profiled_capture"]["sha256"], native.file_digest(path))
+        capture["process_id"] = True
+        path.write_text(json.dumps(capture))
+        with (
+            patch.object(native, "decode", side_effect=AssertionError("decode")),
+            patch("builtins.print"),
+        ):
+            self.assertEqual(
+                native.main(
+                    [
+                        "--input",
+                        str(self.data),
+                        "--capture",
+                        str(path),
+                        "--output",
+                        str(self.root / "invalid.json"),
+                    ]
+                ),
+                1,
+            )
 
 
 if __name__ == "__main__":

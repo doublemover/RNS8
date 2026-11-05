@@ -76,6 +76,7 @@ TEST_CASE("native execution observations bind actual arguments and environment c
   CHECK(changed.at("after").at(fixture_key) == "after");
   using rns8::tools::environment_observation_detail::relevant;
   CHECK(relevant("ROCPROFILER_TOOL_CONFIG"));
+  CHECK(relevant("PERF_CONFIG"));
   CHECK(relevant("HIP_VISIBLE_DEVICES"));
   CHECK(relevant("LD_PRELOAD"));
   CHECK_FALSE(relevant("UNRELATED_AUTH_TOKEN"));

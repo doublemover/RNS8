@@ -597,6 +597,95 @@ class QualificationTests(unittest.TestCase):
             self.assertTrue(q.validate_result({}, result(timed_out=True)))
             self.assertTrue(q.validate_result({}, result(returncode=None)))
 
+    def test_later_stage_monitors_and_hashes_the_earlier_owned_artifact_tree(self):
+        scratch = q.ROOT / "temp/gpu-artifact-monitor-controls"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            out = Path(directory).resolve()
+            native = out / "native"
+            commands = [
+                dict(
+                    name="record",
+                    argv=["AUTHORED_RECORD_NEVER_RUN"],
+                    timeout_seconds=1,
+                    owned_artifact_directories=[str(native)],
+                    max_artifact_bytes=1024,
+                ),
+                dict(
+                    name="decode",
+                    argv=["AUTHORED_DECODE_NEVER_RUN"],
+                    timeout_seconds=1,
+                    monitor_artifact_directories=[str(native)],
+                    max_artifact_bytes=1024,
+                ),
+            ]
+            observed = []
+
+            def runner(command, **options):
+                observed.append(options)
+                (native / ("raw.data" if len(observed) == 1 else "decoded.json")).write_bytes(
+                    b"fixture"
+                )
+                return result(command=command, process_id=11)
+
+            self.assertEqual(
+                q.execute_plan(self.manifest(out, commands), out, {}, runner=runner), 0
+            )
+            self.assertEqual(observed[1]["artifact_roots"], [native])
+            self.assertEqual(observed[1]["max_artifact_bytes"], 1024)
+            rows = json.loads((out / "results.json").read_text())["results"]
+            self.assertIn(str(native / "raw.data"), rows[1]["artifacts"])
+            self.assertIn(str(native / "decoded.json"), rows[1]["artifacts"])
+
+    def test_unknown_duplicate_and_root_artifact_monitors_do_not_launch_the_stage(self):
+        scratch = q.ROOT / "temp/gpu-artifact-monitor-controls"
+        scratch.mkdir(parents=True, exist_ok=True)
+        for invalid in (
+            None,
+            "not-a-list",
+            [17],
+            ["unknown"],
+            ["ROOT"],
+            ["DUPLICATE", "DUPLICATE"],
+        ):
+            with tempfile.TemporaryDirectory(dir=scratch) as directory:
+                out = Path(directory).resolve()
+                native = out / "native"
+                monitors = (
+                    [str(out)]
+                    if invalid == ["ROOT"]
+                    else [str(native), str(native)]
+                    if invalid == ["DUPLICATE", "DUPLICATE"]
+                    else invalid
+                )
+                commands = [
+                    dict(
+                        name="record",
+                        argv=["AUTHORED_NEVER_RUN"],
+                        timeout_seconds=1,
+                        owned_artifact_directories=[str(native)],
+                        max_artifact_bytes=1024,
+                    ),
+                    dict(
+                        name="decode",
+                        argv=["AUTHORED_NEVER_RUN"],
+                        timeout_seconds=1,
+                        monitor_artifact_directories=monitors,
+                        max_artifact_bytes=1024,
+                    ),
+                ]
+                calls = []
+
+                def runner(command, retained_calls=calls, **options):
+                    retained_calls.append(command)
+                    return result(command=command, process_id=11)
+
+                with self.subTest(monitors=monitors):
+                    self.assertEqual(
+                        q.execute_plan(self.manifest(out, commands), out, {}, runner=runner), 1
+                    )
+                    self.assertEqual(len(calls), 1)
+
     def manifest(self, out, commands=None, **budgets):
         return {
             "identity_sha256": "fixture-identity",

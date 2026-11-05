@@ -89,6 +89,7 @@ class ExecutionObservations(unittest.TestCase):
             with self.assertRaises(ValueError):
                 execution_observation(value, required=True)
         self.assertTrue(relevant_environment_key("ROCPROFILER_TOOL_CONFIG"))
+        self.assertTrue(relevant_environment_key("PERF_CONFIG"))
         self.assertFalse(relevant_environment_key("UNRELATED_AUTH_TOKEN"))
         value = dict(
             execution_environment_witness=dict(

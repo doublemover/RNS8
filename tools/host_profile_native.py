@@ -7,11 +7,14 @@ import argparse
 import importlib
 import json
 from pathlib import Path
+import platform
 import sys
 from typing import Any
 
 from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest
+from execution_observation import execution_observation
+from json_evidence import load_evidence_json
 
 SCHEMA = "rns8_perf_native_samples_v1"
 PRODUCER_CONTRACT = "linux_perf_standalone_session_sample_api_v1"
@@ -21,6 +24,60 @@ PRODUCER_SOURCE = (
 MAX_SAMPLES = 100_000
 MAX_FRAMES = 128
 MAX_DECODED_BYTES = 64 * 1024**2
+
+
+def capabilities() -> dict:
+    result = dict(
+        schema="rns8_perf_native_capabilities_v1",
+        system=platform.system(),
+        machine=platform.machine(),
+        kernel=platform.release(),
+        cpu_model_observation=platform.processor() or None,
+        python_version=platform.python_version(),
+        python_cache_tag=sys.implementation.cache_tag,
+        producer_contract=PRODUCER_CONTRACT,
+        workload_executed=False,
+        sample_contract_qualified=False,
+        loss_counts_exposed=False,
+    )
+    if result["system"] != "Linux":
+        return dict(result, state="unsupported", reason="native Linux perf module required")
+    selected = (Path(__file__).resolve().parents[1] / ".python-version").read_text().strip()
+    if result["python_version"] != selected:
+        return dict(
+            result,
+            state="unsupported",
+            reason="selected interpreter version required for native module acquisition",
+        )
+    try:
+        module = importlib.import_module("perf")
+        if not callable(getattr(module, "session", None)) or not callable(
+            getattr(module, "data", None)
+        ):
+            return dict(
+                result, state="unsupported", reason="standalone session/data interface absent"
+            )
+        path = Path(module.__file__).resolve(strict=True)
+        return dict(
+            result, state="available", native_module=dict(path=str(path), sha256=file_digest(path))
+        )
+    except (ImportError, OSError, AttributeError, TypeError) as error:
+        return dict(result, state="unavailable", reason=str(error))
+
+
+def seal(result: dict, byte_limit: int) -> dict:
+    result.pop("identity_sha256", None)
+    result["identity_sha256"] = canonical_digest(result)
+    if (
+        len(
+            json.dumps(result, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode(
+                "utf-8"
+            )
+        )
+        > byte_limit
+    ):
+        raise ValueError("native perf complete document exceeds decoded-byte budget")
+    return result
 
 
 def integer(value: Any, name: str, minimum: int = 0) -> int:
@@ -190,36 +247,59 @@ def decode(
         production_latency=False,
         promotion_allowed=False,
     )
-    result["identity_sha256"] = canonical_digest(result)
-    if (
-        len(
-            json.dumps(result, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode(
-                "utf-8"
-            )
-        )
-        > max_decoded_bytes
-    ):
-        raise ValueError("native perf complete document exceeds decoded-byte budget")
-    return result
+    return seal(result, max_decoded_bytes)
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", required=True, type=Path)
-    parser.add_argument("--pid", required=True, type=int)
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--capabilities", action="store_true")
+    parser.add_argument("--input", type=Path)
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--pid", type=int)
+    source.add_argument(
+        "--capture",
+        type=Path,
+        help="Use the actual PID and native argv witness from benchmark JSON",
+    )
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--max-samples", type=int, default=MAX_SAMPLES)
     parser.add_argument("--max-decoded-bytes", type=int, default=MAX_DECODED_BYTES)
     args = parser.parse_args(argv)
     try:
+        if args.capabilities:
+            if any(
+                value is not None for value in (args.input, args.pid, args.capture, args.output)
+            ):
+                raise ValueError("capability query does not accept decode inputs/outputs")
+            value = capabilities()
+            print(json.dumps(value, indent=2))
+            return 0 if value["state"] == "available" else 1
+        if args.input is None or args.output is None or (args.pid is None and args.capture is None):
+            raise ValueError("decode requires input, output and either PID or benchmark capture")
         if args.output.exists():
             raise ValueError("native profile output must be absent; overlays are forbidden")
+        capture = None
+        if args.capture is not None:
+            if not 1 <= args.capture.stat().st_size <= MAX_DECODED_BYTES:
+                raise ValueError("benchmark capture exceeds decode budget")
+            digest = file_digest(args.capture)
+            captured = load_evidence_json(args.capture)
+            if not isinstance(captured, dict):
+                raise ValueError("native PID binding requires a benchmark capture object")
+            execution_observation(captured, required=True)
+            args.pid = integer(captured.get("process_id"), "captured benchmark PID", 1)
+            capture = dict(path=str(args.capture.resolve()), sha256=digest)
         result = decode(
             args.input,
             args.pid,
             max_samples=args.max_samples,
             max_decoded_bytes=args.max_decoded_bytes,
         )
+        if capture is not None:
+            if file_digest(args.capture) != capture["sha256"]:
+                raise ValueError("benchmark PID binding changed during decode")
+            result["profiled_capture"] = capture
+            seal(result, args.max_decoded_bytes)
         with args.output.open("x", encoding="utf-8") as output:
             output.write(
                 json.dumps(result, separators=(",", ":"), ensure_ascii=True, allow_nan=False)

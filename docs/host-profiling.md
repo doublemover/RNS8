@@ -8,6 +8,39 @@ progress under [#105](https://github.com/doublemover/RNS8/issues/105).
 
 ## Native Linux CPU sample decoding
 
+The plan-only acquisition adapter reuses the existing bounded session runner
+and shared production-input admission. It requires a completed hook-disabled
+production observation, stable static executable identity and matching native
+ELF64 benchmark/perf/Python tools. It queries perf version, the selected
+interpreter's standalone native-module capability and compiled benchmark
+identity before process-scoped sampling. A permission/capability failure never
+lowers system security or enables an automatic fallback.
+
+```sh
+python tools/host_profile_session.py --production temp/production.json --out temp/host-profile/session
+```
+
+Dependency discovery finds perf on PATH. An explicit `--perf` can select the
+actual native executable when the distribution exposes a launcher script;
+unsealed launcher scripts are rejected. Inspect the emitted commands, then
+explicitly add `--execute` to start acquisition. The maintained recipe requests
+software `cpu-clock:u` samples at 99 Hz, bounded DWARF callchains,
+`CLOCK_MONOTONIC` and a 64 MiB record limit. Actual CPU exposure comes from native sample periods;
+requested frequency is not proof of achieved sample rate. Record/runtime and
+decoded-artifact limits remain independent.
+
+The adapter disables persistent build-ID cache writes and debuginfod downloads,
+isolates perf configuration, and retains partial data/logs on failure. The
+benchmark's native argv/environment witness includes `PERF_` variables. Artifact
+monitoring continues over the previously created capture directory during
+decode; it does not create or overlay a second recording. Finalization binds
+the benchmark's observed PID separately from perf's launcher PID, verifies
+numerical output, artifact/module identities, physical GPU and matching
+work/proof/output/reuse contract, and labels the bound capture externally
+instrumented. Its clock is an explicit acquisition request, with header/cross-clock
+and selected-operation joins still unbound. These source controls are authored
+and unexecuted; no new acquisition or attribution result is claimed.
+
 The explicit decoder consumes an existing `perf.data` through Linux perf's
 [standalone Python interface](https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-script-python.txt),
 using `perf.session` and native sample objects. Upstream has removed the older

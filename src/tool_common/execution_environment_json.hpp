@@ -19,8 +19,8 @@ extern char** environ;
 namespace rns8::tools {
 namespace environment_observation_detail {
 inline bool relevant(std::string_view key) noexcept {
-  constexpr std::array<std::string_view, 8> prefixes{"RNS8_", "OMP_",    "HIP_", "ROCR_",
-                                                     "ROCP_", "ROCPROF", "HSA_", "KMP_"};
+  constexpr std::string_view prefixes[]{"RNS8_",   "OMP_", "HIP_", "ROCR_", "ROCP_",
+                                        "ROCPROF", "HSA_", "KMP_", "PERF_"};
   const auto matches = [&](std::string_view name, bool exact) {
     if (key.size() < name.size() || (exact && key.size() != name.size()))
       return false;

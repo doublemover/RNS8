@@ -669,7 +669,10 @@ def artifact_records(item: dict, out: Path) -> dict[str, str]:
         raise ValueError("session evidence output inventory must contain explicit paths")
     paths += [ROOT / path for path in additional]
     owned_paths = []
-    for directory in item.get("owned_artifact_directories", []):
+    for directory in (
+        *item.get("owned_artifact_directories", []),
+        *item.get("monitor_artifact_directories", []),
+    ):
         owned_paths += owned_artifact_files(Path(directory), out)
     if (
         owned_paths
@@ -868,6 +871,37 @@ def execute_plan(
                         "acquisition requires a fresh session-owned artifact directory"
                     )
                 directory.mkdir(parents=True, exist_ok=False)
+            monitors = item.get("monitor_artifact_directories", [])
+            if (
+                not isinstance(monitors, list)
+                or any(not isinstance(name, str) for name in monitors)
+                or len(set(monitors)) != len(monitors)
+            ):
+                raise ValueError("artifact monitor roots need unique explicit paths")
+            earlier_directories = (
+                {
+                    name
+                    for command in manifest["commands"][: index - 1]
+                    for name in command.get("owned_artifact_directories", [])
+                }
+                if monitors
+                else set()
+            )
+            for name in monitors:
+                directory = Path(name).absolute()
+                if (
+                    name not in earlier_directories
+                    or name in directories
+                    or not directory.is_relative_to(out.resolve())
+                    or directory == out.resolve()
+                    or directory.resolve() != directory
+                    or not directory.is_dir()
+                    or directory.is_symlink()
+                    or directory.is_junction()
+                ):
+                    raise ValueError(
+                        "artifact monitoring requires an earlier session-owned directory"
+                    )
             outputs = item.get("evidence_outputs", [])
             if (
                 not isinstance(outputs, list)
@@ -888,9 +922,14 @@ def execute_plan(
                 if "capture" in item:
                     capture_request = request_identity(item["argv"], environ=child)
             capture_options = {}
-            if directories:
+            if directories or monitors:
+                if (
+                    type(item.get("max_artifact_bytes")) is not int
+                    or item["max_artifact_bytes"] < 1
+                ):
+                    raise ValueError("owned/monitored artifacts require a positive byte budget")
                 capture_options.update(
-                    artifact_roots=[Path(name) for name in directories],
+                    artifact_roots=[Path(name) for name in (*directories, *monitors)],
                     max_artifact_bytes=item["max_artifact_bytes"],
                 )
             if "max_output_bytes" in item:
