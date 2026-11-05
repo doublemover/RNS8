@@ -174,7 +174,7 @@ TEST_CASE("failed synchronous work retains private owner counters until one succ
   const rns8_synchronous_test_hooks hooks{&state,nullptr,&SynchronousDispatchFixture::drain};
   ctx->synchronous_test_hooks=&hooks;
   uint64_t first=0,second=0;size_t token=0;
-  rns8::detail::hip_direct_device_buffer first_buffer,second_buffer,extra_buffer;
+  rns8::detail::hip_direct_device_buffer first_buffer,second_buffer,third_buffer,fourth_buffer,extra_buffer;
   REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,token)==RNS8_SUCCESS);
   SynchronousLease lease(*ctx,token);
   REQUIRE(add_synchronous_owner_hold(*ctx,token,first)==RNS8_SUCCESS);
@@ -183,14 +183,18 @@ TEST_CASE("failed synchronous work retains private owner counters until one succ
   REQUIRE(lease.hold_buffer(first_buffer)==RNS8_SUCCESS);
   REQUIRE(lease.hold_buffer(first_buffer)==RNS8_SUCCESS);
   REQUIRE(lease.hold_buffer(second_buffer)==RNS8_SUCCESS);
+  REQUIRE(lease.hold_buffer(third_buffer)==RNS8_SUCCESS);
+  REQUIRE(lease.hold_buffer(fourth_buffer)==RNS8_SUCCESS);
   CHECK(lease.hold_buffer(extra_buffer)==RNS8_INTERNAL_ERROR);
   CHECK(first==1);CHECK(second==1);
   CHECK(lease.finish(RNS8_BACKEND_FAILURE)==RNS8_BACKEND_FAILURE);
   CHECK(first==1);CHECK(second==1);CHECK(ctx->hip_failure_poisoned);
   CHECK(first_buffer.pending());CHECK(second_buffer.pending());CHECK_FALSE(extra_buffer.pending());
+  CHECK(third_buffer.pending());CHECK(fourth_buffer.pending());
   state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
   CHECK(first==0);CHECK(second==0);CHECK(ctx->failed_work_leases.empty());
   CHECK_FALSE(first_buffer.pending());CHECK_FALSE(second_buffer.pending());
+  CHECK_FALSE(third_buffer.pending());CHECK_FALSE(fourth_buffer.pending());
   REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);CHECK(first==0);CHECK(second==0);
   ctx->synchronous_test_hooks=nullptr;REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
@@ -414,3 +418,4 @@ TEST_CASE("public prepack construction retains unpublished device and native sta
 }
 
 #include "test_api_cache_dispatch_cases.inc"
+#include "test_api_ragged_dispatch_cases.inc"

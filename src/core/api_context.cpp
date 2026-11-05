@@ -121,11 +121,15 @@ bool finish_synchronous_lease(rns8_context& ctx,size_t token,rns8_status status,
 }
 rns8_status rns8_drain_failed_work(rns8_context* ctx) {
   if(!ctx)return RNS8_INVALID_ARGUMENT;
-  if(ctx->device_id<0 && !ctx->synchronous_test_hooks)return ctx->failed_work_leases.empty()?drain_failed_prepack_cleanup(*ctx):RNS8_UNSUPPORTED_BACKEND;
+  auto cleanup=[&]() noexcept {
+    const auto status=drain_failed_prepack_cleanup(*ctx);
+    return status==RNS8_SUCCESS?drain_failed_ragged_cleanup(*ctx):status;
+  };
+  if(ctx->device_id<0 && !ctx->synchronous_test_hooks)return ctx->failed_work_leases.empty()?cleanup():RNS8_UNSUPPORTED_BACKEND;
   const auto status=drain_synchronous_context(*ctx);if(status!=RNS8_SUCCESS)return status;
   for(size_t i=0;i<ctx->failed_work_leases.size();++i)finish_synchronous_lease(*ctx,i,RNS8_SUCCESS,false);
   // A successful drain releases memory, not the failed context's execution authority.
-  return drain_failed_prepack_cleanup(*ctx);
+  return cleanup();
 }
 
 rns8_status rns8_create_context(int device_id, const rns8_context_options* options, rns8_context** out) {

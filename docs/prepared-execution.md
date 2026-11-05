@@ -507,6 +507,16 @@ Authored controls cover initial snapshot, restore, region recompute and snapshot
 publication for bounded and finite incremental calls, plus prepacked dispatch;
 only CPU/HIP-enabled syntax checks have run for this slice.
 
+Ragged discovery, compaction and materialization also use these leases. Their
+four typed buffers, source reader, private owner counter and output writer remain
+reserved through proof publication or a successful failed-work drain. The fixed
+buffer-hold capacity is four; registering a duplicate is idempotent and overflow
+rejects. Unpublished ragged owners use the existing intrusive context cleanup
+list, now drained after shared completion records release their resources.
+This replaces the separate pending/output reservation bookkeeping and adds no
+success-path wait. Host and optional HIP failure controls are authored; their
+runtime execution remains deferred.
+
 
 ## Prepared exact conversion variant
 
