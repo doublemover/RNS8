@@ -10,10 +10,13 @@ from execution_observation import validate_execution_request
 from measurement_contract import profile_ranges_instrumented
 from reference_verdict import numerical_observation
 from target_qualification import EvidenceStore
+from build_instrumentation import instrumentation_reasons
 
 
 def production_profile_input(value: dict, store: EvidenceStore) -> Path:
     validate_capture(value)
+    if instrumentation_reasons(value.get("build_manifest")):
+        raise ValueError("instrumented build cannot supply the production profile baseline")
     request = value.get("request_identity")
     _, error = request_environment_identity(request)
     if error:

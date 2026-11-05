@@ -15,9 +15,12 @@ from measurement_contract import (
 )
 from measurement_contract import profile_ranges_instrumented
 from execution_observation import execution_observation_blockers
+from build_instrumentation import instrumentation_reasons
 
 
 def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
+    if instrumentation_reasons(capture.get("build_manifest")):
+        return ["instrumented_build_time_not_production_evidence"]
     execution_blockers = execution_observation_blockers(capture)
     if execution_blockers:
         return execution_blockers

@@ -1,6 +1,7 @@
 """Keep distinct benchmark callback boundaries out of matched evidence cohorts."""
 
 import math
+from build_instrumentation import instrumentation_reasons
 
 CURRENT = "typed_observation_no_phase_clocks_in_sustained_v2"
 HISTORICAL = "historical_json_in_interval"
@@ -23,6 +24,9 @@ def observation_boundary(capture):
 
 
 def validate_completed_call_samples(capture, repeats, *, resident_output=False):
+    if instrumentation_reasons(capture.get("build_manifest")):
+        raise ValueError("instrumented build cannot supply production call timings")
+
     def positive(value, *, zero=False):
         return (
             type(value) in (int, float)

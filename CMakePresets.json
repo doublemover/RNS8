@@ -39,25 +39,25 @@
     {
       "name": "cpu-asan-ubsan-debug",
       "displayName": "CPU + native packages + ASan/UBSan (Debug)",
-      "description": "Optional CPU-only non-Windows sanitizer preset for Clang/GCC-like toolchains using native package discovery only.",
+      "description": "Separate native Linux Clang CPU ASan/UBSan lane, nonrecovering checks and disposable detector controls; OpenMP disabled initially.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/cpu-asan-ubsan-debug",
       "condition": {
-        "type": "notEquals",
+        "type": "equals",
         "lhs": "${hostSystemName}",
-        "rhs": "Windows"
+        "rhs": "Linux"
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
-        "CMAKE_CXX_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
-        "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
-        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
         "RNS8_ENABLE_HIP": "OFF",
         "RNS8_ENABLE_HIPBLASLT": "OFF",
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
-        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "RNS8_HOST_SANITIZER": "address-undefined",
+        "RNS8_BUILD_SANITIZER_CONTROLS": "ON",
+        "RNS8_ENABLE_CPU_PARALLEL": "OFF"
       }
     },
     {
@@ -84,7 +84,8 @@
         "RNS8_ENABLE_HIPBLASLT": "OFF",
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
-        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "RNS8_BUILD_SANITIZER_CONTROLS": "ON"
       }
     },
     {
@@ -380,6 +381,36 @@
         "RNS8_BUILD_BENCHMARKS": "ON",
         "RNS8_BUILD_EXAMPLES": "ON"
       }
+    },
+    {
+      "name": "cpu-asan-ubsan-release",
+      "displayName": "CPU Linux Clang ASan/UBSan optimized",
+      "inherits": "cpu-asan-ubsan-debug",
+      "binaryDir": "${sourceDir}/build/cpu-asan-ubsan-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "cpu-tsan-release",
+      "displayName": "CPU Linux Clang TSan; OpenMP OFF",
+      "inherits": "cpu-asan-ubsan-debug",
+      "binaryDir": "${sourceDir}/build/cpu-tsan-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "RNS8_HOST_SANITIZER": "thread"
+      }
+    },
+    {
+      "name": "cpu-coverage-debug",
+      "displayName": "CPU Linux Clang source branch coverage",
+      "inherits": "cpu-asan-ubsan-debug",
+      "binaryDir": "${sourceDir}/build/cpu-coverage-debug",
+      "cacheVariables": {
+        "RNS8_HOST_SANITIZER": "none",
+        "RNS8_BUILD_SANITIZER_CONTROLS": "OFF",
+        "RNS8_ENABLE_HOST_COVERAGE": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -474,6 +505,18 @@
     {
       "name": "linux-cpu-release",
       "configurePreset": "linux-cpu-release"
+    },
+    {
+      "name": "cpu-asan-ubsan-release",
+      "configurePreset": "cpu-asan-ubsan-release"
+    },
+    {
+      "name": "cpu-tsan-release",
+      "configurePreset": "cpu-tsan-release"
+    },
+    {
+      "name": "cpu-coverage-debug",
+      "configurePreset": "cpu-coverage-debug"
     }
   ],
   "testPresets": [
@@ -496,6 +539,11 @@
       "configurePreset": "cpu-asan-ubsan-debug",
       "output": {
         "outputOnFailure": true
+      },
+      "environment": {
+        "ASAN_OPTIONS": "halt_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1",
+        "CTEST_NO_TESTS_ACTION": "error"
       }
     },
     {
@@ -622,6 +670,55 @@
       "configurePreset": "linux-cpu-release",
       "output": {
         "outputOnFailure": true
+      }
+    },
+    {
+      "name": "cpu-asan-ubsan-release",
+      "configurePreset": "cpu-asan-ubsan-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      },
+      "environment": {
+        "CTEST_NO_TESTS_ACTION": "error",
+        "ASAN_OPTIONS": "halt_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    {
+      "name": "cpu-tsan-release",
+      "configurePreset": "cpu-tsan-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      },
+      "environment": {
+        "CTEST_NO_TESTS_ACTION": "error",
+        "TSAN_OPTIONS": "halt_on_error=1"
+      }
+    },
+    {
+      "name": "cpu-coverage-debug",
+      "configurePreset": "cpu-coverage-debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      },
+      "environment": {
+        "CTEST_NO_TESTS_ACTION": "error",
+        "LLVM_PROFILE_FILE": "${sourceDir}/build/cpu-coverage-debug/profiles/%m-%p.profraw"
       }
     }
   ]

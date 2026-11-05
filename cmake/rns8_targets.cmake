@@ -1,6 +1,12 @@
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rns8_distributed_transports.cmake)
 
 function(rns8_configure_library target_name)
+  if(RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS)
+    # The build directory already instruments all first-party objects. Carry
+    # the matching detector/runtime into installed consumer source and links.
+    target_compile_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS})
+    target_link_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_LINK_FLAGS})
+  endif()
   if(RNS8_ENABLE_ROCTX)
     target_include_directories(${target_name} PRIVATE "${RNS8_ROCTX_INCLUDE_DIR}")
     target_link_libraries(${target_name} PRIVATE ${CMAKE_DL_LIBS})
@@ -94,6 +100,23 @@ add_library(rns8::rns8_static ALIAS rns8_static)
 rns8_configure_library(rns8_static)
 target_compile_definitions(rns8_static PUBLIC RNS8_STATIC)
 set_target_properties(rns8_static PROPERTIES OUTPUT_NAME rns8_static)
+
+if(RNS8_BUILD_SANITIZER_CONTROLS)
+  find_package(Threads REQUIRED)
+  add_executable(rns8-host-sanitizer-control tests/controls/host_sanitizer_control.cpp)
+  target_include_directories(rns8-host-sanitizer-control PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(rns8-host-sanitizer-control PRIVATE rns8_static Threads::Threads)
+  if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+    set(_rns8_control_lane "windows-address")
+  else()
+    set(_rns8_control_lane "${RNS8_HOST_SANITIZER}")
+  endif()
+  target_compile_definitions(rns8-host-sanitizer-control PRIVATE "RNS8_HOST_CONTROL_LANE=\"${_rns8_control_lane}\"")
+  rns8_bind_manifest(rns8-host-sanitizer-control)
+  rns8_copy_windows_clang_asan_runtime(rns8-host-sanitizer-control)
+  # Deliberately bad modes belong to the bounded detector driver, never ordinary
+  # passing CTest counts. The safe mode is also classified by that driver.
+endif()
 
 if(RNS8_BUILD_TOOLS)
   add_executable(rns8-inspect tools/rns8_inspect.cpp)

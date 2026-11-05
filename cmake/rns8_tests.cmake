@@ -102,6 +102,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(rocm_sdk_init_self_test PROPERTIES LABELS "tools;dependencies;sdk")
   add_test(NAME locality_schedule_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_locality_schedule.py")
   add_test(NAME calibration_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_calibration_manifest.py")
+  add_test(NAME build_instrumentation_admission_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_build_instrumentation.py")
   add_test(NAME narrow_public_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_narrow_public_calibration.py")
   add_test(NAME narrow_group_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_narrow_group_calibration.py")
   set_tests_properties(narrow_group_collector_self_test PROPERTIES LABELS "tools;calibration;narrow;group")
@@ -1155,6 +1156,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_generated_reducers.cpp
     tests/unit/test_generated_encodings.cpp
     tests/unit/test_api.cpp
+    tests/unit/test_host_concurrency.cpp
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
@@ -1208,6 +1210,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     DEPENDS tools/generate_encoding_test_fixtures.py tools/encoding_catalogue.py tools/arithmetic_certificate.py
     VERBATIM)
   add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}" "${_rns8_encoding_header}")
+  find_package(Threads REQUIRED)
+  target_link_libraries(rns8_tests PRIVATE Threads::Threads)
   set(RNS8_DLPACK_INCLUDE_DIR "" CACHE PATH "Optional official DLPack1.2 include directory for interoperability tests")
   if(RNS8_DLPACK_INCLUDE_DIR)
     target_sources(rns8_tests PRIVATE tests/unit/test_dlpack.cpp)

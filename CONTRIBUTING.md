@@ -194,7 +194,7 @@ unrelated CMake build or GPU campaign.
 
 ## Sanitizers
 
-Linux Clang/GCC CPU hardening uses:
+The native Linux Clang CPU hardening preset uses:
 
 ```sh
 cmake --preset cpu-asan-ubsan-debug
@@ -207,6 +207,12 @@ Windows LLVM CPU hardening uses `windows-clang-asan-debug`, with
 `windows-clang-asan` build/test preset. It links the static runtime and enables
 fuzzers. The [dated local record](docs/local-all-features-20261023.md) scopes the
 executed sanitizer evidence; a preset is an available configuration.
+
+The [host instrumentation source workflow](docs/host-instrumentation.md)
+describes the separate Linux ASan/UBSan, TSan and branch-coverage presets,
+disposable detector controls, legal concurrency corpus and production-timing
+exclusion. Detector drivers, reports and CI acceptance remain source work;
+none of these newer lanes has executed during the frontload pass.
 
 The [fuzzing contract](docs/fuzzing.md) describes the separate instrumented
 library, versioned exact-arithmetic input format and ignored corpus expansion.

@@ -223,6 +223,12 @@ class ProfilerSession(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "library is absent"):
             self.plan()
 
+    def test_instrumented_library_build_is_not_a_production_profile_baseline(self):
+        self.fixture.capture["build_manifest"]["configuration"] += "\nhost_sanitizer=thread\n"
+        write(self.fixture.capture_path, self.fixture.capture)
+        with self.assertRaisesRegex(ValueError, "instrumented build"):
+            self.plan()
+
 
 if __name__ == "__main__":
     unittest.main()

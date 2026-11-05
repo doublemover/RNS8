@@ -35,6 +35,7 @@ SOURCE_INPUTS = (
     "tools/host_profile_session.py",
     "tools/host_profile_native.py",
     "tools/profiler_contract.py",
+    "tools/build_instrumentation.py",
     "tools/execution_environment_contract.py",
     "tools/execution_observation.py",
     "tools/gpu_qualification.py",
