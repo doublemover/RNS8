@@ -62,6 +62,7 @@ IDENTITY_KEYS = (
     "declared_memory_budget_bytes",
     "aggregate_memory_envelope_bytes",
     "gram_batch",
+    "gram_reference_budget",
     "gram_prepared_owner_cohort",
     "gram_ablation_cohort",
     "gram_five_product_cohort",
@@ -90,6 +91,10 @@ def validate_workload_extent(report):
     large = (
         report.get("workload") == "integer_gram" and report.get("size") == "large" and bool(batch)
     )
+    demand(
+        large or "gram_reference_budget" not in report,
+        "reference budget requires a large Gram batch",
+    )
     limits = (2048, 2048, 65537) if large else (512, 512, 512)
     demand(
         all(
@@ -109,8 +114,8 @@ def validate_workload_extent(report):
             type(products) is int
             and 1 <= products <= 256
             and report["m"] == report["n"]
-            and report["m"] * report["n"] * report["k"] * products <= 134217728,
-            "extended Gram shape exceeds bounded reference work",
+            and valid_gram_reference_budget(report, products),
+            "extended Gram shape exceeds its explicit reference work budget",
         )
     return large
 
@@ -427,6 +432,74 @@ def exact_value(actual, expected):
     return actual == expected
 
 
+def valid_gram_reference_budget(report, products):
+    work = report["m"] * report["n"] * report["k"]
+    if "gram_reference_budget" not in report:
+        return work * products <= 134217728
+    budget = report["gram_reference_budget"]
+    if type(budget) is not dict:
+        return False
+    maximum = budget.get("max_products_per_generation")
+    return (
+        report.get("size") == "large"
+        and type(maximum) is int
+        and 1 <= maximum <= 2048 * 2048 * 65537
+        and work <= maximum
+        and exact_value(
+            budget,
+            {
+                "version": 1,
+                "max_products_per_generation": maximum,
+                "products_per_generation": work,
+                "reference_generations": 2,
+                "total_reference_products": 2 * work,
+                "repeat_products_reuse_complete_reference": True,
+            },
+        )
+    )
+
+
+def requested_reference_budget(arguments):
+    key = "--reference-max-products"
+    if key not in arguments:
+        return None
+    size_index = arguments.index("--size") if "--size" in arguments else -1
+    demand(
+        arguments.count("--size") == 1
+        and size_index + 1 < len(arguments)
+        and arguments[size_index + 1] == "large",
+        "reference work budget requires --size large",
+    )
+    demand(
+        arguments.count(key) == 1 and bool(requested_gram_batch(arguments)),
+        "reference budget requires one Gram batch",
+    )
+    index = arguments.index(key)
+    demand(
+        index + 1 < len(arguments) and bool(re.fullmatch(r"[0-9]+", arguments[index + 1])),
+        "invalid reference work budget",
+    )
+    value = int(arguments[index + 1])
+    demand(1 <= value <= 2048 * 2048 * 65537, "reference work budget exceeds hard shape limit")
+    return value
+
+
+def validate_requested_reference_budget(report, requested):
+    demand(type(report) is dict, "workload capture must be an object")
+    budget = report.get("gram_reference_budget")
+    if budget is not None:
+        demand(
+            type(budget) is dict
+            and exact_value(
+                budget.get("max_products_per_generation"),
+                134217728 if requested is None else requested,
+            ),
+            "reference work budget differs from the requested limit",
+        )
+    else:
+        demand(requested is None, "requested reference budget is absent from capture")
+
+
 def requested_gram_batch(arguments: list[str]) -> dict:
     controls = {}
     for key in ("--gram-reuse", "--gram-export"):
@@ -739,7 +812,7 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
         "invalid Gram preparation/materialization scope",
     )
     demand(
-        report["m"] * report["n"] * report["k"] * products <= 134217728,
+        valid_gram_reference_budget(report, products),
         "Gram batch work limit exceeded",
     )
     dense_products = report["m"] * report["n"] * report["k"] * products
@@ -1752,6 +1825,7 @@ def collect(
     backend, device = request_identity(arguments)
     gram_request = requested_gram_batch(arguments)
     five_request = requested_five_gram(arguments)
+    reference_request = requested_reference_budget(arguments)
     digest = sha(executable)
     tools = {
         name: sha(Path(__file__).with_name(name))
@@ -1816,6 +1890,7 @@ def collect(
                 f"process returned {result.returncode}; unsupported is retained without fallback",
             )
             report = json.loads(result.stdout)
+            validate_requested_reference_budget(report, reference_request)
             if case_identity is not None:
                 demand(
                     type(report.get("optional_reference_cohort")) is int
@@ -2009,6 +2084,7 @@ def load_optional_case(path: Path, case_id: str, executable: Path) -> tuple[list
             "--sustained-ms",
             "--memory-mib",
             "--baseline-max-products",
+            "--reference-max-products",
             "--gram-reuse",
             "--gram-export",
         }

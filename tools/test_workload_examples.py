@@ -437,6 +437,79 @@ class WorkloadExtentAdmission(unittest.TestCase):
                             with self.assertRaises(ValueError):
                                 collector.validate_workload_extent(report)
 
+    def test_explicit_reference_budget_admits_large_shapes_independent_of_gpu_reuse(self):
+        for n in (32, 128, 512, 1024, 2048):
+            for k in (32, 256, 4096, 65535, 65536, 65537):
+                work = n * n * k
+                for reuse in (1, 2, 8, 32, 256):
+                    report = dict(
+                        workload="integer_gram",
+                        size="large",
+                        m=n,
+                        n=n,
+                        k=k,
+                        gram_batch=dict(products_per_batch=reuse),
+                        declared_memory_budget_bytes=16384 * 1024 * 1024,
+                        gram_reference_budget=dict(
+                            version=1,
+                            max_products_per_generation=work,
+                            products_per_generation=work,
+                            reference_generations=2,
+                            total_reference_products=2 * work,
+                            repeat_products_reuse_complete_reference=True,
+                        ),
+                    )
+                    with self.subTest(n=n, k=k, reuse=reuse):
+                        self.assertTrue(collector.validate_workload_extent(report))
+                        collector.validate_requested_reference_budget(report, work)
+                        for key, value in (
+                            ("version", True),
+                            ("products_per_generation", work - 1),
+                            ("reference_generations", 1),
+                            ("total_reference_products", work),
+                            ("repeat_products_reuse_complete_reference", 1),
+                        ):
+                            changed = copy.deepcopy(report)
+                            changed["gram_reference_budget"][key] = value
+                            with self.assertRaises(ValueError):
+                                collector.validate_workload_extent(changed)
+                        report["gram_reference_budget"]["max_products_per_generation"] -= 1
+                        with self.assertRaises(ValueError):
+                            collector.validate_workload_extent(report)
+
+    def test_reference_budget_scope_type_and_request_tampering(self):
+        arguments = [
+            "--size",
+            "large",
+            "--gram",
+            "--gram-reuse",
+            "32",
+            "--reference-max-products",
+            "4294967296",
+        ]
+        self.assertEqual(collector.requested_reference_budget(arguments), 4294967296)
+        self.assertIsNone(collector.requested_reference_budget(["--gram", "--gram-reuse", "32"]))
+        for args in (
+            ["--reference-max-products", "12"],
+            arguments[:-1],
+            arguments[:-1] + ["true"],
+            arguments[:-1] + ["0"],
+            arguments[:-1] + [str(2048 * 2048 * 65537 + 1)],
+            arguments + ["--reference-max-products", "12"],
+        ):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                collector.requested_reference_budget(args)
+        for budget in (
+            None,
+            True,
+            {},
+            dict(max_products_per_generation=True),
+            dict(max_products_per_generation=12),
+        ):
+            report = dict(gram_reference_budget=budget)
+            with self.subTest(budget=budget), self.assertRaises(ValueError):
+                collector.validate_requested_reference_budget(report, 4294967296)
+
     def test_extent_scope_overflow_types_and_budget_are_rejected_before_recipe_work(self):
         base = dict(
             workload="integer_gram",

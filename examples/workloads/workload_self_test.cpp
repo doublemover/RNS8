@@ -24,9 +24,24 @@ int main() {
           } catch (const std::invalid_argument&) {
             admitted = false;
           }
-          require(admitted == (uint64_t(order) * order * k * reuse <= 134217728) &&
+          require(admitted == (uint64_t(order) * order * k <= 134217728) &&
                       candidate.memory->reserved == 0,
                   "Gram extent admission changed the work bound or allocated storage");
+          candidate.reference_max_products = uint64_t(order) * order * k;
+          candidate.supplied.insert("--reference-max-products");
+          validate_workload_extent(candidate);
+          require(gram_reference_budget(candidate)["total_reference_products"] ==
+                          2 * candidate.reference_max_products &&
+                      candidate.memory->reserved == 0,
+                  "Gram explicit oracle budget counted repeated products or allocated storage");
+          --candidate.reference_max_products;
+          bool too_small_rejected = false;
+          try {
+            validate_workload_extent(candidate);
+          } catch (const std::invalid_argument&) {
+            too_small_rejected = true;
+          }
+          require(too_small_rejected, "Gram admitted a reference larger than its explicit budget");
         }
     int64_t value = 0;
     require(!checked_product(INT64_MIN, -1, value), "min*-1 was not rejected");

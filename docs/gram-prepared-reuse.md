@@ -40,26 +40,38 @@ Both controls require `--gram`; other workload families reject them.
 Explicit `--size large --gram --gram-reuse R` batches admit output orders up to
 2048 and K up to65537, including65535/65536/65537 boundaries. Their declared
 memory budget may be up to16384MiB; the ordinary workload limit remains4096MiB.
-All batches retain the134,217,728 mathematical-product cap (`N*N*K*R`) and
-pre-allocation aggregate memory admission. The larger declaration pays for
+The default independent-reference cap is134,217,728 mathematical products
+per source generation (`N*N*K`). Repeated products reuse the complete reference;
+they do not multiply reference construction work. For larger explicit cohorts,
+`--reference-max-products` raises that cap up to the checked shape maximum
+274,882,101,248. Both original and changed inputs still receive a full independent
+Boost reference and collector replay, and every exported output is compared outside
+production timing. Reports bind this budget and both generations separately from
+GPU work; the collector rejects an unsolicited larger budget before replay.
+This opt-in can make reference construction and replay expensive. It does not
+skip exact verification or raise pre-allocation aggregate memory admission.
+The larger memory declaration pays for
 simultaneously retained controls and conservative host/reference allowances;
 it is not a request to allocate16GiB on the device or evidence of a measured peak.
 
 Useful bounded cohort points include the following. Each still needs its own
 memory admission and runtime qualification; this table is not an executed campaign.
 
-| Output order N | K | Feasible reuse counts under the work cap |
+| Output order N | K | Reuse counts admitted by the default reference work cap |
 |---:|---:|---|
-| 32 | 65535 /65536 /65537 | 1;2 also fits except at65537 |
-| 128 | 4096 | 1 /2 |
-| 512 | 32 /256 | 1 /2 /8 for K32;1 /2 for K256 |
-| 1024 | 32 | 1 /2 /4 |
-| 2048 | 32 | 1 |
+| 32 | 65535 /65536 /65537 | 1..256 |
+| 128 | 4096 | 1..256 |
+| 512 | 32 /256 | 1..256 |
+| 1024 | 32 | 1..256 |
+| 2048 | 32 | 1..256 |
 
 Awkward neighbors such as31/33,127/129 and511/513 use the same checked rules.
 Larger combinations reject before dataset allocation or independent reference
 work, rather than silently dropping controls. Source-only admission controls
-enumerate the campaign bounds without allocating these matrices.
+enumerate the campaign bounds without allocating these matrices. For example,
+N1024/K4096 uses `--reference-max-products 4294967296`; memory admission remains
+an independent requirement, including every simultaneously retained comparator.
+No new large-cohort execution or performance qualification is claimed.
 
 `--gram-five-product` adds the experimental compact prime-channel recipe to an
 explicit Gram batch. It compares prepared scalar subproducts and, on direct HIP,

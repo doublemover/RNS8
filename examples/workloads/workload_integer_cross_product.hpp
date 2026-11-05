@@ -59,6 +59,8 @@ inline void integer_cross_product(const Options& options,
   report["estimated_host_comparator_envelope_bytes"] = options.memory->reserved;
   if (options.gram_reuse) {
     report["gram_batch"] = gram_batch_contract(options);
+    if (options.size == "large")
+      report["gram_reference_budget"] = gram_reference_budget(options);
     report["gram_prepared_owner_cohort"] = 1;
     report["gram_ablation_cohort"] = 1;
     if (options.gram_five_product)

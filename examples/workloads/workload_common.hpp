@@ -119,6 +119,7 @@ struct Options {
   uint32_t m = 64, n = 64, k = 96, bits = 8, repeats = 3, warmups = 1, sustained_ms = 0,
            gram_reuse = 0;
   uint64_t seed = 3135, memory_mib = 256, baseline_max_products = 4000000;
+  uint64_t reference_max_products = 134217728;
   rns8_backend_kind backend = RNS8_BACKEND_HIP_DIRECT;
   int device = 0;
   bool json = false, wide = false, gram = false, reference_only = false, gram_five_product = false;
@@ -131,6 +132,11 @@ inline void validate_workload_extent(const Options& options) {
               (!options.gram_five_product || options.gram_reuse),
           "Gram controls require one square-output source and an explicit experimental batch");
   const bool large_gram = options.gram && options.gram_reuse && options.size == "large";
+  constexpr uint64_t max_gram_reference_products = UINT64_C(2048) * 2048 * 65537;
+  require(options.reference_max_products >= 1 &&
+              options.reference_max_products <= max_gram_reference_products &&
+              (!options.supplied.count("--reference-max-products") || large_gram),
+          "--reference-max-products requires an explicit large Gram batch");
   require(
       options.m >= 1 && options.m <= (large_gram ? 2048u : 512u) && options.n >= 1 &&
           options.n <= (large_gram ? 2048u : 512u) && options.k >= 1 &&
@@ -141,8 +147,10 @@ inline void validate_workload_extent(const Options& options) {
           "memory budget exceeds the explicit workload cohort limit");
   require(!options.gram_reuse ||
               (options.gram && options.m == options.n && options.gram_reuse <= 256 &&
-               uint64_t(options.m) * options.n * options.k * options.gram_reuse <= 134217728),
-          "Gram batch requires square output and at most134217728 mathematical products");
+               uint64_t(options.m) * options.n * options.k <= options.reference_max_products &&
+               (large_gram ||
+                uint64_t(options.m) * options.n * options.k * options.gram_reuse <= 134217728)),
+          "Gram batch exceeds the per-generation reference or bounded batch work limit");
 }
 inline Options options(int argc, char** argv) {
   Options out;
@@ -159,6 +167,7 @@ inline Options options(int argc, char** argv) {
              "explicit large Gram batches allow M=N<=2048,K<=65537 and --memory-mib<=16384\n"
              "--seed U64 --pattern seeded|zero|sparse --repeats 1..100 --warmups 0..20\n"
              "--gram-reuse 1..256 --gram-export each|once (explicit --gram batch only; default once)\n"
+             "--reference-max-products 1..274882101248 (large Gram only; default134217728 per original/changed reference)\n"
              "--gram-five-product (explicit experimental scalar/matrix comparison; requires --gram-reuse)\n"
              "--sustained-ms 0..10000 (0 disables production-style repeated calls)\n"
              "--memory-mib 1..4096 --baseline-max-products 1..134217728 --wide --gram\n"
@@ -221,6 +230,9 @@ inline Options options(int argc, char** argv) {
       out.memory_mib = number(value, 1, 16384, "memory-mib");
     else if (key == "--baseline-max-products")
       out.baseline_max_products = number(value, 1, 134217728, "baseline-max-products");
+    else if (key == "--reference-max-products")
+      out.reference_max_products =
+          number(value, 1, UINT64_C(2048) * 2048 * 65537, "reference-max-products");
     else if (key == "--pattern") {
       require(value == "seeded" || value == "zero" || value == "sparse", "invalid --pattern");
       out.pattern = value;
@@ -269,6 +281,15 @@ inline Json gram_batch_contract(const Options& options) {
           {"input_preparation", "pack_once_per_generation"},
           {"scope",
            "R identical products recomputed synchronously; complete final native host output"}};
+}
+inline Json gram_reference_budget(const Options& options) {
+  const uint64_t work = uint64_t(options.m) * options.n * options.k;
+  return {{"version", 1},
+          {"max_products_per_generation", options.reference_max_products},
+          {"products_per_generation", work},
+          {"reference_generations", 2},
+          {"total_reference_products", 2 * work},
+          {"repeat_products_reuse_complete_reference", true}};
 }
 inline void reject_options(const Options& options, std::initializer_list<const char*> keys) {
   for (const char* key : keys)
