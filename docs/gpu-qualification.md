@@ -195,21 +195,30 @@ wave32, WMMA and the DP4A path. Cross-wave reduction assumptions must be checked
 against [AMD's HIP porting guidance](https://rocmdocs.amd.com/projects/HIP/en/latest/how-to/hip_porting_guide.html).
 A kernel name containing WMMA, DPP or VOPD is not ISA proof.
 
-The 13 byte-LDS wrappers in `hip_direct_gemm_tiled_kernels.cuh` share
-`hip_direct_tiled_residue_core.cuh` and the portable cooperative loader in
-`residue_tile.hpp`. Their original named entrypoints retain the concrete
+The 17 byte-LDS wrappers in `hip_direct_gemm_tiled_kernels.cuh` and
+`hip_direct_gemm_grouped_scheduled_kernels.cuh` share the portable cooperative
+loader in `residue_tile.hpp`. Sixteen share `hip_direct_tiled_residue_core.cuh`;
+the 128-thread column-pair entry retains its scalar two-output arithmetic in a
+portable helper. Their original named entrypoints retain the concrete
 16×64 A / 64×17 B shared arrays and uniform task/prefix admission. The kernel
 registry's `direct_residue_tile_dataflow` records each input conversion,
-reducer, dot policy, region and task/plane addressing tuple. The ordinary
+reducer, dot policy, region, schedule clipping, output count and task/plane
+addressing tuple. Scheduled entries rebase input pointers to their own bounds,
+keep global output coordinates and share the uniform zero-axis skip predicate.
+The ordinary
 default-ladder wrapper retains its selected-modulus dot4 policy; the region
 and task-prefix wrappers retain their configured arithmetic policy.
 
 `tools/direct_residue_dataflow.py` checks the current lexical source/registry
 contract and reports its source hashes. CPU controls compare cooperative loads,
 tail zeroing, LDS padding, signed-byte dots and carry reduction with a scalar
-Boost specification across all 13 tuples. The GPU differential extends actual
+Boost specification across the ordinary tuples, scheduled rebases and the
+independent scalar column pair. Zero-axis controls independently enumerate
+clipped output cells, including empty CTA windows. The GPU differential extends actual
 resident/native/native-A/region routes through padded tails and K=65/65537;
-existing grouped/default-prefix differentials remain part of the batch.
+existing grouped/default-prefix differentials remain part of the batch. The
+uniform-small/column-pair route includes K=9/65 with odd columns and padding;
+the per-tile zero-mask differential also crosses the K=64 tile boundary.
 These controls are authored and syntax-checked, with execution deferred.
 Qualification still requires actual launched-symbol/ISA/resource attribution,
 exact outputs and matched before/after complete-call measurements. The shared

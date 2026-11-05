@@ -70,7 +70,7 @@ void check_tile_policy(const char* name,bool region,int identity){
   }
 }
 }
-TEST_CASE("thirteen tiled wrapper policy tuples share exact cooperative byte dataflow", "[residue-tile][contract]"){
+TEST_CASE("thirteen ordinary tiled policies share exact cooperative byte dataflow", "[residue-tile][contract]"){
   using D=ResidueTileDot;
   check_tile_policy<false,false,0,D::configured>("dynamic resident",false,0);
   check_tile_policy<false,false,251,D::configured>("fixed resident",false,1);
@@ -89,4 +89,68 @@ TEST_CASE("thirteen tiled wrapper policy tuples share exact cooperative byte dat
   CHECK(residue_tile_packed<D::selected_default_moduli>(251));
   CHECK(residue_tile_packed<D::selected_default_moduli>(247)==kResidueDot4Enabled);
   CHECK(residue_tile_packed<D::configured>(251)==kResidueDot4Enabled);
+}
+
+TEST_CASE("scheduled tile loads clip entry bounds after physical row and column rebasing", "[residue-tile][schedule]"){
+  using namespace rns8::detail;
+  constexpr int rows=23,cols=29,k=68,lda=k+7,ldb=cols+5;
+  constexpr int first_row=2,first_col=3,entry_rows=17,entry_cols=18;
+  std::vector<int8_t> a((rows-1)*lda+k),b((k-1)*ldb+cols);
+  for(uint32_t q:{247u,251u,256u}){
+    for(size_t index=0;index<a.size();++index)a[index]=independent_center(cpp_int(index)*37-128,q);
+    for(size_t index=0;index<b.size();++index)b[index]=independent_center(cpp_int(index)*23-99,q);
+    for(int threads:{128,256})for(int origin:{0,16}){
+      int32_t sums[16][16]{};
+      for(int begin=0;begin<65;begin+=64){
+        int8_t at[16][64],bt[64][17];
+        for(auto& row:bt)std::fill_n(row,17,int8_t(99));
+        const int extent=std::min(64,65-begin);
+        for(int lane=0;lane<threads;++lane)
+          load_residue_tile<16,16,64,17>(at,bt,{entry_rows,entry_cols,origin,origin,3},begin,extent,lane,threads,
+              CenteredResidueTileInput{a.data()+first_row*lda,lda},CenteredResidueTileInput{b.data()+first_col,ldb});
+        for(int row=0;row<16;++row)for(int x=0;x<64;++x)
+          REQUIRE(at[row][x]==(origin+row<entry_rows && x<extent?a[(first_row+origin+row)*lda+3+begin+x]:0));
+        for(int x=0;x<64;++x){
+          CHECK(bt[x][16]==99);
+          for(int col=0;col<16;++col)
+            REQUIRE(bt[x][col]==(origin+col<entry_cols && x<extent?b[(3+begin+x)*ldb+first_col+origin+col]:0));
+        }
+        for(int row=0;row<16;++row)for(int col=0;col<16;++col)
+          sums[row][col]=accumulate_residue_tile(&at[row][0],&bt[0][col],17,extent,sums[row][col]);
+      }
+      for(int row=0;row<16 && origin+row<entry_rows;++row)for(int col=0;col<16 && origin+col<entry_cols;++col){
+        cpp_int exact=-50;
+        for(int x=3;x<k;++x)exact+=cpp_int(a[(first_row+origin+row)*lda+x])*b[x*ldb+first_col+origin+col];
+        CHECK(independent_center(cpp_int(sums[row][col])-50,q)==independent_center(exact,q));
+      }
+    }
+  }
+}
+
+TEST_CASE("column-pair scalar tile dot preserves signed extremes tails and independent carries", "[residue-tile][pair]"){
+  using namespace rns8::detail;
+  int8_t a[64],b[64][17];
+  for(int x=0;x<64;++x){a[x]=x%2?127:-128;for(int col=0;col<17;++col)b[x][col]=(x+col)%2?-128:127;}
+  for(int extent:{0,1,3,63,64})for(int col:{0,2,14}){
+    int32_t first=127,second=-128;cpp_int exact_first=first,exact_second=second;
+    accumulate_residue_tile_pair(a,&b[0][col],17,extent,first,second);
+    for(int x=0;x<extent;++x){exact_first+=cpp_int(a[x])*b[x][col];exact_second+=cpp_int(a[x])*b[x][col+1];}
+    CHECK(cpp_int(first)==exact_first);CHECK(cpp_int(second)==exact_second);
+  }
+}
+
+TEST_CASE("scheduled zero-axis skip equals independently enumerated clipped output zeros", "[residue-tile][schedule]"){
+  using namespace rns8::detail;
+  for(unsigned pattern=0;pattern<5;++pattern){
+    uint8_t rows[23]{},cols[29]{};
+    for(int row=0;row<23;++row)rows[row]=uint8_t(pattern==0 || pattern==1 || (pattern==3 && row%2));
+    for(int col=0;col<29;++col)cols[col]=uint8_t(pattern==0 || pattern==2 || (pattern==3 && col%2));
+    for(int tile_row:{0,16,32})for(int tile_col:{0,16,32}){
+      bool all_outputs_zero=true;
+      for(int row=tile_row;row<std::min(tile_row+16,17);++row)
+        for(int col=tile_col;col<std::min(tile_col+16,18);++col)
+          all_outputs_zero&=rows[2+row]!=0 || cols[3+col]!=0;
+      CHECK((residue_tile_zero_product<16,16>(rows,cols,{17,18,tile_row,tile_col,2,3})==all_outputs_zero));
+    }
+  }
 }

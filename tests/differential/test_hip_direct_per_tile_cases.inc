@@ -312,7 +312,7 @@ TEST_CASE("direct HIP per-tile bounded zero row and column proof masks match CPU
 
   constexpr int64_t m = 65;
   constexpr int64_t n = 65;
-  constexpr int64_t k = 3;
+  constexpr int64_t k = 65;
   rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
 

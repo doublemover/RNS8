@@ -224,10 +224,13 @@
     ]
   },
   "direct_residue_tile_dataflow": {
-    "id": "byte_lds_tiled_residue_v1",
+    "id": "byte_lds_tiled_residue_v2",
     "core": "src/backend_hip_direct/hip_direct_tiled_residue_core.cuh",
     "load": "src/backend_common/residue_tile.hpp",
-    "wrappers": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+    "wrappers": [
+      "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+      "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh"
+    ],
     "tile": [
       16,
       16,
@@ -244,7 +247,10 @@
         "reducer": "dynamic",
         "dot": "configured",
         "region": false,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_i8_i32_fixed_modulus_kernel",
@@ -253,7 +259,10 @@
         "reducer": "fixed",
         "dot": "configured",
         "region": false,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_i8_i32_dp4a_fixed_modulus_kernel",
@@ -262,7 +271,10 @@
         "reducer": "fixed",
         "dot": "packed",
         "region": false,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_i8_i32_grouped_modulus_kernel",
@@ -271,7 +283,10 @@
         "reducer": "dynamic",
         "dot": "configured",
         "region": false,
-        "addressing": "task_pointers"
+        "addressing": "task_pointers",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_i8_i32_grouped_fixed_modulus_kernel",
@@ -280,7 +295,10 @@
         "reducer": "fixed",
         "dot": "configured",
         "region": false,
-        "addressing": "task_pointers"
+        "addressing": "task_pointers",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_u8_native_i32_kernel",
@@ -289,7 +307,10 @@
         "reducer": "dynamic",
         "dot": "configured",
         "region": false,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_u8_native_i32_fixed_modulus_kernel",
@@ -298,7 +319,10 @@
         "reducer": "fixed",
         "dot": "configured",
         "region": false,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_u8_native_a_i8_b_i32_kernel",
@@ -307,7 +331,10 @@
         "reducer": "dynamic",
         "dot": "configured",
         "region": false,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_finite_ring_gemm_u8_native_a_i8_b_i32_fixed_modulus_kernel",
@@ -316,7 +343,10 @@
         "reducer": "fixed",
         "dot": "configured",
         "region": false,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_ring_gemm_i8_i32_grouped_prefix_kernel",
@@ -325,7 +355,10 @@
         "reducer": "default_ladder",
         "dot": "selected_default_moduli",
         "region": false,
-        "addressing": "prefix_planes"
+        "addressing": "prefix_planes",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_ring_gemm_i8_i32_region_kernel",
@@ -334,7 +367,10 @@
         "reducer": "dynamic",
         "dot": "configured",
         "region": true,
-        "addressing": "direct"
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_ring_gemm_i8_i32_grouped_prefix_region_kernel",
@@ -343,7 +379,10 @@
         "reducer": "default_ladder",
         "dot": "configured",
         "region": true,
-        "addressing": "prefix_planes"
+        "addressing": "prefix_planes",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
       },
       {
         "symbol": "rns8_ring_gemm_i8_i32_grouped_task_prefix_kernel",
@@ -352,7 +391,58 @@
         "reducer": "default_ladder",
         "dot": "configured",
         "region": false,
-        "addressing": "task_prefix_planes"
+        "addressing": "task_prefix_planes",
+        "source": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "schedule": "none",
+        "outputs": 1
+      },
+      {
+        "symbol": "rns8_ring_gemm_uniform_small_i8_ab_i32_grouped_prefix9_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "default_ladder",
+        "dot": "configured",
+        "region": false,
+        "addressing": "uniform_inputs_prefix_outputs",
+        "source": "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh",
+        "schedule": "uniform",
+        "outputs": 1
+      },
+      {
+        "symbol": "rns8_ring_gemm_uniform_small_i8_ab_i32_colpair_grouped_prefix9_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "default_ladder",
+        "dot": "scalar_pair",
+        "region": false,
+        "addressing": "uniform_inputs_prefix_outputs",
+        "source": "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh",
+        "schedule": "uniform",
+        "outputs": 2
+      },
+      {
+        "symbol": "rns8_ring_gemm_i8_i32_scheduled_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "default_ladder",
+        "dot": "configured",
+        "region": false,
+        "addressing": "direct",
+        "source": "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh",
+        "schedule": "entry",
+        "outputs": 1
+      },
+      {
+        "symbol": "rns8_ring_gemm_i8_i32_grouped_active_schedule_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "default_ladder",
+        "dot": "configured",
+        "region": false,
+        "addressing": "prefix_planes",
+        "source": "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh",
+        "schedule": "active_entry",
+        "outputs": 1
       }
     ]
   }

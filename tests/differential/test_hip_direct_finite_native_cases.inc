@@ -299,11 +299,10 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
   rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
 
-  SECTION("bounded i64") {
+  for(const int64_t k:{9,65}) DYNAMIC_SECTION("bounded i64 K="<<k) {
     constexpr int64_t m = 7;
     constexpr int64_t n = 5;
-    constexpr int64_t k = 9;
-    constexpr int64_t lda = 13;
+    const int64_t lda = k+4;
     constexpr int64_t ldb = 11;
     constexpr int64_t ldc = 8;
     std::vector<int64_t> A(static_cast<std::size_t>(m * lda), -777);

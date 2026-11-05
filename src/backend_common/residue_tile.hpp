@@ -41,6 +41,37 @@ template<uint32_t FixedModulus=0> struct NativeByteResidueTileInput {
 struct ResidueTileLoadWindow {
   int rows,cols,tile_row,tile_col,k_offset;
 };
+struct ResidueTileMaskWindow {
+  int rows,cols,tile_row,tile_col,row_offset,col_offset;
+};
+
+// This predicate is uniform across the CTA. A proved-zero row axis or column
+// axis permits the existing whole-tile zero store before any shared barrier.
+template<int TileM,int TileN>
+RNS8_RESIDUE_TILE_INLINE bool residue_tile_zero_product(
+    const uint8_t* zero_rows,const uint8_t* zero_cols,ResidueTileMaskWindow window) {
+  bool rows_zero=true,cols_zero=true;
+  for(int row=0;row<TileM;++row){
+    const int local=window.tile_row+row;
+    if(local<window.rows && !zero_rows[window.row_offset+local]){rows_zero=false;break;}
+  }
+  for(int col=0;col<TileN;++col){
+    const int local=window.tile_col+col;
+    if(local<window.cols && !zero_cols[window.col_offset+local]){cols_zero=false;break;}
+  }
+  return rows_zero || cols_zero;
+}
+
+// The 128-thread column-pair entrypoint deliberately keeps its original scalar
+// two-output arithmetic, independently of the configured packed-dot policy.
+RNS8_RESIDUE_TILE_INLINE void accumulate_residue_tile_pair(
+    const int8_t* a,const int8_t* b,int stride,int extent,int32_t& first,int32_t& second) {
+  for(int x=0;x<extent;++x){
+    const int32_t value=a[x];
+    first+=value*int32_t(b[x*stride]);
+    second+=value*int32_t(b[x*stride+1]);
+  }
+}
 
 // Load/tail semantics are shared by the real GPU body and CPU differential
 // controls. The caller owns synchronization and the explicit shared arrays.
