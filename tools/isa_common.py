@@ -227,6 +227,28 @@ def device_function_symbols(objdump: str, code_object: Path) -> list[str]:
     return [line.split()[-1] for line in symbols.splitlines() if DEVICE_FUNCTION_MARKER in line]
 
 
+def device_function_sizes(objdump: str, code_object: Path) -> dict[str, dict]:
+    """Read native ELF function extents, without estimating size from mnemonics."""
+    native = run_command([objdump, "-t", str(code_object)])
+    result = {}
+    for line in native.splitlines():
+        if DEVICE_FUNCTION_MARKER not in line:
+            continue
+        fields = line.split()
+        position = fields.index("F")
+        tail = fields[position+1:]
+        if (position<2 or len(tail) not in (3,4) or not tail[0].startswith(".text") or
+                not re.fullmatch(r"[0-9a-fA-F]+",fields[0]) or
+                not re.fullmatch(r"[0-9a-fA-F]+",tail[1]) or
+                (len(tail)==4 and tail[2] not in (".hidden",".protected",".internal"))):
+            raise RuntimeError("unsupported native function symbol-table record: "+line)
+        name = tail[-1]
+        if name in result:
+            raise RuntimeError("ambiguous native function extent: "+name)
+        result[name] = dict(address=int(fields[0],16), bytes=int(tail[1],16), section=tail[0])
+    return result
+
+
 def symbols_matching_markers(
     objdump: str,
     code_object: Path,

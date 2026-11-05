@@ -22,6 +22,7 @@ from isa_common import (
     mnemonic_lines,
     run_command,
     sibling_tool,
+    selected_function_body,
 )
 
 
@@ -508,13 +509,15 @@ def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, re
         symbols_to_report, note = selected_symbols(symbols, backend)
         symbol_reports = []
         for symbol in symbols_to_report:
-            disassembly = disassemble_code_object(config.objdump, code_object, config.target, symbol)
+            disassembly = selected_function_body(
+                disassemble_code_object(config.objdump, code_object, config.target, symbol), symbol)
             symbol_metadata = metadata.get(symbol)
             symbol_reports.append(
                 {
                     "symbol": symbol,
                     "counts": merge_resource_metadata(scan_disassembly(disassembly), symbol_metadata),
                     "metadata": symbol_metadata,
+                    "disassembly_sha256": hashlib.sha256(disassembly.encode()).hexdigest(),
                 }
             )
         if hashlib.sha256(config.host_object.read_bytes()).hexdigest() != object_hash:

@@ -235,6 +235,19 @@ arithmetic execution, dynamic reachability or measured performance. New native-
 text controls are authored for both target families; their batch execution and
 real compiled-object checks remain deferred in the current implementation pass.
 
+Generated native WMMA inspection uses the same per-entry/resolved-helper
+attribution. Each generated variant requires its own IU8 WMMA instructions and
+complete native register/LDS/scratch/spill metadata. Native symbol-table extents
+report reachable code bytes per variant and unique function bytes across the
+family, counting a shared helper once in the family total. Missing extents stay
+unknown and fail inspection; source-only instruction counts cannot supply them.
+Object hashes must remain stable throughout inspection. General ISA summaries
+also slice the exact selected native label before counting instructions.
+The generated report distinguishes variant coverage, native code size and
+unrecorded compile cost; it does not infer compile time from artifact size or
+instruction count. These authored reporting controls have syntax/lint checks;
+no native object inspection or fixture execution has run for the new slice.
+
 ## After smoke, before promotion
 
 Run the bounded [release plan](performance.md), then selected larger/padded,
