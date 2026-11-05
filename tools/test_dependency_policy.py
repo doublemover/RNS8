@@ -174,7 +174,7 @@ class Policy(unittest.TestCase):
         cache = self.root / "CMakeCache.txt"
         cache.write_text("VCPKG_INSTALLED_DIR:PATH=" + str(installed))
         report = {
-            "system": {"python": "3.15.1"},
+            "system": {"python": (self.root / ".python-version").read_text().strip()},
             "commands": {"cmake": {"detail": "cmake version 4.4.4"}},
             "dependency_resolution": {
                 "vcpkg": {"selected": {"paths": {"triplet": "x64-windows"}}},

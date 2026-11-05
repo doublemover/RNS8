@@ -1,3 +1,3 @@
 # Reviewed Windows AMD64/Linux x86_64 quality wheels; --require-hashes --only-binary=:all: --no-deps.
-ruff==0.17.3 --hash=sha256:56b8ffb3f3b3cbccb8b76b71b38261b7ed982ef5d20f5b447b1b61a7f4949b24 --hash=sha256:7fa4b0f931cdbcb8a52044f370a3eb429fb42eb88807b0e800fcaa98dd42b24e
+ruff==0.17.4 --hash=sha256:67c5a894fc054cf41f75f7afa24815de5a74329d97634126c2a1015740ff4e8c --hash=sha256:2cd025509b2e15721b426fc70fd946d71f43b3db3b08e946dfec2d696d911690
 clang-format==23.1.5 --hash=sha256:18a4a1a698dd52ed4e288c97d99e93910f8f9d0128b266f65021ecf39c85d034 --hash=sha256:d97ce49911ba8c89ef3f3c0735a9c7818e4780ab4812c67d1c5fcd829d16ae52

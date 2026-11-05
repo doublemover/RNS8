@@ -7,22 +7,22 @@
   "tools": [
     {
       "name": "ruff",
-      "version": "0.17.3",
+      "version": "0.17.4",
       "distribution": "wheel",
       "license": "MIT",
-      "source": "https://pypi.org/project/ruff/0.17.3/",
+      "source": "https://pypi.org/project/ruff/0.17.4/",
       "artifacts": [
         {
           "platform": "windows-amd64",
-          "filename": "ruff-0.17.3-py3-none-win_amd64.whl",
-          "url": "https://files.pythonhosted.org/packages/d0/a0/f08c1631bfd81faa6a90eaf70c37c786c11bed2046302b56bb506c25e1a0/ruff-0.17.3-py3-none-win_amd64.whl",
-          "sha256": "56b8ffb3f3b3cbccb8b76b71b38261b7ed982ef5d20f5b447b1b61a7f4949b24"
+          "filename": "ruff-0.17.4-py3-none-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/bd/15/42af8a72d8946e3c9efd2bbf6641e462b6832783b0d043d63ef5b280ba7f/ruff-0.17.4-py3-none-win_amd64.whl",
+          "sha256": "67c5a894fc054cf41f75f7afa24815de5a74329d97634126c2a1015740ff4e8c"
         },
         {
           "platform": "linux-x86_64",
-          "filename": "ruff-0.17.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-          "url": "https://files.pythonhosted.org/packages/f0/20/fecedea2209f574ab92033b344e01a7f0c2dc76c6d6d19a14c9f8141173f/ruff-0.17.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-          "sha256": "7fa4b0f931cdbcb8a52044f370a3eb429fb42eb88807b0e800fcaa98dd42b24e"
+          "filename": "ruff-0.17.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "url": "https://files.pythonhosted.org/packages/af/1b/62874f14c7873f27c7887d2b1ea41de990e14ba9518801ffe8eacb5d51a6/ruff-0.17.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "sha256": "2cd025509b2e15721b426fc70fd946d71f43b3db3b08e946dfec2d696d911690"
         }
       ]
     },

@@ -6,7 +6,7 @@ separates installed tools from compiled and device-validated paths.
 
 ## Prerequisites
 
-Use the selected Python 3.15.1 and exact non-GPU tool/package candidates from the
+Use the selected Python 3.15.2 and exact non-GPU tool/package candidates from the
 [version policy](dependency-versions.md). Their upgrade qualification remains
 pending across the full platform matrix. The user authorized the ROCm Core SDK
 10.1 migration on 2026-10-26. The fresh local Release validation below uses

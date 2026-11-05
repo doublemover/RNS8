@@ -98,7 +98,7 @@ representations to matrix ownership, reuse and execution.
 ## Build and run on an AMD GPU
 
 Required: a C++17 toolchain, a supported AMD driver and HIP/ROCm stack, CMake
-3.22+, Ninja, Git, Python 3.15.1 (selected in `.python-version`),
+3.22+, Ninja, Git, Python 3.15.2 (selected in `.python-version`),
 Boost.Multiprecision and nlohmann-json. Catch2 3.x is
 needed when building tests. Optional accelerator libraries, OpenMP and GMP/FLINT
 serve selected paths. [Dependency setup](third_party/README.md) owns prerequisites,

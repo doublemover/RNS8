@@ -26,18 +26,19 @@ FLINT's selected source requires GMP at least 6.2.1 and MPFR at least 4.1.0;
 Windows ARM64/UWP are excluded by the selected vcpkg port. Linux uses native
 packages or native prefixes; this lock does not introduce Linux vcpkg.
 
-[.python-version](../.python-version) selects stable CPython 3.15.1. The local
-Windows installation uses the official CPython NuGet package after the official
-MSI failed with Windows Installer errors 2502/2503. Its package SHA256 and the
-parent's successful NuGet repository-signature verification are recorded in the
-policy. This is installation evidence; Python tool qualification remains a
-separate gate. CI selects the same interpreter version explicitly through an
+[.python-version](../.python-version) selects stable [CPython 3.15.2](https://www.python.org/downloads/release/python-3152/).
+The November5 Windows candidate uses a side-by-side managed NuGet extraction;
+`dotnet nuget verify --all` verified its repository signature, and the package
+and executable SHA256 identities are recorded in the policy. The prior3.15.1
+installation/MSI exception remains in its dated observation. This is installation
+evidence; the historical3.15.1 runtime passes do not qualify3.15.2. CI selects
+the same interpreter version explicitly through an
 immutable `setup-python` action. [Python 3.10 is end of life](https://devguide.python.org/versions/) and is not the
 selected development interpreter; minimum-version support must be tested
 separately from the latest interpreter lane.
 
 Optional source-quality tools have their own hash lock under this same policy:
-[quality-tools.json](../metadata/quality-tools.json) selects Ruff 0.17.3,
+[quality-tools.json](../metadata/quality-tools.json) selects Ruff 0.17.4,
 clang-format 23.1.5, actionlint 1.7.12 and ShellCheck 0.11.0 for Windows AMD64
 and Linux x86_64. The formatter is independent of both host compiler selection
 and AMDClang. Registry/release artifact identities are recorded; native archives
@@ -57,12 +58,25 @@ Use the explicit developer initializer described in
 download or install tools.
 
 [scripts/requirements-build-tools.txt](../scripts/requirements-build-tools.txt)
-pins CMake 4.4.4, Ninja 1.13.2 and pip 26.2.2 with publisher-index SHA256 values
+pins CMake 4.4.4, Ninja 1.13.2 and pip 26.3 with publisher-index SHA256 values
 for Linux glibc x86_64 and Windows AMD64 wheels. Those hashes are integrity
 identities, not signature verification. Other architectures require a reviewed
 artifact set; installation must fail rather than silently build an unpinned
 source distribution. The CMake project minimum remains 3.22; it is distinct
 from this selected candidate toolchain.
+
+The November5 publisher refresh records [CMake4.4.5](https://www.kitware.com/cmake-4-4-5-available-for-download/)
+as the newer native release while PyPI still publishes4.4.4. The locked wheel
+bootstrap remains4.4.4 until the verified native bootstrap is implemented and
+qualified; it is an explicit open gap, not a latest-version claim. The policy
+also records Git for Windows2.56.0.windows.4 and host LLVM23.1.5 candidates
+separately from installed tools and AMD's matched compiler.
+
+Fresh quality environments install the shared hashed build-tool requirements
+as well as formatter/type/analyzer locks, including selected pip26.3. The
+November5 managed CPython3.15.2 and isolated quality environment are installed
+candidates; only version/integrity and necessary source checks have been made.
+The integrated project validation batch remains deferred.
 
 The user authorized ROCm Core SDK10.1 migration on 2026-10-26. Its extracted
 local candidate supplies HIP7.16.26385, AMD Clang24, CK1.3.0 and rocWMMA2.2.1.

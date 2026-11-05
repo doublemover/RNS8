@@ -9,7 +9,7 @@ Windows vcpkg roots.
 This page owns the current dependency requirements; the
 [Windows](../docs/platform-windows.md) and [Linux](../docs/platform-linux.md)
 guides own OS-specific commands. The current source uses C++17, CMake 3.22+,
-Ninja and Git. Stable Python 3.15.1 is the selected development interpreter in
+Ninja and Git. Stable Python 3.15.2 is the selected development interpreter in
 [.python-version](../.python-version); older/minimum support is a separate
 compatibility lane. The dated [dependency version policy](../docs/dependency-versions.md)
 owns exact candidate versions, artifact hashes, installed receipts and upgrade

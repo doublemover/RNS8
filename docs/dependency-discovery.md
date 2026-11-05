@@ -241,7 +241,7 @@ lives beside `hipcc`.
 Host Python selection preserves an explicit interpreter or virtual environment.
 Windows autodiscovery tries `python` before `python3`. Unreadable Windows Store
 app-execution aliases are unsupported: select a readable interpreter explicitly,
-for example `-DPython3_EXECUTABLE=C:/path/to/python.3.15.1/tools/python.exe`
+for example `-DPython3_EXECUTABLE=C:/path/to/python.3.15.2/tools/python.exe`
 for a verified portable CPython installation, or the selected project venv executable. Discovery fails rather than switching interpreter versions.
 A virtual environment's invocation path stays intact even when its executable
 is a symlink to a base interpreter. The selected Python version, prefixes and

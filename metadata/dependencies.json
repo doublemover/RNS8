@@ -13,39 +13,61 @@
       "name": "python",
       "role": "build",
       "latest_stable": {
-        "version": "3.15.1",
-        "release_date": "2026-10-21",
-        "source": "https://www.python.org/downloads/release/python-3151/"
+        "version": "3.15.2",
+        "release_date": "2026-10-25",
+        "source": "https://www.python.org/downloads/release/python-3152/",
+        "checked_date_utc": "2026-11-05"
       },
       "selected": {
-        "version": "3.15.1",
+        "version": "3.15.2",
         "status": "candidate_pending_qualification"
       },
       "license": "PSF-2.0",
       "last_tested": null,
       "observed": {
-        "version": "3.15.1",
-        "path": "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
-        "source": "parent installation receipt",
-        "pip_version": "26.2.2",
-        "qualification": "pending"
+        "version": "3.15.2",
+        "path": "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.2/tools/python.exe",
+        "executable_sha256": "d4e19e9a33268fb0ce575a24ab2d4b85972524f1933df008a6befc14dce19fbd",
+        "source": "2026-11-05 side-by-side managed NuGet extraction and --version probe",
+        "pip_version": "26.3",
+        "qualification": "installation_only_pending_integrated_validation"
       },
       "owner": "parent_python_toolchain",
       "artifact": {
-        "source": "https://www.nuget.org/packages/python/3.15.1",
-        "url": "https://api.nuget.org/v3-flatcontainer/python/3.15.1/python.3.15.1.nupkg",
-        "sha256": "a53df42a4fb57132896c3d99686c19c7f13d6f126bd603a9a9bc0e9b6ed83d22",
-        "authentication": "Parent verified nuget verify -All repository signature, owner CPython",
-        "installer_exception": "Official MSI failed Windows Installer2502/2503; same CPython version installed from verified official NuGet package"
-      }
+        "source": "https://www.nuget.org/packages/python/3.15.2",
+        "url": "https://api.nuget.org/v3-flatcontainer/python/3.15.2/python.3.15.2.nupkg",
+        "sha256": "294f5ed7ab97148fcbb57b8c06ba428f6d282c2bbaa266dbe3137284497998f0",
+        "authentication": "dotnet nuget verify --all succeeded2026-11-05; NuGet.org repository signature verified",
+        "installation": "Side-by-side managed extraction; no MSI attempt for3.15.2 and no prior qualification transferred"
+      },
+      "prior_observations": [
+        {
+          "observed": {
+            "version": "3.15.1",
+            "path": "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+            "source": "parent installation receipt",
+            "pip_version": "26.2.2",
+            "qualification": "pending"
+          },
+          "artifact": {
+            "source": "https://www.nuget.org/packages/python/3.15.1",
+            "url": "https://api.nuget.org/v3-flatcontainer/python/3.15.1/python.3.15.1.nupkg",
+            "sha256": "a53df42a4fb57132896c3d99686c19c7f13d6f126bd603a9a9bc0e9b6ed83d22",
+            "authentication": "Parent verified nuget verify -All repository signature, owner CPython",
+            "installer_exception": "Official MSI failed Windows Installer2502/2503; same CPython version installed from verified official NuGet package"
+          },
+          "note": "Preserved parent Python3.15.1 installation observation; not transferred to3.15.2."
+        }
+      ]
     },
     {
       "name": "cmake",
       "role": "build",
       "latest_stable": {
-        "version": "4.4.4",
-        "release_date": "2026-10-02",
-        "source": "https://github.com/Kitware/CMake/releases/tag/v4.4.4"
+        "version": "4.4.5",
+        "release_date": "2026-10-29",
+        "checked_date_utc": "2026-11-05",
+        "source": "https://www.kitware.com/cmake-4-4-5-available-for-download/"
       },
       "selected": {
         "version": "4.4.4",
@@ -57,6 +79,13 @@
         "version": "4.4.4",
         "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
         "qualification": "pending"
+      },
+      "upgrade_exception": {
+        "status": "native_bootstrap_source_pending",
+        "observed_pypi_version": "4.4.4",
+        "publisher_metadata": "https://pypi.org/pypi/cmake/json",
+        "checked_date_utc": "2026-11-05",
+        "reason": "Upstream4.4.5 exists but the locked PyPI distribution still publishes4.4.4; add verified native artifact bootstrap before changing the coherent bootstrap candidate."
       }
     },
     {
@@ -83,21 +112,29 @@
       "name": "pip",
       "role": "bootstrap_only",
       "latest_stable": {
-        "version": "26.2.2",
-        "release_date": "2026-10-20",
-        "source": "https://pip.pypa.io/en/stable/news/#v26-2-2"
+        "version": "26.3",
+        "release_date": "2026-11-02",
+        "checked_date_utc": "2026-11-05",
+        "source": "https://pypi.org/project/pip/26.3/"
       },
       "selected": {
-        "version": "26.2.2",
+        "version": "26.3",
         "status": "candidate_pending_qualification"
       },
       "license": "MIT",
       "last_tested": null,
       "observed": {
-        "version": "26.2.2",
-        "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
-        "qualification": "pending"
-      }
+        "version": "26.3",
+        "source": "2026-11-05 hash-locked managed CPython3.15.2 and isolated developer-environment installation",
+        "qualification": "installed_not_project_qualified"
+      },
+      "prior_observations": [
+        {
+          "version": "26.2.2",
+          "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
+          "qualification": "pending"
+        }
+      ]
     },
     {
       "name": "git",
@@ -129,6 +166,13 @@
           "authentication": "upstream published SHA256; signature not verified",
           "status": "candidate_pending_installation_and_qualification"
         }
+      },
+      "windows_patch_candidate": {
+        "version": "2.56.0.windows.4",
+        "release_date": "2026-10-26",
+        "source": "https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.4",
+        "observed_path_version": "2.52.0.windows.1",
+        "qualification": "not_installed_or_qualified"
       }
     },
     {
@@ -503,17 +547,25 @@
       "name": "ruff",
       "role": "ci",
       "latest_stable": {
-        "version": "0.17.3",
-        "source": "https://pypi.org/project/ruff/0.17.3/"
+        "version": "0.17.4",
+        "release_date": "2026-11-05",
+        "checked_date_utc": "2026-11-05",
+        "source": "https://pypi.org/project/ruff/0.17.4/"
       },
       "selected": {
-        "version": "0.17.3",
+        "version": "0.17.4",
         "status": "candidate_pending_qualification"
       },
       "license": "MIT",
       "last_tested": null,
       "owner": "shared_dependency_policy_issue_60",
-      "artifact_lock": "metadata/quality-tools.json"
+      "artifact_lock": "metadata/quality-tools.json",
+      "observed": {
+        "version": "0.17.4",
+        "path": "temp/quality-baseline-3152-20261105/Scripts/ruff.exe",
+        "source": "2026-11-05 hash-locked CPython3.15.2 developer environment",
+        "qualification": "necessary_source_lint_only; integrated_control_validation_deferred"
+      }
     },
     {
       "name": "clang-format",
@@ -2017,11 +2069,11 @@
     "artifacts": [
       {
         "component": "pip",
-        "version": "26.2.2",
-        "filename": "pip-26.2.2-py3-none-any.whl",
-        "url": "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl",
-        "sha256": "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70",
-        "publisher_metadata": "https://pypi.org/pypi/pip/26.2.2/json",
+        "version": "26.3",
+        "filename": "pip-26.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/07/25/ee8c38ae72d66b844ce8eb9711ba905dba21ca1a8a0c960057c41cd23337/pip-26.3-py3-none-any.whl",
+        "sha256": "f3b60b20ffaadd4415ed7957212a38ac63fa4c5fa375bd0f4a797777940fad13",
+        "publisher_metadata": "https://pypi.org/pypi/pip/26.3/json",
         "authentication": "publisher-index SHA256; signature not verified"
       },
       {
@@ -2122,7 +2174,23 @@
   },
   "quality_tools": {
     "lock": "metadata/quality-tools.json",
-    "sha256": "c0f3bcd5dda2820738c8f42f6e7b034370a95ab80458d8a895310d0eb38398a6",
+    "sha256": "6b261d4f4995750934d0199f7560d7a764e6039ab9c3a21fec6ae3314ea158cf",
     "qualification": "source_and_artifact_inventory_pending_tool_validation"
+  },
+  "candidate_refresh_20261105": {
+    "components": [
+      "python",
+      "pip",
+      "ruff",
+      "cmake",
+      "git"
+    ],
+    "host_llvm_latest": {
+      "version": "23.1.5",
+      "release_date": "2026-11-03",
+      "source": "https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.5",
+      "note": "Host toolchain candidate, separate from matching AMD SDK compiler and retained clang-tidy23.1.4 wheel."
+    },
+    "qualification": "publisher_inventory_and_python_installation_only; integrated validation deferred"
   }
 }

@@ -92,6 +92,8 @@ def install(out: Path) -> Path:
             "--only-binary=:all:",
             "--no-deps",
             "-r",
+            str(ROOT / "scripts/requirements-build-tools.txt"),
+            "-r",
             str(ROOT / lock["requirements"]),
             "-r",
             str(ROOT / lock["type_checking"]["requirements"]),
