@@ -14,11 +14,103 @@ from amd_profiler_capabilities import (
     support_matrix,
     _version,
     availability_inventory,
+    validate_preflight,
 )
 from compiled_binary_identity import canonical_digest
+from target_qualification import EvidenceStore
+from test_target_qualification_support import write, reference
 
 
 class ProfilerCapabilities(unittest.TestCase):
+    def test_preflight_consumer_reopens_native_outputs_and_recomputes_decisions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tools = root / "tools with spaces"
+            tools.mkdir()
+            for name in ("rocprofv3", "rocprofv3-avail", "rocpd", "rocprof-compute"):
+                (tools / name).write_bytes(
+                    b"AUTHORED TOOL, NEVER EXECUTED " + name.encode()
+                )
+            plan = probe_plan(
+                "Linux",
+                "gfx942",
+                resolver=lambda name: str(tools / name),
+                agent=7,
+                counters=("SQ_WAVES",),
+            )
+
+            def runner(command, **kwargs):
+                label = kwargs["label"]
+                output = {
+                    "version": "rocprofv3 version 1.4.1\n",
+                    "help": "--kernel-trace --hip-trace --output-format",
+                    "agents": "GPU:7\n name:gfx942\n logical_node_id:9\n",
+                    "pmc": "GPU:7\nName:gfx942\nCounter_Name:SQ_WAVES\nDescription:Authored only\n",
+                }.get(label, "authored read-only probe output")
+                return dict(
+                    command=command,
+                    process_id=123,
+                    returncode=0,
+                    timed_out=False,
+                    elapsed_seconds=0.01,
+                    stdout=output,
+                    stderr="",
+                )
+
+            with patch(
+                "amd_profiler_capabilities.platform.system", return_value="Linux"
+            ):
+                value = preflight(
+                    plan,
+                    root / "probe",
+                    environment={},
+                    runner=runner,
+                    minimum_free_bytes=1,
+                )
+            path = root / "probe" / "capabilities.json"
+            store = EvidenceStore()
+            facts = validate_preflight(reference(path), store=store, parent=root)
+            store.finish()
+            self.assertEqual(facts["tools"]["rocprofv3"]["version_state"], "supported")
+            self.assertEqual(facts["actual_runtime_agent"]["selector"], 7)
+            self.assertEqual(facts["features"]["counters"]["advertised"], "available")
+            self.assertEqual(facts["features"]["counters"]["permission"], "unknown")
+            self.assertFalse(facts["promotion_eligible"])
+            for mode in ("feature", "agent", "command", "status", "raw_output", "tool"):
+                candidate = copy.deepcopy(value)
+                original = None
+                if mode == "feature":
+                    candidate["features"]["counters"]["permission"] = "available"
+                elif mode == "agent":
+                    candidate["actual_runtime_agent"]["selector"] = 0
+                elif mode == "command":
+                    candidate["commands"][0]["argv"] = ["different", "--enable-clocks"]
+                elif mode == "status":
+                    candidate["observations"][0]["result"]["returncode"] = 1
+                elif mode == "raw_output":
+                    target = root / "probe" / "agents.stdout.log"
+                    original = target.read_bytes()
+                    target.write_text("GPU:0\nname:gfx1100\n", encoding="utf-8")
+                else:
+                    target = tools / "rocprofv3"
+                    original = target.read_bytes()
+                    target.write_bytes(b"substituted tool")
+                candidate["identity_sha256"] = canonical_digest(
+                    {
+                        key: item
+                        for key, item in candidate.items()
+                        if key != "identity_sha256"
+                    }
+                )
+                write(path, candidate)
+                with self.subTest(mode=mode), self.assertRaises(ValueError):
+                    validate_preflight(
+                        reference(path), store=EvidenceStore(), parent=root
+                    )
+                if original is not None:
+                    target.write_bytes(original)
+            write(path, value)
+
     def test_target_feature_policy_does_not_extrapolate(self):
         rdna = support_matrix("Linux", "gfx1100")
         self.assertEqual(rdna["timeline"].official_support, "supported")

@@ -47,6 +47,13 @@ permission, capture, decode and evidence-binding states separately. A successful
 help command does not establish capture completion or counter permission.
 See AMD's [availability commands](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocprofv3-avail.html).
 
+The acquisition-side preflight consumer reopens the receipt, tool executables
+and exact stdout/stderr files. It reconstructs the maintained probe inventory
+and recomputes version, advertised-feature and agent decisions. Resealing an
+edited readiness field cannot replace these raw inputs. The consumer reports
+inventory facts; permissions and physical HIP-to-profiler mapping remain
+separate capture gates.
+
 The maintained policy keeps discrete Radeon outside Compute Profiler's
 Instinct/APU support envelope, gfx1100 ATT trace-only, and stochastic PC sampling
 separate from CDNA2 host-trap sampling. Unknown/new tuples remain unqualified

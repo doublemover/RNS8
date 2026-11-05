@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, dataclass
 import json
+import math
 from pathlib import Path
 import platform
 import re
@@ -21,6 +22,7 @@ from check_dependencies_lib.system import find_command
 from compiled_binary_identity import canonical_digest
 from process_progress import run_capture
 from session_environment import build_environment, snapshot
+from amd_profiler_evidence import EvidenceReader
 
 State = Literal[
     "supported",
@@ -408,6 +410,157 @@ def preflight(
         encoding="utf-8",
     )
     return result
+
+
+def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) -> dict:
+    """Recompute preflight decisions from retained probe bytes; never execute."""
+    path, value = store.json(reference, parent)
+    if value.get("schema") != SCHEMA or value.get(
+        "identity_sha256"
+    ) != canonical_digest(
+        {key: item for key, item in value.items() if key != "identity_sha256"}
+    ):
+        raise ValueError("sealed profiler preflight receipt required")
+    if value.get("qualification") != "read_only_preflight_completed_no_capture":
+        raise ValueError("profiler preflight did not complete its read-only phase")
+    tools = value.get("tools")
+    if not isinstance(tools, dict) or any(
+        not isinstance(item, dict) for item in tools.values()
+    ):
+        raise ValueError("profiler tool inventory is malformed")
+    plan = probe_plan(
+        value["system"],
+        value["target"],
+        resolver=lambda name: tools.get(name, {}).get("path"),
+        agent=value["profiler_agent_selector"],
+        counters=tuple(value["requested_counters"]),
+    )
+    if value.get("commands") != plan["commands"] or set(tools) != set(plan["tools"]):
+        raise ValueError(
+            "profiler preflight differs from maintained read-only command policy"
+        )
+    if (
+        value.get("output_capacity") != "available"
+        or type(value.get("free_bytes")) is not int
+        or value["free_bytes"] < 1
+    ):
+        raise ValueError("preflight output capacity was not available")
+    observed = value.get("observations")
+    if not isinstance(observed, list) or len(observed) != len(plan["commands"]):
+        raise ValueError("preflight probe inventory is incomplete")
+    rebuilt = dict(
+        plan,
+        observations=observed,
+        tools={name: dict(row) for name, row in plan["tools"].items()},
+        features={name: dict(row) for name, row in plan["features"].items()},
+    )
+    executable_hashes = {}
+    for command, row in zip(plan["commands"], observed):
+        if (
+            not isinstance(row, dict)
+            or row.get("name") != command["name"]
+            or row.get("command") != command["argv"]
+        ):
+            raise ValueError("profiler preflight probes are reordered or substituted")
+        process = row.get("result")
+        if not isinstance(process, dict) or process.get("command") != command["argv"]:
+            raise ValueError("preflight lacks actual launched process arguments")
+        elapsed = process.get("elapsed_seconds")
+        if (
+            type(elapsed) not in (int, float)
+            or not math.isfinite(elapsed)
+            or elapsed < 0
+        ):
+            raise ValueError("preflight process timing is malformed")
+        if type(process.get("timed_out")) is not bool:
+            raise ValueError("preflight timeout state is malformed")
+        returned = process.get("returncode")
+        if returned is not None and type(returned) is not int:
+            raise ValueError("preflight exit status is malformed")
+        if returned is not None and (
+            type(process.get("process_id")) is not int or process["process_id"] < 1
+        ):
+            raise ValueError("preflight launched process identity is missing")
+        executable = Path(command["argv"][0]).resolve(strict=True)
+        expected_hash = row.get("executable_sha256")
+        store.verify(executable, expected_hash)
+        if (
+            executable in executable_hashes
+            and executable_hashes[executable] != expected_hash
+        ):
+            raise ValueError("profiler tool changed between preflight probes")
+        executable_hashes[executable] = expected_hash
+        if row.get("unchanged_during_probe") is not True:
+            raise ValueError("profiler tool stability was not established")
+        artifacts = row.get("artifacts")
+        expected_paths = {
+            str((path.parent / (command["name"] + "." + stream + ".log")).resolve())
+            for stream in ("stdout", "stderr")
+        }
+        if not isinstance(artifacts, dict) or set(artifacts) != expected_paths:
+            raise ValueError("preflight raw stream inventory is incomplete")
+        for stream in ("stdout", "stderr"):
+            raw = (path.parent / (command["name"] + "." + stream + ".log")).resolve(
+                strict=True
+            )
+            store.verify(raw, artifacts[str(raw)])
+            if (
+                not isinstance(process.get(stream), str)
+                or raw.read_text(encoding="utf-8") != process[stream]
+            ):
+                raise ValueError(
+                    "preflight stream summary differs from its retained process output"
+                )
+        complete = type(returned) is int and returned == 0 and not process["timed_out"]
+        if row.get("completed") is not complete:
+            raise ValueError(
+                "preflight completion label contradicts its process status"
+            )
+        if command["name"] == "version":
+            name = command["tool"]
+            version = (
+                _version(process["stdout"] + "\n" + process["stderr"], name)
+                if complete
+                else None
+            )
+            rebuilt["tools"][name].update(
+                version=version,
+                executable_sha256=expected_hash,
+                version_state="supported"
+                if version == SUPPORTED_VERSIONS[name]
+                else "unknown"
+                if version is None
+                else "unsupported",
+            )
+    _apply_availability(rebuilt)
+    if rebuilt["tools"] != tools or rebuilt["features"] != value.get("features"):
+        raise ValueError(
+            "preflight tool/feature summary differs from raw probe evidence"
+        )
+    for key in (
+        "actual_runtime_agent",
+        "runtime_agent_inventory",
+        "availability_error",
+        "profiler_to_HIP_device_binding",
+    ):
+        if rebuilt.get(key) != value.get(key):
+            raise ValueError(
+                "preflight native agent summary differs from retained probe output"
+            )
+    return dict(
+        source=str(path),
+        identity_sha256=value["identity_sha256"],
+        system=value["system"],
+        target=value["target"],
+        tools=tools,
+        features=value["features"],
+        actual_runtime_agent=value.get("actual_runtime_agent"),
+        profiler_agent_selector=value["profiler_agent_selector"],
+        requested_counters=value["requested_counters"],
+        tool_hashes={str(key): item for key, item in executable_hashes.items()},
+        scope="read_only_feature_inventory_not_capture_permission_or_device_binding",
+        promotion_eligible=False,
+    )
 
 
 def main() -> int:
