@@ -290,8 +290,6 @@ inline bool host_rns_backend(rns8_backend_kind backend) {
 bool backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 
-bool known_backend_kind(rns8_backend_kind backend);
-
 const char* backend_name(rns8_backend_kind backend);
 
 bool accelerator_backend(rns8_backend_kind backend);

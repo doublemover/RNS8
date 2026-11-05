@@ -86,6 +86,23 @@ bool valid_zero_mask(const uint8_t* mask, uint64_t count, int64_t expected_count
   return true;
 }
 
+bool known_backend_kind(rns8_backend_kind backend) {
+  switch (backend) {
+  case RNS8_BACKEND_AUTO:
+  case RNS8_BACKEND_CPU_AMX:
+  case RNS8_BACKEND_CPU_REFERENCE:
+  case RNS8_BACKEND_HIP_DIRECT:
+  case RNS8_BACKEND_HIPBLASLT:
+  case RNS8_BACKEND_CK:
+  case RNS8_BACKEND_ROCWMMA:
+  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
+  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+    return true;
+  }
+  return false;
+}
+
 bool known_semantics(rns8_semantics semantics) {
   switch (semantics) {
   case RNS8_BOUNDED_I64:
@@ -281,7 +298,7 @@ rns8_status validate_bound_contract(rns8_semantics semantics, rns8_bound_kind bo
 }
 
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
-  if (!minimum_abi_header(&desc)) {
+  if (!minimum_abi_header(&desc) || !known_backend_kind(desc.requested_backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {

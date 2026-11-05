@@ -55,23 +55,6 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
   }
 }
 
-bool known_backend_kind(rns8_backend_kind backend) {
-  switch (backend) {
-  case RNS8_BACKEND_AUTO:
-  case RNS8_BACKEND_CPU_AMX:
-  case RNS8_BACKEND_CPU_REFERENCE:
-  case RNS8_BACKEND_HIP_DIRECT:
-  case RNS8_BACKEND_HIPBLASLT:
-  case RNS8_BACKEND_CK:
-  case RNS8_BACKEND_ROCWMMA:
-  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
-  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-  case RNS8_BACKEND_AMDGPU_BUILTINS:
-    return true;
-  }
-  return false;
-}
-
 const char* backend_name(rns8_backend_kind backend) {
   switch (backend) {
   case RNS8_BACKEND_AUTO:
@@ -428,7 +411,8 @@ using namespace rns8::detail::api;
 rns8_status rns8_get_backend_capability_info(rns8_backend_kind backend,
                                              rns8_backend_capability_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!out || !rns8::detail::minimum_abi_header(out) || !known_backend_kind(backend)) {
+    if (!out || !rns8::detail::minimum_abi_header(out) ||
+        !rns8::detail::known_backend_kind(backend)) {
       return RNS8_INVALID_ARGUMENT;
     }
     fill_backend_capability_info(backend, *out);

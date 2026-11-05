@@ -55,6 +55,15 @@ No API can discover that a caller lied about the actual backing allocation.
 Raw header-prefix and canary controls are authored for the deferred sanitizer
 batch; frontend compilation does not qualify those runtime checks.
 
+Context and GEMM plan admission share the explicit backend-value validator.
+Unknown backend representations return `INVALID_ARGUMENT` before allocating a
+context or constructing a plan; a known but unavailable backend remains a
+separate unsupported-backend case. Invalid backend support queries preserve
+both the result storage and the caller's required-count value. Raw-byte controls
+cover all-bits, high-bit and adjacent invalid backend, semantics, bounds, layout
+and flag values through live CPU owners, alongside valid controls. This extends
+the behavioral corpus without claiming every external enum/flag is covered.
+
 ## Installed native checks
 
 Run once for each separately installed static and shared package. The checker

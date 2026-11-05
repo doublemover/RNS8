@@ -629,10 +629,10 @@ rns8_status rns8_query_operation_support(const rns8_context* ctx, const rns8_ope
                                            RNS8_BACKEND_AMDGPU_BUILTINS,
                                            RNS8_BACKEND_CPU_AMX};
     const bool all = query->problem.requested_backend == RNS8_BACKEND_AUTO;
-    *required = all ? static_cast<uint32_t>(std::size(backends)) : 1;
     if (!all && std::find(std::begin(backends), std::end(backends),
                           query->problem.requested_backend) == std::end(backends))
       return RNS8_INVALID_ARGUMENT;
+    *required = all ? static_cast<uint32_t>(std::size(backends)) : 1;
     for (uint32_t index = 0; index < std::min(capacity, *required); ++index)
       results[index] =
           operation_support(*ctx, *query, all ? backends[index] : query->problem.requested_backend);

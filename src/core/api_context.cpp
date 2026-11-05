@@ -248,7 +248,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       if (!rns8::detail::minimum_abi_header(options)) {
         return RNS8_INVALID_ARGUMENT;
       }
-      if (options->flags != 0) {
+      if (options->flags != 0 || !rns8::detail::known_backend_kind(options->requested_backend)) {
         return RNS8_INVALID_ARGUMENT;
       }
       requested_auto = options->requested_backend == RNS8_BACKEND_AUTO;
