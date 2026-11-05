@@ -33,7 +33,11 @@ void record_sync_copy(hipMemcpyKind kind, uint64_t bytes) {
   }
 }
 hipError_t tracked_sync_copy(void* dst, const void* src, size_t bytes, hipMemcpyKind kind) {
-  const auto status = hipMemcpy(dst, src, bytes, kind);
+  auto status = hipMemcpy(dst, src, bytes, kind);
+  // HIP permits same-device copies to return before completion. Ordinary
+  // synchronous callers can retire the source or use another nonblocking stream.
+  if (status == hipSuccess && kind == hipMemcpyDeviceToDevice)
+    status = hipStreamSynchronize(nullptr);
   if (status == hipSuccess)
     record_sync_copy(kind, bytes);
   return status;
@@ -42,7 +46,9 @@ hipError_t tracked_sync_copy_2d(void* dst, size_t dpitch, const void* src, size_
                                 size_t width, size_t height, hipMemcpyKind kind) {
   if (height && width > SIZE_MAX / height)
     return hipErrorInvalidValue;
-  const auto status = hipMemcpy2D(dst, dpitch, src, spitch, width, height, kind);
+  auto status = hipMemcpy2D(dst, dpitch, src, spitch, width, height, kind);
+  if (status == hipSuccess && kind == hipMemcpyDeviceToDevice)
+    status = hipStreamSynchronize(nullptr);
   if (status == hipSuccess)
     record_sync_copy(kind, uint64_t(width) * height);
   return status;

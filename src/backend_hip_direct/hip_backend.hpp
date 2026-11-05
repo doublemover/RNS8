@@ -567,6 +567,8 @@ rns8_status hip_direct_copy_host_to_device_labeled(int device_id, const char* ti
 rns8_status hip_direct_upload_host_matrix(int device_id, const char* timing_label, void* dst,
                                           std::size_t capacity, const void* src,
                                           const HostUploadPlan& plan);
+// Completes the default-stream copy before return, including same-device HIP
+// copies whose enqueue API alone need not block the host.
 rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const void* src,
                                              std::size_t bytes);
 rns8_status hip_direct_ensure_upload_buffer(int device_id, std::size_t bytes, void** buffer,

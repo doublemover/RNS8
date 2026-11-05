@@ -63,4 +63,41 @@ TEST_CASE("pinned host buffer reuse and moves preserve staging ownership") {
   REQUIRE(second.get() == nullptr);
   REQUIRE(second.capacity() == 0);
 }
+
+TEST_CASE("synchronous device copies finish before nonblocking stream consumption") {
+  using namespace rns8::detail;
+  if (!hip_available())
+    SKIP("no HIP device for synchronous copy completion");
+  constexpr std::size_t bytes = 1024 * 1024;
+  hip_direct_device_buffer source, destination;
+  REQUIRE(source.allocate(0, bytes) == RNS8_SUCCESS);
+  REQUIRE(destination.allocate(0, bytes) == RNS8_SUCCESS);
+  std::vector<uint8_t> expected(bytes);
+  for (std::size_t i = 0; i < bytes; ++i)
+    expected[i] = static_cast<uint8_t>((i * 17 + i / 251) % 256);
+  REQUIRE(hip_direct_copy_host_to_device(0, source.get(), expected.data(), bytes) == RNS8_SUCCESS);
+  const auto before = hip_direct_allocation_counters_snapshot();
+  REQUIRE(hip_direct_copy_device_to_device(0, destination.get(), source.get(), bytes) ==
+          RNS8_SUCCESS);
+  CHECK(hipStreamQuery(nullptr) == hipSuccess);
+  const auto after = hip_direct_allocation_counters_snapshot();
+  CHECK(after.d2d_calls - before.d2d_calls == 1);
+  CHECK(after.d2d_bytes - before.d2d_bytes == bytes);
+  hip_unique_stream stream;
+  REQUIRE(stream.create([](hipStream_t* out) noexcept {
+    return hipStreamCreateWithFlags(out, hipStreamNonBlocking);
+  }) == hipSuccess);
+  hip_pinned_host_buffer readback;
+  REQUIRE(readback.ensure(0, bytes) == hipSuccess);
+  source.mark_pending();
+  destination.mark_pending();
+  readback.mark_pending();
+  REQUIRE(hipMemcpyAsync(readback.get(), destination.get(), bytes, hipMemcpyDeviceToHost,
+                         stream.get()) == hipSuccess);
+  REQUIRE(hipStreamSynchronize(stream.get()) == hipSuccess);
+  source.mark_completed();
+  destination.mark_completed();
+  readback.mark_completed();
+  CHECK(std::equal(expected.begin(), expected.end(), static_cast<const uint8_t*>(readback.get())));
+}
 #endif

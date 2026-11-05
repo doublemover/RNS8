@@ -55,6 +55,11 @@ Successful replacement preserves the existing prepared queue until publication.
 Queue payload accounting includes the concrete staging object and capacities;
 allocator/control headers remain outside that model.
 
+Ordinary synchronous device copies explicitly wait for the default stream before
+returning success, including same-device copies that HIP may enqueue without
+blocking the host. Completed-copy counters advance after that wait succeeds.
+Borrowed-stream and graph entrypoints retain their explicit asynchronous contract.
+
 Each token contains a unique prepared-instance identity and a nonwrapping epoch.
 `rns8_get_prepared_completion` accepts only the latest epoch of that instance.
 It reports the exact input generations, output generation and operation status.
