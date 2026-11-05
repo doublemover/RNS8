@@ -9,6 +9,7 @@
 #include "rns8/rns8.h"
 #include "tool_common/cli_integer.hpp"
 #include "tool_common/build_identity.hpp"
+#include "tool_common/device_identity_json.hpp"
 
 namespace {
 #include "rns8_inspect_parse_helpers.inc"

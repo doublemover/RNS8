@@ -87,6 +87,10 @@ void print_json(
   std::cout << "{\n";
   std::cout << "  \"backend\": \"" << backend_name(info.backend) << "\",\n";
   std::cout << "  \"device_id\": " << info.device_id << ",\n";
+  std::cout << "  \"runtime_device_identity\": ";
+  rns8::tools::print_device_identity(std::cout,
+      rns8::tools::DeviceIdentitySnapshot(info.device_id, info.hip_available != 0));
+  std::cout << ",\n";
   std::cout << "  \"name\": \"" << json_escape(info.name) << "\",\n";
   std::cout << "  \"gcn_arch\": \"" << json_escape(info.gcn_arch) << "\",\n";
   std::cout << "  \"hip_available\": " << info.hip_available << ",\n";

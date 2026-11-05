@@ -11,6 +11,7 @@
 #include "rns8/status.h"
 #include "rns8/integer_split.h"
 #include "rns8/public_abi.h"
+#include "rns8/device_identity.h"
 
 #ifdef __cplusplus
 extern "C" {

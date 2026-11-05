@@ -159,6 +159,7 @@
         "alignof:rns8_result_cache_desc": 8,
         "alignof:rns8_result_cache_info": 8,
         "alignof:rns8_result_cache_pointer": 8,
+        "alignof:rns8_runtime_device_identity": 8,
         "alignof:rns8_semantics": 4,
         "alignof:rns8_sparse_contract": 4,
         "alignof:rns8_sparse_index_layout": 4,
@@ -256,6 +257,8 @@
         "constant:RNS8_CRT_GARNER": 0,
         "constant:RNS8_CRT_GROUP_LOCAL": 3,
         "constant:RNS8_CRT_GROUP_SPLIT": 4,
+        "constant:RNS8_DEVICE_IDENTITY_PCI_BDF": 1,
+        "constant:RNS8_DEVICE_IDENTITY_UUID": 2,
         "constant:RNS8_EXACT_WIDE_SIGNED": 3,
         "constant:RNS8_EXACT_WIDE_UNSIGNED": 4,
         "constant:RNS8_EXEC_BORROWED_STREAM": 2,
@@ -1682,6 +1685,15 @@
         "field_size:rns8_result_cache_info.struct_size": 8,
         "field_size:rns8_result_cache_info.target_id": 128,
         "field_size:rns8_result_cache_info.workspace_fingerprint": 8,
+        "field_size:rns8_runtime_device_identity.abi_version": 4,
+        "field_size:rns8_runtime_device_identity.native_pci_status": 4,
+        "field_size:rns8_runtime_device_identity.native_uuid_status": 4,
+        "field_size:rns8_runtime_device_identity.pci_bdf": 32,
+        "field_size:rns8_runtime_device_identity.reserved": 4,
+        "field_size:rns8_runtime_device_identity.runtime_ordinal": 4,
+        "field_size:rns8_runtime_device_identity.struct_size": 8,
+        "field_size:rns8_runtime_device_identity.uuid": 16,
+        "field_size:rns8_runtime_device_identity.valid_fields": 4,
         "field_size:rns8_sparse_matrix_desc.abi_version": 4,
         "field_size:rns8_sparse_matrix_desc.bound_kind": 4,
         "field_size:rns8_sparse_matrix_desc.contract": 4,
@@ -3151,6 +3163,15 @@
         "offsetof:rns8_result_cache_info.struct_size": 0,
         "offsetof:rns8_result_cache_info.target_id": 200,
         "offsetof:rns8_result_cache_info.workspace_fingerprint": 104,
+        "offsetof:rns8_runtime_device_identity.abi_version": 8,
+        "offsetof:rns8_runtime_device_identity.native_pci_status": 72,
+        "offsetof:rns8_runtime_device_identity.native_uuid_status": 76,
+        "offsetof:rns8_runtime_device_identity.pci_bdf": 40,
+        "offsetof:rns8_runtime_device_identity.reserved": 20,
+        "offsetof:rns8_runtime_device_identity.runtime_ordinal": 12,
+        "offsetof:rns8_runtime_device_identity.struct_size": 0,
+        "offsetof:rns8_runtime_device_identity.uuid": 24,
+        "offsetof:rns8_runtime_device_identity.valid_fields": 16,
         "offsetof:rns8_sparse_matrix_desc.abi_version": 8,
         "offsetof:rns8_sparse_matrix_desc.bound_kind": 16,
         "offsetof:rns8_sparse_matrix_desc.contract": 20,
@@ -3453,6 +3474,7 @@
         "sizeof:rns8_result_cache_desc": 24,
         "sizeof:rns8_result_cache_info": 1608,
         "sizeof:rns8_result_cache_pointer": 8,
+        "sizeof:rns8_runtime_device_identity": 80,
         "sizeof:rns8_semantics": 4,
         "sizeof:rns8_sparse_contract": 4,
         "sizeof:rns8_sparse_index_layout": 4,
@@ -3499,6 +3521,8 @@
       "rns8_native_owner_release": "void (*)(void *)"
     },
     "constants": {
+      "RNS8_DEVICE_IDENTITY_PCI_BDF": 1,
+      "RNS8_DEVICE_IDENTITY_UUID": 2,
       "RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION": 3,
       "RNS8_PRODUCT_MATERIALIZATION_LIFT_COST_COUNT": 441,
       "RNS8_PRODUCT_MATERIALIZATION_PACKED_GEMM_COST_COUNT": 441,
@@ -4064,6 +4088,7 @@
       "rns8_query_product_materialization_identity": "rns8_status (rns8_context *, const rns8_product_recipe_desc *, const uint32_t *, uint32_t, rns8_product_materialization_identity *)",
       "rns8_query_product_materialization_identity_ragged": "rns8_status (rns8_context *, const rns8_product_recipe_desc *, const rns8_ragged_recipe_binding *, uint32_t, const uint32_t *, uint32_t, uint64_t, rns8_product_materialization_identity *)",
       "rns8_query_resident_graph_hip": "rns8_status (rns8_resident_graph *, rns8_graph_completion_token, rns8_graph_execution_info *)",
+      "rns8_query_runtime_device_identity": "rns8_status (int, rns8_runtime_device_identity *)",
       "rns8_query_split_k": "rns8_status (int64_t, int64_t, int64_t, uint32_t, uint32_t, uint64_t, rns8_split_k_resources *)",
       "rns8_query_split_k_windowed": "rns8_status (int64_t, int64_t, int64_t, uint32_t, uint32_t, uint32_t, uint64_t, rns8_split_k_resources *)",
       "rns8_query_stream_gemm": "rns8_status (const rns8_stream_gemm_desc *, rns8_stream_gemm_resources *)",
@@ -4147,13 +4172,14 @@
       "rns8/abi.h": "081d031e2dcc38e3b37d13398523bc43e1adcd772f7466acf2b45eebc3d9a120",
       "rns8/bounds.h": "d7fe5d27c4fdaeca4827e5bcf22c2b98a49326d51e622f523853e3f412b1dcc5",
       "rns8/cpu_i8mm.h": "73a0b98b560bd082516acd4ebd87d43a60ac5733e60b24785952705c3780662a",
+      "rns8/device_identity.h": "c6aa8fe5d4ac917f33d0a90093931da45c1d7e069a53a7c7bc92c03433f66665",
       "rns8/experimental_basis.h": "478760211bbb8fed6bb44eeb9186e1e4b6d3eebda70dc8d91ee892977de181af",
       "rns8/experimental_product.h": "a2146ea6e160dfa2ce593691212b671eb11e693df8329d2906525ac2cfcd83fb",
       "rns8/integer_split.h": "7266ba2545782cfee20f4fa10b46ad30f4380ccab2bd8b47020757faf5146593",
       "rns8/moduli.h": "99fdc92580cf500d632f193715d2251f89f46a927736051ddf281c63fb20b2bb",
       "rns8/pipeline_recipe.h": "49b94e7c71d823e91be7f986938280dbf895e02cddfac0108d9b6f55372545aa",
       "rns8/public_abi.h": "20ccbb0b271bfa98c4303d52817d63902a131ffd895323032ae4feb0230828a5",
-      "rns8/rns8.h": "71bbe6739ba3f646ae692261d5246bf9e91f0a82d939692f9f506337428ce657",
+      "rns8/rns8.h": "04c3f1f87e4d02d275ff00d304de5abadfdc64e232bb365eede26ceb68554324",
       "rns8/semantics.h": "75ceba49e8bd975b4f03a0fa199535a864dde5beb6d8ac7e081a2489eb30b047",
       "rns8/status.h": "01fe71b1e6cafba2036240266615bfbaebf70dce810e309f165574f9b768debb"
     },
@@ -4313,6 +4339,7 @@
       "rns8_resident_node": "struct",
       "rns8_result_cache_desc": "struct",
       "rns8_result_cache_info": "struct",
+      "rns8_runtime_device_identity": "struct",
       "rns8_sparse_matrix_desc": "struct",
       "rns8_sparse_matrix_storage_info": "struct",
       "rns8_split_k_resources": "struct",
@@ -9584,6 +9611,44 @@
           "char[256]"
         ]
       ],
+      "rns8_runtime_device_identity": [
+        [
+          "struct_size",
+          "uint64_t"
+        ],
+        [
+          "abi_version",
+          "uint32_t"
+        ],
+        [
+          "runtime_ordinal",
+          "int32_t"
+        ],
+        [
+          "valid_fields",
+          "uint32_t"
+        ],
+        [
+          "reserved",
+          "uint32_t"
+        ],
+        [
+          "uuid",
+          "uint8_t[16]"
+        ],
+        [
+          "pci_bdf",
+          "char[32]"
+        ],
+        [
+          "native_pci_status",
+          "uint32_t"
+        ],
+        [
+          "native_uuid_status",
+          "uint32_t"
+        ]
+      ],
       "rns8_sparse_matrix_desc": [
         [
           "struct_size",
@@ -10918,6 +10983,9 @@
         "DLLImportAttr"
       ],
       "rns8_query_resident_graph_hip": [
+        "DLLImportAttr"
+      ],
+      "rns8_query_runtime_device_identity": [
         "DLLImportAttr"
       ],
       "rns8_query_split_k": [

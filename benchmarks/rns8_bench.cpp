@@ -31,6 +31,7 @@
 #include "rns8/generated/metadata_registry.hpp"
 #include "tool_common/build_identity.hpp"
 #include "tool_common/process_identity.hpp"
+#include "tool_common/device_identity_json.hpp"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
 #  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
@@ -308,6 +309,7 @@ int main(int argc, char** argv) try {
       return 1;
     }
 
+    rns8::tools::DeviceIdentityWitness device_identity(info.device_id, info.hip_available != 0);
     BenchmarkResult result{};
     switch (args.semantics) {
       case BenchSemantics::BoundedI64:
@@ -326,10 +328,11 @@ int main(int argc, char** argv) try {
         std::cerr << "--vector-to-rns-chain reached an unsupported semantic mode after argument validation\n";
         return 1;
     }
+    device_identity.finish();
     rns8_destroy_context(direct_ctx);
     rns8_destroy_context(vector_ctx);
     const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
-    print_json(args, info, result, effective_bound, cmdline);
+    print_json(args, info, result, effective_bound, cmdline, device_identity);
     return 0;
   }
 
@@ -354,6 +357,7 @@ int main(int argc, char** argv) try {
     return 1;
   }
 
+  rns8::tools::DeviceIdentityWitness device_identity(info.device_id, info.hip_available != 0);
   rns8::detail::hipblaslt_metadata_set_policy(args.hipblaslt_metadata_per_block_control ?
       rns8::detail::HipblasLtMetadataPolicy::per_block_control : rns8::detail::HipblasLtMetadataPolicy::per_call);
   rns8::detail::hipblaslt_metadata_counters_reset();
@@ -407,6 +411,7 @@ int main(int argc, char** argv) try {
     result.allocation_after_warmups = result.allocation_after_repeats;
     result.allocation_after_warmups_available = true;
   }
+  device_identity.finish();
   rns8_destroy_context(ctx);
   const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
   if (args.progress) {
@@ -414,7 +419,7 @@ int main(int argc, char** argv) try {
               << " backend=" << selected_backend_name(args, info, &result)
               << " checksum=" << result.checksum << "\n";
   }
-  print_json(args, info, result, effective_bound, cmdline);
+  print_json(args, info, result, effective_bound, cmdline, device_identity);
   return 0;
 } catch (const std::exception& error) {
   std::cerr << "rns8-bench: " << error.what() << '\n';

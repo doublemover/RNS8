@@ -3,7 +3,8 @@ void print_json(
     const rns8_device_info& info,
     const BenchmarkResult& result,
     uint64_t bound,
-    const std::string& cmdline) {
+    const std::string& cmdline,
+    const rns8::tools::DeviceIdentityWitness& device_identity) {
   std::cout << std::setprecision(17);
 #include "rns8_bench_print_json_context.inc"
 #include "rns8_bench_print_json_header_backend.inc"

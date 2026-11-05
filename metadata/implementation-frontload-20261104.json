@@ -858,9 +858,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/96",
       "requirements_sha256": "d055f689810308f25b2be643f71dfe155cafb7aa77d1a36ec4fdd89d38877543",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Public process-local HIP PCI-BDF/opaque-UUID inquiry with transactional preflight, explicit availability and native status; canonical CPU-observable validation; inspector snapshots and benchmark before/after witness outside timing; native-query error cleanup and CPU/real-HIP test source authored"
+      ],
+      "remaining_source_items": [
+        "Bind runtime snapshots/witnesses to actual session visibility, rank/case, request and artifact records; reject contradictory/copied/missing observations in legacy multi-GPU reporter and use complete exact-work/case identity for checksum groups; add real-loader positive/negative fixtures"
+      ]
     },
     {
       "issue": 97,

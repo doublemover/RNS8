@@ -1,6 +1,8 @@
 set(RNS8_PUBLIC_HEADERS
   include/rns8/abi.h
   include/rns8/status.h
+  include/rns8/public_abi.h
+  include/rns8/device_identity.h
   include/rns8/semantics.h
   include/rns8/bounds.h
   include/rns8/moduli.h
@@ -20,6 +22,7 @@ set(RNS8_SOURCES
   src/core/api_experimental_basis.cpp
   src/core/api_backend_info.cpp
   src/core/api_context.cpp
+  src/core/api_device_identity.cpp
   src/core/api_public_abi.cpp
   src/core/api_export.cpp
   src/core/api_exact_lift.cpp
