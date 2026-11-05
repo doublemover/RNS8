@@ -774,8 +774,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/90",
       "requirements_sha256": "474d0208821f17349c17c2c064211ee6cd2f6ebcd119b050daced516649e9f42",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Introduce typed versioned companion observation projection and v2 binding receipts. Remove only explicitly reviewed top-level/nested reuse measurements, setup breakdown leaves, reference/oracle timers, graph timers and streaming/sustained duration leaves; preserve requested budgets, policy/scope, reuse roles, repeats, cache/source/output/kernel/environment/artifact identity and unknown future fields. Strict type-aware comparisons and strict binding JSON retain fail-closed behavior. Raw file/content hashes still bind every original observation. Author real-loader reused A/B/A+B controls with independent setup observations, review/ledger integration, post-binding mutation and contract/unknown-field rejection controls. Python3.15 AST and undefined-name lint only; no fixtures or benchmarks executed."
+      ],
       "remaining_source_items": []
     },
     {

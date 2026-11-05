@@ -170,3 +170,9 @@ CPU anchors are indexed by mathematical/input identity, independently of timing
 selection; conflicting observations remain blockers. Pending policy statuses
 remain incomplete even when other metadata is valid. The adapter regression
 suite is tools/test_report_numerical_gates.py.
+Production/diagnostic binding v2 uses the reviewed observation projection in
+tools/companion_contract.py. Execution timings may differ between processes;
+requested budgets, repeat counts, reuse policies and unknown fields remain
+contractual. Complete original file/content hashes still make each receipt
+immutable. Older binding receipts must be regenerated from their original
+captures before they can qualify under the current projection.

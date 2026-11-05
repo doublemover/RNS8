@@ -11,6 +11,7 @@ from promotion_ledger import capture_entry
 from collect_diagnostic_pairs import paired_plan
 from diagnostic_companion import build_binding, common_identity, digest, load_bindings, production_evidence, validate_binding
 from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
+from test_benchmark_schema_support import as_reused_pack_capture, as_reused_a_capture, add_helper_lane_fields
 
 FIXTURES = Path(__file__).parents[1]/'tests/fixtures/benchmark_schema'
 
@@ -34,7 +35,90 @@ def authored_pair(root, name='v4_bounded_i64_rocwmma.json'):
     return production, diagnostic, paths
 
 
+def authored_reuse_pair(root, operands):
+    production, diagnostic, paths = authored_pair(root, "v4_bounded_i64_ck.json")
+    result = []
+    for capture, path, cost in zip((production, diagnostic), paths, (123, 147)):
+        capture = (as_reused_pack_capture(capture) if operands == ("A", "B") else as_reused_a_capture(capture))
+        if operands == ("B",):
+            capture["pack_mode"] = "prepacked_reuse_b"
+            capture["prepack_reuse_operands"] = ["B"]
+            capture["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
+            capture["timing_metadata"]["prepack_reuse_operands"] = ["B"]
+            capture["timing_metadata"]["phase_notes"]["pack"] = "per-repeat packing of A; B is retained"
+            capture["timing_metadata"]["phase_availability"]["prepack_setup"]["reason"] = "B packed once before warmups"
+        add_helper_lane_fields(capture)
+        breakdown = dict(pack_a=cost if "A" in operands else 0,
+                         pack_b=0 if "A" in operands else cost, runtime_cache=0, unclassified=0)
+        capture["prepack_setup_us"] = capture["avg_prepack_setup_us"] = cost
+        capture["prepack_setup_breakdown_us"] = breakdown
+        repeats = capture["repeats"]
+        median = capture["timing_summary_us"]["end_to_end"]["median"]
+        capture["reuse_contract"] = dict(enabled=True, operand_role="A+B" if len(operands) == 2 else operands[0],
+            source_version_inputs="monotonic_source_version_per_repeat_when_packing_runs",
+            setup_scope="one_time_before_warmups", setup_cost_us=cost, setup_breakdown_us=dict(breakdown),
+            setup_amortized_us=cost/repeats, repeat_median_end_to_end_us=median,
+            setup_inclusive_median_end_to_end_us=median+cost/repeats,
+            setup_inclusive_policy="one_time_setup_amortized_over_measured_repeats", measured_repeat_count=repeats,
+            break_even_repeat_count=None, output_domain="native_i64_u64_host", next_op="final-export",
+            target_fingerprint=capture["device"]["gcn_arch"], backend_fingerprint="ck",
+            kernel_fingerprint=capture["selected_kernel"], workspace_fingerprint="synthetic-retained",
+            runtime_prepack_cache=None, production_runtime_prepack_cache_available=False,
+            setup_inclusive_cache_promotion_candidate=False, promotion_eligible=False,
+            invalidation_reasons=["source_version_changed"])
+        request = capture["request_identity"]
+        request["arguments"] += ["--reuse-packed-inputs"] if len(operands) == 2 else ["--reuse-packed-"+operands[0].lower()]
+        request["identity_sha256"] = digest({k:v for k,v in request.items() if k != "identity_sha256"})
+        synthetic_host_measurements(capture)
+        validate_capture(capture, path)
+        path.write_text(json.dumps(capture), encoding="utf-8")
+        result.append(capture)
+    return *result, paths
+
+
 class DiagnosticCompanion(unittest.TestCase):
+    def test_independent_reuse_observations_bind_without_weakening_immutable_receipts(self):
+        for operands in (("A",), ("B",), ("A", "B")):
+            with self.subTest(operands=operands), tempfile.TemporaryDirectory() as temp:
+                production, diagnostic, paths = authored_reuse_pair(Path(temp), operands)
+                self.assertNotEqual(production["reuse_contract"]["setup_cost_us"], diagnostic["reuse_contract"]["setup_cost_us"])
+                binding = build_binding(*paths)
+                self.assertEqual(binding["common_identity_schema"], "rns8_companion_common_contract_v2")
+                self.assertEqual(validate_binding(binding, production), binding)
+                production["_path"] = str(paths[0])
+                report = review_captures([production], review_mode="release",
+                    diagnostic_bindings={str(paths[0].resolve()): binding})
+                candidate = report["groups"][0]["candidates"][0]
+                self.assertTrue(candidate["production_timing_evidence"]["eligible"])
+                self.assertFalse(candidate["promotable"])
+                ledger = capture_entry(paths[0], diagnostic_binding=binding)
+                self.assertTrue(ledger["production_timing_evidence"]["eligible"])
+                diagnostic["reuse_contract"]["setup_cost_us"] += 1
+                paths[1].write_text(json.dumps(diagnostic), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    validate_binding(binding)
+
+    def test_reuse_controls_and_unclassified_observations_still_fail_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            production, diagnostic, _ = authored_reuse_pair(Path(temp), ("A", "B"))
+            for field, value in (("setup_inclusive_policy", "different"),
+                                 ("measured_repeat_count", diagnostic["repeats"]+1),
+                                 ("source_version_inputs", "different"), ("output_domain", "residue_current"),
+                                 ("kernel_fingerprint", "different"), ("operand_role", "A")):
+                bad = copy.deepcopy(diagnostic)
+                bad["reuse_contract"][field] = value
+                self.assertNotEqual(common_identity(production), common_identity(bad), field)
+            for mutate in (
+                lambda c: c.update(future_budget_us=123),
+                lambda c: c["reuse_contract"].update(future_elapsed_us=123),
+                lambda c: c["reuse_contract"]["setup_breakdown_us"].update(future_stage_us=123),
+                lambda c: c["timing_metadata"].update(gpu_event_future_control=True),
+                lambda c: c.update(sustained_production={"min_duration_us":123}),
+            ):
+                bad = copy.deepcopy(diagnostic)
+                mutate(bad)
+                self.assertNotEqual(common_identity(production), common_identity(bad))
+
     def test_eventless_accelerator_requires_explicit_production_contract(self):
         with tempfile.TemporaryDirectory() as temp:
             production, diagnostic, paths = authored_pair(Path(temp))

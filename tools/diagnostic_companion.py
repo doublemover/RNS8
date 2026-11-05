@@ -14,8 +14,10 @@ from pathlib import Path
 from benchmark_schema import load_capture, validate_capture
 from build_manifest import manifest_provenance_complete
 from timing_eligibility import capture_identity
+from companion_contract import SCHEMA as COMMON_CONTRACT_SCHEMA, TOP_LEVEL_OBSERVATIONS, remove_observations
+from json_evidence import load_evidence_json, same_evidence_value
 
-SCHEMA = 'rns8_production_diagnostic_binding_v1'
+SCHEMA = 'rns8_production_diagnostic_binding_v2'
 GPU_BACKENDS = {'hip-direct', 'hipblaslt', 'ck', 'rocwmma', 'amdgpu-builtins', 'hip-vector-alu-int64'}
 
 
@@ -48,17 +50,10 @@ def common_identity(capture):
     # closed until its observation-only nature is explicitly reviewed here.
     identity = copy.deepcopy({k: v for k, v in capture.items() if not k.startswith('_')})
     for key in list(identity):
-        if key.endswith('_us') or key in {'execution_id', 'request_identity', 'artifact_capture', 'command_line',
+        if key in TOP_LEVEL_OBSERVATIONS or key in {'execution_id', 'request_identity', 'artifact_capture', 'command_line',
                 'derived_tops_equivalent', 'comparison_baseline', 'timing_note', 'capture_timestamp_utc'}:
             identity.pop(key)
-    for section,fields in (('native_reference_verification',('elapsed_us',)),('exact_wide_magnitude',('admission_us','oracle_us'))):
-        for field in fields:
-            if isinstance(identity.get(section),dict):identity[section].pop(field,None)
-    timing = identity.get('timing_metadata') or {}
-    for key in list(timing):
-        if key.startswith('gpu_event_') or key in {'host_instrumentation_state', 'phase_states', 'timer_pair_median_us',
-                'timer_pair_p95_us', 'censor_threshold_us', 'physical_accuracy_ns'}:
-            timing.pop(key)
+    remove_observations(identity)
     artifact = capture.get('artifact_capture') or {}
     identity['compiled_artifact'] = {k: artifact.get(k) for k in ('executable_sha256', 'rns8_linkage', 'shared_library_sha256')}
     request = capture.get('request_identity')
@@ -106,8 +101,8 @@ def _pair_contract(production, diagnostic):
     if production['execution_id'] == diagnostic['execution_id']:
         raise ValueError('diagnostic and production cannot be one execution')
     left, right = common_identity(production), common_identity(diagnostic)
-    if left != right:
-        differing = sorted(k for k in left.keys() | right.keys() if left.get(k) != right.get(k))
+    if not same_evidence_value(left, right):
+        differing = sorted(k for k in left.keys() | right.keys() if not same_evidence_value(left.get(k), right.get(k)))
         raise ValueError('companion contract differs: '+','.join(differing))
     return digest(left)
 
@@ -119,7 +114,7 @@ def build_binding(production_path, diagnostic_path):
     production, diagnostic = load_capture(production_path), load_capture(diagnostic_path)
     validate_capture(production, production_path); validate_capture(diagnostic, diagnostic_path)
     common = _pair_contract(production, diagnostic)
-    return dict(schema=SCHEMA, production_capture=str(production_path), diagnostic_capture=str(diagnostic_path),
+    return dict(schema=SCHEMA, common_identity_schema=COMMON_CONTRACT_SCHEMA, production_capture=str(production_path), diagnostic_capture=str(diagnostic_path),
                 production_file_sha256=file_digest(production_path), diagnostic_file_sha256=file_digest(diagnostic_path),
                 production_capture_sha256=capture_identity(production), diagnostic_capture_sha256=capture_identity(diagnostic),
                 common_identity_sha256=common, evidence_scope='matched_contract_only_not_performance_or_ISA_qualification')
@@ -132,7 +127,7 @@ def validate_binding(binding, production=None):
         actual = build_binding(binding['production_capture'], binding['diagnostic_capture'])
     except (KeyError, OSError, TypeError) as error:
         raise ValueError('diagnostic binding source unavailable') from error
-    if actual != binding:
+    if not same_evidence_value(actual, binding):
         raise ValueError('diagnostic binding changed or forged receipt')
     if production is not None and capture_identity(production) != actual['production_capture_sha256']:
         raise ValueError('reviewed production differs from bound capture')
@@ -142,7 +137,7 @@ def validate_binding(binding, production=None):
 def load_bindings(paths):
     result = {}
     for path in paths:
-        binding = json.loads(Path(path).read_text(encoding='utf-8'))
+        binding = load_evidence_json(Path(path))
         validate_binding(binding)
         key = str(Path(binding['production_capture']).resolve())
         if key in result:
