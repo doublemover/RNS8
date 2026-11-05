@@ -62,7 +62,7 @@ rns8_status hip_direct_word_mod_device(int device_id, const void* a, const void*
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
-  hip_probe_buffer flag;
+  hip_direct_device_buffer flag;
   status = flag.allocate(device_id, 4);
   if (status != RNS8_SUCCESS)
     return status;
@@ -92,7 +92,7 @@ rns8_status hip_direct_word_mod_device(int device_id, const void* a, const void*
     weights = word_mod::digit_weights(p.modulus);
   int invalid = 0;
   flag.mark_pending();
-  status = hip_direct_copy_host_to_device(device_id, flag.get(), &invalid, 4);
+  status = hip_direct_zero(device_id, flag.get(), sizeof(invalid));
   if (status != RNS8_SUCCESS)
     return status;
   flag.mark_completed();
@@ -113,7 +113,7 @@ rns8_status hip_direct_word_mod_device(int device_id, const void* a, const void*
   if (invalid)
     return RNS8_INVALID_ARGUMENT;
   if (product_bytes) {
-    hip_probe_buffer products;
+    hip_direct_device_buffer products;
     status = products.allocate(device_id, product_bytes);
     if (status != RNS8_SUCCESS)
       return status;

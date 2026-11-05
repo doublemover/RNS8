@@ -20,7 +20,7 @@ rns8_status hip_direct_wrap_radix_wmma_device(int device_id, const void* a, cons
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
-  hip_probe_buffer capability;
+  hip_direct_device_buffer capability;
   status = capability.allocate(device_id, sizeof(int));
   if (status != RNS8_SUCCESS)
     return status;
@@ -33,8 +33,11 @@ rns8_status hip_direct_wrap_radix_wmma_device(int device_id, const void* a, cons
   if (launched != hipSuccess || completed != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   int supported = 0;
+  capability.mark_pending();
   status =
       hip_direct_copy_device_to_host(device_id, &supported, capability.get(), sizeof(supported));
+  if (status == RNS8_SUCCESS)
+    capability.mark_completed();
   if (status != RNS8_SUCCESS)
     return status;
   if (!supported)
@@ -67,7 +70,7 @@ rns8_status hip_direct_wrap_radix_mfma_query(int device_id, uint32_t& instructio
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
-  hip_probe_buffer probe;
+  hip_direct_device_buffer probe;
   status = probe.allocate(device_id, sizeof(int));
   if (status != RNS8_SUCCESS)
     return status;
@@ -80,7 +83,10 @@ rns8_status hip_direct_wrap_radix_mfma_query(int device_id, uint32_t& instructio
   if (launch != hipSuccess || drain != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   int width = 0;
+  probe.mark_pending();
   status = hip_direct_copy_device_to_host(device_id, &width, probe.get(), sizeof(width));
+  if (status == RNS8_SUCCESS)
+    probe.mark_completed();
   if (status != RNS8_SUCCESS)
     return status;
   if (width != 16 && width != 32 && width != 64)

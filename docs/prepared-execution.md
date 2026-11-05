@@ -40,6 +40,14 @@ uncertain completion keeps both allocations alive through deferred cleanup.
 This adds host ownership metadata to preparation, without another completion
 state machine. The new ownership controls await the combined validation batch.
 
+One-shot Gram jobs likewise retain their actual host upload vector with the
+pending device allocation. Capability/status, split-K, fixed-conversion and
+word-mod scratch use the same typed device owner; the duplicate probe-only
+owner has been removed. Capability readbacks keep their source allocation
+pending until the completed copy, alongside the owned host destination.
+Word-mod status initialization uses completed device zeroing instead of copying
+a stack scalar. These source repairs await the same runtime validation batch.
+
 Internal scalar status/capability and two/four-word admission-proof reads use a
 reusable32-byte ordinary host slot. Success copies the complete result into the
 caller; failure retires the actual owned destination through the same device

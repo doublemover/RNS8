@@ -34,7 +34,7 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
-  hip_probe_buffer scratch;
+  hip_direct_device_buffer scratch;
   status = scratch.allocate(device_id, static_cast<std::size_t>(bytes));
   if (status != RNS8_SUCCESS)
     return status;

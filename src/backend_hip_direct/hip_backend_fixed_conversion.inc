@@ -24,7 +24,7 @@ rns8_status hip_direct_fixed_conversion_device(int device_id, const void* source
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
-  hip_probe_buffer flag;
+  hip_direct_device_buffer flag;
   status = flag.allocate(device_id, 4);
   if (status != RNS8_SUCCESS)
     return status;

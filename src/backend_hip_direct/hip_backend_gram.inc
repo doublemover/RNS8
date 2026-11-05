@@ -21,14 +21,18 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
-  const auto jobs = gram_tiles(support);
-  hip_probe_buffer device_jobs;
+  auto jobs = std::make_shared<std::vector<GramTile>>(gram_tiles(support));
+  hip_direct_device_buffer device_jobs;
   status = device_jobs.allocate(device_id, support.job_bytes + (wmma ? 4 : 0));
+  if (status != RNS8_SUCCESS)
+    return status;
+  // The actual upload source must survive a failed copy and uncertain drain.
+  status = device_jobs.retain_host_payload(jobs);
   if (status != RNS8_SUCCESS)
     return status;
   device_jobs.mark_pending();
   status =
-      hip_direct_copy_host_to_device(device_id, device_jobs.get(), jobs.data(), support.job_bytes);
+      hip_direct_copy_host_to_device(device_id, device_jobs.get(), jobs->data(), support.job_bytes);
   if (status != RNS8_SUCCESS) {
     if (hipDeviceSynchronize() == hipSuccess)
       device_jobs.mark_completed();
@@ -46,7 +50,10 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
     if (launch != hipSuccess || drain != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     int supported = 0;
+    device_jobs.mark_pending();
     status = hip_direct_copy_device_to_host(device_id, &supported, flag, 4);
+    if (status == RNS8_SUCCESS)
+      device_jobs.mark_completed();
     if (status != RNS8_SUCCESS)
       return status;
     if (!supported)
