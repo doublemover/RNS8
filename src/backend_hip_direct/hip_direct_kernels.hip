@@ -443,22 +443,37 @@ extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
   return code;
 }
 
-extern "C" int rns8_hip_direct_lift_suffix_device(
+template<bool Guarded>
+int rns8_launch_lift_suffix(
     const int8_t* residues, int8_t* suffix, int cells, int source_prefix, int target_prefix,
-    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status, bool mixed_radix, void* stream) {
+    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status, bool mixed_radix, void* stream,const int* guard) {
   if (!residues || !suffix || !status || cells <= 0 || cells > kRns8MaxInt - 256 ||
       source_prefix <= 0 || target_prefix > kRns8MaxSupportedPrefix || source_prefix >= target_prefix)
     return static_cast<int>(hipErrorInvalidValue);
   if (mixed_radix) {
-    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<true>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<true,Guarded>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
                       residues, suffix, cells, source_prefix, target_prefix, signed_value,
-                      (rns8_u192_device{bound0, bound1, bound2}), status);
+                      (rns8_u192_device{bound0, bound1, bound2}), status,guard);
   } else {
-    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<false>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<false,Guarded>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
                       residues, suffix, cells, source_prefix, target_prefix, signed_value,
-                      (rns8_u192_device{bound0, bound1, bound2}), status);
+                      (rns8_u192_device{bound0, bound1, bound2}), status,guard);
   }
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_lift_suffix_device(
+    const int8_t* residues,int8_t* suffix,int cells,int source,int target,bool sign,
+    uint64_t b0,uint64_t b1,uint64_t b2,int* status,bool mixed,void* stream) {
+  return rns8_launch_lift_suffix<false>(residues,suffix,cells,source,target,sign,b0,b1,b2,status,mixed,stream,nullptr);
+}
+extern "C" int rns8_hip_direct_lift_suffix_guarded(
+    const int8_t* residues,int8_t* suffix,int cells,int source,int target,bool sign,
+    uint64_t b0,uint64_t b1,uint64_t b2,int* status,void* stream,const int* guard) {
+  if(!stream || !guard)return int(hipErrorInvalidValue);
+  // Guarded recipe stages emit public status codes. Legacy default-basis lifts
+  // retain their existing private 1/2 flag encoding and ordinary kernel body.
+  return rns8_launch_lift_suffix<true>(residues,suffix,cells,source,target,sign,b0,b1,b2,status,false,stream,guard);
 }
 
 extern "C" int rns8_hip_axpby_residues(

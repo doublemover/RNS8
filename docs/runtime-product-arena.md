@@ -31,6 +31,12 @@ ordered-basis, address and launch admission as those wrappers. Optional ordered
 predecessor-status guards skip operand reads and output stores; ordinary kernel
 entry points compile the guard away. A one-thread stream-ordered merge retains
 the first failed stage even after later stages reset their own scratch flags.
+Ordered lift enqueues now stage default or explicitly admitted experimental-basis
+suffixes on that same borrowed stream. They merge each stage into one persistent
+failure word before guarding the suffix copy. Only the replay owner resets that
+word; later local scratch resets cannot erase a failure. Guarded default lifts
+use public status codes, while the existing default-lift entry points retain
+their private status encoding. No per-node host status readback is performed.
 The owning recipe's stream/lift/publication integration remains source work;
 these primitives alone are not a one-stream recipe implementation or measured
 throughput result. Their authored differential controls reuse the independent

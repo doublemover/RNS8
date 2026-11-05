@@ -1,7 +1,8 @@
-template <bool MixedRadix>
+template <bool MixedRadix,bool Guarded=false>
 __global__ void rns8_exact_lift_suffix_kernel(
     const int8_t* residues, int8_t* suffix, int elements, int source_prefix,
-    int target_prefix, bool signed_value, rns8_u192_device bound, int* status) {
+    int target_prefix, bool signed_value, rns8_u192_device bound, int* status,const int* prior) {
+  if constexpr(Guarded)if(*prior)return;
   const int cell = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
   if (cell >= elements) return;
   for (int p = 0; p < source_prefix; ++p) {
@@ -19,7 +20,7 @@ __global__ void rns8_exact_lift_suffix_kernel(
   const bool negative = signed_value && rns8_u192_centered_is_negative_device(value, product);
   const auto magnitude = negative ? rns8_u192_sub_device(product, value) : value;
   if (rns8_u192_compare_device(magnitude, bound) > 0) {
-    atomicMax(status, 2);
+    atomicMax(status, Guarded?int(RNS8_RANGE_ERROR):2);
     return;
   }
   for (int p = source_prefix; p < target_prefix; ++p) {

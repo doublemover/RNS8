@@ -69,3 +69,53 @@ rns8_status hip_direct_enqueue_exact_lift(int device_id,void* residues,int64_t c
   (void)device_id;(void)signed_value;(void)mixed_radix;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_lift_suffix_guarded(const int8_t*,int8_t*,int,int,int,bool,uint64_t,uint64_t,uint64_t,int*,void*,const int*);
+extern "C" int rns8_hip_basis_convert_value_guarded(const int8_t*,int8_t*,uint64_t,BasisPacket,BasisPacket,uint32_t,uint32_t,bool,BasisMagnitude,int*,void*,const int*);
+#endif
+rns8_status hip_direct_enqueue_recipe_lift(int device,void* residues,int64_t cells,uint32_t source,uint32_t target,
+    bool sign,const uint64_t* bound,void* scratch,uint64_t capacity,const BasisPacket* basis,int* sticky,void* stream) {
+  if(!stream || !bound || !sticky || reinterpret_cast<uintptr_t>(sticky)%alignof(int))return RNS8_INVALID_ARGUMENT;
+  int* stage=nullptr;int8_t* payload=nullptr;uint64_t copied=0;
+  if(!basis) {
+    ExactLiftWorkspaceView view;
+    const auto admitted=exact_lift_workspace_view(scratch,capacity,residues,cells,source,target,view);
+    if(admitted!=RNS8_SUCCESS)return admitted;
+    stage=view.status;payload=view.suffix;copied=view.suffix_bytes;
+  } else {
+    if(basis->version!=1 || !basis->count || basis->count>20 || cells<=0 || cells>INT32_MAX-256 ||
+        !source || source>=target || target>basis->count)return RNS8_INVALID_ARGUMENT;
+    const uint64_t required=sizeof(int)+uint64_t(cells)*target;
+    if(required>SIZE_MAX)return RNS8_RANGE_ERROR;
+    if(!scratch || !residues || reinterpret_cast<uintptr_t>(scratch)%alignof(int) ||
+        !nonoverlapping_byte_ranges(scratch,required,residues,uint64_t(cells)*target))return RNS8_INVALID_ARGUMENT;
+    if(capacity<required)return RNS8_WORKSPACE_TOO_SMALL;
+    stage=static_cast<int*>(scratch);payload=static_cast<int8_t*>(scratch)+sizeof(int);
+    copied=uint64_t(cells)*(target-source);
+  }
+  if(!nonoverlapping_byte_ranges(sticky,sizeof(int),scratch,capacity) ||
+      !nonoverlapping_byte_ranges(sticky,sizeof(int),residues,uint64_t(cells)*target))return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(set_hip_device(device)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+  const auto ordered=static_cast<hipStream_t>(stream);
+  if(hipMemsetAsync(stage,0,sizeof(int),ordered)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  int issued;
+  if(basis) {
+    BasisMagnitude magnitude;std::copy_n(bound,3,magnitude.words);
+    issued=rns8_hip_basis_convert_value_guarded(static_cast<const int8_t*>(residues),payload,uint64_t(cells),
+        *basis,*basis,source,target,sign,magnitude,stage,stream,sticky);
+  } else issued=rns8_hip_direct_lift_suffix_guarded(static_cast<const int8_t*>(residues),payload,int(cells),int(source),int(target),
+      sign,bound[0],bound[1],bound[2],stage,stream,sticky);
+  if(issued!=int(hipSuccess))return RNS8_BACKEND_FAILURE;
+  const auto merged=hip_direct_enqueue_first_failure(device,stage,sticky,stream);
+  if(merged!=RNS8_SUCCESS)return merged;
+  // Merge precedes suffix publication. A failure anywhere earlier in the recipe
+  // suppresses this copy; resetting the local stage word never clears sticky.
+  const auto* suffix=basis?payload+uint64_t(cells)*source:payload;
+  auto* destination=static_cast<int8_t*>(residues)+uint64_t(cells)*source;
+  return rns8_hip_guarded_copy_bytes(suffix,destination,1,copied,copied,copied,sticky,stream)==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)device;(void)sign;(void)stage;(void)payload;(void)copied;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

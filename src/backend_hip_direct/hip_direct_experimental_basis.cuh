@@ -60,9 +60,11 @@ __global__ void basis_export_view_kernel(const int8_t* residues,uint64_t* destin
   uint64_t value[3]{};if(!basis_checked_value(residues,cells,cell,basis,prefix,signed_values,bound,value,status))return;
   if(!rns8::detail::basis_export_words(value,signed_values,limbs,destination+cell*limbs))atomicMax(status,int(RNS8_RANGE_ERROR));
 }
+template<bool Guarded>
 __global__ void basis_convert_value_kernel(const int8_t* source,int8_t* destination,uint64_t cells,
     BasisPacket from,BasisPacket to,uint32_t source_prefix,uint32_t target_prefix,
-    bool signed_values,BasisMagnitude bound,int* status) {
+    bool signed_values,BasisMagnitude bound,int* status,const int* guard) {
+  if constexpr(Guarded)if(*guard)return;
   const uint64_t cell=uint64_t(blockIdx.x)*blockDim.x+threadIdx.x;if(cell>=cells)return;
   uint64_t value[3]{};if(!basis_checked_value(source,cells,cell,from,source_prefix,signed_values,bound,value,status))return;
   const bool negative=signed_values && value[2]>>63;if(negative)rns8::detail::basis_negate_words(value);
@@ -78,7 +80,16 @@ extern "C" int rns8_hip_basis_convert_value_stream(const int8_t* source,int8_t* 
     bool sign,rns8::detail::BasisMagnitude bound,int* status,void* stream) {
   if(!source || !destination || !status || !stream || !cells || cells>INT32_MAX || !source_prefix || source_prefix>from.count ||
       !target_prefix || target_prefix>to.count)return int(hipErrorInvalidValue);
-  hipLaunchKernelGGL(basis_convert_value_kernel,dim3((cells+255)/256),dim3(256),0,static_cast<hipStream_t>(stream),source,destination,cells,from,to,source_prefix,target_prefix,sign,bound,status);
+  hipLaunchKernelGGL((basis_convert_value_kernel<false>),dim3((cells+255)/256),dim3(256),0,static_cast<hipStream_t>(stream),source,destination,cells,from,to,source_prefix,target_prefix,sign,bound,status,static_cast<const int*>(nullptr));
+  return int(hipGetLastError());
+}
+extern "C" int rns8_hip_basis_convert_value_guarded(const int8_t* source,int8_t* destination,uint64_t cells,
+    rns8::detail::BasisPacket from,rns8::detail::BasisPacket to,uint32_t source_prefix,uint32_t target_prefix,
+    bool sign,rns8::detail::BasisMagnitude bound,int* status,void* stream,const int* guard) {
+  if(!source || !destination || !status || !stream || !guard || !cells || cells>INT32_MAX ||
+      !source_prefix || source_prefix>from.count || !target_prefix || target_prefix>to.count)return int(hipErrorInvalidValue);
+  hipLaunchKernelGGL((basis_convert_value_kernel<true>),dim3((cells+255)/256),dim3(256),0,static_cast<hipStream_t>(stream),
+      source,destination,cells,from,to,source_prefix,target_prefix,sign,bound,status,guard);
   return int(hipGetLastError());
 }
 extern "C" int rns8_hip_basis_pack_view_stream(const uint64_t* native,int8_t* residues,uint64_t cells,

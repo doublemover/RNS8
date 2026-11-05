@@ -292,6 +292,13 @@ rns8_status hip_direct_enqueue_exact_lift(int device_id,void* residues,int64_t c
     uint32_t source_prefix,uint32_t target_prefix,bool signed_value,const uint64_t* bound,
     void* scratch,uint64_t scratch_bytes,void* pinned_status,bool mixed_radix,void* stream);
 
+// Ordered recipe lift: sticky uses public status codes (1 invalid, 5 range).
+// Reset sticky once per replay, not per node. No readback/wait/publication occurs;
+// only private suffixes commit under the shared flag. nullptr basis means the
+// default ladder; a nonnull immutable packet is already admitted by its owner.
+rns8_status hip_direct_enqueue_recipe_lift(int,void*,int64_t,uint32_t,uint32_t,bool,const uint64_t*,
+    void* scratch,uint64_t,const BasisPacket*,int* sticky,void* stream);
+
 // Borrowed status+suffix region; no allocations/frees. Caller retains and drains
 // it on errors. The first int is aligned, suffix follows; publication is unchanged.
 rns8_status hip_direct_lift_exact_suffix_workspace(

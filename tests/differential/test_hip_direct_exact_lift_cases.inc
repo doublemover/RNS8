@@ -208,3 +208,60 @@ TEST_CASE("direct HIP exact selector stages both inputs and output before one pr
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("ordered recipe lifts preserve first failure across scratch reuse and guard every suffix") {
+  if(!hip_available())SKIP("HIP device required for ordered recipe lift differential");
+  using namespace rns8::detail;using boost::multiprecision::cpp_int;
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  hip_scoped_device selected(ctx->device_id);REQUIRE(selected.status()==hipSuccess);
+  hip_unique_stream stream;REQUIRE(stream.create_non_blocking()==hipSuccess);
+  constexpr int64_t cells=7;constexpr uint32_t target=20;
+  for(bool experimental:{false,true}) {
+    auto moduli=experimental_basis_fixture::moduli();std::reverse(moduli.begin(),moduli.end());
+    rns8_basis* custom=experimental?experimental_basis_fixture::create(moduli):nullptr;
+    for(bool sign:{false,true}) {
+      auto* matrix=experimental_basis_fixture::matrix(ctx,custom,sign?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED,1,cells);
+      const auto basis=stored_basis(*matrix);const auto* packet=experimental?&basis->packet:nullptr;
+      hip_direct_device_buffer scratch,control;
+      REQUIRE(scratch.allocate(ctx->device_id,sizeof(int)+cells*target)==RNS8_SUCCESS);
+      REQUIRE(control.allocate(ctx->device_id,sizeof(int))==RNS8_SUCCESS);
+      for(uint32_t source:{1u,9u,19u}) {
+        cpp_int product=1;for(uint32_t p=0;p<source;++p)product*=basis->packet.moduli[p];
+        const cpp_int bound=sign?cpp_int((product-1)/2):cpp_int(product-1);
+        std::vector<cpp_int> values{0,1,bound,bound-1,bound/2,7,17};
+        if(sign){values[3]=-bound;values[4]=-1;}
+        std::vector<int8_t> expected(cells*target);
+        for(uint32_t p=0;p<target;++p)for(int64_t cell=0;cell<cells;++cell)
+          expected[p*cells+cell]=centered_residue(values[cell],basis->packet.moduli[p]);
+        uint64_t words[3]{};for(unsigned limb=0;limb<3;++limb)words[limb]=static_cast<uint64_t>((bound>>(64*limb))&UINT64_MAX);
+        // Failure then recovery proves only the replay owner resets sticky.
+        for(unsigned mode:{1u,0u,2u,3u}) {
+          auto staged=expected;std::fill(staged.begin()+source*cells,staged.end(),int8_t(99));
+          if(mode==2) {
+            uint32_t plane=0;while(plane<source && basis->packet.moduli[plane]==256)++plane;
+            if(plane==source)continue;staged[plane*cells]=int8_t(-128);
+          }
+          REQUIRE(hip_direct_copy_host_to_device(ctx->device_id,matrix->hip_residues,staged.data(),staged.size())==RNS8_SUCCESS);
+          const int initial=mode==3?int(RNS8_INVALID_ARGUMENT):0;
+          REQUIRE(hip_direct_copy_host_to_device(ctx->device_id,control.get(),&initial,sizeof(initial))==RNS8_SUCCESS);
+          uint64_t zero[3]{};auto* sticky=static_cast<int*>(control.get());
+          const auto before=hip_direct_allocation_counters_snapshot();scratch.mark_pending();control.mark_pending();
+          REQUIRE(hip_direct_enqueue_recipe_lift(ctx->device_id,matrix->hip_residues,cells,source,target,sign,
+              mode==1?zero:words,scratch.get(),scratch.bytes(),packet,sticky,stream.get())==RNS8_SUCCESS);
+          if(mode==1)REQUIRE(hip_direct_enqueue_recipe_lift(ctx->device_id,matrix->hip_residues,cells,source,target,sign,
+              words,scratch.get(),scratch.bytes(),packet,sticky,stream.get())==RNS8_SUCCESS);
+          REQUIRE(hipStreamSynchronize(stream.get())==hipSuccess);scratch.mark_completed();control.mark_completed();
+          const auto after=hip_direct_allocation_counters_snapshot();CHECK(after.allocate_calls==before.allocate_calls);CHECK(after.free_calls==before.free_calls);
+          int flag=-1;REQUIRE(hip_direct_copy_device_to_host(ctx->device_id,&flag,control.get(),sizeof(flag))==RNS8_SUCCESS);
+          CHECK(flag==(mode==0?0:mode==1?int(RNS8_RANGE_ERROR):int(RNS8_INVALID_ARGUMENT)));
+          std::vector<int8_t> actual(staged.size());
+          REQUIRE(hip_direct_copy_device_to_host(ctx->device_id,actual.data(),matrix->hip_residues,actual.size())==RNS8_SUCCESS);
+          CHECK(actual==(mode==0?expected:staged));
+        }
+      }
+      REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+    }
+    REQUIRE(rns8_destroy_basis(custom)==RNS8_SUCCESS);
+  }
+  REQUIRE(stream.reset()==hipSuccess);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
