@@ -121,7 +121,7 @@ struct Options {
   uint64_t seed = 3135, memory_mib = 256, baseline_max_products = 4000000;
   rns8_backend_kind backend = RNS8_BACKEND_HIP_DIRECT;
   int device = 0;
-  bool json = false, wide = false, gram = false, reference_only = false;
+  bool json = false, wide = false, gram = false, reference_only = false, gram_five_product = false;
   std::string size = "modest", pattern = "seeded", run_id = "standalone", gram_export = "once";
   std::set<std::string> supplied;
   std::shared_ptr<MemoryBudget> memory = std::make_shared<MemoryBudget>();
@@ -140,6 +140,7 @@ inline Options options(int argc, char** argv) {
              "--size tiny|modest|large --m M --n N --k K (1..512) --bits 1..63\n"
              "--seed U64 --pattern seeded|zero|sparse --repeats 1..100 --warmups 0..20\n"
              "--gram-reuse 1..256 --gram-export each|once (explicit --gram batch only; default once)\n"
+             "--gram-five-product (explicit experimental scalar/matrix comparison; requires --gram-reuse)\n"
              "--sustained-ms 0..10000 (0 disables production-style repeated calls)\n"
              "--memory-mib 1..4096 --baseline-max-products 1..134217728 --wide --gram\n"
              "tiny uses a named hand-checkable fixture; large is explicit opt-in.\n"
@@ -156,6 +157,10 @@ inline Options options(int argc, char** argv) {
     }
     if (key == "--gram") {
       out.gram = true;
+      continue;
+    }
+    if (key == "--gram-five-product") {
+      out.gram_five_product = true;
       continue;
     }
     if (key == "--reference-only") {
@@ -231,6 +236,7 @@ inline Options options(int argc, char** argv) {
     out.n = out.m;
   }
   require(!out.gram_reuse || out.gram, "--gram-reuse requires --gram");
+  require(!out.gram_five_product || out.gram_reuse, "--gram-five-product requires --gram-reuse");
   require(!out.supplied.count("--gram-export") || out.gram_reuse,
           "--gram-export requires --gram-reuse");
   if (out.gram_reuse)

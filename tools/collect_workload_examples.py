@@ -19,6 +19,7 @@ import re
 import subprocess
 import time
 import uuid
+from modulus_set_search import DEFAULT_MODULI, is_prime
 
 SCHEMA = "rns8_workload_observation_v1"
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -62,6 +63,7 @@ IDENTITY_KEYS = (
     "gram_batch",
     "gram_prepared_owner_cohort",
     "gram_ablation_cohort",
+    "gram_five_product_cohort",
     "optional_reference_cohort",
     "optional_references",
     "cpu_lifecycle_cohort",
@@ -417,10 +419,99 @@ def requested_gram_batch(arguments: list[str]) -> dict:
     return gram_batch_contract(products, policy)
 
 
+def requested_five_gram(arguments: list[str]) -> bool:
+    count = arguments.count("--gram-five-product")
+    demand(
+        count <= 1 and (not count or bool(requested_gram_batch(arguments))),
+        "five-product control requires one explicit Gram batch",
+    )
+    return bool(count)
+
+
+def validate_five_gram_storage(row, report):
+    """Check queried compact requests, without claiming issued instruction counts."""
+    metadata = row["metadata"]
+    prefix = metadata["plan"]["selected_prefix"]
+    demand(type(prefix) is int and 1 <= prefix <= 20, "invalid Gram basis prefix")
+    prime = sum(is_prime(q) for q in DEFAULT_MODULI[:prefix])
+    classical = prefix - prime
+    matrix = row["name"].endswith("_matrix")
+    demand(
+        prime > 0 and (not matrix or report["backend_requested"] == "hip-direct"),
+        "unavailable five-product recipe",
+    )
+    n, k = report["n"], report["k"]
+    h, hk = (n + 1) // 2, (((k + 1) // 2 + 1) // 2) * 2
+    tiles = (n + 15) // 16
+    jobs = tiles * (tiles + 1) // 2 * 8 if classical else 0
+    hip = report["backend_requested"] == "hip-direct"
+    value = metadata.get("gram_five_product")
+    variable = ("host_job_bytes", "owned_payload_bytes")
+    expected = dict(
+        version=1,
+        matrix_subproducts=matrix,
+        algebraic_product_count=5,
+        algebraic_prime_planes=prime,
+        classical_planes=classical,
+        algebraic_operand_bytes=2 * prime * h * hk,
+        algebraic_product_bytes=5 * prime * h * h,
+        algebraic_staging_bytes=prefix * n * n,
+        device_job_bytes=jobs if hip else 0,
+        modeled_payload_envelope_bytes=tiles * (tiles + 1) // 2 * 16
+        + 4
+        + prefix * (2 * h * hk + 5 * h * h + n * n)
+        + 3,
+        count_scope="queried_retained_requests_and_algebraic_products_not_observed_instructions",
+    )
+    demand(
+        type(value) is dict
+        and set(value) == {*expected, *variable}
+        and all(exact_value(value[key], wanted) for key, wanted in expected.items()),
+        "five-product compact region or recipe mismatch",
+    )
+    envelope = expected["modeled_payload_envelope_bytes"]
+    demand(
+        type(value["host_job_bytes"]) is int and jobs <= value["host_job_bytes"] <= envelope,
+        "five-product host job capacity missing",
+    )
+    demand(
+        value["host_job_bytes"] % 8 == 0 and (jobs != 0 or value["host_job_bytes"] == 0),
+        "five-product host job capacity is not a typed tile extent",
+    )
+    arena = sum(
+        expected[key]
+        for key in ("algebraic_operand_bytes", "algebraic_product_bytes", "algebraic_staging_bytes")
+    )
+    if hip and jobs:
+        arena = (arena + 3) // 4 * 4 + jobs
+    if hip:
+        demand(
+            exact_value(value["owned_payload_bytes"], arena + value["host_job_bytes"]),
+            "five-product device arena/host requests do not sum to owned payload",
+        )
+    demand(
+        type(value["owned_payload_bytes"]) is int
+        and arena + value["host_job_bytes"] <= value["owned_payload_bytes"] <= envelope
+        and envelope <= report["declared_memory_budget_bytes"],
+        "five-product retained storage exceeds admission",
+    )
+    demand(
+        "gram_ablations" not in metadata
+        and metadata.get("gram_method") == ("builtin_matrix" if matrix else "scalar"),
+        "five-product recipe inherited a triangular ablation identity",
+    )
+
+
 def validate_gram_batch(report: dict, variants: list[dict], requested=None, dataset=None):
     batch = report.get("gram_batch", {})
     prepared_cohort = "gram_prepared_owner_cohort" in report
     ablation_cohort = "gram_ablation_cohort" in report
+    five_cohort = "gram_five_product_cohort" in report
+    if five_cohort:
+        demand(
+            exact_value(report["gram_five_product_cohort"], 1) and prepared_cohort,
+            "invalid five-product cohort version",
+        )
     if ablation_cohort:
         demand(
             exact_value(report["gram_ablation_cohort"], 1) and prepared_cohort,
@@ -511,6 +602,32 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
             ablation_names <= names,
             "Gram native/transpose/reconstruct-once controls must all be present",
         )
+    five_names = {
+        "rns8_prepared_single_source_gram_five_" + method for method in ("scalar", "matrix")
+    }
+    if five_cohort:
+        for name in five_names:
+            entries = [row for row in variants if row["name"] == name]
+            demand(
+                len(entries) == 1, "five-product candidate or explicit unsupported outcome missing"
+            )
+            row = entries[0]
+            if row["status"] != "passed":
+                demand(
+                    row["status"] == "unsupported"
+                    and type(row.get("reason")) is str
+                    and bool(row["reason"].strip()),
+                    "invalid five-product unsupported outcome",
+                )
+                if name.endswith("_scalar"):
+                    dense = next(
+                        row for row in passed if row["name"] == "rns8_prepared_dense_gram_control"
+                    )
+                    prefix = dense["metadata"]["plan"]["selected_prefix"]
+                    demand(
+                        type(prefix) is int and 1 <= prefix <= 3,
+                        "admitted prime-channel scalar recipe was omitted",
+                    )
     for row in passed:
         name = row["name"]
         rns = name.startswith("rns8_")
@@ -526,10 +643,13 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
             }
         if ablation_cohort:
             allowed |= ablation_names
+        if five_cohort:
+            allowed |= five_names
         demand(not rns or name in allowed, "unexpected Gram implementation")
         single = rns and name != "rns8_prepared_dense_gram_control"
         wmma = name.endswith("_wmma")
         prepared = name.startswith("rns8_prepared_single_source_gram_")
+        five = name in five_names
         expected = dict(
             batch,
             implementation="public_prepared_single_source"
@@ -606,7 +726,9 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
                 ),
                 "prepared Gram job payload model differs",
             )
-            if ablation_cohort:
+            if five:
+                validate_five_gram_storage(row, report)
+            if ablation_cohort and not five:
                 native = "_gram_native_" in name
                 transpose = "_gram_transpose_" in name
                 once = "_reconstruct_once_" in name
@@ -1395,8 +1517,12 @@ def collect(
     executable = executable.resolve(strict=True)
     backend, device = request_identity(arguments)
     gram_request = requested_gram_batch(arguments)
+    five_request = requested_five_gram(arguments)
     digest = sha(executable)
-    tools = {Path(__file__).name: sha(Path(__file__))}
+    tools = {
+        name: sha(Path(__file__).with_name(name))
+        for name in (Path(__file__).name, "modulus_set_search.py")
+    }
     record = {
         "schema": "rns8_workload_collection_v1",
         "executable": str(executable),
@@ -1463,6 +1589,10 @@ def collect(
                     "selected optional case requires explicit enabled/unavailable adapter cohort",
                 )
             identity = validate_report(report, run_id, backend, device, gram_request)
+            demand(
+                ("gram_five_product_cohort" in report) == five_request,
+                "five-product capture differs from requested workload",
+            )
             row["observation"] = report
             if baseline is None:
                 baseline = identity
@@ -1631,7 +1761,7 @@ def load_optional_case(path: Path, case_id: str, executable: Path) -> tuple[list
         )
         # The executable owns full shape/range admission; reject ambiguous or
         # collector-owned CLI controls before constructing any process command.
-        flags = {"--reference-only", "--wide", "--gram"}
+        flags = {"--reference-only", "--wide", "--gram", "--gram-five-product"}
         values = {
             "--size",
             "--m",
@@ -1665,6 +1795,7 @@ def load_optional_case(path: Path, case_id: str, executable: Path) -> tuple[list
                 )
                 index += 1
         requested_gram_batch(arguments)
+        requested_five_gram(arguments)
         demand("--sustained-ms" in seen, "optional cases require explicit sustained scope")
         if name == case_id:
             selected = case

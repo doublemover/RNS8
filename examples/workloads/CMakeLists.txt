@@ -106,6 +106,18 @@ if(BUILD_TESTING)
       set_tests_properties(workload_gram_reuse_${_gram_export}_hip PROPERTIES LABELS "examples;workloads;hip;gram" TIMEOUT 90 SKIP_RETURN_CODE 77)
     endif()
   endforeach()
+  foreach(_gram_export IN ITEMS each once)
+    add_test(NAME workload_gram_five_${_gram_export}_cpu COMMAND rns8-workload-integer-cross-product
+      --reference-only --size tiny --m 3 --k 5 --wide --bits 40 --gram --gram-reuse 2
+      --gram-five-product --gram-export ${_gram_export} --repeats 2 --warmups 1 --json)
+    set_tests_properties(workload_gram_five_${_gram_export}_cpu PROPERTIES LABELS "examples;workloads;cpu;gram;experimental" TIMEOUT 60)
+    if(RNS8_WORKLOAD_GPU_TESTS)
+      add_test(NAME workload_gram_five_${_gram_export}_hip COMMAND rns8-workload-integer-cross-product
+        --backend hip-direct --device 0 --size tiny --m 3 --k 5 --wide --bits 40 --gram --gram-reuse 2
+        --gram-five-product --gram-export ${_gram_export} --repeats 2 --warmups 1 --json)
+      set_tests_properties(workload_gram_five_${_gram_export}_hip PROPERTIES LABELS "examples;workloads;hip;gram;experimental" TIMEOUT 90 SKIP_RETURN_CODE 77)
+    endif()
+  endforeach()
   add_test(NAME workload_gram_prepared_expanded_proof_cpu COMMAND rns8-workload-integer-cross-product
     --reference-only --size tiny --gram --gram-reuse 3 --gram-export once --pattern zero
     --repeats 2 --warmups 1 --sustained-ms 1 --json)

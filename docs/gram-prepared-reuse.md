@@ -17,6 +17,30 @@ The default export policy for an explicit batch is `once`. Without
 `--gram-reuse`, the existing single-product workload keeps its existing scope.
 Both controls require `--gram`; other workload families reject them.
 
+`--gram-five-product` adds the experimental compact prime-channel recipe to an
+explicit Gram batch. It compares prepared scalar subproducts and, on direct HIP,
+the actual compiled AMDGPU matrix provider against the same dense and triangular
+controls. It keeps resident input, complete dense output, the selected each/once
+export policy, generation refresh/rebuild, and the independent full Boost oracle.
+It does not attach native-input adapters or reconstruction-once to the algebraic
+recipe. A basis with no certified prime channel and an unavailable matrix
+provider receive individually named unsupported outcomes; neither uses a scalar
+substitute under a matrix name.
+
+The `gram_five_product_cohort=1` report records queried prime/classical channel
+counts, operand/product/staging requests, host/device jobs and total retained
+payload against a pre-admitted all-plane envelope. The collector recomputes the
+compact extents from the ordered default basis and padded half-dimensions. Five
+algebraic products per eligible channel describe the recipe, not observed matrix
+instruction or physical multiply counts. Dispatch-bound ISA/resource evidence
+and same-contract profitability remain separate qualification work. The new
+workload integration and CPU/HIP each/once and malformed-report controls are
+authored; runtime execution is deferred with the current source pass.
+
+```powershell
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-five.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size modest --m 33 --k 65 --wide --bits 40 --gram --gram-reuse 8 --gram-five-product --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
+```
+
 | Candidate | Retained preparation | Work inside each batch |
 |---|---|---|
 | `rns8_prepared_dense_gram_control` | Public `rns8_prepare_gemm` for packed `Xᵀ` and X | R synchronous `rns8_execute_prepared` calls, then the selected export policy |

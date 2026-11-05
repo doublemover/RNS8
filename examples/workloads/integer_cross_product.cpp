@@ -61,6 +61,8 @@ int main(int argc, char** argv) {
       report["gram_batch"] = gram_batch_contract(options);
       report["gram_prepared_owner_cohort"] = 1;
       report["gram_ablation_cohort"] = 1;
+      if (options.gram_five_product)
+        report["gram_five_product_cohort"] = 1;
       report["bound_method"] =
           "K * max_abs_X_including_changed_X0 squared; no cancellation assumption";
       report["useful_integer_products_per_call"] =
@@ -156,6 +158,8 @@ int main(int argc, char** argv) {
           uint64_t(options.n) * (options.n + 1) / 2 * options.k * std::max(options.gram_reuse, 1u);
       report["gram_dense_equivalent_integer_products_per_call"] =
           uint64_t(options.n) * options.n * options.k * std::max(options.gram_reuse, 1u);
+      if (options.gram_five_product)
+        add_five_gram_variants(variants, skipped, data, options, bound);
     }
     run_variants(
         report, options, data, variants, expected,

@@ -39,17 +39,21 @@ struct DenseEngine {
   int gram_method = -1;
   rns8_gram_input_policy gram_input = RNS8_GRAM_RESIDENT_RESIDUES;
   bool gram_once = false;
+  bool gram_five = false;
   uint64_t gram_payload_reservation = 0;
   DenseEngine(const Dataset& input, const Options& config, const cpp_int& bound, int gram = -1,
               bool gram_owner = false, rns8_gram_input_policy policy = RNS8_GRAM_RESIDENT_RESIDUES,
-              bool once = false)
+              bool once = false, bool five = false)
       : data(input), options(config), context(config.device, config.backend),
         prepared_gram_route(gram_owner),
         words(std::size_t(config.m) * config.n * (config.wide ? 3 : 1)),
         native(std::size_t(config.m) * config.n), gram_method(gram), gram_input(policy),
-        gram_once(once) {
+        gram_once(once), gram_five(five) {
     require(!prepared_gram_route || (options.gram_reuse && gram_method >= 0),
             "prepared Gram route requires an explicit Gram batch");
+    require(!gram_five || (prepared_gram_route && policy == RNS8_GRAM_RESIDENT_RESIDUES && !once &&
+                           gram <= int(RNS8_GRAM_WMMA)),
+            "five-product comparison requires a resident prepared scalar/matrix recipe");
     metadata["device"] = device_info(context, options);
     const auto desc = gemm_desc(options, options.wide ? RNS8_EXACT_WIDE_SIGNED : RNS8_BOUNDED_I64,
                                 options.m, options.n, options.k, bound);
@@ -108,13 +112,22 @@ struct DenseEngine {
         options.memory->reserve(job_envelope, options.memory_mib * UINT64_C(1024) * 1024,
                                 "modeled retained Gram host/device job payload");
         metadata["modeled_retained_gram_job_payload_bytes"] = job_envelope;
+        // Admit all planes before preparation; the queried compact recipe can
+        // retain fewer. This is a payload bound, not a process allocation peak.
+        const uint64_t half_n = (uint64_t(options.n) + 1) / 2;
+        const uint64_t half_k = ((uint64_t(options.k) + 1) / 2 + 1) & ~UINT64_C(1);
         const uint64_t extra =
-            (gram_input == RNS8_GRAM_RETAINED_TRANSPOSE ? uint64_t(options.k) * options.n * prefix
-                                                        : 0) +
-            (gram_once ? uint64_t(options.n) * options.n * (options.wide ? 3 : 1) * 8 *
-                             (options.backend == RNS8_BACKEND_HIP_DIRECT ? 2 : 1)
+            gram_five
+                ? prefix * (2 * half_n * half_k + 5 * half_n * half_n +
+                            uint64_t(options.n) * options.n) +
+                      3
+                : (gram_input == RNS8_GRAM_RETAINED_TRANSPOSE
+                       ? uint64_t(options.k) * options.n * prefix
                        : 0) +
-            prefix + 16;
+                      (gram_once ? uint64_t(options.n) * options.n * (options.wide ? 3 : 1) * 8 *
+                                       (options.backend == RNS8_BACKEND_HIP_DIRECT ? 2 : 1)
+                                 : 0) +
+                      prefix + 16;
         options.memory->reserve(extra, options.memory_mib * UINT64_C(1024) * 1024,
                                 "checked Gram adapter/export payload envelope");
         gram_payload_reservation = job_envelope + extra;
@@ -149,17 +162,22 @@ struct DenseEngine {
             options.backend == RNS8_BACKEND_HIP_DIRECT ? "first_execution_per_owner"
                                                        : "not_applicable";
         metadata["gram_batch"]["wmma_capability_probe"] =
-            (gram_method & 1) ? "first_execution_per_owner" : "not_applicable";
+            !gram_five && (gram_method & 1) ? "first_execution_per_owner" : "not_applicable";
       }
     }
   }
   void prepare_gram_owner() {
     rns8_prepared_gram* handle = nullptr;
-    rns8::check(rns8_prepare_gram_ex(context.get(), b->get(), c->get(),
-                                     RNS8_GRAM_TRANSPOSE_TIMES_SELF,
-                                     static_cast<rns8_gram_method>(gram_method), gram_input,
-                                     gram_once ? (options.wide ? 3 : 1) : 0,
-                                     options.memory_mib * UINT64_C(1024) * 1024, &handle));
+    if (gram_five)
+      rns8::check(rns8_prepare_gram_five_product(
+          context.get(), b->get(), c->get(), RNS8_GRAM_TRANSPOSE_TIMES_SELF, uint32_t(gram_method),
+          gram_payload_reservation, &handle));
+    else
+      rns8::check(rns8_prepare_gram_ex(context.get(), b->get(), c->get(),
+                                       RNS8_GRAM_TRANSPOSE_TIMES_SELF,
+                                       static_cast<rns8_gram_method>(gram_method), gram_input,
+                                       gram_once ? (options.wide ? 3 : 1) : 0,
+                                       options.memory_mib * UINT64_C(1024) * 1024, &handle));
     prepared_gram.reset(handle);
     ++gram_owner_builds;
     gram_owner_used = false;
@@ -183,6 +201,29 @@ struct DenseEngine {
         {"adapter_generation_policy", "first_execute_after_prepare_or_refresh"},
         {"mirror_policy", (gram_method & 2) ? "separate_tiled" : "producer_stores"},
         {"output_validity", "complete_dense_residues"}};
+    if (gram_five) {
+      metadata["gram_method"] = gram_method ? "builtin_matrix" : "scalar";
+      require(info.method == 4 + uint32_t(gram_method) && info.algebraic_product_count == 5 &&
+                  info.algebraic_prime_planes > 0 &&
+                  info.algebraic_prime_planes + info.classical_planes == prefix,
+              "five-product owner query disagrees with the requested recipe");
+      metadata["gram_five_product"] = {
+          {"version", 1},
+          {"matrix_subproducts", bool(gram_method)},
+          {"algebraic_product_count", info.algebraic_product_count},
+          {"algebraic_prime_planes", info.algebraic_prime_planes},
+          {"classical_planes", info.classical_planes},
+          {"algebraic_operand_bytes", info.algebraic_operand_bytes},
+          {"algebraic_product_bytes", info.algebraic_product_bytes},
+          {"algebraic_staging_bytes", info.algebraic_staging_bytes},
+          {"host_job_bytes", info.host_job_bytes},
+          {"device_job_bytes", info.device_job_bytes},
+          {"owned_payload_bytes", info.owned_payload_bytes},
+          {"modeled_payload_envelope_bytes", gram_payload_reservation},
+          {"count_scope",
+           "queried_retained_requests_and_algebraic_products_not_observed_instructions"}};
+      metadata.erase("gram_ablations");
+    }
   }
   Json gram_execution_evidence() const {
     return {{"generation_action", gram_generation_action},
@@ -284,10 +325,10 @@ inline Variant dense_variant(const Dataset& data, const Options& options, const 
 inline Variant gram_variant(const Dataset& data, const Options& options, const cpp_int& bound,
                             rns8_gram_method method, bool prepared = false,
                             rns8_gram_input_policy policy = RNS8_GRAM_RESIDENT_RESIDUES,
-                            bool once = false) {
+                            bool once = false, bool five = false) {
   const auto start = Clock::now();
-  auto state =
-      std::make_shared<DenseEngine>(data, options, bound, int(method), prepared, policy, once);
+  auto state = std::make_shared<DenseEngine>(data, options, bound, int(method), prepared, policy,
+                                             once, five);
   Variant result;
   result.name =
       std::string(prepared ? "rns8_prepared_single_source_gram_" : "rns8_single_source_gram_") +
@@ -299,6 +340,9 @@ inline Variant gram_variant(const Dataset& data, const Options& options, const c
                                                             : "") +
                   ((uint32_t(method) & 2) ? "separate_mirror_" : "") +
                   (once ? "reconstruct_once_" : "") + ((uint32_t(method) & 1) ? "wmma" : "scalar");
+  if (five)
+    result.name = std::string("rns8_prepared_single_source_gram_five_") +
+                  (method == RNS8_GRAM_WMMA ? "matrix" : "scalar");
   result.setup_ns = since(start);
   result.metadata = state->metadata;
   result.execute = [state](Phases& phases, uint64_t version) { state->execute(phases, version); };
@@ -306,6 +350,31 @@ inline Variant gram_variant(const Dataset& data, const Options& options, const c
   if (prepared)
     result.execution_evidence = [state] { return state->gram_execution_evidence(); };
   return result;
+}
+inline void add_five_gram_variants(std::vector<Variant>& variants, Json& skipped,
+                                   const Dataset& data, const Options& options,
+                                   const cpp_int& bound) {
+  for (const auto method : {RNS8_GRAM_SCALAR, RNS8_GRAM_WMMA}) {
+    const std::string name = std::string("rns8_prepared_single_source_gram_five_") +
+                             (method == RNS8_GRAM_WMMA ? "matrix" : "scalar");
+    if (method == RNS8_GRAM_WMMA && options.backend == RNS8_BACKEND_CPU_REFERENCE) {
+      skipped.push_back({{"name", name},
+                         {"status", "unsupported"},
+                         {"reason", "matrix subproducts require a compiled GPU matrix provider"}});
+      continue;
+    }
+    const auto reserved = options.memory->reserved;
+    try {
+      variants.push_back(gram_variant(data, options, bound, method, true,
+                                      RNS8_GRAM_RESIDENT_RESIDUES, false, true));
+    } catch (const rns8::Error& error) {
+      if (error.status() != RNS8_UNSUPPORTED_BACKEND && error.status() != RNS8_UNSUPPORTED_ARCH)
+        throw;
+      // Construction unwound the candidate; rejected recipes retain no memory.
+      options.memory->reserved = reserved;
+      skipped.push_back({{"name", name}, {"status", "unsupported"}, {"reason", error.what()}});
+    }
+  }
 }
 } // namespace rns8_workload
 #endif

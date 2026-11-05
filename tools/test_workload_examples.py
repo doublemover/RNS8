@@ -325,6 +325,116 @@ def prepared_gram_fixture(products=3, policy="once", expanded=False, hip=False):
     return report
 
 
+def five_gram_fixture(products=3, policy="once", hip=False, prefix=4):
+    report = prepared_gram_fixture(products, policy, hip=hip)
+    report["gram_five_product_cohort"] = 1
+    for row in report["variants"]:
+        if row["name"].startswith("rns8_"):
+            row["metadata"]["plan"]["selected_prefix"] = prefix
+    prototype = next(
+        row
+        for row in report["variants"]
+        if row["name"] == "rns8_prepared_single_source_gram_scalar"
+    )
+    prime = sum(collector.is_prime(q) for q in collector.DEFAULT_MODULI[:prefix])
+    for matrix in (False, True):
+        name = "rns8_prepared_single_source_gram_five_" + ("matrix" if matrix else "scalar")
+        if matrix and not hip:
+            report["variants"].append(
+                dict(name=name, status="unsupported", reason="synthetic CPU-only outcome")
+            )
+            continue
+        row = copy.deepcopy(prototype)
+        row["name"] = name
+        row["metadata"]["gram_method"] = "builtin_matrix" if matrix else "scalar"
+        arena = 9 * prime + 4 * prefix
+        owned = (arena + 3) // 4 * 4 + 16 if hip else arena + 8
+        row["metadata"]["gram_five_product"] = dict(
+            version=1,
+            matrix_subproducts=matrix,
+            algebraic_product_count=5,
+            algebraic_prime_planes=prime,
+            classical_planes=prefix - prime,
+            algebraic_operand_bytes=4 * prime,
+            algebraic_product_bytes=5 * prime,
+            algebraic_staging_bytes=4 * prefix,
+            host_job_bytes=8,
+            device_job_bytes=8 if hip else 0,
+            owned_payload_bytes=owned,
+            modeled_payload_envelope_bytes=23 + 13 * prefix,
+            count_scope="queried_retained_requests_and_algebraic_products_not_observed_instructions",
+        )
+        report["variants"].append(row)
+    return report
+
+
+class FiveProductGramReports(unittest.TestCase):
+    def test_compact_queries_and_existing_lifecycle_contract(self):
+        for hip in (False, True):
+            for prefix in (4, 9, 20):
+                for policy in ("each", "once"):
+                    report = five_gram_fixture(policy=policy, hip=hip, prefix=prefix)
+                    identity = collector.validate_report(
+                        report,
+                        "run1",
+                        "hip-direct" if hip else "cpu-reference",
+                        0 if hip else -1,
+                        collector.gram_batch_contract(3, policy),
+                    )
+                    self.assertEqual(identity["gram_five_product_cohort"], 1)
+
+    def test_omissions_recipe_drift_and_retained_extent_controls(self):
+        mutations = [
+            lambda r: r.update(gram_five_product_cohort=True),
+            lambda r: r["variants"].pop(),
+            lambda r: r["variants"][-2].update(status="unsupported", reason="omitted scalar"),
+            lambda r: r["variants"][-2]["metadata"].update(gram_ablations={}),
+            lambda r: r["variants"][-2]["metadata"].update(gram_method="wmma"),
+            lambda r: r["variants"][-2]["metadata"]["plan"].update(selected_prefix=True),
+            lambda r: r["variants"][-2]["metadata"]["gram_five_product"].update(unknown=0),
+        ]
+        for key in five_gram_fixture()["variants"][-2]["metadata"]["gram_five_product"]:
+            mutations.append(
+                lambda r, key=key: r["variants"][-2]["metadata"]["gram_five_product"].pop(key)
+            )
+            mutations.append(
+                lambda r, key=key: r["variants"][-2]["metadata"]["gram_five_product"].update(
+                    {key: None}
+                )
+            )
+        for mutation in mutations:
+            report = five_gram_fixture()
+            mutation(report)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "cpu-reference", -1)
+        for key in (
+            "algebraic_prime_planes",
+            "classical_planes",
+            "algebraic_operand_bytes",
+            "algebraic_product_bytes",
+            "algebraic_staging_bytes",
+            "device_job_bytes",
+            "owned_payload_bytes",
+            "modeled_payload_envelope_bytes",
+        ):
+            report = five_gram_fixture(hip=True)
+            report["variants"][-1]["metadata"]["gram_five_product"][key] = False
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+
+    def test_explicit_five_product_request_admission(self):
+        valid = ["--gram", "--gram-reuse", "2", "--gram-five-product"]
+        self.assertTrue(collector.requested_five_gram(valid))
+        self.assertFalse(collector.requested_five_gram(valid[:-1]))
+        for args in (
+            ["--gram-five-product"],
+            ["--gram", "--gram-five-product"],
+            valid + ["--gram-five-product"],
+        ):
+            with self.assertRaises(ValueError):
+                collector.requested_five_gram(args)
+
+
 class GramBatchReports(unittest.TestCase):
     def test_prepared_gram_controls_refresh_recreate_and_first_use(self):
         for products in (1, 3, 32):
@@ -1433,6 +1543,11 @@ class Compiled(unittest.TestCase):
             ("integer-cross-product", ["--wide", "--bits", "40"]),
             ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--pattern", "zero"]),
             ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--wide", "--bits", "40"]),
+            (
+                "integer-cross-product",
+                ["--gram", "--gram-reuse", "2", "--gram-five-product", "--wide", "--bits", "40"],
+            ),
+            ("integer-cross-product", ["--gram", "--gram-reuse", "2", "--gram-five-product"]),
             ("integer-cross-product", ["--seed", "0"]),
             ("integer-cross-product", ["--pattern", "zero"]),
             ("gf251-transform", ["--seed", "1"]),
