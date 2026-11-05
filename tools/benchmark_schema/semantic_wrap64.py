@@ -4,7 +4,10 @@ from evidence_scalars import text_choice
 
 from typing import Any
 
-from .core_shared import *
+from .core_shared import (
+    WRAP64_ROCWMMA_CANDIDATE_KERNEL,
+    wrap64_hip_allowed_kernels,
+)
 
 def validate_wrap64_contract(self, ctx: dict[str, Any]) -> None:
     semantics = ctx['semantics']

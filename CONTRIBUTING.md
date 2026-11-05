@@ -53,6 +53,11 @@ offline controls are implemented; the formatting/lint baseline, CI gate and
 final validation batch remain pending. Schema and sweep contract modules now
 run independently through ordinary unittest classes and fresh fixture inputs;
 their aggregate commands retain all mapped cases without shared fragment globals.
+
+Production benchmark-schema modules also use explicit imports from the owning
+predicate/metadata modules. They do not inherit a wildcard namespace or forward
+unrelated helpers through the validator class module. Keep these imports explicit
+when adding validation contracts; the structure suite checks fresh-process imports.
 Sweep command controls assert visibility masks, unique shard destinations and
 metadata-to-argv agreement; a tiny authored catalog checks that removing masks
 or reuse flags, or aliasing outputs, is rejected without launching a workload.

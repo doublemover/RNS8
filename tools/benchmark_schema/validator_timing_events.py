@@ -4,7 +4,17 @@ from evidence_scalars import text_choice
 
 from typing import Any
 
-from .core_shared import *
+from .core_shared import (
+    GLOBAL_BOUND_TIMING_PHASE,
+    OPTIONAL_REPEATED_TIMING_PHASES,
+    PER_TILE_TIMING_PHASE,
+    REPEATED_TIMING_PHASES,
+    _average,
+    _close,
+    _is_int,
+    _is_number,
+    _percentile,
+)
 from .gpu_events import (
     amdgpu_builtin_deep_gpu_event_phases,
     ck_deep_gpu_event_phases,

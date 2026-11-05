@@ -8,7 +8,6 @@ from typing import Any
 
 from metadata_registry_constants import (
     CURRENT_CORRECTNESS_BACKENDS,
-    HIP_RESIDENT_BACKENDS,
     SELECTED_KERNELS,
     VECTOR_ALU_SELECTED_KERNELS,
 )

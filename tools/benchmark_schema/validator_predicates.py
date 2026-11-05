@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from evidence_scalars import text_choice
 
-from .core_shared import *
+from .core_shared import (
+    WRAP64_ROCWMMA_CANDIDATE_KERNEL,
+    _is_int,
+)
 
 class ValidatorPredicatesMixin:
     def _is_wrap64_rocwmma_candidate(self) -> bool:

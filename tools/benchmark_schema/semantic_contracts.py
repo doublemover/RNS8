@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from evidence_scalars import text_choice
 
-from .core_shared import _is_int
+from .core_shared import (
+    _is_int,
+)
 from .semantic_bounded import validate_bounded_contract
 from .semantic_exact_wide import validate_exact_wide_contract
 from .semantic_finite import validate_finite_u8_contract

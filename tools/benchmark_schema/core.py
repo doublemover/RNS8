@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any
 from build_manifest import manifest_diagnostic_shape_valid
 
-from .core_shared import *
+from .core_shared import (
+    SCHEMA_VERSION,
+    _is_int,
+)
 from .validator_base_fields import ValidatorBaseFieldsMixin
 from .validator_predicates import ValidatorPredicatesMixin
 from .validator_schedule import ValidatorScheduleMixin

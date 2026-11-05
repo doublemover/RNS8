@@ -7,19 +7,21 @@ from evidence_scalars import text_choice
 from typing import Any
 from timing_diagnostics import is_censored_gpu_event_capture, timing_failure_metadata_errors
 
-from .core import (
-    ACCELERATOR_GPU_EVENT_SCOPES,
+from .core_shared import (
     DEEP_ACCELERATOR_GPU_EVENT_SCOPE,
     DIRECT_HIP_FINITE_ONESHOT_GPU_EVENT_PHASES,
-    DIRECT_HIP_GPU_EVENT_SCOPES,
     DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES,
     DIRECT_HIP_ONESHOT_RESIDENT_FALLBACK_GPU_EVENT_PHASES,
-    HIPBLASLT_GPU_EVENT_SCOPES,
     OLD_ACCELERATOR_GPU_EVENT_SCOPE,
-    VECTOR_ALU_GPU_EVENT_SCOPES,
     _is_int,
     _is_number,
     wrap64_hip_expected_gemm_event_label,
+)
+from metadata_registry_constants import (
+    ACCELERATOR_GPU_EVENT_SCOPES,
+    DIRECT_HIP_GPU_EVENT_SCOPES,
+    HIPBLASLT_GPU_EVENT_SCOPES,
+    VECTOR_ALU_GPU_EVENT_SCOPES,
 )
 
 def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> None:

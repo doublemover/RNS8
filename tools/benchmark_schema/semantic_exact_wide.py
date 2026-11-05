@@ -4,7 +4,14 @@ from evidence_scalars import text_choice
 
 from typing import Any
 
-from .core_shared import *
+from .core_shared import (
+    _is_int,
+    _is_number,
+)
+from metadata_registry_constants import (
+    EXACT_WIDE_SIGNED_EXPORT_KERNELS,
+    EXACT_WIDE_UNSIGNED_EXPORT_KERNELS,
+)
 
 def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
     from .wide_magnitude import validate_magnitude

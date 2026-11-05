@@ -7,7 +7,29 @@ from ck_kernel_contract import ck_kernel_family
 
 from .backend_metadata import validate_backend_metadata as validate_backend_metadata_impl
 from .contract_metadata import validate_contract_metadata as validate_contract_metadata_impl
-from .core_shared import *
+import re
+from .core_shared import (
+    BASELINE_STATUS_RELEASE_REVIEWED,
+    INT32_MAX,
+    OPTIONAL_REPEATED_TIMING_PHASES,
+    REVIEWED_BASELINE_STATUSES,
+    UINT32_MAX,
+    WRAP64_HIP_U32_ACCUMULATOR_MAX_K,
+    WRAP64_LOW_PRODUCT_DIAGONALS,
+    WRAP64_ROCWMMA_CANDIDATE_KERNEL,
+    _has_concrete_gpu_target_id,
+    _is_int,
+    _is_number,
+)
+from metadata_registry_constants import (
+    BACKEND_REQUESTED_VALUES,
+    BACKEND_SELECTED_VALUES,
+    BENCHMARK_EXECUTION_MODES,
+    CK_SELECTED_KERNELS,
+    COMPARISON_BASELINE_STATUSES,
+    HIP_RESIDENT_BACKENDS,
+    ROCWMMA_SELECTED_KERNELS,
+)
 from .execution_modes import (
     validate_grouped_dispatch_metadata as validate_grouped_dispatch_metadata_impl,
     validate_hip_graph_replay_metadata as validate_hip_graph_replay_metadata_impl,

@@ -6,12 +6,30 @@ import ast
 import importlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class PythonCaseStructure(unittest.TestCase):
+    def test_production_schema_namespaces_are_explicit_and_import_in_fresh_processes(self):
+        paths=sorted((ROOT/"tools/benchmark_schema").glob("*.py"))
+        self.assertGreater(len(paths),10)
+        for path in paths:
+            tree=ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node,ast.ImportFrom):
+                    self.assertFalse(any(alias.name=="*" for alias in node.names),str(path))
+                if isinstance(node,ast.Call) and isinstance(node.func,ast.Name):
+                    self.assertNotIn(node.func.id,("globals","exec","eval"),str(path))
+        for name in ("semantic_wrap64","semantic_finite","semantic_exact_wide","semantic_bounded",
+                     "gpu_event_validation","reuse_timing","core"):
+            result=subprocess.run([sys.executable,"-c","import importlib,sys; importlib.import_module(sys.argv[1])",
+                "benchmark_schema."+name],cwd=ROOT/"tools",capture_output=True,text=True,timeout=30)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def test_every_migrated_case_retains_assertions_and_loads_independently(self):
         inventory = json.loads((ROOT / "metadata/python-contract-case-inventory.json").read_text())
         self.assertEqual(inventory["schema"], "rns8_python_contract_case_inventory_v1")

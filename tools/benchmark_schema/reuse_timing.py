@@ -6,14 +6,15 @@ from evidence_scalars import text_choice
 
 from typing import Any
 
-from .core import (
-    PACK_MODES,
+from .core_shared import (
     PACK_MODE_OPERANDS,
-    PREPACK_REUSE_STRATEGIES,
-    REPEATED_TIMING_PHASES,
     _close,
     _is_int,
     _is_number,
+)
+from metadata_registry_constants import (
+    PACK_MODES,
+    PREPACK_REUSE_STRATEGIES,
 )
 
 PREPACK_SETUP_BREAKDOWN_KEYS = ("pack_a", "pack_b", "runtime_cache", "unclassified")

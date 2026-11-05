@@ -23,7 +23,9 @@ from metadata_registry_constants import (
 
 SELECTOR_LEGACY_REJECTION_REASONS = SELECTOR_REJECTION_REASONS - {"unsupported modulus","tied with selected","arithmetic proof rejected"}
 
-from .core_shared import GENERATED_REDUCER_RE
+from .core_shared import (
+    GENERATED_REDUCER_RE,
+)
 
 
 def _is_int(value: Any) -> bool:
