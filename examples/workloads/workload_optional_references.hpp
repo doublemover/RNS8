@@ -105,16 +105,19 @@ struct OptionalWordEncoder {
 
 #if defined(RNS8_WORKLOAD_HAVE_GMP)
 struct GmpBaseline {
-  const Dataset& data; const Options& options; bool chain;
+  const Dataset& data; const Options& options; bool chain, retained_inputs;
+  CPUComparatorLifecycle lifecycle;
   bool shape_admitted;
   std::unique_ptr<WorkloadMpz[]> a,b,t,first,final;
   OptionalWordEncoder encoder; Words words;
-  GmpBaseline(const Dataset& input,const Options& config,bool chained,uint32_t limbs):data(input),options(config),chain(chained),
+  GmpBaseline(const Dataset& input,const Options& config,bool chained,uint32_t limbs,bool retained=false):data(input),options(config),chain(chained),retained_inputs(retained),
     shape_admitted(optional_reference_shape(input,config,chained,limbs)),
     a(std::make_unique<WorkloadMpz[]>(input.a.size())),b(std::make_unique<WorkloadMpz[]>(input.b.size())),
     t(chained?std::make_unique<WorkloadMpz[]>(input.t.size()):nullptr),
     first(std::make_unique<WorkloadMpz[]>(size_t(config.m)*config.n)),
-    final(chained?std::make_unique<WorkloadMpz[]>(size_t(config.m)*config.n):nullptr),encoder(limbs),words(size_t(config.m)*config.n*limbs) {}
+    final(chained?std::make_unique<WorkloadMpz[]>(size_t(config.m)*config.n):nullptr),encoder(limbs),words(size_t(config.m)*config.n*limbs) {
+    if (retained_inputs) { Phases setup; setup.enabled=false; prepare(setup,0); }
+  }
   static void multiply(const WorkloadMpz* a,const WorkloadMpz* b,WorkloadMpz* c,uint32_t m,uint32_t n,uint32_t k) {
     for(size_t cell=0;cell<size_t(m)*n;++cell) mpz_set_ui(c[cell].value,0);
     for(uint32_t ii=0;ii<m;ii+=32) for(uint32_t qq=0;qq<k;qq+=32) for(uint32_t jj=0;jj<n;jj+=32)
@@ -122,20 +125,38 @@ struct GmpBaseline {
         for(uint32_t col=jj;col<std::min(n,jj+32);++col)
           mpz_addmul(c[size_t(row)*n+col].value,a[size_t(row)*k+q].value,b[size_t(q)*n+col].value);
   }
-  void execute(Phases& phases,uint64_t) {
+  void prepare(Phases& phases,uint64_t) {
+    optional_reference_shape(data,options,chain,encoder.limbs);
     phases.measure("optional_input_conversion_ns",[&] {
-      for(size_t i=0;i<data.a.size();++i) native_to_mpz(a[i].value,data.a[i]);
-      for(size_t i=0;i<data.b.size();++i) native_to_mpz(b[i].value,data.b[i]);
-      if(chain) for(size_t i=0;i<data.t.size();++i) native_to_mpz(t[i].value,data.t[i]);
+      lifecycle.refresh(data,chain,!retained_inputs,[&](unsigned role,const std::vector<int64_t>& input) {
+        auto* target=role==0?a.get():role==1?b.get():t.get();
+        for(size_t cell=0;cell<input.size();++cell) native_to_mpz(target[cell].value,input[cell]);
+      });
     });
+  }
+  void compute(Phases& phases) {
+    require(lifecycle.current(data,chain),"GMP converted inputs are stale");
     phases.measure("optional_exact_gemm_ns",[&] {
       multiply(a.get(),b.get(),first.get(),options.m,options.n,options.k);
       if(chain) multiply(first.get(),t.get(),final.get(),options.m,options.n,options.n);
+      lifecycle.computed(chain, chain ? final.get() : first.get());
     });
+  }
+  void materialize(Phases& phases) {
     phases.measure("optional_output_serialization_ns",[&] {
       for(size_t cell=0;cell<size_t(options.m)*options.n;++cell)
         encoder.store((chain?final:first)[cell].value,words,cell);
+      lifecycle.materialized();
     });
+  }
+  Json execution_evidence() const {
+    const uint64_t cells=data.a.size()+data.b.size()+(chain?data.t.size():0)
+        +size_t(options.m)*options.n*(chain?2:1);
+    return lifecycle.evidence(data,sizeof(*this)+cells*sizeof(WorkloadMpz)+words.capacity()*sizeof(uint64_t),true);
+  }
+  void execute(Phases& phases,uint64_t version) {
+    if(retained_inputs) execute_matched_cpu_batch(*this,phases,version,options);
+    else { prepare(phases,version);compute(phases);materialize(phases); }
   }
 };
 #endif
@@ -148,15 +169,17 @@ struct WorkloadFlintMatrix {
   WorkloadFlintMatrix(const WorkloadFlintMatrix&)=delete; WorkloadFlintMatrix& operator=(const WorkloadFlintMatrix&)=delete;
 };
 struct FlintBaseline {
-  const Dataset& data; const Options& options; bool chain;
+  const Dataset& data; const Options& options; bool chain, retained_inputs;
+  CPUComparatorLifecycle lifecycle;
   bool shape_admitted;
   WorkloadFlintMatrix a,b,t,first,final;
   WorkloadMpz conversion; OptionalWordEncoder encoder; Words words;
-  FlintBaseline(const Dataset& input,const Options& config,bool chained,uint32_t limbs):data(input),options(config),chain(chained),
+  FlintBaseline(const Dataset& input,const Options& config,bool chained,uint32_t limbs,bool retained=false):data(input),options(config),chain(chained),retained_inputs(retained),
     shape_admitted(optional_reference_shape(input,config,chained,limbs)),
     a(config.m,config.k),b(config.k,config.n),t(chained?config.n:0,chained?config.n:0),
     first(config.m,config.n),final(chained?config.m:0,chained?config.n:0),encoder(limbs),words(size_t(config.m)*config.n*limbs) {
     flint_set_num_threads(1); require(flint_get_num_threads()==1,"FLINT thread selection failed");
+    if (retained_inputs) { Phases setup; setup.enabled=false; prepare(setup,0); }
   }
   void import(WorkloadFlintMatrix& target,const std::vector<int64_t>& values,uint32_t rows,uint32_t cols) {
     for(uint32_t row=0;row<rows;++row) for(uint32_t col=0;col<cols;++col) {
@@ -164,21 +187,38 @@ struct FlintBaseline {
       fmpz_set_mpz(fmpz_mat_entry(target.value,row,col),conversion.value);
     }
   }
-  void execute(Phases& phases,uint64_t) {
+  void prepare(Phases& phases,uint64_t) {
+    optional_reference_shape(data,options,chain,encoder.limbs);
     phases.measure("optional_input_conversion_ns",[&] {
-      import(a,data.a,options.m,options.k); import(b,data.b,options.k,options.n);
-      if(chain) import(t,data.t,options.n,options.n);
+      lifecycle.refresh(data,chain,!retained_inputs,[&](unsigned role,const std::vector<int64_t>& input) {
+        auto& target=role==0?a:role==1?b:t;
+        import(target,input,role==0?options.m:role==1?options.k:options.n,role==0?options.k:options.n);
+      });
     });
+  }
+  void compute(Phases& phases) {
+    require(lifecycle.current(data,chain),"FLINT converted inputs are stale");
     phases.measure("optional_exact_gemm_ns",[&] {
       fmpz_mat_mul(first.value,a.value,b.value);
       if(chain) fmpz_mat_mul(final.value,first.value,t.value);
+      lifecycle.computed(chain, chain ? final.value : first.value);
     });
+  }
+  void materialize(Phases& phases) {
     phases.measure("optional_output_serialization_ns",[&] {
       for(uint32_t row=0;row<options.m;++row) for(uint32_t col=0;col<options.n;++col) {
         fmpz_get_mpz(conversion.value,fmpz_mat_entry(chain?final.value:first.value,row,col));
         encoder.store(conversion.value,words,size_t(row)*options.n+col);
       }
+      lifecycle.materialized();
     });
+  }
+  Json execution_evidence() const {
+    return lifecycle.evidence(data,sizeof(*this)+words.capacity()*sizeof(uint64_t),true);
+  }
+  void execute(Phases& phases,uint64_t version) {
+    if(retained_inputs) execute_matched_cpu_batch(*this,phases,version,options);
+    else { prepare(phases,version);compute(phases);materialize(phases); }
   }
 };
 #endif
@@ -186,23 +226,39 @@ struct FlintBaseline {
 inline void add_optional_integer_baselines(std::vector<Variant>& variants,Json& skipped,const Dataset& data,
     const Options& options,uint32_t limbs,bool chain=false) {
   const auto libraries=optional_reference_identity();
-  for(const std::string library:{"gmp","flint"}) {
-    const std::string name=(library=="gmp"?"gmp_mpz_blocked":"flint_fmpz_mat_mul")+std::string(chain?"_chain":"");
+  for(const std::string library:{"gmp","flint"}) for(const bool retained:{false,true}) {
+    const std::string name=(library=="gmp"?"gmp_mpz_blocked":"flint_fmpz_mat_mul")
+        +std::string(chain?"_chain":"")+(retained?"_retained_inputs":"");
     if(!libraries[library]["enabled"].get<bool>()) {
       skipped.push_back({{"name",name},{"status","unavailable"},{"reason",libraries[library]["reason"]}}); continue;
     }
     const uint64_t memory=optional_reference_memory(options,chain);
     Variant variant;
 #if defined(RNS8_WORKLOAD_HAVE_GMP)
-    if(library=="gmp") variant=state_variant<GmpBaseline>(name,data,options,chain,limbs);
+    if(library=="gmp") {
+      auto owned=owned_state_variant<GmpBaseline>(name,data,options,chain,limbs,retained);
+      variant=std::move(owned.first);
+      if(retained) variant.execution_evidence=[state=owned.second] {return state->execution_evidence();};
+    }
 #endif
 #if defined(RNS8_WORKLOAD_HAVE_FLINT)
-    if(library=="flint") variant=state_variant<FlintBaseline>(name,data,options,chain,limbs);
+    if(library=="flint") {
+      auto owned=owned_state_variant<FlintBaseline>(name,data,options,chain,limbs,retained);
+      variant=std::move(owned.first);
+      if(retained) variant.execution_evidence=[state=owned.second] {return state->execution_evidence();};
+    }
 #endif
     require(bool(variant.execute),"enabled optional adapter is missing");
     variant.metadata["optional_exact_reference"]=optional_comparator_contract(library,chain,limbs,std::max(options.gram_reuse,1u));
-    variant.metadata["optional_exact_reference"]["identity"]=libraries[library];
-    variant.metadata["optional_exact_reference"]["modeled_memory_allowance_bytes"]=memory;
+    auto& contract=variant.metadata["optional_exact_reference"];
+    contract["identity"]=libraries[library];
+    contract["modeled_memory_allowance_bytes"]=memory;
+    if(retained) {
+      contract["version"]=2;contract["input_conversion_per_call"]=false;
+      contract["input_conversion_policy"]="generation_bound_converted_inputs";
+      contract["materialization_policy"]=cpu_materialize_each(options)?"each":"once";
+      variant.metadata["cpu_lifecycle"]=cpu_lifecycle_contract(options,true);
+    }
     variants.push_back(std::move(variant));
   }
 }

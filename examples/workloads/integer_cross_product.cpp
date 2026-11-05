@@ -41,7 +41,8 @@ int main(int argc, char** argv) {
     std::vector<Variant> variants;
     Json skipped = Json::array();
     add_integer_baselines(variants, skipped, data, options, bound, limbs);
-    report["optional_reference_cohort"]=1;
+    report["optional_reference_cohort"]=2;
+    report["cpu_lifecycle_cohort"]=2;
     report["optional_references"]=optional_reference_identity();
     add_optional_integer_baselines(variants,skipped,data,options,limbs);
     report["estimated_host_comparator_envelope_bytes"]=options.memory->reserved;
@@ -54,12 +55,23 @@ int main(int argc, char** argv) {
       report["lifecycle"]="packed inputs and public dense preparation retained per generation; R complete products per batch; explicit each/once reconstruction; generation2 repacks and refreshes prepared dense inputs";
       for(auto& variant:variants) {
         const auto execute=variant.execute;const uint32_t reuse=options.gram_reuse;
-        variant.execute=[execute,reuse](Phases& phases,uint64_t version) {for(uint32_t product=0;product<reuse;++product) execute(phases,version);};
+        const bool matched=variant.metadata.contains("cpu_lifecycle");
+        if(!matched) variant.execute=[execute,reuse](Phases& phases,uint64_t version) {
+          for(uint32_t product=0;product<reuse;++product) execute(phases,version);
+        };
         variant.metadata["gram_batch"]=gram_batch_contract(options);
         variant.metadata["gram_batch"]["implementation"]="cpu_native_comparator";
         variant.metadata["gram_batch"]["public_api"]=nullptr;
         variant.metadata["gram_batch"]["rns_exports_per_batch"]=0;
-        variant.metadata["gram_batch"]["native_serializations_per_batch"]=reuse;
+        variant.metadata["gram_batch"]["native_serializations_per_batch"]=(matched && options.gram_export=="once")?1:reuse;
+        if(matched) {
+          variant.metadata["gram_batch"]["cpu_lifecycle_version"]=2;
+          const auto& lifecycle=variant.metadata["cpu_lifecycle"];
+          variant.metadata["gram_batch"]["materialized_native_outputs_per_batch"]=lifecycle["materialized_outputs_per_batch"];
+          variant.metadata["gram_batch"]["native_output_storage"]=lifecycle["output_materialization"];
+          if(lifecycle["output_materialization"]=="native_i64_view")
+            variant.metadata["gram_batch"]["native_serializations_per_batch"]=0;
+        }
         variant.metadata["gram_batch"]["prepared_gram_api"]=false;
         variant.metadata["gram_batch"]["job_list_allocated_per_call"]=false;
         variant.metadata["gram_batch"]["capability_probed_per_call"]=false;
@@ -102,7 +114,10 @@ int main(int argc, char** argv) {
     }
     run_variants(report, options, data, variants, expected, [&] {
       mutate_input(data);
-      if (options.gram) data.b[0] = data.a[0];
+      if (options.gram) {
+        require(data.source_versions[1] != UINT64_MAX,"B generation exhausted");
+        data.b[0] = data.a[0];++data.source_versions[1];
+      }
       report["changed_input_checksum_u64"] = checksum(dataset_words(data));
       return integer_words(exact_product(data, options), limbs);
     }, skipped);

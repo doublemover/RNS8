@@ -229,8 +229,9 @@ RNS8. Windows `unsigned long` width is never used to truncate64-bit input:
 conversion uses `mpz_import`, including signed extrema. Negative output uses
 checked two's-complement serialization; arbitrary-width results are not relabeled
 native128. Chain variants retain AB in the optional library's integer matrices,
-compute `(AB)T`, and serialize only the full final output. Gram batches recompute
-R products and serialize R native outputs, as do the other CPU comparators.
+compute `(AB)T`, and serialize only the full final output. These original
+native-input-per-product controls remain separately named cohorts. Their Gram
+batches retain the original R products/R serializations boundary.
 
 Input conversion, exact GEMM and output serialization have separate diagnostic
 phase times. They all remain inside the full application interval. Allocation
@@ -238,8 +239,30 @@ setup, first call and eventual teardown contribute to the existing cold lifecycl
 total. Stable input calls, actual changed-input conversion and sustained intervals
 use the same harness; every complete output is compared with the independent
 Boost reference outside timing. Sustained loops contain no oracle or checksum.
-These adapters always charge native conversion per product; a separate retained
-GMP/FLINT input-conversion cohort is not implemented or inferred from these rows.
+The additional `_retained_inputs` GMP/FLINT rows use generation-bound converted
+A/B/T matrices. Initial conversion is charged to variant setup. Stable generations
+reuse converted inputs; a changed dataset, storage address, shape or explicit
+operand generation refreshes the affected operand before arithmetic. A failed
+partial refresh invalidates that operand's receipt and prevents stale compute;
+retry refreshes only the missing inputs. Outputs are never cached.
+
+The native64/native128/Boost `_matched_lifecycle` rows and retained optional
+rows follow the same `each`/`once` materialization schedule as RNS8: all R
+products are recomputed, with R or one complete output materializations. A
+compiler memory boundary after each expression prevents identical-product work
+from being hoisted out of the repeated batch. A native
+signed64 result already has the requested layout, so its matched row exposes a
+retained output view without allocating or copying a serialization buffer.
+Wider representations still use checked word serialization. Logical materialized
+outputs and actual serialization passes are reported separately.
+
+Workload cohort2 records per-operand source/conversion generations, completed
+conversion passes, computed expressions/GEMMs, output materializations and
+retained static storage. Cold totals include initial conversion, setup, the first
+call and eventual teardown. Dynamic optional-library peak memory remains
+unmeasured. The collector accepts the original cohort1 and validates cohort2
+counts across cold, unchanged, sustained and changed-input calls. No improvement
+factor or default routing follows from this implementation.
 
 Reports record header/runtime versions, configured header hashes, link-input
 hashes and optional explicit static-link dependency hashes. Header/runtime

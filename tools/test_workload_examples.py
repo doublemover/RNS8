@@ -314,6 +314,98 @@ def optional_fixture(gmp=True,flint=True,chain=False):
     return report
 
 
+def add_matched_cpu_fixture(report):
+    """Synthetic protocol receipts; full executable fixtures are exercised separately."""
+    report["cpu_lifecycle_cohort"]=2
+    report["workload_source_identity"]["cpu_comparator_lifecycle.hpp"]="f"*64
+    products=report.get("gram_batch",{}).get("products_per_batch",1)
+    policy=report.get("gram_batch",{}).get("export_policy","each")
+    outputs=products if policy=="each" else 1
+    chain=report["workload"]=="resident_integer_chain"
+    if "optional_reference_cohort" in report:
+        report["optional_reference_cohort"]=2
+    old=list(report["variants"])
+    native=[row for row in old if row["name"] in {"blocked_cpp_int","blocked_native_i64"}]
+    if not native:
+        row=copy.deepcopy(next(row for row in old if row.get("status")=="passed"))
+        row["name"]="blocked_cpp_int";row["metadata"]={}
+        report["variants"].append(row);native=[row]
+    for source in [*native,*(row for row in old if row["name"].startswith(("gmp_","flint_")))]:
+        retained=copy.deepcopy(source)
+        converted=source["name"].startswith(("gmp_","flint_"))
+        retained["name"]+="_retained_inputs" if converted else "_matched_lifecycle"
+        if retained.get("status")!="passed":
+            report["variants"].append(retained);continue
+        retained["metadata"]["cpu_lifecycle"]=dict(version=2,
+            input_conversion_policy="generation_bound_converted_inputs" if converted else "native_inputs",
+            materialization_policy=policy,computed_expressions_per_batch=products,materialized_outputs_per_batch=outputs,
+            output_cached=False,recomputation_policy="compiler_memory_barrier_after_each_expression_v1",
+            output_materialization="native_i64_view" if source["name"]=="blocked_native_i64" and report.get("output_limbs_per_cell")==1 else "checked_signed_word_serialization",
+            initial_conversion_charged="variant_setup" if converted else "not_applicable_native_inputs",
+            source_identity_policy="dataset_identity_address_length_and_explicit_operand_generation",complete_caller_output_per_batch=True)
+        if converted:
+            retained["metadata"]["optional_exact_reference"].update(version=2,input_conversion_per_call=False,
+                input_conversion_policy="generation_bound_converted_inputs",materialization_policy=policy)
+        if "gram_batch" in retained["metadata"]:
+            storage=retained["metadata"]["cpu_lifecycle"]["output_materialization"]
+            retained["metadata"]["gram_batch"].update(native_serializations_per_batch=0 if storage=="native_i64_view" else outputs,
+                cpu_lifecycle_version=2,materialized_native_outputs_per_batch=outputs,native_output_storage=storage)
+        def evidence(calls,changed=False):
+            generations=[2,2 if report["workload"]=="integer_gram" else 1,1] if changed else [1,1,1]
+            passes=[2 if changed else 1,2 if changed and report["workload"]=="integer_gram" else 1,1 if chain else 0] if converted else [0,0,0]
+            m,n,k=(report[key] for key in ("m","n","k"))
+            cells=[m*k,k*n,n*n if chain else 0]
+            return dict(schema="rns8_cpu_comparator_lifecycle_v2",source_identity=3135,source_generations=generations,
+                converted_generations=[generations[0],generations[1],generations[2] if chain else None] if converted else [None,None,None],
+                conversion_passes=passes,converted_values=[a*b for a,b in zip(passes,cells)],
+                computed_expressions=calls*products,gemm_products=calls*products*(2 if chain else 1),
+                materialized_outputs=calls*outputs,retained_static_storage_bytes=1234,converted_inputs=converted,
+                dynamic_library_peak_measured=False)
+        retained["cold_call"]["execution_evidence"]=evidence(1)
+        for index,sample in enumerate(retained["samples"]):
+            sample["execution_evidence"]=evidence(2+report["warmups"]+index)
+        retained["changed_input"]["execution_evidence"]=evidence(2+report["warmups"]+report["repeats"],True)
+        if not converted:
+            for sample in [retained["cold_call"],*retained["samples"],retained["changed_input"]]:
+                sample["phases_ns"]=dict(cpu_exact_gemm_ns=60,cpu_output_materialization_ns=20)
+        report["variants"].append(retained)
+    return report
+
+
+class CPUComparatorLifecycles(unittest.TestCase):
+    def test_optional_old_and_retained_cohorts_validate_together(self):
+        for gmp,flint in ((False,False),(True,False),(False,True),(True,True)):
+            for chain in (False,True):
+                with self.subTest(gmp=gmp,flint=flint,chain=chain):
+                    report=add_matched_cpu_fixture(optional_fixture(gmp,flint,chain))
+                    collector.validate_report(report,"run1","cpu-reference",-1)
+
+    def test_matched_gram_each_and_once_keep_all_products(self):
+        for policy in ("each","once"):
+            report=add_matched_cpu_fixture(gram_batch_fixture(3,policy))
+            collector.validate_report(report,"run1","cpu-reference",-1)
+            row=next(row for row in report["variants"] if row["name"]=="blocked_cpp_int_matched_lifecycle")
+            self.assertEqual(row["cold_call"]["execution_evidence"]["computed_expressions"],3)
+            self.assertEqual(row["cold_call"]["execution_evidence"]["materialized_outputs"],3 if policy=="each" else 1)
+
+    def test_missing_generation_wrong_materialization_and_output_reuse_are_rejected(self):
+        source=add_matched_cpu_fixture(optional_fixture())
+        matched=next(index for index,row in enumerate(source["variants"]) if row["name"]=="gmp_mpz_blocked_retained_inputs")
+        for mutate in (
+            lambda r:r.pop("cpu_lifecycle_cohort"),
+            lambda r:r["variants"][matched]["metadata"]["cpu_lifecycle"].update(output_cached=True),
+            lambda r:r["variants"][matched]["changed_input"]["execution_evidence"].update(source_generations=[1,1,1]),
+            lambda r:r["variants"][matched]["samples"][0]["execution_evidence"].update(conversion_passes=[2,2,0]),
+            lambda r:r["variants"][matched]["cold_call"]["execution_evidence"].update(computed_expressions=0),
+            lambda r:r["variants"][matched]["cold_call"]["execution_evidence"].update(materialized_outputs=0),
+            lambda r:r["variants"][matched]["cold_call"].pop("execution_evidence"),
+            lambda r:r["workload_source_identity"].pop("cpu_comparator_lifecycle.hpp"),
+        ):
+            bad=copy.deepcopy(source);mutate(bad)
+            with self.assertRaises(ValueError):collector.validate_report(bad,"run1","cpu-reference",-1)
+
+
+
 class OptionalReferences(unittest.TestCase):
     def test_gram_batch_optional_conversion_counts_and_sustained_scope(self):
         for products in (1,3):

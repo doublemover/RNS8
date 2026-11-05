@@ -1,6 +1,7 @@
 #ifndef RNS8_WORKLOAD_BASELINES_HPP
 #define RNS8_WORKLOAD_BASELINES_HPP
 #include "workload_common.hpp"
+#include "cpu_comparator_lifecycle.hpp"
 
 namespace rns8_workload {
 inline bool checked_product(int64_t a, int64_t b, int64_t& product) {
@@ -78,26 +79,50 @@ inline std::vector<cpp_int> exact_product(const Dataset& data, const Options& op
 template<class Integer> struct IntegerBaseline {
   const Dataset& data;
   const Options& options;
-  bool blocked, chain;
+  bool blocked, chain, matched, zero_copy_output;
+  CPUComparatorLifecycle lifecycle;
   uint32_t limbs;
   std::vector<Integer> first, final;
   Words words;
-  IntegerBaseline(const Dataset& input, const Options& config, bool tiled, bool chained, uint32_t width)
-      : data(input), options(config), blocked(tiled), chain(chained), limbs(width),
-        first(std::size_t(config.m) * config.n), final(chained ? first.size() : 0), words(first.size() * width) {}
-  void execute(Phases& phases, uint64_t) {
-    phases.measure("compute_and_output_serialization_ns", [&] {
-      if (blocked) blocked_product(data.a, data.b, options.m, options.n, options.k, first);
-      else naive_product(data.a, data.b, options.m, options.n, options.k, first);
-      if (chain) {
-        if (blocked) blocked_product(first, data.t, options.m, options.n, options.n, final);
-        else naive_product(first, data.t, options.m, options.n, options.n, final);
-        encode_into(final, limbs, words);
-      } else encode_into(first, limbs, words);
-    });
+  IntegerBaseline(const Dataset& input, const Options& config, bool tiled, bool chained, uint32_t width, bool matched_lifecycle = false, bool native_view = false)
+      : data(input), options(config), blocked(tiled), chain(chained), matched(matched_lifecycle), zero_copy_output(native_view), limbs(width),
+        first(std::size_t(config.m) * config.n), final(chained ? first.size() : 0), words(native_view ? 0 : first.size() * width) {
+    require(!native_view || (std::is_same_v<Integer,int64_t> && width == 1),
+        "native output view requires exact signed64 cells");
+  }
+  void prepare(Phases&, uint64_t) {}
+  void compute_values() {
+    require(data.a.size()==std::size_t(options.m)*options.k &&
+        data.b.size()==std::size_t(options.k)*options.n &&
+        (!chain || data.t.size()==std::size_t(options.n)*options.n),"CPU input storage shape changed");
+    if (blocked) blocked_product(data.a, data.b, options.m, options.n, options.k, first);
+    else naive_product(data.a, data.b, options.m, options.n, options.k, first);
+    if (chain) {
+      if (blocked) blocked_product(first, data.t, options.m, options.n, options.n, final);
+      else naive_product(first, data.t, options.m, options.n, options.n, final);
+    }
+    lifecycle.computed(chain, (chain ? final : first).data());
+  }
+  void materialize_values() {
+    if (!zero_copy_output) encode_into(chain ? final : first, limbs, words);
+    lifecycle.materialized();
+  }
+  void compute(Phases& phases) {
+    phases.measure("cpu_exact_gemm_ns", [&] { compute_values(); });
+  }
+  void materialize(Phases& phases) {
+    phases.measure("cpu_output_materialization_ns", [&] { materialize_values(); });
+  }
+  void execute(Phases& phases, uint64_t version) {
+    if (matched) execute_matched_cpu_batch(*this, phases, version, options);
+    else phases.measure("compute_and_output_serialization_ns", [&] { compute_values(); materialize_values(); });
+  }
+  Json execution_evidence() const {
+    const uint64_t bytes = (first.capacity() + final.capacity()) * sizeof(Integer) + words.capacity() * sizeof(uint64_t);
+    return lifecycle.evidence(data, sizeof(*this) + bytes, false);
   }
 };
-template<class State, class... Arguments> Variant state_variant(const std::string& name, Arguments&&... arguments) {
+template<class State, class... Arguments> auto owned_state_variant(const std::string& name, Arguments&&... arguments) {
   const auto start = Clock::now();
   auto state = std::make_shared<State>(std::forward<Arguments>(arguments)...);
   const double setup = since(start);
@@ -105,7 +130,24 @@ template<class State, class... Arguments> Variant state_variant(const std::strin
   result.name = name; result.setup_ns = setup;
   result.execute = [state](Phases& phases, uint64_t version) { state->execute(phases, version); };
   result.output = [state]() -> const Words& { return state->words; };
-  return result;
+  return std::make_pair(std::move(result), std::move(state));
+}
+template<class State, class... Arguments> Variant state_variant(const std::string& name, Arguments&&... arguments) {
+  return owned_state_variant<State>(name, std::forward<Arguments>(arguments)...).first;
+}
+template<class Integer>
+Variant matched_integer_variant(const std::string& name, const Dataset& data, const Options& options,
+    bool blocked, bool chain, uint32_t limbs) {
+  const bool native_view = std::is_same_v<Integer,int64_t> && limbs == 1;
+  auto owned = owned_state_variant<IntegerBaseline<Integer>>(name + "_matched_lifecycle", data, options, blocked, chain, limbs, true, native_view);
+  owned.first.metadata["cpu_lifecycle"] = cpu_lifecycle_contract(options, false, native_view);
+  if constexpr (std::is_same_v<Integer,int64_t>) {
+    if (native_view) owned.first.output = [state=owned.second]() -> WordView {
+      return state->chain ? state->final : state->first;
+    };
+  }
+  owned.first.execution_evidence = [state = owned.second] { return state->execution_evidence(); };
+  return std::move(owned.first);
 }
 inline void add_integer_baselines(std::vector<Variant>& variants, Json& skipped, const Dataset& data,
     const Options& options, const cpp_int& bound, uint32_t limbs, bool chain = false) {
@@ -127,6 +169,15 @@ inline void add_integer_baselines(std::vector<Variant>& variants, Json& skipped,
       {"reason", "compiler has no genuine __int128 type; Boost int128 is not substituted"}});
 #endif
   variants.push_back(state_variant<IntegerBaseline<cpp_int>>("blocked_cpp_int", data, options, true, chain, limbs));
+  if (products <= options.baseline_max_products)
+    variants.push_back(matched_integer_variant<cpp_int>(chain ? "naive_cpp_int_chain" : "naive_cpp_int", data, options, false, chain, limbs));
+  if (bound <= INT64_MAX)
+    variants.push_back(matched_integer_variant<int64_t>("blocked_native_i64", data, options, true, chain, limbs));
+#if defined(__SIZEOF_INT128__)
+  if (bound < (cpp_int(1) << 127))
+    variants.push_back(matched_integer_variant<Native128>("blocked_native_i128", data, options, true, chain, limbs));
+#endif
+  variants.push_back(matched_integer_variant<cpp_int>("blocked_cpp_int", data, options, true, chain, limbs));
 }
 } // namespace rns8_workload
 #endif

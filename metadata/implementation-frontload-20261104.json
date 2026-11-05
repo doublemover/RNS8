@@ -790,8 +790,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/91",
       "requirements_sha256": "b58bb91666262dfc4b93e5b6c12b398148afd2ef40989d57a133f2df0ec9e0af",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Add separately named generation-bound retained GMP/FLINT input cohorts and matched native64/native128/Boost materialization cohorts while retaining original conversion/serialization-per-product controls. Split prepare/compute/materialize; charge initial converted inputs to setup, refresh only changed A/B/T dataset/address/length/generations, invalidate partial failures before import and reject stale arithmetic until retry completes. Recompute every R expression/GEMM while following each/once output materialization on CPU and RNS8. Native signed64 matched rows expose a retained typed output view without redundant serialization storage/copies; checked wider serialization remains explicit. Publish v2 source/conversion generations, conversion passes/cells, real products, materialized outputs and retained static memory, and extend collector identities, strict legacy/current schemas and operation-count verification for cold/steady/sustained/changed calls. Author extrema/cancellation/>128-bit full-output tests, changed A/B/T and storage identities, failed-refresh retry, batch recomputation/native-view controls, synthetic old/new optional availability and malformed lifecycle fixtures; existing compiled producer-to-collector coverage consumes the new contracts. Native/Boost six-program MSVC syntax and Python3.15 AST/undefined-name lint pass. GMP/FLINT headers are absent from the selected vcpkg includes, so their compiled lanes and all runtime/target measurements remain deferred; no performance claim. Bind recomputation to a compiler memory boundary after each complete CPU expression so identical final-only products cannot be hoisted out of R; record this policy independently of data-copy/materialization counts."
+      ],
       "remaining_source_items": []
     },
     {

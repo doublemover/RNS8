@@ -4,7 +4,7 @@
 namespace rns8_workload {
 inline Json sustained_sample(Variant& variant, uint32_t target_ms, const Words& expected) {
   // Each call completes its declared output policy. Gram batches may defer
-  // reconstruction until the final recomputation; native comparators serialize each.
+  // reconstruction until the final recomputation; CPU comparators declare their own each/once materialization schedule.
   // Keep both reference work and diagnostic phase clocks outside this interval.
   Phases phases;
   phases.enabled = false;
@@ -122,7 +122,9 @@ template<class Data> inline void run_variants(Json& report, const Options& optio
 }
 inline void mutate_input(Dataset& data) {
   require(!data.a.empty(), "missing mutable input");
+  require(data.source_versions[0] != UINT64_MAX, "A generation exhausted");
   data.a[0] = data.a[0] == INT64_MAX ? data.a[0] - 1 : data.a[0] + 1;
+  ++data.source_versions[0];
 }
 } // namespace rns8_workload
 #endif

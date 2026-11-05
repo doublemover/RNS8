@@ -28,7 +28,7 @@ IDENTITY_KEYS = ("workload", "m", "n", "k", "bits", "seed", "pattern", "repeats"
                  "input_checksum_u64", "checksum_u64", "changed_input_checksum_u64", "changed_checksum_u64",
                  "abs_partial_sum_bound", "bounds", "formula", "lifecycle", "work_definition", "logical_layout", "a_ld", "b_ld", "output_ld",
                  "declared_memory_budget_bytes", "aggregate_memory_envelope_bytes", "gram_batch", "gram_prepared_owner_cohort", "gram_ablation_cohort",
-                 "optional_reference_cohort", "optional_references")
+                 "optional_reference_cohort", "optional_references", "cpu_lifecycle_cohort")
 MASK = (1 << 64) - 1
 
 
@@ -264,6 +264,15 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None,datas
             rns_exports_per_batch=(products if policy=="each" else 1) if rns else 0,
             native_serializations_per_batch=0 if rns else products,prepared_gram_api=prepared,
             job_list_allocated_per_call=single and not prepared,capability_probed_per_call=wmma and not prepared)
+        if not rns and row.get("metadata",{}).get("cpu_lifecycle",{}).get("version") == 2:
+            demand(report.get("cpu_lifecycle_cohort") == 2,"matched CPU cohort declaration missing")
+            expected["native_serializations_per_batch"] = products if policy=="each" else 1
+            expected["cpu_lifecycle_version"] = 2
+            lifecycle=row["metadata"]["cpu_lifecycle"]
+            expected["materialized_native_outputs_per_batch"] = products if policy=="each" else 1
+            expected["native_output_storage"] = lifecycle.get("output_materialization")
+            if lifecycle.get("output_materialization")=="native_i64_view":
+                expected["native_serializations_per_batch"] = 0
         if wmma:
             demand(report["backend_requested"]=="hip-direct" and row.get("metadata",{}).get("device",{}).get("target","").split(":")[0]
                 in {"gfx1100","gfx1101","gfx1102"},"Gram WMMA requires explicit admitted direct-HIP target")
@@ -338,11 +347,78 @@ def optional_reference_contract(library: str, chain: bool, limbs: int, reuse: in
         output_conversion="checked_twos_complement_u64_limbs",library_private_peak_bytes=None,actual_peak_measured=False)
 
 
+
+def validate_cpu_lifecycles(report: dict, variants: list[dict]) -> None:
+    cohort=report.get("cpu_lifecycle_cohort")
+    matched=[row for row in variants if "cpu_lifecycle" in row.get("metadata",{})]
+    if cohort is None:
+        demand(not matched,"matched CPU rows need a versioned cohort")
+        return
+    demand(exact_value(cohort,2),"unknown CPU lifecycle cohort")
+    demand(type(report.get("output_limbs_per_cell")) is int and report["output_limbs_per_cell"] in (1,3),"CPU lifecycle output width missing")
+    demand("cpu_comparator_lifecycle.hpp" in report["workload_source_identity"],"CPU lifecycle source identity missing")
+    products=report.get("gram_batch",{}).get("products_per_batch",1)
+    policy=report.get("gram_batch",{}).get("export_policy","each")
+    outputs=products if policy=="each" else 1
+    chain=report["workload"]=="resident_integer_chain"
+    passed={row["name"]:row for row in variants if row.get("status")=="passed"}
+    expected_native={name+"_matched_lifecycle" for name in passed
+                     if name in {"naive_cpp_int","naive_cpp_int_chain","blocked_cpp_int","blocked_native_i64","blocked_native_i128"}}
+    demand(expected_native <= passed.keys(),"matched native/Boost comparator missing")
+    demand(bool(matched),"CPU lifecycle cohort has no matched implementations")
+    for row in matched:
+        converted=row["name"].startswith(("gmp_","flint_"))
+        expected=dict(version=2,input_conversion_policy="generation_bound_converted_inputs" if converted else "native_inputs",
+            materialization_policy=policy,computed_expressions_per_batch=products,materialized_outputs_per_batch=outputs,
+            output_cached=False,recomputation_policy="compiler_memory_barrier_after_each_expression_v1",
+            output_materialization="native_i64_view" if row["name"]=="blocked_native_i64_matched_lifecycle" and report.get("output_limbs_per_cell")==1 else "checked_signed_word_serialization",
+            initial_conversion_charged="variant_setup" if converted else "not_applicable_native_inputs",
+            source_identity_policy="dataset_identity_address_length_and_explicit_operand_generation",
+            complete_caller_output_per_batch=True)
+        demand(exact_value(row["metadata"]["cpu_lifecycle"],expected),"CPU lifecycle policy/materialization identity differs")
+        cold=row["cold_call"].get("execution_evidence")
+        demand(type(cold) is dict and type(cold.get("source_identity")) is int and 0<cold["source_identity"]<=MASK,"CPU source identity missing")
+        source_identity=cold["source_identity"]
+        if not converted:
+            for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
+                demand(set(sample["phases_ns"])=={"cpu_exact_gemm_ns","cpu_output_materialization_ns"},
+                    "matched native/Boost compute/materialization phases missing")
+        def snapshot(sample,calls,changed=False):
+            value=sample.get("execution_evidence")
+            demand(type(value) is dict,"CPU lifecycle operation receipts missing")
+            generations=[2,2 if report["workload"]=="integer_gram" else 1,1] if changed else [1,1,1]
+            conversions=[2 if changed else 1,2 if changed and report["workload"]=="integer_gram" else 1,1 if chain else 0] if converted else [0,0,0]
+            imported=[generations[0],generations[1],generations[2] if chain else None] if converted else [None,None,None]
+            m,n,k=(report[key] for key in ("m","n","k"))
+            cells=[m*k,k*n,n*n if chain else 0]
+            expected_values=[count*size for count,size in zip(conversions,cells)]
+            demand(value.get("schema")=="rns8_cpu_comparator_lifecycle_v2" and exact_value(value.get("source_identity"),source_identity)
+                and exact_value(value.get("source_generations"),generations)
+                and exact_value(value.get("converted_generations"),imported)
+                and exact_value(value.get("conversion_passes"),conversions)
+                and exact_value(value.get("converted_values"),expected_values),"CPU retained input generation/conversion counts differ")
+            for key,count in (("computed_expressions",calls*products),("gemm_products",calls*products*(2 if chain else 1)),
+                              ("materialized_outputs",calls*outputs)):
+                demand(exact_value(value.get(key),count),"CPU actual compute/materialization count differs: "+key)
+            demand(exact_value(value.get("converted_inputs"),converted) and value.get("dynamic_library_peak_measured") is False
+                and type(value.get("retained_static_storage_bytes")) is int and value["retained_static_storage_bytes"]>0,
+                "CPU retained memory disclosure missing")
+        snapshot(row["cold_call"],1)
+        for index,sample in enumerate(row["samples"]):
+            snapshot(sample,2+report["warmups"]+index)
+        calls=1+report["warmups"]+report["repeats"]
+        if report["sustained_ms"]:
+            calls+=row["sustained"]["calls"]
+            snapshot(row["sustained"],calls)
+        snapshot(row["changed_input"],calls+1,True)
+
 def validate_optional_references(report: dict, variants: list[dict]) -> None:
     if "optional_reference_cohort" not in report:
         demand(not any(row["name"].startswith(("gmp_","flint_")) for row in variants),"optional comparator missing cohort contract")
         return
-    demand(exact_value(report["optional_reference_cohort"],1),"invalid optional reference cohort")
+    demand(type(report["optional_reference_cohort"]) is int and report["optional_reference_cohort"] in (1,2),"invalid optional reference cohort")
+    if report["optional_reference_cohort"] == 2:
+        demand(exact_value(report.get("cpu_lifecycle_cohort"),2),"retained optional cohort requires matching CPU lifecycle version")
     demand(report["workload"] in {"integer_cross_product","integer_gram","resident_integer_chain"},"optional exact adapter on unsupported workload")
     libraries=report.get("optional_references")
     demand(type(libraries) is dict and set(libraries)=={"version","gmp","flint"} and exact_value(libraries["version"],1),"invalid optional library identity")
@@ -366,35 +442,40 @@ def validate_optional_references(report: dict, variants: list[dict]) -> None:
     expected_names=set()
     reserved=0
     for library in ("gmp","flint"):
-        item=libraries[library]
-        demand(type(item) is dict and type(item.get("enabled")) is bool,"invalid optional enablement")
-        name=("gmp_mpz_blocked" if library=="gmp" else "flint_fmpz_mat_mul")+("_chain" if chain else "")
-        expected_names.add(name);demand(name in names,"optional enabled/unavailable row missing")
-        row=names[name]
-        if not item["enabled"]:
-            demand(set(item)=={"enabled","status","reason"} and item["status"]=="unavailable" and
-                type(item["reason"]) is str and bool(item["reason"]) and row.get("status")=="unavailable" and
-                row.get("reason")==item["reason"],"disabled optional adapter must remain unavailable")
-            continue
-        fields={"enabled","status","header_version","runtime_version","artifacts"}
-        if library=="flint":fields|={"gmp_header_version","gmp_runtime_version","gmp_artifacts"}
-        demand(set(item)==fields and item["status"]=="available" and row.get("status")=="passed","enabled optional adapter did not execute")
-        version(item["header_version"],item["runtime_version"]);artifacts(item["artifacts"],library)
-        if library=="flint":
-            version(item["gmp_header_version"],item["gmp_runtime_version"]);artifacts(item["gmp_artifacts"],"gmp")
-            if libraries["gmp"]["enabled"]:
-                demand(item["gmp_runtime_version"]==libraries["gmp"]["runtime_version"] and
-                    exact_value(item["gmp_artifacts"],libraries["gmp"]["artifacts"]),"FLINT/GMP support dependency identity differs")
-        reuse=report.get("gram_batch",{}).get("products_per_batch",1)
-        expected=optional_reference_contract(library,chain,limbs,reuse)
-        expected["identity"]=item
-        m,n,k=(report[key] for key in ("m","n","k"))
-        cells=m*k+k*n+m*n+(n*n+m*n if chain else 0)
-        expected["modeled_memory_allowance_bytes"]=1024*cells+m*n*3*8+4096
-        reserved+=expected["modeled_memory_allowance_bytes"]
-        demand(exact_value(row.get("metadata",{}).get("optional_exact_reference"),expected),"optional comparator boundary/resource identity differs")
-        for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
-            demand(set(sample["phases_ns"])=={"optional_input_conversion_ns","optional_exact_gemm_ns","optional_output_serialization_ns"},"optional host-to-host conversion/arithmetic/serialization phases missing")
+        for retained in ((False,True) if report["optional_reference_cohort"] == 2 else (False,)):
+            item=libraries[library]
+            demand(type(item) is dict and type(item.get("enabled")) is bool,"invalid optional enablement")
+            name=("gmp_mpz_blocked" if library=="gmp" else "flint_fmpz_mat_mul")+("_chain" if chain else "")+("_retained_inputs" if retained else "")
+            expected_names.add(name);demand(name in names,"optional enabled/unavailable row missing")
+            row=names[name]
+            if not item["enabled"]:
+                demand(set(item)=={"enabled","status","reason"} and item["status"]=="unavailable" and
+                    type(item["reason"]) is str and bool(item["reason"]) and row.get("status")=="unavailable" and
+                    row.get("reason")==item["reason"],"disabled optional adapter must remain unavailable")
+                continue
+            fields={"enabled","status","header_version","runtime_version","artifacts"}
+            if library=="flint":fields|={"gmp_header_version","gmp_runtime_version","gmp_artifacts"}
+            demand(set(item)==fields and item["status"]=="available" and row.get("status")=="passed","enabled optional adapter did not execute")
+            version(item["header_version"],item["runtime_version"]);artifacts(item["artifacts"],library)
+            if library=="flint":
+                version(item["gmp_header_version"],item["gmp_runtime_version"]);artifacts(item["gmp_artifacts"],"gmp")
+                if libraries["gmp"]["enabled"]:
+                    demand(item["gmp_runtime_version"]==libraries["gmp"]["runtime_version"] and
+                        exact_value(item["gmp_artifacts"],libraries["gmp"]["artifacts"]),"FLINT/GMP support dependency identity differs")
+            reuse=report.get("gram_batch",{}).get("products_per_batch",1)
+            expected=optional_reference_contract(library,chain,limbs,reuse)
+            expected["identity"]=item
+            if retained:
+                expected.update(version=2,input_conversion_per_call=False,
+                    input_conversion_policy="generation_bound_converted_inputs",
+                    materialization_policy=report.get("gram_batch",{}).get("export_policy","each"))
+            m,n,k=(report[key] for key in ("m","n","k"))
+            cells=m*k+k*n+m*n+(n*n+m*n if chain else 0)
+            expected["modeled_memory_allowance_bytes"]=1024*cells+m*n*3*8+4096
+            reserved+=expected["modeled_memory_allowance_bytes"]
+            demand(exact_value(row.get("metadata",{}).get("optional_exact_reference"),expected),"optional comparator boundary/resource identity differs")
+            for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
+                demand(set(sample["phases_ns"])=={"optional_input_conversion_ns","optional_exact_gemm_ns","optional_output_serialization_ns"},"optional host-to-host conversion/arithmetic/serialization phases missing")
     demand({name for name in names if name.startswith(("gmp_","flint_"))}==expected_names,"unexpected optional comparator identity")
     demand(type(report.get("aggregate_memory_envelope_bytes")) is int and
         type(report.get("declared_memory_budget_bytes")) is int and
@@ -521,6 +602,7 @@ def validate_report(report: dict, run_id: str, backend: str, device: int, gram_r
            and sorted(order) == sorted(expected_order), "sustained order must cover each measured variant exactly once")
     validate_gram_batch(report,variants,gram_request,identity["dataset_bytes"])
     validate_optional_references(report,variants)
+    validate_cpu_lifecycles(report,variants)
     identity["variants"] = admitted
     return identity
 
@@ -574,7 +656,7 @@ def collect(executable: Path, arguments: list[str], runs: int, timeout: float, *
             if case_file is not None:demand(sha(case_file)==case_identity["sha256"],"case manifest changed during independent process")
             demand(result.returncode == 0, f"process returned {result.returncode}; unsupported is retained without fallback")
             report = json.loads(result.stdout)
-            if case_identity is not None:demand(exact_value(report.get("optional_reference_cohort"),1),"selected optional case requires explicit enabled/unavailable adapter cohort")
+            if case_identity is not None:demand(type(report.get("optional_reference_cohort")) is int and report["optional_reference_cohort"] in (1,2),"selected optional case requires explicit enabled/unavailable adapter cohort")
             identity = validate_report(report, run_id, backend, device, gram_request)
             row["observation"] = report
             if baseline is None: baseline = identity

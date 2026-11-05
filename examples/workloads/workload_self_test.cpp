@@ -36,6 +36,92 @@ int main() {
       require(rejected && words==Words(3,77),"optional encoder accepted an out-of-range cell");
     }
 #endif
+    {
+      Options config;config.m=1;config.n=1;config.k=2;
+      Dataset input=make_data(config,true);
+      CPUComparatorLifecycle cache;
+      std::array<std::vector<int64_t>,3> converted;
+      auto import=[&](unsigned role,const std::vector<int64_t>& values) {converted[role]=values;};
+      cache.refresh(input,true,false,import);
+      cache.refresh(input,true,false,import);
+      require(cache.conversion_passes==std::array<uint64_t,3>{1,1,1},"stable input generations were reconverted");
+      ++input.source_versions[0];++input.source_versions[1];
+      input.a[0]+=1;input.b[0]+=1;
+      bool failed=false;
+      try {
+        cache.refresh(input,true,false,[&](unsigned role,const std::vector<int64_t>& values) {
+          if(role==1) {converted[role][0]=values[0];throw std::invalid_argument("injected partial conversion");}
+          import(role,values);
+        });
+      } catch(const std::invalid_argument&) {failed=true;}
+      require(failed && !cache.current(input,true) && !cache.converted[1].valid,
+          "failed refresh published a usable converted generation");
+      cache.refresh(input,true,false,import);
+      require(cache.current(input,true) && converted[0]==input.a && converted[1]==input.b,
+          "failed converted-input refresh did not recover");
+      require(cache.conversion_passes==std::array<uint64_t,3>{2,2,1},"retry reconverted unrelated completed inputs");
+      auto replacement=input.t;input.t.swap(replacement);
+      cache.refresh(input,true,false,import);
+      require(cache.conversion_passes[2]==2,"changed input storage identity was reused");
+    }
+    for(const std::string policy:{"each","once"}) {
+      Options config;config.m=1;config.n=1;config.k=2;config.gram_reuse=3;config.gram_export=policy;
+      Dataset input=make_data(config);
+      input.a={INT64_MIN,INT64_MAX};input.b={1,1};
+      IntegerBaseline<int64_t> baseline(input,config,true,false,1,true);
+      Phases phases;phases.enabled=false;
+      baseline.execute(phases,1);
+      require(baseline.words==integer_words(exact_product(input,config),1),"matched native64 extrema/cancellation differ");
+      require(baseline.lifecycle.computed_expressions==3 && baseline.lifecycle.gemm_products==3 &&
+          baseline.lifecycle.materialized_outputs==(policy=="each"?3u:1u),"matched CPU batch skipped products or over-materialized");
+      mutate_input(input);baseline.execute(phases,2);
+      require(baseline.words==integer_words(exact_product(input,config),1),"matched native64 changed input differs");
+      auto native_view=matched_integer_variant<int64_t>("blocked_native_i64",input,config,true,false,1);
+      native_view.execute(phases,2);
+      const auto words=integer_words(exact_product(input,config),1);
+      require(native_view.output()==words && checksum(native_view.output())==checksum(words),
+          "native64 retained output view changed public signed word bits");
+      require(native_view.metadata["cpu_lifecycle"]["output_materialization"]=="native_i64_view",
+          "native64 comparator did not expose its existing output representation");
+      IntegerBaseline<int64_t> direct_view(input,config,true,false,1,true,true);
+      direct_view.execute(phases,2);
+      require(direct_view.words.empty() && WordView(direct_view.first)==words,
+          "native64 view allocated or populated a redundant serialization buffer");
+    }
+    {
+      Options config;config.m=1;config.n=1;config.k=2;config.gram_reuse=3;config.gram_export="once";
+      Dataset input=make_data(config,true);
+      input.a={INT64_MAX,INT64_MAX};input.b={INT64_MAX,INT64_MAX};input.t={INT64_MAX};
+      const auto expected=exact_product(input,config,true);
+      require(expected[0]>(cpp_int(1)<<128),"wide CPU fixture did not exceed128 bits");
+      IntegerBaseline<cpp_int> boost(input,config,true,true,3,true);
+      Phases phases;phases.enabled=false;boost.execute(phases,1);
+      require(boost.words==integer_words(expected,3) && boost.lifecycle.computed_expressions==3 &&
+          boost.lifecycle.gemm_products==6 && boost.lifecycle.materialized_outputs==1,
+          "matched Boost chain did not recompute all products before final serialization");
+#if defined(RNS8_WORKLOAD_HAVE_GMP) || defined(RNS8_WORKLOAD_HAVE_FLINT)
+      auto check_retained=[&](auto& baseline) {
+        baseline.execute(phases,1);baseline.execute(phases,1);
+        require(baseline.words==integer_words(exact_product(input,config,true),3),"retained optional wide output differs");
+        require(baseline.lifecycle.conversion_passes==std::array<uint64_t,3>{1,1,1},
+            "optional steady input generations were reconverted");
+        input.a[0]=-input.a[0];++input.source_versions[0];baseline.execute(phases,2);
+        input.b[0]=-input.b[0];++input.source_versions[1];baseline.execute(phases,2);
+        input.t[0]=-input.t[0];++input.source_versions[2];baseline.execute(phases,2);
+        require(baseline.words==integer_words(exact_product(input,config,true),3),
+            "retained optional A/B/T refresh differs from independent Boost");
+        require(baseline.lifecycle.conversion_passes==std::array<uint64_t,3>{2,2,2} &&
+            baseline.lifecycle.computed_expressions==15 && baseline.lifecycle.gemm_products==30 &&
+            baseline.lifecycle.materialized_outputs==5,"optional retained lifecycle operation counts differ");
+      };
+#endif
+#if defined(RNS8_WORKLOAD_HAVE_GMP)
+      {GmpBaseline gmp(input,config,true,3,true);check_retained(gmp);}
+#endif
+#if defined(RNS8_WORKLOAD_HAVE_FLINT)
+      {FlintBaseline flint(input,config,true,3,true);check_retained(flint);}
+#endif
+    }
     uint64_t state = 0;
     require(next_word(state) == UINT64_C(0xe220a8397b1dcdaf), "splitmix64 version changed");
     const Words encoded = integer_words({cpp_int(-1), cpp_int(0), (cpp_int(1) << 129)}, 3);

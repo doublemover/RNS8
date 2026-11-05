@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <charconv>
 #include <chrono>
 #include <cstring>
@@ -20,6 +21,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <utility>
+#include <type_traits>
 
 #if __has_include("workload_source_identity.hpp")
 #include "workload_source_identity.hpp"
@@ -30,6 +33,32 @@ using boost::multiprecision::cpp_int;
 using Json = nlohmann::json;
 using Clock = std::chrono::steady_clock;
 using Words = std::vector<uint64_t>;
+
+
+// Verification reads a retained result directly. A native signed64 result already
+// has the requested scalar layout; it needs no extra serialization buffer.
+class WordView {
+ public:
+  WordView(const Words& words) : words_(words.data()), size_(words.size()) {}
+  WordView(const std::vector<int64_t>& words) : native_(words.data()), size_(words.size()) {}
+  std::size_t size() const { return size_; }
+  uint64_t operator[](std::size_t index) const {
+    if (!native_) return words_[index];
+    uint64_t bits;
+    std::memcpy(&bits, native_ + index, sizeof(bits));
+    return bits;
+  }
+  bool operator==(const Words& other) const {
+    if (size_ != other.size()) return false;
+    for (std::size_t index = 0; index < size_; ++index)
+      if ((*this)[index] != other[index]) return false;
+    return true;
+  }
+ private:
+  const uint64_t* words_ = nullptr;
+  const int64_t* native_ = nullptr;
+  std::size_t size_;
+};
 
 inline void require(bool condition, const std::string& message) {
   if (!condition) throw std::invalid_argument(message);
@@ -176,12 +205,15 @@ inline uint64_t magnitude(int64_t value) {
 inline uint64_t bits_of(int64_t value) {
   uint64_t bits; std::memcpy(&bits, &value, sizeof(bits)); return bits;
 }
-inline uint64_t checksum(const Words& words) {
+inline uint64_t checksum(WordView words) {
   // Canonical FNV-1a over every u64, serialized least-significant byte first.
   uint64_t hash = UINT64_C(14695981039346656037);
-  for (uint64_t word : words) for (unsigned byte = 0; byte < 8; ++byte) {
-    hash ^= (word >> (byte * 8)) & 255;
-    hash *= UINT64_C(1099511628211);
+  for (std::size_t index = 0; index < words.size(); ++index) {
+    const auto word = words[index];
+    for (unsigned byte = 0; byte < 8; ++byte) {
+      hash ^= (word >> (byte * 8)) & 255;
+      hash *= UINT64_C(1099511628211);
+    }
   }
   return hash;
 }
@@ -213,7 +245,17 @@ inline Json preview(const Words& words, uint32_t limbs) {
     result.push_back(decode(words, cell, limbs).str());
   return result;
 }
+inline uint64_t next_dataset_identity() {
+  static std::atomic<uint64_t> next{1};
+  uint64_t value = next.load(std::memory_order_relaxed);
+  do {
+    require(value != UINT64_MAX, "dataset identity space exhausted");
+  } while (!next.compare_exchange_weak(value, value + 1, std::memory_order_relaxed));
+  return value;
+}
 struct Dataset {
+  uint64_t identity = next_dataset_identity();
+  std::array<uint64_t, 3> source_versions{1, 1, 1};
   std::vector<int64_t> a, b, t;
   double preparation_ns = 0;
   std::string recipe;
@@ -329,7 +371,7 @@ struct Variant {
   Json metadata = Json::object();
   double setup_ns = 0;
   std::function<void(Phases&, uint64_t)> execute;
-  std::function<const Words&()> output;
+  std::function<WordView()> output;
   // Optional lifecycle evidence is read after timing, never between burst calls.
   std::function<Json()> execution_evidence;
 };
