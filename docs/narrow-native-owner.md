@@ -42,6 +42,12 @@ reuse it. Certified public byte execution observes it once per context; the
 private checked byte helper still probes each raw-pointer call. Device imports
 without a host-pack domain certificate retain the checked device-scan route.
 Generation-bound device summary caching for those imports is still in progress.
+Its device scan primitive is written: exact signed/unsigned min and max, bounded
+grid-stride work, a compact-input specialization, and16-byte reusable scratch with
+an owned compound readback. The authored differential compares independent CPU
+extrema for narrow/full-width values, poisoned padding and a forced extreme
+beyond the first grid span. HIP host and gfx1100 device syntax checks pass;
+the differential has not run and the public cache integration is still pending.
 
 The independent matrix-owned exact-range proof must also fit the selected CRT
 basis. The native result is staged, then encoded into every output residue

@@ -1,4 +1,92 @@
 #include "test_hip_direct_native_byte_cases.inc"
+template <class T> void check_native_domain_scan() {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  std::mt19937_64 random(5353);
+  for (const auto shape : {std::pair<int, int>{1, 1}, {1, 3}, {17, 19}, {1025, 1025}})
+    for (bool padded : {false, true})
+      for (bool full_width : {false, true}) {
+        const auto rows = shape.first, cols = shape.second, ld = cols + (padded ? 3 : 0);
+        std::vector<T> values(size_t(rows) * ld, std::numeric_limits<T>::max());
+        T minimum = std::numeric_limits<T>::max(), maximum = std::numeric_limits<T>::lowest();
+        cpp_int magnitude = 0;
+        for (int row = 0; row < rows; ++row)
+          for (int col = 0; col < cols; ++col) {
+            uint64_t word = random();
+            if (word == 0 || word == UINT64_MAX || word == (UINT64_C(1) << 63) ||
+                word == uint64_t(INT64_MAX))
+              word = 1;
+            T value;
+            if (full_width)
+              std::memcpy(&value, &word, sizeof(value));
+            else if constexpr (std::is_unsigned_v<T>)
+              value = T(word % 256);
+            else
+              value = T(int(word % 15) - 7);
+            if (full_width && row == rows - 1 && col == cols - 1)
+              value = std::numeric_limits<T>::lowest();
+            if (full_width && row == rows - 1 && col == cols - 2)
+              value = std::numeric_limits<T>::max();
+            values[size_t(row) * ld + col] = value;
+            minimum = std::min(minimum, value);
+            maximum = std::max(maximum, value);
+            magnitude = std::max(magnitude, cpp_int(boost::multiprecision::abs(cpp_int(value))));
+          }
+        hip_direct_device_buffer input, scratch;
+        REQUIRE(input.allocate(0, values.size() * sizeof(T)) == RNS8_SUCCESS);
+        REQUIRE(scratch.allocate(0, 2 * sizeof(uint64_t)) == RNS8_SUCCESS);
+        auto host = std::make_shared<std::vector<T>>(std::move(values));
+        REQUIRE(input.retain_host_payload(host) == RNS8_SUCCESS);
+        input.mark_pending();
+        REQUIRE(hip_direct_copy_host_to_device(0, input.get(), host->data(),
+                                               host->size() * sizeof(T)) == RNS8_SUCCESS);
+        input.mark_completed();
+        host.reset();
+        NativeDomainRange result;
+        const auto before = hip_direct_allocation_counters_snapshot();
+        input.mark_pending();
+        REQUIRE(hip_direct_scan_native_domain(0, input.get(), rows, cols, ld, std::is_unsigned_v<T>,
+                                              scratch, result) == RNS8_SUCCESS);
+        input.mark_completed();
+        const auto after = hip_direct_allocation_counters_snapshot();
+        CHECK(after.allocate_calls == before.allocate_calls);
+        CHECK(after.free_calls == before.free_calls);
+        CHECK(after.h2d_calls == before.h2d_calls);
+        CHECK(after.d2h_calls == before.d2h_calls + 1);
+        CHECK(after.d2h_bytes == before.d2h_bytes + 2 * sizeof(uint64_t));
+        REQUIRE(result.well_formed());
+        CHECK(result.unsigned_inputs == std::is_unsigned_v<T>);
+        CHECK(cpp_int(result.maximum_magnitude()) == magnitude);
+        if constexpr (std::is_unsigned_v<T>) {
+          CHECK(result.unsigned_minimum == minimum);
+          CHECK(result.unsigned_maximum == maximum);
+        } else {
+          CHECK(result.signed_minimum == minimum);
+          CHECK(result.signed_maximum == maximum);
+        }
+        CHECK_FALSE(scratch.pending());
+        NativeDomainRange unchanged = NativeDomainRange::signed_bounds(-5, 7);
+        scratch.mark_pending();
+        CHECK(hip_direct_scan_native_domain(0, input.get(), rows, cols, ld, std::is_unsigned_v<T>,
+                                            scratch, unchanged) == RNS8_BUSY);
+        scratch.mark_completed();
+        CHECK(unchanged.signed_minimum == -5);
+        CHECK(hip_direct_scan_native_domain(1, input.get(), rows, cols, ld, std::is_unsigned_v<T>,
+                                            scratch, unchanged) == RNS8_INVALID_ARGUMENT);
+        CHECK(unchanged.signed_minimum == -5);
+        CHECK(unchanged.signed_maximum == 7);
+        CHECK(hip_direct_scan_native_domain(0, nullptr, rows, cols, ld, std::is_unsigned_v<T>,
+                                            scratch, unchanged) == RNS8_INVALID_ARGUMENT);
+        CHECK(unchanged.signed_minimum == -5);
+      }
+}
+TEST_CASE("direct HIP native domain scans preserve exact signed unsigned extrema and padding") {
+  if (!hip_available())
+    SKIP("no HIP device for native domain scans");
+  check_native_domain_scan<int64_t>();
+  check_native_domain_scan<uint64_t>();
+}
+
 TEST_CASE("direct HIP native narrow admission proves partial sums from actual device inputs") {
   if (!hip_available())
     SKIP("no HIP device for native narrow differential");

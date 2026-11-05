@@ -2,6 +2,7 @@
 extern "C" int rns8_hip_native_fused_narrow_rns(const void*, const void*, int8_t*, int, int, int,
                                                 int, int, int, bool, bool);
 extern "C" int rns8_hip_native_i64_abs_max(const int64_t*, int, int, int, void*);
+extern "C" int rns8_hip_native_domain(const void*, int, int, int, void*, bool);
 extern "C" int rns8_hip_native_i64_narrow_gemm(const int64_t*, const int64_t*, int64_t*, int, int,
                                                int, int, int, int);
 extern "C" int rns8_hip_native_byte_wmma(const void*, const void*, void*, int, int, int, int, int,
@@ -54,6 +55,65 @@ rns8_status encode_narrow_product(const void* product, void* output, int64_t m, 
 }
 } // namespace
 #endif
+
+rns8_status hip_direct_scan_native_domain(int device_id, const void* source, int64_t rows,
+                                          int64_t cols, int64_t ld, bool unsigned_inputs,
+                                          hip_direct_device_buffer& scratch,
+                                          NativeDomainRange& out) {
+  constexpr uint64_t bytes = 2 * sizeof(uint64_t);
+  if (!source || !scratch || scratch.device_id() != device_id || scratch.bytes() < bytes ||
+      !qualified_i32_matrix_address(rows, cols, ld, 1, 8))
+    return RNS8_INVALID_ARGUMENT;
+  if (!nonoverlapping_byte_ranges(source, uint64_t(rows) * uint64_t(ld) * 8, scratch.get(), bytes))
+    return RNS8_INVALID_ARGUMENT;
+  if (scratch.pending())
+    return RNS8_BUSY;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto status = set_hip_device(device_id);
+  if (status != RNS8_SUCCESS)
+    return status;
+  scratch.mark_pending();
+  const auto error = timed_hip_operation("narrow_native_domain_scan", [&] {
+    auto* words = static_cast<uint64_t*>(scratch.get());
+    auto issued = hipMemset(words, 0xff, sizeof(uint64_t));
+    if (issued == hipSuccess)
+      issued = hipMemset(words + 1, 0, sizeof(uint64_t));
+    if (issued == hipSuccess)
+      issued = static_cast<hipError_t>(
+          rns8_hip_native_domain(source, int(rows), int(cols), int(ld), words, unsigned_inputs));
+    return issued == hipSuccess ? hipDeviceSynchronize() : issued;
+  });
+  if (error != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  uint64_t extrema[2]{};
+  status = hip_direct_copy_device_to_host(device_id, extrema, scratch.get(), sizeof(extrema));
+  if (status != RNS8_SUCCESS)
+    return status;
+  scratch.mark_completed();
+  if (extrema[0] > extrema[1])
+    return RNS8_BACKEND_FAILURE;
+  NativeDomainRange result;
+  if (unsigned_inputs)
+    result = NativeDomainRange::unsigned_bounds(extrema[0], extrema[1]);
+  else {
+    const uint64_t low_bits = extrema[0] ^ (UINT64_C(1) << 63);
+    const uint64_t high_bits = extrema[1] ^ (UINT64_C(1) << 63);
+    int64_t minimum = 0, maximum = 0;
+    std::memcpy(&minimum, &low_bits, sizeof(minimum));
+    std::memcpy(&maximum, &high_bits, sizeof(maximum));
+    result = NativeDomainRange::signed_bounds(minimum, maximum);
+  }
+  if (!result.well_formed())
+    return RNS8_BACKEND_FAILURE;
+  out = result;
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)unsigned_inputs;
+  (void)out;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 
 rns8_status hip_direct_gemm_i64_narrow_checked_device(int device_id, const int64_t* a,
                                                       const int64_t* b, int64_t* c, int64_t m,

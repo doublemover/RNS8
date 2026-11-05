@@ -92,6 +92,7 @@ public:
   bool pending() const noexcept { return pending_; }
   void* get() const noexcept { return cleanup_ ? cleanup_->pointer : nullptr; }
   std::size_t bytes() const noexcept { return bytes_; }
+  int device_id() const noexcept { return cleanup_ ? cleanup_->device_id : -1; }
   explicit operator bool() const noexcept { return get() != nullptr; }
   // Keep dispatch aliases non-owning while retaining exception-safe
   // allocation records in their enclosing API owner.

@@ -342,6 +342,13 @@ rns8_status hip_direct_gemm_narrow_rns_certified_device(
     uint32_t prefix, bool byte_wmma, bool fused, const NativeWmmaDeviceCapability& capability,
     void* native_product, uint64_t product_bytes, uint64_t budget, bool& commit_started);
 
+// Caller retains the scratch owner through uncertain completion. Publish only
+// after a completed owned readback of the full signed/unsigned native extrema.
+rns8_status hip_direct_scan_native_domain(int device_id, const void* source, int64_t rows,
+                                          int64_t cols, int64_t ld, bool unsigned_inputs,
+                                          hip_direct_device_buffer& scratch,
+                                          NativeDomainRange& out);
+
 // Explicit raw-byte WMMA candidate with native i64/u64 storage and output.
 // Scan actual operands for signed [-128,127] or unsigned [0,255] membership,
 // then prove all INT32 partials. No residue interpretation, cached proof or AUTO

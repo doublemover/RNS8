@@ -19,6 +19,40 @@ __global__ void rns8_native_i64_abs_max_kernel(const uint64_t* source, int rows,
     atomicMax(maximum, partial[0]);
 }
 
+// Flipping the sign bit maps signed order to unsigned order. Preserve the full
+// native extrema (including -128 versus +128) with two atomics per block.
+template <bool SignedValues, bool Contiguous>
+__global__ void rns8_native_domain_kernel(const uint64_t* source, int rows, int cols, int ld,
+                                          unsigned long long* extrema) {
+  __shared__ unsigned long long minimum[256], maximum[256];
+  const unsigned lane = threadIdx.x;
+  unsigned long long low = ~0ull, high = 0;
+  const int64_t count = int64_t(rows) * cols;
+  const int64_t step = int64_t(gridDim.x) * blockDim.x;
+  for (int64_t cell = int64_t(blockIdx.x) * blockDim.x + lane; cell < count; cell += step) {
+    const auto index = Contiguous ? cell : (cell / cols) * ld + cell % cols;
+    const unsigned long long key = source[index] ^ (SignedValues ? (UINT64_C(1) << 63) : 0);
+    low = key < low ? key : low;
+    high = key > high ? key : high;
+  }
+  minimum[lane] = low;
+  maximum[lane] = high;
+  __syncthreads();
+  for (unsigned stride = 128; stride; stride /= 2) {
+    if (lane < stride) {
+      minimum[lane] =
+          minimum[lane + stride] < minimum[lane] ? minimum[lane + stride] : minimum[lane];
+      maximum[lane] =
+          maximum[lane + stride] > maximum[lane] ? maximum[lane + stride] : maximum[lane];
+    }
+    __syncthreads();
+  }
+  if (lane == 0) {
+    atomicMin(extrema, minimum[0]);
+    atomicMax(extrema + 1, maximum[0]);
+  }
+}
+
 template <bool Residues = false>
 __global__ void rns8_native_i64_narrow_gemm_kernel(const int64_t* a, const int64_t* b, int64_t* c,
                                                    int m, int n, int k, int lda, int ldb, int ldc,

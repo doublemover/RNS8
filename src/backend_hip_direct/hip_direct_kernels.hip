@@ -1,4 +1,5 @@
 #include "../backend_common/indexed_modulus_planes.hpp"
+#include "../backend_common/address_domain.hpp"
 #include <hip/hip_runtime.h>
 
 // These internal HIP objects serve both library variants; API exports live in host TUs.
@@ -613,6 +614,26 @@ extern "C" int rns8_hip_gemm_rns_axpby(const int8_t* a, const int8_t* b, const i
                      static_cast<hipStream_t>(stream), a, b, d, c, m, n, k, lda, ldb, ldd, ldc,
                      coefficients);
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_native_domain(const void* source, int rows, int cols, int ld, void* extrema,
+                                      bool unsigned_inputs) {
+  if (!source || !extrema || !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8))
+    return int(hipErrorInvalidValue);
+  const auto requested_blocks = (uint64_t(rows) * cols + 255) / 256;
+  const auto blocks = static_cast<unsigned>(requested_blocks < 4096 ? requested_blocks : 4096);
+  const auto launch = [&](auto signed_values, auto contiguous) {
+    hipLaunchKernelGGL(
+        (rns8_native_domain_kernel<decltype(signed_values)::value, decltype(contiguous)::value>),
+        dim3(blocks), dim3(256), 0, nullptr, static_cast<const uint64_t*>(source), rows, cols, ld,
+        static_cast<unsigned long long*>(extrema));
+    return int(hipGetLastError());
+  };
+  if (unsigned_inputs)
+    return ld == cols ? launch(std::false_type{}, std::true_type{})
+                      : launch(std::false_type{}, std::false_type{});
+  return ld == cols ? launch(std::true_type{}, std::true_type{})
+                    : launch(std::true_type{}, std::false_type{});
 }
 
 extern "C" int rns8_hip_native_abs_max_on_stream(const void* source, int rows, int cols, int ld,
