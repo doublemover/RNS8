@@ -121,6 +121,7 @@ rns8_status hip_direct_discover_native_tile_bounds(
   auto* counts = reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(scratch.get()) +
                                              (retained_summaries ? 0 : maxima_bytes));
   auto* cursors = counts + 22;
+  scratch.mark_pending();
   if (hipMemset(counts, 0, 22 * sizeof(uint32_t)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   auto run = [](const char* label, auto operation) {
@@ -161,15 +162,17 @@ rns8_status hip_direct_discover_native_tile_bounds(
   status = hip_direct_copy_device_to_host(device_id, &rejected, counts + 21, sizeof(rejected));
   if (status != RNS8_SUCCESS)
     return status;
-  if (rejected)
+  if (rejected) {
+    scratch.mark_completed();
     return RNS8_RANGE_ERROR;
-  return run("native_bound_bucket_compaction",
-             [&]() {
-               return rns8_hip_native_bound_compact(device_bounds, counts, cursors, device_offsets,
-                                                    device_indices, static_cast<int>(tiles));
-             }) == hipSuccess
-             ? RNS8_SUCCESS
-             : RNS8_BACKEND_FAILURE;
+  }
+  const auto compacted = run("native_bound_bucket_compaction", [&]() {
+    return rns8_hip_native_bound_compact(device_bounds, counts, cursors, device_offsets,
+                                         device_indices, static_cast<int>(tiles));
+  });
+  if (compacted == hipSuccess)
+    scratch.mark_completed();
+  return compacted == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   (void)unsigned_inputs;

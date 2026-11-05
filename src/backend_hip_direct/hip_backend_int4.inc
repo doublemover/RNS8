@@ -25,6 +25,7 @@ rns8_status hip_direct_gemm_finite_int4_device(int device_id, const int8_t* a, c
   status = capability.allocate(device_id, sizeof(int));
   if (status != RNS8_SUCCESS)
     return status;
+  capability.mark_pending();
   const auto probe = timed_hip_operation("finite_int4_device_capability", [&]() {
     auto error =
         static_cast<hipError_t>(rns8_hip_int4_capability(static_cast<int*>(capability.get())));
@@ -37,6 +38,7 @@ rns8_status hip_direct_gemm_finite_int4_device(int device_id, const int8_t* a, c
       hip_direct_copy_device_to_host(device_id, &supported, capability.get(), sizeof(supported));
   if (status != RNS8_SUCCESS)
     return status;
+  capability.mark_completed();
   if (!supported)
     return RNS8_UNSUPPORTED_BACKEND;
   const auto error = timed_hip_operation("finite_int4_rdna3_wmma_kernel", [&]() {
@@ -62,6 +64,7 @@ rns8_status hip_direct_prepare_int4_capability(int device_id) {
   status = capability.allocate(device_id, sizeof(int));
   if (status != RNS8_SUCCESS)
     return status;
+  capability.mark_pending();
   auto error =
       static_cast<hipError_t>(rns8_hip_int4_capability(static_cast<int*>(capability.get())));
   if (error == hipSuccess)
@@ -73,6 +76,7 @@ rns8_status hip_direct_prepare_int4_capability(int device_id) {
       hip_direct_copy_device_to_host(device_id, &supported, capability.get(), sizeof(supported));
   if (status != RNS8_SUCCESS)
     return status;
+  capability.mark_completed();
   return supported ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
 #else
   (void)device_id;

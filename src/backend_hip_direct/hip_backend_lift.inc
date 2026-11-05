@@ -62,9 +62,13 @@ rns8_status hip_direct_lift_exact_suffix(int device_id, void* residues, int64_t 
       scratch.allocate(device_id, static_cast<std::size_t>(support.scratch_bytes));
   if (allocated != RNS8_SUCCESS)
     return allocated;
-  return hip_direct_lift_exact_suffix_workspace(device_id, residues, cells, source_prefix,
-                                                target_prefix, signed_value, bound, scratch.get(),
-                                                support.scratch_bytes, commit_started, mixed_radix);
+  scratch.mark_pending();
+  const auto status = hip_direct_lift_exact_suffix_workspace(
+      device_id, residues, cells, source_prefix, target_prefix, signed_value, bound, scratch.get(),
+      support.scratch_bytes, commit_started, mixed_radix);
+  if (status == RNS8_SUCCESS || status == RNS8_RANGE_ERROR)
+    scratch.mark_completed();
+  return status;
 #else
   (void)device_id;
   (void)signed_value;

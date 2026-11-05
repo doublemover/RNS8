@@ -50,6 +50,7 @@ rns8_status NativeTiledPrepared::prepare(int device_id, const NativeWmmaTask& ta
   hip_direct_device_buffer capability;
   if ((status = capability.allocate(device_id, sizeof(int))) != RNS8_SUCCESS)
     return status;
+  capability.mark_pending();
   const auto error = timed_hip_operation("native_conversion_prepare_capability", [&]() {
     const auto launch = static_cast<hipError_t>(
         rns8_hip_native_wmma_capability(static_cast<int*>(capability.get())));
@@ -63,6 +64,7 @@ rns8_status NativeTiledPrepared::prepare(int device_id, const NativeWmmaTask& ta
   if ((status = hip_direct_copy_device_to_host(device_id, &supported, capability.get(),
                                                sizeof(int))) != RNS8_SUCCESS)
     return status;
+  capability.mark_completed();
   if (!supported)
     return RNS8_UNSUPPORTED_BACKEND;
   capability_lifetime_ = std::move(capability);

@@ -41,6 +41,7 @@ rns8_status hip_direct_gemm_rns_split_k_device(int device_id, const void* a, con
     return status;
   auto* first = static_cast<uint8_t*>(scratch.get());
   auto* second = first + plane_cells * splits;
+  scratch.mark_pending();
   auto run = [](const char* label, auto operation) {
     return timed_hip_operation(label, [&]() {
       const auto error = static_cast<hipError_t>(operation());
@@ -63,13 +64,13 @@ rns8_status hip_direct_gemm_rns_split_k_device(int device_id, const void* a, con
     std::swap(first, second);
     fragments = (fragments + 127) / 128;
   }
-  return run("split_k_store_kernel",
-             [&]() {
-               return rns8_hip_split_k_store(first, static_cast<int8_t*>(c), static_cast<int>(m),
-                                             static_cast<int>(n), static_cast<int>(ldc), prefix);
-             }) == hipSuccess
-             ? RNS8_SUCCESS
-             : RNS8_BACKEND_FAILURE;
+  const auto stored = run("split_k_store_kernel", [&]() {
+    return rns8_hip_split_k_store(first, static_cast<int8_t*>(c), static_cast<int>(m),
+                                  static_cast<int>(n), static_cast<int>(ldc), prefix);
+  });
+  if (stored == hipSuccess)
+    scratch.mark_completed();
+  return stored == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;

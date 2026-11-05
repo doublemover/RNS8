@@ -28,6 +28,7 @@ rns8_status hip_direct_gemm_native_wmma_grouped_device(int device_id, const void
   status = capability.allocate(device_id, sizeof(int));
   if (status != RNS8_SUCCESS)
     return status;
+  capability.mark_pending();
   const auto probe = timed_hip_operation("native_wmma_device_capability", [&]() {
     auto error = static_cast<hipError_t>(
         rns8_hip_native_wmma_capability(static_cast<int*>(capability.get())));
@@ -40,6 +41,7 @@ rns8_status hip_direct_gemm_native_wmma_grouped_device(int device_id, const void
       hip_direct_copy_device_to_host(device_id, &supported, capability.get(), sizeof(supported));
   if (status != RNS8_SUCCESS)
     return status;
+  capability.mark_completed();
   if (!supported)
     return RNS8_UNSUPPORTED_BACKEND;
   const auto error = timed_hip_operation("native_wmma_grouped_conversion_gemm", [&]() {

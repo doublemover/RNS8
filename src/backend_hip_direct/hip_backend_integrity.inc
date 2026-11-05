@@ -76,6 +76,7 @@ rns8_status hip_direct_check_native_product_integrity(int device_id, const void*
   status = flag.allocate(device_id, sizeof(uint32_t));
   if (status != RNS8_SUCCESS)
     return status;
+  flag.mark_pending();
   status = hip_direct_zero(device_id, flag.get(), sizeof(uint32_t));
   if (status != RNS8_SUCCESS)
     return status;
@@ -91,6 +92,7 @@ rns8_status hip_direct_check_native_product_integrity(int device_id, const void*
   status = hip_direct_copy_device_to_host(device_id, &failures, flag.get(), sizeof(failures));
   if (status != RNS8_SUCCESS)
     return status;
+  flag.mark_completed();
   return failures ? RNS8_VERIFICATION_FAILED : RNS8_SUCCESS;
 #else
   (void)device_id;

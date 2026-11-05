@@ -39,6 +39,8 @@ rns8_status hip_direct_gemm_adaptive_native_device(
   auto* indices = static_cast<uint32_t*>(metadata.get());
   auto* offsets = indices + tiles;
   auto* device_status = reinterpret_cast<int*>(offsets + 22);
+  for (auto* allocation : {&stage, &records, &metadata})
+    allocation->mark_pending();
   auto run = [](const char* label, auto operation) {
     return timed_hip_operation(label, [&]() {
       const auto error = static_cast<hipError_t>(operation());
@@ -52,8 +54,11 @@ rns8_status hip_direct_gemm_adaptive_native_device(
   if ((status = hip_direct_copy_device_to_host(device_id, &flag, device_status, sizeof(flag))) !=
       RNS8_SUCCESS)
     return status;
-  if (!flag)
+  if (!flag) {
+    for (auto* allocation : {&stage, &records, &metadata})
+      allocation->mark_completed();
     return RNS8_UNSUPPORTED_BACKEND;
+  }
   status = hip_direct_discover_native_tile_bounds(
       device_id, a, b, m, n, k, lda, ldb, unsigned_inputs, capacity, bounds, indices, offsets,
       max_scratch_bytes - reserved, method, panel_k, retained_summaries);
@@ -78,16 +83,20 @@ rns8_status hip_direct_gemm_adaptive_native_device(
   if ((status = hip_direct_copy_device_to_host(device_id, &flag, device_status, sizeof(flag))) !=
       RNS8_SUCCESS)
     return status;
-  if (flag)
+  if (flag) {
+    for (auto* allocation : {&stage, &records, &metadata})
+      allocation->mark_completed();
     return RNS8_RANGE_ERROR;
+  }
   commit_started = true;
-  return run("adaptive_native_commit",
-             [&]() {
-               return rns8_hip_strassen_commit(output, c, static_cast<int>(m), static_cast<int>(n),
-                                               static_cast<int>(ldc), capacity, nullptr);
-             }) == hipSuccess
-             ? RNS8_SUCCESS
-             : RNS8_BACKEND_FAILURE;
+  const auto committed = run("adaptive_native_commit", [&]() {
+    return rns8_hip_strassen_commit(output, c, static_cast<int>(m), static_cast<int>(n),
+                                    static_cast<int>(ldc), capacity, nullptr);
+  });
+  if (committed == hipSuccess)
+    for (auto* allocation : {&stage, &records, &metadata})
+      allocation->mark_completed();
+  return committed == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   (void)unsigned_inputs;
