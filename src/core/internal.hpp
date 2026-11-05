@@ -58,6 +58,7 @@ struct rns8_context {
   rns8_plan* failed_plan_cleanup = nullptr;
   rns8_prepack_cache* failed_prepack_cleanup = nullptr;
   rns8_ragged_materialization* failed_ragged_cleanup = nullptr;
+  rns8_block_sparse_operand* failed_block_sparse_cleanup = nullptr;
   rns8_native_device_lease* active_native_operations = nullptr;
   rns8_native_device_lease* native_leases = nullptr;
   rns8_native_device_lease* failed_native_cleanup = nullptr;

@@ -217,7 +217,10 @@ rns8_status rns8_drain_failed_work(rns8_context* ctx) {
     return RNS8_INVALID_ARGUMENT;
   auto cleanup = [&]() noexcept {
     const auto status = drain_failed_prepack_cleanup(*ctx);
-    return status == RNS8_SUCCESS ? drain_failed_ragged_cleanup(*ctx) : status;
+    if (status != RNS8_SUCCESS)
+      return status;
+    const auto ragged = drain_failed_ragged_cleanup(*ctx);
+    return ragged == RNS8_SUCCESS ? drain_failed_block_sparse_cleanup(*ctx) : ragged;
   };
   if (ctx->device_id < 0 && !ctx->synchronous_test_hooks)
     return ctx->failed_work_leases.empty() ? cleanup() : RNS8_UNSUPPORTED_BACKEND;
@@ -449,6 +452,11 @@ rns8_status rns8_destroy_context(rns8_context* ctx) {
   }
   if (ctx) {
     const auto status = drain_failed_prepack_cleanup(*ctx);
+    if (status != RNS8_SUCCESS)
+      return status;
+  }
+  if (ctx) {
+    const auto status = drain_failed_block_sparse_cleanup(*ctx);
     if (status != RNS8_SUCCESS)
       return status;
   }

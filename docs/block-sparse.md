@@ -40,6 +40,13 @@ context lifetimes. Repacking the source is legal, but makes the old handle stale
 `rns8_gemm_block_sparse_exact` rejects it before changing C. Prepare a replacement
 handle to use the new generation. Destruction/use require external host exclusion.
 
+Construction retains the source's read lease and the complete unpublished owner
+through download, packing, upload and publication. Failed drains keep host source
+vectors and device payloads on the context's existing retry cleanup path. Failed
+destruction preserves the handle and its source/context references for retry;
+cleanup-started handles cannot execute. These ownership controls are authored
+and await the final validation batch.
+
 The logical preparation budget covers the native host snapshot plus twice the
 packed payload and metadata. This conservative ceiling covers overlapping host
 and device payloads; allocator bookkeeping/vector spare capacity are excluded.

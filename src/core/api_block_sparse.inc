@@ -7,8 +7,28 @@ struct rns8_block_sparse_operand {
   rns8_context* ctx = nullptr;
   const rns8_matrix* source = nullptr;
   rns8::detail::BlockSparseOperand layout;
-  rns8::detail::hip_direct_device_buffer payload;
+  mutable rns8::detail::hip_direct_device_buffer payload;
+  std::vector<int64_t> download_i64;
+  std::vector<uint64_t> download_u64;
+  std::vector<int8_t> packed;
+  bool context_reference = true, cleanup_started = false;
+  rns8_block_sparse_operand* failed_cleanup_next = nullptr;
 };
+
+namespace {
+struct UnpublishedBlockSparseDeleter {
+  void operator()(rns8_block_sparse_operand* owner) const noexcept {
+    if (!owner || rns8_destroy_block_sparse_operand(owner) == RNS8_SUCCESS)
+      return;
+    auto* context = owner->ctx;
+    context->hip_failure_poisoned = true;
+    --context->prepared_references;
+    owner->context_reference = false;
+    owner->failed_cleanup_next = context->failed_block_sparse_cleanup;
+    context->failed_block_sparse_cleanup = owner;
+  }
+};
+} // namespace
 
 rns8_status rns8_prepare_block_sparse_operand(rns8_context* ctx, const rns8_matrix* source,
                                               rns8_block_sparse_role role,
@@ -44,46 +64,75 @@ rns8_status rns8_prepare_block_sparse_operand(rns8_context* ctx, const rns8_matr
     if (address.byte_extent > max_preparation_bytes)
       return RNS8_WORKSPACE_TOO_SMALL;
     const uint64_t pack_budget = (max_preparation_bytes - address.byte_extent) / 2;
-    auto result = std::make_unique<rns8_block_sparse_operand>();
-    std::vector<int8_t> packed;
+    std::unique_ptr<rns8_block_sparse_operand, UnpublishedBlockSparseDeleter> result(
+        new rns8_block_sparse_operand);
+    result->ctx = ctx;
+    result->source = source;
+    ++ctx->prepared_references;
+    ++source->prepared_references;
+    size_t token = 0;
+    auto status = begin_synchronous_read_lease(*ctx, *source, token);
+    if (status != RNS8_SUCCESS)
+      return status;
+    SynchronousLease lease(*ctx, token);
+    status = add_synchronous_owner_hold(*ctx, token, result->in_flight_readers);
+    if (status == RNS8_SUCCESS)
+      status = lease.hold_buffer(result->payload);
+    if (status != RNS8_SUCCESS)
+      return lease.finish(status);
     const auto packed_role =
         role == RNS8_BLOCK_SPARSE_LHS ? BlockSparseRole::lhs : BlockSparseRole::rhs;
     const auto prepare = [&](auto tag) -> rns8_status {
       using T = decltype(tag);
-      std::vector<T> host(static_cast<size_t>(address.byte_extent / 8));
-      auto status = hip_direct_copy_device_to_host(ctx->device_id, host.data(), native,
-                                                   static_cast<size_t>(address.byte_extent));
+      auto& host = [&]() -> std::vector<T>& {
+        if constexpr (std::is_signed_v<T>)
+          return result->download_i64;
+        else
+          return result->download_u64;
+      }();
+      host.resize(static_cast<size_t>(address.byte_extent / 8));
+      auto status = synchronous_dispatch_checkpoint(*ctx, "block_sparse_download");
+      if (status != RNS8_SUCCESS)
+        return status;
+      status = hip_direct_copy_device_to_host(ctx->device_id, host.data(), native,
+                                              static_cast<size_t>(address.byte_extent));
       if (status != RNS8_SUCCESS)
         return status;
       if constexpr (std::is_signed_v<T>)
         return pack_block_sparse_i64(host.data(), source->desc.rows, source->desc.cols,
                                      source->desc.cols, source->prefix, packed_role,
                                      source->matrix_instance_id, source->content_generation,
-                                     pack_budget, result->layout, packed);
+                                     pack_budget, result->layout, result->packed);
       else
         return pack_block_sparse_u64(host.data(), source->desc.rows, source->desc.cols,
                                      source->desc.cols, source->prefix, packed_role,
                                      source->matrix_instance_id, source->content_generation,
-                                     pack_budget, result->layout, packed);
+                                     pack_budget, result->layout, result->packed);
     };
-    auto status = u ? prepare(uint64_t{}) : prepare(int64_t{});
+    status = lease.finish([&]() -> rns8_status {
+      auto status = u ? prepare(uint64_t{}) : prepare(int64_t{});
+      if (status != RNS8_SUCCESS)
+        return status;
+      if (!result->packed.empty()) {
+        status = result->payload.allocate(ctx->device_id, result->packed.size());
+        if (status != RNS8_SUCCESS)
+          return status;
+        status = synchronous_dispatch_checkpoint(*ctx, "block_sparse_upload");
+        if (status != RNS8_SUCCESS)
+          return status;
+        status = hip_direct_copy_host_to_device(ctx->device_id, result->payload.get(),
+                                                result->packed.data(), result->packed.size());
+        if (status != RNS8_SUCCESS)
+          return status;
+      }
+      return synchronous_dispatch_checkpoint(*ctx, "block_sparse_prepare_publish");
+    }());
     if (status != RNS8_SUCCESS)
       return status;
-    if (!packed.empty()) {
-      status = result->payload.allocate(ctx->device_id, packed.size());
-      if (status != RNS8_SUCCESS)
-        return status;
-      status = hip_direct_copy_host_to_device(ctx->device_id, result->payload.get(), packed.data(),
-                                              packed.size());
-      if (status != RNS8_SUCCESS)
-        return status;
-    }
-    // No fallible work after taking lifetime references. Repacking is allowed;
-    // execute compares the stored identity and generation before using the cache.
-    result->ctx = ctx;
-    result->source = source;
-    ++ctx->prepared_references;
-    ++source->prepared_references;
+    // These ordinary sources are released only after the shared completion lease.
+    std::vector<int64_t>{}.swap(result->download_i64);
+    std::vector<uint64_t>{}.swap(result->download_u64);
+    std::vector<int8_t>{}.swap(result->packed);
     *out = result.release();
     return RNS8_SUCCESS;
   });
@@ -93,12 +142,28 @@ rns8_status rns8_destroy_block_sparse_operand(rns8_block_sparse_operand* operand
     return RNS8_SUCCESS;
   if (operand->in_flight_readers)
     return RNS8_BUSY;
+  operand->cleanup_started = true;
   // Synchronous handle use/destruction requires external thread exclusion.
   const auto status = operand->payload.reset();
+  if (status != RNS8_SUCCESS)
+    return status;
   --operand->source->prepared_references;
-  --operand->ctx->prepared_references;
+  if (operand->context_reference)
+    --operand->ctx->prepared_references;
   delete operand;
   return status;
+}
+
+rns8_status rns8::detail::api::drain_failed_block_sparse_cleanup(rns8_context& ctx) noexcept {
+  while (ctx.failed_block_sparse_cleanup) {
+    auto* owner = ctx.failed_block_sparse_cleanup;
+    auto* next = owner->failed_cleanup_next;
+    const auto status = rns8_destroy_block_sparse_operand(owner);
+    if (status != RNS8_SUCCESS)
+      return status;
+    ctx.failed_block_sparse_cleanup = next;
+  }
+  return RNS8_SUCCESS;
 }
 rns8_status rns8_gemm_block_sparse_exact_with_method(
     rns8_context* ctx, const rns8_plan* plan, const rns8_block_sparse_operand* a,
@@ -110,7 +175,8 @@ rns8_status rns8_gemm_block_sparse_exact_with_method(
         (method != RNS8_BLOCK_SPARSE_HYBRID && scalar_intersection_limit))
       return RNS8_INVALID_ARGUMENT;
     if (!ctx || !plan || !a || !b || !c || !workspace || a->ctx != ctx || b->ctx != ctx ||
-        a->layout.role != BlockSparseRole::lhs || b->layout.role != BlockSparseRole::rhs)
+        a->cleanup_started || b->cleanup_started || a->layout.role != BlockSparseRole::lhs ||
+        b->layout.role != BlockSparseRole::rhs)
       return RNS8_INVALID_ARGUMENT;
     if (plan->backend != RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(plan->desc.semantics))
       return RNS8_UNSUPPORTED_BACKEND;
@@ -144,6 +210,10 @@ rns8_status rns8_gemm_block_sparse_exact_with_method(
     status = add_synchronous_owner_hold(*ctx, token, a->in_flight_readers);
     if (status == RNS8_SUCCESS)
       status = add_synchronous_owner_hold(*ctx, token, b->in_flight_readers);
+    if (status == RNS8_SUCCESS)
+      status = write.hold_buffer(a->payload);
+    if (status == RNS8_SUCCESS)
+      status = write.hold_buffer(b->payload);
     if (status != RNS8_SUCCESS)
       return write.finish(status);
     return write.finish([&]() -> rns8_status {

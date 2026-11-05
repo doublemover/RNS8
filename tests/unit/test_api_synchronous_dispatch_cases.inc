@@ -795,3 +795,4 @@ TEST_CASE("public prepack construction retains unpublished device and native sta
 #include "test_api_cache_dispatch_cases.inc"
 #include "test_api_ragged_dispatch_cases.inc"
 #include "test_api_basis_dispatch_cases.inc"
+#include "test_api_block_sparse_dispatch_cases.inc"
