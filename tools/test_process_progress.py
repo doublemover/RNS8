@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import threading
 import unittest
+from unittest.mock import patch
 
 from process_progress import run_capture, capture_succeeded
 from gpu_qualification import validate_result
@@ -111,12 +113,39 @@ class BoundedProcessCapture(unittest.TestCase):
         self.assertFalse(capture_succeeded(result))
         self.assertIn("UTF-8", result["capture_error"])
 
+    def test_opt_in_interrupt_preserves_partial_output_and_cannot_pass(self):
+        original_event = threading.Event
+        original_wait = original_event.wait
+        events = []
+
+        def event():
+            value = original_event()
+            events.append(value)
+            return value
+
+        def wait(value, timeout=None):
+            if events and value is events[0] and threading.current_thread() is threading.main_thread():
+                if not original_wait(value, 5):
+                    raise AssertionError("authored child output did not arrive")
+                raise KeyboardInterrupt
+            return original_wait(value, timeout)
+
+        with patch("process_progress.threading.Event", side_effect=event), patch.object(original_event, "wait", new=wait):
+            result = run_capture([sys.executable, "-c", "import time; print('retained before interrupt',flush=True); time.sleep(30)"],
+                cwd=Path.cwd(), label="authored-interrupt", timeout_seconds=10, return_on_interrupt=True)
+        self.assertTrue(result["interrupted"])
+        self.assertIn("retained before interrupt", result["stdout"])
+        self.assertFalse(capture_succeeded(result))
+        for malformed in (0, "false", True):
+            self.assertFalse(capture_succeeded(dict(returncode=0, timed_out=False, interrupted=malformed)))
+
     def test_nonfinite_and_missing_budgets_fail_before_launch(self):
         for kwargs in (
             dict(timeout_seconds=float("nan")),
             dict(heartbeat_seconds=float("inf")),
             dict(max_output_bytes=0),
             dict(artifact_roots=[Path("output")]),
+            dict(return_on_interrupt=1),
         ):
             with self.assertRaises(ValueError):
                 run_capture(

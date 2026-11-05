@@ -78,9 +78,8 @@ HIP custom compilations write `rns8-hip-compile-commands.json` from the same
 argv list passed to the compiler, including selected environment overrides,
 targets and required generated inputs. Per-configuration files use the suffix
 `-<CONFIG>.json`; generated-header expressions are resolved during generation.
-This is configured-command inventory,
-not proof that the compiler or an analyzer ran. The host/HIP static-analysis
-runner and qualification receipts remain implementation work under #99.
+This is configured-command inventory, not proof that the compiler or an
+analyzer ran.
 The `windows-analysis-cpu` and `linux-analysis-cpu` presets export non-unity
 host commands into separate build directories. Their generated target/source
 inventory lets the reader reject missing or duplicated static/shared/tool
@@ -88,6 +87,44 @@ contexts rather than treating a shortened database as full coverage. Native
 `command` strings are retained unchanged; they are not reparsed with a foreign
 shell's quoting rules. `rns8_analysis_inputs` prepares real generated inputs
 without depending on HIP object compilation.
+
+`python tools/quality.py analyze --build-dir build/analysis-cpu --out-dir
+temp/analysis-session --tool-bin temp/quality-tools/Scripts` prints a plan
+without executing a compiler or analyzer. Use the actual selected preset build
+directory and a fresh output directory. On Linux the tool directory is
+`temp/quality-tools/bin`. Add `--execute --prepare` to prepare required generated
+inputs and analyze the configured contexts with the locked native clang-tidy.
+`--clang-tidy` can explicitly select the native executable instead of locating
+it inside the initialized environment; the runner still requires the pinned
+version and diagnostic decoder.
+
+The default `--lane host` analyzes each actual CXX context separately.
+`--lane hip-analyzer` projects the configured HIP command into a host pass and
+one device pass per configured architecture. `--lane hip-syntax` instead runs
+the configured HIP compiler with `-fsyntax-only`; this never counts as analyzer
+coverage. Unsupported flags, missing inputs, failed parsing, timeouts and absent
+branch diagnostics remain incomplete coverage. No target substitution or fake
+SDK header is used.
+
+Each analyzer pass force-includes `tests/analysis/branch_control.hpp`, which
+contains an intentional null dereference in its host or HIP kernel branch.
+It is never executed or linked into production. Exactly one expected native
+diagnostic must be present before a pass receives analysis credit; other
+diagnostics remain findings. A separate missing-header control must fail with
+its native parsing diagnostic. `--advisory` permits findings at the CLI exit
+boundary, but cannot accept incomplete analysis.
+
+The runner retains the plan, original/projected commands, allowlisted compiler
+environment, observed first-party include footprint, native YAML, process logs,
+partial interrupted output and compact pass receipts. Per-process/session time,
+output, artifact and free-space budgets are bounded; unavailable peak-memory
+observations remain explicit. `python tools/quality.py analyze
+--verify-receipt temp/analysis-session/results.json` checks retained hashes and
+coverage accounting without launching tools. External dependency trees are not
+fully rehashed, and static analysis does not qualify GPU execution or performance.
+The orchestration and controls are authored; their deferred batch execution,
+real platform pilots, reviewed diagnostic dispositions and CI gate remain open
+under #99.
 
 A GPU is unnecessary for portable reference, API and tooling work. On Windows,
 set `VCPKG_ROOT` to an installation containing the manifest packages, then use

@@ -159,11 +159,15 @@ def selected_tools(lock: dict, *, tool_bin: Path | None = None) -> dict[str, str
 
 
 def main(argv=None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "analyze":
+        from static_analysis import main as analysis_main
+        return analysis_main(arguments[1:])
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("check", "fix", "inventory", "types"))
+    parser.add_argument("mode", choices=("check", "fix", "inventory", "types", "analyze"))
     parser.add_argument("--tool-bin", type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=300)
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
     try:
         if args.mode == "types":
             from typecheck import main as typecheck_main

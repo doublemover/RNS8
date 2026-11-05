@@ -20,6 +20,7 @@ def capture_succeeded(result: dict) -> bool:
         and result.get("timed_out") is False
         and result.get("limit_exceeded") is None
         and result.get("capture_error") is None
+        and (result.get("interrupted") is None or result.get("interrupted") is False)
     )
 
 
@@ -66,7 +67,10 @@ def run_capture(
     max_output_bytes: int = 64 * 1024**2,
     artifact_roots: Sequence[Path] = (),
     max_artifact_bytes: int | None = None,
+    return_on_interrupt: bool = False,
 ) -> dict:
+    if type(return_on_interrupt) is not bool:
+        raise ValueError("return_on_interrupt must be an explicit boolean")
     if (
         not math.isfinite(timeout_seconds)
         or not math.isfinite(heartbeat_seconds)
@@ -144,7 +148,7 @@ def run_capture(
         if process.poll() is None:
             process.kill()
 
-    timed_out = False
+    timed_out = interrupted = False
     limit = capture_error = None
     artifact_bytes = 0
     next_heartbeat, next_artifact_check = start + heartbeat_seconds, start
@@ -221,6 +225,12 @@ def run_capture(
     except Exception as error:
         capture_error = "owned process capture failed: " + str(error)
         stop_process_tree()
+    except KeyboardInterrupt:
+        stop_process_tree()
+        if not return_on_interrupt:
+            raise
+        interrupted = True
+        capture_error = "owned process capture interrupted"
     except BaseException:
         stop_process_tree()
         raise
@@ -273,6 +283,7 @@ def run_capture(
         command=command,
         returncode=process.returncode,
         timed_out=timed_out,
+        interrupted=interrupted,
         process_id=process.pid,
         elapsed_seconds=elapsed,
         stdout=outputs[0],

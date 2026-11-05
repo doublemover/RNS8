@@ -162,6 +162,7 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
     hip_enabled = cache.get("RNS8_ENABLE_HIP", "OFF").upper() in {"ON", "YES", "TRUE", "1"}
     if bool(hip_rows) != hip_enabled:
         raise ValueError("custom HIP command inventory contradicts the configured backend state")
+    hip_compilers = set()
     for row in hip_rows:
         if not isinstance(row, dict) or row.get("configuration") != configuration:
             raise ValueError("custom HIP command configuration differs from selected build")
@@ -169,6 +170,11 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
         if source not in tracked and not source.is_relative_to(build):
             raise ValueError("custom HIP source is outside first-party/generated inventory")
         argv = _strings(row.get("arguments"))
+        if not argv:
+            raise ValueError("custom HIP compiler argv is empty")
+        hip_compilers.add(_absolute(argv[0]))
+        if any(re.match(r"^(?:-D|/D)(?:__HIP_DEVICE_COMPILE__|__AMDGCN__|__gfx[0-9a-f]+__)(?:=|$)", argument) for argument in argv):
+            raise ValueError("configured HIP analysis must not fabricate compiler device/target macros")
         targets = _strings(row.get("targets"))
         if (not targets or len(set(targets)) != len(targets)
                 or targets != tuple(cache.get("RNS8_AMDGPU_TARGETS", "").split(";"))
@@ -186,6 +192,6 @@ def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
     if not contexts:
         raise ValueError("zero selected first-party compilation contexts cannot pass analysis")
     compiler = _absolute(cache.get("CMAKE_CXX_COMPILER"))
-    artifacts = [cache_path, database, target_path, hip_path, compiler]
+    artifacts = list(dict.fromkeys([cache_path, database, target_path, hip_path, compiler, *sorted(hip_compilers)]))
     return AnalysisInputs(build, configuration, tuple(contexts), tuple(excluded),
         tuple((str(path), file_digest(path)) for path in artifacts), compiler)

@@ -106,7 +106,8 @@ def diagnostic_document(document: object, *, source: Path, directory: Path,
 
 def read_diagnostics(path: Path, *, source: Path, directory: Path,
                      tool_version: str = SUPPORTED_TOOL) -> list[dict]:
-    raw = path.read_bytes()
+    with path.open("rb") as stream:
+        raw = stream.read(MAX_DOCUMENT_BYTES + 1)
     if not raw or len(raw) > MAX_DOCUMENT_BYTES:
         raise ValueError("native LLVM diagnostic document is empty or oversized")
     try:
