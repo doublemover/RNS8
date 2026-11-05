@@ -24,6 +24,34 @@ default. Optional accelerators must report unsupported cases explicitly.
 Scratch sources, binaries, raw captures, downloaded references and ISA dumps
 belong in ignored `temp/`, `build/` or `out/` paths.
 
+## Source quality
+
+`python tools/quality.py inventory` prints the tracked first-party C/C++/HIP,
+Python, Bash and workflow inventory. Generated outputs, imported dependencies
+and immutable certificate data have explicit exclusions in
+`metadata/first-party-inventory.json`; generator sources remain included.
+
+Install the optional, separately locked developer environment explicitly:
+
+```shell
+python tools/init_quality.py --out temp/quality-tools
+```
+
+Then run `python tools/quality.py check --tool-bin temp/quality-tools/Scripts`
+on Windows, or use `temp/quality-tools/bin` on Linux. Checking performs no
+downloads, compiler configuration or workloads. It reports the selected tool
+versions, executable hashes, effective configuration hashes and argv. The
+explicit `fix` mode changes C++/HIP and Python formatting only; lint remains
+check-only, with no automatic import deletion or unsafe fixes. Include sorting
+is disabled to preserve semantic fragment order. The Ruff syntax target is a
+conservative Python 3.12 floor, not a claim of interpreter qualification.
+
+The shared dependency policy owns exact versions and Windows/Linux artifact
+hashes in `metadata/quality-tools.json`. These are optional developer tools,
+separate from AMD's compiler and runtime dependencies. Source tooling and
+offline controls are implemented; the formatting/lint baseline, dynamic test
+fragment migration, CI gate and final validation batch remain pending.
+
 ## CPU oracle development
 
 A GPU is unnecessary for portable reference, API and tooling work. On Windows,

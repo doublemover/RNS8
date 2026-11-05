@@ -498,6 +498,70 @@
         "owner": "issue60/user",
         "revisit": "Promote installed SDK qualification separately from any future source-submodule migration"
       }
+    },
+    {
+      "name": "ruff",
+      "role": "ci",
+      "latest_stable": {
+        "version": "0.17.3",
+        "source": "https://pypi.org/project/ruff/0.17.3/"
+      },
+      "selected": {
+        "version": "0.17.3",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "owner": "shared_dependency_policy_issue_60",
+      "artifact_lock": "metadata/quality-tools.json"
+    },
+    {
+      "name": "clang-format",
+      "role": "ci",
+      "latest_stable": {
+        "version": "23.1.5",
+        "source": "https://pypi.org/project/clang-format/23.1.5/"
+      },
+      "selected": {
+        "version": "23.1.5",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "last_tested": null,
+      "owner": "shared_dependency_policy_issue_60",
+      "artifact_lock": "metadata/quality-tools.json"
+    },
+    {
+      "name": "actionlint",
+      "role": "ci",
+      "latest_stable": {
+        "version": "1.7.12",
+        "source": "https://github.com/rhysd/actionlint/releases/tag/v1.7.12"
+      },
+      "selected": {
+        "version": "1.7.12",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "owner": "shared_dependency_policy_issue_60",
+      "artifact_lock": "metadata/quality-tools.json"
+    },
+    {
+      "name": "shellcheck",
+      "role": "ci",
+      "latest_stable": {
+        "version": "0.11.0",
+        "source": "https://github.com/koalaman/shellcheck/releases/tag/v0.11.0"
+      },
+      "selected": {
+        "version": "0.11.0",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "GPL-3.0-or-later",
+      "last_tested": null,
+      "owner": "shared_dependency_policy_issue_60",
+      "artifact_lock": "metadata/quality-tools.json"
     }
   ],
   "vcpkg": {
@@ -1927,5 +1991,10 @@
     },
     "local_validation": "metadata/hip101-validation-20261026.json",
     "scope": "Windows x64 Release gfx1100 registered suite validated; full platform/configuration and matched performance qualification remain pending"
+  },
+  "quality_tools": {
+    "lock": "metadata/quality-tools.json",
+    "sha256": "e905cf83402703830f28f5641150c1534bd3a61688f4463d6396c092919e6205",
+    "qualification": "source_and_artifact_inventory_pending_tool_validation"
   }
 }

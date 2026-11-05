@@ -36,6 +36,17 @@ immutable `setup-python` action. [Python 3.10 is end of life](https://devguide.p
 selected development interpreter; minimum-version support must be tested
 separately from the latest interpreter lane.
 
+Optional source-quality tools have their own hash lock under this same policy:
+[quality-tools.json](../metadata/quality-tools.json) selects Ruff 0.17.3,
+clang-format 23.1.5, actionlint 1.7.12 and ShellCheck 0.11.0 for Windows AMD64
+and Linux x86_64. The formatter is independent of both host compiler selection
+and AMDClang. Registry/release artifact identities are recorded; native archives
+were retrieved and hashed without executing tools. Tool behavior and the
+repository formatting baseline still require the deferred validation batch.
+Use the explicit developer initializer described in
+[CONTRIBUTING](../CONTRIBUTING.md#source-quality); normal quality checks never
+download or install tools.
+
 [scripts/requirements-build-tools.txt](../scripts/requirements-build-tools.txt)
 pins CMake 4.4.4, Ninja 1.13.2 and pip 26.2.2 with publisher-index SHA256 values
 for Linux glibc x86_64 and Windows AMD64 wheels. Those hashes are integrity

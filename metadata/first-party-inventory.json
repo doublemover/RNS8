@@ -1,0 +1,13 @@
+{
+  "schema": "rns8_first_party_inventory_v1",
+  "roots": ["include", "src", "tests", "benchmarks", "examples", "tools", "scripts"],
+  "cpp_suffixes": [".c", ".h", ".cpp", ".hpp", ".hip", ".cuh"],
+  "cpp_fragment_roots": ["src", "tests", "benchmarks", "tools"],
+  "generated": {
+    "include/rns8/generated/metadata_registry.hpp": "tools/metadata_registry.py deterministic generation check",
+    "src/backend_common/wrap64_certificate_identity.hpp": "tools/generate_wrap64_certificate_identity.py certificate identity generation check"
+  },
+  "excluded_roots": ["third_party", "metadata", "temp", "build", "out", "vcpkg_installed"],
+  "unknown_cpp_fragments": "error",
+  "inventory_source": "git ls-files -z; submodules are gitlinks, never recursively enumerated"
+}

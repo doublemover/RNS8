@@ -883,9 +883,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/98",
       "requirements_sha256": "a0bb2676c52139ccf4f9cf714ff489deb34ac2ebdb444d15f9812c2c64a5c575",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Define a tracked NUL-delimited first-party role inventory, explicit generated/vendor exclusions, bounded argument batches, conservative C++/HIP and Ruff configuration, self-hosted workflow labels, and a single check/format-only fix entrypoint. Lock Windows/Linux artifact hashes for Ruff 0.17.3, clang-format 23.1.5, actionlint 1.7.12 and ShellCheck 0.11.0 through the existing dependency-policy owner; add opt-in fresh local developer-tool initialization with bounded HTTPS downloads and regular-member-only archive extraction. Source implementation only; baseline formatting, tool execution controls, lint repairs and CI gate integration remain pending.",
+        "Author offline controls for Unicode/space/NUL inventory, empty roles, bounded argv batches, non-mutating check versus format-only fix plans, lock/requirement drift, missing/wrong versions and exact regular native archive members including link/duplicate/expansion rejection. Register the future batch test; document developer commands and isolated dependency ownership. AST/focused Ruff only; do not claim baseline or runtime checks passed."
+      ],
+      "remaining_source_items": [
+        "Convert dynamic schema/sweep fragment globals under #100, establish an isolated mechanical formatting and lint baseline, then wire the existing CI source gate. Final validation remains deferred."
+      ]
     },
     {
       "issue": 99,

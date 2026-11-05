@@ -153,6 +153,12 @@ def check_repository(root: Path, policy: dict) -> list[str]:
             errors.append(str(workflow.relative_to(root)) + ": selected Python is not explicitly configured")
     if (root / ".python-version").read_text(encoding="utf-8").strip() != components["python"]["selected"]["version"]:
         errors.append(".python-version differs from selected Python")
+    if "quality_tools" in policy:
+        from quality_policy import load_quality_lock
+        try:
+            load_quality_lock(root, policy=policy)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            errors.append("quality-tool policy: " + str(error))
     return errors
 
 

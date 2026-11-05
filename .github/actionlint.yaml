@@ -1,0 +1,4 @@
+self-hosted-runner:
+  labels:
+    - gfx1100
+    - node24

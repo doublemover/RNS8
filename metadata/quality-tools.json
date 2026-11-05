@@ -1,0 +1,97 @@
+{
+  "schema": "rns8_quality_tools_v1",
+  "owner_issue": 60,
+  "updated_date": "2026-11-05",
+  "qualification": "source_and_artifact_inventory_pending_tool_validation",
+  "requirements": "scripts/requirements-quality-tools.txt",
+  "tools": [
+    {
+      "name": "ruff",
+      "version": "0.17.3",
+      "distribution": "wheel",
+      "license": "MIT",
+      "source": "https://pypi.org/project/ruff/0.17.3/",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "ruff-0.17.3-py3-none-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/d0/a0/f08c1631bfd81faa6a90eaf70c37c786c11bed2046302b56bb506c25e1a0/ruff-0.17.3-py3-none-win_amd64.whl",
+          "sha256": "56b8ffb3f3b3cbccb8b76b71b38261b7ed982ef5d20f5b447b1b61a7f4949b24"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "ruff-0.17.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "url": "https://files.pythonhosted.org/packages/f0/20/fecedea2209f574ab92033b344e01a7f0c2dc76c6d6d19a14c9f8141173f/ruff-0.17.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "sha256": "7fa4b0f931cdbcb8a52044f370a3eb429fb42eb88807b0e800fcaa98dd42b24e"
+        }
+      ]
+    },
+    {
+      "name": "clang-format",
+      "version": "23.1.5",
+      "distribution": "wheel",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "source": "https://pypi.org/project/clang-format/23.1.5/",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "clang_format-23.1.5-py2.py3-none-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/7b/67/b91fb3483ca5cdb468fa5e72d836736de5ec29154cc3f58718de6192bc12/clang_format-23.1.5-py2.py3-none-win_amd64.whl",
+          "sha256": "18a4a1a698dd52ed4e288c97d99e93910f8f9d0128b266f65021ecf39c85d034"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "clang_format-23.1.5-py2.py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "url": "https://files.pythonhosted.org/packages/0e/cc/06adcfb7dfaea4d2c1929202021d4afcdc26915dc75fc0c72d63855da553/clang_format-23.1.5-py2.py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "d97ce49911ba8c89ef3f3c0735a9c7818e4780ab4812c67d1c5fcd829d16ae52"
+        }
+      ]
+    },
+    {
+      "name": "actionlint",
+      "version": "1.7.12",
+      "distribution": "native_archive",
+      "license": "MIT",
+      "source": "https://github.com/rhysd/actionlint/releases/tag/v1.7.12",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "actionlint_1.7.12_windows_amd64.zip",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip",
+          "sha256": "6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9",
+          "member": "actionlint.exe"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "actionlint_1.7.12_linux_amd64.tar.gz",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+          "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+          "member": "actionlint"
+        }
+      ]
+    },
+    {
+      "name": "shellcheck",
+      "version": "0.11.0",
+      "distribution": "native_archive",
+      "license": "GPL-3.0-or-later",
+      "source": "https://github.com/koalaman/shellcheck/releases/tag/v0.11.0",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "shellcheck-v0.11.0.zip",
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip",
+          "sha256": "8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e",
+          "member": "shellcheck.exe"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "shellcheck-v0.11.0.linux.x86_64.tar.gz",
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz",
+          "sha256": "b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6",
+          "member": "shellcheck-v0.11.0/shellcheck"
+        }
+      ]
+    }
+  ]
+}
