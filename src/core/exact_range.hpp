@@ -161,18 +161,25 @@ rns8_exact_matrix_ranges wide_exact_ranges(const T* src, int64_t rows, int64_t c
 // scratch mirror and keeps the retained proof representation unchanged.
 template <typename T>
 rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t cols, int64_t ld,
-                                             cpp_int& maximum) {
+                                             cpp_int& maximum,
+                                             NativeDomainRange* native_domain = nullptr) {
   if constexpr (!std::is_integral_v<T> || sizeof(T) > sizeof(uint64_t)) {
-    return wide_exact_ranges(src, rows, cols, ld, maximum);
+    auto result = wide_exact_ranges(src, rows, cols, ld, maximum);
+    if (native_domain)
+      *native_domain = {};
+    return result;
   } else {
     rns8_exact_matrix_ranges ranges;
     ranges.rows.resize(static_cast<std::size_t>(rows));
     ranges.cols.resize(static_cast<std::size_t>(cols));
     if (rows == 0 || cols == 0) {
       maximum = 0;
+      if (native_domain)
+        *native_domain = {};
       return ranges;
     }
     uint64_t maximum_native = 0;
+    NativeDomainRange domain;
     for (int64_t row = 0; row < rows; ++row) {
       NativeAxisAccumulator<T> axis;
       const T* input = src + row * ld;
@@ -182,6 +189,12 @@ rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t
       for (int64_t col = 0; col < cols; ++col)
         axis.add_deviation(input[col]);
       maximum_native = std::max(maximum_native, axis.max_magnitude);
+      if (native_domain) {
+        if constexpr (std::is_signed_v<T>)
+          domain.merge(NativeDomainRange::signed_bounds(axis.minimum, axis.maximum));
+        else
+          domain.merge(NativeDomainRange::unsigned_bounds(axis.minimum, axis.maximum));
+      }
       ranges.rows[static_cast<size_t>(row)] = axis.finish();
     }
     constexpr int64_t block_columns = 16;
@@ -205,6 +218,8 @@ rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t
       first += count;
     }
     maximum = maximum_native;
+    if (native_domain)
+      *native_domain = domain;
     return ranges;
   }
 }

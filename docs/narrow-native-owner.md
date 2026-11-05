@@ -15,6 +15,17 @@ and bounds every partial by `INT32_MAX`. WMMA capability is detected on the
 selected compiled device. Unsupported targets report unsupported; there is no
 silent scalar replacement, AUTO selection, or cached admission proof.
 
+The current source frontload retains typed native min/max metadata from the
+existing exact host-pack scan, without another input traversal. It binds that
+metadata after successful publication to the same complete instance/generation,
+device, owned native pointer, shape/stride and signedness identity used by
+adaptive summaries. Publication and native invalidation retire it. Signed
+`-128` and `+128` remain distinct, and `INT64_MIN`/`UINT64_MAX` extrema use
+unsigned-safe magnitude arithmetic. This metadata slice alone does not yet
+elide narrow dispatch scans; the trusted-owner execution integration is in
+progress. Portable extrema/padding/identity and real-HIP pack controls are
+authored; runtime validation remains deferred.
+
 The independent matrix-owned exact-range proof must also fit the selected CRT
 basis. The native result is staged, then encoded into every output residue
 plane. Peak transient device payload is `8*M*N+16` bytes for scalar, or

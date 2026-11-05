@@ -452,11 +452,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/53",
       "requirements_sha256": "16bcb7d2a10281b34287a4362b7aaaff5ca7752a966773ff9472cb272c4ac99b",
       "comments_reviewed": 5,
-      "implementation_status": "pending",
+      "implementation_status": "in_progress",
       "completed_slices": [
-        "Narrow fused/native owners and adaptive/auto publication retain authority through proof publication; local bound-scan/product temporaries now track uncertain completion. This slice does not yet remove repeated native admission scans or allocations."
+        "Narrow fused/native owners and adaptive/auto publication retain authority through proof publication; local bound-scan/product temporaries now track uncertain completion. This slice does not yet remove repeated native admission scans or allocations.",
+        "Retain typed signed/unsigned native extrema from the existing exact host-pack row scan without another native traversal. Stamp a certificate only after successful retained-native publication, bound to common NativeSummaryIdentity instance/generation, actual owned native pointer/extent, device, shape/stride and signedness; publication/native invalidation retire it. Hoist the same guarded identity constructor into adaptive summaries rather than creating a pointer/source-version cache. Keep signed -128 versus +128 distinct and preserve INT64_MIN/UINT64_MAX magnitudes. Author portable extrema/merge/domain/identity controls, independent Boost/padded native moment comparisons and actual HIP pack-certificate checks. CPU pack/storage/unit and HIP exact-epilogue/differential MSVC syntax passed; no fixture or GPU workload ran. This metadata slice does not yet remove narrow dispatch scans."
       ],
-      "remaining_source_items": []
+      "remaining_source_items": [
+        "Consume trusted generation-bound input certificates in public narrow execution while preserving checked raw-pointer helpers; add one-time device domain summaries for imports without host proofs, retained/retry-safe scan/product workspace, shared compiled-device capability caching, public query/counters and calibration/negative coverage. Reconcile remaining complete issue scope; all runtime/performance qualification remains deferred."
+      ]
     },
     {
       "issue": 54,

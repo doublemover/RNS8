@@ -111,6 +111,12 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
   REQUIRE(pack(a, av) == RNS8_SUCCESS);
   REQUIRE(pack(b, bv) == RNS8_SUCCESS);
   REQUIRE(pack(c, av) == RNS8_SUCCESS);
+  for (const auto* input : {a, b}) {
+    const auto native = u ? input->hip_native_u64 : input->hip_native_i64;
+    const auto identity = rns8::detail::api::native_summary_identity(*ctx, *input, native);
+    REQUIRE(input->native_domain.matches(identity));
+    CHECK(input->native_domain.range.byte_domain());
+  }
   // Bind the explicit native producer through the same runtime shortlist.
   // Its output remains persistent RNS, and no ordinary GEMM cost prices the
   // actual scan/status/native-accumulation/encoding boundary.

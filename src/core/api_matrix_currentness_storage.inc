@@ -202,11 +202,13 @@ bool matrix_has_native_storage(const rns8_matrix& matrix) {
 }
 
 void clear_native_current(rns8_matrix& matrix) {
+  matrix.native_domain = {};
   matrix.host_native_current = false;
   matrix.device_native_current = false;
 }
 
 void clear_device_native_current(rns8_matrix& matrix) {
+  matrix.native_domain = {};
   matrix.device_native_current = false;
 }
 
@@ -236,6 +238,7 @@ void clear_device_byte_limb_current(rns8_matrix& matrix) {
 }
 
 void publish_matrix_value(rns8_matrix& matrix, bool imported, uint64_t source_version) {
+  matrix.native_domain = {};
   if (matrix.content_generation == std::numeric_limits<uint64_t>::max())
     matrix.generation_exhausted = true;
   else

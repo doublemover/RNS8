@@ -1,5 +1,6 @@
 #include "backend_common/native_tile_bound.hpp"
 #include "backend_common/native_summary_identity.hpp"
+#include "backend_common/native_domain.hpp"
 #include "backend_common/adaptive_native_support.hpp"
 #include "backend_hip_direct/native_global_minimum.hpp"
 #include "backend_common/garner_constants.hpp"
@@ -65,6 +66,46 @@ TEST_CASE("native summary reuse requires complete matrix generation and policy i
     CHECK_FALSE(changed == identity);
   }
   CHECK_FALSE(NativeSummaryIdentity{} == NativeSummaryIdentity{});
+}
+
+TEST_CASE("native domain certificates distinguish signed byte endpoints and full width extrema") {
+  using namespace rns8::detail;
+  CHECK(NativeDomainRange::signed_bounds(-128, 127).byte_domain());
+  CHECK(NativeDomainRange::signed_bounds(-128, -128).maximum_magnitude() == 128);
+  CHECK_FALSE(NativeDomainRange::signed_bounds(128, 128).byte_domain());
+  CHECK_FALSE(NativeDomainRange::signed_bounds(-129, 127).byte_domain());
+  CHECK_FALSE(NativeDomainRange::signed_bounds(1, -1).well_formed());
+  CHECK(NativeDomainRange::signed_bounds(INT64_MIN, INT64_MAX).maximum_magnitude() ==
+        (UINT64_C(1) << 63));
+  CHECK(NativeDomainRange::unsigned_bounds(0, 255).byte_domain());
+  CHECK_FALSE(NativeDomainRange::unsigned_bounds(0, 256).byte_domain());
+  CHECK(NativeDomainRange::unsigned_bounds(0, UINT64_MAX).maximum_magnitude() == UINT64_MAX);
+  CHECK_FALSE(NativeDomainRange{}.byte_domain());
+  auto merged = NativeDomainRange::signed_bounds(-5, 10);
+  REQUIRE(merged.merge(NativeDomainRange::signed_bounds(-128, 127)));
+  CHECK(merged.signed_minimum == -128);
+  CHECK(merged.signed_maximum == 127);
+  CHECK_FALSE(merged.merge(NativeDomainRange::unsigned_bounds(0, 255)));
+  CHECK(merged.byte_domain());
+  merged.unsigned_maximum = 1;
+  CHECK_FALSE(merged.well_formed());
+  CHECK_FALSE(merged.byte_domain());
+  const uint64_t native = 0;
+  NativeSummaryIdentity identity;
+  identity.instance = 1;
+  identity.generation = 2;
+  identity.native = &native;
+  identity.rows = identity.cols = identity.ld = 1;
+  identity.device = 0;
+  NativeDomainCertificate certificate{identity, NativeDomainRange::signed_bounds(-128, 127)};
+  CHECK(certificate.matches(identity));
+  ++identity.generation;
+  CHECK_FALSE(certificate.matches(identity));
+  --identity.generation;
+  identity.unsigned_inputs = true;
+  CHECK_FALSE(certificate.matches(identity));
+  certificate.identity = identity;
+  CHECK_FALSE(certificate.matches(identity));
 }
 
 TEST_CASE("mixed radix lift subtracts the complete source product for negatives") {

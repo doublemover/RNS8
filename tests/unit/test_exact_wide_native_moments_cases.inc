@@ -55,10 +55,33 @@ template <typename T>
 void check(const std::vector<T>& input, int64_t rows, int64_t cols, int64_t ld) {
   boost::multiprecision::cpp_int maximum, reference_maximum;
   const auto expected = construct(input.data(), rows, cols, ld, reference_maximum);
-  const auto actual = rns8::detail::native_exact_ranges(input.data(), rows, cols, ld, maximum);
+  rns8::detail::NativeDomainRange domain;
+  const auto actual =
+      rns8::detail::native_exact_ranges(input.data(), rows, cols, ld, maximum, &domain);
   REQUIRE(actual.rows.size() == expected.rows.size());
   REQUIRE(actual.cols.size() == expected.cols.size());
   CHECK(maximum == reference_maximum);
+  if constexpr (std::is_integral_v<T> && sizeof(T) <= sizeof(uint64_t)) {
+    CHECK(domain.well_formed() == (rows > 0 && cols > 0));
+    if (rows > 0 && cols > 0) {
+      using boost::multiprecision::cpp_int;
+      cpp_int global_minimum = expected.rows[0].minimum, global_maximum = expected.rows[0].maximum;
+      for (const auto& row : expected.rows) {
+        global_minimum = std::min(global_minimum, row.minimum);
+        global_maximum = std::max(global_maximum, row.maximum);
+      }
+      CHECK(domain.unsigned_inputs == std::is_unsigned_v<T>);
+      if constexpr (std::is_unsigned_v<T>) {
+        CHECK(cpp_int(domain.unsigned_minimum) == global_minimum);
+        CHECK(cpp_int(domain.unsigned_maximum) == global_maximum);
+      } else {
+        CHECK(cpp_int(domain.signed_minimum) == global_minimum);
+        CHECK(cpp_int(domain.signed_maximum) == global_maximum);
+      }
+      CHECK(cpp_int(domain.maximum_magnitude()) == reference_maximum);
+    }
+  } else
+    CHECK_FALSE(domain.well_formed());
   for (size_t i = 0; i < actual.rows.size(); ++i)
     equal(actual.rows[i], expected.rows[i]);
   for (size_t i = 0; i < actual.cols.size(); ++i)

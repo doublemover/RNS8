@@ -63,6 +63,7 @@ rns8_status rns8_pack_i64(rns8_context* ctx, rns8_matrix* matrix, const int64_t*
     std::optional<MatrixWriteGuard> write;
     boost::multiprecision::cpp_int exact_bound = 0;
     rns8_exact_matrix_ranges exact_ranges;
+    rns8::detail::NativeDomainRange native_domain;
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) {
       if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols,
                                       matrix->prefix) ||
@@ -70,7 +71,7 @@ rns8_status rns8_pack_i64(rns8_context* ctx, rns8_matrix* matrix, const int64_t*
         return RNS8_INVALID_ARGUMENT;
       }
       exact_ranges = rns8::detail::native_exact_ranges(src, matrix->desc.rows, matrix->desc.cols,
-                                                       ld, exact_bound);
+                                                       ld, exact_bound, &native_domain);
       if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
                                           rns8::detail::modulus_product(matrix->prefix))) {
         return RNS8_RANGE_ERROR;
@@ -144,6 +145,9 @@ rns8_status rns8_pack_i64(rns8_context* ctx, rns8_matrix* matrix, const int64_t*
       matrix->exact_range_prefix = unique ? matrix->prefix : 0;
     }
     publish_matrix_value(*matrix, true, source_version);
+    if (native_domain.well_formed() && matrix->device_native_current)
+      matrix->native_domain = {native_summary_identity(*ctx, *matrix, matrix->hip_native_i64),
+                               native_domain};
     write->committed = true;
     return RNS8_SUCCESS;
   });
@@ -178,6 +182,7 @@ rns8_status rns8_pack_u64(rns8_context* ctx, rns8_matrix* matrix, const uint64_t
     std::optional<MatrixWriteGuard> write;
     boost::multiprecision::cpp_int exact_bound = 0;
     rns8_exact_matrix_ranges exact_ranges;
+    rns8::detail::NativeDomainRange native_domain;
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols,
                                       matrix->prefix) ||
@@ -185,7 +190,7 @@ rns8_status rns8_pack_u64(rns8_context* ctx, rns8_matrix* matrix, const uint64_t
         return RNS8_INVALID_ARGUMENT;
       }
       exact_ranges = rns8::detail::native_exact_ranges(src, matrix->desc.rows, matrix->desc.cols,
-                                                       ld, exact_bound);
+                                                       ld, exact_bound, &native_domain);
       if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
                                           rns8::detail::modulus_product(matrix->prefix))) {
         return RNS8_RANGE_ERROR;
@@ -276,6 +281,9 @@ rns8_status rns8_pack_u64(rns8_context* ctx, rns8_matrix* matrix, const uint64_t
       matrix->exact_range_prefix = matrix->prefix;
     }
     publish_matrix_value(*matrix, true, source_version);
+    if (native_domain.well_formed() && matrix->device_native_current)
+      matrix->native_domain = {native_summary_identity(*ctx, *matrix, matrix->hip_native_u64),
+                               native_domain};
     write->committed = true;
     return RNS8_SUCCESS;
   });

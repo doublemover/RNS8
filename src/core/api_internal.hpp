@@ -550,6 +550,36 @@ rns8_status import_exact_wide_limbs(rns8_context& ctx, rns8_matrix& matrix, cons
 
 void publish_matrix_value(rns8_matrix& matrix, bool imported = false, uint64_t source_version = 0);
 
+inline NativeSummaryIdentity
+native_summary_identity(const rns8_context& ctx, const rns8_matrix& matrix, const void* native,
+                        NativeBoundMethod method = NativeBoundMethod::tile_max,
+                        uint32_t panel_k = 0, bool row_tiles = false) {
+  NativeSummaryIdentity identity;
+  if (matrix.generation_exhausted || !matrix.device_native_current || ctx.hip_failure_poisoned ||
+      matrix.hip_device_id != ctx.device_id || !native)
+    return identity;
+  identity.instance = matrix.matrix_instance_id;
+  identity.generation = matrix.content_generation;
+  identity.native = native;
+  identity.rows = matrix.desc.rows;
+  identity.cols = identity.ld = matrix.desc.cols;
+  identity.device = ctx.device_id;
+  identity.method = method;
+  identity.panel_k = method == NativeBoundMethod::panel_l1 ? panel_k : 0;
+  identity.unsigned_inputs = matrix.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED ||
+                             matrix.desc.semantics == RNS8_BOUNDED_U64;
+  const auto expected = identity.unsigned_inputs ? matrix.hip_native_u64 : matrix.hip_native_i64;
+  const auto bytes =
+      identity.unsigned_inputs ? matrix.hip_native_u64_bytes : matrix.hip_native_i64_bytes;
+  AddressDomain extent;
+  if (native != expected ||
+      !checked_host_plane_address(identity.rows, identity.cols, identity.ld, 1, 8, extent) ||
+      extent.byte_extent != bytes)
+    return {};
+  identity.row_tiles = row_tiles;
+  return identity;
+}
+
 // Invalidates on unwinding or any failed post-write status, including native uploads.
 struct MatrixWriteGuard {
   rns8_matrix& matrix;

@@ -26,18 +26,10 @@ rns8_status prepare_adaptive_summaries(rns8_context& ctx, const rns8_matrix& a,
   const uint64_t offsets[] = {0, a_bytes};
   for (unsigned side = 0; side < 2; ++side) {
     const auto& input = *inputs[side];
-    NativeSummaryIdentity desired;
-    desired.instance = input.matrix_instance_id;
-    desired.generation = input.content_generation;
-    desired.native = native[side];
-    desired.rows = input.desc.rows;
-    desired.cols = input.desc.cols;
-    desired.ld = input.desc.cols;
-    desired.device = ctx.device_id;
-    desired.method = method;
-    desired.panel_k = method == NativeBoundMethod::panel_l1 ? panel_k : 0;
-    desired.unsigned_inputs = input.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED;
-    desired.row_tiles = side == 0;
+    const auto desired =
+        native_summary_identity(ctx, input, native[side], method, panel_k, side == 0);
+    if (!desired.instance)
+      return RNS8_INVALID_ARGUMENT;
     auto& identity = workspace.adaptive_summary_identity[side];
     if (identity == desired) {
       auto& count = workspace.adaptive_summary_reuses[side];

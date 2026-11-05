@@ -5,6 +5,7 @@
 #include "backend_common/arithmetic_certificate.hpp"
 #include "core/hip_resources.hpp"
 #include "backend_common/native_summary_identity.hpp"
+#include "backend_common/native_domain.hpp"
 #include "backend_common/block_sparse_directory.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -193,6 +194,8 @@ struct rns8_matrix {
   boost::multiprecision::cpp_int exact_max_magnitude = 0;
   uint32_t exact_range_prefix = 0;
   rns8_exact_matrix_ranges exact_axis_ranges;
+
+  rns8::detail::NativeDomainCertificate native_domain;
 
   // Plane availability is independent of the exact-wide magnitude proof and
   // allocated capacity. Adaptive bounded outputs retain their immutable write
