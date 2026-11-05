@@ -14,6 +14,8 @@ case. Use Boost.Multiprecision for exact-wide and CRT references. GMP/FLINT are
 optional comparisons. Public API or emitted-schema changes include docs and
 regressions in the same slice. Review public C changes with the
 [ABI inventory and installed-consumer checks](docs/public-c-abi.md).
+Target qualification follows the [candidate-bound phase receipt policy](docs/target-qualification.md);
+platform history alone cannot authorize a current cache entry.
 
 Cover boundaries before random inputs: signed/unsigned 64-bit extremes,
 cancellation and worst-case partial sums, composite/even moduli and primes,

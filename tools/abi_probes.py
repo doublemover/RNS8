@@ -376,7 +376,7 @@ def installed_consumer_cmake(prefix: Path, linkage: str, config_dir: Path) -> st
     # by absolute installed paths in generated source, never a source-tree fallback.
     return (
         """
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.22)
 project(RNS8InstalledABI LANGUAGES C CXX)
 find_package(RNS8 CONFIG REQUIRED PATHS "@CONFIG@" NO_DEFAULT_PATH)
 if(NOT TARGET @TARGET@)

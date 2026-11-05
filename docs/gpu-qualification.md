@@ -326,3 +326,6 @@ with the session's selected lane. Resume still requires unchanged checkpoint
 artifacts. These identities are prerequisites for candidate-specific phase
 qualification; a successful query or smoke session alone does not complete
 release, profiler, physical-device or cache-promotion gates.
+
+The [candidate target qualification policy](target-qualification.md) explains the
+versioned phase adapter, unskipped GPU/JUnit controls and explicit requalification.

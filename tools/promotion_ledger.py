@@ -14,6 +14,9 @@ from timing_eligibility import phase_blockers, bound_comparison_blockers
 from measurement_contract import host_instrumentation
 from diagnostic_companion import load_bindings, production_evidence
 import target_validation_report
+from target_qualification import candidate_verdict, candidate_binding, VERDICT_SCHEMA
+from json_evidence import load_evidence_json, same_evidence_value
+from benchmark_request import file_digest
 
 
 DEFAULT_OUT_DIR = Path("temp") / "promotion-ledgers"
@@ -116,19 +119,30 @@ def counter_resource_summary(entry: dict[str, Any] | None) -> dict[str, Any] | N
         "global_memory_traffic_bytes": entry.get("global_memory_traffic_bytes"),
     }
 
-def load_target_validation_groups(paths: list[Path]) -> dict[str, dict[str, Any]]:
-    groups: dict[str, dict[str, Any]] = {}
+def load_target_validation_candidates(paths: list[Path]) -> dict[str, dict[str, Any]]:
+    candidates = {}
     for path in paths:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            continue
+        data = load_evidence_json(path)
+        if not isinstance(data, dict) or data.get("schema_version") != 3:
+            continue  # Historical platform inventory remains descriptive.
         for group in data.get("groups", []):
             if not isinstance(group, dict):
-                continue
-            key = group.get("target_validation_group") or group.get("review_group_key")
-            if isinstance(key, str) and key:
-                groups[key] = group
-    return groups
+                raise ValueError("malformed target validation group")
+            for verdict in group.get("candidate_qualifications", []):
+                if not isinstance(verdict, dict) or verdict.get("schema") != VERDICT_SCHEMA:
+                    raise ValueError("malformed candidate qualification verdict")
+                candidate = verdict.get("candidate")
+                if candidate is None:
+                    continue
+                digest = candidate.get("capture_sha256") if isinstance(candidate, dict) else None
+                receipts = verdict.get("input_receipt_paths")
+                if not isinstance(digest, str) or not isinstance(receipts, list) or any(not isinstance(item, str) for item in receipts):
+                    raise ValueError("candidate qualification input identity is incomplete")
+                entry = candidates.setdefault(digest, dict(candidate=candidate, input_receipt_paths=[]))
+                if not same_evidence_value(entry["candidate"], candidate):
+                    raise ValueError("conflicting target report candidate identities")
+                entry["input_receipt_paths"] = sorted(set(entry["input_receipt_paths"] + receipts))
+    return candidates
 
 
 def load_shape_family_shadow_reports(paths: list[Path]) -> list[dict[str, Any]]:
@@ -313,21 +327,26 @@ def capture_entry(
             and speedup <= variance_required_margin
         ):
             blockers.append("speedup_inside_variance_margin")
+    target_qualification = None
     target_validation_ready = None
     target_cache_eligible = None
     target_cache_blockers: list[str] = []
     if target_validation_report_supplied and target_validation_entry is None:
-        blockers.append("missing_target_validation_group")
+        blockers.append("missing_candidate_target_qualification")
     elif target_validation_entry is not None:
-        eligibility = target_validation_entry.get("cache_eligibility")
-        if not isinstance(eligibility, dict):
-            eligibility = {}
-        target_cache_eligible = eligibility.get("eligible") is True
-        target_cache_blockers = [
-            str(item)
-            for item in eligibility.get("blockers", [])
-            if isinstance(item, str) and item
-        ]
+        try:
+            binding = candidate_binding(path, capture, target_row)
+            if not same_evidence_value(target_validation_entry.get("candidate"), binding):
+                raise ValueError("target report names a different candidate")
+            receipt_paths = target_validation_entry.get("input_receipt_paths")
+            if not isinstance(receipt_paths, list) or any(not isinstance(item, str) for item in receipt_paths):
+                raise ValueError("target report has no raw candidate phase receipts")
+            target_qualification = candidate_verdict(binding, capture, [Path(item) for item in receipt_paths])
+            target_cache_eligible = target_qualification["eligible"] is True
+            target_cache_blockers = list(target_qualification["blockers"])
+        except (OSError, ValueError, TypeError, KeyError):
+            target_cache_eligible = False
+            target_cache_blockers = ["candidate_target_receipt_unbound_stale_or_conflicting"]
         target_validation_ready = target_cache_eligible and not target_cache_blockers
         blockers.extend(f"target_validation_blocker:{item}" for item in target_cache_blockers)
     feature_scoped_non_promoting = {
@@ -409,6 +428,7 @@ def capture_entry(
         "target_validation_gate_available": target_validation_entry is not None,
         "target_validation_gate_ready": target_validation_ready,
         "target_cache_eligible": target_cache_eligible,
+        "target_qualification": target_qualification,
         "target_cache_blockers": sorted(set(target_cache_blockers)),
         "validation_status": metadata.get("capability_status"),
         "performance_validated": raw_performance_validated or reviewed_promotable,
@@ -522,7 +542,7 @@ def build_ledger(
     diagnostic_bindings=load_bindings(diagnostic_binding_paths or [])
     reviewed = load_review_entries(review_reports or [])
     variance = load_variance_entries(variance_reports or [])
-    target_groups = load_target_validation_groups(target_validation_reports or [])
+    target_candidates = load_target_validation_candidates(target_validation_reports or [])
     shape_reports = load_shape_family_shadow_reports(shape_family_shadow_reports or [])
     counter = load_counter_entries(counter_reports or [])
     shape_recommendations = shape_family_recommendation_index(shape_reports)
@@ -543,7 +563,7 @@ def build_ledger(
                 variance.get(path_key(path)),
                 variance_report_supplied=variance_report_supplied,
                 variance_gate_required=require_variance_gate,
-                target_validation_entry=target_groups.get(str(target_row.get("target_validation_group"))),
+                target_validation_entry=target_candidates.get(file_digest(path)),
                 target_validation_report_supplied=bool(target_validation_reports),
                 shape_family_recommendations=shape_recommendations_by_path.get(path_key(path), []),
                 diagnostic_binding=diagnostic_bindings.get(path_key(path)),

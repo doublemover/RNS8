@@ -137,8 +137,10 @@ def device_command_plan(backend, device, arch, binary, python, wrapper, build, o
         junit = out / f"{stem}-qualification.xml"
         add("regressions", [binary("rns8_tests"), "[qualification]", "--reporter", "junit", "--out", str(junit)],
             junit=str(junit), require_test="qualification pack covers dispatch thresholds and plane tails")
+        ctest_junit = out / f"{stem}-ctest.xml"
         add("ctest", wrapper + ["ctest", "--test-dir", str(build), "--output-on-failure",
-            "--parallel", "1", "--timeout", "600", "--no-tests=error"])
+            "--parallel", "1", "--timeout", "600", "--no-tests=error", "--output-junit", str(ctest_junit)],
+            ctest_junit=str(ctest_junit))
     # Small captures are smoke evidence only, with bounded runtime per command.
     cases = [("bounded-i64", []), ("bounded-u64", []),
                  ("exact-wide-signed", ["--exact-wide-limbs", "3"]),
@@ -212,16 +214,17 @@ def validate_result(item: dict, result: dict, parent_info: dict | None = None) -
                 errors.append("hardware qualification tests failed or skipped")
         except (OSError, ET.ParseError):
             errors.append("missing or invalid qualification JUnit report")
-    if "preparation_junit" in item:
+    if "preparation_junit" in item or "ctest_junit" in item:
+        test_scope = "CPU preparation" if "preparation_junit" in item else "CTest"
         try:
-            root = ET.parse(ROOT / item["preparation_junit"]).getroot()
+            root = ET.parse(ROOT / item.get("preparation_junit", item.get("ctest_junit"))).getroot()
             cases = list(root.iter("testcase"))
             if not cases or not any(not list(case.iter("skipped")) for case in cases):
-                errors.append("CPU preparation report has no executed tests")
+                errors.append(test_scope + " report has no executed tests")
             if any(list(case.iter("failure")) or list(case.iter("error")) for case in cases):
-                errors.append("CPU preparation tests failed")
+                errors.append(test_scope + " tests failed")
         except (OSError, ET.ParseError):
-            errors.append("missing or invalid CPU preparation JUnit report")
+            errors.append("missing or invalid " + test_scope + " JUnit report")
     return errors
 
 
@@ -292,7 +295,11 @@ def readiness_blockers(args, resolution: dict, environment: dict) -> list[str]:
 
 def artifact_records(item: dict, out: Path) -> dict[str, str]:
     paths = [out / (item["name"] + suffix) for suffix in (".stdout.log", ".stderr.log")]
-    paths += [ROOT / item[key] for key in ("capture", "junit", "preparation_junit", "identity_output") if key in item]
+    paths += [ROOT / item[key] for key in ("capture", "junit", "preparation_junit", "ctest_junit", "identity_output") if key in item]
+    additional = item.get("evidence_outputs", [])
+    if not isinstance(additional, list) or any(not isinstance(path, str) for path in additional):
+        raise ValueError("session evidence output inventory must contain explicit paths")
+    paths += [ROOT / path for path in additional]
     executable = ROOT / item["argv"][0]
     if executable.is_file():
         paths.append(executable)
@@ -307,6 +314,8 @@ def resume_results(out: Path, manifest: dict) -> list[dict]:
     report = json.loads((out / "results.json").read_text(encoding="utf-8"))
     if report.get("manifest_identity_sha256") != manifest["identity_sha256"]:
         raise ValueError("resume identity differs: source, dependencies, device selection, environment or plan changed")
+    if not isinstance(report.get("run_id"), str) or not report["run_id"]:
+        raise ValueError("legacy checkpoint has no explicit qualification run identity")
     elapsed = report.get("elapsed_seconds")
     if type(elapsed) not in (int, float) or not math.isfinite(elapsed) or elapsed < 0:
         raise ValueError("invalid elapsed time in resume checkpoint")
@@ -333,12 +342,14 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
     # Include interrupted/failed work and checkpoint overhead in the same
     # session budget; removing a failed suffix must not reset its consumed time.
     prior_elapsed = json.loads((out / "results.json").read_text(encoding="utf-8"))["elapsed_seconds"] if resume else 0
+    run_id = json.loads((out / "results.json").read_text(encoding="utf-8"))["run_id"] if resume else str(uuid.uuid4())
     total = manifest["budgets"]["total_seconds"]
     reserve = manifest["budgets"]["export_reserve_seconds"]
 
     def checkpoint(status, error=None):
         write_json(out / "results.json", {"schema": "rns8_gpu_session_results_v2", "status": status,
             "promotion_allowed": False, "manifest_identity_sha256": manifest["identity_sha256"],
+            "run_id": run_id,
             "physical_identity_verified": False, "hardware_qualified": False,
             "observed_parent_runtime_devices": [{"stage": name, **info, "pci_bdf": None, "physical_uuid": None}
                                                 for name, info in inspections.items()],
@@ -362,6 +373,15 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
                              RNS8_RANK=str(manifest["devices"].index(item["device"])), RNS8_WORLD_SIZE=str(len(manifest["devices"])))
             identity_before = None
             capture_request = None
+            fresh_outputs = []
+            outputs = item.get("evidence_outputs", [])
+            if not isinstance(outputs, list) or any(not isinstance(name, str) for name in outputs) or len(set(outputs)) != len(outputs):
+                raise ValueError("native evidence outputs need a unique explicit path inventory")
+            for name in outputs:
+                path = (ROOT / name).resolve()
+                if path.exists():
+                    raise ValueError("native evidence output already exists before acquisition: " + str(path))
+                fresh_outputs.append(path)
             if item.get("compiled_identity") or "capture" in item:
                 executable = (ROOT / item["argv"][0]).resolve(strict=True)
                 identity_before = sha256(executable)
@@ -401,10 +421,12 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
                     errors.append("benchmark capture has invalid schema, artifact, target or request association")
             if item.get("parent_inspect") and not errors:
                 inspections[item["name"]] = json.loads(result["stdout"])
+            artifacts = artifact_records(item, out)
             results.append({"name": item["name"], **result, "parent_inspect": item.get("parent_inspect", False),
                             "selected_runtime_ordinal": item.get("selected_device"), "physical_uuid": None, "pci_bdf": None,
                             "compiled_binary_identity": binary_identity,
-                            "validation_errors": errors, "artifacts": artifact_records(item, out)})
+                            "fresh_evidence_outputs": {str(path): artifacts[str(path)] for path in fresh_outputs if str(path) in artifacts},
+                            "validation_errors": errors, "artifacts": artifacts})
             checkpoint("blocked" if errors else "in_progress")
             if errors:
                 print(f"STOP: {item['name']}: {'; '.join(errors)}", file=sys.stderr, flush=True)
@@ -526,7 +548,7 @@ def main(argv=None) -> int:
                             "minimum_free_bytes": int(args.min_free_gib * 1024**3), "jobs": args.jobs},
                 "status": "planned_not_executed", "promotion_allowed": False,
                 "preparation_only": preparation, "hardware_qualified": False,
-                "command_working_directory": "repository_root",
+                "command_working_directory": str(ROOT),
                 "environment": {"RNS8_AUTOTUNE_CACHE": str(command_out / "isolated-empty-cache.json")},
                 "commands": commands, "kernels": kernel_inventory(),
                 "remaining_gates": ["HIP compile and hardware execution for every selected backend",

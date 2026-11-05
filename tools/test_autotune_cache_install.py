@@ -440,14 +440,18 @@ def main() -> int:
 
         target_ledger = root / "target-promotion-ledger.json"
         write_ledger(target_ledger, [replacement], variance=True, variance_ready=True, target_gate=True, target_ready=True)
-        target_summary = install_autotune_cache.install_cache(
-            [source_a],
-            destination,
-            dry_run=True,
-            promotion_ledgers=[target_ledger],
-            require_target_validation_gate=True,
-        )
-        assert target_summary["require_target_validation_gate"] is True
+        try:
+            install_autotune_cache.install_cache(
+                [source_a],
+                destination,
+                dry_run=True,
+                promotion_ledgers=[target_ledger],
+                require_target_validation_gate=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_candidate_target_receipt_invalid" in str(exc)
+        else:
+            raise AssertionError("target gate accepted booleans without candidate phase receipts")
 
         cdna = copy.deepcopy(replacement)
         cdna["target_id"] = "gfx942"
@@ -472,14 +476,18 @@ def main() -> int:
 
         cdna_ledger = root / "cdna-target-ledger.json"
         write_ledger(cdna_ledger, [cdna], variance=True, variance_ready=True, target_gate=True, target_ready=True)
-        cdna_summary = install_autotune_cache.install_cache(
-            [cdna_source],
-            destination,
-            dry_run=True,
-            promotion_ledgers=[cdna_ledger],
-            require_variance_gate=True,
-        )
-        assert cdna_summary["replacement_history"][0]["target_class"] == "cdna"
+        try:
+            install_autotune_cache.install_cache(
+                [cdna_source],
+                destination,
+                dry_run=True,
+                promotion_ledgers=[cdna_ledger],
+                require_variance_gate=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_candidate_target_receipt_invalid" in str(exc)
+        else:
+            raise AssertionError("CDNA target gate accepted booleans without candidate phase receipts")
 
         bad = copy.deepcopy(finite)
         bad["key"] = bad["key"].replace(";finite_modulus=251", "")

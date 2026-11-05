@@ -9,6 +9,8 @@ from measurement_contract import exact_proof_policy, host_batch_contract, host_i
 
 
 def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
+    if capture.get("external_instrumentation") is not None:
+        return ["externally_profiled_host_time_not_production_evidence"]
     timing = capture.get("timing_metadata") or {}
     if timing.get("host_timing_contract_version") != 2:
         return ["legacy_host_timing_unqualified"]

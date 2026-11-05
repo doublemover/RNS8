@@ -158,6 +158,8 @@ def binding_for_capture(capture, bindings):
 
 def production_evidence(capture, binding=None):
     blockers = []
+    if capture.get("external_instrumentation") is not None:
+        blockers.append("externally_profiled_host_time_not_production_evidence")
     timing = capture.get('timing_metadata') or {}
     if timing.get('host_instrumentation_state') != 'hooks_disabled' or timing.get('gpu_event_timing') is True:
         blockers.append('diagnostic_instrumented_host_time_not_production_evidence')

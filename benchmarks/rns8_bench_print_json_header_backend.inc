@@ -1,4 +1,5 @@
   std::cout << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
+  std::cout << "  \"process_id\": " << rns8::tools::process_id() << ",\n";
   std::cout << "  \"benchmark\": \"" << benchmark_name(args) << "\",\n";
   std::cout << "  \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args, result) << "\",\n";
   std::cout << "  \"backend_requested\": \"" << requested_backend_name(args) << "\",\n";

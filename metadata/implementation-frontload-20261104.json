@@ -835,10 +835,11 @@
       "comments_reviewed": 0,
       "implementation_status": "in_progress",
       "completed_slices": [
-        "CPU-only executable/actual-library compiled-manifest queries for benchmark, verifier, inspector and tests; bounded session queries/immutable receipts before device work; shared capture request/artifact binding and child-PATH-resolved launch"
+        "CPU-only executable/actual-library compiled-manifest queries for benchmark, verifier, inspector and tests; bounded session queries/immutable receipts before device work; shared capture request/artifact binding and child-PATH-resolved launch",
+        "Candidate/artifact/backend/kernel/work/runtime/driver/environment-bound phase receipts over immutable existing session manifests/results; explicit run IDs, same-artifact cross-process conflict retention, supersession, unskipped GPU/JUnit and fresh output gates; report schema3 separates historical inventory; ledger and installer reload/recompute raw candidate qualification; offline emitter and producer/consumer regressions authored"
       ],
       "remaining_source_items": [
-        "Candidate/session/run-bound phase receipt verification and requalification/conflict model; report/ledger/installer propagation and consuming-boundary checks with historical/current negative fixtures"
+        "Connect remaining Windows/native profiler acquisition/export adapters owned by #104 to the implemented profiler-phase policy; candidate/session/report/ledger/installer core source is written, with runtime/protocol validation deferred"
       ]
     },
     {
@@ -939,9 +940,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/104",
       "requirements_sha256": "47913207ca089eb82a307a409b73471a69ded47a0d5435216dd1c680dd128450",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "First strict ROCprofiler-SDK native JSON dispatch reader joins actual benchmark PID/agent/queue/dispatch/correlation IDs, mangled selected ISA symbols and loaded file-URI code-object bytes; explicit instrumented capture relation and production-latency rejection; typed geometry, separate raw artifact hashes/freshness and offline negative controls authored"
+      ],
+      "remaining_source_items": [
+        "Capability discovery and native acquisition with tool/version/permission receipts; Windows RDP/RGP supported exports; additional native ROCprof/rocpd/counter/ATT adapters and metric definitions; optional balanced ROCTx ranges; integration into existing counter/explanation reports and hypothesis/experiment output"
+      ]
     },
     {
       "issue": 105,
@@ -953,5 +958,6 @@
       "completed_slices": [],
       "remaining_source_items": []
     }
-  ]
+  ],
+  "updated_date": "2026-11-05"
 }

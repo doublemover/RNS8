@@ -77,7 +77,7 @@ def request_identity(command: list[str], overrides: dict[str, str] | None = None
     env.update(overrides or {})
     executable = resolved_executable(command, env)
     relevant = {key: value for key, value in env.items()
-                if key.startswith(("RNS8_", "OMP_", "HIP_", "ROCR_", "HSA_", "KMP_"))
+                if key.startswith(("RNS8_", "OMP_", "HIP_", "ROCR_", "ROCP_", "ROCPROF", "HSA_", "KMP_"))
                 or key in {"CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD"}}
     # Include explicit overrides even if they are a new benchmark control. Store
     # only their digest: unrelated inherited credentials are never inspected.

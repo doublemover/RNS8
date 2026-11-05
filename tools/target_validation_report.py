@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
+from json_evidence import load_evidence_json
+from target_qualification import candidate_binding, candidate_verdict, EvidenceStore, VERDICT_SCHEMA
 from check_dependencies_lib.config import LINUX_CDNA_TARGETS, LINUX_RDNA_TARGETS, SUPPORTED_TARGETS
 
 
@@ -19,7 +21,7 @@ DEFAULT_OUT_DIR = Path("temp") / "target-validation-reports"
 READY_STATES = {"pass", "passed", "ok", "available", "captured", "complete", "success", True}
 NOT_READY_STATES = {"fail", "failed", "missing", "unavailable", "not_run", "not-requested", "unknown", False, None}
 VALIDATION_PHASES = ("build", "ctest", "smoke", "release_capture", "profiler")
-TARGET_POLICY = "target_validation_is_per_os_gpu_toolchain_group_only"
+TARGET_POLICY = "platform_inventory_is_descriptive_qualification_is_candidate_artifact_session_bound"
 NO_CROSS_TARGET_POLICY = "windows_rdna_cdna_evidence_groups_are_not_interchangeable"
 
 
@@ -241,7 +243,7 @@ def capture_target(path: Path) -> dict[str, Any]:
         device_index,
         target.get("review_group_key"),
     )
-    return {
+    row = {
         "source_kind": "capture",
         "path": str(path),
         "backend_selected": capture.get("backend_selected"),
@@ -266,6 +268,8 @@ def capture_target(path: Path) -> dict[str, Any]:
         "node_gpu_count": target.get("node_gpu_count", device.get("node_gpu_count")),
         **_optional_topology_fields({**device, **target, **runtime_env}),
         "target_cache_key": cache_key,
+        "runtime_observed_cache_key": target_cache_key(_target_id(device.get("gcn_arch")),
+            device.get("name"), version, device.get("hip_runtime_version")),
         "target_instance_id": instance_id,
         "global_mem_bytes": device.get("global_mem_bytes"),
         "hip_runtime_version": device.get("hip_runtime_version"),
@@ -287,9 +291,17 @@ def capture_target(path: Path) -> dict[str, Any]:
         "validated_scope": "this_os_target_toolchain_group_only",
     }
 
+    try:
+        row["candidate_binding"] = candidate_binding(path, capture, row)
+        row["candidate_identity_blockers"] = []
+    except (ValueError, TypeError, KeyError):
+        row["candidate_binding"] = None
+        row["candidate_identity_blockers"] = ["candidate_compiled_artifact_request_or_runtime_identity_missing"]
+    return row
+
 
 def _status_records_from_json(path: Path) -> list[dict[str, Any]]:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw = load_evidence_json(path)
     if isinstance(raw, list):
         return [item for item in raw if isinstance(item, dict)]
     if isinstance(raw, dict):
@@ -451,7 +463,17 @@ def _coverage_summary(groups: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_report(captures: list[Path], status_paths: list[Path] | None = None) -> dict[str, Any]:
+def build_report(captures: list[Path], status_paths: list[Path] | None = None,
+                 qualification_paths: list[Path] | None = None) -> dict[str, Any]:
+    receipt_index = defaultdict(list)
+    for receipt_path in qualification_paths or []:
+        raw = load_evidence_json(receipt_path)
+        candidate = raw.get("candidate") if isinstance(raw, dict) else None
+        digest = candidate.get("identity_sha256") if isinstance(candidate, dict) else None
+        if not isinstance(digest, str) or re.fullmatch("[0-9a-f]{64}", digest) is None:
+            raise ValueError("qualification receipt has no bound candidate capture: " + str(receipt_path))
+        receipt_index[digest].append(receipt_path)
+    evidence = EvidenceStore()
     rows = [capture_target(path) for path in captures]
     rows.extend(load_status_targets(status_paths or []))
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -463,6 +485,23 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
         phases = {phase: _merge_phase_status(value, phase) for phase in VALIDATION_PHASES}
         representative = value[0] if value else {}
         phase_counts = _phase_status_counts(value)
+        qualifications = []
+        for row in value:
+            if row.get("source_kind") != "capture":
+                continue
+            binding = row.get("candidate_binding")
+            if binding is None:
+                qualifications.append(dict(schema=VERDICT_SCHEMA, candidate=None, eligible=False,
+                    blockers=row["candidate_identity_blockers"], path=row["path"]))
+                continue
+            capture = load_capture(Path(row["path"]))
+            qualifications.append(candidate_verdict(binding, capture,
+                receipt_index.get(binding["identity_sha256"], []), store=evidence))
+        qualified = [item for item in qualifications if item["eligible"] is True]
+        eligibility = dict(eligible=bool(qualified), blockers=[] if qualified else ["no_candidate_bound_qualification"],
+            qualified_capture_sha256=sorted(item["candidate"]["capture_sha256"] for item in qualified),
+            scope="only_explicitly_listed_candidate_receipts_not_a_platform_wide_pass",
+            cross_target_promotion_allowed=False)
         report_groups.append(
             {
                 "target_validation_group": key,
@@ -527,7 +566,9 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
                 "validation_phases": phases,
                 "phase_status_counts": phase_counts,
                 "accelerator_status": _merge_accelerators(value),
-                "cache_eligibility": _group_cache_eligibility(value, phases),
+                "historical_inventory_readiness": _group_cache_eligibility(value, phases),
+                "candidate_qualifications": qualifications,
+                "cache_eligibility": eligibility,
                 "capture_count": sum(1 for row in value if row.get("source_kind") == "capture"),
                 "status_record_count": sum(1 for row in value if row.get("source_kind") == "target_status"),
                 "cross_target_promotion_allowed": False,
@@ -535,13 +576,23 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
                 "rows": value,
             }
         )
+    try:
+        evidence.finish()
+    except (OSError, ValueError):
+        for group in report_groups:
+            group["cache_eligibility"].update(eligible=False, blockers=["qualification_artifacts_changed_during_review"],
+                qualified_capture_sha256=[])
+            for candidate in group["candidate_qualifications"]:
+                candidate["eligible"] = False
+                candidate["blockers"] = sorted(set(candidate["blockers"] + ["qualification_artifacts_changed_during_review"]))
     coverage = _coverage_summary(report_groups)
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "policy": TARGET_POLICY,
         "cross_target_policy": NO_CROSS_TARGET_POLICY,
         "capture_count": len(captures),
         "status_record_count": len(rows) - len(captures),
+        "qualification_receipt_count": len(qualification_paths or []),
         "group_count": len(report_groups),
         "coverage_summary": coverage,
         "groups": report_groups,
@@ -555,6 +606,8 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = [
         "# RNS8 Target Validation Report",
+        "",
+        "Phase columns describe historical inventory; eligibility applies only to the explicit candidate receipts below.",
         "",
         f"- Policy: `{report['policy']}`",
         f"- Cross-target policy: `{report['cross_target_policy']}`",
@@ -588,6 +641,19 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
                 blockers=", ".join(eligibility.get("blockers") or []),
             )
         )
+    lines.extend(["", "## Candidate qualification", "",
+                  "| capture | backend | kernel | artifact SHA256 | ready | blockers |",
+                  "| --- | --- | --- | --- | --- | --- |"])
+    def cell(value):
+        return str(value).replace("|", chr(92) + "|").replace("\r", " ").replace("\n", " ")
+    for group in report["groups"]:
+        for verdict in group.get("candidate_qualifications", []):
+            candidate = verdict.get("candidate") or {}
+            identity = candidate.get("identity") or {}
+            values = [candidate.get("capture", verdict.get("path")), identity.get("backend_selected"),
+                      identity.get("selected_kernel"), identity.get("executable_sha256"),
+                      verdict["eligible"], ", ".join(verdict.get("blockers", []))]
+            lines.append("| " + " | ".join(cell(value) for value in values) + " |")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"json": str(json_path), "markdown": str(md_path)}
 
@@ -602,10 +668,12 @@ def main() -> int:
         default=[],
         help="JSON target validation status records for build/CTest/smoke/profiler readiness",
     )
+    parser.add_argument("--qualification-receipt", type=Path, action="append", default=[],
+                        help="versioned candidate/session/run-bound raw phase qualification")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    report = build_report(args.captures, args.target_status)
+    report = build_report(args.captures, args.target_status, args.qualification_receipt)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

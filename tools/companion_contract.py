@@ -19,6 +19,7 @@ class ObservationSection:
 
 
 TOP_LEVEL_OBSERVATIONS = frozenset((
+    "process_id",
     "plan_us", "global_bound_scan_us", "tile_bound_scan_us", "schedule_query_us", "matrix_alloc_us",
     "prepack_setup_us", "raw_timings_us", "timing_summary_us", "gpu_event_timings_us",
     "gpu_event_timing_summary_us", "avg_planning_us", "avg_global_bound_scan_us", "avg_scheduling_us",

@@ -7,7 +7,6 @@ from ck_kernel_contract import ck_kernel_family, ck_kernel_matches
 import argparse
 import hashlib
 import json
-import os
 import tempfile
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from typing import Any
 
 from check_dependencies_lib.config import LINUX_CDNA_TARGETS
 from metadata_registry_constants import BOUNDED_SEMANTICS, EXACT_WIDE_SEMANTICS, FINITE_U8_SEMANTICS
+from json_evidence import load_evidence_json, same_evidence_value
 
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
@@ -388,8 +388,8 @@ def read_cache(path: Path, *, allow_missing: bool = False) -> list[dict[str, Any
 
 def read_promotion_ledger(path: Path) -> dict[str, dict[str, Any]]:
     try:
-        root = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        root = load_evidence_json(path)
+    except (OSError, ValueError) as exc:
         raise AutotuneCacheInstallError(f"{path}: failed to read promotion ledger: {exc}") from exc
     if not isinstance(root, dict):
         raise AutotuneCacheInstallError(f"{path}: promotion ledger root must be an object")
@@ -451,6 +451,25 @@ def validate_promotion_ledger_gate(
                 raise AutotuneCacheInstallError(f"promotion_ledger_target_validation_gate_not_ready:{key}")
             if ledger_entry.get("target_cache_eligible") is not True:
                 raise AutotuneCacheInstallError(f"promotion_ledger_target_cache_not_eligible:{key}")
+            try:
+                from benchmark_schema import load_capture, validate_capture
+                from target_qualification import validate_bound_verdict
+                from target_validation_report import capture_target
+                capture_path = Path(require_string(ledger_entry, "path"))
+                capture = load_capture(capture_path)
+                validate_capture(capture, capture_path)
+                row = capture_target(capture_path)
+                validate_bound_verdict(ledger_entry.get("target_qualification"), capture_path, capture, row)
+                facts = dict(selected_backend=capture.get("backend_selected"),
+                             selected_kernel=capture.get("selected_kernel"),
+                             semantic_contract=capture.get("semantics"), target_id=row.get("target_id"),
+                             shape={name: capture.get(name) for name in ("m", "n", "k")})
+                if any(not same_evidence_value(entry.get(name), value) for name, value in facts.items()):
+                    raise ValueError("cache entry does not match the qualified candidate")
+                if (capture.get("backend_metadata") or {}).get("autotune_key") != key:
+                    raise ValueError("cache key does not match the qualified candidate")
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                raise AutotuneCacheInstallError(f"promotion_ledger_candidate_target_receipt_invalid:{key}:{error}") from error
 
 
 def write_cache(path: Path, entries: list[dict[str, Any]]) -> None:

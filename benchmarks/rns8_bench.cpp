@@ -30,6 +30,7 @@
 #include "rns8/rns8.h"
 #include "rns8/generated/metadata_registry.hpp"
 #include "tool_common/build_identity.hpp"
+#include "tool_common/process_identity.hpp"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
 #  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
