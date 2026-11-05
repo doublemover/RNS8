@@ -580,7 +580,7 @@ rns8_status hip_direct_prepare_grouped_task_residue_pointers(
     uint32_t pointer_prefix = 0;
     const rns8_status prepare_status = hip_direct_prepare_grouped_matrix_residue_pointers(
         matrices.data(), static_cast<uint32_t>(matrices.size()), descriptor.semantics,
-        pointer_table.ptr, pointer_table.bytes, &pointer_device_id, &pointer_prefix);
+        pointer_table, &pointer_device_id, &pointer_prefix);
     if (prepare_status != RNS8_SUCCESS) {
       return prepare_status;
     }

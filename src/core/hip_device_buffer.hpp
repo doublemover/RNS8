@@ -2,7 +2,9 @@
 #include "rns8/rns8.h"
 #include "core/hip_handle_owner.hpp"
 #include <cstddef>
+#include <memory>
 #include <new>
+#include <utility>
 
 namespace rns8::detail {
 rns8_status hip_direct_allocate(int, std::size_t, void**);
@@ -69,7 +71,24 @@ public:
     return RNS8_SUCCESS;
   }
   void mark_pending() noexcept { pending_ = true; }
-  void mark_completed() noexcept { pending_ = false; }
+  void mark_completed() noexcept {
+    pending_ = false;
+    release_host_payload();
+  }
+  rns8_status retain_host_payload(std::shared_ptr<const void> payload) noexcept {
+    if (!cleanup_ || !payload)
+      return RNS8_INVALID_ARGUMENT;
+    if (cleanup_->host_payload)
+      return RNS8_BUSY;
+    cleanup_->host_payload = std::move(payload);
+    return RNS8_SUCCESS;
+  }
+  // The caller has observed completion of every copy using this host payload.
+  // Other work may still use the device allocation, so keep pending_ unchanged.
+  void release_host_payload() noexcept {
+    if (cleanup_)
+      cleanup_->host_payload.reset();
+  }
   bool pending() const noexcept { return pending_; }
   void* get() const noexcept { return cleanup_ ? cleanup_->pointer : nullptr; }
   std::size_t bytes() const noexcept { return bytes_; }

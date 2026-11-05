@@ -198,29 +198,19 @@ rns8_status hip_direct_export_exact_wide_signed_matrix_limbs_to_device(rns8_matr
       &matrix->hip_status_bytes, rows, cols, matrix->prefix, limb_count);
 }
 
-rns8_status hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(
-    rns8_matrix* const* matrices, uint32_t task_count, rns8_semantics expected_semantics,
-    void* device_residue_ptrs, std::size_t device_residue_ptr_bytes, int* out_device_id,
-    uint32_t* out_prefix) {
-  return hip_direct_prepare_grouped_matrix_residue_pointers(
-      matrices, task_count, expected_semantics, device_residue_ptrs, device_residue_ptr_bytes,
-      out_device_id, out_prefix);
-}
-
 rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
     rns8_matrix* const* matrices, uint32_t task_count, rns8_semantics expected_semantics,
-    void* device_residue_ptrs, std::size_t device_residue_ptr_bytes, int* out_device_id,
-    uint32_t* out_prefix) {
+    hip_direct_grouped_device_buffer& pointer_table, int* out_device_id, uint32_t* out_prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_residue_ptrs ||
-      device_residue_ptr_bytes < static_cast<std::size_t>(task_count) * sizeof(const int8_t*)) {
+  if (!pointer_table.ptr ||
+      pointer_table.bytes < static_cast<std::size_t>(task_count) * sizeof(const int8_t*)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  std::vector<const int8_t*> host_ptrs;
+  auto host_ptrs = std::make_shared<std::vector<const int8_t*>>();
   int device_id = -1;
   uint32_t prefix = 0;
   rns8_status status = validate_grouped_rns_matrices(matrices, task_count, expected_semantics, 0, 0,
-                                                     false, &device_id, &prefix, &host_ptrs);
+                                                     false, &device_id, &prefix, host_ptrs.get());
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -228,14 +218,27 @@ rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  const std::size_t table_bytes = host_ptrs.size() * sizeof(host_ptrs[0]);
+  if (pointer_table.device_id != device_id)
+    return RNS8_INVALID_ARGUMENT;
+  status = pointer_table.retain_host_payload(host_ptrs);
+  if (status != RNS8_SUCCESS)
+    return status;
+  const bool already_pending = pointer_table.pending();
+  pointer_table.mark_pending();
+  const std::size_t table_bytes = host_ptrs->size() * sizeof((*host_ptrs)[0]);
   const hipError_t err = timed_hip_operation("grouped_residue_pointer_table_h2d", [&]() {
-    return tracked_sync_copy(device_residue_ptrs, host_ptrs.data(), table_bytes,
+    return tracked_sync_copy(pointer_table.ptr, host_ptrs->data(), table_bytes,
                              hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
+  // Successful synchronous H2D finishes consumption of this pageable source.
+  // Preserve an enclosing transaction's pending device-buffer ownership.
+  if (already_pending)
+    pointer_table.release_host_payload();
+  else
+    pointer_table.mark_completed();
   if (out_device_id) {
     *out_device_id = device_id;
   }
@@ -247,8 +250,7 @@ rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
   (void)matrices;
   (void)task_count;
   (void)expected_semantics;
-  (void)device_residue_ptrs;
-  (void)device_residue_ptr_bytes;
+  (void)pointer_table;
   (void)out_device_id;
   (void)out_prefix;
   return RNS8_UNSUPPORTED_BACKEND;

@@ -33,6 +33,13 @@ completion. Prepared Gram uses its retained owner reservation for compute and
 read-only export; host fault seams cover early/late failure, unwinding and
 retryable quarantine cleanup without launching faulty device work.
 
+Private grouped pointer-table uploads retain their pageable host vectors in the
+device allocation's existing retry record before issuing a copy. A successful
+copy releases that source without clearing an enclosing device transaction;
+uncertain completion keeps both allocations alive through deferred cleanup.
+This adds host ownership metadata to preparation, without another completion
+state machine. The new ownership controls await the combined validation batch.
+
 Each token contains a unique prepared-instance identity and a nonwrapping epoch.
 `rns8_get_prepared_completion` accepts only the latest epoch of that instance.
 It reports the exact input generations, output generation and operation status.

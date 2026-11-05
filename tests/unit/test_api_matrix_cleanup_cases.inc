@@ -1,6 +1,7 @@
 #include "core/matrix_cleanup.hpp"
 #include "core/export_metadata_transaction.hpp"
 #include <array>
+#include <memory>
 
 namespace {
 struct MockDeviceBufferOperations {
@@ -206,4 +207,57 @@ TEST_CASE("pending device buffers defer instead of freeing unobserved GPU work",
     CHECK(buffer.reset() == RNS8_SUCCESS);
   }
   CHECK(Ops::deferred_count == 0);
+}
+
+TEST_CASE("device retry records retain pageable DMA sources across unwind and failed free",
+          "[api][lifetime]") {
+  using Buffer = rns8::detail::basic_hip_device_buffer<MockDeviceBufferOperations>;
+  using Ops = MockDeviceBufferOperations;
+  Ops::fail_pointer = nullptr;
+  Ops::fail_all = false;
+  Ops::deferred_count = 0;
+  std::weak_ptr<const void> retained;
+  for (bool failed_free : {false, true}) {
+    try {
+      Buffer source;
+      REQUIRE(source.allocate(0, 64) == RNS8_SUCCESS);
+      auto payload = std::make_shared<std::vector<int>>(16, 123);
+      retained = payload;
+      REQUIRE(source.retain_host_payload(payload) == RNS8_SUCCESS);
+      CHECK(source.retain_host_payload(payload) == RNS8_BUSY);
+      payload.reset();
+      if (failed_free)
+        Ops::fail_all = true;
+      else
+        source.mark_pending();
+      Buffer moved = std::move(source);
+      CHECK_FALSE(retained.expired());
+      CHECK(moved.reset() == (failed_free ? RNS8_BACKEND_FAILURE : RNS8_BUSY));
+      throw std::bad_alloc();
+    } catch (const std::bad_alloc&) {
+    }
+    REQUIRE(Ops::deferred_count == 1);
+    CHECK_FALSE(retained.expired());
+    Ops::fail_all = false;
+    auto* node = Ops::deferred[0];
+    REQUIRE(Ops::release(node->device_id, node->pointer) == RNS8_SUCCESS);
+    delete node; // Simulated observed completion followed by successful release.
+    Ops::deferred[0] = nullptr;
+    Ops::deferred_count = 0;
+    CHECK(retained.expired());
+  }
+  Buffer source;
+  REQUIRE(source.allocate(0, 64) == RNS8_SUCCESS);
+  {
+    auto payload = std::make_shared<int>(7);
+    retained = payload;
+    REQUIRE(source.retain_host_payload(payload) == RNS8_SUCCESS);
+  }
+  source.mark_pending();
+  source.release_host_payload(); // The copy completed; another kernel still owns the device buffer.
+  CHECK(retained.expired());
+  CHECK(source.pending());
+  CHECK(source.reset() == RNS8_BUSY);
+  source.mark_completed();
+  CHECK(source.reset() == RNS8_SUCCESS);
 }

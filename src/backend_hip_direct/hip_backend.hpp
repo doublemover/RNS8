@@ -496,6 +496,11 @@ private:
 public:
   void mark_pending() noexcept { owner_.mark_pending(); }
   void mark_completed() noexcept { owner_.mark_completed(); }
+  bool pending() const noexcept { return owner_.pending(); }
+  rns8_status retain_host_payload(std::shared_ptr<const void> payload) noexcept {
+    return owner_.retain_host_payload(std::move(payload));
+  }
+  void release_host_payload() noexcept { owner_.release_host_payload(); }
 };
 
 struct hip_direct_grouped_device_resources {
@@ -926,14 +931,9 @@ rns8_status hip_direct_export_exact_wide_signed_matrix_limbs_to_device(rns8_matr
                                                                        void* device_dst,
                                                                        int64_t rows, int64_t cols,
                                                                        uint32_t limb_count);
-rns8_status hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(
-    rns8_matrix* const* matrices, uint32_t task_count, rns8_semantics expected_semantics,
-    void* device_residue_ptrs, std::size_t device_residue_ptr_bytes, int* out_device_id,
-    uint32_t* out_prefix);
 rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
     rns8_matrix* const* matrices, uint32_t task_count, rns8_semantics expected_semantics,
-    void* device_residue_ptrs, std::size_t device_residue_ptr_bytes, int* out_device_id,
-    uint32_t* out_prefix);
+    hip_direct_grouped_device_buffer& pointer_table, int* out_device_id, uint32_t* out_prefix);
 rns8_status hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
     rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
     void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count);

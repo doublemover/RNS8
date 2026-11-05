@@ -91,6 +91,16 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(pointer_device == 0);
   CHECK(grouped_resources.device_id == 0);
   REQUIRE(grouped_resources.c_matrices.size() == 2);
+  CHECK_FALSE(grouped_resources.a_residue_ptrs.pending());
+  grouped_resources.mark_pending();
+  REQUIRE(rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(
+              descriptor, grouped_resources, &pointer_device) == RNS8_SUCCESS);
+  // Completing the host table upload must not cancel an enclosing device lease.
+  CHECK(grouped_resources.a_residue_ptrs.pending());
+  CHECK(grouped_resources.b_residue_ptrs.pending());
+  CHECK(grouped_resources.c_residue_ptrs.pending());
+  REQUIRE(rns8::detail::hip_direct_synchronize(0) == RNS8_SUCCESS);
+  grouped_resources.mark_completed();
   REQUIRE(rns8::detail::hip_direct_pack_grouped_u64_task_inputs(descriptor, grouped_resources,
                                                                 grouped_a_slab, grouped_b_slab, 2,
                                                                 2, 101) == RNS8_SUCCESS);
