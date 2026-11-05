@@ -82,112 +82,14 @@ rns8_status status_from_hipblas(hipblasStatus_t status) {
   return RNS8_BACKEND_FAILURE;
 }
 
-hipError_t create_recorded_timing_event_pair(hip_unique_event_pair& events) {
-  for (int attempt = 0; attempt < 2; ++attempt) {
-    const hipError_t status = events.create_and_record_start();
-    if (status == hipSuccess) {
-      return hipSuccess;
-    }
-    events.reset();
-    (void)hipDeviceSynchronize();
-  }
-  return hipErrorUnknown;
-}
-
-void record_synchronized_host_timing(const char* label,
-                                     std::chrono::steady_clock::time_point start) {
-  (void)hipDeviceSynchronize();
-  const auto stop = std::chrono::steady_clock::now();
-  const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
-  hip_direct_timing_record_failure(label, "synchronized_host_fallback", -1);
-  hip_direct_timing_record_sample((std::string("host_synchronized_fallback:") + label).c_str(),
-                                  microseconds);
-}
-
-bool record_elapsed_event_sample(const char* label, hipEvent_t start, hipEvent_t stop) {
-  hipError_t sync_status = hipEventSynchronize(stop);
-  if (sync_status != hipSuccess) {
-    (void)hipDeviceSynchronize();
-    sync_status = hipEventSynchronize(stop);
-  }
-  if (sync_status != hipSuccess) {
-    return false;
-  }
-  float milliseconds = 0.0f;
-  hipError_t elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
-  if (elapsed_status != hipSuccess) {
-    (void)hipDeviceSynchronize();
-    elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
-  }
-  if (elapsed_status != hipSuccess || milliseconds < 0.0f) {
-    return false;
-  }
-  hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
-  return true;
-}
-
 template <typename Fn> hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
-  if (!hip_direct_timing_enabled()) {
-    return fn();
-  }
-  const auto host_start = std::chrono::steady_clock::now();
-  hip_unique_event_pair events;
-  if (create_recorded_timing_event_pair(events) != hipSuccess) {
-    const hipblasStatus_t status = fn();
-    if (status == HIPBLAS_STATUS_SUCCESS) {
-      record_synchronized_host_timing(label, host_start);
-    }
-    return status;
-  }
-  const hipblasStatus_t status = fn();
-  if (status == HIPBLAS_STATUS_SUCCESS) {
-    // hipBLASLt may enqueue work in a way that is not reliably delimited by
-    // default-stream stop events on small Windows RDNA3 captures. This path is
-    // active only for benchmark event timing; normal runtime calls bypass it.
-    (void)hipDeviceSynchronize();
-    hipError_t err = events.record_stop();
-    if (err != hipSuccess) {
-      (void)hipDeviceSynchronize();
-      err = events.record_stop();
-    }
-    if (err == hipSuccess) {
-      if (record_elapsed_event_sample(label, events.start(), events.stop())) {
-        return status;
-      }
-    }
-    record_synchronized_host_timing(label, host_start);
-  }
-  return status;
+  return timed_hip_backend_operation(
+      label, nullptr, std::forward<Fn>(fn), HIPBLAS_STATUS_SUCCESS,
+      [](hipError_t) { return HIPBLAS_STATUS_EXECUTION_FAILED; }, nullptr, true);
 }
 
 template <typename Fn> hipError_t timed_hip_operation(const char* label, Fn&& fn) {
-  if (!hip_direct_timing_enabled()) {
-    return fn();
-  }
-  const auto host_start = std::chrono::steady_clock::now();
-  hip_unique_event_pair events;
-  if (create_recorded_timing_event_pair(events) != hipSuccess) {
-    const hipError_t status = fn();
-    if (status == hipSuccess) {
-      record_synchronized_host_timing(label, host_start);
-    }
-    return status;
-  }
-  const hipError_t status = fn();
-  if (status == hipSuccess) {
-    hipError_t err = events.record_stop();
-    if (err != hipSuccess) {
-      (void)hipDeviceSynchronize();
-      err = events.record_stop();
-    }
-    if (err == hipSuccess) {
-      if (record_elapsed_event_sample(label, events.start(), events.stop())) {
-        return status;
-      }
-    }
-    record_synchronized_host_timing(label, host_start);
-  }
-  return status;
+  return timed_hip_backend_launch(label, nullptr, std::forward<Fn>(fn));
 }
 
 struct matmul_descriptors {

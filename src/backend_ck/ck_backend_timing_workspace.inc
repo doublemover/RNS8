@@ -39,123 +39,14 @@ void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* 
   std::snprintf(buffer, size, "ck_prefix_%02d_%s", prefix_index, suffix);
 }
 
-void record_synchronized_host_timing(const char* label, const char* alias,
-                                     std::chrono::steady_clock::time_point start) {
-  (void)hipDeviceSynchronize();
-  const auto stop = std::chrono::steady_clock::now();
-  const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
-  rns8::detail::hip_direct_timing_record_failure(label, "synchronized_host_fallback", -1);
-  rns8::detail::hip_direct_timing_record_sample(
-      (std::string("host_synchronized_fallback:") + label).c_str(), microseconds);
-  if (alias && alias[0] != '\0') {
-    rns8::detail::hip_direct_timing_record_failure(alias, "synchronized_host_fallback", -1);
-    rns8::detail::hip_direct_timing_record_sample(
-        (std::string("host_synchronized_fallback:") + alias).c_str(), microseconds);
-  }
-}
-
-template <typename Fn>
-hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn,
-                            hipStream_t stream = nullptr) {
-  if (stream || !rns8::detail::hip_direct_timing_enabled()) {
-    return fn();
-  }
-  const auto host_start = std::chrono::steady_clock::now();
-  rns8::detail::hip_unique_event_pair events;
-  if (!rns8::detail::hip_create_timing_events_with_retry(events)) {
-    const hipError_t status = fn();
-    if (status == hipSuccess) {
-      record_synchronized_host_timing(label, alias, host_start);
-    }
-    return status;
-  }
-  hipError_t status = fn();
-  if (status == hipSuccess) {
-    hipError_t stop_status = hipEventRecord(events.stop(), nullptr);
-    if (stop_status != hipSuccess) {
-      rns8::detail::hip_direct_timing_flush_pending_events();
-      (void)hipDeviceSynchronize();
-      stop_status = hipEventRecord(events.stop(), nullptr);
-    }
-    if (stop_status == hipSuccess) {
-      hipError_t sync_status = hipEventSynchronize(events.stop());
-      if (sync_status != hipSuccess) {
-        (void)hipDeviceSynchronize();
-        sync_status = hipEventSynchronize(events.stop());
-      }
-      if (sync_status == hipSuccess) {
-        float milliseconds = 0.0f;
-        hipError_t elapsed_status =
-            hipEventElapsedTime(&milliseconds, events.start(), events.stop());
-        if (elapsed_status != hipSuccess) {
-          (void)hipDeviceSynchronize();
-          elapsed_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
-        }
-        if (elapsed_status == hipSuccess && milliseconds >= 0.0f) {
-          const double microseconds = static_cast<double>(milliseconds) * 1000.0;
-          rns8::detail::hip_direct_timing_record_sample(label, microseconds);
-          if (alias && alias[0] != '\0') {
-            rns8::detail::hip_direct_timing_record_sample(alias, microseconds);
-          }
-          return status;
-        }
-      }
-    }
-    record_synchronized_host_timing(label, alias, host_start);
-  }
-  return status;
-}
+using rns8::detail::timed_hip_backend_launch;
 
 template <typename Fn>
 int timed_ck_operation(const char* label, const char* alias, Fn&& fn,
                        hipStream_t stream = nullptr) {
-  if (stream || !rns8::detail::hip_direct_timing_enabled()) {
-    return fn();
-  }
-  const auto host_start = std::chrono::steady_clock::now();
-  rns8::detail::hip_unique_event_pair events;
-  if (!rns8::detail::hip_create_timing_events_with_retry(events)) {
-    const int status = fn();
-    if (status == ck_success) {
-      record_synchronized_host_timing(label, alias, host_start);
-    }
-    return status;
-  }
-  const int status = fn();
-  if (status == ck_success) {
-    hipError_t stop_status = hipEventRecord(events.stop(), nullptr);
-    if (stop_status != hipSuccess) {
-      rns8::detail::hip_direct_timing_flush_pending_events();
-      (void)hipDeviceSynchronize();
-      stop_status = hipEventRecord(events.stop(), nullptr);
-    }
-    if (stop_status == hipSuccess) {
-      hipError_t sync_status = hipEventSynchronize(events.stop());
-      if (sync_status != hipSuccess) {
-        (void)hipDeviceSynchronize();
-        sync_status = hipEventSynchronize(events.stop());
-      }
-      if (sync_status == hipSuccess) {
-        float milliseconds = 0.0f;
-        hipError_t elapsed_status =
-            hipEventElapsedTime(&milliseconds, events.start(), events.stop());
-        if (elapsed_status != hipSuccess) {
-          (void)hipDeviceSynchronize();
-          elapsed_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
-        }
-        if (elapsed_status == hipSuccess && milliseconds >= 0.0f) {
-          const double microseconds = static_cast<double>(milliseconds) * 1000.0;
-          rns8::detail::hip_direct_timing_record_sample(label, microseconds);
-          if (alias && alias[0] != '\0') {
-            rns8::detail::hip_direct_timing_record_sample(alias, microseconds);
-          }
-          return status;
-        }
-      }
-    }
-    record_synchronized_host_timing(label, alias, host_start);
-  }
-  return status;
+  return rns8::detail::timed_hip_backend_operation(
+      label, alias, std::forward<Fn>(fn), int(ck_success),
+      [](hipError_t) { return int(ck_backend_failure); }, stream);
 }
 
 template <ck::index_t... Is> using S = ck::Sequence<Is...>;

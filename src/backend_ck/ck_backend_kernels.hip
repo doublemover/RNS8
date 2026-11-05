@@ -1,7 +1,6 @@
 #include "../backend_common/packed_gemm_layout.hpp"
-#include "../core/hip_runtime_handles.hpp"
+#include "../backend_common/hip_backend_timing.hpp"
 
-#include <chrono>
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
@@ -35,15 +34,6 @@ struct rns8_plan_tile_schedule_entry {
   uint32_t group_index;
   uint32_t range_bit_length;
 };
-
-namespace rns8::detail {
-bool hip_direct_timing_enabled();
-void hip_direct_timing_flush_pending_events();
-void hip_direct_timing_record_sample(const char* label, double microseconds);
-void hip_direct_timing_record_failure(const char* label, const char* phase,
-                                      int backend_status) noexcept;
-
-} // namespace rns8::detail
 
 #include "ck_backend_timing_workspace.inc"
 #include "ck_backend_gemm_kernels.inc"

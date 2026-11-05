@@ -150,7 +150,7 @@ int run_ck_tile_modulus_impl(const int8_t* a, const int8_t* b, int8_t* c, int8_t
     if (!GemmInstance::IsSupportedArgument(arg)) {
       return ck_unsupported_backend;
     }
-    hipError_t err = timed_hip_launch(
+    hipError_t err = timed_hip_backend_launch(
         pack_a_timing_label, pack_a_alias,
         [&]() {
           return launch_pack_a(a, a_workspace, m, gemm_m, valid_k_block, gemm_k_block, lda,
@@ -160,7 +160,7 @@ int run_ck_tile_modulus_impl(const int8_t* a, const int8_t* b, int8_t* c, int8_t
     if (err != hipSuccess) {
       return ck_backend_failure;
     }
-    err = timed_hip_launch(
+    err = timed_hip_backend_launch(
         pack_b_timing_label, pack_b_alias,
         [&]() {
           return launch_pack_b(b, b_workspace, valid_k_block, gemm_k_block, n, gemm_n, ldb,
@@ -189,14 +189,14 @@ int run_ck_tile_modulus_impl(const int8_t* a, const int8_t* b, int8_t* c, int8_t
     }
     if (write_workspace_output) {
       if (have_accumulated) {
-        err = timed_hip_launch(
+        err = timed_hip_backend_launch(
             add_timing_label, add_alias,
             [&]() {
               return launch_add_centered(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal, stream);
             },
             stream);
       } else {
-        err = timed_hip_launch(
+        err = timed_hip_backend_launch(
             copy_timing_label, copy_alias,
             [&]() { return launch_copy_centered(temp_c, c, m, n, gemm_n, ldc, stream); }, stream);
       }

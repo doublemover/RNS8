@@ -114,7 +114,7 @@ int launch_pack_and_gemm(const int8_t* a, const int8_t* b, int8_t* c, int8_t* a_
       // never survives the wrapper call or aliases a different workspace.
       if (packing)
         packing->a = {};
-      err = timed_hip_launch(
+      err = timed_hip_backend_launch(
           pack_a_timing_label, pack_a_alias,
           [&]() {
             pack_a_rowmajor_kernel<<<pack_a_grid, pack_block, 0, stream>>>(
@@ -136,7 +136,7 @@ int launch_pack_and_gemm(const int8_t* a, const int8_t* b, int8_t* c, int8_t* a_
     } else {
       if (packing)
         packing->b = {};
-      err = timed_hip_launch(
+      err = timed_hip_backend_launch(
           pack_b_timing_label, pack_b_alias,
           [&]() {
             pack_b_colmajor_kernel<<<pack_b_grid, pack_block, 0, stream>>>(
@@ -154,7 +154,7 @@ int launch_pack_and_gemm(const int8_t* a, const int8_t* b, int8_t* c, int8_t* a_
     }
     const dim3 grid(static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
                     static_cast<unsigned int>(padded_rows / kRns8WmmaTileM), 1);
-    err = timed_hip_launch(
+    err = timed_hip_backend_launch(
         matmul_timing_label, matmul_alias,
         [&]() {
           rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads, 0, stream>>>(
@@ -315,7 +315,7 @@ int launch_pack_a_and_gemm_prepacked_b(const int8_t* a, const int8_t* b_pack, in
     if (packing->stats)
       ++packing->stats->direct_a_blocks;
   } else {
-    err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
+    err = timed_hip_backend_launch(pack_a_timing_label, pack_a_alias, [&]() {
       pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(a, a_pack, rows, padded_rows, k,
                                                           gemm_k_block, lda, 0);
       return hipGetLastError();
@@ -327,7 +327,7 @@ int launch_pack_a_and_gemm_prepacked_b(const int8_t* a, const int8_t* b_pack, in
   }
   const dim3 grid(static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
                   static_cast<unsigned int>(padded_rows / kRns8WmmaTileM), 1);
-  err = timed_hip_launch(matmul_timing_label, matmul_alias, [&]() {
+  err = timed_hip_backend_launch(matmul_timing_label, matmul_alias, [&]() {
     rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
         direct ? a : a_pack, b_pack, c, rows, cols, padded_rows, padded_cols, gemm_k_block,
         direct ? lda : gemm_k_block, ldc, modulus, reciprocal, 0);

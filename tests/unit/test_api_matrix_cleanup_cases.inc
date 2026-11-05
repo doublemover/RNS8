@@ -1,8 +1,38 @@
 #include "core/matrix_cleanup.hpp"
 #include "core/export_metadata_transaction.hpp"
 #include "core/host_readback_slot.hpp"
+#include "backend_common/completed_observation.hpp"
 #include <array>
 #include <memory>
+
+TEST_CASE("failed completion cannot publish synchronized timing evidence",
+          "[api][lifetime][evidence]") {
+  using rns8::detail::publish_after_completion;
+  unsigned drains = 0, samples = 0;
+  int status = 0;
+  const auto observe = [&] {
+    return publish_after_completion(
+        [&] {
+          ++drains;
+          return status;
+        },
+        [&] { ++samples; });
+  };
+  for (const int failure : {-1, 1, 3, INT32_MAX}) {
+    status = failure;
+    CHECK(observe() == failure);
+    CHECK(samples == 0);
+  }
+  CHECK(drains == 4);
+  status = 0;
+  CHECK(observe() == 0);
+  CHECK(drains == 5);
+  CHECK(samples == 1);
+  status = 3;
+  CHECK(observe() == 3);
+  CHECK(drains == 6);
+  CHECK(samples == 1);
+}
 
 namespace {
 struct MockDeviceBufferOperations {

@@ -56,11 +56,12 @@ int zero_tile_residues(int8_t* c_base, int64_t m, int64_t ldc, int64_t row_offse
         c_base + static_cast<uint64_t>(p) * static_cast<uint64_t>(m) * static_cast<uint64_t>(ldc) +
         static_cast<uint64_t>(row_offset) * static_cast<uint64_t>(ldc) +
         static_cast<uint64_t>(col_offset);
-    const hipError_t status = timed_hip_launch("ck_zero_output_tile_memset", nullptr, [&]() {
-      return hipMemset2D(tile_c, static_cast<std::size_t>(ldc) * sizeof(int8_t), 0,
-                         static_cast<std::size_t>(col_extent) * sizeof(int8_t),
-                         static_cast<std::size_t>(row_extent));
-    });
+    const hipError_t status =
+        timed_hip_backend_launch("ck_zero_output_tile_memset", nullptr, [&]() {
+          return hipMemset2D(tile_c, static_cast<std::size_t>(ldc) * sizeof(int8_t), 0,
+                             static_cast<std::size_t>(col_extent) * sizeof(int8_t),
+                             static_cast<std::size_t>(row_extent));
+        });
     if (status != hipSuccess) {
       return ck_backend_failure;
     }

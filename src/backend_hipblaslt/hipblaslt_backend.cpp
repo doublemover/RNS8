@@ -3,6 +3,7 @@
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/hip_resources.hpp"
+#include "backend_common/hip_backend_timing.hpp"
 #include "core/internal.hpp"
 
 #include <algorithm>

@@ -114,6 +114,16 @@ hash and build provenance. [Performance review](performance.md) owns promotion.
 
 ## Metadata, ownership and execution
 
+The source frontload shares CK/rocWMMA/hipBLASLt's optional launch timing policy. Event
+samples require finite nonnegative elapsed time, and synchronized-host fallback
+samples require a successful drain. Failed completion records the runtime error
+and returns the provider's backend failure instead of publishing timing evidence.
+Host fallback labels remain distinct from GPU-event labels; nondefault-stream
+enqueue paths bypass this instrumentation. These repairs and their portable
+publication controls still await the combined runtime validation batch.
+hipBLASLt retains its explicitly synchronized pre-stop boundary only inside
+diagnostic timing; a failed synchronization now prevents sample publication.
+
 `rns8_get_backend_capability_info` reports compiled/source metadata;
 `rns8_get_plan_backend_info` adds selected kernel, accumulation and workspace;
 `rns8_get_plan_packing_info` reports domains/currentness and continuations.
