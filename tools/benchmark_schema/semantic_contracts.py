@@ -8,6 +8,7 @@ from .core_shared import (
     _is_int,
 )
 from .semantic_bounded import validate_bounded_contract
+from .semantic_context import SemanticContext
 from .semantic_exact_wide import validate_exact_wide_contract
 from .semantic_finite import validate_finite_u8_contract
 from .semantic_wrap64 import validate_wrap64_contract
@@ -85,20 +86,20 @@ def validate_semantic_contract(self) -> None:
             "benchmark_execution_mode=residue_chain_independent_final_host_export requires "
             "residue_chain_independent_final_export=true"
         )
-    ctx = {
-        "semantics": semantics,
-        "prefix": prefix,
-        "packed_layout": packed_layout,
-        "schedule": schedule,
-        "backend_metadata": backend_metadata,
-        "k_value": k_value,
-        "bound_mode": bound_mode,
-        "residue_chain_length": residue_chain_length,
-        "residue_output_mode": residue_output_mode,
-        "status_check": status_check,
-        "prefix_policy": prefix_policy,
-        "metadata": metadata,
-    }
+    ctx = SemanticContext(
+        semantics=semantics,
+        prefix=prefix,
+        packed_layout=packed_layout,
+        schedule=schedule,
+        backend_metadata=backend_metadata,
+        k_value=k_value,
+        bound_mode=bound_mode,
+        residue_chain_length=residue_chain_length,
+        residue_output_mode=residue_output_mode,
+        status_check=status_check,
+        prefix_policy=prefix_policy,
+        metadata=metadata,
+    )
     if semantics == "wrap_u64_mod_2_64":
         validate_wrap64_contract(self, ctx)
     elif text_choice(semantics, {"bounded_i64", "bounded_u64"}):

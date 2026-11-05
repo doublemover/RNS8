@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from evidence_scalars import text_choice
 
-from typing import Any
+from .semantic_context import SemanticContext
 from ck_kernel_contract import ck_kernel_family, ck_selected_kernel
 
 from .core_shared import (
@@ -28,19 +28,14 @@ from .core_shared import (
     _is_prime_modulus,
 )
 
-def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
-    semantics = ctx['semantics']
-    prefix = ctx['prefix']
-    packed_layout = ctx['packed_layout']
-    schedule = ctx['schedule']
-    backend_metadata = ctx['backend_metadata']
-    k_value = ctx['k_value']
-    bound_mode = ctx['bound_mode']
-    residue_chain_length = ctx['residue_chain_length']
-    residue_output_mode = ctx['residue_output_mode']
-    status_check = ctx['status_check']
-    prefix_policy = ctx['prefix_policy']
-    metadata = ctx['metadata']
+def validate_finite_u8_contract(self, ctx: SemanticContext) -> None:
+    semantics = ctx.semantics
+    prefix = ctx.prefix
+    packed_layout = ctx.packed_layout
+    schedule = ctx.schedule
+    backend_metadata = ctx.backend_metadata
+    bound_mode = ctx.bound_mode
+    metadata = ctx.metadata
     finite_oneshot_capture = self._is_finite_oneshot_capture()
     if finite_oneshot_capture:
         if self.data.get("benchmark") != "rns8_finite_u8_public_oneshot":

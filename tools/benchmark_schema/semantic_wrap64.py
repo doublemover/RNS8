@@ -2,26 +2,21 @@ from __future__ import annotations
 
 from evidence_scalars import text_choice
 
-from typing import Any
+from .semantic_context import SemanticContext
 
 from .core_shared import (
     WRAP64_ROCWMMA_CANDIDATE_KERNEL,
     wrap64_hip_allowed_kernels,
 )
 
-def validate_wrap64_contract(self, ctx: dict[str, Any]) -> None:
-    semantics = ctx['semantics']
-    prefix = ctx['prefix']
-    packed_layout = ctx['packed_layout']
-    schedule = ctx['schedule']
-    backend_metadata = ctx['backend_metadata']
-    k_value = ctx['k_value']
-    bound_mode = ctx['bound_mode']
-    residue_chain_length = ctx['residue_chain_length']
-    residue_output_mode = ctx['residue_output_mode']
-    status_check = ctx['status_check']
-    prefix_policy = ctx['prefix_policy']
-    metadata = ctx['metadata']
+def validate_wrap64_contract(self, ctx: SemanticContext) -> None:
+    prefix = ctx.prefix
+    packed_layout = ctx.packed_layout
+    schedule = ctx.schedule
+    backend_metadata = ctx.backend_metadata
+    k_value = ctx.k_value
+    bound_mode = ctx.bound_mode
+    metadata = ctx.metadata
     is_candidate = self._is_wrap64_rocwmma_candidate()
     if not text_choice(self.data.get("backend_selected"), {"wrap64-byte-limb", "hip-direct"}) and not is_candidate:
         self._error(

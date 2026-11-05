@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from evidence_scalars import text_choice
 
-from typing import Any
+from .semantic_context import SemanticContext
 
 from .core_shared import (
     _is_int,
@@ -13,22 +13,21 @@ from metadata_registry_constants import (
     EXACT_WIDE_UNSIGNED_EXPORT_KERNELS,
 )
 
-def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
+def validate_exact_wide_contract(self, ctx: SemanticContext) -> None:
     from .wide_magnitude import validate_magnitude
     for message in validate_magnitude(self.data):
         self._error(message)
-    semantics = ctx['semantics']
-    prefix = ctx['prefix']
-    packed_layout = ctx['packed_layout']
-    schedule = ctx['schedule']
-    backend_metadata = ctx['backend_metadata']
-    k_value = ctx['k_value']
-    bound_mode = ctx['bound_mode']
-    residue_chain_length = ctx['residue_chain_length']
-    residue_output_mode = ctx['residue_output_mode']
-    status_check = ctx['status_check']
-    prefix_policy = ctx['prefix_policy']
-    metadata = ctx['metadata']
+    semantics = ctx.semantics
+    prefix = ctx.prefix
+    packed_layout = ctx.packed_layout
+    schedule = ctx.schedule
+    backend_metadata = ctx.backend_metadata
+    bound_mode = ctx.bound_mode
+    residue_chain_length = ctx.residue_chain_length
+    residue_output_mode = ctx.residue_output_mode
+    status_check = ctx.status_check
+    prefix_policy = ctx.prefix_policy
+    metadata = ctx.metadata
     if not text_choice(self.data.get("backend_selected"), {
         "cpu-reference",
         "hip-direct",

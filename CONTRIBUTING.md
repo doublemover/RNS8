@@ -58,6 +58,8 @@ Production benchmark-schema modules also use explicit imports from the owning
 predicate/metadata modules. They do not inherit a wildcard namespace or forward
 unrelated helpers through the validator class module. Keep these imports explicit
 when adding validation contracts; the structure suite checks fresh-process imports.
+Semantic dispatch uses a required, slotted field record. Raw capture fields stay
+`object` until their validators admit them; constructing the record is not admission.
 Sweep command controls assert visibility masks, unique shard destinations and
 metadata-to-argv agreement; a tiny authored catalog checks that removing masks
 or reuse flags, or aliasing outputs, is rejected without launching a workload.

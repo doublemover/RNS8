@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from evidence_scalars import text_choice
 
-from typing import Any
+from .semantic_context import SemanticContext
 
 from .core_shared import (
     DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE,
@@ -44,19 +44,17 @@ from metadata_registry_constants import (
     BOUNDED_U64_EXPORT_KERNELS,
 )
 
-def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
-    semantics = ctx['semantics']
-    prefix = ctx['prefix']
-    packed_layout = ctx['packed_layout']
-    schedule = ctx['schedule']
-    backend_metadata = ctx['backend_metadata']
-    k_value = ctx['k_value']
-    bound_mode = ctx['bound_mode']
-    residue_chain_length = ctx['residue_chain_length']
-    residue_output_mode = ctx['residue_output_mode']
-    status_check = ctx['status_check']
-    prefix_policy = ctx['prefix_policy']
-    metadata = ctx['metadata']
+def validate_bounded_contract(self, ctx: SemanticContext) -> None:
+    semantics = ctx.semantics
+    prefix = ctx.prefix
+    packed_layout = ctx.packed_layout
+    schedule = ctx.schedule
+    backend_metadata = ctx.backend_metadata
+    bound_mode = ctx.bound_mode
+    residue_chain_length = ctx.residue_chain_length
+    residue_output_mode = ctx.residue_output_mode
+    prefix_policy = ctx.prefix_policy
+    metadata = ctx.metadata
     oneshot_capture = self._is_bounded_oneshot_capture()
     native_a_reuse_b_capture = self._is_direct_hip_bounded_native_a_reuse_b_capture()
     streaming_overlap_capture = self._is_streaming_overlap_capture()
