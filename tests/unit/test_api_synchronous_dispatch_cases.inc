@@ -4,18 +4,26 @@ struct SynchronousDispatchFixture {
   std::vector<const rns8_matrix*> writers;
   const rns8_workspace* workspace=nullptr;
   std::vector<const uint64_t*> private_owners;
+  const rns8_context* owner_context=nullptr;
+  bool expect_owner_only=false;
+  const char* target_operation=nullptr;
   unsigned calls=0,drains=0;
   bool fail=false,throw_after_issue=false,drain_fails=false,reservations_observed=false,write_started_on_failure=true;
-  static rns8_status dispatch(void* opaque,const char*,bool* started) {
+  static rns8_status dispatch(void* opaque,const char* operation,bool* started) {
     auto& s=*static_cast<SynchronousDispatchFixture*>(opaque);++s.calls;
     s.reservations_observed=true;
     for(auto* matrix:s.readers)s.reservations_observed&=matrix->in_flight_readers>0;
     for(auto* matrix:s.writers)s.reservations_observed&=matrix->in_flight_writer;
     if(s.workspace)s.reservations_observed&=s.workspace->in_flight;
     for(auto* counter:s.private_owners)s.reservations_observed&=*counter>0;
-    if(s.fail && started && s.write_started_on_failure)*started=true; // simulated issue; no faulty device work
-    if(s.throw_after_issue)throw std::bad_alloc{};
-    return s.fail?RNS8_BACKEND_FAILURE:RNS8_SUCCESS;
+    if(s.owner_context){
+      const auto& record=s.owner_context->failed_work_leases.back();
+      s.reservations_observed&=record.owner_only==s.expect_owner_only && record.owner_holds[0] && *record.owner_holds[0]>0;
+    }
+    const bool trigger=!s.target_operation || std::string(operation)==s.target_operation;
+    if(trigger && s.fail && started && s.write_started_on_failure)*started=true; // simulated issue; no faulty device work
+    if(trigger && s.throw_after_issue)throw std::bad_alloc{};
+    return trigger && s.fail?RNS8_BACKEND_FAILURE:RNS8_SUCCESS;
   }
   static rns8_status drain(void* opaque) noexcept {
     auto& s=*static_cast<SynchronousDispatchFixture*>(opaque);++s.drains;
@@ -305,5 +313,101 @@ TEST_CASE("sparse upload failure seam retains real host and device owners withou
       CHECK(matrix->source_version==3);CHECK(matrix->cache_key.find("source_version=3")!=std::string::npos);CHECK(matrix->device_current);
     }
     REQUIRE(rns8_destroy_sparse_matrix(matrix)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
+}
+
+TEST_CASE("unpublished prepack retirement retains staging until completion custody releases", "[api][prepack][lifetime]") {
+  using namespace rns8::detail::api;
+  for(bool native:{false,true})for(bool throws:{false,true}){
+    CAPTURE(native,throws);
+    auto* ctx=create_cpu_context();rns8_matrix source{};
+    SynchronousDispatchFixture state;state.drain_fails=true;
+    const rns8_synchronous_test_hooks hooks{&state,nullptr,&SynchronousDispatchFixture::drain};
+    ctx->synchronous_test_hooks=&hooks;
+    auto retire=[&](rns8_prepack_cache* cache){retire_unpublished_prepack_cache(*ctx,cache);};
+    auto* retained=new rns8_prepack_cache();
+    const std::vector<uint64_t> words{0,UINT64_MAX,uint64_t{1}<<63};
+    retained->native_staging_words=words;
+    try {
+      std::unique_ptr<rns8_prepack_cache,decltype(retire)> owner(retained,retire);
+      size_t token=0;
+      REQUIRE((native?begin_synchronous_owner_lease(*ctx,token):begin_synchronous_read_lease(*ctx,source,token))==RNS8_SUCCESS);
+      SynchronousLease custody(*ctx,token);
+      REQUIRE(add_synchronous_owner_hold(*ctx,token,retained->in_flight_readers)==RNS8_SUCCESS);
+      REQUIRE(custody.hold_buffer(retained->data_owner)==RNS8_SUCCESS);
+      REQUIRE(custody.hold_buffer(retained->native_upload_owner)==RNS8_SUCCESS);
+      if(throws)throw std::bad_alloc{};
+      CHECK(custody.finish(RNS8_BACKEND_FAILURE)==RNS8_BACKEND_FAILURE);
+    } catch(const std::bad_alloc&) {CHECK(throws);}
+    REQUIRE(ctx->failed_prepack_cleanup==retained);CHECK(ctx->hip_failure_poisoned);
+    CHECK(retained->in_flight_readers==1);CHECK(retained->native_staging_words==words);
+    CHECK(retained->data_owner.pending());CHECK(retained->native_upload_owner.pending());
+    CHECK(source.in_flight_readers==(native?0:1));
+    CHECK(rns8_destroy_prepack_cache(retained)==RNS8_BUSY);
+    retire_unpublished_prepack_cache(*ctx,retained);
+    CHECK(retained->failed_cleanup_next==nullptr); // duplicate retirement cannot form a cycle
+    CHECK(rns8_drain_failed_work(ctx)==RNS8_BACKEND_FAILURE);
+    CHECK(ctx->failed_prepack_cleanup==retained);CHECK(retained->native_staging_words==words);
+    state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
+    CHECK(ctx->failed_prepack_cleanup==nullptr);CHECK(ctx->failed_work_leases.empty());
+    CHECK(source.in_flight_readers==0);CHECK(ctx->hip_failure_poisoned);
+    REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
+    ctx->synchronous_test_hooks=nullptr;REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
+}
+
+TEST_CASE("public prepack construction retains unpublished device and native staging owners", "[api][prepack][hip][lifetime]") {
+  if(!rns8::detail::rocwmma_compiled())SKIP("rocWMMA prepack provider not compiled");
+  for(unsigned kind=0;kind<3;++kind)for(bool publish:{false,true})for(bool throws:{false,true})for(bool uncertain:{false,true}){
+    CAPTURE(kind,publish,throws,uncertain);
+    const bool native=kind!=0,u=kind==2;
+    rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
+    options.requested_backend=RNS8_BACKEND_ROCWMMA;rns8_context* ctx=nullptr;
+    const auto created=rns8_create_context(0,&options,&ctx);
+    if(created==RNS8_UNSUPPORTED_BACKEND || created==RNS8_UNSUPPORTED_ARCH)SKIP("no applicable rocWMMA prepack device");
+    REQUIRE(created==RNS8_SUCCESS);
+    auto desc=bounded_gemm_desc(u?RNS8_BOUNDED_U64:RNS8_BOUNDED_I64,1,3,2);
+    desc.requested_backend=RNS8_BACKEND_ROCWMMA;rns8_plan* plan=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+    constexpr int64_t ld=8; // minimal final-row extent, with padding on preceding rows
+    std::vector<int64_t> signed_values{INT64_MIN,-1,INT64_MAX,77,77,77,77,77,0,1,-7};
+    std::vector<uint64_t> unsigned_values{0,UINT64_MAX,uint64_t{1}<<63,77,77,77,77,77,1,7,UINT64_MAX-1};
+    std::vector<uint64_t> expected_words;
+    for(size_t row=0;row<2;++row)for(size_t col=0;col<3;++col)
+      expected_words.push_back(u?unsigned_values[row*ld+col]:static_cast<uint64_t>(signed_values[row*ld+col]));
+    rns8_matrix* source=nullptr;
+    if(!native){
+      auto md=bounded_matrix_desc(2,3,desc.semantics);
+      REQUIRE(rns8_create_matrix(ctx,&md,&source)==RNS8_SUCCESS);
+      REQUIRE(rns8_pack_i64(ctx,source,signed_values.data(),ld,1)==RNS8_SUCCESS);
+    }
+    SynchronousDispatchFixture state;state.fail=true;state.throw_after_issue=throws;state.drain_fails=uncertain;
+    state.owner_context=ctx;state.expect_owner_only=native;
+    if(source)state.readers={source};
+    state.target_operation=native?(publish?"prepack_native_publish":"prepack_native_create"):
+        (publish?"prepack_rns_publish":"prepack_rns_create");
+    const rns8_synchronous_test_hooks hooks{&state,&SynchronousDispatchFixture::dispatch,&SynchronousDispatchFixture::drain};
+    ctx->synchronous_test_hooks=&hooks;rns8_prepack_cache* cache=nullptr;
+    const auto status=!native?rns8_create_prepack_cache(ctx,plan,source,RNS8_OPERAND_B,&cache):
+        u?rns8_create_b_prepack_cache_u64(ctx,plan,unsigned_values.data(),ld,1,&cache):
+          rns8_create_b_prepack_cache_i64(ctx,plan,signed_values.data(),ld,1,&cache);
+    CHECK(status==(throws?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE));CHECK(cache==nullptr);
+    CHECK(state.calls==(publish?2:1));CHECK(state.reservations_observed);
+    if(uncertain){
+      auto* retained=ctx->failed_prepack_cleanup;REQUIRE(retained!=nullptr);
+      CHECK(ctx->hip_failure_poisoned);CHECK(retained->in_flight_readers==1);
+      CHECK(retained->data_owner.pending());CHECK(retained->native_upload_owner.pending());
+      CHECK(rns8_destroy_prepack_cache(retained)==RNS8_BUSY);
+      if(native){
+        REQUIRE(retained->native_staging_words==expected_words);
+        std::fill(signed_values.begin(),signed_values.end(),0);std::fill(unsigned_values.begin(),unsigned_values.end(),0);
+        CHECK(retained->native_staging_words==expected_words);CHECK(retained->native_upload_owner.get()!=nullptr);
+      }else{CHECK(source->in_flight_readers==1);CHECK(rns8_destroy_matrix(source)==RNS8_BUSY);}
+      state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
+    }
+    CHECK(ctx->failed_prepack_cleanup==nullptr);CHECK(ctx->failed_work_leases.empty());
+    ctx->synchronous_test_hooks=nullptr;
+    REQUIRE(rns8_destroy_matrix(source)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
   }
 }

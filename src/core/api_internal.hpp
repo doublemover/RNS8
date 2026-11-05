@@ -747,6 +747,8 @@ rns8_status validate_finite_export_matrix(
 rns8_status free_hip_matrix_storage(rns8_matrix& matrix);
 rns8_status drain_failed_ragged_cleanup(rns8_context& ctx);
 rns8_status drain_failed_native_cleanup(rns8_context& ctx);
+rns8_status drain_failed_prepack_cleanup(rns8_context& ctx) noexcept;
+void retire_unpublished_prepack_cache(rns8_context&,rns8_prepack_cache*) noexcept;
 
 rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix);
 

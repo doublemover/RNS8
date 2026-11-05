@@ -1,3 +1,37 @@
+namespace rns8::detail::api {
+void retire_unpublished_prepack_cache(rns8_context& ctx,rns8_prepack_cache* cache) noexcept {
+  if(!cache || cache->failed_cleanup_retired)return;
+  if(rns8_destroy_prepack_cache(cache)==RNS8_SUCCESS)return;
+  ctx.hip_failure_poisoned=true;cache->failed_cleanup_retired=true;
+  cache->failed_cleanup_next=ctx.failed_prepack_cleanup;ctx.failed_prepack_cleanup=cache;
+}
+rns8_status drain_failed_prepack_cleanup(rns8_context& ctx) noexcept {
+  while(ctx.failed_prepack_cleanup){
+    auto* cache=ctx.failed_prepack_cleanup;auto* next=cache->failed_cleanup_next;
+    const auto status=rns8_destroy_prepack_cache(cache);
+    if(status!=RNS8_SUCCESS)return status;
+    ctx.failed_prepack_cleanup=next;
+  }
+  return RNS8_SUCCESS;
+}
+}
+namespace {
+struct UnpublishedPrepackDeleter {
+  rns8_context* ctx;
+  void operator()(rns8_prepack_cache* cache) const noexcept {
+    rns8::detail::api::retire_unpublished_prepack_cache(*ctx,cache);
+  }
+};
+using UnpublishedPrepack=std::unique_ptr<rns8_prepack_cache,UnpublishedPrepackDeleter>;
+rns8_status hold_prepack_construction(rns8_context& ctx,rns8_prepack_cache& cache,
+    rns8::detail::api::SynchronousLease& lease,size_t token) {
+  auto status=rns8::detail::api::add_synchronous_owner_hold(ctx,token,cache.in_flight_readers);
+  if(status==RNS8_SUCCESS)status=lease.hold_buffer(cache.data_owner);
+  if(status==RNS8_SUCCESS)status=lease.hold_buffer(cache.native_upload_owner);
+  return status;
+}
+}
+
 rns8_status rns8_get_prepack_cache_key_info(
     const rns8_plan* plan,
     const rns8_matrix* matrix,
@@ -89,12 +123,14 @@ rns8_status rns8_create_prepack_cache(
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
+    if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
     if (!valid_prepack_operand_role(operand_role)) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (operand_role != RNS8_OPERAND_B || !rocwmma_b_prepack_cache_supported(*plan)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
+    if(matrix->in_flight_writer)return RNS8_BUSY;
     if (!context_accepts_backend(*ctx, plan->backend) || !prepack_operand_matrix_compatible(*plan, *matrix, operand_role) ||
         matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current || matrix->source_version == 0 || matrix->generation_exhausted) {
       return RNS8_INVALID_ARGUMENT;
@@ -109,7 +145,7 @@ rns8_status rns8_create_prepack_cache(
       return RNS8_RANGE_ERROR;
     }
 
-    auto cache_owner = std::unique_ptr<rns8_prepack_cache>(new (std::nothrow) rns8_prepack_cache());
+    UnpublishedPrepack cache_owner(new(std::nothrow) rns8_prepack_cache(),UnpublishedPrepackDeleter{ctx});
     auto* cache = cache_owner.get();
     if (!cache) {
       return RNS8_INTERNAL_ERROR;
@@ -154,6 +190,13 @@ rns8_status rns8_create_prepack_cache(
     if (status != RNS8_SUCCESS) {
       return status;
     }
+    size_t token=0;status=begin_synchronous_read_lease(*ctx,*matrix,token);
+    if(status!=RNS8_SUCCESS)return status;
+    SynchronousLease lease(*ctx,token);
+    status=hold_prepack_construction(*ctx,*cache,lease,token);
+    if(status!=RNS8_SUCCESS)return lease.finish(status);
+    status=synchronous_dispatch_checkpoint(*ctx,"prepack_rns_create");
+    if(status!=RNS8_SUCCESS)return lease.finish(status);
     status = rns8::detail::rocwmma_prepack_b_rns_device(
         ctx->device_id,
         matrix->hip_residues,
@@ -163,6 +206,8 @@ rns8_status rns8_create_prepack_cache(
         plan->desc.n,
         matrix->desc.cols,
         plan->prefix);
+    if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(*ctx,"prepack_rns_publish");
+    status=lease.finish(status);
     if (status != RNS8_SUCCESS) {
       return status;
     }
@@ -191,6 +236,7 @@ rns8_status create_b_prepack_cache_from_native(
       !valid_matrix_access(plan->desc.k, plan->desc.n, ld)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
   if (plan->desc.semantics != expected_semantics || !rocwmma_b_prepack_cache_production_supported(*plan)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
@@ -226,7 +272,7 @@ rns8_status create_b_prepack_cache_from_native(
   synthetic_source.hip_device_id = ctx->device_id;
   synthetic_source.device_native_current = true;
 
-  auto cache_owner = std::unique_ptr<rns8_prepack_cache>(new (std::nothrow) rns8_prepack_cache());
+  UnpublishedPrepack cache_owner(new(std::nothrow) rns8_prepack_cache(),UnpublishedPrepackDeleter{ctx});
   auto* cache = cache_owner.get();
   if (!cache) {
     return RNS8_INTERNAL_ERROR;
@@ -274,27 +320,29 @@ rns8_status create_b_prepack_cache_from_native(
     return status;
   }
 
-  rns8::detail::hip_direct_device_buffer native_owner;
-  void* native_device = nullptr;
-  status = native_owner.allocate_alias(ctx->device_id, native_bytes, native_device);
+  status = cache->native_upload_owner.allocate(ctx->device_id,native_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
 
-  std::vector<NativeT> staged;
-  const NativeT* upload_values = values;
-  if (ld != plan->desc.n) {
-    const auto rows = static_cast<std::size_t>(plan->desc.k);
-    const auto cols = static_cast<std::size_t>(plan->desc.n);
-    staged.resize(rows * cols);
-    for (std::size_t row = 0; row < rows; ++row) {
-      const auto* src_row = values + static_cast<int64_t>(row) * ld;
-      std::copy(src_row, src_row + cols, staged.data() + row * cols);
-    }
-    upload_values = staged.data();
+  static_assert(sizeof(NativeT)==sizeof(uint64_t));
+  const auto rows=static_cast<std::size_t>(plan->desc.k),cols=static_cast<std::size_t>(plan->desc.n);
+  cache->native_staging_words.resize(native_bytes/sizeof(uint64_t));
+  // The DMA source always belongs to the unpublished owner, including the
+  // contiguous-input case. Raw signed/unsigned native word bits are preserved.
+  for(std::size_t row=0;row<rows;++row){
+    std::memcpy(cache->native_staging_words.data()+row*cols,
+        values+static_cast<int64_t>(row)*ld,cols*sizeof(NativeT));
   }
-
-  status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, native_device, upload_values, native_bytes);
+  size_t token=0;status=begin_synchronous_owner_lease(*ctx,token);
+  if(status!=RNS8_SUCCESS)return status;
+  SynchronousLease lease(*ctx,token);
+  status=hold_prepack_construction(*ctx,*cache,lease,token);
+  if(status!=RNS8_SUCCESS)return lease.finish(status);
+  status=synchronous_dispatch_checkpoint(*ctx,"prepack_native_create");
+  if(status!=RNS8_SUCCESS)return lease.finish(status);
+  void* native_device=cache->native_upload_owner.get();
+  status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, native_device, cache->native_staging_words.data(), native_bytes);
   if (status == RNS8_SUCCESS) {
     if constexpr (std::is_same_v<NativeT, int64_t>) {
       status = rns8::detail::rocwmma_prepack_b_native_i64_device(
@@ -319,13 +367,16 @@ rns8_status create_b_prepack_cache_from_native(
     }
   }
 
-  const rns8_status free_status = native_owner.reset();
+  if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(*ctx,"prepack_native_publish");
+  status=lease.finish(status);
   if (status != RNS8_SUCCESS) {
     return status;
   }
+  const auto free_status=cache->native_upload_owner.reset();
   if (free_status != RNS8_SUCCESS) {
     return free_status;
   }
+  std::vector<uint64_t>().swap(cache->native_staging_words);
 
   *out = cache_owner.release();
   return RNS8_SUCCESS;
@@ -420,6 +471,8 @@ rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache) {
     return RNS8_SUCCESS;
   }
   if(cache->in_flight_readers)return RNS8_BUSY;
+  const auto upload_status=cache->native_upload_owner.reset();
+  if(upload_status!=RNS8_SUCCESS)return upload_status;
   rns8_status status = RNS8_SUCCESS;
   if (cache->device_data) {
     status = cache->data_owner.reset_alias(cache->device_data, cache->device_bytes);

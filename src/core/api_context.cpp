@@ -121,11 +121,11 @@ bool finish_synchronous_lease(rns8_context& ctx,size_t token,rns8_status status,
 }
 rns8_status rns8_drain_failed_work(rns8_context* ctx) {
   if(!ctx)return RNS8_INVALID_ARGUMENT;
-  if(ctx->device_id<0 && !ctx->synchronous_test_hooks)return ctx->failed_work_leases.empty()?RNS8_SUCCESS:RNS8_UNSUPPORTED_BACKEND;
+  if(ctx->device_id<0 && !ctx->synchronous_test_hooks)return ctx->failed_work_leases.empty()?drain_failed_prepack_cleanup(*ctx):RNS8_UNSUPPORTED_BACKEND;
   const auto status=drain_synchronous_context(*ctx);if(status!=RNS8_SUCCESS)return status;
   for(size_t i=0;i<ctx->failed_work_leases.size();++i)finish_synchronous_lease(*ctx,i,RNS8_SUCCESS,false);
   // A successful drain releases memory, not the failed context's execution authority.
-  return RNS8_SUCCESS;
+  return drain_failed_prepack_cleanup(*ctx);
 }
 
 rns8_status rns8_create_context(int device_id, const rns8_context_options* options, rns8_context** out) {
@@ -329,6 +329,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 rns8_status rns8_destroy_context(rns8_context* ctx) {
   [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::cleanup);
   if(ctx && !ctx->failed_work_leases.empty()){const auto status=rns8_drain_failed_work(ctx);if(status!=RNS8_SUCCESS)return status;}
+  if(ctx){const auto status=drain_failed_prepack_cleanup(*ctx);if(status!=RNS8_SUCCESS)return status;}
   if (ctx && ctx->prepared_references) return RNS8_BUSY;
   if (ctx) {
     const auto status = drain_failed_ragged_cleanup(*ctx);

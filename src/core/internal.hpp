@@ -50,6 +50,7 @@ struct rns8_context {
   rns8_matrix* failed_matrix_cleanup = nullptr;
   rns8_workspace* failed_workspace_cleanup = nullptr;
   rns8_plan* failed_plan_cleanup = nullptr;
+  rns8_prepack_cache* failed_prepack_cleanup = nullptr;
   rns8_ragged_materialization* failed_ragged_cleanup = nullptr;
   rns8_native_device_lease* active_native_operations = nullptr;
   rns8_native_device_lease* native_leases = nullptr;
@@ -370,8 +371,12 @@ struct rns8_workspace {
 };
 
 struct rns8_prepack_cache {
+  rns8_prepack_cache* failed_cleanup_next=nullptr;
+  bool failed_cleanup_retired=false;
   mutable uint64_t in_flight_readers=0;
   rns8::detail::hip_direct_device_buffer data_owner;
+  rns8::detail::hip_direct_device_buffer native_upload_owner;
+  std::vector<uint64_t> native_staging_words;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_operand_role operand_role = RNS8_OPERAND_B;

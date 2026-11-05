@@ -3,6 +3,7 @@
 #include "backend_common/allocation_observations.hpp"
 
 #include <atomic>
+#include <cstring>
 #include "core/matrix_cleanup.hpp"
 
 namespace rns8::detail::api {

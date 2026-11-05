@@ -482,6 +482,20 @@ upload checkpoint controls are authored and syntax-checked; their runtime
 batch remains deferred. They do not qualify sparse matrix instructions on an
 unsupported target or induce real device faults.
 
+Prepack construction retains its source reader and unpublished cache through
+dispatch, publication and exception unwinding. Native construction first takes
+a compact, cache-owned snapshot of the caller's signed or unsigned word bits,
+including contiguous input. This adds a host copy during cache setup and keeps
+the DMA source alive independently of caller storage. Both the native upload
+buffer and packed device buffer share the existing completion record.
+Uncertain completion retires the whole unpublished cache to its context without
+allocating cleanup metadata; `rns8_drain_failed_work` releases it only after
+completion custody clears. Repeated retirement cannot enqueue it twice, and a
+failed buffer release remains retryable. Successful construction frees upload
+staging before publishing the cache and adds no cleanup synchronization.
+Host retirement controls and optional actual-provider construction checkpoints
+are authored and syntax-checked; runtime validation remains deferred.
+
 
 ## Prepared exact conversion variant
 
