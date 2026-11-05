@@ -214,10 +214,9 @@ class ScenariosCases(unittest.TestCase):
         )
         assert "--tile-shape-variant" in tile_command and "direct-hip-bounded-512-64x64" in tile_command
         graph_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
-        assert len(catalog["hip-graph-replay"]) == 36
-        pass  # set varies
-        pass  # set varies
-        pass  # set varies
+        assert {item.hip_graph_replay for item in catalog["hip-graph-replay"]} == {False, True}
+        assert all(item.family == "hip-graph-replay" for item in catalog["hip-graph-replay"])
+        assert any(not item.hip_graph_replay and item.semantics == graph_item.semantics and item.case == graph_item.case and item.pack_mode == graph_item.pack_mode for item in catalog["hip-graph-replay"])
         graph_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, graph_item)
         graph_command = benchmark_sweep.command_for(
             Path("rns8-bench"),
@@ -389,7 +388,6 @@ class ScenariosCases(unittest.TestCase):
             assert annotated["scenario_metadata"] == metadata
 
         broader_chain_items = catalog["rns-chain-final-output-broader"]
-        assert len(broader_chain_items) >= 1  # lenient
         assert {
             (item.semantics, item.case.m, item.residue_chain_independent_final_export)
             for item in broader_chain_items
@@ -413,7 +411,6 @@ class ScenariosCases(unittest.TestCase):
         assert "--residue-chain-final-export" in broader_chain_command
 
         exact_wide_output_chain_items = catalog["exact-wide-output-chain-broader"]
-        assert len(exact_wide_output_chain_items) >= 1  # lenient
         assert {
             (item.semantics, item.case.m, item.residue_chain_length, item.residue_chain_final_export)
             for item in exact_wide_output_chain_items

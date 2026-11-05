@@ -67,7 +67,7 @@ class ReviewMetadataCases(unittest.TestCase):
         assert ck_candidate["pack_diagnostics"]["pack_median_us"] == 40.0
         assert ck_candidate["pack_diagnostics"]["split_available"] is False
         assert group["shape_family"] == "rectangular"
-        pass  # families vary
+        assert group["scenario_families"] == []
         assert group["scenario_names"] == []
         assert len(group["phase_ratio_summary"]) == 3
         ck_phase_summary = next(item for item in group["phase_ratio_summary"] if item["backend"] == "ck")
@@ -1318,7 +1318,8 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         assert scenario_split_report["group_count"] == 2
-        pass  # lenient
+        assert {tuple(group["scenario_families"]) for group in scenario_split_report["groups"]} == {("many-small",), ("small-oneshot",)}
+        assert all(group["checksum_consistent"] is True for group in scenario_split_report["groups"])
 
         reuse_report = benchmark_sweep.review_captures(
             [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
@@ -1408,7 +1409,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         assert variant_report["group_count"] == 2
-        pass  # lenient
+        assert sorted(group["contract_key"].split("reconstruction_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == ["default_garner", "tree_crt_candidate"]
         assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == [
             "compact-d2h-export-candidate",
             "tree-crt-export-candidate",

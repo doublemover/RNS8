@@ -848,8 +848,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/95",
       "requirements_sha256": "7346417cb52b9aa99020d5a05901d0d7bb728b368933d4c45bf0e48fb38bbe09",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Replace every waived/lenient pass in sweep case modules with real argv, visibility, shard name/path, manifest, family, checksum isolation and variant predicates. Share strict scenario command assertions for shape, semantics, actual backend, exclusive reuse, bridge/vector/oneshot/fusion/graph modes and relevant option operands. Remove obsolete fused-transient branch assumptions while checking current oneshot/baseline contracts; retain explicit production catalog inventory separately. Author a tiny synthetic catalog with controls that reject dropped masks, aliased shard outputs, removed reuse flags and contradictory bridge/backend metadata; register the future batch test and source guard against reinstated pass placeholders. Keep historical assertion counts and explicitly inventory assertions moved to shared command helpers. AST, focused Ruff and diff checks pass; no case, fixture, subprocess workload or mutation control executed."
+      ],
       "remaining_source_items": []
     },
     {

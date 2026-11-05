@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from test_sweep_contract_support import assert_reuse, assert_scenario_commands, assert_unique_destinations, assert_visibility, option
 from pathlib import (
     Path,
 )
@@ -56,7 +57,7 @@ class CommandMatrixCases(unittest.TestCase):
         assert len(wrap64_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 2
         assert wrap64_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-wrap64-byte-limb.json"
         assert wrap64_commands[1][0] == "wrap-u64-wrap64-64-64x64x64-hip-direct.json"
-        pass  # lenient
+        assert all(not ({"--reuse-packed-inputs", "--reuse-packed-a", "--reuse-packed-b"} & set(command)) for _, command, _ in wrap64_commands)
         wrap64_args.include_wrap64_rocwmma_candidate = True
         candidate_commands = benchmark_sweep.sweep_commands(wrap64_args)
         assert len(candidate_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 3
@@ -68,17 +69,20 @@ class CommandMatrixCases(unittest.TestCase):
         wrap64_args.reuse_packed_inputs = True
         reuse_commands = benchmark_sweep.sweep_commands(wrap64_args)
         assert reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
-        pass  # lenient
+        for _, command, _ in reuse_commands:
+            assert_reuse(command, "prepacked_reuse")
         wrap64_args.reuse_packed_inputs = False
         wrap64_args.reuse_packed_a = True
         reuse_a_commands = benchmark_sweep.sweep_commands(wrap64_args)
         assert reuse_a_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-a-wrap64-byte-limb.json"
-        pass  # lenient
+        for _, command, _ in reuse_a_commands:
+            assert_reuse(command, "prepacked_reuse_a")
         wrap64_args.reuse_packed_a = False
         wrap64_args.reuse_packed_b = True
         reuse_b_commands = benchmark_sweep.sweep_commands(wrap64_args)
         assert reuse_b_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-b-wrap64-byte-limb.json"
-        pass  # lenient
+        for _, command, _ in reuse_b_commands:
+            assert_reuse(command, "prepacked_reuse_b")
         wrap64_args.reuse_packed_b = False
         wrap64_args.adaptive_only = True
         try:
@@ -125,8 +129,8 @@ class CommandMatrixCases(unittest.TestCase):
             "exact-wide-signed-small-16x16x16-cpu.json",
             "exact-wide-signed-small-16x16x16-hip-direct.json",
         ]
-        pass  # lenient
-        pass  # lenient
+        assert all(option(command, "--semantics") == "exact-wide-signed" for _, command, _ in exact_commands)
+        assert [option(command, "--backend") for _, command, _ in exact_commands] == ["cpu-reference", "hip-direct"]
 
         anchor_args = copy.copy(exact_args)
         anchor_args.cpu_reference_mode = "correctness-anchor"
@@ -153,8 +157,9 @@ class CommandMatrixCases(unittest.TestCase):
             visible_args.gpu_shards = None
             visible_entries = benchmark_sweep.sweep_command_entries(visible_args)
             assert visible_entries
-            pass  # lenient
-            pass  # list varies
+            assert_visibility(visible_entries, {"HIP_VISIBLE_DEVICES": mask})
+            assert_unique_destinations(visible_entries)
+            assert [entry.command for entry in visible_entries] == [command for _, command, _ in exact_commands]
 
         sharded_args = copy.copy(exact_args)
         sharded_args.hip_visible_devices = None
@@ -163,10 +168,13 @@ class CommandMatrixCases(unittest.TestCase):
         sharded_args.gpu_shards = "0,1,2,3"
         sharded_entries = benchmark_sweep.sweep_command_entries(sharded_args)
         assert len(sharded_entries) == len(exact_commands) * 4
-        pass  # lenient
-        pass  # lenient
-        pass  # lenient
-        pass  # lenient
+        assert_unique_destinations(sharded_entries)
+        assert {entry.name for entry in sharded_entries} == {f"gpu{shard}-{name}" for shard in "0123" for name, _, _ in exact_commands}
+        assert {entry.output for entry in sharded_entries} == {output.parent / f"gpu{shard}" / output.name for shard in "0123" for _, _, output in exact_commands}
+        for shard in "0123":
+            selected = [entry for entry in sharded_entries if entry.name.startswith(f"gpu{shard}-")]
+            assert_visibility(selected, {"HIP_VISIBLE_DEVICES": shard, "ROCR_VISIBLE_DEVICES": shard})
+            assert [entry.command for entry in selected] == [command for _, command, _ in exact_commands]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -202,7 +210,7 @@ class CommandMatrixCases(unittest.TestCase):
             assert stats["new_captures_attempted"] == 1
             assert stats["new_captures_completed"] == 1
             assert stats["deduped_cpu_captures"] == 1
-            pass  # list varies
+            assert capture_paths == [entry.output for entry in entries]
             assert entries[0].output.read_text(encoding="utf-8") == entries[1].output.read_text(encoding="utf-8")
 
         from benchmark_sweep_lib.cli import load_required_isa_index, review_capture_paths
@@ -319,30 +327,19 @@ class CommandMatrixCases(unittest.TestCase):
         scenario_args.case = None
         scenario_args.scenario = ["repeated-b"]
         scenario_entries = benchmark_sweep.sweep_command_entries(scenario_args)
-        # count varies by scenario configuration
-        assert len(scenario_entries) > 0  # names vary
-        assert len(scenario_entries) > 0  # lenient
-        pass  # lenient
+        assert_scenario_commands(scenario_entries)
+        assert {entry.scenario["family"] for entry in scenario_entries} == {"repeated-b"}
         assert sum(1 for entry in scenario_entries if "--reuse-packed-b" in entry.command) >= 1
-        # prefix-policy varies by scenario configuration
-        assert len(scenario_entries) > 0  # lenient
-        assert len(scenario_entries) > 0  # lenient
         assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-production-baselines-")
 
         fused_pack_args = copy.copy(scenario_args)
         fused_pack_args.backends = None
         fused_pack_args.scenario = ["fused-pack-gemm-small"]
         fused_pack_entries = benchmark_sweep.sweep_command_entries(fused_pack_args)
-        pass  # branch data mismatch
-        pass  # lenient
-        pass  # lenient
-        fused_transient_entries = [
-            entry
-            for entry in fused_pack_entries
-            if entry.scenario.get("metadata", {}).get("workflow_name") == "direct_hip_fused_native_pack_gemm"
-        ]
-        pass  # branch data mismatch
-        pass  # names vary by branch
+        assert_scenario_commands(fused_pack_entries)
+        assert {entry.scenario["family"] for entry in fused_pack_entries} == {"fused-pack-gemm-small"}
+        assert {entry.scenario["oneshot"] for entry in fused_pack_entries} == {False, True}
+        assert all(entry.scenario["pack_mode"] == "per_repeat_repack" for entry in fused_pack_entries)
 
 
 if __name__ == "__main__":

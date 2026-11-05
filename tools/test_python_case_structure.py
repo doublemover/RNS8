@@ -21,7 +21,9 @@ class PythonCaseStructure(unittest.TestCase):
             path = ROOT / "tools" / (row["module"] + ".py")
             source = ast.parse(path.read_text())
             self.assertGreaterEqual(sum(isinstance(node, ast.Assert) for node in ast.walk(source)),
-                                    row["original_assertions"])
+                                    row.get("minimum_direct_assertions", row["original_assertions"]))
+            references = {node.id for node in ast.walk(source) if isinstance(node, ast.Name)}
+            self.assertTrue(set(row.get("contract_helpers", [])).issubset(references))
             module = importlib.import_module(row["module"])
             suite = unittest.defaultTestLoader.loadTestsFromModule(module)
             self.assertEqual(suite.countTestCases(), 1)
@@ -63,6 +65,11 @@ class PythonCaseStructure(unittest.TestCase):
 
         for name in graph:
             visit(name)
+
+    def test_sweep_cases_have_no_waived_behavioral_checks(self):
+        for path in (ROOT / "tools").glob("test_benchmark_sweep_case_*.py"):
+            tree = ast.parse(path.read_text())
+            self.assertFalse(any(isinstance(node, ast.Pass) for node in ast.walk(tree)), str(path))
 
     def test_command_factories_do_not_share_mutable_namespaces(self):
         from test_benchmark_sweep_support import exact_command_args, scenario_command_args

@@ -8,6 +8,7 @@ import copy
 import json
 import tempfile
 import unittest
+from test_sweep_contract_support import assert_scenario_commands, option
 from pathlib import (
     Path,
 )
@@ -36,7 +37,7 @@ class LargeResumeCases(unittest.TestCase):
             "bounded-u64-4096",
             "bounded-u64-4096-reuse-b",
         ]
-        pass  # set varies
+        assert_scenario_commands(large_bounded_entries)
         assert {entry.scenario["pack_mode"] for entry in large_bounded_entries} == {
             "per_repeat_repack",
             "prepacked_reuse_b",
@@ -47,8 +48,7 @@ class LargeResumeCases(unittest.TestCase):
         large_validation_args.backends = None
         large_validation_args.scenario = ["large-release-validation"]
         large_validation_entries = benchmark_sweep.sweep_command_entries(large_validation_args)
-        assert len(large_validation_entries) >= 1  # lenient
-        pass  # set varies
+        assert_scenario_commands(large_validation_entries)
         assert {entry.scenario["name"] for entry in large_validation_entries} == {
             "bounded-i64-2048-required-baselines",
             "bounded-u64-2048-required-baselines",
@@ -96,7 +96,7 @@ class LargeResumeCases(unittest.TestCase):
         large_4096_budgeted_args.backends = None
         large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
         large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(large_4096_budgeted_args)
-        assert len(large_4096_budgeted_entries) >= 1  # lenient
+        assert_scenario_commands(large_4096_budgeted_entries)
         assert {
             entry.scenario["backend"]
             for entry in large_4096_budgeted_entries
@@ -161,9 +161,7 @@ class LargeResumeCases(unittest.TestCase):
         finite_generic_args.backends = ["hip-direct", "ck", "rocwmma"]
         finite_generic_args.scenario = ["finite-generic-moduli"]
         finite_generic_entries = benchmark_sweep.sweep_command_entries(finite_generic_args)
-        assert len(finite_generic_entries) >= 1  # lenient
-        pass  # set varies
-        pass  # set varies
+        assert_scenario_commands(finite_generic_entries)
         assert {entry.scenario["name"] for entry in finite_generic_entries} == {
             "ring-prime-127-512",
             "field-prime-127-512",
@@ -189,8 +187,7 @@ class LargeResumeCases(unittest.TestCase):
         finite_modulus_map_args.backends = None
         finite_modulus_map_args.scenario = ["finite-modulus-map"]
         finite_modulus_map_entries = benchmark_sweep.sweep_command_entries(finite_modulus_map_args)
-        assert len(finite_modulus_map_entries) >= 1  # lenient
-        pass  # set varies
+        assert_scenario_commands(finite_modulus_map_entries)
         assert {
             entry.scenario["modulus"]
             for entry in finite_modulus_map_entries
@@ -218,19 +215,16 @@ class LargeResumeCases(unittest.TestCase):
         bridge_args.bench_for = ["hip-direct=hip-direct-release-bench"]
         bridge_args.scenario = ["native-to-rns-bridge"]
         bridge_entries = benchmark_sweep.sweep_command_entries(bridge_args)
-        assert len(bridge_entries) >= 1  # lenient
+        assert_scenario_commands(bridge_entries)
         assert {entry.scenario["name"] for entry in bridge_entries} == {
             "bounded-i64-64",
             "bounded-u64-64",
             "bounded-i64-128",
             "bounded-u64-128",
         }
-        pass  # set varies
-        pass  # lenient
-        pass  # lenient
-        pass  # lenient
-        pass  # lenient
-        pass  # lenient
+        assert_scenario_commands(bridge_entries)
+        assert all(entry.command[0] == "hip-direct-release-bench" for entry in bridge_entries)
+        assert all("--native-to-rns-bridge" in entry.command for entry in bridge_entries)
         assert all(
             entry.scenario.get("metadata", {}).get("workflow_name") == "native_to_rns_bridge"
             for entry in bridge_entries
@@ -245,21 +239,14 @@ class LargeResumeCases(unittest.TestCase):
         vector_chain_args.bench_for = ["hip-direct=hip-direct-release-bench"]
         vector_chain_args.scenario = ["vector-to-rns-chain"]
         vector_chain_entries = benchmark_sweep.sweep_command_entries(vector_chain_args)
-        assert len(vector_chain_entries) >= 1  # lenient
-        pass  # set varies
-        pass  # set varies
+        assert_scenario_commands(vector_chain_entries)
+        assert all(entry.command[0] == "hip-direct-release-bench" for entry in vector_chain_entries)
         assert {
             entry.scenario.get("metadata", {}).get("chain_control_mode")
             for entry in vector_chain_entries
         } == {"fused_device_native_to_rns", "host_export_repack_control"}
-        pass  # set varies
-        pass  # lenient
-        pass  # lenient
         assert any("--vector-to-rns-chain" in entry.command for entry in vector_chain_entries)
         assert any("--vector-to-rns-chain-host-repack-control" in entry.command for entry in vector_chain_entries)
-        pass  # lenient
-        pass  # lenient
-        pass  # lenient
         assert {
             entry.scenario["vector_to_rns_chain_host_repack_control"]
             for entry in vector_chain_entries
@@ -290,8 +277,8 @@ class LargeResumeCases(unittest.TestCase):
         algebra_args.backends = ["ck"]
         algebra_args.scenario = ["computational-algebra-proxies"]
         algebra_entries = benchmark_sweep.sweep_command_entries(algebra_args)
-        assert len(algebra_entries) >= 1  # lenient
-        pass  # lenient
+        assert_scenario_commands(algebra_entries)
+        assert all(option(entry.command, "--backend") == "ck" for entry in algebra_entries)
         assert {entry.scenario.get("metadata", {}).get("source_role") for entry in algebra_entries} == {
             "computational_algebra_proxy"
         }
@@ -302,8 +289,8 @@ class LargeResumeCases(unittest.TestCase):
         fhe_args.backends = ["hip-direct"]
         fhe_args.scenario = ["fhe-lattice-proxies"]
         fhe_entries = benchmark_sweep.sweep_command_entries(fhe_args)
-        assert len(fhe_entries) >= 1  # lenient
-        pass  # lenient
+        assert_scenario_commands(fhe_entries)
+        assert all(option(entry.command, "--backend") == "hip-direct" for entry in fhe_entries)
         assert {entry.scenario.get("metadata", {}).get("source_role") for entry in fhe_entries} == {
             "fhe_lattice_proxy"
         }
@@ -316,8 +303,9 @@ class LargeResumeCases(unittest.TestCase):
             assert manifest_paths is not None
             manifest = json.loads(Path(manifest_paths["scenario_manifest"]).read_text(encoding="utf-8"))
             assert manifest["schema_version"] == 1
-            pass  # families vary
-            pass  # capture count varies
+            assert manifest["scenario_families"] == sorted({entry.scenario["family"] for entry in scenario_entries})
+            assert manifest["capture_count"] == len(scenario_entries)
+            assert [(item["capture_name"], item["capture_path"], item["command"]) for item in manifest["entries"]] == [(entry.name, str(entry.output), entry.command) for entry in scenario_entries]
             assert manifest["entries"][0]["output_domain"] == "host_export"
             assert Path(manifest_paths["scenario_markdown"]).exists()
 
