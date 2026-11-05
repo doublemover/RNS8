@@ -71,6 +71,15 @@ part of final validation.
 
 ## CPU oracle development
 
+First-party library, tool, test and benchmark targets share private compiler
+warnings. `-DRNS8_WARNINGS_AS_ERRORS=ON` opts into `/WX` or `-Werror`; those
+options are not exported to installed consumers or applied to vendor targets.
+HIP custom compilations write `rns8-hip-compile-commands.json` from the same
+argv list passed to the compiler, including selected environment overrides,
+targets and required generated inputs. This is configured-command inventory,
+not proof that the compiler or an analyzer ran. The host/HIP static-analysis
+runner and qualification receipts remain implementation work under #99.
+
 A GPU is unnecessary for portable reference, API and tooling work. On Windows,
 set `VCPKG_ROOT` to an installation containing the manifest packages, then use
 the VS wrapper from an ordinary PowerShell:

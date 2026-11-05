@@ -119,11 +119,8 @@ function(rns8_compile_hip_source out_var source)
     endif()
   endforeach()
 
-  add_custom_command(
-    OUTPUT "${_object}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/hip"
-    COMMAND
-      "${CMAKE_COMMAND}" -E env ${RNS8_HIP_COMPILER_ENVIRONMENT}
+  # Build execution and analyzer inventory consume this same argv list.
+  set(_compiler_args
       "${RNS8_HIP_HIPCC}"
       ${_arch_args}
       ${_host_runtime_args}
@@ -136,7 +133,15 @@ function(rns8_compile_hip_source out_var source)
       ${_include_args}
       ${_source_compile_options}
       -c "${_source_abs}"
-      -o "${_object}"
+      -o "${_object}")
+  rns8_record_hip_compile("${_source_abs}" "${_object}" "${_compiler_args}"
+    "${RNS8_HIP_COMPILER_ENVIRONMENT}" "${RNS8_MANIFEST_HEADER};${_compat_dependencies}")
+  add_custom_command(
+    OUTPUT "${_object}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/hip"
+    COMMAND
+      "${CMAKE_COMMAND}" -E env ${RNS8_HIP_COMPILER_ENVIRONMENT}
+      ${_compiler_args}
     DEPENDS rns8_build_manifest "${RNS8_MANIFEST_HEADER}" "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS} ${_compat_dependencies}
     VERBATIM
     COMMENT "Compiling HIP source ${_source_name} with explicit hipcc integration"

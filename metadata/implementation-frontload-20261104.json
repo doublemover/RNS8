@@ -900,9 +900,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/99",
       "requirements_sha256": "6eb42fd6a3012921fb398c47a83254a2d193ca30e53099e6096efc335b5dee6a",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Centralize PRIVATE first-party host warning options for owned library, executable and object targets while excluding imported/vendor/interface targets and exported consumer policy. Preserve the existing HIP anonymous-union exception and add opt-in host warnings-as-errors. Construct custom HIP compilation and its JSON inventory from one argv list, retaining explicit SDK environment, target list, configuration and generated manifest/overlay dependencies. Keep record JSON out of CMake list storage so literal semicolons survive; identify inventory as configured commands rather than executed receipts. Author CPU-only configure controls for warning isolation and whitespace/Unicode/quote/semicolon argv handling; register for the deferred batch. Source inspection, Python AST/Ruff and diff checks only; no CMake configure, fixture or analyzer execution."
+      ],
+      "remaining_source_items": [
+        "Dedicated non-unity exported host analysis presets; bounded pinned analyzer runner and actual diagnostic/coverage receipts with immutable compile/generated-input identity; feature-gated real HIP compiler/analyzer capability and command consumption; negative analyzer/parse/branch/header controls; reviewed diagnostic dispositions and CI gate; full issue reconciliation."
+      ]
     },
     {
       "issue": 100,
