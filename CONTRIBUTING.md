@@ -195,6 +195,10 @@ Windows LLVM CPU hardening uses `windows-clang-asan-debug`, with
 fuzzers. The [dated local record](docs/local-all-features-20261023.md) scopes the
 executed sanitizer evidence; a preset is an available configuration.
 
+The [fuzzing contract](docs/fuzzing.md) describes the separate instrumented
+library, versioned exact-arithmetic input format and ignored corpus expansion.
+New discovery/replay controls remain part of the deferred validation batch.
+
 ## GPU correctness and measurements
 
 Build the selected GPU/backend as described in the platform guide, then run its

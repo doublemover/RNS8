@@ -933,9 +933,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/101",
       "requirements_sha256": "f1b96c70c193fd5fd98f02b32dde50a6be46809043ddc3a9be0f248dfe93cb87",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Create a separate non-installed CPU fuzz library from the actual configured first-party sources, with fuzzer-no-link/ASan and native Unix nonrecovering UBSan; fuzz entrypoints alone link the engine runtime. Keep ordinary release libraries, unity/IPO and HIP discovery separate. Emit a configured source/compiler/archive inventory and author a real compile-command/archive-symbol control. Replace the output-discarding export harness with a bounded versioned six-semantic literal case codec and independent scalar Boost arithmetic, destination/CRT envelope admission, minimal-row/guard/padding comparisons, invalid-LD no-write checks, repeat execution and prepared repack/stale rejection/refresh. Add an independent Python wire/integer codec and deterministic named seed expansion for all supported prefixes and byte moduli, native extremes, cancellation, rectangular padding and opt-in skinny K boundaries. Keep expanded corpus/manifest ignored. Author codec/oracle/ladder controls and document the exact wire format. MSVC syntax check passed for the arithmetic harness; Python AST/focused Ruff/diff checks only. No unit control, configure, archive inspection, fuzzer, corpus expansion or GPU replay executed."
+      ],
+      "remaining_source_items": [
+        "Strengthen descriptor/status/state exploration and replace or honestly rename the JSON dependency-only harness; fuzz the actual production Python metadata consumer. Add deterministic explicit-backend GPU corpus replay, structured artifact-bound result counts and semantic shrinking, mutation witnesses, production-object instrumentation verification and bounded discovery/replay CI. Complete mandatory/metamorphic boundary interactions and full issue reconciliation; runtime evidence remains deferred."
+      ]
     },
     {
       "issue": 102,

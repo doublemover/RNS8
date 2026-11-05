@@ -457,6 +457,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME analysis_input_contexts_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analysis_inputs.py")
   add_test(NAME analysis_native_diagnostics_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analysis_diagnostics.py")
   add_test(NAME static_analysis_session_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_static_analysis.py")
+  add_test(NAME fuzz_library_instrumentation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_cmake.py")
+  add_test(NAME fuzz_case_codec_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_cases.py")
   add_test(NAME process_capture_budgets_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_process_progress.py")
   add_test(NAME execution_observation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_execution_observation.py")
   set_tests_properties(process_capture_budgets_self_test PROPERTIES LABELS "cpu;tools;process" TIMEOUT 60)
@@ -1143,6 +1145,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
+    tests/unit/test_fuzz_arithmetic_case.cpp
     tests/unit/test_hipblaslt_metadata.cpp
     tests/unit/test_streaming_measurement.cpp
     tests/unit/test_public_sustained.cpp

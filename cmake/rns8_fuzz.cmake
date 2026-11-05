@@ -1,0 +1,38 @@
+# Fuzz feedback belongs to a separate, non-installed copy of the real library.
+function(rns8_add_fuzz_library)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "RNS8_BUILD_FUZZERS requires LLVM Clang or clang-cl")
+  endif()
+  if(RNS8_ENABLE_HIP)
+    message(FATAL_ERROR "CPU fuzz discovery requires a separate HIP-OFF build; device corpus replay is a different lane")
+  endif()
+  if(WIN32 AND NOT RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+    message(FATAL_ERROR "Windows fuzz discovery requires the existing clang-cl ASan/static-CRT configuration")
+  endif()
+  add_library(rns8_fuzz_library STATIC EXCLUDE_FROM_ALL ${RNS8_PUBLIC_HEADERS} ${RNS8_SOURCES})
+  rns8_configure_library(rns8_fuzz_library)
+  target_compile_definitions(rns8_fuzz_library PUBLIC RNS8_STATIC)
+  # Never reuse ordinary release objects or allow unity/IPO to erase the
+  # per-translation-unit instrumentation denominator.
+  set_target_properties(rns8_fuzz_library PROPERTIES
+    UNITY_BUILD OFF INTERPROCEDURAL_OPTIMIZATION OFF)
+  foreach(_configuration IN LISTS CMAKE_CONFIGURATION_TYPES CMAKE_BUILD_TYPE)
+    string(TOUPPER "${_configuration}" _configuration_upper)
+    set_property(TARGET rns8_fuzz_library PROPERTY "INTERPROCEDURAL_OPTIMIZATION_${_configuration_upper}" OFF)
+  endforeach()
+  if(MSVC)
+    target_compile_options(rns8_fuzz_library PRIVATE /fsanitize=address /clang:-fsanitize=fuzzer-no-link)
+  else()
+    target_compile_options(rns8_fuzz_library PRIVATE
+      -fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer)
+  endif()
+  set(_sources)
+  foreach(_source IN LISTS RNS8_SOURCES)
+    get_filename_component(_absolute "${_source}" ABSOLUTE BASE_DIR "${PROJECT_SOURCE_DIR}")
+    list(APPEND _sources "${_absolute}")
+  endforeach()
+  rns8_json_array(_source_json _sources)
+  rns8_json_string(_compiler "${CMAKE_CXX_COMPILER}")
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/rns8-fuzz-instrumentation-$<CONFIG>.json"
+    CONTENT "{\"schema\":\"rns8_fuzz_instrumentation_v1\",\"scope\":\"configured_not_executed\",\"library\":\"$<TARGET_FILE:rns8_fuzz_library>\",\"compiler\":${_compiler},\"configuration\":\"$<CONFIG>\",\"sources\":${_source_json},\"external_dependencies_instrumented\":false,\"gpu_instrumented\":false}\n")
+endfunction()
