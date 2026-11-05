@@ -13,6 +13,7 @@ from unittest.mock import patch
 from abi_surface import collect_surface, surface_diff, declaration_sha256
 from abi_probes import (
     declaration_assertions,
+    declaration_name,
     library_inventory_source,
     metric_assertions,
     native_probe_source,
@@ -179,12 +180,29 @@ class PublicABIInventory(unittest.TestCase):
                 reject_abi_flags(["clang " + flag + " source.c"])
         reject_abi_flags(["clang -O3 -std=c17 source.c", "cl /O2 /MD"])
 
+    def test_added_declarations_do_not_renumber_existing_abi_checks(self):
+        original = surface()
+        expanded = replace(
+            original,
+            records={"rns8_added_record": [["count", "uint32_t"]], **original.records},
+            functions={"rns8_added_query": "void (void)", **original.functions},
+            callbacks={"rns8_added_callback": "void (*)(void)", **original.callbacks},
+            aliases={"rns8_added_alias": "uint64_t", **original.aliases},
+        )
+        self.assertLessEqual(
+            set(declaration_assertions(original).splitlines()),
+            set(declaration_assertions(expanded).splitlines()),
+        )
+        self.assertNotEqual(
+            declaration_name("member", "rns8_a", "b_c"), declaration_name("member", "rns8_a_b", "c")
+        )
+
     def test_generator_checks_members_callbacks_functions_and_all_metrics(self):
         value = surface()
         generated = declaration_assertions(value)
         self.assertIn("RNS8_ABI_MEMBER(rns8_record,value,", generated)
         self.assertIn("RNS8_ABI_TYPE(rns8_callback,", generated)
-        self.assertIn("rns8_abi_reference_0=&rns8_query", generated)
+        self.assertIn("rns8_abi_reference_10_rns8_query=&rns8_query", generated)
         library = library_inventory_source(value)
         self.assertNotIn("rns8_abi_reference_", library)
         self.assertIn("offsetof(rns8_record,value)", library)

@@ -34,6 +34,12 @@ run native consumers. The source check rejects declaration/layout drift or a
 stale generated inventory. Header hashes identify actual receipt contents;
 a comment-only edit does not change the declaration digest.
 
+Generated type checks and native import references use stable declaration-based
+names, with unambiguous length-prefixed record/member components. Adding one
+declaration no longer renumbers unrelated checks. Public metrics, declaration
+digests and native type/signature assertions remain the compatibility boundary;
+these private generator names carry no ABI authority.
+
 The compiled inventory uses actual sizeof/alignof/offsetof expressions,
 member/callback/function type assertions and constants. The allocation-free
 rns8_get_public_abi_info API returns a borrowed immutable table plus its

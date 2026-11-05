@@ -78,6 +78,13 @@ def typedef_declaration(signature: str, name: str) -> str:
     return "typedef " + signature + " " + name + ";"
 
 
+def declaration_name(category: str, *parts: str) -> str:
+    # Frontend declaration names are identifiers. Length-prefix each component
+    # so record/field boundaries are unambiguous and additions never renumber
+    # unrelated checks or native import references.
+    return "rns8_abi_" + category + "_" + "_".join(str(len(part)) + "_" + part for part in parts)
+
+
 def declaration_assertions(surface: Surface, *, references: bool = True) -> str:
     result = [
         '\n#ifdef __cplusplus\n#define RNS8_ABI_MEMBER(record,field,type) static_assert(std::is_same<decltype(((record*)nullptr)->field),type>::value, "public member type")\n#define RNS8_ABI_TYPE(type,expected) static_assert(std::is_same<type,expected>::value, "public typedef type")\n#define RNS8_ABI_FUNCTION(name,type) static_assert(std::is_same<decltype(&name),type>::value, "public function signature")\n#else\n#define RNS8_ABI_MEMBER(record,field,type) _Static_assert(_Generic(&(((record*)0)->field),type*:1,default:0), "public member type")\n#define RNS8_ABI_TYPE(type,expected) _Static_assert(_Generic((type*)0,expected*:1,default:0), "public typedef type")\n#define RNS8_ABI_FUNCTION(name,type) _Static_assert(_Generic(&name,type:1,default:0), "public function signature")\n#endif\n'
@@ -92,41 +99,45 @@ def declaration_assertions(surface: Surface, *, references: bool = True) -> str:
             "static_assert(std::is_standard_layout<" + name + '>::value, "public C record layout");'
         )
     result.append("#endif")
-    field_index = 0
     for record, fields in surface.records.items():
         for name, signature in fields:
-            alias = "rns8_abi_member_" + str(field_index)
-            field_index += 1
+            alias = declaration_name("member", record, name)
             result.append(typedef_declaration(signature, alias))
             result.append("RNS8_ABI_MEMBER(" + record + "," + name + "," + alias + ");")
     result.append('#ifdef __cplusplus\nextern "C" {\n#endif')
     names = [*surface.functions, *surface.header_functions]
-    for index, name in enumerate(names):
+    for name in names:
         signature = (surface.functions.get(name) or surface.header_functions[name]).replace(
             "()", "(void)"
         )
         opening = signature.find("(")
         if opening < 1:
             raise ValueError("unsupported frontend function type: " + name)
-        alias = "rns8_abi_function_" + str(index)
+        alias = declaration_name("function", name)
         result.append(
             "typedef " + signature[:opening] + "(*" + alias + ")" + signature[opening:] + ";"
         )
         if references and name in surface.functions:
             result.append(
-                "static " + alias + " volatile rns8_abi_reference_" + str(index) + "=&" + name + ";"
+                "static "
+                + alias
+                + " volatile "
+                + declaration_name("reference", name)
+                + "=&"
+                + name
+                + ";"
             )
     result.append("#ifdef __cplusplus\n}\n#endif")
     for category, entries in (
         ("callback", surface.callbacks),
         ("alias", surface.aliases),
     ):
-        for index, (name, signature) in enumerate(entries.items()):
-            expected = "rns8_abi_" + category + "_" + str(index)
+        for name, signature in entries.items():
+            expected = declaration_name(category, name)
             result.append(typedef_declaration(signature, expected))
             result.append("RNS8_ABI_TYPE(" + name + "," + expected + ");")
-    for index, name in enumerate(names):
-        result.append("RNS8_ABI_FUNCTION(" + name + ",rns8_abi_function_" + str(index) + ");")
+    for name in names:
+        result.append("RNS8_ABI_FUNCTION(" + name + "," + declaration_name("function", name) + ");")
     result.extend(("#undef RNS8_ABI_MEMBER", "#undef RNS8_ABI_TYPE", "#undef RNS8_ABI_FUNCTION"))
     return "\n".join(result) + "\n"
 
@@ -303,9 +314,8 @@ static void rns8_abi_json_text(const char* text) {
         + '")) return 33;\n'
     )
     source += "  for(metric=0;metric<library.metric_count;++metric) if(!library.metrics[metric].name || strcmp(library.metrics[metric].name,rns8_expected_metrics[metric].name) || library.metrics[metric].value!=rns8_expected_metrics[metric].value) return 34;\n"
-    for index, name in enumerate([*surface.functions, *surface.header_functions]):
-        if name in surface.functions:
-            source += "  if(!rns8_abi_reference_" + str(index) + ") return 27;\n"
+    for name in surface.functions:
+        source += "  if(!" + declaration_name("reference", name) + ") return 27;\n"
     source += '  printf("{\\"schema\\":\\"' + LAYOUT_SCHEMA + '\\",\\"metrics\\":{");\n'
     for index, (name, expression) in enumerate(metric_expressions(surface).items()):
         prefix = "," if index else ""
