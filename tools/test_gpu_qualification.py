@@ -192,6 +192,9 @@ class QualificationTests(unittest.TestCase):
             for backend in q.BACKENDS:self.assertIn(backend,gate['argv'])
             self.assertTrue(all(i>index for i,item in enumerate(plan) if 'inspect_target' in item))
             self.assertEqual(plan[index+1]['depends_on'],[gate['name']])
+            for item in plan:
+                if item.get('capture') and '--hip-graph-replay' not in item['argv']:
+                    self.assertIn('--verify-native-output',item['argv'])
     def test_combined_lane_compiles_once_and_runs_every_backend_without_duplicate_ctest(self):
         plan = q.command_plan("mi300x", ["hip-direct"], Path("temp/combined"), 12, [4, 7], all_enabled=True)
         names = [item["name"] for item in plan]

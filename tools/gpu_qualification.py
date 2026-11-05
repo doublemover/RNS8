@@ -143,7 +143,7 @@ def device_command_plan(backend, device, arch, binary, python, wrapper, build, o
             capture = out / f"{stem}-{name}.json"
             add(name, [binary("rns8-bench"), "--backend", backend, "--semantics", semantics,
                 "--m", "32", "--n", "32", "--k", "64", "--warmups", "1", "--repeats", "3",
-                "--seed", "20261006", "--cpu-threads", "1", "--device", "0", "--progress", *extra], capture=str(capture))
+                "--seed", "20261006", "--cpu-threads", "1", "--device", "0", "--verify-native-output", "--progress", *extra], capture=str(capture))
             add(name + "-schema", [python, "tools/benchmark_schema.py", str(capture)])
     if backend == "hip-direct" and session_kind != "smoke":
             # Existing graph capture, not the removed dead global graph helpers.

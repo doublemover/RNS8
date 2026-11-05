@@ -10,6 +10,35 @@ struct ReferenceDirectory {
 };
 }
 
+TEST_CASE("integer reference observations bind ordered task coverage before final policy status", "[native-reference-cache]") {
+  using namespace rns8::bench;
+  const NativeReferenceVerification first{"boost_cpp_int_full_integer_reference",std::string(64,'a'),"",6,1.0};
+  auto second=first;second.key=std::string(64,'b');second.elapsed_us=2;
+  NativeReferenceVerification forward,reverse;
+  append_integer_reference(forward,first);
+  CHECK(complete_integer_reference(forward,2,3));
+  CHECK_FALSE(complete_integer_reference(forward,2,3,2));
+  append_integer_reference(forward,second);
+  append_integer_reference(reverse,second);append_integer_reference(reverse,first);
+  CHECK(complete_integer_reference(forward,2,3,2));
+  CHECK(forward.checked_cells==12);CHECK(forward.elapsed_us==3);
+  CHECK(forward.key!=reverse.key);CHECK(valid_reference_sha256(forward.key));CHECK(forward.payload_sha256.empty());
+  CHECK_FALSE(complete_integer_reference(forward,UINT64_MAX,2));
+  CHECK_FALSE(complete_integer_reference(forward,2,3,UINT64_MAX));
+  auto missing=first;missing.key.clear();CHECK_FALSE(valid_integer_reference(missing));
+  REQUIRE_THROWS(append_integer_reference(forward,missing));
+  auto unbound=first;unbound.key[0]='g';CHECK_FALSE(valid_integer_reference(unbound));
+  auto cached=first;cached.method="cached_full_integer_reference";
+  CHECK_FALSE(valid_integer_reference(cached));cached.payload_sha256=std::string(64,'c');
+  CHECK(valid_integer_reference(cached));
+  REQUIRE_THROWS(append_integer_reference(forward,cached));
+  auto overflow=first;overflow.checked_cells=UINT64_MAX;
+  NativeReferenceVerification full;append_integer_reference(full,overflow);
+  REQUIRE_THROWS(append_integer_reference(full,first));CHECK(full.checked_cells==UINT64_MAX);
+  auto invalid_time=first;invalid_time.elapsed_us=std::numeric_limits<double>::infinity();
+  CHECK_FALSE(valid_integer_reference(invalid_time));
+}
+
 TEST_CASE("native reference fixtures bind actual input words and check all padded output cells", "[native-reference-cache]") {
   using namespace rns8::bench;
   ReferenceDirectory directory;

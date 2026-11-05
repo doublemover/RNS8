@@ -322,7 +322,13 @@ void print_workload_proxy_json(const Args& args) {
   std::cout << "  },\n";
 }
 
+const char* benchmark_final_comparison_status(const Args& args,const BenchmarkResult& result) {
+  const bool compared=rns8::bench::complete_integer_reference(result.native_reference,uint64_t(args.m),uint64_t(args.n),
+      std::max(args.host_api_batch_size,args.grouped_dispatch_tasks));
+  return compared?"exact_cpu_reference_compared":"checksum_recorded_reference_required";
+}
 void print_release_and_verification_json(const Args& args, const BenchmarkResult& result) {
+  const char* final_comparison_status=benchmark_final_comparison_status(args,result);
   const bool gate_requested = args.release_gate != "none";
   const bool amortized = args.verification_amortization != "none";
   const bool error_detecting = args.error_detection_policy != "none";
@@ -355,7 +361,7 @@ void print_release_and_verification_json(const Args& args, const BenchmarkResult
             << (amortized ? "shape_seed_semantic_reference_inputs" : "none") << "\",\n";
   std::cout << "    \"final_exact_comparison_required\": true,\n";
   std::cout << "    \"final_exact_comparison_status\": \""
-            << (result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required") << "\",\n";
+            << final_comparison_status << "\",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";
   std::cout << "  \"error_detection_policy\": {\n";
@@ -377,7 +383,7 @@ void print_release_and_verification_json(const Args& args, const BenchmarkResult
   std::cout << "    \"rng_seed_recorded\": " << (probabilistic ? "true" : "false") << ",\n";
   std::cout << "    \"final_exact_comparison_required\": true,\n";
   std::cout << "    \"final_exact_comparison_status\": \""
-            << (result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required")
+            << final_comparison_status
             << "\",\n";
   std::cout << "    \"research_only\": " << (error_detecting ? "true" : "false") << ",\n";
   std::cout << "    \"default_exact_api_unchanged\": true,\n";
@@ -406,8 +412,7 @@ void print_cpu_selector_and_incremental_cache_json(
       ";modulus=" + std::to_string(args.finite_modulus) +
       ";layout=row_major;output=" + output_domain_contract_name(args) +
       ";target=" + json_escape(result.target_id.empty() ? std::string("unknown") : result.target_id);
-  const std::string checksum_status =
-      result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required";
+  const std::string checksum_status = benchmark_final_comparison_status(args,result);
   std::cout << "  \"cpu_small_shape_selector\": {\n";
   std::cout << "    \"enabled\": " << (cpu_selector_enabled ? "true" : "false") << ",\n";
   std::cout << "    \"policy\": \"" << json_escape(args.cpu_small_shape_selector) << "\",\n";

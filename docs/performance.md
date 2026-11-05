@@ -176,6 +176,15 @@ reviewed generation receipts and raw references with
 `tools/benchmark_references.py --pack DIR --provenance RECEIPT --output tests/fixtures/native-reference`;
 the indexed gzip files are deterministic, and expanded data stays ignored.
 
+Uncached postflight receipts also bind the actual input words. Composed streaming
+checks combine input keys in task order and account for every logical output.
+Final verification metadata reports `exact_cpu_reference_compared` only for a
+complete input-bound receipt; a recorded checksum, including zero, remains pending
+without that coverage. Ordinary bounded smoke commands request full verification
+explicitly. Existing uncached exact-wide comparisons record the work they already
+perform. All oracle, input-hash and cache work remains outside production timers.
+These producer changes are source-only pending the deferred validation batch.
+
 The [cache validation](../metadata/native-reference-cache-validation-20261027.json)
 records three reviewed fixtures, 14 GPU cache-hit cases, a non-populating miss,
 clean corrupt-file rejection, two C++ cases, five Python cases and four automatic

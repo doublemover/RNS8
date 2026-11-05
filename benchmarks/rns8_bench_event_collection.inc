@@ -990,8 +990,8 @@ void verify_sustained_native_output(const Args& args, const std::vector<T>& a, c
     default:throw std::invalid_argument("unsupported native reference semantic");
   }
   if(!args.reference_cache_directory.empty()) {
-    result.native_reference=verify_integer_reference(args.m,args.n,args.k,output_logical_ld(args),a,b,c,
-        contract,args.reference_cache_directory,args.populate_reference_cache);return;
+    append_integer_reference(result.native_reference,verify_integer_reference(args.m,args.n,args.k,output_logical_ld(args),a,b,c,
+        contract,args.reference_cache_directory,args.populate_reference_cache));return;
   }
   // Uncached/composed collectors retain streaming comparison and aggregation;
   // the cache's bounded payload allocation must not restrict their geometry.
@@ -1004,7 +1004,10 @@ void verify_sustained_native_output(const Args& args, const std::vector<T>& a, c
     if(args.semantics==BenchSemantics::WrapU64Mod2_64)expected&=(cpp_int(1)<<64)-1;
     if(expected!=cpp_int(c[row*ld+col]))throw std::runtime_error("public output disagrees with complete integer oracle");
   }
-  result.native_reference.method="boost_cpp_int_full_integer_reference";
-  result.native_reference.checked_cells+=uint64_t(args.m)*args.n;
-  result.native_reference.elapsed_us+=elapsed_us(start,std::chrono::steady_clock::now());
+  NativeReferenceVerification observation;
+  observation.method="boost_cpp_int_full_integer_reference";
+  observation.key=integer_reference_key(args.m,args.n,args.k,a,b,contract);
+  observation.checked_cells=uint64_t(args.m)*args.n;
+  observation.elapsed_us=elapsed_us(start,std::chrono::steady_clock::now());
+  append_integer_reference(result.native_reference,std::move(observation));
 }

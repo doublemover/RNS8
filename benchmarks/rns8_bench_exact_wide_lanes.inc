@@ -32,9 +32,9 @@ void verify_exact_wide_benchmark_output(const Args& args, const std::vector<T>& 
     using namespace rns8::bench;using boost::multiprecision::cpp_int;
     const bool sign=args.semantics==BenchSemantics::ExactWideSigned;
     const uint32_t limbs=args.exact_wide_limb_count;const uint64_t ld=output_logical_ld(args);
-    result.native_reference=verify_integer_reference(args.m,args.n,args.k,ld,a,b,c,
+    append_integer_reference(result.native_reference,verify_integer_reference(args.m,args.n,args.k,ld,a,b,c,
         {sign?ReferenceSemantics::wide_signed:ReferenceSemantics::wide_unsigned,0,limbs},
-        args.reference_cache_directory,args.populate_reference_cache);
+        args.reference_cache_directory,args.populate_reference_cache));
     auto& stats=result.exact_wide_magnitude;
     const cpp_int storage=cpp_int(1)<<(64*limbs);
     for(int64_t row=0;row<args.m;++row) {
@@ -53,12 +53,17 @@ void verify_exact_wide_benchmark_output(const Args& args, const std::vector<T>& 
   }
   rns8::bench::verify_exact_wide_fixture(a, b, c, args.m, args.n, args.k, output_logical_ld(args),
                                         args.exact_wide_limb_count, result.exact_wide_magnitude);
-  const auto duration=elapsed_us(start,std::chrono::steady_clock::now());
-  result.exact_wide_magnitude.oracle_us+=duration;
-  if(args.verify_native_output) {
-    result.native_reference.method="boost_cpp_int_full_integer_reference";
-    result.native_reference.checked_cells+=uint64_t(args.m)*args.n;result.native_reference.elapsed_us+=duration;
-  }
+  // This complete uncached comparison already ran. Record its actual inputs
+  // and coverage even when no cache/extra verification flag was requested.
+  using namespace rns8::bench;
+  NativeReferenceVerification observation;observation.method="boost_cpp_int_full_integer_reference";
+  observation.key=integer_reference_key(args.m,args.n,args.k,a,b,
+      {args.semantics==BenchSemantics::ExactWideSigned?ReferenceSemantics::wide_signed:ReferenceSemantics::wide_unsigned,
+       0,args.exact_wide_limb_count});
+  observation.checked_cells=uint64_t(args.m)*args.n;
+  observation.elapsed_us=elapsed_us(start,std::chrono::steady_clock::now());
+  result.exact_wide_magnitude.oracle_us+=observation.elapsed_us;
+  append_integer_reference(result.native_reference,std::move(observation));
 }
 
 #include "rns8_bench_exact_wide_batch_lanes.inc"

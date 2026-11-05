@@ -3,6 +3,7 @@
 #include "backend_common/sha256.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -10,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace rns8::bench {
@@ -19,6 +21,42 @@ struct NativeReferenceVerification {
   uint64_t checked_cells = 0;
   double elapsed_us = 0;
 };
+
+inline bool valid_reference_sha256(const std::string& value) {
+  if(value.size()!=64)return false;
+  for(char c:value)if(!((c>='0' && c<='9') || (c>='a' && c<='f')))return false;
+  return true;
+}
+inline bool valid_integer_reference(const NativeReferenceVerification& value) {
+  const bool cached=value.method=="cached_full_integer_reference";
+  return (cached || value.method=="boost_cpp_int_full_integer_reference") && value.checked_cells &&
+      valid_reference_sha256(value.key) && std::isfinite(value.elapsed_us) && value.elapsed_us>=0 &&
+      ((cached || !value.payload_sha256.empty())?valid_reference_sha256(value.payload_sha256):true);
+}
+inline bool complete_integer_reference(const NativeReferenceVerification& value,
+    uint64_t rows,uint64_t cols,uint64_t tasks=1) {
+  return rows && cols && tasks && rows<=UINT64_MAX/cols && rows*cols<=UINT64_MAX/tasks &&
+      valid_integer_reference(value) && value.checked_cells==rows*cols*tasks;
+}
+inline void append_integer_reference(NativeReferenceVerification& aggregate,NativeReferenceVerification value) {
+  if(!valid_integer_reference(value))throw std::invalid_argument("incomplete integer reference observation");
+  if(aggregate.method=="not_requested") {
+    if(aggregate.checked_cells || aggregate.elapsed_us || !aggregate.key.empty() || !aggregate.payload_sha256.empty())
+      throw std::invalid_argument("unrequested integer reference contains evidence");
+    aggregate=std::move(value);return;
+  }
+  // Cached payloads describe one complete product. Composed streaming oracles
+  // bind ordered per-task input keys, without inventing one aggregate cache file.
+  if(!valid_integer_reference(aggregate) || aggregate.method!="boost_cpp_int_full_integer_reference" ||
+      value.method!="boost_cpp_int_full_integer_reference" ||
+      aggregate.checked_cells>UINT64_MAX-value.checked_cells || !std::isfinite(aggregate.elapsed_us+value.elapsed_us))
+    throw std::invalid_argument("incompatible composed integer reference observations");
+  auto key=detail::sha256(std::string("rns8-ordered-integer-reference-composition-v1\n")+
+      std::to_string(aggregate.checked_cells)+"\n"+aggregate.key+"\n"+
+      std::to_string(value.checked_cells)+"\n"+value.key+"\n");
+  aggregate.key=std::move(key);aggregate.payload_sha256.clear();
+  aggregate.checked_cells+=value.checked_cells;aggregate.elapsed_us+=value.elapsed_us;
+}
 
 inline void reference_append_word(std::string& bytes, uint64_t word) {
   for (unsigned b = 0; b < 8; ++b) bytes.push_back(static_cast<char>((word >> (8 * b)) & 255));
