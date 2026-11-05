@@ -35,10 +35,6 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   DeviceBuffer a_limbs;
   DeviceBuffer b_limbs;
   DeviceBuffer c_limbs;
-  DeviceBuffer upload_buffer;
-  DeviceBuffer export_buffer;
-  upload_buffer.device_id = args.device_id;
-  export_buffer.device_id = args.device_id;
   const auto alloc_start = std::chrono::steady_clock::now();
   a_limbs.allocate(args.device_id, a_limb_bytes, "hip_direct_allocate(wrap64 candidate A limbs)");
   b_limbs.allocate(args.device_id, b_limb_bytes, "hip_direct_allocate(wrap64 candidate B limbs)");
@@ -49,12 +45,12 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   rns8_status status = RNS8_SUCCESS;
   const auto pack_a_input = [&](uint64_t) {
     status = rns8::detail::wrap64_hip_pack_u64_device(
-        args.device_id, A.data(), &upload_buffer.ptr, &upload_buffer.bytes, a_limbs.ptr, args.m, args.k, args.k);
+        args.device_id, A.data(), a_limbs.ptr, args.m, args.k, args.k);
     if (status != RNS8_SUCCESS) fail_status("wrap64_hip_pack_u64_device(A)", status);
   };
   const auto pack_b_input = [&](uint64_t) {
     status = rns8::detail::wrap64_hip_pack_u64_device(
-        args.device_id, B.data(), &upload_buffer.ptr, &upload_buffer.bytes, b_limbs.ptr, args.k, args.n, args.n);
+        args.device_id, B.data(), b_limbs.ptr, args.k, args.n, args.n);
     if (status != RNS8_SUCCESS) fail_status("wrap64_hip_pack_u64_device(B)", status);
   };
   if (args.reuse_packed_inputs) {
@@ -99,7 +95,7 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
     const auto export_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status = rns8::detail::wrap64_hip_export_u64_device(
-        args.device_id, c_limbs.ptr, &export_buffer.ptr, &export_buffer.bytes, args.m, args.n, C.data(), ldc);
+        args.device_id, c_limbs.ptr, args.m, args.n, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("wrap64_hip_export_u64_device(C)", status);
     if (collect_gpu_events) {
       collect_wrap64_export_gpu_events(result.gpu_events);
