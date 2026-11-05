@@ -275,8 +275,7 @@ rns8_status rns8_prepare_native_transfer_hip(rns8_context* ctx, rns8_matrix* mat
                                              const rns8_native_transfer_options* options,
                                              rns8_prepared_execution** out) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !matrix || !lease || !options || !out ||
-        !valid_abi(options->struct_size, options->abi_version, sizeof(*options)) ||
+    if (!ctx || !matrix || !lease || !options || !out || !minimum_abi_header(options) ||
         options->import_values > 1 || options->verify_input_bound > 1 || options->flags ||
         (!options->verify_input_bound && options->max_input_magnitude) ||
         (!options->import_values && options->verify_input_bound))

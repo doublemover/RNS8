@@ -102,9 +102,8 @@ void finish_prepared_hip(rns8_prepared_execution& e, rns8_status operation) {
 rns8_status observe_prepared_hip(rns8_prepared_execution* e, rns8_completion_token token,
                                  rns8_completion_info* out, bool wait) {
   return guard_api([&]() -> rns8_status {
-    if (!e || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)) ||
-        !e->hip_submission_prepared || token.prepared_id != e->id || !token.epoch ||
-        token.epoch != e->epoch)
+    if (!e || !out || !rns8::detail::minimum_abi_header(out) || !e->hip_submission_prepared ||
+        token.prepared_id != e->id || !token.epoch || token.epoch != e->epoch)
       return RNS8_INVALID_ARGUMENT;
     if (!e->running)
       return rns8_get_prepared_completion(e, token, out);
@@ -471,9 +470,8 @@ rns8_status rns8_wait_prepared_hip(rns8_prepared_execution* e, rns8_completion_t
 rns8_status rns8_get_prepared_async_failure(const rns8_prepared_execution* e,
                                             rns8_completion_token token,
                                             rns8_async_failure_info* info) {
-  if (!e || !info ||
-      !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)) ||
-      token.prepared_id != e->id || !token.epoch || token.epoch != e->epoch)
+  if (!e || !info || !rns8::detail::minimum_abi_header(info) || token.prepared_id != e->id ||
+      !token.epoch || token.epoch != e->epoch)
     return RNS8_INVALID_ARGUMENT;
   *info = e->async_failure;
   info->struct_size = sizeof(*info);
@@ -573,7 +571,7 @@ rns8_status rns8_wait_prepared_hip_for(rns8_prepared_execution* e, rns8_completi
 
 rns8_status rns8_get_prepared_hip_support(const rns8_prepared_execution* e,
                                           rns8_async_support_info* info) {
-  if (!e || !info || !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+  if (!e || !info || !rns8::detail::minimum_abi_header(info))
     return RNS8_INVALID_ARGUMENT;
   *info = async_support_info(prepared_hip_support_status(*e), e->ctx->device_id);
   info->supports_caller_graph_binding = info->support_status == RNS8_SUCCESS;

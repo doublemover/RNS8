@@ -1,5 +1,5 @@
 #include "rns8/public_abi.h"
-#include "backend_common/abi_output_header.hpp"
+#include "backend_common/abi_header.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -37,7 +37,7 @@ constexpr const char* runtime_model = "system-c-runtime";
 } // namespace
 
 rns8_status rns8_get_public_abi_info(rns8_public_abi_info* out) {
-  if (!rns8::detail::exact_output_header(out))
+  if (!rns8::detail::exact_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   rns8_public_abi_info result{};
   result.struct_size = sizeof(result);

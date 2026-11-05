@@ -202,7 +202,7 @@ struct NativeMatrixReservation {
 rns8_status rns8_query_native_device(const rns8_native_device_desc* desc,
                                      rns8_native_device_resources* out) {
   return guard_api([&]() -> rns8_status {
-    if (!desc || !out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+    if (!desc || !out || !exact_abi_header(desc) || !minimum_abi_header(out))
       return RNS8_INVALID_ARGUMENT;
     rns8_native_device_resources result{};
     const auto status = query_native_device_contract(*desc, result);
@@ -214,7 +214,7 @@ rns8_status rns8_query_native_device(const rns8_native_device_desc* desc,
 rns8_status rns8_create_native_device_lease(rns8_context* ctx, const rns8_native_device_desc* desc,
                                             rns8_native_device_lease** out) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !out)
+    if (!ctx || !desc || !out || !exact_abi_header(desc))
       return RNS8_INVALID_ARGUMENT;
     if (ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;

@@ -101,7 +101,7 @@ void pack(rns8_prepared_cpu_i8mm& o) noexcept {
 }
 } // namespace
 rns8_status rns8_query_cpu_i8mm(rns8_cpu_i8mm_info* out) {
-  if (!out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!out || !minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   rns8_cpu_i8mm_info info{};
   info.struct_size = sizeof(info);
@@ -265,7 +265,7 @@ rns8_status rns8_execute_cpu_i8mm(rns8_prepared_cpu_i8mm* o) {
   });
 }
 rns8_status rns8_get_cpu_i8mm_info(const rns8_prepared_cpu_i8mm* o, rns8_cpu_i8mm_info* out) {
-  if (!o || !out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!o || !out || !minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   std::unique_lock<std::mutex> lock(o->mutex, std::try_to_lock);
   if (!lock.owns_lock())

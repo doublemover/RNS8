@@ -25,7 +25,7 @@ struct rns8_stream_gemm_plan {
 namespace {
 rns8_status stream_description(const rns8_stream_gemm_desc* d, StreamPanelProblem& p,
                                StreamPanelResources& r, uint64_t& bound) {
-  if (!d || !valid_abi(d->struct_size, d->abi_version, sizeof(*d)) || d->reserved)
+  if (!d || !minimum_abi_header(d) || d->reserved)
     return RNS8_INVALID_ARGUMENT;
   p = {1,
        d->semantics,
@@ -79,7 +79,7 @@ bool stream_input_bound(const void* source, int64_t rows, int64_t cols, int64_t 
 rns8_status rns8_query_stream_gemm(const rns8_stream_gemm_desc* desc,
                                    rns8_stream_gemm_resources* out) {
   return guard_api([&]() -> rns8_status {
-    if (!out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+    if (!out || !minimum_abi_header(out))
       return RNS8_INVALID_ARGUMENT;
     StreamPanelProblem p;
     StreamPanelResources r;
@@ -157,9 +157,9 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan, const void* a,
                                      void* c, uint64_t ai, uint64_t ag, uint64_t bi, uint64_t bg,
                                      rns8_stream_gemm_result* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)) || !a || !b ||
-        !c || !ai || !bi || (reinterpret_cast<uintptr_t>(a) % 8) ||
-        (reinterpret_cast<uintptr_t>(b) % 8) || (reinterpret_cast<uintptr_t>(c) % 8))
+    if (!plan || !out || !minimum_abi_header(out) || !a || !b || !c || !ai || !bi ||
+        (reinterpret_cast<uintptr_t>(a) % 8) || (reinterpret_cast<uintptr_t>(b) % 8) ||
+        (reinterpret_cast<uintptr_t>(c) % 8))
       return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(plan->mutex, std::try_to_lock);
     if (!lock.owns_lock())

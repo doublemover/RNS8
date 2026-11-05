@@ -1,5 +1,6 @@
 #pragma once
 #include "rns8/rns8.h"
+#include "abi_header.hpp"
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -13,8 +14,8 @@ inline uint32_t locality_target_id(const std::string& arch) {
   return target == "gfx942" ? 942 : target == "gfx950" ? 950 : target == "gfx1100" ? 1100 : 0;
 }
 inline bool locality_descriptor_valid(const rns8_locality_desc& d) {
-  return d.struct_size == sizeof(d) && d.abi_version == RNS8_ABI_VERSION &&
-         d.order >= RNS8_LOCALITY_ORDINARY && d.order <= RNS8_LOCALITY_SAME_OUTPUT &&
+  return exact_abi_header(&d) && d.order >= RNS8_LOCALITY_ORDINARY &&
+         d.order <= RNS8_LOCALITY_SAME_OUTPUT &&
          (d.target_id == 0 || d.target_id == 942 || d.target_id == 950 || d.target_id == 1100) &&
          d.topology_version == 1 && d.cache_domains >= 1 && d.cache_domains <= 128 &&
          d.concurrent_groups_per_domain >= 1 && d.concurrent_groups_per_domain <= 65536;

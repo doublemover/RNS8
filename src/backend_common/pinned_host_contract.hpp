@@ -6,8 +6,8 @@ struct PinnedHostResources {
 };
 inline rns8_status query_pinned_host_contract(const rns8_pinned_host_desc& d,
                                               PinnedHostResources& out) noexcept {
-  if (d.struct_size != sizeof(d) || d.abi_version != RNS8_ABI_VERSION || d.flags || d.reserved ||
-      d.rows <= 0 || d.cols <= 0 || d.ld < d.cols ||
+  if (!exact_abi_header(&d) || d.flags || d.reserved || d.rows <= 0 || d.cols <= 0 ||
+      d.ld < d.cols ||
       (d.access != RNS8_NATIVE_DEVICE_READ && d.access != RNS8_NATIVE_DEVICE_WRITE))
     return RNS8_INVALID_ARGUMENT;
   const bool limbs = native_device_limb_type(d.element_type);

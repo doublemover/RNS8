@@ -1094,9 +1094,9 @@ static rns8_status create_product_recipe(
     const rns8::detail::ProductMaterializationProfile* materializations = nullptr) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!ctx || !desc || !out || !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
-        !desc->inputs || !desc->nodes || !desc->input_count || desc->input_count > 4096 ||
-        !desc->node_count || desc->node_count > 4096 ||
+    if (!ctx || !desc || !out || !minimum_abi_header(desc) || !desc->inputs || !desc->nodes ||
+        !desc->input_count || desc->input_count > 4096 || !desc->node_count ||
+        desc->node_count > 4096 ||
         (desc->prefix_policy != RNS8_PRODUCT_FULL_PREFIX &&
          desc->prefix_policy != RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
       return RNS8_INVALID_ARGUMENT;
@@ -1169,15 +1169,14 @@ rns8_status rns8_set_product_recipe_execution_policy(rns8_product_recipe* recipe
 }
 rns8_status rns8_get_product_recipe_execution_info(const rns8_product_recipe* recipe,
                                                    rns8_product_recipe_execution_info* out) {
-  if (!recipe || recipe->closing || !out ||
-      !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!recipe || recipe->closing || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   *out = recipe->owner->execution_info();
   return RNS8_SUCCESS;
 }
 rns8_status rns8_get_product_recipe_resources(const rns8_product_recipe* recipe,
                                               rns8_product_recipe_resources* out) {
-  if (!recipe || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!recipe || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   const auto& allocation = recipe->owner->allocation();
   out->node_count = static_cast<uint32_t>(recipe->owner->compute_prefixes().size());
@@ -1200,7 +1199,7 @@ rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe, 
   return RNS8_SUCCESS;
 }
 rns8_status rns8_get_product_recipe_basis(const rns8_product_recipe* recipe, rns8_basis_info* out) {
-  if (!recipe || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!recipe || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   const auto& packet = recipe->owner->basis_packet();
   const auto prefix = recipe->owner->output_prefix();

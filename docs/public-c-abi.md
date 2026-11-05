@@ -43,6 +43,18 @@ readable eight-byte size prefix; success requires exactly the current full
 struct size and ABI version. Rejection preserves output bytes. Table/string
 pointers remain valid only until the library is unloaded.
 
+The shared header admission helper reads the mandatory size prefix before the version or any
+payload field, and rejects misaligned records before typed access. A caller
+must supply readable storage for that prefix (the declared four- or eight-byte
+`struct_size`) and for every byte its accepted size promises. Extensible
+records retain their existing policy: sizes at least the current record are
+accepted, only current fields are accessed, and extension bytes remain untouched.
+Exact-size contracts, including native-device, pinned-host, locality, runtime
+device identity, public ABI and narrow summary records, reject larger sizes.
+No API can discover that a caller lied about the actual backing allocation.
+Raw header-prefix and canary controls are authored for the deferred sanitizer
+batch; frontend compilation does not qualify those runtime checks.
+
 ## Installed native checks
 
 Run once for each separately installed static and shared package. The checker

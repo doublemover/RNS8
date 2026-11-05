@@ -6,11 +6,10 @@ create_product_recipe_ragged(rns8_context* ctx, const rns8_product_recipe_desc* 
                              const rns8::detail::ProductMaterializationProfile* profile = nullptr) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!ctx || !desc || !out || !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
-        !desc->inputs || !desc->nodes || !desc->input_count || desc->input_count > 4096 ||
-        !desc->node_count || desc->node_count > 4096 || !bindings || !count ||
-        count > desc->input_count || output_count > 4096 || (output_count && !output_ids) ||
-        (!output_count && output_ids) ||
+    if (!ctx || !desc || !out || !minimum_abi_header(desc) || !desc->inputs || !desc->nodes ||
+        !desc->input_count || desc->input_count > 4096 || !desc->node_count ||
+        desc->node_count > 4096 || !bindings || !count || count > desc->input_count ||
+        output_count > 4096 || (output_count && !output_ids) || (!output_count && output_ids) ||
         (desc->prefix_policy != RNS8_PRODUCT_FULL_PREFIX &&
          desc->prefix_policy != RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
       return RNS8_INVALID_ARGUMENT;

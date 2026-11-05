@@ -240,10 +240,8 @@ rns8_status observe_resident_graph_hip(rns8_resident_graph* graph,
                                        rns8_graph_completion_token token,
                                        rns8_graph_execution_info* info, bool wait) {
   return guard_api([&]() -> rns8_status {
-    if (!graph || !info ||
-        !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)) ||
-        !graph->hip_prepared || token.graph_id != graph->id || !token.epoch ||
-        token.epoch != graph->epoch)
+    if (!graph || !info || !rns8::detail::minimum_abi_header(info) || !graph->hip_prepared ||
+        token.graph_id != graph->id || !token.epoch || token.epoch != graph->epoch)
       return RNS8_INVALID_ARGUMENT;
     if (!graph->running) {
       if (graph->completion.epoch != token.epoch)
@@ -610,9 +608,8 @@ rns8_status rns8_wait_resident_graph_hip(rns8_resident_graph* graph,
 rns8_status rns8_get_resident_graph_async_failure(const rns8_resident_graph* graph,
                                                   rns8_graph_completion_token token,
                                                   rns8_async_failure_info* info) {
-  if (!graph || !info ||
-      !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)) ||
-      token.graph_id != graph->id || !token.epoch || token.epoch != graph->epoch)
+  if (!graph || !info || !rns8::detail::minimum_abi_header(info) || token.graph_id != graph->id ||
+      !token.epoch || token.epoch != graph->epoch)
     return RNS8_INVALID_ARGUMENT;
   *info = graph->async_failure;
   info->struct_size = sizeof(*info);
@@ -645,8 +642,7 @@ rns8_status rns8_wait_resident_graph_hip_for(rns8_resident_graph* graph,
 
 rns8_status rns8_get_resident_graph_hip_support(const rns8_resident_graph* graph,
                                                 rns8_async_support_info* info) {
-  if (!graph || !info ||
-      !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+  if (!graph || !info || !rns8::detail::minimum_abi_header(info))
     return RNS8_INVALID_ARGUMENT;
   *info = async_support_info(resident_graph_hip_support_status(*graph), graph->ctx->device_id);
   return RNS8_SUCCESS;

@@ -62,8 +62,7 @@ rns8_status rns8_destroy_encoded_b(rns8_encoded_b* cache) {
   return status;
 }
 rns8_status rns8_get_encoded_b_info(const rns8_encoded_b* cache, rns8_encoded_b_info* info) {
-  if (!cache || !info ||
-      !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+  if (!cache || !info || !rns8::detail::minimum_abi_header(info))
     return RNS8_INVALID_ARGUMENT;
   *info = {};
   info->struct_size = sizeof(*info);
@@ -177,7 +176,7 @@ rns8_status rns8_gemm_encoded_b_grouped(rns8_context* ctx, const rns8_encoded_b_
     descriptors.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {
       const auto& task = tasks[i];
-      if (!valid_abi(task.struct_size, task.abi_version, sizeof(task)))
+      if (!minimum_abi_header(&task))
         return RNS8_INVALID_ARGUMENT;
       const auto status = admit_encoded_product(ctx, task.plan, task.a, task.b, task.c, task.group,
                                                 task.workspace, admitted[i]);

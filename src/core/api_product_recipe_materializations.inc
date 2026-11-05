@@ -22,9 +22,9 @@ product_materialization_identity(rns8_context* ctx, const rns8_product_recipe_de
                                  const std::vector<ProductInputProjection>* projected = nullptr) {
   using namespace rns8::detail;
   using namespace rns8::detail::api;
-  if (!ctx || !desc || !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
-      !desc->inputs || !desc->nodes || !desc->input_count || desc->input_count > 4096 ||
-      !desc->node_count || desc->node_count > 64 ||
+  if (!ctx || !desc || !minimum_abi_header(desc) || !desc->inputs || !desc->nodes ||
+      !desc->input_count || desc->input_count > 4096 || !desc->node_count ||
+      desc->node_count > 64 ||
       (desc->prefix_policy != RNS8_PRODUCT_FULL_PREFIX &&
        desc->prefix_policy != RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
     return RNS8_INVALID_ARGUMENT;
@@ -137,8 +137,7 @@ rns8_query_product_materialization_identity(rns8_context* ctx, const rns8_produc
                                             const uint32_t* ids, uint32_t count,
                                             rns8_product_materialization_identity* out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)) ||
-        count > 64 || (count && !ids))
+    if (!out || !rns8::detail::minimum_abi_header(out) || count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     rns8_product_materialization_identity identity{};
     const auto status = product_materialization_identity(
@@ -156,7 +155,7 @@ rns8_status materialization_profile(rns8_context* ctx, const rns8_product_recipe
                                     const rns8_product_materialization_identity& identity,
                                     rns8::detail::ProductMaterializationProfile& profile) {
   using namespace rns8::detail;
-  if (!prices || !valid_abi(prices->struct_size, prices->abi_version, sizeof(*prices)) ||
+  if (!prices || !minimum_abi_header(prices) ||
       prices->cost_schema_version != RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION ||
       prices->node_costs_size != sizeof(rns8_product_materialization_node_costs) ||
       prices->reserved ||
@@ -165,9 +164,7 @@ rns8_status materialization_profile(rns8_context* ctx, const rns8_product_recipe
       !prices->expected_replays || prices->expected_replays == UINT64_MAX || !prices->nodes ||
       !prices->node_count || prices->node_count > 64 || prices->max_evaluations < 4 ||
       prices->max_evaluations > 65536 || !prices->max_chain_frontier ||
-      prices->max_chain_frontier > 4096 ||
-      !valid_abi(prices->identity.struct_size, prices->identity.abi_version,
-                 sizeof(prices->identity)) ||
+      prices->max_chain_frontier > 4096 || !minimum_abi_header(&prices->identity) ||
       !materialization_text(prices->identity.graph_sha256, sizeof(prices->identity.graph_sha256)) ||
       !materialization_text(prices->identity.build_sha256, sizeof(prices->identity.build_sha256)) ||
       !materialization_text(prices->identity.target, sizeof(prices->identity.target)) ||
@@ -238,9 +235,8 @@ rns8_status ragged_materialization_identity(rns8_context* ctx, const rns8_produc
                                             uint64_t budget,
                                             rns8_product_materialization_identity& identity) {
   using namespace rns8::detail;
-  if (!ctx || !desc || !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
-      !desc->inputs || !desc->input_count || desc->input_count > 4096 || !bindings || !count ||
-      count > desc->input_count)
+  if (!ctx || !desc || !minimum_abi_header(desc) || !desc->inputs || !desc->input_count ||
+      desc->input_count > 4096 || !bindings || !count || count > desc->input_count)
     return RNS8_INVALID_ARGUMENT;
   std::vector<const rns8_matrix*> inputs(desc->inputs, desc->inputs + desc->input_count);
   std::vector<ProductInputProjection> projected(desc->input_count);
@@ -286,8 +282,7 @@ rns8_status rns8_query_product_materialization_identity_ragged(
     const rns8_ragged_recipe_binding* bindings, uint32_t binding_count, const uint32_t* ids,
     uint32_t count, uint64_t budget, rns8_product_materialization_identity* out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)) ||
-        count > 64 || (count && !ids))
+    if (!out || !rns8::detail::minimum_abi_header(out) || count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     const auto outputs = count ? std::vector<uint32_t>(ids, ids + count) : std::vector<uint32_t>{};
     rns8_product_materialization_identity identity{};
@@ -322,7 +317,7 @@ rns8_status rns8_create_materialized_product_recipe_ragged(
 }
 rns8_status rns8_get_product_materialization_info(const rns8_product_recipe* recipe,
                                                   rns8_product_materialization_info* out) {
-  if (!recipe || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!recipe || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   const auto& plan = recipe->owner->materialization_selection();
   if (plan.status != RNS8_SUCCESS)

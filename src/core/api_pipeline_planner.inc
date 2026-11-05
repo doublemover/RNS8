@@ -36,9 +36,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx, const rns8_pipeline_quer
     using boost::multiprecision::cpp_int;
     using namespace rns8::detail;
     if (!ctx || !query || !required || (capacity && !results) || (profile_count && !profiles) ||
-        profile_count > 8 || !valid_abi(query->struct_size, query->abi_version, sizeof(*query)) ||
-        !valid_abi(query->operation.struct_size, query->operation.abi_version,
-                   sizeof(query->operation)) ||
+        profile_count > 8 || !minimum_abi_header(query) || !minimum_abi_header(&query->operation) ||
         (query->operation.operation != RNS8_OP_GEMM &&
          query->operation.operation != RNS8_OP_NARROW_NATIVE) ||
         query->operation.execution_modes != RNS8_EXEC_SYNC || query->operation.output_limbs > 32 ||
@@ -65,7 +63,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx, const rns8_pipeline_quer
     const auto build = pipeline_build_identity();
     for (uint32_t i = 0; i < profile_count; ++i) {
       const auto& p = profiles[i];
-      if (!valid_abi(p.struct_size, p.abi_version, sizeof(p)) || p.known_mask > 63 ||
+      if (!minimum_abi_header(&p) || p.known_mask > 63 ||
           !pipeline_text(p.target_id, sizeof(p.target_id)) ||
           !pipeline_text(p.build_identity_sha256, sizeof(p.build_identity_sha256)) ||
           !pipeline_text(p.calibration_identity, sizeof(p.calibration_identity)))

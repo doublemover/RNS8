@@ -1,4 +1,4 @@
-#include "backend_common/abi_output_header.hpp"
+#include "backend_common/abi_header.hpp"
 
 namespace {
 rns8_status prepare_narrow_domains(rns8_context& ctx, const rns8_matrix& a, const rns8_matrix& b,
@@ -69,7 +69,7 @@ rns8_status prepare_narrow_domains(rns8_context& ctx, const rns8_matrix& a, cons
 
 rns8_status rns8_get_narrow_summary_info(const rns8_workspace* workspace,
                                          rns8_narrow_summary_info* out) {
-  if (!workspace || !rns8::detail::exact_output_header(out) || out->reserved)
+  if (!workspace || !rns8::detail::exact_abi_header(out) || out->reserved)
     return RNS8_INVALID_ARGUMENT;
   if (workspace->in_flight)
     return RNS8_BUSY;

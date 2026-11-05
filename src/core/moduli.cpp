@@ -36,10 +36,6 @@ rns8_status rns8_validate_default_moduli(void) {
 
 namespace rns8::detail {
 
-bool valid_abi(uint64_t struct_size, uint32_t abi_version, std::size_t expected_size) {
-  return abi_version == RNS8_ABI_VERSION && struct_size >= expected_size;
-}
-
 void copy_c_string(char* dst, std::size_t dst_size, const std::string& src) {
   if (dst_size == 0) {
     return;
@@ -285,7 +281,7 @@ rns8_status validate_bound_contract(rns8_semantics semantics, rns8_bound_kind bo
 }
 
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
-  if (!valid_abi(desc.struct_size, desc.abi_version, sizeof(desc))) {
+  if (!minimum_abi_header(&desc)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
@@ -400,7 +396,7 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
 }
 
 rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) {
-  if (!valid_abi(desc.struct_size, desc.abi_version, sizeof(desc))) {
+  if (!minimum_abi_header(&desc)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.rows <= 0 || desc.cols <= 0) {

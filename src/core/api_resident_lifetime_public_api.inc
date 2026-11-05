@@ -129,7 +129,7 @@ rns8_status rns8_get_resident_lifetime_info(const rns8_matrix* matrix, const rns
     if (!matrix || !out || !valid_resident_matrix_role(matrix_role) || (workspace && !plan)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
 

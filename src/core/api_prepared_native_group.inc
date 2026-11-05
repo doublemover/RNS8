@@ -59,7 +59,7 @@ rns8_status admit_native_group_child(rns8_prepared_execution& e,
                                      const rns8_native_group_binding& binding,
                                      rns8_prepared_group::NativeBinding& value) {
   using namespace rns8::detail;
-  if (!valid_abi(binding.struct_size, binding.abi_version, sizeof(binding)) ||
+  if (!minimum_abi_header(&binding) ||
       (binding.modulus_group != 1 && binding.modulus_group != 2 && binding.modulus_group != 4))
     return RNS8_INVALID_ARGUMENT;
   if (e.transfer)
@@ -162,15 +162,14 @@ static rns8_status prepare_native_group_impl(
     rns8_native_dispatch_policy policy = RNS8_NATIVE_DISPATCH_NATIVE_UNIFORM) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!group || !desc || !bindings ||
-        !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
+    if (!group || !desc || !bindings || !minimum_abi_header(desc) ||
         count != group->executions.size() || count > 4096 || desc->schedule_mode > 3 ||
         !desc->claim_chunk || desc->claim_chunk > 32 || !desc->workers || desc->workers > 1024 ||
         desc->ordinary_grid_control > 1 || uint32_t(policy) > 2 ||
         (desc->ordinary_grid_control && policy != RNS8_NATIVE_DISPATCH_NATIVE_UNIFORM))
       return RNS8_INVALID_ARGUMENT;
-    if (locality && (!locality_descriptor_valid(*locality) || desc->schedule_mode ||
-                     desc->ordinary_grid_control))
+    if (locality && (!exact_abi_header(locality) || !locality_descriptor_valid(*locality) ||
+                     desc->schedule_mode || desc->ordinary_grid_control))
       return RNS8_INVALID_ARGUMENT;
     if (native_group_busy(*group))
       return RNS8_BUSY;
@@ -302,8 +301,7 @@ rns8_status rns8_prepare_native_group_dispatch(rns8_prepared_group* group,
 }
 rns8_status rns8_get_native_group_dispatch_info(const rns8_prepared_group* group,
                                                 rns8_native_group_dispatch_info* out) {
-  if (!group || !group->native_queue || !out ||
-      !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!group || !group->native_queue || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   const auto hint = group->native_queue->dispatch_hint();
   *out = {sizeof(*out), RNS8_ABI_VERSION,     group->native_dispatch_policy,
@@ -312,8 +310,7 @@ rns8_status rns8_get_native_group_dispatch_info(const rns8_prepared_group* group
 }
 rns8_status rns8_get_native_group_locality_info(const rns8_prepared_group* group,
                                                 rns8_locality_info* out) {
-  if (!group || !group->native_queue || !out ||
-      !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!group || !group->native_queue || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   const auto info = group->native_queue->locality_info();
   if (!info.struct_size)
@@ -323,8 +320,7 @@ rns8_status rns8_get_native_group_locality_info(const rns8_prepared_group* group
 }
 rns8_status rns8_get_native_group_info(const rns8_prepared_group* group,
                                        rns8_native_group_info* info) {
-  if (!group || !info || !group->native_queue ||
-      !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+  if (!group || !info || !group->native_queue || !rns8::detail::minimum_abi_header(info))
     return RNS8_INVALID_ARGUMENT;
   *info = {};
   info->struct_size = sizeof(*info);

@@ -221,8 +221,7 @@ rns8_status rns8_destroy_block_sparse_operand(rns8_block_sparse_operand* operand
 
 rns8_status rns8_get_block_sparse_storage_info(const rns8_block_sparse_operand* operand,
                                                rns8_block_sparse_storage_info* out) {
-  if (!operand || !out ||
-      !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!operand || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   if (operand->cleanup_started)
     return RNS8_BUSY;

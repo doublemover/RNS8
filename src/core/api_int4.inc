@@ -86,8 +86,7 @@ rns8_status rns8_prepare_int4_recipe(rns8_context* ctx, const rns8_plan* plan, c
     if (!out)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!ctx || !plan || !b || !desc ||
-        !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) || desc->mode > 1)
+    if (!ctx || !plan || !b || !desc || !minimum_abi_header(desc) || desc->mode > 1)
       return RNS8_INVALID_ARGUMENT;
     if (ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;
@@ -168,8 +167,7 @@ rns8_status rns8_prepare_int4_recipe(rns8_context* ctx, const rns8_plan* plan, c
   });
 }
 rns8_status rns8_get_int4_info(const rns8_int4_recipe* owner, rns8_int4_info* info) {
-  if (!owner || !info ||
-      !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+  if (!owner || !info || !rns8::detail::minimum_abi_header(info))
     return RNS8_INVALID_ARGUMENT;
   *info = {};
   info->struct_size = sizeof(*info);

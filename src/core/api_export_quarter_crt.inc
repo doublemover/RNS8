@@ -20,8 +20,7 @@ rns8_status rns8_prepare_quarter_crt_export(rns8_context* ctx, const rns8_plan* 
     *out = nullptr;
     if (!quarter_crt_backend_supported(plan->backend))
       return RNS8_UNSUPPORTED_BACKEND;
-    if (!valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) || desc->mode > 2 ||
-        !desc->limb_count || desc->limb_count > 32)
+    if (!minimum_abi_header(desc) || desc->mode > 2 || !desc->limb_count || desc->limb_count > 32)
       return RNS8_INVALID_ARGUMENT;
     if (source->in_flight_writer)
       return RNS8_BUSY;
@@ -82,8 +81,7 @@ rns8_status rns8_prepare_quarter_crt_export(rns8_context* ctx, const rns8_plan* 
 rns8_status rns8_get_quarter_crt_info(const rns8_quarter_crt_export* owner,
                                       rns8_quarter_crt_info* info) {
   return guard_api([&]() -> rns8_status {
-    if (!owner || !info ||
-        !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+    if (!owner || !info || !rns8::detail::minimum_abi_header(info))
       return RNS8_INVALID_ARGUMENT;
     const auto& c = owner->certificate;
     *info = {};

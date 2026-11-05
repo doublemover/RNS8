@@ -241,7 +241,7 @@ rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx, const rns8_ma
 }
 rns8_status rns8_get_ragged_resources(const rns8_ragged_materialization* owner,
                                       rns8_ragged_resources* out) {
-  if (!owner || !out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!owner || !out || !minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   rns8_ragged_resources r{};
   r.struct_size = sizeof(r);

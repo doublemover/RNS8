@@ -111,8 +111,8 @@ bool basis_context_matches(const rns8_context& ctx, rns8_backend_kind backend) {
 }
 rns8_status basis_plan_storage(const ExperimentalBasis& basis, const rns8_basis_plan_desc& d,
                                BasisStorage& out) {
-  if (!valid_abi(d.struct_size, d.abi_version, sizeof(d)) || d.flags || !d.prefix ||
-      d.prefix > basis.packet.count || d.m <= 0 || d.n <= 0 || d.k <= 0)
+  if (!minimum_abi_header(&d) || d.flags || !d.prefix || d.prefix > basis.packet.count ||
+      d.m <= 0 || d.n <= 0 || d.k <= 0)
     return RNS8_INVALID_ARGUMENT;
   if (!exact_wide_semantics(d.semantics) ||
       (d.backend != RNS8_BACKEND_CPU_REFERENCE && !basis_device_backend(d.backend)))
@@ -174,8 +174,7 @@ rns8_status basis_plan_storage(const ExperimentalBasis& basis, const rns8_basis_
                                                                         : RNS8_SUCCESS;
 }
 rns8_status describe_basis(const ExperimentalBasis& basis, uint32_t prefix, rns8_basis_info* out) {
-  if (!out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)) || !prefix ||
-      prefix > basis.packet.count)
+  if (!out || !minimum_abi_header(out) || !prefix || prefix > basis.packet.count)
     return RNS8_INVALID_ARGUMENT;
   rns8_basis_info info{};
   info.struct_size = sizeof(info);
@@ -201,9 +200,8 @@ rns8_status rns8_create_basis(const rns8_basis_desc* desc, rns8_basis** out) {
     if (!out)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!desc || !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
-        desc->representation != 1 || desc->flags || !desc->moduli || !desc->count ||
-        desc->count > 20)
+    if (!desc || !minimum_abi_header(desc) || desc->representation != 1 || desc->flags ||
+        !desc->moduli || !desc->count || desc->count > 20)
       return RNS8_INVALID_ARGUMENT;
     for (uint32_t i = 0; i < desc->count; ++i) {
       if (desc->moduli[i] < 2 || desc->moduli[i] > 256)
@@ -237,7 +235,7 @@ rns8_status rns8_create_basis_matrix(rns8_context* ctx, const rns8_basis* basis,
     if (!out)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!ctx || !desc || !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)))
+    if (!ctx || !desc || !minimum_abi_header(desc))
       return RNS8_INVALID_ARGUMENT;
     if (!exact_wide_semantics(desc->semantics) ||
         (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_HIP_DIRECT))
@@ -261,7 +259,7 @@ rns8_status rns8_create_basis_matrix(rns8_context* ctx, const rns8_basis* basis,
 rns8_status rns8_query_basis_plan(const rns8_basis* basis, const rns8_basis_plan_desc* desc,
                                   rns8_basis_resources* out) {
   return guard_api([&]() -> rns8_status {
-    if (!desc || !out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+    if (!desc || !out || !minimum_abi_header(out))
       return RNS8_INVALID_ARGUMENT;
     const auto data = basis_data(basis);
     BasisStorage storage;
@@ -285,10 +283,8 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx, const rns8_basis
                                        rns8_operation_kind operation, uint32_t modes,
                                        rns8_operation_support* support, rns8_basis_info* info) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !support || !info ||
-        !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
-        !valid_abi(support->struct_size, support->abi_version, sizeof(*support)) ||
-        !valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+    if (!ctx || !desc || !support || !info || !minimum_abi_header(desc) ||
+        !minimum_abi_header(support) || !minimum_abi_header(info))
       return RNS8_INVALID_ARGUMENT;
     const auto data = basis_data(basis);
     const auto described = describe_basis(*data, desc->prefix, info);
@@ -482,9 +478,8 @@ rns8_status rns8_destroy_basis_plan(rns8_basis_plan* plan) {
 rns8_status rns8_get_basis_plan_info(const rns8_basis_plan* plan, rns8_basis_info* basis,
                                      rns8_basis_resources* resources) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !basis || !resources ||
-        !valid_abi(basis->struct_size, basis->abi_version, sizeof(*basis)) ||
-        !valid_abi(resources->struct_size, resources->abi_version, sizeof(*resources)))
+    if (!plan || !basis || !resources || !minimum_abi_header(basis) ||
+        !minimum_abi_header(resources))
       return RNS8_INVALID_ARGUMENT;
     BasisStorage storage;
     const auto status = basis_plan_storage(*plan->basis, plan->desc, storage);

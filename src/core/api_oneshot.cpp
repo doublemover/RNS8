@@ -175,8 +175,7 @@ bool finite_backend_supports(rns8_backend_kind backend) {
 rns8_status validate_finite_u8_oneshot_contract(const rns8_context& ctx, const rns8_gemm_desc& desc,
                                                 rns8_semantics expected_semantics, uint16_t modulus,
                                                 int64_t lda, int64_t ldb, int64_t ldc) {
-  if (!rns8::detail::valid_abi(desc.struct_size, desc.abi_version, sizeof(desc)) ||
-      desc.semantics != expected_semantics) {
+  if (!rns8::detail::minimum_abi_header(&desc) || desc.semantics != expected_semantics) {
     return RNS8_INVALID_ARGUMENT;
   }
   const bool valid_modulus =
@@ -495,8 +494,7 @@ bool valid_limb_export_access(int64_t rows, int64_t cols, int64_t ld, uint32_t l
 rns8_status validate_typed_oneshot_contract(const rns8_context& ctx, const rns8_gemm_desc& desc,
                                             rns8_semantics expected_semantics, int64_t lda,
                                             int64_t ldb, int64_t ldc) {
-  if (!rns8::detail::valid_abi(desc.struct_size, desc.abi_version, sizeof(desc)) ||
-      desc.semantics != expected_semantics) {
+  if (!rns8::detail::minimum_abi_header(&desc) || desc.semantics != expected_semantics) {
     return RNS8_INVALID_ARGUMENT;
   }
   const uint32_t prefix = desc.max_prefix == 0
@@ -567,7 +565,7 @@ rns8_status rns8_gemm_i64_oneshot(rns8_context* ctx, const rns8_gemm_desc* desc,
                                   int64_t lda, const int64_t* B, int64_t ldb, int64_t* C,
                                   int64_t ldc) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !A || !B || !C) {
+    if (!ctx || !desc || !A || !B || !C || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status preflight =
@@ -605,7 +603,7 @@ rns8_status rns8_gemm_u64_oneshot(rns8_context* ctx, const rns8_gemm_desc* desc,
                                   int64_t lda, const uint64_t* B, int64_t ldb, uint64_t* C,
                                   int64_t ldc) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !A || !B || !C) {
+    if (!ctx || !desc || !A || !B || !C || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status preflight =
@@ -643,7 +641,7 @@ rns8_status rns8_gemm_wrap_u64_oneshot(rns8_context* ctx, const rns8_gemm_desc* 
                                        const uint64_t* A, int64_t lda, const uint64_t* B,
                                        int64_t ldb, uint64_t* C, int64_t ldc) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !A || !B || !C) {
+    if (!ctx || !desc || !A || !B || !C || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status preflight =
@@ -672,7 +670,7 @@ rns8_status rns8_gemm_finite_ring_u8_oneshot(rns8_context* ctx, const rns8_gemm_
                                              const uint8_t* B, int64_t ldb, uint8_t* C,
                                              int64_t ldc) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !A || !B || !C) {
+    if (!ctx || !desc || !A || !B || !C || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status preflight = validate_finite_u8_oneshot_contract(
@@ -696,7 +694,7 @@ rns8_status rns8_gemm_finite_field_u8_oneshot(rns8_context* ctx, const rns8_gemm
                                               const uint8_t* B, int64_t ldb, uint8_t* C,
                                               int64_t ldc) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !A || !B || !C) {
+    if (!ctx || !desc || !A || !B || !C || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status preflight = validate_finite_u8_oneshot_contract(

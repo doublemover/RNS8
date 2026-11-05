@@ -5,7 +5,8 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
-    if (locality && !rns8::detail::locality_descriptor_valid(*locality))
+    if (locality && (!rns8::detail::exact_abi_header(locality) ||
+                     !rns8::detail::locality_descriptor_valid(*locality)))
       return RNS8_INVALID_ARGUMENT;
     if (locality && (plan->backend != RNS8_BACKEND_HIP_DIRECT || plan->tile_schedule.empty()))
       return RNS8_UNSUPPORTED_BACKEND;
@@ -238,8 +239,7 @@ rns8_status rns8_create_locality_workspace(rns8_context* ctx, const rns8_plan* p
 }
 rns8_status rns8_get_workspace_locality_info(const rns8_workspace* workspace,
                                              rns8_locality_info* out) {
-  if (!workspace || !out || out->struct_size != sizeof(*out) ||
-      out->abi_version != RNS8_ABI_VERSION)
+  if (!workspace || !rns8::detail::exact_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   if (workspace->locality_info.struct_size != sizeof(*out))
     return RNS8_UNSUPPORTED_BACKEND;

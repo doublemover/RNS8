@@ -2,14 +2,14 @@
 
 #include <cstring>
 #include "backend_common/device_identity_observation.hpp"
-#include "backend_common/abi_output_header.hpp"
+#include "backend_common/abi_header.hpp"
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #include <hip/hip_runtime_api.h>
 #endif
 
 rns8_status rns8_query_runtime_device_identity(int ordinal, rns8_runtime_device_identity* out) {
-  if (ordinal < 0 || !rns8::detail::exact_output_header(out))
+  if (ordinal < 0 || !rns8::detail::exact_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   // Optional identity APIs can report unsupported status. Do not leave that

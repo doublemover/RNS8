@@ -49,8 +49,7 @@ static rns8_status close_prepared_integrity(rns8_prepared_execution& e) {
 rns8_status rns8_set_prepared_native_integrity(rns8_prepared_execution* e,
                                                const rns8_native_integrity_options* options) {
   return guard_api([&]() -> rns8_status {
-    if (!e || e->closing || !options ||
-        !rns8::detail::valid_abi(options->struct_size, options->abi_version, sizeof(*options)) ||
+    if (!e || e->closing || !options || !rns8::detail::minimum_abi_header(options) ||
         options->mode > 1 || options->flags || options->reserved)
       return RNS8_INVALID_ARGUMENT;
     if (e->running || e->group_references || e->dependent_references || e->producer_count)
@@ -173,9 +172,8 @@ static rns8_status finish_prepared_integrity(rns8_prepared_execution& e, rns8_st
 rns8_status rns8_get_prepared_native_integrity_report(const rns8_prepared_execution* e,
                                                       rns8_completion_token token,
                                                       rns8_native_integrity_report* report) {
-  if (!e || !report ||
-      !rns8::detail::valid_abi(report->struct_size, report->abi_version, sizeof(*report)) ||
-      token.prepared_id != e->id || !token.epoch || token.epoch != e->epoch ||
+  if (!e || !report || !rns8::detail::minimum_abi_header(report) || token.prepared_id != e->id ||
+      !token.epoch || token.epoch != e->epoch ||
       e->native_integrity_report.operation_id != token.prepared_id ||
       e->native_integrity_report.epoch != token.epoch)
     return RNS8_INVALID_ARGUMENT;

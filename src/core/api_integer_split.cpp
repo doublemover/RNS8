@@ -1,5 +1,6 @@
 #include "rns8/integer_split.h"
 #include "backend_common/checked_arithmetic.hpp"
+#include "backend_common/abi_header.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -18,10 +19,9 @@ using rns8::detail::checked::add;
 using rns8::detail::checked::multiply;
 
 rns8_status layout(const rns8_integer_split_i64_desc* d, Layout& out) noexcept {
-  if (!d || d->struct_size != sizeof(*d) || d->abi_version != RNS8_ABI_VERSION ||
-      d->format != RNS8_INTEGER_SPLIT_SIGNED_RADIX128 || d->rows <= 0 || d->cols <= 0 ||
-      d->native_ld < d->cols || d->component_ld < 0 || d->component_plane_stride < 0 ||
-      (d->component_ld && d->component_ld < d->cols))
+  if (!rns8::detail::exact_abi_header(d) || d->format != RNS8_INTEGER_SPLIT_SIGNED_RADIX128 ||
+      d->rows <= 0 || d->cols <= 0 || d->native_ld < d->cols || d->component_ld < 0 ||
+      d->component_plane_stride < 0 || (d->component_ld && d->component_ld < d->cols))
     return RNS8_INVALID_ARGUMENT;
   out = {uint64_t(d->rows),
          uint64_t(d->cols),
@@ -89,7 +89,7 @@ rns8_status decode(const int8_t* cell, uint64_t stride, int64_t& value) noexcept
 
 RNS8_API rns8_status rns8_query_integer_split_i64(const rns8_integer_split_i64_desc* d,
                                                   rns8_integer_split_i64_info* out) {
-  if (!out || out->struct_size != sizeof(*out) || out->abi_version != RNS8_ABI_VERSION)
+  if (!rns8::detail::exact_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   Layout l{};
   const auto status = layout(d, l);

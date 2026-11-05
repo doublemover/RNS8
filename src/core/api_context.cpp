@@ -245,7 +245,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
     rns8_backend_kind requested = RNS8_BACKEND_CPU_REFERENCE;
     bool requested_auto = false;
     if (options) {
-      if (!rns8::detail::valid_abi(options->struct_size, options->abi_version, sizeof(*options))) {
+      if (!rns8::detail::minimum_abi_header(options)) {
         return RNS8_INVALID_ARGUMENT;
       }
       if (options->flags != 0) {
@@ -520,8 +520,7 @@ rns8_status rns8_destroy_context(rns8_context* ctx) {
 
 rns8_status rns8_get_device_info(rns8_context* ctx, rns8_device_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!ctx || !out || !rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const uint64_t struct_size = out->struct_size;

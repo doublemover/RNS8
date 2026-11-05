@@ -63,7 +63,7 @@ bool split_input_matches(const rns8_context& ctx, const rns8_matrix& a) {
 } // namespace
 rns8_status rns8_query_split_k(int64_t m, int64_t n, int64_t k, uint32_t prefix, uint32_t fragments,
                                uint64_t budget, rns8_split_k_resources* out) {
-  if (!out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!out || !minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   return query_split_k_resources(m, n, k, k, n, n, prefix, fragments, budget, *out);
 }
@@ -124,7 +124,7 @@ static rns8_status create_split_k_impl(rns8_context* ctx, const rns8_matrix* a,
 rns8_status rns8_query_split_k_windowed(int64_t m, int64_t n, int64_t k, uint32_t prefix,
                                         uint32_t fragments, uint32_t window, uint64_t budget,
                                         rns8_split_k_resources* out) {
-  if (!out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!out || !minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   return query_split_k_window_resources(m, n, k, k, n, n, prefix, fragments, window, budget, *out);
 }

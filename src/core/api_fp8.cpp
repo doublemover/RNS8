@@ -43,8 +43,8 @@ rns8_status rns8_prepare_fp8_recipe(rns8_context* ctx, const rns8_plan* plan,
     if (!out)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!ctx || !plan || !desc || !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
-        desc->method > 3 || (desc->flags & ~RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL))
+    if (!ctx || !plan || !desc || !minimum_abi_header(desc) || desc->method > 3 ||
+        (desc->flags & ~RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL))
       return RNS8_INVALID_ARGUMENT;
     if (desc->format < 1 || desc->format > 10)
       return RNS8_UNSUPPORTED_BACKEND;
@@ -156,7 +156,7 @@ rns8_status rns8_prepare_fp8_recipe(rns8_context* ctx, const rns8_plan* plan,
   });
 }
 rns8_status rns8_get_fp8_info(const rns8_fp8_recipe* owner, rns8_fp8_info* info) {
-  if (!owner || !info || !valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+  if (!owner || !info || !minimum_abi_header(info))
     return RNS8_INVALID_ARGUMENT;
   *info = {};
   info->struct_size = sizeof(*info);

@@ -233,7 +233,7 @@ bool revalidate_plan_schedule_contract(const rns8_plan& plan) {
   uint32_t aggregate_flags = 0;
   for (uint64_t index = 0; index < plan.schedule_tile_count; ++index) {
     const auto& entry = plan.tile_schedule[static_cast<std::size_t>(index)];
-    if (!rns8::detail::valid_abi(entry.struct_size, entry.abi_version, sizeof(entry)) ||
+    if (!rns8::detail::minimum_abi_header(&entry) ||
         (entry.flags & ~known_tile_schedule_flags) != 0 ||
         entry.tile_row != index / plan.schedule_tile_cols ||
         entry.tile_col != index % plan.schedule_tile_cols || entry.row_offset < 0 ||

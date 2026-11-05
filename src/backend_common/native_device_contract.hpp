@@ -1,5 +1,6 @@
 #pragma once
 #include "address_domain.hpp"
+#include "abi_header.hpp"
 #include "rns8/rns8.h"
 namespace rns8::detail {
 inline bool native_device_limb_type(rns8_native_device_type type) {
@@ -10,7 +11,7 @@ inline bool native_device_signed_type(rns8_native_device_type type) {
 }
 inline rns8_status query_native_device_contract(const rns8_native_device_desc& d,
                                                 rns8_native_device_resources& out) {
-  if (d.struct_size != sizeof(d) || d.abi_version != RNS8_ABI_VERSION)
+  if (!exact_abi_header(&d))
     return RNS8_INVALID_ARGUMENT;
   AddressDomain view, compact;
   const bool limbs = native_device_limb_type(d.element_type);

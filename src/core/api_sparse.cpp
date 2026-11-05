@@ -70,8 +70,7 @@ bool sparse_semantic_identity_valid(const rns8_sparse_matrix_desc& desc, uint32_
 
 bool sparse_contract_valid(const rns8_sparse_matrix_desc& desc, sparse_layout_counts& counts) {
   uint32_t plane_count = 0;
-  if (!rns8::detail::valid_abi(desc.struct_size, desc.abi_version, sizeof(desc)) ||
-      desc.flags != 0 || desc.reserved0 != 0 ||
+  if (!rns8::detail::minimum_abi_header(&desc) || desc.flags != 0 || desc.reserved0 != 0 ||
       desc.contract != RNS8_SPARSE_A_4_TO_2_STRUCTURED_K ||
       desc.sparse_operand != RNS8_SPARSE_OPERAND_A ||
       desc.index_layout != RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1 ||
@@ -424,7 +423,7 @@ rns8_status rns8_sparse_a_4_to_2_layout_counts(const rns8_sparse_matrix_desc* de
                                                uint64_t* group_count,
                                                uint64_t* packed_value_count) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!desc || !group_count || !packed_value_count) {
+    if (!desc || !group_count || !packed_value_count || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     sparse_layout_counts counts{};
@@ -442,7 +441,7 @@ rns8_status rns8_pack_sparse_a_4_to_2_u8(const rns8_sparse_matrix_desc* desc,
                                          uint8_t* packed_values, uint8_t* packed_indices) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if (!desc || !dense_a || !packed_values || !packed_indices ||
-        !dense_ld_valid(*desc, dense_ld)) {
+        !rns8::detail::minimum_abi_header(desc) || !dense_ld_valid(*desc, dense_ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
     sparse_layout_counts counts{};
@@ -493,7 +492,7 @@ rns8_status rns8_expand_sparse_a_4_to_2_u8(const rns8_sparse_matrix_desc* desc,
                                            int64_t dense_ld) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if (!desc || !packed_values || !packed_indices || !dense_a ||
-        !dense_ld_valid(*desc, dense_ld)) {
+        !rns8::detail::minimum_abi_header(desc) || !dense_ld_valid(*desc, dense_ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
     sparse_layout_counts counts{};
@@ -534,7 +533,7 @@ rns8_status rns8_create_sparse_matrix(rns8_context* ctx, const rns8_sparse_matri
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if (ctx && ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;
-    if (!ctx || !desc || !out) {
+    if (!ctx || !desc || !out || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
@@ -584,8 +583,7 @@ rns8_status rns8_destroy_sparse_matrix(rns8_sparse_matrix* matrix) {
 rns8_status rns8_get_sparse_matrix_storage_info(const rns8_sparse_matrix* matrix,
                                                 rns8_sparse_matrix_storage_info* out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!matrix || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!matrix || !out || !rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const uint64_t struct_size = out->struct_size;

@@ -9,7 +9,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     *out = nullptr;
     if (ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;
-    if (!rns8::detail::valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc))) {
+    if (!rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const uint32_t prefix = desc->max_prefix == 0
@@ -86,8 +86,7 @@ rns8_status rns8_destroy_plan(rns8_plan* plan) {
 
 rns8_status rns8_get_plan_schedule_info(const rns8_plan* plan, rns8_plan_schedule_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out || !rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -166,8 +165,7 @@ rns8_status rns8_get_plan_tile_schedule(const rns8_plan* plan,
 
 rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out || !rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -250,8 +248,7 @@ const char* grouped_dispatch_contract_output_domain(rns8_semantics semantics) {
 rns8_status rns8_get_grouped_dispatch_contract_info(const rns8_plan* plan, uint32_t task_count,
                                                     rns8_grouped_dispatch_contract_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out || !rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -349,8 +346,7 @@ rns8_status rns8_get_grouped_dispatch_contract_info(const rns8_plan* plan, uint3
 
 rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!plan || !out || !rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!plan_schedule_contract_matches(*plan)) {
@@ -563,8 +559,7 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
 rns8_status rns8_get_plan_arithmetic_certificate(const rns8_plan* plan,
                                                  rns8_arithmetic_certificate_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!plan || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)) ||
+    if (!plan || !out || !rns8::detail::minimum_abi_header(out) ||
         !plan_schedule_contract_matches(*plan) || !plan->arithmetic_guard)
       return RNS8_INVALID_ARGUMENT;
     const auto& guard = *plan->arithmetic_guard;
@@ -598,8 +593,7 @@ rns8_status rns8_get_plan_auto_decisions(const rns8_plan* plan, rns8_auto_trace_
                                          uint32_t* required) {
   return guard_api([&]() -> rns8_status {
     if (!plan || !info || !required || (capacity && !entries) ||
-        !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)) ||
-        !plan_schedule_contract_matches(*plan))
+        !rns8::detail::minimum_abi_header(info) || !plan_schedule_contract_matches(*plan))
       return RNS8_INVALID_ARGUMENT;
     *required = static_cast<uint32_t>(plan->auto_decisions.size());
     *info = plan->auto_trace;
@@ -618,7 +612,7 @@ rns8_status rns8_query_operation_support(const rns8_context* ctx, const rns8_ope
                                          uint32_t* required) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !query || !required || (capacity && !results) ||
-        !rns8::detail::valid_abi(query->struct_size, query->abi_version, sizeof(*query)))
+        !rns8::detail::minimum_abi_header(query))
       return RNS8_INVALID_ARGUMENT;
     if (query->operation >= RNS8_OP_COUNT || !query->execution_modes ||
         (query->execution_modes & ~127u) || (query->proof_flags & ~15u) ||

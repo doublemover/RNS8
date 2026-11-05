@@ -58,8 +58,7 @@ rns8_status prepare_adaptive_summaries(rns8_context& ctx, const rns8_matrix& a,
 
 rns8_status rns8_get_adaptive_summary_info(const rns8_workspace* workspace,
                                            rns8_adaptive_summary_info* out) {
-  if (!workspace || !out ||
-      !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!workspace || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   if (workspace->in_flight)
     return RNS8_BUSY;

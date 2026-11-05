@@ -29,7 +29,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     *out = nullptr;
     if (ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;
-    if (!rns8::detail::valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc))) {
+    if (!rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const uint32_t prefix = desc->max_prefix == 0
@@ -163,7 +163,7 @@ rns8_status rns8_get_matrix_storage_info(const rns8_matrix* matrix, rns8_matrix_
     if (!matrix || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
 
@@ -224,7 +224,7 @@ rns8_status rns8_get_matrix_storage_info(const rns8_matrix* matrix, rns8_matrix_
 rns8_status rns8_get_allocation_observation(const rns8_context* ctx,
                                             rns8_allocation_observation* out) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+    if (!ctx || !out || !rns8::detail::minimum_abi_header(out))
       return RNS8_INVALID_ARGUMENT;
     if (!ctx->device_info.hip_available || ctx->device_id < 0)
       return RNS8_UNSUPPORTED_BACKEND;
@@ -268,8 +268,7 @@ rns8_status rns8_reset_allocation_peaks(rns8_context* ctx, uint64_t* epoch) {
 rns8_status rns8_get_matrix_allocation_info(const rns8_matrix* matrix,
                                             rns8_matrix_allocation_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!matrix || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+    if (!matrix || !out || !rns8::detail::minimum_abi_header(out))
       return RNS8_INVALID_ARGUMENT;
     rns8_matrix_allocation_info info{};
     info.struct_size = sizeof(info);

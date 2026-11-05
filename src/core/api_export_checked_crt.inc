@@ -119,8 +119,7 @@ rns8_status rns8_prepare_crt_export(rns8_context* ctx, const rns8_plan* plan,
     if (!out)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!ctx || !plan || !source || !desc ||
-        !valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
+    if (!ctx || !plan || !source || !desc || !minimum_abi_header(desc) ||
         desc->algorithm > RNS8_CRT_GROUP_SPLIT || desc->mode > 2 || !desc->limb_count ||
         desc->limb_count > 32)
       return RNS8_INVALID_ARGUMENT;
@@ -210,8 +209,7 @@ rns8_status rns8_rebind_crt_export(rns8_crt_export* owner, const rns8_matrix* so
 
 rns8_status rns8_get_crt_export_info(const rns8_crt_export* owner, rns8_crt_export_info* info) {
   return guard_api([&]() -> rns8_status {
-    if (!owner || !info ||
-        !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+    if (!owner || !info || !rns8::detail::minimum_abi_header(info))
       return RNS8_INVALID_ARGUMENT;
     *info = {};
     info->struct_size = sizeof(*info);

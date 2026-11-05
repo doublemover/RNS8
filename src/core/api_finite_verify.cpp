@@ -12,9 +12,8 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
   using namespace rns8::detail;
   using namespace rns8::detail::api;
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !A || !B || !C || !options || !report || options->struct_size != sizeof(*options) ||
-        options->abi_version != RNS8_ABI_VERSION || report->struct_size != sizeof(*report) ||
-        report->abi_version != RNS8_ABI_VERSION || options->repetition_count < 1 ||
+    if (!ctx || !A || !B || !C || !options || !report || !exact_abi_header(options) ||
+        !exact_abi_header(report) || options->repetition_count < 1 ||
         options->repetition_count > 1048576 ||
         options->sampler != RNS8_VERIFY_SPLITMIX64_BINARY_V1 ||
         (options->flags & ~RNS8_VERIFY_CHECK_GENERATIONS))

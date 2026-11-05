@@ -318,8 +318,7 @@ rns8_status cpu_amx_workspace_info(const CpuAmxWorkspace& s,
 }
 } // namespace rns8::detail
 rns8_status rns8_query_cpu_amx(uint32_t request, rns8_cpu_amx_info* out) {
-  if (!out || request > 1 ||
-      !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!out || request > 1 || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   // Query itself succeeds even when execution is unavailable; fields distinguish causes.
   rns8::detail::cpu_amx_probe(request != 0, *out);
@@ -327,8 +326,7 @@ rns8_status rns8_query_cpu_amx(uint32_t request, rns8_cpu_amx_info* out) {
 }
 rns8_status rns8_get_cpu_amx_workspace_info(const rns8_workspace* workspace,
                                             rns8_cpu_amx_workspace_info* out) {
-  if (!workspace || !out ||
-      !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!workspace || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   if (workspace->in_flight)
     return RNS8_BUSY;

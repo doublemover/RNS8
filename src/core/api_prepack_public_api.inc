@@ -47,7 +47,7 @@ rns8_status rns8_get_prepack_cache_key_info(const rns8_plan* plan, const rns8_ma
     if (!plan || !matrix || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (!prepack_operand_matrix_compatible(*plan, *matrix, operand_role)) {
@@ -394,7 +394,7 @@ rns8_status rns8_get_prepack_cache_info(const rns8_prepack_cache* cache,
     if (!cache || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
 

@@ -517,7 +517,7 @@ rns8_status rns8_export_prepared_gram_limbs(rns8_prepared_gram* owner, uint64_t*
 rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,
                                         rns8_prepared_gram_info* info) {
   return guard_api([&]() -> rns8_status {
-    if (!owner || !info || !valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+    if (!owner || !info || !minimum_abi_header(info))
       return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(owner->mutex, std::try_to_lock);
     if (!lock.owns_lock())

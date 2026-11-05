@@ -21,8 +21,7 @@ bool terminated(const char* text, size_t size) {
   return std::memchr(text, 0, size) != nullptr;
 }
 bool valid_recipe_options(const rns8_pipeline_recipe_options& o) {
-  return valid_abi(o.struct_size, o.abi_version, sizeof(o)) && o.route_mask &&
-         !(o.route_mask & ~31u) &&
+  return minimum_abi_header(&o) && o.route_mask && !(o.route_mask & ~31u) &&
          (o.execution_mode == RNS8_EXEC_SYNC || o.execution_mode == RNS8_EXEC_BORROWED_STREAM ||
           o.execution_mode == RNS8_EXEC_OWNED_GRAPH) &&
          o.output_mode <= 5 &&
@@ -140,8 +139,7 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx, const rns8_plan
       return status;
     for (uint32_t i = 0; i < count; ++i) {
       const auto& p = prices[i];
-      if (!valid_abi(p.struct_size, p.abi_version, sizeof(p)) || p.known_mask > 7 ||
-          (p.origin != 1 && p.origin != 2) ||
+      if (!minimum_abi_header(&p) || p.known_mask > 7 || (p.origin != 1 && p.origin != 2) ||
           !terminated(p.identity_sha256, sizeof(p.identity_sha256)) ||
           !terminated(p.build_identity_sha256, sizeof(p.build_identity_sha256)) ||
           !terminated(p.target_id, sizeof(p.target_id)) ||
@@ -435,7 +433,7 @@ rns8_status rns8_select_pipeline_recipe(const rns8_pipeline_recipe_candidate* ca
   uint32_t best = UINT32_MAX;
   for (uint32_t i = 0; i < count; ++i) {
     const auto& x = candidates[i];
-    if (!valid_abi(x.struct_size, x.abi_version, sizeof(x)))
+    if (!minimum_abi_header(&x))
       return RNS8_INVALID_ARGUMENT;
     if (x.status != RNS8_SUCCESS || !x.cost_known)
       continue;
@@ -594,7 +592,7 @@ rns8_status rns8_prepare_pipeline_recipe(rns8_context* ctx, const rns8_plan* pla
     if (!out)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!selected || !valid_abi(selected->struct_size, selected->abi_version, sizeof(*selected)) ||
+    if (!selected || !minimum_abi_header(selected) ||
         !terminated(selected->identity_sha256, sizeof(selected->identity_sha256)))
       return RNS8_INVALID_ARGUMENT;
     rns8_pipeline_recipe_candidate fresh[16]{};
@@ -883,7 +881,7 @@ rns8_status rns8_end_pipeline_recipe_host_read(rns8_pipeline_recipe* p) {
 }
 rns8_status rns8_get_pipeline_recipe_candidate(const rns8_pipeline_recipe* p,
                                                rns8_pipeline_recipe_candidate* out) {
-  if (!p || !out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!p || !out || !minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   *out = p->candidate;
   return RNS8_SUCCESS;

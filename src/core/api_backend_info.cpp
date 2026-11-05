@@ -428,8 +428,7 @@ using namespace rns8::detail::api;
 rns8_status rns8_get_backend_capability_info(rns8_backend_kind backend,
                                              rns8_backend_capability_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)) ||
-        !known_backend_kind(backend)) {
+    if (!out || !rns8::detail::minimum_abi_header(out) || !known_backend_kind(backend)) {
       return RNS8_INVALID_ARGUMENT;
     }
     fill_backend_capability_info(backend, *out);

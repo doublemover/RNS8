@@ -275,7 +275,7 @@ public:
 };
 } // namespace
 rns8_status rns8_query_pinned_host_bytes(const rns8_pinned_host_desc* desc, uint64_t* out) {
-  if (!desc || !out)
+  if (!desc || !out || !exact_abi_header(desc))
     return RNS8_INVALID_ARGUMENT;
   PinnedHostResources r;
   const auto status = query_pinned_host_contract(*desc, r);
@@ -286,7 +286,7 @@ rns8_status rns8_query_pinned_host_bytes(const rns8_pinned_host_desc* desc, uint
 rns8_status rns8_create_pinned_host_buffer_hip(rns8_context* ctx, const rns8_pinned_host_desc* desc,
                                                uint64_t budget, rns8_pinned_host_buffer** out) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !out)
+    if (!ctx || !desc || !out || !exact_abi_header(desc))
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
     PinnedHostResources resources;
@@ -335,7 +335,7 @@ rns8_status rns8_destroy_pinned_host_buffer(rns8_pinned_host_buffer* b) {
 }
 rns8_status rns8_get_pinned_host_info(const rns8_pinned_host_buffer* b,
                                       rns8_pinned_host_info* out) {
-  if (!b || !out || !valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!b || !out || !minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   *out = {};
   out->struct_size = sizeof(*out);
@@ -402,8 +402,7 @@ static rns8_status prepare_host_transfer(rns8_context* ctx, rns8_matrix* matrix,
                                          const boost::multiprecision::cpp_int* declared = nullptr,
                                          uint32_t declared_prefix = 0) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !matrix || !buffer || !options || !out ||
-        !valid_abi(options->struct_size, options->abi_version, sizeof(*options)) ||
+    if (!ctx || !matrix || !buffer || !options || !out || !minimum_abi_header(options) ||
         options->flags || options->import_values > 1 || options->verify_input_bound > 1)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;

@@ -125,8 +125,7 @@ rns8_status rns8_prepare_exact_lift_hip(rns8_context* ctx, rns8_matrix* matrix,
                                         rns8_prepared_execution** out) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!ctx || !matrix || !options || !out ||
-        !valid_abi(options->struct_size, options->abi_version, sizeof(*options)) ||
+    if (!ctx || !matrix || !options || !out || !minimum_abi_header(options) ||
         options->algorithm > 1 || options->flags || !options->target_prefix ||
         options->target_prefix > matrix->prefix)
       return RNS8_INVALID_ARGUMENT;

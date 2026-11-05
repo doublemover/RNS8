@@ -7,7 +7,8 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
   out.struct_size = sizeof(out);
   out.abi_version = RNS8_ABI_VERSION;
   out.backend = backend;
-  out.operation = query.operation;
+  const bool header_valid = rns8::detail::minimum_abi_header(&query);
+  out.operation = header_valid ? query.operation : 0;
   const bool device_backend = hip_device_backend_kind(backend);
   out.status = RNS8_SUCCESS;
   out.requires_binding = 1;
@@ -35,8 +36,7 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     set_text(out.explanation, sizeof(out.explanation), explanation);
     return out;
   };
-  if (!rns8::detail::valid_abi(query.struct_size, query.abi_version, sizeof(query)) ||
-      query.operation >= RNS8_OP_COUNT || !query.execution_modes ||
+  if (!header_valid || query.operation >= RNS8_OP_COUNT || !query.execution_modes ||
       (query.execution_modes & ~127u) || (query.proof_flags & ~15u) || query.device_count > 64 ||
       query.output_limbs > 32 || query.input_domain > 5 || query.output_domain > 5 ||
       query.orientation > 1 || query.source_prefix > 20)

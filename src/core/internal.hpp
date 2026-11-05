@@ -2,6 +2,7 @@
 #define RNS8_CORE_INTERNAL_HPP
 
 #include "backend_common/address_domain.hpp"
+#include "backend_common/abi_header.hpp"
 #include "backend_common/arithmetic_certificate.hpp"
 #include "core/hip_resources.hpp"
 #include "backend_common/native_summary_identity.hpp"
@@ -484,7 +485,6 @@ constexpr uint16_t kDefaultModuli[RNS8_DEFAULT_MODULUS_COUNT] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
-bool valid_abi(uint64_t struct_size, uint32_t abi_version, std::size_t expected_size);
 void fill_cpu_device_info(rns8_device_info& info);
 void fill_wrap64_device_info(rns8_device_info& info);
 void copy_c_string(char* dst, std::size_t dst_size, const std::string& src);

@@ -214,8 +214,8 @@ rns8_status build_public_grouped_gemm_descriptor(
   internal_tasks.reserve(task_count);
   for (uint32_t index = 0; index < task_count; ++index) {
     const rns8_grouped_gemm_task& task = tasks[index];
-    if (!rns8::detail::valid_abi(task.struct_size, task.abi_version, sizeof(task)) || !task.a ||
-        !task.b || !task.c || !task.workspace) {
+    if (!rns8::detail::minimum_abi_header(&task) || !task.a || !task.b || !task.c ||
+        !task.workspace) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status =
@@ -568,10 +568,10 @@ rns8_status validate_dirty_regions(const rns8_plan& plan, const rns8_dirty_regio
   }
   for (uint32_t index = 0; index < dirty_region_count; ++index) {
     const rns8_dirty_region& region = dirty_regions[index];
-    if (!rns8::detail::valid_abi(region.struct_size, region.abi_version, sizeof(region)) ||
-        region.flags != 0 || region.row_offset < 0 || region.col_offset < 0 ||
-        region.row_extent <= 0 || region.col_extent <= 0 || region.row_offset > plan.desc.m ||
-        region.col_offset > plan.desc.n || region.row_extent > plan.desc.m - region.row_offset ||
+    if (!rns8::detail::minimum_abi_header(&region) || region.flags != 0 || region.row_offset < 0 ||
+        region.col_offset < 0 || region.row_extent <= 0 || region.col_extent <= 0 ||
+        region.row_offset > plan.desc.m || region.col_offset > plan.desc.n ||
+        region.row_extent > plan.desc.m - region.row_offset ||
         region.col_extent > plan.desc.n - region.col_offset) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -769,7 +769,7 @@ rns8_status rns8_create_result_cache(rns8_context* ctx, const rns8_plan* plan,
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
-    if (!rns8::detail::valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc)) ||
+    if (!rns8::detail::minimum_abi_header(desc) ||
         !result_cache_contract_flags_valid(desc->flags) || desc->reserved0 != 0) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -832,7 +832,7 @@ rns8_status rns8_get_result_cache_info(const rns8_result_cache* cache,
     if (!cache || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+    if (!rns8::detail::minimum_abi_header(out)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const uint64_t struct_size = out->struct_size;

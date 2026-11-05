@@ -596,8 +596,8 @@ rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_to
 }
 rns8_status rns8_get_prepared_completion(const rns8_prepared_execution* e,
                                          rns8_completion_token token, rns8_completion_info* out) {
-  if (!e || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)) ||
-      token.prepared_id != e->id || !token.epoch || token.epoch != e->epoch)
+  if (!e || !out || !rns8::detail::minimum_abi_header(out) || token.prepared_id != e->id ||
+      !token.epoch || token.epoch != e->epoch)
     return RNS8_INVALID_ARGUMENT;
   if (e->running)
     return RNS8_BUSY;
@@ -842,8 +842,7 @@ rns8_status rns8::detail::api::create_transfer_prepared(std::unique_ptr<Prepared
 
 rns8_status rns8_get_prepared_transfer_info(const rns8_prepared_execution* e,
                                             rns8_prepared_transfer_info* info) {
-  if (!e || !e->transfer || !info ||
-      !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+  if (!e || !e->transfer || !info || !rns8::detail::minimum_abi_header(info))
     return RNS8_INVALID_ARGUMENT;
   if (e->running)
     return RNS8_BUSY;

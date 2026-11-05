@@ -593,7 +593,7 @@ rns8_status rns8_create_resident_graph(rns8_context* ctx, const rns8_resident_no
     producers.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {
       const auto& node = nodes[i];
-      if (!rns8::detail::valid_abi(node.struct_size, node.abi_version, sizeof(node)) || !node.c)
+      if (!rns8::detail::minimum_abi_header(&node) || !node.c)
         return RNS8_INVALID_ARGUMENT;
       if (ctx->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB &&
           (node.kind != RNS8_RESIDENT_MATMUL || !node.plan ||
@@ -750,8 +750,7 @@ rns8_status rns8_refresh_resident_graph_inputs(rns8_resident_graph* graph) {
 rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph,
                                         rns8_graph_execution_info* out) {
   return guard_api([&]() -> rns8_status {
-    if (!graph || !out ||
-        !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+    if (!graph || !out || !rns8::detail::minimum_abi_header(out))
       return RNS8_INVALID_ARGUMENT;
     if (graph->running)
       return RNS8_BUSY;
@@ -890,7 +889,7 @@ rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph) {
 
 rns8_status rns8_get_resident_graph_resources(const rns8_resident_graph* graph,
                                               rns8_resident_graph_resources* out) {
-  if (!graph || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out)))
+  if (!graph || !out || !rns8::detail::minimum_abi_header(out))
     return RNS8_INVALID_ARGUMENT;
   rns8_resident_graph_resources info{};
   info.struct_size = sizeof(info);

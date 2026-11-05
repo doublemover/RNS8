@@ -8,11 +8,9 @@ rns8_status select_basis_plan(const rns8_context* ctx, const rns8_basis_selectio
                               const rns8_basis_candidate* candidates, uint32_t count,
                               rns8_basis_selection* output) {
   if (!ctx || !request || !candidates || !count || count > 4096 || !output ||
-      !valid_abi(request->struct_size, request->abi_version, sizeof(*request)) ||
-      !valid_abi(output->struct_size, output->abi_version, sizeof(*output)) ||
-      !request->reuse_count || request->flags & ~3u || !exact_wide_semantics(request->semantics) ||
-      request->m <= 0 || request->n <= 0 || request->k <= 0 ||
-      !basis_cost_digest(request->cohort_identity))
+      !minimum_abi_header(request) || !minimum_abi_header(output) || !request->reuse_count ||
+      request->flags & ~3u || !exact_wide_semantics(request->semantics) || request->m <= 0 ||
+      request->n <= 0 || request->k <= 0 || !basis_cost_digest(request->cohort_identity))
     return RNS8_INVALID_ARGUMENT;
   if (ctx->hip_failure_poisoned)
     return RNS8_BACKEND_FAILURE;
@@ -33,8 +31,7 @@ rns8_status select_basis_plan(const rns8_context* ctx, const rns8_basis_selectio
     const auto& candidate = candidates[i];
     const auto& price = candidate.cost;
     const auto& d = candidate.plan;
-    if (!valid_abi(d.struct_size, d.abi_version, sizeof(d)) ||
-        !valid_abi(price.struct_size, price.abi_version, sizeof(price)) ||
+    if (!minimum_abi_header(&d) || !minimum_abi_header(&price) ||
         (price.kind != 1 && price.kind != 2) || !basis_cost_digest(price.build_identity) ||
         !basis_cost_digest(price.cohort_identity) ||
         !std::memchr(price.target_id, 0, sizeof(price.target_id)))
@@ -118,7 +115,7 @@ rns8_status rns8_create_selected_basis_plan(rns8_context* ctx,
     if (!out)
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!output || !valid_abi(output->struct_size, output->abi_version, sizeof(*output)))
+    if (!output || !minimum_abi_header(output))
       return RNS8_INVALID_ARGUMENT;
     rns8_basis_selection choice{};
     choice.struct_size = sizeof(choice);
