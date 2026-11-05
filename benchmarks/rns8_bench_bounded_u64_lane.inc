@@ -550,6 +550,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       fail_status("invalid streaming measurement controls",RNS8_INVALID_ARGUMENT);
     uint64_t version=1;
     for(uint32_t batch=0;batch<args.warmups;++batch) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, batch);
       run_bounded_streaming_overlap_pipeline(args,result,plan,a_matrix,a_stream_matrix,b_matrix,c_matrix,c_stream_matrix,
           A,C,bound,version,measurement.warmup_calls,false,false);
       version+=measurement.warmup_calls;
@@ -564,10 +565,12 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     latest_output_matrix=(measurement.measured_calls&1u)?c_matrix:c_stream_matrix;
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
     }
     record_allocation_after_warmups(result);
     for (uint32_t r = 0; r < args.repeats; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);

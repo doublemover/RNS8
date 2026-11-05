@@ -124,10 +124,12 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     run_iteration(nullptr);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
@@ -264,10 +266,12 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     run_iteration(nullptr);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);

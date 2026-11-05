@@ -948,6 +948,7 @@ void run_hip_graph_replay_resident_chain(
   result.hip_graph_replay_status = "available";
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "warmup_launch_failed";
@@ -961,6 +962,7 @@ void run_hip_graph_replay_resident_chain(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     const auto repeat_start = std::chrono::steady_clock::now();
     status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
     const auto repeat_end = std::chrono::steady_clock::now();

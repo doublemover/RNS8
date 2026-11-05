@@ -15,6 +15,19 @@ from diagnostic_companion import production_evidence
 
 
 class NativeProfilerEvidence(unittest.TestCase):
+    def test_requested_or_active_ranges_cannot_enter_production_latency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            for state in ("active", "requested_provider_unavailable", "unknown"):
+                candidate = copy.deepcopy(fixture.capture)
+                candidate["profiler_ranges"] = dict(schema="rns8_profiler_ranges_v1", provider_status=state)
+                self.assertIn("profile_range_instrumentation_not_production_evidence", phase_blockers(candidate))
+                self.assertIn("profile_range_instrumentation_not_production_evidence", production_evidence(candidate)["blockers"])
+            for state in ("disabled_at_build", "disabled_at_runtime"):
+                candidate = copy.deepcopy(fixture.capture)
+                candidate["profiler_ranges"] = dict(schema="rns8_profiler_ranges_v1", provider_status=state)
+                self.assertNotIn("profile_range_instrumentation_not_production_evidence", phase_blockers(candidate))
+
     def test_selected_native_dispatch_retains_identity_without_claiming_production_latency(
         self,
     ):

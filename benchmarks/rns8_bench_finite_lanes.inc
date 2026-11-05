@@ -111,10 +111,12 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     run_iteration(nullptr);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
@@ -269,6 +271,7 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     run_host_api_batch_iteration(
         args,
         result,
@@ -285,6 +288,7 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     run_host_api_batch_iteration(
         args,
         result,
@@ -557,10 +561,12 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     run_hip_graph_replay_finite_pack_gemm_export(args, result, a_matrix, b_matrix, c_matrix, A, B, C);
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
     }
     record_allocation_after_warmups(result);
     for (uint32_t r = 0; r < args.repeats; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);

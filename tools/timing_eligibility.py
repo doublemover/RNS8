@@ -6,9 +6,12 @@ import json
 import math
 from pathlib import Path
 from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary, host_observation_contract
+from measurement_contract import profile_ranges_instrumented
 
 
 def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
+    if profile_ranges_instrumented(capture):
+        return ["profile_range_instrumentation_not_production_evidence"]
     if capture.get("external_instrumentation") is not None:
         return ["externally_profiled_host_time_not_production_evidence"]
     timing = capture.get("timing_metadata") or {}

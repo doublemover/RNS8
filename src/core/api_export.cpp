@@ -318,6 +318,7 @@ using rns8::detail::cpu_parallel_saturating_mul3;
 using rns8::detail::cpu_parallel_should_use;
 
 rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C, int64_t* dst, int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
       return RNS8_INVALID_ARGUMENT;
@@ -392,6 +393,7 @@ rns8_status rns8_export_u64(
     const rns8_matrix* C,
     uint64_t* dst,
     int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
       return RNS8_INVALID_ARGUMENT;
@@ -466,6 +468,7 @@ rns8_status rns8_export_wrap_u64(
     const rns8_matrix* C,
     uint64_t* dst,
     int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
       return RNS8_INVALID_ARGUMENT;
@@ -530,6 +533,7 @@ rns8_status rns8_export_finite_u8(
     const rns8_matrix* C,
     uint8_t* dst,
     int64_t ld) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld, sizeof(uint8_t))) {
       return RNS8_INVALID_ARGUMENT;
@@ -574,6 +578,7 @@ rns8_status rns8_export_exact_wide_signed_limbs(
     uint64_t* dst,
     int64_t ld,
     uint32_t limb_count) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
       return RNS8_INVALID_ARGUMENT;
@@ -622,6 +627,7 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
     uint64_t* dst,
     int64_t ld,
     uint32_t limb_count) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::export_result);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !C || !dst || !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
       return RNS8_INVALID_ARGUMENT;

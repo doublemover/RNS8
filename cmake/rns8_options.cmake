@@ -5,6 +5,21 @@ option(RNS8_EXPERIMENTAL_RESIDUE_DOT4 "Research packed signed-byte inner loops f
 option(RNS8_EXPERIMENTAL_GARNER_TABLE "Research-only immutable HIP Garner table; not release-qualified" OFF)
 option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integration" OFF)
 option(RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS "Compile opt-in thread-local host-control attempt counters; separate diagnostic builds only" OFF)
+option(RNS8_ENABLE_ROCTX "Compile optional Linux ROCprofiler-SDK ROCTx host ranges; runtime opt-in required" OFF)
+if(RNS8_ENABLE_ROCTX)
+  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "RNS8_ENABLE_ROCTX requires native Linux; Windows marker support is not established")
+  endif()
+  find_path(RNS8_ROCTX_INCLUDE_DIR NAMES rocprofiler-sdk-roctx/roctx.h
+    HINTS "${RNS8_HIP_ROOT}/include" "$ENV{ROCM_PATH}/include" "$ENV{HIP_PATH}/include"
+    DOC "Optional current ROCprofiler-SDK ROCTx include root")
+  if(NOT RNS8_ROCTX_INCLUDE_DIR)
+    message(FATAL_ERROR "ROCTx requested but current rocprofiler-sdk-roctx headers were not found")
+  endif()
+  # Internal executables/tests share private inline scope definitions with the
+  # library. This directory definition is not exported to installed consumers.
+  add_compile_definitions(RNS8_ENABLE_ROCTX=1)
+endif()
 option(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA "Compile bounded generated native WMMA research variants" OFF)
 if(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA AND NOT RNS8_ENABLE_HIP)
   message(FATAL_ERROR "Generated native WMMA requires explicit HIP integration")

@@ -30,6 +30,7 @@ rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
   return RNS8_SUCCESS;
 }
 void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_publication(rns8::detail::trace::Phase::publication);
   if (operation == RNS8_SUCCESS && e.cancel_requested) operation = RNS8_CANCELED;
   operation=finish_prepared_integrity(e,operation);
   if(e.transfer) {
@@ -69,6 +70,10 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   e.completion.c_instance = e.c->matrix_instance_id;
   e.completion.c_generation = e.c->content_generation;
   e.completion.completed = 1;
+#if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
+  e.trace_operation.complete(operation == RNS8_SUCCESS
+      ? rns8::detail::trace::Outcome::completed : rns8::detail::trace::Outcome::failed);
+#endif
   record_epilogue_completion(e);
   e.running = false;
   e.pending_stream = nullptr;
@@ -257,6 +262,11 @@ static void begin_prepared_submission(rns8_prepared_execution* e,void* stream,
   e->async_failure = {};
   e->cancel_requested = false;
   ++e->epoch;
+#if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
+  e->trace_operation.start(rns8::detail::trace::Phase::completion,
+      {e->id, e->epoch, rns8::detail::trace::current_tag().role,
+       rns8::detail::trace::OperationNamespace::prepared_epoch});
+#endif
   *token = {e->id, e->epoch};
   begin_prepared_integrity(*e,proof.integrity_bound);
   e->event_dependencies=proof.pipeline;
@@ -271,6 +281,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
                                              bool graph,
                                              PreparedHipProof &proof,
                                              void* caller_executable=nullptr) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_enqueue(rns8::detail::trace::Phase::dispatch);
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_scoped_device device(e->ctx->device_id);
   if (device.status() != hipSuccess) return RNS8_BACKEND_FAILURE;

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include "diagnostics/trace_ranges.hpp"
 #include <array>
 #include <chrono>
 #include <cstdio>

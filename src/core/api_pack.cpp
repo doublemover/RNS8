@@ -30,6 +30,7 @@ rns8_status rns8_pack_i64(
     const int64_t* src,
     int64_t ld,
     uint64_t source_version) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::source_pack);
   return guard_api([&]() -> rns8_status {
     if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld)) {
@@ -158,6 +159,7 @@ rns8_status rns8_pack_u64(
     const uint64_t* src,
     int64_t ld,
     uint64_t source_version) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::source_pack);
   return guard_api([&]() -> rns8_status {
     if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld)) {
@@ -297,6 +299,7 @@ rns8_status rns8_pack_finite_u8(
     const uint8_t* src,
     int64_t ld,
     uint64_t source_version) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::source_pack);
   return guard_api([&]() -> rns8_status {
     if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld, sizeof(uint8_t)) ||

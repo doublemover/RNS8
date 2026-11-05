@@ -31,6 +31,9 @@ HostControlObservations* exchange_host_control_observer(HostControlObservations*
 }
 
 struct rns8_prepared_execution {
+#if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
+  rns8::detail::trace::AsyncRange trace_operation;
+#endif
   std::unique_ptr<PreparedTransfer> transfer;
   rns8_context* ctx = nullptr;
   const rns8_plan* plan = nullptr;
@@ -375,6 +378,7 @@ rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* e) {
   });
 }
 rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_token* out_token) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::public_call);
   return guard_api([&]() -> rns8_status {
     if (!e || !out_token) return RNS8_INVALID_ARGUMENT;
     if (e->running || e->dependent_references) return RNS8_BUSY;

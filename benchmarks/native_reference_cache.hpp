@@ -1,4 +1,5 @@
 #pragma once
+#include "diagnostics/trace_ranges.hpp"
 
 #include "backend_common/sha256.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
@@ -188,6 +189,8 @@ template<class T,class Output>
 NativeReferenceVerification verify_integer_reference(uint64_t m,uint64_t n,uint64_t k,uint64_t ldc,
     const std::vector<T>& a,const std::vector<T>& b,const std::vector<Output>& c,ReferenceContract contract,
     const std::string& cache_directory,bool populate,uint64_t cache_byte_budget=reference_cache_max_bytes) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_oracle(rns8::detail::trace::Phase::oracle,
+      {0, 0, rns8::detail::trace::Role::oracle});
   static_assert(std::is_integral_v<T> && std::is_integral_v<Output>);
   using boost::multiprecision::cpp_int;
   const auto start=std::chrono::steady_clock::now();

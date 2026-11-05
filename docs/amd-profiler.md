@@ -86,10 +86,47 @@ can occupy gaps, so gaps alone do not prove a host bottleneck. Missing loss/full
 coverage remains explicit; no complete-workload utilization or speedup is
 inferred. Markdown limits displayed metric rows; JSON retains all observations.
 
+## Optional ROCTx ranges
+
+Native Linux builds can opt into RNS8_ENABLE_ROCTX=ON when the current
+rocprofiler-sdk-roctx headers are discoverable. No marker API or profiler
+library is required by correctness builds or installed public consumers.
+The runtime loader remains disabled until RNS8_PROFILE_RANGES=1 is explicitly
+set. Windows requests are rejected because its marker backend is not established.
+
+The adapter uses the current SDK's process start/stop range API, loaded on
+demand. Its phase vocabulary covers preparation, pack, proof, dispatch enqueue,
+reduction, export, completion, publication, oracle and cleanup. No range is
+placed inside a per-cell/inner-product loop. Fused reduction does not acquire a
+fabricated separate duration. Regular benchmark warmup/measured loops carry
+numeric iteration/operation tags. Untagged paths remain unclassified.
+
+Nested host scopes restore their parent's tag on errors and exceptions.
+Prepared HIP operations retain a separate cross-thread range until completion
+and publication; a submit scope ending is not GPU completion. Prepared ID/epoch
+and benchmark iteration IDs have separate namespaces. Host parent relationships
+are explicit metadata, not inferred device dependencies.
+
+The benchmark emits a bounded 4096-record numeric sidecar inside its JSON.
+It records actual returned provider range IDs, phase, role, operation namespace,
+host stop state, dropped and unpublished records, and the loaded provider path
+where available. Provider availability does not establish that a profiler
+actually captured markers. Loss/truncation and unmatched IDs cannot become
+complete semantic-to-dispatch coverage. More detailed/long-lived correlation
+must use retained native traces. No file I/O or JSON formatting occurs inside
+the range path.
+
+Active/requested tracing is excluded from production timing admission. The
+profiler relation permits the explicitly declared range opt-in environment,
+retains its own capture identity, and still requires a matching exact result.
+The disabled build path uses empty inline scopes and has no dynamic loader,
+counter, allocation, synchronization or profiler call.
+
 ## Remaining implementation and validation
 
 Native acquisition, converter/export receipts, Windows RDP/RGP machine evidence,
-ROCTx ranges and additional ATT/sampling/counter-pass coverage remain under #104.
+remaining phase/async family coverage and native range-to-dispatch joins, and
+additional ATT/sampling/counter-pass coverage remain under #104.
 Unsupported formats and memory-backed code-object loads remain explicitly
 unqualified. Hardware unavailable locally can be qualified later, after its
 source implementation is ready.

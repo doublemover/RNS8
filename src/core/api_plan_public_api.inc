@@ -1,6 +1,7 @@
 using namespace rns8::detail::api;
 
 rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8_plan** out) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::preparation);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !desc || !out) {
       return RNS8_INVALID_ARGUMENT;
@@ -65,6 +66,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
 }
 
 rns8_status rns8_destroy_plan(rns8_plan* plan) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::cleanup);
   if (plan && plan->prepared_references) return RNS8_BUSY;
   delete plan;
   return RNS8_SUCCESS;

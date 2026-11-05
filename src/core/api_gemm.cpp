@@ -922,6 +922,7 @@ rns8_status rns8_invalidate_result_cache(rns8_result_cache* cache) {
 
 rns8_status rns8_gemm_rns(rns8_context* ctx,const rns8_plan* plan,const rns8_matrix* a,
     const rns8_matrix* b,rns8_matrix* c,rns8_workspace* workspace) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::public_call);
   return rns8::detail::api::gemm_rns_with_proof(ctx,plan,a,b,c,workspace,nullptr);
 }
 rns8_status rns8::detail::api::gemm_rns_with_proof(
@@ -1313,6 +1314,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
     const rns8_prepack_cache* B,
     rns8_matrix* C,
     rns8_workspace* workspace) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::public_call);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
@@ -1391,6 +1393,7 @@ rns8_status rns8_gemm_finite_u8(
     const rns8_matrix* B,
     rns8_matrix* C,
     rns8_workspace* workspace) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::public_call);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
@@ -1602,6 +1605,7 @@ rns8_status rns8_gemm_wrap_u64(
     const rns8_matrix* B,
     rns8_matrix* C,
     rns8_workspace* workspace) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::public_call);
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;

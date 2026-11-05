@@ -235,9 +235,11 @@ BenchmarkResult run_vector_to_rns_chain(
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, label);

@@ -16,6 +16,7 @@ set(RNS8_PUBLIC_HEADERS
 )
 
 set(RNS8_SOURCES
+  src/diagnostics/trace_ranges.cpp
   src/backend_hipblaslt/hipblaslt_metadata.cpp
   src/core/accelerator_backend.cpp
   src/core/autotune_cache.cpp

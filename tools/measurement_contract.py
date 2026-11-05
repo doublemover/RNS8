@@ -4,6 +4,13 @@ from typing import Any
 from graph_caller_contract import full_path_graph, SCHEMA as GRAPH_CALLER_SCHEMA
 
 
+def profile_ranges_instrumented(capture: dict[str, Any]) -> bool:
+    ranges = capture.get("profiler_ranges")
+    return ranges is not None and (not isinstance(ranges, dict)
+        or ranges.get("schema") != "rns8_profiler_ranges_v1"
+        or ranges.get("provider_status") not in ("disabled_at_build", "disabled_at_runtime"))
+
+
 def exact_proof_policy(capture: dict[str, Any]) -> str:
     # Before the opt-in policy existed, the documented behavior was eager.
     policy = capture.get("exact_proof_policy", "eager_moments_v1")

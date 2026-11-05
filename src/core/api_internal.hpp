@@ -2,6 +2,7 @@
 #define RNS8_CORE_API_INTERNAL_HPP
 
 #include "core/internal.hpp"
+#include "diagnostics/trace_ranges.hpp"
 #include "core/exact_range.hpp"
 #include "core/exact_operation_proof.hpp"
 #include "backend_common/bilinear_selection.hpp"

@@ -42,6 +42,7 @@ PROFILER_ENVIRONMENT = frozenset(
         "ROCP_OUTPUT_FORMAT",
         "ROCP_OUTPUT_PATH",
         "ROCP_OUTPUT_FILE_NAME",
+        "RNS8_PROFILE_RANGES",
     )
 )
 

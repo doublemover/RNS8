@@ -723,6 +723,7 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {
@@ -741,6 +742,7 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {
@@ -980,6 +982,7 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {
@@ -998,6 +1001,7 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {
@@ -1266,6 +1270,7 @@ void run_hip_graph_replay_finite_pack_gemm_export(
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {
@@ -1280,6 +1285,7 @@ void run_hip_graph_replay_finite_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {
@@ -1471,6 +1477,7 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {
@@ -1485,6 +1492,7 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
     const auto observation = replay_caller_transaction();
     status = observation.status;
     if (status != RNS8_SUCCESS) {

@@ -118,6 +118,7 @@ rns8_status rns8_drain_failed_work(rns8_context* ctx) {
 }
 
 rns8_status rns8_create_context(int device_id, const rns8_context_options* options, rns8_context** out) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::preparation);
   return guard_api([&]() -> rns8_status {
     if (!out) {
       return RNS8_INVALID_ARGUMENT;
@@ -315,6 +316,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 }
 
 rns8_status rns8_destroy_context(rns8_context* ctx) {
+  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(rns8::detail::trace::Phase::cleanup);
   if(ctx && !ctx->failed_work_leases.empty()){const auto status=rns8_drain_failed_work(ctx);if(status!=RNS8_SUCCESS)return status;}
   if (ctx && ctx->prepared_references) return RNS8_BUSY;
   if (ctx) {

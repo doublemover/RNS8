@@ -303,10 +303,12 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
     }
     record_allocation_after_warmups(result);
     for (uint32_t r = 0; r < args.repeats; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
@@ -657,10 +659,12 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::warmup, r);
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
     }
     record_allocation_after_warmups(result);
     for (uint32_t r = 0; r < args.repeats; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(rns8::detail::trace::Role::measured, r);
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);

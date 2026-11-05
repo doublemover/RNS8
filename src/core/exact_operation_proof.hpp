@@ -1,6 +1,7 @@
 #pragma once
 #include "exact_range.hpp"
 #include <memory>
+#include "diagnostics/trace_ranges.hpp"
 
 namespace rns8::detail {
 inline uint64_t exact_proof_limb_bytes(const cpp_int& value) noexcept {
@@ -20,6 +21,7 @@ class ExactOperationProof {
  public:
   static rns8_status create(const rns8_plan& plan,const rns8_matrix& a,const rns8_matrix& b,
       const rns8_matrix* d,int64_t alpha,int64_t beta,std::shared_ptr<const ExactOperationProof>& out) {
+    [[maybe_unused]] trace::Scope trace_proof(trace::Phase::proof);
     if(plan.desc.semantics!=RNS8_BOUNDED_I64 && plan.desc.semantics!=RNS8_BOUNDED_U64 &&
         !exact_wide_semantics(plan.desc.semantics))return RNS8_UNSUPPORTED_BACKEND;
     auto staged=std::shared_ptr<ExactOperationProof>(new ExactOperationProof(plan,a,b,d,alpha,beta));

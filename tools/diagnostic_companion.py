@@ -17,6 +17,7 @@ from timing_eligibility import capture_identity
 from companion_contract import SCHEMA as COMMON_CONTRACT_SCHEMA, TOP_LEVEL_OBSERVATIONS, remove_observations
 from json_evidence import load_evidence_json, same_evidence_value
 from graph_caller_contract import graph_phase_diagnostic, caller_transaction_blockers
+from measurement_contract import profile_ranges_instrumented
 
 SCHEMA = 'rns8_production_diagnostic_binding_v2'
 GPU_BACKENDS = {'hip-direct', 'hipblaslt', 'ck', 'rocwmma', 'amdgpu-builtins', 'hip-vector-alu-int64'}
@@ -158,6 +159,8 @@ def binding_for_capture(capture, bindings):
 
 def production_evidence(capture, binding=None):
     blockers = []
+    if profile_ranges_instrumented(capture):
+        blockers.append("profile_range_instrumentation_not_production_evidence")
     if capture.get("external_instrumentation") is not None:
         blockers.append("externally_profiled_host_time_not_production_evidence")
     timing = capture.get('timing_metadata') or {}
