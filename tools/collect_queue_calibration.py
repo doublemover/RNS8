@@ -9,15 +9,16 @@ import uuid
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 from collect_native_calibration import strict_json
-from native_queue_schedule_contract import IDENTITIES, layout, work_counts
+from native_queue_schedule_contract import IDENTITIES, layout, work_counts, validate_dispatch_capture
 
 MODES = ("explicit", "task-major", "fair", "rank-select", "ordinary")
 
 
 def validate_case(case):
     keys = {"schema", "workers", "chunk", "reuse", "repeats", "warmups", "metadata_budget_mib", "encoded_b", "mutate_b", "tasks"}
-    if not isinstance(case, dict) or set(case) != keys or case["schema"] != "native_queue_case_v1":
+    if not isinstance(case, dict) or set(case)-{"dispatch_policy"} != keys or case["schema"] != "native_queue_case_v1":
         raise ValueError("exact native queue case ABI required")
+    if "dispatch_policy" in case and (type(case["dispatch_policy"]) is not int or not 0 <= case["dispatch_policy"] <= 2): raise ValueError("dispatch policy")
     limits = {"workers": (1, 1024), "chunk": (1, 32), "reuse": (1, 256), "repeats": (3, 1000), "warmups": (1, 1000), "metadata_budget_mib": (1, 1024)}
     for key, (low, high) in limits.items():
         if type(case[key]) is not int or not low <= case[key] <= high: raise ValueError(f"invalid {key}")
@@ -43,10 +44,11 @@ def commands(binary, cases, output, runs, seed, collection_id):
     for path in cases:
         case = validate_case(strict_json(path.read_text()))
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        offset = int(hashlib.sha256(f"{seed}:{digest}".encode()).hexdigest(),16)%len(MODES)
+        modes=MODES[:-1] if case.get("dispatch_policy",0) else MODES
+        offset = int(hashlib.sha256(f"{seed}:{digest}".encode()).hexdigest(),16)%len(modes)
         for run in range(runs):
             # Rotating/reversing order, not a fixed candidate-favored sequence.
-            order = list(MODES); shift=(offset+run)%len(MODES); order=order[shift:]+order[:shift]
+            order = list(modes); shift=(offset+run)%len(modes); order=order[shift:]+order[:shift]
             if run%2: order.reverse()
             for position,mode in enumerate(order):
                 run_id=f"{collection_id}-{digest[:12]}-{run}-{mode}"
@@ -68,6 +70,7 @@ def validate_capture(capture, entry):
     if len(samples)!=entry["case"]["repeats"]: raise ValueError("sample count")
     def positive(x): return type(x) in (int,float) and math.isfinite(x) and x>0
     if any(not positive(s.get("batch_ns")) or s.get("exact_reference_passed") is not True for s in samples): raise ValueError("invalid completed batch sample")
+    validate_dispatch_capture(entry["case"],capture.get("dispatch_hint"))
     tasks=entry["case"]["tasks"]
     counts=work_counts(tasks)
     mode={'explicit':0,'ordinary':0,'task-major':1,'fair':2,'rank-select':3}[entry['mode']]

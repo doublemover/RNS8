@@ -101,13 +101,15 @@ rns8_status native_group_values_current(const rns8_prepared_group& group) {
 }
 }
 static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rns8_native_group_desc* desc,
-    const rns8_native_group_binding* bindings,uint32_t count,const rns8_locality_desc* locality) {
+    const rns8_native_group_binding* bindings,uint32_t count,const rns8_locality_desc* locality,
+    rns8_native_dispatch_policy policy=RNS8_NATIVE_DISPATCH_NATIVE_UNIFORM) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if(!group || !desc || !bindings || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
         count!=group->executions.size() || count>4096 || desc->schedule_mode>3 ||
         !desc->claim_chunk || desc->claim_chunk>32 || !desc->workers || desc->workers>1024 ||
-        desc->ordinary_grid_control>1)return RNS8_INVALID_ARGUMENT;
+        desc->ordinary_grid_control>1 || uint32_t(policy)>2 ||
+        (desc->ordinary_grid_control && policy!=RNS8_NATIVE_DISPATCH_NATIVE_UNIFORM))return RNS8_INVALID_ARGUMENT;
     if(locality && (!locality_descriptor_valid(*locality) || desc->schedule_mode || desc->ordinary_grid_control))return RNS8_INVALID_ARGUMENT;
     if(native_group_busy(*group))return RNS8_BUSY;
     // Copy before replacement: callers may pass this owner's current bindings.
@@ -132,6 +134,7 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
     std::string proof_identity="native-queue-schedule-v1;mode="+std::to_string(config.schedule_mode)+
         ";chunk="+std::to_string(config.claim_chunk)+";workers="+std::to_string(config.workers)+
         ";ordinary="+std::to_string(config.ordinary_grid_control);
+    if(policy!=RNS8_NATIVE_DISPATCH_NATIVE_UNIFORM)proof_identity+=";dispatch="+std::to_string(uint32_t(policy));
     for(const auto& value:values)proof_identity+=';'+value.arithmetic_guard->checked.sha256;
     if(locality)proof_identity+=";locality="+std::to_string(locality->order)+","+std::to_string(locality->target_id)+","+std::to_string(locality->topology_version)+","+
       std::to_string(locality->cache_domains)+","+std::to_string(locality->concurrent_groups_per_domain)+","+std::to_string(locality->cache_bytes_per_domain);
@@ -142,7 +145,7 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
     if(config.max_metadata_bytes<=old_bytes)return RNS8_WORKSPACE_TOO_SMALL;
     auto queue=std::make_unique<NativeWmmaPreparedQueue>();
     auto status=queue->prepare(ctx->device_id,tasks,config.workers,config.max_metadata_bytes-old_bytes,
-        {1,static_cast<NativeWmmaScheduleMode>(config.schedule_mode),config.claim_chunk},locality);
+        {1,static_cast<NativeWmmaScheduleMode>(config.schedule_mode),config.claim_chunk,static_cast<NativeWmmaDispatchPolicy>(policy)},locality);
     if(status!=RNS8_SUCCESS)return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     hip_scoped_device device(ctx->device_id);if(device.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
@@ -165,6 +168,7 @@ static rns8_status prepare_native_group_impl(rns8_prepared_group* group,const rn
     group->native_proofs.swap(proofs);group->native_readers.swap(reader_counts);
     group->native_bindings=std::move(retained);group->native_desc=config;group->native_locality=locality?*locality:rns8_locality_desc{};
     group->native_certificate_sha256=proof_hash;
+    group->native_dispatch_policy=policy;
     for(auto* e:group->executions) {bind_inputs(*e);e->hip_submission_prepared=true;}
     return RNS8_SUCCESS;
   });
@@ -174,6 +178,14 @@ rns8_status rns8_prepare_native_group(rns8_prepared_group* group,const rns8_nati
 rns8_status rns8_prepare_native_group_locality(rns8_prepared_group* group,const rns8_native_group_desc* desc,
     const rns8_native_group_binding* bindings,uint32_t count,const rns8_locality_desc* locality){
   if(!locality)return RNS8_INVALID_ARGUMENT;return prepare_native_group_impl(group,desc,bindings,count,locality);}
+rns8_status rns8_prepare_native_group_dispatch(rns8_prepared_group* group,const rns8_native_group_desc* desc,
+    const rns8_native_group_binding* bindings,uint32_t count,rns8_native_dispatch_policy policy,
+    const rns8_locality_desc* locality){return prepare_native_group_impl(group,desc,bindings,count,locality,policy);}
+rns8_status rns8_get_native_group_dispatch_info(const rns8_prepared_group* group,rns8_native_group_dispatch_info* out){
+  if(!group || !group->native_queue || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;
+  const auto hint=group->native_queue->dispatch_hint();
+  *out={sizeof(*out),RNS8_ABI_VERSION,group->native_dispatch_policy,hint.group,hint.unsigned_inputs,hint.encoded_b};
+  return RNS8_SUCCESS;}
 rns8_status rns8_get_native_group_locality_info(const rns8_prepared_group* group,rns8_locality_info* out){
   if(!group || !group->native_queue || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;
   const auto info=group->native_queue->locality_info();if(!info.struct_size)return RNS8_INVALID_ARGUMENT;*out=info;return RNS8_SUCCESS;}

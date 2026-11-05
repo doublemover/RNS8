@@ -92,6 +92,7 @@ struct rns8_prepared_group {
   std::vector<std::pair<const rns8_matrix*,uint64_t>> native_readers;
   rns8_native_group_desc native_desc{};
   rns8_locality_desc native_locality{};
+  rns8_native_dispatch_policy native_dispatch_policy=RNS8_NATIVE_DISPATCH_NATIVE_UNIFORM;
   uint64_t native_peak_device_bytes=0;
   std::string native_certificate_sha256;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -491,9 +492,9 @@ rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* group) {
   return guard_api([&]() -> rns8_status {
     if (!group) return RNS8_INVALID_ARGUMENT;
     if (group->running) return RNS8_BUSY;
-    if(group->native_queue) return group->native_locality.struct_size?rns8_prepare_native_group_locality(group,&group->native_desc,
-        group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()),&group->native_locality):
-        rns8_prepare_native_group(group,&group->native_desc,group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()));
+    if(group->native_queue) return rns8_prepare_native_group_dispatch(group,&group->native_desc,
+        group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()),group->native_dispatch_policy,
+        group->native_locality.struct_size?&group->native_locality:nullptr);
     for (auto* e : group->executions) {
       if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
       if(e->closing)return RNS8_INVALID_ARGUMENT;

@@ -10,6 +10,21 @@ from test_capture_identity_support import synthetic_identity
 
 ROOT=Path(__file__).resolve().parents[1]
 class QueueCollectionTests(unittest.TestCase):
+    def test_dispatch_identity_is_derived_from_group_signedness_and_representation(self):
+        from native_queue_schedule_contract import dispatch_hint, validate_dispatch_capture
+        base=dict(tasks=[dict(group=2,unsigned=False),dict(group=2,unsigned=False)],encoded_b=True,dispatch_policy=1)
+        self.assertEqual(dispatch_hint(base),dict(policy=1,group=2,unsigned_inputs=0,encoded_b=1))
+        validate_dispatch_capture(base,dispatch_hint(base))
+        for bad in (None,dict(policy=1,group=0,unsigned_inputs=0,encoded_b=0),dict(policy=1,group=2,unsigned_inputs=False,encoded_b=1)):
+            with self.assertRaises(ValueError):validate_dispatch_capture(base,bad)
+        for policy in (0,2):
+            base['dispatch_policy']=policy;self.assertEqual(dispatch_hint(base)['group'],0)
+        base['dispatch_policy']=1;base['tasks'][1]['unsigned']=True;self.assertEqual(dispatch_hint(base)['group'],0)
+        base['tasks'][1]['unsigned']=False;base['tasks'][1]['group']=4;self.assertEqual(dispatch_hint(base)['group'],0)
+        for bad in (True,-1,3):
+            base['dispatch_policy']=bad
+            with self.assertRaises(ValueError):dispatch_hint(base)
+
     def test_ranked_capture_binds_decoder_bytes_without_rewriting_legacy_scan_captures(self):
         case=dict(schema='native_queue_case_v1',workers=1,chunk=1,reuse=1,repeats=3,warmups=1,metadata_budget_mib=1,
                   encoded_b=False,mutate_b=False,tasks=[dict(m=1,n=1,k=1,prefix=1,group=1,unsigned=False)])

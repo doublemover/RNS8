@@ -24,3 +24,33 @@ def layout(tasks: Sequence[Mapping[str, int]], mode: int) -> NativeQueueLayout:
     directory = (phases - 1) * (2 * ((len(tasks) + 31) // 32) + 1) * 4 if mode == 3 else 0
     payload = len(tasks) * 104 + 4 + (sum(counts) * 16 if mode == 0 else len(tasks) * 16 + phases * 16 + directory)
     return NativeQueueLayout(abi_version=2 if mode == 3 else 1, phase_count=phases, rank_directory_bytes=directory, device_bytes=payload)
+
+
+class NativeQueueDispatch(TypedDict):
+    policy: int
+    group: int
+    unsigned_inputs: int
+    encoded_b: int
+
+
+def dispatch_hint(case: Mapping) -> NativeQueueDispatch:
+    policy = case.get('dispatch_policy', 0)
+    if type(policy) is not int or not 0 <= policy <= 2:
+        raise ValueError('native dispatch policy')
+    tasks = case['tasks']
+    encoded = case['encoded_b']
+    first = tasks[0]
+    signedness_key = 'unsigned_inputs' if 'unsigned_inputs' in first else 'unsigned'
+    uniform = policy != 2 and (not encoded or policy == 1) and all(
+        t['group'] == first['group'] and t[signedness_key] == first[signedness_key] for t in tasks)
+    return NativeQueueDispatch(policy=policy, group=first['group'] if uniform else 0,
+                               unsigned_inputs=int(first[signedness_key]) if uniform else 0,
+                               encoded_b=int(encoded) if uniform else 0)
+
+
+def validate_dispatch_capture(case: Mapping, actual: object) -> None:
+    # Old captures without an explicit policy retain their historical identity.
+    if actual is None and 'dispatch_policy' not in case:
+        return
+    if not isinstance(actual, dict) or actual != dispatch_hint(case) or any(type(v) is not int for v in actual.values()):
+        raise ValueError('selected native dispatch specialization')

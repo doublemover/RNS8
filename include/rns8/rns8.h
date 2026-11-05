@@ -2313,6 +2313,29 @@ typedef struct rns8_native_group_info {
 } rns8_native_group_info;
 RNS8_API rns8_status rns8_prepare_native_group(rns8_prepared_group* group,
     const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count);
+typedef enum rns8_native_dispatch_policy RNS8_ENUM_BASE {
+  RNS8_NATIVE_DISPATCH_NATIVE_UNIFORM=0,
+  RNS8_NATIVE_DISPATCH_NATIVE_OR_ENCODED_UNIFORM=1,
+  RNS8_NATIVE_DISPATCH_GENERIC=2
+} rns8_native_dispatch_policy;
+/* Explicit specialization experiment for persistent/owned-graph queues. The
+ * default specializes homogeneous native tasks only. Policy 1 also specializes
+ * homogeneous encoded-B tasks; policy 2 retains dynamic per-task dispatch.
+ * Mixed group, signedness or representation always uses dynamic dispatch.
+ * A nullable locality descriptor has the same admission as the locality API.
+ * Nondefault policies are rejected for the ordinary-grid control. Refresh
+ * preserves the selected policy. No measured speedup or AUTO promotion implied. */
+RNS8_API rns8_status rns8_prepare_native_group_dispatch(rns8_prepared_group* group,
+    const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count,
+    rns8_native_dispatch_policy policy,const rns8_locality_desc* locality);
+typedef struct rns8_native_group_dispatch_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_native_dispatch_policy policy;
+  uint32_t uniform_group, unsigned_inputs, encoded_b; /* group 0: dynamic; flags 0 */
+} rns8_native_group_dispatch_info;
+RNS8_API rns8_status rns8_get_native_group_dispatch_info(const rns8_prepared_group* group,
+    rns8_native_group_dispatch_info* info);
 /* Explicit-work locality permutation; requires schedule_mode=0 and a persistent
  * or owned-graph launch, not the ordinary-grid control. Hypothetical topology
  * follows rns8_locality_desc; unknown targets retain ordinary queue order. */

@@ -32,6 +32,10 @@ TEST_CASE("heterogeneous prepared groups preflight all tasks before executing", 
   rns8_native_group_binding native_bindings[2]{};
   for(auto& binding:native_bindings)binding={sizeof(binding),RNS8_ABI_VERSION,1,nullptr};
   CHECK(rns8_prepare_native_group(group,&native,native_bindings,2)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_prepare_native_group_dispatch(group,&native,native_bindings,2,RNS8_NATIVE_DISPATCH_NATIVE_OR_ENCODED_UNIFORM,nullptr)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_prepare_native_group_dispatch(group,&native,native_bindings,2,static_cast<rns8_native_dispatch_policy>(UINT32_MAX),nullptr)==RNS8_INVALID_ARGUMENT);
+  rns8_native_group_dispatch_info dispatch_info{sizeof(dispatch_info),RNS8_ABI_VERSION};
+  CHECK(rns8_get_native_group_dispatch_info(group,&dispatch_info)==RNS8_INVALID_ARGUMENT);
   native.claim_chunk=33;CHECK(rns8_prepare_native_group(group,&native,native_bindings,2)==RNS8_INVALID_ARGUMENT);
   native.claim_chunk=1;native.schedule_mode=4;CHECK(rns8_prepare_native_group(group,&native,native_bindings,2)==RNS8_INVALID_ARGUMENT);
   rns8_native_group_info native_info{sizeof(native_info),RNS8_ABI_VERSION};

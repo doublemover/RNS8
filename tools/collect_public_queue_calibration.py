@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 import statistics
 import uuid
-from native_queue_schedule_contract import IDENTITIES as SCHEDULE_IDENTITIES, layout as schedule_layout, work_counts
+from native_queue_schedule_contract import IDENTITIES as SCHEDULE_IDENTITIES, layout as schedule_layout, work_counts, validate_dispatch_capture
 from native_locality_contract import public_contract as locality_contract, ORDERS as LOCALITY_ORDERS
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
@@ -19,10 +19,12 @@ def integer(value, low, high):
 
 def validate_case(c):
     fields = {'schema', 'mode', 'input_policy', 'encoded_b', 'schedule', 'chunk', 'workers', 'reuse', 'warmups', 'repeats', 'seed', 'padding', 'tasks'}
-    if not isinstance(c, dict) or set(c)-{'locality_order'} != fields or c['schema'] != 'public_native_group_case_v1':
+    if not isinstance(c, dict) or set(c)-{'locality_order','dispatch_policy'} != fields or c['schema'] != 'public_native_group_case_v1':
         raise ValueError('case ABI')
     if c['mode'] not in ('persistent', 'ordinary', 'graph', 'resident') or c['input_policy'] not in ('resident', 'mutated-b') or type(c['encoded_b']) is not bool:
         raise ValueError('execution/input contract')
+    dispatch=c.get('dispatch_policy',0)
+    if not integer(dispatch,0,2) or dispatch and c['mode'] not in ('persistent','graph'):raise ValueError('dispatch policy')
     if c['mode'] == 'resident' and c['encoded_b']:
         raise ValueError('resident RNS does not consume encoded B')
     for key, low, high in [('schedule', 0, 3), ('chunk', 1, 32), ('workers', 1, 1024), ('reuse', 1, 64), ('warmups', 1, 1000), ('repeats', 3, 1000), ('seed', 0, 2**32-1), ('padding', 0, 64)]:
@@ -109,6 +111,7 @@ def validate_capture(c, entry):
             raise ValueError('resident baseline cannot claim native descriptors')
     else:
         info = c.get('metadata', {})
+        validate_dispatch_capture(case,info.get('dispatch_hint'))
         expected = dict(tasks=len(case['tasks']), work=work, device_bytes=metadata,
                         preparation_peak_device_bytes=metadata*(2 if case['input_policy'] == 'mutated-b' else 1), graph_ready=case['mode'] == 'graph')
         for key, value in expected.items():

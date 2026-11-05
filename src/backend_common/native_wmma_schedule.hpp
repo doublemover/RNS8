@@ -12,6 +12,7 @@ struct NativeWmmaScheduleConfig {
   uint32_t abi_version=1;
   NativeWmmaScheduleMode mode=NativeWmmaScheduleMode::explicit_round_robin;
   uint32_t claim_chunk=1; // 1..32; tail switches to singleton claims
+  NativeWmmaDispatchPolicy dispatch_policy=NativeWmmaDispatchPolicy::native_uniform_only;
 };
 struct NativeWmmaTaskRange { uint32_t begin, end, tile_cols, groups; };
 struct NativeWmmaRoundPhase { uint32_t first_work, round_begin, round_end, active_tasks; };

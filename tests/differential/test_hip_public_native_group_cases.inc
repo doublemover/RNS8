@@ -71,9 +71,21 @@ template<class T> void check_public_native_group() {
       REQUIRE(rns8_get_native_group_locality_info(group,&info)==RNS8_SUCCESS);CHECK(info.requested_order==order);CHECK(info.permutation_fingerprint==fingerprint);
       local.schedule_mode=2;CHECK(rns8_prepare_native_group_locality(group,&local,bindings,2,&layout)==RNS8_INVALID_ARGUMENT);
     }
-    for(uint32_t mode=0;mode<4;++mode)for(bool ordinary:{false,true}) {
+    for(uint32_t mode=0;mode<4;++mode)for(bool ordinary:{false,true})
+      for(uint32_t dispatch=0;dispatch<(ordinary?1u:3u);++dispatch) {
       desc.schedule_mode=mode;desc.ordinary_grid_control=ordinary;
-      REQUIRE(rns8_prepare_native_group(group,&desc,bindings,2)==RNS8_SUCCESS);
+      bindings[0].modulus_group=dispatch?2u:1u;bindings[1].modulus_group=dispatch?2u:4u;
+      REQUIRE(rns8_prepare_native_group_dispatch(group,&desc,bindings,2,static_cast<rns8_native_dispatch_policy>(dispatch),nullptr)==RNS8_SUCCESS);
+      rns8_native_group_dispatch_info hint{sizeof(hint),RNS8_ABI_VERSION};
+      REQUIRE(rns8_get_native_group_dispatch_info(group,&hint)==RNS8_SUCCESS);
+      CHECK(uint32_t(hint.policy)==dispatch);
+      const uint32_t expected_group=dispatch==2 || (encoded && !dispatch) || bindings[0].modulus_group!=bindings[1].modulus_group?0:bindings[0].modulus_group;
+      CHECK(hint.uniform_group==expected_group);CHECK(hint.unsigned_inputs==(expected_group?uint32_t(u):0));CHECK(hint.encoded_b==uint32_t(expected_group && encoded));
+      REQUIRE(rns8_refresh_prepared_group_inputs(group)==RNS8_SUCCESS);
+      REQUIRE(rns8_get_native_group_dispatch_info(group,&hint)==RNS8_SUCCESS);CHECK(uint32_t(hint.policy)==dispatch);CHECK(hint.uniform_group==expected_group);
+      CHECK(rns8_prepare_native_group_dispatch(group,&desc,bindings,2,static_cast<rns8_native_dispatch_policy>(3),nullptr)==RNS8_INVALID_ARGUMENT);
+      auto ordinary_desc=desc;ordinary_desc.ordinary_grid_control=1;
+      CHECK(rns8_prepare_native_group_dispatch(group,&ordinary_desc,bindings,2,RNS8_NATIVE_DISPATCH_GENERIC,nullptr)==RNS8_INVALID_ARGUMENT);
       if(encoded){CHECK(rns8_destroy_encoded_b(cache)==RNS8_BUSY);
         rns8_encoded_b_info cached{sizeof(cached),RNS8_ABI_VERSION};REQUIRE(rns8_get_encoded_b_info(cache,&cached)==RNS8_SUCCESS);
         CHECK(cached.source_is_current==1);CHECK(cached.layout_version==1);CHECK(cached.prefix==prefix);

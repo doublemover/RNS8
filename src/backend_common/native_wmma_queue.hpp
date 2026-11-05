@@ -2,6 +2,12 @@
 #define RNS8_NATIVE_WMMA_QUEUE_HPP
 #include <cstdint>
 namespace rns8::detail {
+enum class NativeWmmaDispatchPolicy : uint32_t {
+  native_uniform_only = 0, uniform_native_or_encoded = 1, generic_task_dispatch = 2
+};
+// Private host/device launch packet. Group zero retains per-task dispatch.
+struct NativeWmmaUniformHint { uint32_t group=0, unsigned_inputs=0, encoded_b=0; };
+static_assert(sizeof(NativeWmmaUniformHint)==12, "native queue launch ABI");
 struct NativeWmmaTask {
   const void* a = nullptr;
   const void* b = nullptr;

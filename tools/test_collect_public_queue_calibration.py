@@ -12,6 +12,19 @@ from native_queue_schedule_contract import IDENTITIES as SCHEDULE_IDENTITIES
 
 
 class PublicQueueCollection(unittest.TestCase):
+    def test_nondefault_dispatch_requires_the_actual_selected_body(self):
+        from native_queue_schedule_contract import dispatch_hint
+        c,e=self.fixture();case=e['case'];case['dispatch_policy']=1
+        with self.assertRaises(ValueError):validate_capture(c,e)
+        c['metadata']['dispatch_hint']=dispatch_hint(case);self.assertEqual(validate_capture(c,e),c)
+        c['metadata']['dispatch_hint']['group']=2
+        with self.assertRaises(ValueError):validate_capture(c,e)
+        for bad in (True,-1,3):
+            case['dispatch_policy']=bad
+            with self.assertRaises(ValueError):validate_case(case)
+        case['dispatch_policy']=1;case['mode']='ordinary'
+        with self.assertRaises(ValueError):validate_case(case)
+
     def test_ranked_public_capture_requires_actual_selected_schedule_identity(self):
         c,e=self.fixture();e['case']['schedule']=3
         _,metadata,_,_=counts(e['case']);c['metadata']['device_bytes']=metadata;c['metadata']['preparation_peak_device_bytes']=metadata

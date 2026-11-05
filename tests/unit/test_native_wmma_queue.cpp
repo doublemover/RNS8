@@ -41,28 +41,28 @@ TEST_CASE("compiled group reader multiplicities retain exact shared-reader overf
   CHECK_FALSE(reader_multiplicities_fit(compile_reader_multiplicities(std::vector<Reader*>{nullptr})));
 }
 
-TEST_CASE("native queue specialization requires uniform groups and signedness") {
-  CHECK(native_wmma_uniform_group({}) == 0);
-  for (uint32_t group : {1u, 2u, 4u}) {
-    for (uint32_t unsigned_inputs : {0u, 1u}) {
-      NativeWmmaTask first{}, second{};
-      first.group = second.group = group;
-      first.unsigned_inputs = second.unsigned_inputs = unsigned_inputs;
-      first.m = 17; second.m = 3;
-      first.prefix = 20; second.prefix = 1;
-      CHECK(native_wmma_uniform_group({first}) == group);
-      CHECK(native_wmma_uniform_group({first, second}) == group);
-      second.unsigned_inputs ^= 1;
-      CHECK(native_wmma_uniform_group({first, second}) == 0);
-      second.unsigned_inputs = unsigned_inputs;
-      second.group = group == 1 ? 2 : 1;
-      CHECK(native_wmma_uniform_group({first, second}) == 0);
-      first.group = 3;
-      CHECK(native_wmma_uniform_group({first}) == 0);
-      first.group = group; first.unsigned_inputs = 2;
-      CHECK(native_wmma_uniform_group({first}) == 0);
+TEST_CASE("native queue specialization binds group signedness representation and explicit policy") {
+  using Policy=NativeWmmaDispatchPolicy;
+  CHECK(native_wmma_uniform_hint({}).group==0);
+  uint32_t encoded_storage=0;
+  for(uint32_t group:{1u,2u,4u})for(uint32_t u:{0u,1u})for(bool encoded:{false,true}) {
+    NativeWmmaTask first{},second{};first.group=second.group=group;
+    first.unsigned_inputs=second.unsigned_inputs=u;
+    first.m=17;second.m=3;first.prefix=20;second.prefix=1;
+    if(encoded)first.encoded_b=second.encoded_b=&encoded_storage;
+    for(auto policy:{Policy::native_uniform_only,Policy::uniform_native_or_encoded,Policy::generic_task_dispatch}) {
+      const bool specialized=policy!=Policy::generic_task_dispatch && (!encoded || policy==Policy::uniform_native_or_encoded);
+      const auto hint=native_wmma_uniform_hint({first,second},policy);
+      CHECK(hint.group==(specialized?group:0));CHECK(hint.unsigned_inputs==(specialized?u:0));
+      CHECK(hint.encoded_b==uint32_t(specialized && encoded));
     }
+    const auto generic=[&](){CHECK(native_wmma_uniform_hint({first,second},Policy::uniform_native_or_encoded).group==0);};
+    second.unsigned_inputs^=1;generic();second.unsigned_inputs=u;
+    second.group=group==1?2:1;generic();second.group=group;
+    second.encoded_b=encoded?nullptr:&encoded_storage;generic();second.encoded_b=first.encoded_b;
+    first.group=3;generic();first.group=group;first.unsigned_inputs=2;generic();
   }
+  CHECK(native_wmma_uniform_hint({NativeWmmaTask{}},static_cast<Policy>(UINT32_MAX)).group==0);
 }
 
 TEST_CASE("native queue bounds offset K fragments through the last accessed element") {
@@ -126,7 +126,7 @@ TEST_CASE("native queue admits encoded spans and rejects encoded output hazards"
   uint32_t encoded[5]{};
   NativeWmmaTask task{&a,&b,&c,1,1,1,1,1,1,1,1,0,encoded,4};
   std::vector<NativeWmmaWork> work; uint64_t bytes=0;
-  CHECK(native_wmma_uniform_group({task})==0);
+  CHECK(native_wmma_uniform_hint({task}).group==0);
   REQUIRE(build_native_wmma_queue({task},1,UINT64_MAX,work,bytes)==RNS8_SUCCESS);
   task.encoded_k_words=3;
   CHECK(build_native_wmma_queue({task},1,UINT64_MAX,work,bytes)==RNS8_INVALID_ARGUMENT);

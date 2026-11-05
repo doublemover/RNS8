@@ -11,14 +11,15 @@
 namespace rns8::detail {
 // Zero selects the heterogeneous kernel. The caller still performs full queue
 // admission before using this launch hint; shapes, prefixes and pitches may vary.
-inline uint32_t native_wmma_uniform_group(const std::vector<NativeWmmaTask>& tasks) {
-  if (tasks.empty()) return 0;
+inline NativeWmmaUniformHint native_wmma_uniform_hint(const std::vector<NativeWmmaTask>& tasks,
+    NativeWmmaDispatchPolicy policy=NativeWmmaDispatchPolicy::native_uniform_only) {
+  if (tasks.empty() || policy==NativeWmmaDispatchPolicy::generic_task_dispatch || uint32_t(policy)>2) return {};
   const auto& first = tasks.front();
-  if ((first.group != 1 && first.group != 2 && first.group != 4) || first.unsigned_inputs > 1)
-    return 0;
+  if ((first.group != 1 && first.group != 2 && first.group != 4) || first.unsigned_inputs > 1 ||
+      (first.encoded_b && policy==NativeWmmaDispatchPolicy::native_uniform_only)) return {};
   return std::all_of(tasks.begin(), tasks.end(), [&](const NativeWmmaTask& task) {
-    return task.group == first.group && task.unsigned_inputs == first.unsigned_inputs && !task.encoded_b;
-  }) ? first.group : 0;
+    return task.group == first.group && task.unsigned_inputs == first.unsigned_inputs && bool(task.encoded_b)==bool(first.encoded_b);
+  }) ? NativeWmmaUniformHint{first.group,first.unsigned_inputs,uint32_t(bool(first.encoded_b))} : NativeWmmaUniformHint{};
 }
 // Host-only descriptor builder. No ownership assumption relies on a GPU's
 // execution order. Output/input overlap is rejected across the whole batch.
@@ -123,7 +124,7 @@ struct NativeWmmaSchedulePlan {
 
 inline rns8_status build_native_wmma_schedule(const std::vector<NativeWmmaTask>& tasks,
     uint32_t workers,uint64_t budget,NativeWmmaScheduleConfig config,NativeWmmaSchedulePlan& output) {
-  if(config.abi_version!=1 || uint32_t(config.mode)>3 || !config.claim_chunk || config.claim_chunk>32)
+  if(config.abi_version!=1 || uint32_t(config.mode)>3 || !config.claim_chunk || config.claim_chunk>32 || uint32_t(config.dispatch_policy)>2)
     return RNS8_INVALID_ARGUMENT;
   try {
     std::vector<uint32_t> counts;

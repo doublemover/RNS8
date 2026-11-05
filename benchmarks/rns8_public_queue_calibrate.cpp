@@ -54,7 +54,7 @@ constexpr uint64_t sentinel=0x5ac37e195ac37e19ull;
 int main(int argc,char** argv){try{
   need(argc==3,"usage: rns8-public-queue-calibrate CASE.json unique-run-id");
   std::ifstream file(argv[1]);json config;file>>config;
-  need(config.is_object() && config.size()==13+(config.contains("locality_order")?1:0) && config.at("schema")=="public_native_group_case_v1","case ABI");
+  need(config.is_object() && config.size()==13+(config.contains("locality_order")?1:0)+(config.contains("dispatch_policy")?1:0) && config.at("schema")=="public_native_group_case_v1","case ABI");
   const auto mode=config.at("mode").get<std::string>(),policy=config.at("input_policy").get<std::string>();
   need(mode=="persistent" || mode=="ordinary" || mode=="graph" || mode=="resident","mode");
   need(policy=="resident" || policy=="mutated-b","input policy");
@@ -62,6 +62,8 @@ int main(int argc,char** argv){try{
   need(mode!="resident" || !encoded,"resident RNS control does not consume encoded B");
   const uint32_t schedule=number(config,"schedule",0,3),chunk=number(config,"chunk",1,32),workers=number(config,"workers",1,1024),
       reuse=number(config,"reuse",1,64),warmups=number(config,"warmups",1,1000),repeats=number(config,"repeats",3,1000),seed=number(config,"seed",0,UINT32_MAX),padding=number(config,"padding",0,64);
+  const auto dispatch=config.contains("dispatch_policy")?number(config,"dispatch_policy",0,2):0u;
+  need(!dispatch || mode=="persistent" || mode=="graph","dispatch policy requires a native queue");
   const bool locality_enabled=config.contains("locality_order");const std::string locality_order=config.value("locality_order",std::string("ordinary"));
   need(!locality_enabled || (!schedule && (mode=="persistent" || mode=="graph") &&
       (locality_order=="ordinary" || locality_order=="output-neighbor" || locality_order=="modulus" || locality_order=="same-output")),"locality requires explicit persistent/graph work directory");
@@ -120,7 +122,7 @@ int main(int argc,char** argv){try{
       if(encoded)for(auto& [slot,b]:owner.bs){rns8_encoded_b* cache=nullptr;check(rns8_prepare_encoded_b(owner.ctx,b.matrix,UINT64_MAX,&cache));replacement.emplace(slot,cache);
         rns8_encoded_b_info info{sizeof(info),RNS8_ABI_VERSION};check(rns8_get_encoded_b_info(cache,&info));need(info.source_is_current==1,"new cache stale");new_bytes+=info.retained_device_bytes;}
       for(size_t i=0;i<bindings.size();++i)bindings[i].encoded_b=encoded?replacement.at(owner.tasks[i].b_slot):nullptr;
-      check(locality_enabled?rns8_prepare_native_group_locality(owner.group,&desc,bindings.data(),uint32_t(bindings.size()),&locality):rns8_prepare_native_group(owner.group,&desc,bindings.data(),uint32_t(bindings.size())));
+      check(rns8_prepare_native_group_dispatch(owner.group,&desc,bindings.data(),uint32_t(bindings.size()),static_cast<rns8_native_dispatch_policy>(dispatch),locality_enabled?&locality:nullptr));
       peak_encoded_bytes=std::max(peak_encoded_bytes,encoded_bytes+new_bytes);encoded_bytes=new_bytes;
       for(auto& [slot,b]:owner.bs){if(b.cache)check(rns8_destroy_encoded_b(b.cache));b.cache=encoded?replacement.at(slot):nullptr;replacement.erase(slot);}
       if(mode=="graph")check(rns8_capture_native_group_hip_graph(owner.group));++rebuilds;
@@ -177,7 +179,8 @@ int main(int argc,char** argv){try{
   }
   rns8_device_info device{};device.struct_size=sizeof(device);device.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(owner.ctx,&device));
   json metadata=nullptr;if(mode!="resident"){rns8_native_group_info info{sizeof(info),RNS8_ABI_VERSION};check(rns8_get_native_group_info(owner.group,&info));
-    metadata={{"schedule_mode",info.schedule_mode},{"schedule_identity",rns8::detail::native_wmma_schedule_identity(rns8::detail::NativeWmmaScheduleMode(info.schedule_mode))},{"tasks",info.task_count},{"work",info.work_count},{"device_bytes",info.retained_device_metadata_bytes},{"host_bytes",info.retained_host_metadata_bytes},
+    rns8_native_group_dispatch_info hint{sizeof(hint),RNS8_ABI_VERSION};check(rns8_get_native_group_dispatch_info(owner.group,&hint));
+    metadata={{"dispatch_hint",{{"policy",uint32_t(hint.policy)},{"group",hint.uniform_group},{"unsigned_inputs",hint.unsigned_inputs},{"encoded_b",hint.encoded_b}}},{"schedule_mode",info.schedule_mode},{"schedule_identity",rns8::detail::native_wmma_schedule_identity(rns8::detail::NativeWmmaScheduleMode(info.schedule_mode))},{"tasks",info.task_count},{"work",info.work_count},{"device_bytes",info.retained_device_metadata_bytes},{"host_bytes",info.retained_host_metadata_bytes},
       {"preparation_peak_device_bytes",info.preparation_peak_device_metadata_bytes},{"graph_ready",info.graph_ready!=0}};}
   json result={{"schema","rns8_public_native_group_microcase_v1"},{"case",config},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"device",device.name},{"target",device.gcn_arch},{"runtime_version",device.hip_runtime_version},{"seed",seed},{"dataset","bounded_mt19937_64_shared_b_v1"},

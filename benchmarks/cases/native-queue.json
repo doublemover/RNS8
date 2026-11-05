@@ -358,6 +358,87 @@
           }
         ]
       ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "workers",
+        "chunk",
+        "reuse",
+        "repeats",
+        "warmups",
+        "metadata_budget_mib",
+        "encoded_b",
+        "mutate_b",
+        "tasks",
+        "dispatch_policy"
+      ],
+      "defaults": {
+        "schema": "native_queue_case_v1",
+        "workers": 32,
+        "chunk": 4,
+        "reuse": 4,
+        "repeats": 9,
+        "warmups": 3,
+        "metadata_budget_mib": 64,
+        "encoded_b": true,
+        "mutate_b": false,
+        "tasks": [
+          {
+            "m": 17,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned": true
+          },
+          {
+            "m": 2,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned": true
+          },
+          {
+            "m": 33,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned": true
+          },
+          {
+            "m": 1,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned": true
+          }
+        ]
+      },
+      "columns": [
+        "dispatch_policy"
+      ],
+      "rows": [
+        [
+          "encoded-uniform-dispatch0.json",
+          "90d308cdfdffa9fce8e0eec6e4d2b5f5608f644dd48a7a6cd6ce981df3405666",
+          0
+        ],
+        [
+          "encoded-uniform-dispatch1.json",
+          "feae01fdfd603f6cab33901654e052f810cd7774d8e1756ba203a6bdeb278c9a",
+          1
+        ],
+        [
+          "encoded-uniform-dispatch2.json",
+          "c65fe7b61760c19117b19598446b0805a070fccd840b67cc4f2dcaa7f2a6c2e1",
+          2
+        ]
+      ]
     }
   ]
 }

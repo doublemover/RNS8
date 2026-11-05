@@ -4,7 +4,7 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
   using boost::multiprecision::cpp_int;
   // Mixed dispatch plus all six uniform specializations use the same independent
   // exact oracle, padded tails and cross-slab input. Shapes remain heterogeneous.
-  for (uint32_t variant = 0; variant < 9; ++variant) {
+  for (uint32_t variant = 0; variant < 15; ++variant) {
     DYNAMIC_SECTION("queue specialization " << variant) {
       struct Buffers {
         void *a = nullptr, *b = nullptr, *c = nullptr, *encoded = nullptr;
@@ -23,9 +23,10 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
         const int m = id == 3 ? 1 : 17 + id, n = id == 3 ? 1 : 19 - id;
         const int k = id == 3 ? 65537 : 15 + id, lda = k + 1, ldb = n + 2, ldc = n + 3;
         const uint32_t prefix = id == 0 ? 1 : id == 1 ? 3 : id == 2 ? 9 : 20;
-        const bool uniform=variant>0 && variant<7;
-        const uint32_t group = uniform ? (1u << ((variant - 1) % 3)) : (id == 0 ? 1 : id == 1 ? 2 : 4);
-        const bool is_unsigned = uniform ? variant > 3 : id % 2 != 0;
+        const bool uniform=(variant>0 && variant<7) || variant>=9;
+        const uint32_t uniform_variant=variant>=9?variant-8:variant;
+        const uint32_t group = uniform ? (1u << ((uniform_variant - 1) % 3)) : (id == 0 ? 1 : id == 1 ? 2 : 4);
+        const bool is_unsigned = uniform ? uniform_variant > 3 : id % 2 != 0;
         const uint64_t values[] = {0, 1, UINT64_MAX, uint64_t{1} << 63, INT64_MAX, 127, 255};
         std::vector<uint64_t> a(m * lda), b(k * ldb);
         for (int row = 0; row < m; ++row)
@@ -54,7 +55,7 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
         REQUIRE(hip_direct_copy_host_to_device(0, buffer.b, b.data(), b.size() * 8) == RNS8_SUCCESS);
         tasks.push_back({buffer.a, buffer.b, static_cast<int8_t*>(buffer.c), m, n, k, lda, ldb, ldc,
                          prefix, group, static_cast<uint32_t>(is_unsigned)});
-        if(variant==7 || (variant==8 && id%2)) {
+        if(variant==7 || variant>=9 || (variant==8 && id%2)) {
           const auto layout=encoded_b_layout(k,n,ldb,prefix,UINT64_MAX);
           REQUIRE(layout.status==RNS8_SUCCESS);
           REQUIRE(hip_direct_allocate(0,layout.total_bytes,&buffer.encoded)==RNS8_SUCCESS);
@@ -118,10 +119,11 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
         }
         REQUIRE(prepared.prepare(0, tasks, workers, descriptor_bytes * 2) == RNS8_SUCCESS);
         for(auto mode:{NativeWmmaScheduleMode::explicit_round_robin,NativeWmmaScheduleMode::task_major,NativeWmmaScheduleMode::compact_round_robin,NativeWmmaScheduleMode::ranked_round_robin})
-          for(uint32_t chunk:{1u,4u,32u}) {
+          for(uint32_t chunk:{1u,4u,32u})
+          for(auto dispatch:{NativeWmmaDispatchPolicy::native_uniform_only,NativeWmmaDispatchPolicy::uniform_native_or_encoded,NativeWmmaDispatchPolicy::generic_task_dispatch}) {
             NativeWmmaPreparedQueue compact;
-            REQUIRE(compact.prepare(0,tasks,workers,UINT64_MAX,{1,mode,chunk})==RNS8_SUCCESS);
-            CHECK(compact.prepare(0,tasks,workers,compact.device_metadata_bytes()*2-1,{1,mode,chunk})==RNS8_WORKSPACE_TOO_SMALL);
+            REQUIRE(compact.prepare(0,tasks,workers,UINT64_MAX,{1,mode,chunk,dispatch})==RNS8_SUCCESS);
+            CHECK(compact.prepare(0,tasks,workers,compact.device_metadata_bytes()*2-1,{1,mode,chunk,dispatch})==RNS8_WORKSPACE_TOO_SMALL);
             for(unsigned repeat=0;repeat<2;++repeat) {
               REQUIRE(compact.execute(touched)==RNS8_SUCCESS);REQUIRE(touched);
               for(uint32_t id=0;id<tasks.size();++id) {

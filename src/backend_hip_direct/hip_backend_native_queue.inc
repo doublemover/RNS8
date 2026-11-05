@@ -1,8 +1,8 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_native_wmma_queue(const NativeWmmaTask*, const NativeWmmaWork*, uint32_t, uint32_t*, uint32_t, uint32_t, bool);
+extern "C" int rns8_hip_native_wmma_queue(const NativeWmmaTask*, const NativeWmmaWork*, uint32_t, uint32_t*, uint32_t, NativeWmmaUniformHint);
 extern "C" int rns8_hip_native_wmma_queue_schedule(const NativeWmmaTask*,const NativeWmmaWork*,
     const NativeWmmaTaskRange*,const NativeWmmaRoundPhase*,NativeWmmaScheduleHeader,
-    uint32_t*,uint32_t,uint32_t,bool);
+    uint32_t*,uint32_t,NativeWmmaUniformHint);
 extern "C" int rns8_hip_native_wmma_queue_completion(const NativeWmmaTask*,const NativeWmmaWork*,
     const NativeWmmaTaskRange*,const NativeWmmaRoundPhase*,NativeWmmaScheduleHeader,uint32_t*,uint32_t,
     uint32_t*,uint64_t*,uint64_t*);
@@ -81,8 +81,7 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
   ranges_=ranges;phases_=phases;header_=schedule.header;locality_=locality_info;
   count_ = header_.work_count;
   workers_ = std::min(workers, count_);
-  uniform_group_ = native_wmma_uniform_group(tasks);
-  unsigned_inputs_ = tasks.front().unsigned_inputs != 0;
+  dispatch_hint_ = native_wmma_uniform_hint(tasks,config.dispatch_policy);
   poisoned_ = false;
   return RNS8_SUCCESS;
 #else
@@ -106,8 +105,8 @@ rns8_status NativeWmmaPreparedQueue::execute(bool& outputs_may_be_written) {
     if (launch == hipSuccess) {
       outputs_may_be_written = true;
       launch = static_cast<hipError_t>(header_.mode==0 && header_.claim_chunk==1
-          ? rns8_hip_native_wmma_queue(tasks_,work_,count_,cursor_,workers_,uniform_group_,unsigned_inputs_)
-          : rns8_hip_native_wmma_queue_schedule(tasks_,work_,ranges_,phases_,header_,cursor_,workers_,uniform_group_,unsigned_inputs_));
+          ? rns8_hip_native_wmma_queue(tasks_,work_,count_,cursor_,workers_,dispatch_hint_)
+          : rns8_hip_native_wmma_queue_schedule(tasks_,work_,ranges_,phases_,header_,cursor_,workers_,dispatch_hint_));
       // Drain the submitted cursor reset even when launch validation fails.
       // A failed synchronization still poisons the owner below.
       const auto completion = hipDeviceSynchronize();
@@ -209,7 +208,7 @@ rns8_status hip_direct_gemm_native_wmma_queue(
   auto status = build_native_wmma_queue(tasks, workers, max_scratch_bytes, work, bytes);
   if (status != RNS8_SUCCESS) return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  const auto uniform_group = native_wmma_uniform_group(tasks);
+  const auto hint = native_wmma_uniform_hint(tasks);
   status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS) return status;
   hip_direct_device_buffer storage;
@@ -238,7 +237,7 @@ rns8_status hip_direct_gemm_native_wmma_queue(
   error = timed_hip_operation("native_queue_persistent_wmma", [&]() {
     auto launch = static_cast<hipError_t>(rns8_hip_native_wmma_queue(device_tasks, device_work,
         static_cast<uint32_t>(work.size()), cursor, std::min(workers, static_cast<uint32_t>(work.size())),
-        uniform_group, tasks.front().unsigned_inputs != 0));
+        hint));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
@@ -250,7 +249,7 @@ rns8_status hip_direct_gemm_native_wmma_queue(
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_native_wmma_queue_schedule_on_stream(const NativeWmmaTask*,const NativeWmmaWork*,
-    const NativeWmmaTaskRange*,const NativeWmmaRoundPhase*,NativeWmmaScheduleHeader,uint32_t*,uint32_t,uint32_t,bool,void*);
+    const NativeWmmaTaskRange*,const NativeWmmaRoundPhase*,NativeWmmaScheduleHeader,uint32_t*,uint32_t,NativeWmmaUniformHint,void*);
 extern "C" int rns8_hip_native_wmma_grouped_on_stream(const void*,const void*,int8_t*,int,int,int,int,int,int,int,int,bool,void*);
 extern "C" int rns8_hip_native_encoded_b_wmma_on_stream(const void*,const void*,void*,int,int,int,int,int,int,uint64_t,int,bool,void*);
 #endif
@@ -278,7 +277,7 @@ rns8_status NativeWmmaPreparedQueue::enqueue_borrowed_stream(void* stream,bool o
     if(launch==hipSuccess) {
       written=true;
       launch=static_cast<hipError_t>(rns8_hip_native_wmma_queue_schedule_on_stream(tasks_,work_,ranges_,phases_,header_,
-        cursor_,workers_,uniform_group_,unsigned_inputs_,stream));
+        cursor_,workers_,dispatch_hint_,stream));
     }
   }
   if(launch!=hipSuccess){poisoned_=true;return RNS8_BACKEND_FAILURE;}
@@ -293,7 +292,7 @@ rns8_status NativeWmmaPreparedQueue::close() {
   if((poisoned_ || storage_.pending()) && storage_){if(hip_direct_synchronize(device_id_)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;storage_.mark_completed();}
   const auto status=storage_.reset();if(status!=RNS8_SUCCESS)return status;
   host_tasks_.clear();tasks_=nullptr;work_=nullptr;ranges_=nullptr;phases_=nullptr;cursor_=nullptr;
-  count_=workers_=uniform_group_=0;device_id_=-1;header_={};poisoned_=false;
+  count_=workers_=0;dispatch_hint_={};device_id_=-1;header_={};poisoned_=false;
   materialized_host_bytes_=peak_device_bytes_=peak_host_payload_bytes_=0;
   return RNS8_SUCCESS;
 }

@@ -1740,6 +1740,188 @@
           }
         ]
       ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "tasks",
+        "dispatch_policy"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "mode": "persistent",
+        "input_policy": "resident",
+        "encoded_b": true,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "tasks": [
+          {
+            "m": 17,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 2,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 33,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 1,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          }
+        ]
+      },
+      "columns": [
+        "dispatch_policy"
+      ],
+      "rows": [
+        [
+          "encoded-uniform-persistent-dispatch0.json",
+          "7140d5fd91f5a60587dc3c6d211183468ab091282915e8a4c5840adf9d0c5e4f",
+          0
+        ],
+        [
+          "encoded-uniform-persistent-dispatch1.json",
+          "ca0b6c32bb7268e0f7d0bc35ce2f1ad55b3b5a038ca78793e9ae7b45c50a4559",
+          1
+        ],
+        [
+          "encoded-uniform-persistent-dispatch2.json",
+          "a1da6ab5b8b521d409380bf3a6dd70ccdf52131506569278e75f4d49e62040cd",
+          2
+        ]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "tasks",
+        "dispatch_policy"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "mode": "graph",
+        "input_policy": "resident",
+        "encoded_b": true,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "tasks": [
+          {
+            "m": 17,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 2,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 33,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 1,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          }
+        ]
+      },
+      "columns": [
+        "dispatch_policy"
+      ],
+      "rows": [
+        [
+          "encoded-uniform-graph-dispatch0.json",
+          "f2fb8f8436789360444aed9875e5542cc4830b08053488a0ed62bfcce7d9c78b",
+          0
+        ],
+        [
+          "encoded-uniform-graph-dispatch1.json",
+          "0b3d271a4d283687dc6684b4f86dd75f1afcae78f241f73c4f5638afc4335fc2",
+          1
+        ],
+        [
+          "encoded-uniform-graph-dispatch2.json",
+          "0d76e87f6131ec62fbfe581ed614ef47ad61f65e6e4e1ca0db0488b4287ac442",
+          2
+        ]
+      ]
     }
   ]
 }

@@ -130,6 +130,26 @@ Collectors check the selected decoder identity and independently price physical
 directory bytes. Host/device syntax checks are separate from the deferred exact
 execution, ISA/resource, preparation-cost and sustained-latency qualification.
 
+Homogeneous encoded-B specialization is an explicit dispatch-policy experiment.
+`rns8_prepare_native_group_dispatch` accepts policy 0 (current native-only
+specialization), 1 (native or encoded uniform specialization), or 2 (forced
+generic task dispatch). All tasks must agree on group, signedness and operand
+representation; dimensions and prefixes may differ. Group-zero hints retain
+per-task dispatch, including mixed representations. Both explicit and procedural
+queues and their owned graphs use the selected body. Ordinary-grid controls
+reject nondefault policies. Refresh preserves the policy; failed preparation
+preserves the previous queue. The additive dispatch-info query reports the
+actual group and representation without changing existing descriptor layouts.
+
+Private/public cases accept optional integer `dispatch_policy`. Collectors bind
+it to the actual launch hint, independently derived from task controls. Private
+nondefault-policy collections compare queue schedules; default collections also
+retain ordinary grids. Separate diagnostic completion submissions remain generic
+and cannot qualify specialization latency. Authored differential sources cover
+all groups and signedness, encoded/native and mixed representations, partial
+prefixes, padded tails, K=65537, direct/graph submission and refresh. Device
+compilation alone supplies no ISA/register, correctness or speedup evidence.
+
 A one-task 8192-square, prefix-20/group-one schedule has 5,242,880 assignments.
 The explicit assignment payload alone is 80 MiB. The fair procedural payload is
 `sizeof(NativeWmmaTask) + 16 + 16 + 4` bytes; its 32-byte header is a kernel

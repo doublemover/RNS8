@@ -31,6 +31,7 @@ CHECK_ENUM_ABI(rns8_narrow_product_method);
 CHECK_ENUM_ABI(rns8_native_device_access);
 CHECK_ENUM_ABI(rns8_native_device_policy);
 CHECK_ENUM_ABI(rns8_native_device_type);
+CHECK_ENUM_ABI(rns8_native_dispatch_policy);
 CHECK_ENUM_ABI(rns8_next_op_flags);
 CHECK_ENUM_ABI(rns8_operand_role);
 CHECK_ENUM_ABI(rns8_operation_kind);
