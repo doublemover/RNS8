@@ -78,6 +78,13 @@ uniform default basis directly from the complete GPU limb result; it never
 extends an insufficient isolated rank. It rejects active borrows and charges
 both old and replacement materializations before allocation.
 
+The source frontload also reserves the complete owner before host export DMA.
+A failed copy preserves caller output, retires the published result and keeps
+staging/result storage pending until an observed default-stream drain. That
+drain checks the gather owner even when it has no assigned shard. New epochs
+and close remain BUSY while work survives; failed drains retain quarantine.
+The authored post-copy failure/recovery control has not been executed yet.
+
 Cancellation stops new work and discards the epoch after outstanding streams
 drain. An observation timeout retains all reservations; the operation deadline
 is a separate host-monotonic deadline. Neither promises kernel preemption.

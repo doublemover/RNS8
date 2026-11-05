@@ -16,11 +16,15 @@ TEST_CASE("non-CDNA5 code objects expose no TDM or cluster capability", "[hip][t
   REQUIRE(probe.allocate(0, 4) == RNS8_SUCCESS);
   probe.mark_pending();
   uint32_t flags = UINT32_MAX;
+  const auto before = hip_direct_allocation_counters_snapshot();
   const auto status = hip_direct_prepare_native_tdm(0, p, probe.get(), flags);
   REQUIRE(hip_direct_synchronize(0) == RNS8_SUCCESS);
   probe.mark_completed();
   CHECK(status == RNS8_UNSUPPORTED_BACKEND);
   CHECK(flags == 0);
+  const auto after = hip_direct_allocation_counters_snapshot();
+  CHECK(after.d2h_calls - before.d2h_calls == 1);
+  CHECK(after.d2h_bytes - before.d2h_bytes == sizeof(flags));
 }
 TEST_CASE("CDNA5 TDM and multicast transfer litmus preserves full words and zero tails") {
   using namespace rns8::detail;

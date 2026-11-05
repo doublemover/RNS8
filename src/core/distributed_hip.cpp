@@ -48,8 +48,9 @@ struct HipExecution::Impl {
   uint64_t readers = 0, deadline = 0;
   bool issued = false, final_queued = false, closing = false, closed = false;
   uint64_t cleanup_steps = 0, cleanup_fail_after = UINT64_MAX, submissions = 0;
-  bool initialization_pending = false;
+  bool default_stream_pending = false;
   bool drain_markers_queued = false;
+  bool fail_export_after_copy = false;
   std::vector<std::string> certificates;
   Impl* quarantine_next = nullptr;
   inline static std::atomic<Impl*> quarantined{nullptr};
@@ -276,7 +277,7 @@ struct HipExecution::Impl {
       // resident native snapshots and never performs a pageable upload.
       // A failed copy/synchronization is not proof that initialization DMA has
       // stopped. Retain the complete owner until its default streams are safe.
-      initialization_pending = true;
+      default_stream_pending = true;
       issued = true;
       pending(true);
       code = hipMemcpy(device.a.get(), inputs->lhs().data(), inputs->lhs().size() * 8,
@@ -290,7 +291,7 @@ struct HipExecution::Impl {
         return error(code, "native_replication", rank);
       pending(false);
       issued = false;
-      initialization_pending = false;
+      default_stream_pending = false;
       if ((code = event_create(device.staged)) != hipSuccess)
         return error(code, "staging_event", rank);
       for (auto& slot : device.slots) {
@@ -319,7 +320,7 @@ struct HipExecution::Impl {
         !(admission = allocate(directory, root, tiles.size() * sizeof(DeviceTile))) ||
         !(admission = allocate(status, root, 4)))
       return admission;
-    initialization_pending = true;
+    default_stream_pending = true;
     issued = true;
     pending(true);
     auto code = hipMemcpy(directory.get(), tiles.data(), tiles.size() * sizeof(DeviceTile),
@@ -330,7 +331,7 @@ struct HipExecution::Impl {
       return error(code, "directory_upload");
     pending(false);
     issued = false;
-    initialization_pending = false;
+    default_stream_pending = false;
     if (code == hipSuccess)
       code = gather_stream.create_non_blocking();
     if (code == hipSuccess)
@@ -485,7 +486,7 @@ struct HipExecution::Impl {
         progress.state = State::quarantined;
         return;
       }
-      if (initialization_pending) {
+      if (default_stream_pending) {
         const auto code = hipStreamQuery(nullptr);
         if (code == hipErrorNotReady)
           ready = false;
@@ -520,6 +521,17 @@ struct HipExecution::Impl {
       progress.state = State::quarantined;
       return;
     }
+    // The gather owner can have no assigned shard storage. Its default stream
+    // still owns directory uploads and failed host exports in that case.
+    if (default_stream_pending) {
+      const auto owner_default = hipStreamQuery(nullptr);
+      if (owner_default == hipErrorNotReady)
+        ready = false;
+      else if (owner_default != hipSuccess) {
+        progress.state = State::quarantined;
+        return;
+      }
+    }
     if (!drain_markers_queued && completion &&
         hipEventRecord(completion.get(), gather_stream.get()) != hipSuccess) {
       progress.state = State::quarantined;
@@ -538,7 +550,7 @@ struct HipExecution::Impl {
       return;
     pending(false);
     issued = false;
-    initialization_pending = false;
+    default_stream_pending = false;
     progress.state = progress.operation.status == RNS8_CANCELED  ? State::canceled
                      : progress.operation.status == RNS8_TIMEOUT ? State::timed_out
                                                                  : State::failed;
@@ -742,6 +754,9 @@ uint64_t HipExecutionTestAccess::cleanup_steps(const HipExecution& value) {
 }
 uint64_t HipExecutionTestAccess::submissions(const HipExecution& value) {
   return value.impl_->submissions;
+}
+void HipExecutionTestAccess::fail_export_after_copy_once(HipExecution& value) {
+  value.impl_->fail_export_after_copy = true;
 }
 HipProgress HipExecutionTestAccess::progress(const HipExecution& value) {
   return value.impl_->progress;
@@ -997,9 +1012,24 @@ Admission HipExecution::export_limbs(uint64_t epoch, uint64_t* destination, uint
   hip_scoped_device selected(int(r.ranks[r.owner].ordinal));
   if (selected.status() != hipSuccess)
     return reject(RNS8_BACKEND_FAILURE, "export_device");
-  if (hipMemcpy(p.export_staging.data(), p.result.get(), p.export_staging.size() * 8,
-                hipMemcpyDeviceToHost) != hipSuccess)
-    return reject(RNS8_BACKEND_FAILURE, "export_copy_preserved_caller");
+  // A failed D2H call does not prove its destination is no longer in use.
+  // Keep the complete owner, host staging and result reserved until the same
+  // default-stream drain used by initialization has actually completed.
+  p.default_stream_pending = true;
+  p.drain_markers_queued = false;
+  p.issued = true;
+  p.pending(true);
+  auto copied = hipMemcpy(p.export_staging.data(), p.result.get(), p.export_staging.size() * 8,
+                          hipMemcpyDeviceToHost);
+  if (copied == hipSuccess && p.fail_export_after_copy) {
+    p.fail_export_after_copy = false;
+    copied = hipErrorUnknown; // Private control: actual copy issued, no device fault.
+  }
+  if (copied != hipSuccess)
+    return p.error(copied, "export_copy_preserved_caller");
+  p.pending(false);
+  p.issued = false;
+  p.default_stream_pending = false;
   for (uint64_t row = 0; row < r.m; ++row)
     std::copy_n(p.export_staging.data() + row * r.n * 3, size_t(r.n * 3),
                 destination + row * ld * 3);

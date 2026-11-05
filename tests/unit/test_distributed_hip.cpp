@@ -360,6 +360,46 @@ TEST_CASE(
     check_real_modulus_shards(65, axis, true);
 }
 
+TEST_CASE("distributed failed export retains staging until observed completion",
+          "[distributed][hip][lifetime]") {
+  rns8_device_info info{};
+  if (!d::HipExecution::compiled() || rns8::detail::hip_direct_probe(0, info) != RNS8_SUCCESS)
+    SKIP("HIP device required");
+  auto r = live_request();
+  REQUIRE(d::HipExecution::discover({0}, r.ranks, r.edges));
+  r.transport = d::Transport::local;
+  auto plan = make_plan(r);
+  auto inputs = make_inputs(r);
+  std::unique_ptr<d::HipExecution> owner;
+  REQUIRE(d::HipExecution::create(plan, inputs, owner));
+  REQUIRE(owner->submit(1, UINT64_C(30000000000)));
+  d::HipProgress progress;
+  REQUIRE(owner->wait(1, UINT64_C(30000000000), progress));
+  REQUIRE(progress.operation);
+  REQUIRE(progress.output_current);
+  std::vector<uint64_t> expected(r.m * r.n * 3, 0);
+  REQUIRE(owner->export_limbs(1, expected.data(), r.n));
+  std::vector<uint64_t> observed(expected.size(), 99);
+  const auto unchanged = observed;
+  d::HipExecutionTestAccess::fail_export_after_copy_once(*owner);
+  REQUIRE(owner->export_limbs(1, observed.data(), r.n).status == RNS8_BACKEND_FAILURE);
+  CHECK(observed == unchanged);
+  CHECK(owner->close().status == RNS8_BUSY);
+  CHECK(owner->submit(2, UINT64_C(30000000000)).status == RNS8_BUSY);
+  CHECK_FALSE(owner->retain(1));
+  REQUIRE(owner->wait(1, UINT64_C(30000000000), progress));
+  CHECK(progress.operation.status == RNS8_BACKEND_FAILURE);
+  CHECK(progress.state == d::State::failed);
+  CHECK_FALSE(progress.output_current);
+  CHECK(observed == unchanged);
+  REQUIRE(owner->submit(2, UINT64_C(30000000000)));
+  REQUIRE(owner->wait(2, UINT64_C(30000000000), progress));
+  REQUIRE(progress.operation);
+  REQUIRE(owner->export_limbs(2, observed.data(), r.n));
+  CHECK(observed == expected);
+  REQUIRE(owner->close());
+}
+
 TEST_CASE("distributed destructive close retires every partial cleanup stage",
           "[distributed][hip][lifetime]") {
   rns8_device_info info{};

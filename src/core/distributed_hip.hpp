@@ -58,6 +58,8 @@ private:
 // fault or change arithmetic admission. Not part of the installed API.
 struct HipExecutionTestAccess {
   static void fail_cleanup_after(HipExecution&, uint64_t completed_steps);
+  // Fail after a real export copy, without inducing a hardware error.
+  static void fail_export_after_copy_once(HipExecution&);
   static uint64_t cleanup_steps(const HipExecution&);
   static uint64_t submissions(const HipExecution&);
   static HipProgress progress(const HipExecution&);

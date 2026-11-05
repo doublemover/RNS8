@@ -21,7 +21,7 @@ rns8_status hip_direct_fp8_modular_prepare(int device, void* probe, uint32_t for
   if (launch != hipSuccess || drained != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   int available = 0;
-  const auto copied = hipMemcpy(&available, probe, 4, hipMemcpyDeviceToHost);
+  const auto copied = tracked_status_copy(device, &available, probe, sizeof(available));
   return copied != hipSuccess                         ? RNS8_BACKEND_FAILURE
          : available == int(format >= 3 ? 1 : format) ? RNS8_SUCCESS
                                                       : RNS8_UNSUPPORTED_BACKEND;
@@ -58,7 +58,7 @@ rns8_status hip_direct_fp8_modular_gemm(int device, const int8_t* a, const int8_
   if (error != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   unsigned flags = 0;
-  if (hipMemcpy(&flags, failure, 4, hipMemcpyDeviceToHost) != hipSuccess)
+  if (tracked_status_copy(device, &flags, failure, sizeof(flags)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   return flags ? RNS8_VERIFICATION_FAILED : RNS8_SUCCESS;
 #else
@@ -96,7 +96,7 @@ rns8_status hip_direct_mxfp_modular_gemm(int device, const int8_t* a, const int8
   if (error != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   unsigned flags = 0;
-  if (hipMemcpy(&flags, failure, 4, hipMemcpyDeviceToHost) != hipSuccess)
+  if (tracked_status_copy(device, &flags, failure, sizeof(flags)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   return flags ? RNS8_VERIFICATION_FAILED : RNS8_SUCCESS;
 #else

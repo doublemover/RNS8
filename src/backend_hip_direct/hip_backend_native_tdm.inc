@@ -18,7 +18,7 @@ rns8_status hip_direct_prepare_native_tdm(int device, const NativeTdmProblem& p,
   const auto drained = hipDeviceSynchronize();
   if (launch != hipSuccess || drained != hipSuccess)
     return RNS8_BACKEND_FAILURE;
-  if (hipMemcpy(&flags, probe, 4, hipMemcpyDeviceToHost) != hipSuccess)
+  if (tracked_status_copy(device, &flags, probe, sizeof(flags)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   if ((p.mode == 1 && !(flags & 1)) || (p.mode == 2 && (flags & 3) != 3) ||
       (p.compute && !(flags & 4)))
@@ -56,7 +56,7 @@ rns8_status hip_direct_native_tdm_litmus(int device, const void* input, void* ou
   if (error != hipSuccess || drained != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   unsigned failure = 0;
-  if (hipMemcpy(&failure, status, 4, hipMemcpyDeviceToHost) != hipSuccess)
+  if (tracked_status_copy(device, &failure, status, sizeof(failure)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   return failure ? RNS8_RANGE_ERROR : RNS8_SUCCESS;
 #else
@@ -106,7 +106,7 @@ rns8_status hip_direct_native_tdm_admitted(int device, const void* a, const void
   if (error != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   unsigned failure = 0;
-  if (hipMemcpy(&failure, status, 4, hipMemcpyDeviceToHost) != hipSuccess)
+  if (tracked_status_copy(device, &failure, status, sizeof(failure)) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   return failure ? RNS8_RANGE_ERROR : RNS8_SUCCESS;
 #else
