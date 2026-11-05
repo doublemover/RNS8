@@ -83,12 +83,13 @@ class Quality(unittest.TestCase):
                 ".github/workflows/ci.yml",
                 "third_party/vendor/a.cpp",
                 "tools/data/certificate.json",
-                "include/rns8/generated/metadata_registry.hpp",
+                *self.policy["generated"],
             ],
             self.policy,
         )
         self.assertEqual({row.role for row in rows}, {"cpp", "python", "bash", "workflow"})
         self.assertEqual(sum(row.role == "cpp" for row in rows), 2)
+        self.assertTrue(set(self.policy["generated"]).isdisjoint(row.path for row in rows))
         for name in (
             "../src/a.cpp",
             "/src/a.cpp",

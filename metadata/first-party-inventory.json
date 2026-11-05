@@ -25,7 +25,12 @@
   ],
   "generated": {
     "include/rns8/generated/metadata_registry.hpp": "tools/metadata_registry.py deterministic generation check",
-    "src/backend_common/wrap64_certificate_identity.hpp": "tools/generate_wrap64_certificate_identity.py certificate identity generation check"
+    "src/backend_common/wrap64_certificate_identity.hpp": "tools/generate_wrap64_certificate_identity.py certificate identity generation check",
+    "tools/metadata_registry_constants.py": "tools/metadata_registry.py deterministic generation check",
+    "src/core/public_abi_inventory.inc": "tools/check_public_abi.py author/source declaration inventory check",
+    "src/backend_common/rank48_program.hpp": "tools/rank48_certificate.py deterministic coefficient-header check",
+    "src/backend_common/rank48_slp.hpp": "tools/rank48_slp.py deterministic schedule-header check",
+    "src/backend_common/rank23_october55_data.hpp": "tools/rank23_october55.py deterministic header check"
   },
   "excluded_roots": [
     "third_party",

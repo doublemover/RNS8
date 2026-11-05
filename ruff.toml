@@ -3,7 +3,7 @@ preview = false
 # Conservative syntax floor; supported interpreter qualification is separate.
 target-version = "py312"
 line-length = 100
-extend-exclude = ["third_party", "temp", "build", "out", "vcpkg_installed"]
+extend-exclude = ["third_party", "temp", "build", "out", "vcpkg_installed", "tools/metadata_registry_constants.py"]
 force-exclude = true
 
 [lint]

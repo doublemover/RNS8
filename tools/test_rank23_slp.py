@@ -187,7 +187,7 @@ class Rank23SLPTests(unittest.TestCase):
                     left = target
             self.assertEqual((declared_inputs, declared_outputs, count), (ni, no, len(expected)))
             self.assertEqual(instructions, expected)
-            results = list(map(int, re.findall(r"\d+", block.rsplit("}, {", 1)[1])))
+            results = list(map(int, re.findall(r"\d+", re.split(r"\},\s*\{", block)[-1])))
             self.assertEqual(results, [reg(out + str(i)) for i in range(no)])
 
     def test_exact_basis_tensors_and_all_byte_rings(self):
