@@ -1,24 +1,42 @@
 from __future__ import annotations
 
-import argparse
-import glob
-import importlib.metadata
-import json
-import os
 import platform
-import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
-from .accelerators import *
-from .config import *
-from .discovery import *
-from .readiness import *
-from .system import *
+from check_dependencies_lib.accelerators import (
+    accelerator_compile_probes,
+    accelerator_components,
+)
+from check_dependencies_lib.config import (
+    CORE_VCPKG_PACKAGES,
+)
+from check_dependencies_lib.discovery import (
+    command_version,
+    command_version_ok,
+    find_msvc,
+    hip_info_report,
+    installed_vcpkg_packages,
+    python_packages,
+    rccl_discovery_report,
+)
+from check_dependencies_lib.readiness import (
+    cmake_hip_language_report,
+    hard_cut_self_checks,
+    optional_cpp_references,
+    project_tools,
+    readiness_report,
+    vcpkg_package_role,
+)
+from check_dependencies_lib.system import (
+    cmake_presets_report,
+    command_names_for_host,
+    command_required_for_host,
+    find_command,
+    manifest_vcpkg_packages,
+    repo_root,
+)
 from .resolution import ACTIVE_RESOLUTION, Request, resolve, selection_context
 from .version_policy import installed_vcpkg_receipt
 

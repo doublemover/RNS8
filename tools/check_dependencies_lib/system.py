@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import argparse
 import glob
-import importlib.metadata
 import json
 import os
 import platform
@@ -12,9 +10,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
-from .config import *
+from check_dependencies_lib.config import (
+    HOST_NEUTRAL_CORE_COMMANDS,
+    LINUX_OPTIONAL_PROFILER_COMMANDS,
+    LINUX_READINESS_COMMANDS,
+    LINUX_ROCM_COVERAGE_TARGETS,
+    LINUX_ROCM_REQUIRED_COMMANDS,
+    RADEON_TOOLS,
+    WINDOWS_CORE_COMMANDS,
+    WINDOWS_HIP_COMMANDS,
+)
 from .resolution import ACTIVE_RESOLUTION, compiler_environment, selected_command
 
 

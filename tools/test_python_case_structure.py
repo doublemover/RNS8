@@ -47,6 +47,30 @@ class PythonCaseStructure(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_dependency_modules_have_explicit_owner_imports(self):
+        paths = list((ROOT / "tools/check_dependencies_lib").glob("*.py"))
+        paths.append(ROOT / "tools/check_dependencies.py")
+        self.assertGreater(len(paths), 5)
+        for path in paths:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    self.assertNotIn("*", {alias.name for alias in node.names}, str(path))
+        for name in ("system", "discovery", "accelerators", "readiness", "report", "cli"):
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import importlib,sys; importlib.import_module(sys.argv[1])",
+                    "check_dependencies_lib." + name,
+                ],
+                cwd=ROOT / "tools",
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_every_migrated_case_retains_assertions_and_loads_independently(self):
         inventory = json.loads((ROOT / "metadata/python-contract-case-inventory.json").read_text())
         self.assertEqual(inventory["schema"], "rns8_python_contract_case_inventory_v1")

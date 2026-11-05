@@ -1,23 +1,34 @@
 from __future__ import annotations
 
-import argparse
-import glob
-import importlib.metadata
-import json
-import os
 import platform
-import re
-import shutil
-import subprocess
-import sys
-from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
-from .accelerators import *
-from .config import *
-from .discovery import *
-from .system import *
+from check_dependencies_lib.config import (
+    ACCELERATOR_ENABLE_FLAGS,
+    ACCELERATOR_ENABLE_POLICY,
+    ACCELERATOR_NAMES,
+    CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+    CHECKER_VALIDATION_SCOPE,
+    CORE_VCPKG_PACKAGES,
+    HOST_NEUTRAL_CORE_COMMANDS,
+    LINUX_CDNA_TARGETS,
+    LINUX_PROFILER_COMMANDS,
+    LINUX_RDNA_TARGETS,
+    LINUX_ROCM_DIAGNOSTIC_COMMANDS,
+    LINUX_ROCM_REQUIRED_COMMANDS,
+    LINUX_SMI_COMMANDS,
+    LINUX_TOPOLOGY_COMMANDS,
+    OPTIONAL_CPP_PACKAGES,
+    PYTHON_PACKAGES,
+    WINDOWS_CORE_COMMANDS,
+    WINDOWS_HIP_COMMANDS,
+)
+from check_dependencies_lib.discovery import (
+    first_existing,
+)
+from check_dependencies_lib.system import (
+    repo_root,
+)
 from .resolution import ACTIVE_RESOLUTION
 
 

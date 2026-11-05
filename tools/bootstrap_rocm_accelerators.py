@@ -11,7 +11,10 @@ import tarfile
 from pathlib import Path
 from typing import Sequence
 
-import check_dependencies as deps
+import check_dependencies_lib.accelerators as dependency_accelerators
+import check_dependencies_lib.config as dependency_config
+import check_dependencies_lib.discovery as dependency_discovery
+import check_dependencies_lib.system as dependency_system
 import rocm_sdk
 from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 from check_dependencies_lib.resolution import Request, resolve, selection_context
@@ -55,7 +58,7 @@ def run_command(
             else subprocess.list2cmdline(actual),
             "exit_code": completed.returncode,
             "ok": completed.returncode == 0,
-            "output": deps.compact_output(completed.stdout),
+            "output": dependency_system.compact_output(completed.stdout),
         }
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {
@@ -71,14 +74,14 @@ def run_command(
 
 def initialize_submodules(root: Path) -> dict[str, object]:
     items: dict[str, object] = {}
-    for name, spec in deps.EXPECTED_ROCM_SUBMODULES.items():
+    for name, spec in dependency_config.EXPECTED_ROCM_SUBMODULES.items():
         path = str(spec["path"])
         result = run_command(
             ["git", "submodule", "update", "--init", "--checkout", "--", path],
             cwd=root,
             timeout=600,
         )
-        report = deps.repo_local_dependency_report(name)
+        report = dependency_discovery.repo_local_dependency_report(name)
         items[name] = {
             "command": result,
             "dependency": report,
@@ -94,19 +97,21 @@ def toolchain_report(target: str) -> dict[str, object]:
     resolution = resolve(
         Request(
             platform.system(),
-            source_root=str(deps.repo_root()),
+            source_root=str(dependency_system.repo_root()),
             require_hip=True,
             require_vcpkg=platform.system() == "Windows",
         )
     )
     with selection_context(resolution):
         commands = {
-            name: deps.find_command(name)
+            name: dependency_system.find_command(name)
             for name in ["git", "cmake", "ninja", "python", "hipcc", "hipInfo", "hipconfig"]
         }
     msvc_install = find_visual_studio_installation()
-    msvc_probe = run_command(["where", "cl"], cwd=deps.repo_root(), timeout=60, use_msvc=True)
-    hip_info = deps.hip_info_report(commands.get("hipInfo"))
+    msvc_probe = run_command(
+        ["where", "cl"], cwd=dependency_system.repo_root(), timeout=60, use_msvc=True
+    )
+    hip_info = dependency_discovery.hip_info_report(commands.get("hipInfo"))
     hip_target = hip_info.get("target") if isinstance(hip_info, dict) else ""
     return {
         "ok": not resolution["errors"]
@@ -125,14 +130,14 @@ def toolchain_report(target: str) -> dict[str, object]:
 
 
 def compile_dependency_probe(name: str, target: str, probe_root: Path) -> dict[str, object]:
-    accelerators = deps.accelerator_components()
+    accelerators = dependency_accelerators.accelerator_components()
     component = accelerators.get(name)
     if not isinstance(component, dict):
         return {
             "ok": False,
             "status": "missing_component_record",
             "name": name,
-            **deps.primitive_probe_not_run_fields(
+            **dependency_accelerators.primitive_probe_not_run_fields(
                 name,
                 probe_root,
                 "NOT_RUN_MISSING_COMPONENT",
@@ -147,18 +152,18 @@ def compile_dependency_probe(name: str, target: str, probe_root: Path) -> dict[s
             "status": "missing_header",
             "name": name,
             "component": component,
-            **deps.primitive_probe_not_run_fields(
+            **dependency_accelerators.primitive_probe_not_run_fields(
                 name, probe_root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True
             ),
         }
-    hipcc = deps.find_command("hipcc")
+    hipcc = dependency_system.find_command("hipcc")
     if not hipcc:
         return {
             "ok": False,
             "status": "missing_hipcc",
             "name": name,
             "component": component,
-            **deps.primitive_probe_not_run_fields(
+            **dependency_accelerators.primitive_probe_not_run_fields(
                 name, probe_root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True
             ),
         }
@@ -166,13 +171,17 @@ def compile_dependency_probe(name: str, target: str, probe_root: Path) -> dict[s
     probe_root.mkdir(parents=True, exist_ok=True)
     source = probe_root / f"{name}_probe.cpp"
     binary = probe_root / f"{name}_probe{'.exe' if platform.system() == 'Windows' else ''}"
-    source.write_text(deps.ACCELERATOR_PROBE_SOURCES[name], encoding="utf-8")
+    source.write_text(dependency_config.ACCELERATOR_PROBE_SOURCES[name], encoding="utf-8")
     command = [hipcc, "-std=c++17", f"--offload-arch={target}", str(source)]
-    for include_root in deps.include_roots_for_component(name, component, probe_root):
+    for include_root in dependency_accelerators.include_roots_for_component(
+        name, component, probe_root
+    ):
         command.extend(["-I", include_root])
     command.extend(["-o", str(binary)])
-    result = run_command(command, cwd=deps.repo_root(), timeout=120, use_msvc=True)
-    primitive = deps.compile_accelerator_primitive_probe(name, component, probe_root, target, hipcc)
+    result = run_command(command, cwd=dependency_system.repo_root(), timeout=120, use_msvc=True)
+    primitive = dependency_accelerators.compile_accelerator_primitive_probe(
+        name, component, probe_root, target, hipcc
+    )
     header_ok = bool(result["ok"])
     primitive_ok = bool(primitive.get("primitive_probe_ok"))
     if header_ok and primitive_ok:
@@ -214,9 +223,9 @@ def dry_run_bootstrap_report(
     root: Path, target: str, probe_root: Path, init: bool, probe: bool
 ) -> dict[str, object]:
     submodule_items: dict[str, object] = {}
-    for name, spec in deps.EXPECTED_ROCM_SUBMODULES.items():
+    for name, spec in dependency_config.EXPECTED_ROCM_SUBMODULES.items():
         path = str(spec["path"])
-        dependency = deps.repo_local_dependency_report(name)
+        dependency = dependency_discovery.repo_local_dependency_report(name)
         submodule_items[name] = {
             "ok": True,
             "dependency": dependency,
@@ -378,7 +387,7 @@ def main() -> int:
 
     args.target = args.target or "gfx1100"
 
-    root = deps.repo_root()
+    root = dependency_system.repo_root()
     probe_root = args.probe_root or (root / "temp" / "accelerator-deps" / "bootstrap")
     if args.dry_run:
         report = dry_run_bootstrap_report(root, args.target, probe_root, args.init, args.probe)
@@ -406,13 +415,15 @@ def main() -> int:
     else:
         report["submodules"] = {
             "ok": all(
-                bool(deps.repo_local_dependency_report(name).get("sha_matches"))
+                bool(dependency_discovery.repo_local_dependency_report(name).get("sha_matches"))
                 for name in ("ck", "rocwmma")
             ),
             "items": {
                 name: {
-                    "dependency": deps.repo_local_dependency_report(name),
-                    "ok": deps.repo_local_dependency_report(name).get("sha_matches"),
+                    "dependency": dependency_discovery.repo_local_dependency_report(name),
+                    "ok": dependency_discovery.repo_local_dependency_report(name).get(
+                        "sha_matches"
+                    ),
                 }
                 for name in ("ck", "rocwmma")
             },

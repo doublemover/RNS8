@@ -1,22 +1,39 @@
 from __future__ import annotations
 
-import argparse
-import glob
-import importlib.metadata
-import json
 import os
 import platform
 import re
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
-from .config import *
-from .discovery import *
-from .system import *
+from check_dependencies_lib.config import (
+    ACCELERATOR_ENABLE_FLAGS,
+    ACCELERATOR_ENABLE_POLICY,
+    ACCELERATOR_NAMES,
+    ACCELERATOR_PRIMITIVE_PROBE_SOURCES,
+    ACCELERATOR_PROBE_SOURCES,
+    CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+)
+from check_dependencies_lib.discovery import (
+    command_line_for_report,
+    command_with_windows_developer_environment,
+    find_under_roots,
+    first_existing,
+    hip_roots,
+    msvc_probe_command,
+    repo_local_accelerator_roots,
+    repo_local_dependency_report,
+    vcpkg_roots,
+)
+from check_dependencies_lib.resolution import (
+    ACTIVE_RESOLUTION,
+)
+from check_dependencies_lib.system import (
+    compact_output,
+    find_command,
+    repo_root,
+    run,
+)
 
 
 def accelerator_components() -> dict[str, dict[str, object]]:

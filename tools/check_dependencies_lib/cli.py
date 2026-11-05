@@ -1,18 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import glob
-import importlib.metadata
 import json
-import os
 import platform
-import re
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
 from .human import print_human
 from .report import build_report
