@@ -1,11 +1,36 @@
 #include "core/internal.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
 #include "backend_common/submission_topology.hpp"
+#include "core/host_control_observations.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <set>
 #include <tuple>
+#include <thread>
 
 using namespace rns8::detail;
+
+TEST_CASE("host-control observers restore nested calling-thread scopes on normal and exceptional exit") {
+  HostControlObservations outer,inner;
+  CHECK(current_host_control_observer()==nullptr);
+  {
+    HostControlObservationScope observation(outer);
+    record_host_control(&HostControlObservations::submission_proofs);
+    bool foreign_empty=false;HostControlObservations other_thread;
+    std::thread worker([&](){foreign_empty=current_host_control_observer()==nullptr;
+      HostControlObservationScope local(other_thread);record_host_control(&HostControlObservations::event_queries);});
+    worker.join();CHECK(foreign_empty);CHECK(current_host_control_observer()==&outer);
+    CHECK(other_thread.event_queries==(host_control_diagnostics_compiled()?1:0));CHECK(outer.event_queries==0);
+    try {HostControlObservationScope nested(inner);record_host_control(&HostControlObservations::event_waits);throw 1;}catch(int){}
+    CHECK(current_host_control_observer()==&outer);
+    record_host_control(&HostControlObservations::submission_proofs);
+    outer.event_records=UINT64_MAX;record_host_control(&HostControlObservations::event_records);CHECK(outer.event_records==UINT64_MAX);
+  }
+  CHECK(current_host_control_observer()==nullptr);
+  CHECK(outer.submission_proofs==(host_control_diagnostics_compiled()?2:0));
+  CHECK(inner.event_waits==(host_control_diagnostics_compiled()?1:0));
+  record_host_control(&HostControlObservations::submission_proofs);
+  CHECK(outer.submission_proofs==(host_control_diagnostics_compiled()?2:0));
+}
 
 TEST_CASE("one batch admits its borrowed stream once and never retains that authority across batches") {
   int context=0,other_context=0,stream=0,other_stream=0;unsigned queries=0;

@@ -101,6 +101,7 @@ rns8_status observe_prepared_hip(rns8_prepared_execution *e,
       finish_prepared_hip(*e, e->async_failure.operation_status);
       return rns8_get_prepared_completion(e, token, out);
     }
+    rns8::detail::record_host_control(wait?&rns8::detail::HostControlObservations::event_waits:&rns8::detail::HostControlObservations::event_queries);
     const auto error = wait ? hipEventSynchronize(e->completion_event.get())
                             : hipEventQuery(e->completion_event.get());
     if (error == hipErrorNotReady)
@@ -163,6 +164,7 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
                                              void *stream, bool graph,
                                              PreparedHipProof &proof,
                                              rns8::detail::BorrowedStreamAdmission* group_stream=nullptr) {
+  rns8::detail::record_host_control(&rns8::detail::HostControlObservations::submission_proofs);
   if (!e || !stream || e->closing)
     return RNS8_INVALID_ARGUMENT;
   if (e->running || e->dependent_references || (e->pool_owned && !e->pool_dispatch))
@@ -213,11 +215,13 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
       static_cast<hipStream_t>(stream) == hipStreamPerThread)
     return RNS8_INVALID_ARGUMENT;
   hipDevice_t stream_device = -1;
+  rns8::detail::record_host_control(&rns8::detail::HostControlObservations::stream_device_queries);
   if (hipStreamGetDevice(static_cast<hipStream_t>(stream), &stream_device) !=
           hipSuccess ||
       stream_device != e->ctx->device_id)
     return RNS8_INVALID_ARGUMENT;
   hipStreamCaptureStatus capture = hipStreamCaptureStatusNone;
+  rns8::detail::record_host_control(&rns8::detail::HostControlObservations::stream_capture_queries);
   if (hipStreamIsCapturing(static_cast<hipStream_t>(stream), &capture) !=
       hipSuccess)
     return RNS8_BACKEND_FAILURE;
@@ -293,6 +297,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
     record_async_failure(e->async_failure, status, RNS8_ASYNC_FAILURE_ENQUEUE,
                          launch_error, e->ctx->device_id, e->epoch);
   if (status == RNS8_SUCCESS) {
+  rns8::detail::record_host_control(&rns8::detail::HostControlObservations::event_records);
     const auto error = hipEventRecord(e->completion_event.get(), static_cast<hipStream_t>(stream));
     if (error != hipSuccess) {
       status = RNS8_BACKEND_FAILURE;

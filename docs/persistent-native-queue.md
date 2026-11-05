@@ -150,6 +150,29 @@ all groups and signedness, encoded/native and mixed representations, partial
 prefixes, padded tails, K=65537, direct/graph submission and refresh. Device
 compilation alone supplies no ISA/register, correctness or speedup evidence.
 
+The public calibrator's `host_diagnostics: true` requires a separate
+`-DRNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS=ON` build. The default compiles these
+counter hooks away. An observer is borrowed on the calling thread for cold
+setup and one complete warm observation **after all timed intervals**, then
+removed even on exception. It reports attempt counts at prepared submission,
+proof-cache and managed runtime-handle sites: stream-device/capture queries,
+device selection, event creation/record/query/wait/destruction, proof builds
+and reuse, and native graph launch. These are scoped source call counts, not
+process-wide profiler events or generated GPU work. Existing successful HIP
+allocation/transfer API-payload counters are reported separately; host heap
+allocations, physical traffic and other threads are outside this diagnostic.
+
+Diagnostic configuration participates in the compiled manifest. Its timings
+are identified as ineligible for release-build latency claims even while the
+observer is absent. Normal sustained callbacks return typed observations;
+JSON construction and exact CPU checks happen after the measured intervals.
+Optional `integrity: true` enables the public native compute sentinel and
+requires consistent generation-bound per-child reports in addition to the
+independent full Boost result comparison. Native sentinel checks do not replace
+the exact oracle. The 96 opt-in controls cover 1/8/32/64 tail tasks, shared or
+distinct B, persistent/ordinary/owned-graph modes, stable or mutated B, and
+integrity off/on. They are source-ready fixtures, not executed qualification.
+
 A one-task 8192-square, prefix-20/group-one schedule has 5,242,880 assignments.
 The explicit assignment payload alone is 80 MiB. The fair procedural payload is
 `sizeof(NativeWmmaTask) + 16 + 16 + 4` bytes; its 32-byte header is a kernel

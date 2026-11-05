@@ -1,5 +1,6 @@
 #include "backend_common/locality_schedule.hpp"
 #include "backend_common/submission_topology.hpp"
+#include "core/host_control_observations.hpp"
 #include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "core/api_internal.hpp"
 #include <atomic>
@@ -14,6 +15,20 @@
 #include "backend_hip_direct/native_wmma_prepared.hpp"
 
 using namespace rns8::detail::api;
+namespace rns8::detail {
+namespace {thread_local HostControlObservations* host_control_observer=nullptr;}
+bool host_control_diagnostics_compiled() noexcept {
+#if defined(RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS) && RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS
+  return true;
+#else
+  return false;
+#endif
+}
+HostControlObservations* current_host_control_observer() noexcept {return host_control_observer;}
+HostControlObservations* exchange_host_control_observer(HostControlObservations* next) noexcept {
+  return std::exchange(host_control_observer,next);
+}
+}
 
 struct rns8_prepared_execution {
   std::unique_ptr<PreparedTransfer> transfer;
@@ -108,10 +123,12 @@ struct rns8_prepared_group {
 namespace {
 static rns8_status prepare_math_proof(const rns8_prepared_execution& e) {
   if(e.math_proof && e.math_proof->matches(*e.plan,*e.a,*e.b,e.d,e.alpha,e.beta)) {
+    rns8::detail::record_host_control(&rns8::detail::HostControlObservations::proof_reuses);
     if(e.math_proof_reuses!=UINT64_MAX)++e.math_proof_reuses;
     return RNS8_SUCCESS;
   }
   const auto status=rns8::detail::ExactOperationProof::create(*e.plan,*e.a,*e.b,e.d,e.alpha,e.beta,e.math_proof);
+  if(status==RNS8_SUCCESS)rns8::detail::record_host_control(&rns8::detail::HostControlObservations::proof_builds);
   if(status==RNS8_SUCCESS && e.math_proof_builds!=UINT64_MAX)++e.math_proof_builds;
   return status;
 }

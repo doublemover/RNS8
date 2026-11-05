@@ -241,15 +241,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/38",
       "requirements_sha256": "988c661b3aed0aea0e1d69bb8c4d9fdcf8d0e643e9eb5cdc1ca60959ba2b0428",
       "comments_reviewed": 3,
-      "implementation_status": "in_progress",
+      "implementation_status": "source_written_pending_batch_validation",
       "completed_slices": [
         "Prepare native unique-reader/multiplicity tables and retained proof-array shells before replacement publication. A stack-scoped admission capability validates each actual borrowed stream once per batch while preserving per-child mutable proof/epoch/reservation checks and existing events. Metadata charges retained table/proof objects; host mock overflow, shared-reader and stream-admission fixtures authored.",
         "Add explicit fair rank/select mode3 with header ABI2, preserving old fair-scan controls. Equal-count phases select directly without directory storage; sparse phases use binary prefix-rank selection plus five bit subdivisions. Canonical admission, uploads and physical host/device peak accounting include O(phases*tasks) directory bytes. Authored exact sequence/corruption/budget/CPU work diagnostics and extended raw/public GPU differentials; compact512/4096 equal/skew and public64 shared-B controls, selected decoder identities and independent shared Python resource accounting are ready.",
-        "Add explicit native-only/default, uniform-native-or-encoded, and forced-generic dispatch policies. A fixed private launch packet binds group/signedness/representation for all synchronous/stream/graph queue bodies. Additive public preparation/query preserve existing struct ABI and selected policy through refresh; reject nondefault ordinary controls. Collectors independently bind actual hints to optional case policy while retaining legacy captures. Authored raw/public GPU controls cover all six encoded specializations, mixed queues, padded tails, partial prefixes, slab boundaries and refresh; no runtime qualification."
+        "Add explicit native-only/default, uniform-native-or-encoded, and forced-generic dispatch policies. A fixed private launch packet binds group/signedness/representation for all synchronous/stream/graph queue bodies. Additive public preparation/query preserve existing struct ABI and selected policy through refresh; reject nondefault ordinary controls. Collectors independently bind actual hints to optional case policy while retaining legacy captures. Authored raw/public GPU controls cover all six encoded specializations, mixed queues, padded tails, partial prefixes, slab boundaries and refresh; no runtime qualification.",
+        "Add opt-in compiled-out-by-default calling-thread host-control counters with nested exception-safe observer restoration, saturation, managed device/event operation attempts and prepared proof-cache/submission counts. The public calibrator captures cold setup and one complete warm observation after timing, successful HIP allocation/transfer payload separately, actual native integrity receipts, and typed hot-loop observations without JSON. Strict independent collector and authored controls cover 1/8/32/64 shared/distinct-B tasks, persistent/ordinary/graph, stable/mutated generations, integrity off/on (96 compact cases). Instrumentation is bound to build provenance and excluded from release latency qualification. Existing child events remain; shared batch completion is an explicitly separate research candidate, not a deletion requirement."
       ],
-      "remaining_source_items": [
-        "Finish opt-in grouped host-control query/proof/event diagnostic counters in the existing public queue calibrator."
-      ]
+      "remaining_source_items": []
     },
     {
       "issue": 39,
@@ -735,7 +734,9 @@
       "requirements_sha256": "40c05b02d83d5cfc1f587a64b958e083c29b59176ee595f7827af34e8492daa2",
       "comments_reviewed": 1,
       "implementation_status": "pending",
-      "completed_slices": [],
+      "completed_slices": [
+        "Move public-native-queue observation JSON construction out of sustained callbacks; callbacks now return a typed scalar Observation, with serialization and Boost audit outside measured intervals. Host-control diagnostics run separately and identify instrumented builds. Other harness/report/document follow-through remains under review."
+      ],
       "remaining_source_items": []
     },
     {

@@ -243,7 +243,8 @@ if(RNS8_ENABLE_HIP)
     set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_CK_KERNEL_DEPENDS}
       "${RNS8_CK_WMMA_PATCHED_HEADER}"
       "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_handle_owner.hpp"
-      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_runtime_handles.hpp")
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_runtime_handles.hpp"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/host_control_observations.hpp")
     set(
       RNS8_HIP_SOURCE_COMPILE_OPTIONS
       "-DRNS8_CK_USE_XDL=${RNS8_CK_USE_XDL}"
@@ -274,7 +275,8 @@ if(RNS8_ENABLE_HIP)
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_ROCWMMA_INCLUDE_DIR}")
     set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_ROCWMMA_KERNEL_DEPENDS}
       "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_handle_owner.hpp"
-      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_runtime_handles.hpp")
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_runtime_handles.hpp"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/host_control_observations.hpp")
     set(RNS8_HIP_SOURCE_COMPILE_OPTIONS "-DRNS8_ROCWMMA_WAVE_THREADS=${RNS8_ROCWMMA_WAVE_THREADS}")
     rns8_compile_hip_source(
       RNS8_ROCWMMA_KERNEL_OBJECT

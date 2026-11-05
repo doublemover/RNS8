@@ -240,12 +240,13 @@ static rns8_status submit_native_group(rns8_prepared_group* group,void* stream,
       ++e.epoch;tokens[i]={e.id,e.epoch};++*out_submitted;begin_prepared_integrity(e,proofs[i].integrity_bound);
     }
     hipError_t error=hipSuccess;bool written=false;
-    if(graph) {error=hipGraphLaunch(group->native_executable,static_cast<hipStream_t>(stream));
+    if(graph) {rns8::detail::record_host_control(&rns8::detail::HostControlObservations::graph_launches);error=hipGraphLaunch(group->native_executable,static_cast<hipStream_t>(stream));
       status=error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;}
     else status=group->native_queue->enqueue_borrowed_stream(stream,group->native_desc.ordinary_grid_control!=0,written);
     auto stage=RNS8_ASYNC_FAILURE_ENQUEUE;
     if(status==RNS8_SUCCESS)for(auto* e:group->executions) {
       status=enqueue_prepared_integrity(*e,stream);if(status!=RNS8_SUCCESS)break;
+      rns8::detail::record_host_control(&rns8::detail::HostControlObservations::event_records);
       error=hipEventRecord(e->completion_event.get(),static_cast<hipStream_t>(stream));
       if(error!=hipSuccess) {status=RNS8_BACKEND_FAILURE;stage=RNS8_ASYNC_FAILURE_EVENT_RECORD;break;}
     }

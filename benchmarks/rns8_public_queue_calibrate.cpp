@@ -11,6 +11,7 @@ static_assert(sizeof(rns8::detail::NativeWmmaTask)==104,"public queue capture AB
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <random>
 #include <stdexcept>
 using json=nlohmann::json;
@@ -49,12 +50,36 @@ struct Owner {
     if(ctx)(void)rns8_destroy_context(ctx);
   }
 };
+struct Observation {
+  double prepare_us,execute_us,export_us,host_loop_us,total_us;
+  uint32_t complete_groups;
+};
+json observation_json(const Observation& value) {
+  return {{"prepare_us",value.prepare_us},{"execute_us",value.execute_us},{"export_us",value.export_us},
+    {"host_loop_us",value.host_loop_us},{"total_us",value.total_us},{"complete_groups",value.complete_groups}};
+}
+json host_control_json(const rns8::detail::HostControlObservations& value) {
+  return {{"device_gets",value.device_gets},{"device_sets",value.device_sets},
+    {"stream_device_queries",value.stream_device_queries},{"stream_capture_queries",value.stream_capture_queries},
+    {"event_creates",value.event_creates},{"event_destroys",value.event_destroys},{"event_records",value.event_records},
+    {"event_queries",value.event_queries},{"event_waits",value.event_waits},{"submission_proofs",value.submission_proofs},
+    {"proof_builds",value.proof_builds},{"proof_reuses",value.proof_reuses},{"graph_launches",value.graph_launches}};
+}
+json allocation_delta(const rns8::detail::hip_direct_allocation_counters& before,
+    const rns8::detail::hip_direct_allocation_counters& after) {
+  // This calibrator owns the process; these are existing successful API-payload
+  // counters, not host allocations, physical traffic or device residency.
+  return {{"allocate_calls",after.allocate_calls-before.allocate_calls},{"free_calls",after.free_calls-before.free_calls},
+    {"allocated_bytes",after.allocated_bytes-before.allocated_bytes},{"h2d_calls",after.h2d_calls-before.h2d_calls},
+    {"h2d_bytes",after.h2d_bytes-before.h2d_bytes},{"d2h_calls",after.d2h_calls-before.d2h_calls},
+    {"d2h_bytes",after.d2h_bytes-before.d2h_bytes},{"d2d_calls",after.d2d_calls-before.d2d_calls},{"d2d_bytes",after.d2d_bytes-before.d2d_bytes}};
+}
 constexpr uint64_t sentinel=0x5ac37e195ac37e19ull;
 }
 int main(int argc,char** argv){try{
   need(argc==3,"usage: rns8-public-queue-calibrate CASE.json unique-run-id");
   std::ifstream file(argv[1]);json config;file>>config;
-  need(config.is_object() && config.size()==13+(config.contains("locality_order")?1:0)+(config.contains("dispatch_policy")?1:0) && config.at("schema")=="public_native_group_case_v1","case ABI");
+  need(config.is_object() && config.size()==13+(config.contains("locality_order")?1:0)+(config.contains("dispatch_policy")?1:0)+(config.contains("host_diagnostics")?1:0)+(config.contains("integrity")?1:0) && config.at("schema")=="public_native_group_case_v1","case ABI");
   const auto mode=config.at("mode").get<std::string>(),policy=config.at("input_policy").get<std::string>();
   need(mode=="persistent" || mode=="ordinary" || mode=="graph" || mode=="resident","mode");
   need(policy=="resident" || policy=="mutated-b","input policy");
@@ -62,6 +87,10 @@ int main(int argc,char** argv){try{
   need(mode!="resident" || !encoded,"resident RNS control does not consume encoded B");
   const uint32_t schedule=number(config,"schedule",0,3),chunk=number(config,"chunk",1,32),workers=number(config,"workers",1,1024),
       reuse=number(config,"reuse",1,64),warmups=number(config,"warmups",1,1000),repeats=number(config,"repeats",3,1000),seed=number(config,"seed",0,UINT32_MAX),padding=number(config,"padding",0,64);
+  for(const auto* key:{"host_diagnostics","integrity"})need(!config.contains(key) || config.at(key).is_boolean(),"diagnostic/integrity controls must be bool");
+  const bool diagnostics=config.value("host_diagnostics",false),integrity=config.value("integrity",false);
+  need(!diagnostics || rns8::detail::host_control_diagnostics_compiled(),"host diagnostics require RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS=ON");
+  need(!integrity || mode!="resident","native integrity requires native queue inputs");
   const auto dispatch=config.contains("dispatch_policy")?number(config,"dispatch_policy",0,2):0u;
   need(!dispatch || mode=="persistent" || mode=="graph","dispatch policy requires a native queue");
   const bool locality_enabled=config.contains("locality_order");const std::string locality_order=config.value("locality_order",std::string("ordinary"));
@@ -89,7 +118,12 @@ int main(int argc,char** argv){try{
     if(input.u){input.unsigned_values.resize(count);for(auto& v:input.unsigned_values)v=rng()%8;}
     else {input.signed_values.resize(count);for(auto& v:input.signed_values)v=int64_t(rng()%15)-7;}};
   for(auto& [slot,b]:owner.bs)values(b);for(auto& task:owner.tasks)values(task.a);
-  rns8::detail::hip_direct_timing_set_enabled(false);const auto setup_start=Clock::now();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  rns8::detail::HostControlObservations cold_counts;
+  const auto cold_allocations=rns8::detail::hip_direct_allocation_counters_snapshot();
+  std::optional<rns8::detail::HostControlObservationScope> cold_observer;
+  if(diagnostics)cold_observer.emplace(cold_counts);
+  const auto setup_start=Clock::now();
   rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
   check(rns8_create_context(0,&options,&owner.ctx));
   auto matrix=[&](Input& input){rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;
@@ -109,6 +143,8 @@ int main(int argc,char** argv){try{
     rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=desc.semantics;md.bound_kind=RNS8_BOUND_NONE;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;
     md.rows=task.m;md.cols=task.n;md.logical_ld=task.n;md.max_prefix=task.prefix;check(rns8_create_matrix(owner.ctx,&md,&task.c));
     check(rns8_prepare_gemm(owner.ctx,task.plan,task.a.matrix,owner.bs.at(task.b_slot).matrix,task.c,task.work,&task.execution));
+    if(integrity){rns8_native_integrity_options options{sizeof(options),RNS8_ABI_VERSION,1,8,0,0};
+      check(rns8_set_prepared_native_integrity(task.execution,&options));}
     executions.push_back(task.execution);bindings[i]={sizeof(bindings[i]),RNS8_ABI_VERSION,task.group,nullptr};
     task.output.assign(size_t(task.m)*(task.n+padding)*3,sentinel);
   }
@@ -133,6 +169,7 @@ int main(int argc,char** argv){try{
   rns8::detail::hip_unique_stream stream;if(mode=="graph" && stream.create_non_blocking()!=hipSuccess)throw std::runtime_error("stream creation failed");
 #endif
   const double setup_us=us(setup_start,Clock::now());
+  cold_observer.reset();const auto cold_finished_allocations=rns8::detail::hip_direct_allocation_counters_snapshot();
   uint64_t generation=1,groups_executed=0;
   std::vector<rns8_completion_token> tokens(owner.tasks.size());
   const auto execute=[&](){std::array<double,3> phases{};const auto start=Clock::now();
@@ -155,12 +192,21 @@ int main(int argc,char** argv){try{
           rns8_export_exact_wide_signed_limbs(owner.ctx,task.plan,task.c,task.output.data(),task.n+padding,3));
       const auto exported=Clock::now();phases[0]+=us(before,prepared);phases[1]+=us(prepared,computed);phases[2]+=us(computed,exported);++groups_executed;
     }
-    const double total=us(start,Clock::now());return json{{"prepare_us",phases[0]},{"execute_us",phases[1]},{"export_us",phases[2]},
-      {"host_loop_us",std::max(0.0,total-phases[0]-phases[1]-phases[2])},{"total_us",total},{"complete_groups",reuse}};
+    const double total=us(start,Clock::now());return Observation{phases[0],phases[1],phases[2],std::max(0.0,total-phases[0]-phases[1]-phases[2]),total,reuse};
   };
+  json integrity_receipts=nullptr;
   const auto audit=[&](){uint64_t digest=14695981039346656037ull;
     for(const auto& [slot,b]:owner.bs)need(b.matrix->content_generation==generation,"public B generation differs from recorded interval");
-    for(const auto& task:owner.tasks){const auto& b=owner.bs.at(task.b_slot);const auto ld=task.n+padding;
+    if(integrity)integrity_receipts=json::array();size_t task_index=0;
+    for(const auto& task:owner.tasks){
+      if(integrity){rns8_native_integrity_report report{sizeof(report),RNS8_ABI_VERSION};
+        check(rns8_get_prepared_native_integrity_report(task.execution,tokens[task_index],&report));
+        need(report.enabled && report.outcome==1 && !report.failure_mask && report.operation_status==RNS8_SUCCESS,"native integrity mismatch");
+        integrity_receipts.push_back({{"task",task_index},{"operation",report.operation_id},{"epoch",report.epoch},
+          {"a_generation",report.a_generation},{"b_generation",report.b_generation},{"prefix",report.computational_prefix},
+          {"basis_version",report.computational_basis_version},{"check_moduli",{report.check_moduli[0],report.check_moduli[1]}},
+          {"enabled",true},{"outcome",report.outcome},{"failure_mask",report.failure_mask}});}
+      ++task_index;const auto& b=owner.bs.at(task.b_slot);const auto ld=task.n+padding;
       for(uint32_t row=0;row<task.m;++row)for(uint32_t col=0;col<ld;++col){const auto index=(size_t(row)*ld+col)*3;
         if(col>=task.n){for(int limb=0;limb<3;++limb)need(task.output[index+limb]==sentinel,"padding modified");continue;}
         cpp_int expected=0;for(uint32_t q=0;q<task.k;++q)expected+=task.a.value(size_t(row)*task.k+q)*b.value(size_t(q)*task.n+col);
@@ -170,12 +216,24 @@ int main(int argc,char** argv){try{
       }
     }return std::to_string(digest);
   };
-  const auto first=execute();audit();for(uint32_t i=0;i<warmups;++i)execute();
-  json samples=json::array();for(uint32_t i=0;i<repeats;++i){auto sample=execute();sample["output_digest"]=audit();samples.push_back(std::move(sample));}
+  const auto first=observation_json(execute());audit();for(uint32_t i=0;i<warmups;++i)execute();
+  json samples=json::array();for(uint32_t i=0;i<repeats;++i){auto sample=observation_json(execute());sample["output_digest"]=audit();samples.push_back(std::move(sample));}
   json sustained=json::array();for(int batch=0;batch<3;++batch){const auto start_generation=generation,start_groups=groups_executed,start_rebuilds=rebuilds;
     const auto start=Clock::now();uint32_t calls=0;double duration=0;do{execute();++calls;duration=us(start,Clock::now());}while(calls<4096 && (calls<16 || duration<250000));
     sustained.push_back({{"calls",calls},{"complete_groups",groups_executed-start_groups},{"duration_us",duration},{"first_input_generation",start_generation},
       {"last_input_generation",generation},{"rebuilds",rebuilds-start_rebuilds},{"output_digest",audit()},{"exact_reference_passed",true}});
+  }
+  json host_diagnostic=nullptr;
+  if(diagnostics) {
+    rns8::detail::HostControlObservations warm_counts;
+    const auto before=rns8::detail::hip_direct_allocation_counters_snapshot();
+    {rns8::detail::HostControlObservationScope observation(warm_counts);execute();}
+    const auto after=rns8::detail::hip_direct_allocation_counters_snapshot();
+    host_diagnostic={{"schema","rns8_public_queue_host_control_v1"},{"scope","calling_thread_one_complete_observation_after_timing"},
+      {"complete_groups",reuse},{"cold_setup",host_control_json(cold_counts)},{"warm_observation",host_control_json(warm_counts)},
+      {"cold_setup_allocations",allocation_delta(cold_allocations,cold_finished_allocations)},
+      {"warm_observation_allocations",allocation_delta(before,after)},{"output_digest",audit()},{"exact_reference_passed",true},
+      {"attempt_count_scope","prepared_submission_and_managed_runtime_handles"},{"latency_evidence",false}};
   }
   rns8_device_info device{};device.struct_size=sizeof(device);device.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(owner.ctx,&device));
   json metadata=nullptr;if(mode!="resident"){rns8_native_group_info info{sizeof(info),RNS8_ABI_VERSION};check(rns8_get_native_group_info(owner.group,&info));
@@ -184,7 +242,7 @@ int main(int argc,char** argv){try{
       {"preparation_peak_device_bytes",info.preparation_peak_device_metadata_bytes},{"graph_ready",info.graph_ready!=0}};}
   json result={{"schema","rns8_public_native_group_microcase_v1"},{"case",config},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"device",device.name},{"target",device.gcn_arch},{"runtime_version",device.hip_runtime_version},{"seed",seed},{"dataset","bounded_mt19937_64_shared_b_v1"},
-    {"host_instrumentation_state","hooks_disabled"},{"output_boundary","each_public_group_and_all_padded_three_limb_exports"},{"setup_us",setup_us},
+    {"native_integrity_receipts",integrity_receipts},{"host_control_diagnostics_compiled",rns8::detail::host_control_diagnostics_compiled()},{"host_control_diagnostic",host_diagnostic},{"hot_loop_serialization","typed_observations_json_after_intervals_v1"},{"host_instrumentation_state","hooks_disabled"},{"output_boundary","each_public_group_and_all_padded_three_limb_exports"},{"setup_us",setup_us},
     {"setup_scope","context_plans_matrices_input_pack_encoded_B_descriptors_graph"},{"first_call",first},{"samples",samples},{"sustained",sustained},{"metadata",metadata},
     {"encoded_b_retained_device_bytes",encoded_bytes},{"encoded_b_peak_replacement_device_bytes",peak_encoded_bytes},{"useful_tile_channel_groups_per_call",useful_work},
     {"exact_reference_passed",true},{"oracle_inside_production_interval",false},

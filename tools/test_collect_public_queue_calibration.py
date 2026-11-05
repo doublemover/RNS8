@@ -12,6 +12,38 @@ from native_queue_schedule_contract import IDENTITIES as SCHEDULE_IDENTITIES
 
 
 class PublicQueueCollection(unittest.TestCase):
+    def test_host_control_diagnostics_are_separate_strict_and_cover_real_children(self):
+        from collect_public_queue_calibration import HOST_CONTROL_FIELDS, ALLOCATION_FIELDS
+        c,e=self.fixture();e['case']['host_diagnostics']=True
+        with self.assertRaises(ValueError):validate_capture(c,e)
+        cold=dict.fromkeys(HOST_CONTROL_FIELDS,0);warm=copy.deepcopy(cold)
+        warm.update(stream_device_queries=4,stream_capture_queries=4,submission_proofs=8,event_records=8,event_waits=8,proof_reuses=8)
+        counts=dict.fromkeys(ALLOCATION_FIELDS,0)
+        c.update(host_control_diagnostics_compiled=True,hot_loop_serialization='typed_observations_json_after_intervals_v1',
+            host_control_diagnostic=dict(schema='rns8_public_queue_host_control_v1',scope='calling_thread_one_complete_observation_after_timing',
+                complete_groups=4,cold_setup=cold,warm_observation=warm,cold_setup_allocations=counts,
+                warm_observation_allocations=copy.deepcopy(counts),output_digest='1234',exact_reference_passed=True,
+                attempt_count_scope='prepared_submission_and_managed_runtime_handles',latency_evidence=False))
+        self.assertEqual(validate_capture(c,e),c)
+        for key,value in [('stream_device_queries',8),('event_waits',1),('event_records',True),('proof_builds',1),('event_creates',1)]:
+            bad=copy.deepcopy(c);bad['host_control_diagnostic']['warm_observation'][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):validate_capture(bad,e)
+        for key,value in [('host_control_diagnostics_compiled',False),('hot_loop_serialization','json_per_call')]:
+            bad=copy.deepcopy(c);bad[key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):validate_capture(bad,e)
+        e['case']['host_diagnostics']=False
+        with self.assertRaises(ValueError):validate_capture(c,e)
+
+    def test_integrity_controls_require_generation_bound_consistent_receipts(self):
+        c,e=self.fixture();e['case']['integrity']=True
+        with self.assertRaises(ValueError):validate_capture(c,e)
+        c['native_integrity_receipts']=[dict(task=i,enabled=True,outcome=1,failure_mask=0,prefix=t['prefix'],basis_version=1,
+             check_moduli=[257,263],operation=i+1,epoch=3,a_generation=1,b_generation=1) for i,t in enumerate(e['case']['tasks'])]
+        self.assertEqual(validate_capture(c,e),c)
+        for key,value in [('outcome',2),('failure_mask',1),('basis_version',True),('epoch',0),('task',True)]:
+            bad=copy.deepcopy(c);bad['native_integrity_receipts'][0][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):validate_capture(bad,e)
+
     def test_nondefault_dispatch_requires_the_actual_selected_body(self):
         from native_queue_schedule_contract import dispatch_hint
         c,e=self.fixture();case=e['case'];case['dispatch_policy']=1

@@ -1,5 +1,6 @@
 #pragma once
 #include "core/hip_handle_owner.hpp"
+#include "core/host_control_observations.hpp"
 #if (defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP) || defined(__HIPCC__)
 #include <hip/hip_runtime_api.h>
 namespace rns8::detail {
@@ -8,8 +9,10 @@ void hip_direct_timing_flush_pending_events();
 class hip_scoped_device {
  public:
   explicit hip_scoped_device(int device) noexcept {
+    record_host_control(&HostControlObservations::device_gets);
     status_ = hipGetDevice(&previous_);
     if (status_ == hipSuccess && previous_ != device) {
+      record_host_control(&HostControlObservations::device_sets);
       status_ = hipSetDevice(device);
       changed_ = status_ == hipSuccess;
     }
@@ -17,7 +20,7 @@ class hip_scoped_device {
   hip_scoped_device(const hip_scoped_device&) = delete;
   hip_scoped_device& operator=(const hip_scoped_device&) = delete;
   ~hip_scoped_device() {
-    if (changed_) (void)hipSetDevice(previous_);
+    if (changed_) {record_host_control(&HostControlObservations::device_sets);(void)hipSetDevice(previous_);}
   }
   hipError_t status() const noexcept { return status_; }
 
@@ -33,13 +36,14 @@ struct hip_runtime_handle_operations {
   static constexpr auto success = hipSuccess, out_of_memory = hipErrorOutOfMemory,
                         invalid_argument = hipErrorInvalidValue;
   static constexpr auto kind = Kind;
-  static hipError_t current_device(int& device) noexcept { return hipGetDevice(&device); }
+  static hipError_t current_device(int& device) noexcept {record_host_control(&HostControlObservations::device_gets);return hipGetDevice(&device);}
   static hipError_t destroy(int device, Handle handle) noexcept {
     hip_scoped_device selected(device);
     if (selected.status() != hipSuccess) return selected.status();
-    if constexpr (Kind == hip_deferred_allocation_kind::event)
+    if constexpr (Kind == hip_deferred_allocation_kind::event) {
+      record_host_control(&HostControlObservations::event_destroys);
       return hipEventDestroy(handle);
-    else if constexpr (Kind == hip_deferred_allocation_kind::stream)
+    } else if constexpr (Kind == hip_deferred_allocation_kind::stream)
       return hipStreamDestroy(handle);
     else if constexpr (Kind == hip_deferred_allocation_kind::graph)
       return hipGraphDestroy(handle);
@@ -59,7 +63,7 @@ class hip_unique_event
  public:
   hipError_t create(unsigned flags = hipEventDefault) {
     return Base::create(
-        [flags](hipEvent_t* out) noexcept { return hipEventCreateWithFlags(out, flags); });
+        [flags](hipEvent_t* out) noexcept {record_host_control(&HostControlObservations::event_creates);return hipEventCreateWithFlags(out, flags);});
   }
 };
 class hip_unique_stream

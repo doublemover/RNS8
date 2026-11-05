@@ -4,6 +4,7 @@ option(RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL "Use scalar residue source loops
 option(RNS8_EXPERIMENTAL_RESIDUE_DOT4 "Research packed signed-byte inner loops for all residue schedulers; legacy arithmetic when OFF" OFF)
 option(RNS8_EXPERIMENTAL_GARNER_TABLE "Research-only immutable HIP Garner table; not release-qualified" OFF)
 option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integration" OFF)
+option(RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS "Compile opt-in thread-local host-control attempt counters; separate diagnostic builds only" OFF)
 option(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA "Compile bounded generated native WMMA research variants" OFF)
 if(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA AND NOT RNS8_ENABLE_HIP)
   message(FATAL_ERROR "Generated native WMMA requires explicit HIP integration")

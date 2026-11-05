@@ -1,6 +1,7 @@
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rns8_distributed_transports.cmake)
 
 function(rns8_configure_library target_name)
+  target_compile_definitions(${target_name} PUBLIC $<$<BOOL:${RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS}>:RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS=1>)
   rns8_bind_manifest(${target_name})
   target_compile_features(${target_name} PUBLIC cxx_std_17)
   target_include_directories(
