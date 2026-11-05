@@ -186,7 +186,6 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
             if environment_error:
                 blockers.add(environment_error)
             blockers.update(phase_blockers(capture))
-            samples = (capture.get("raw_timings_us") or {}).get("end_to_end", [])
             if host_observation_count(capture) < DEFAULT_MIN_REPEATS:
                 blockers.add("insufficient_repeat_samples")
             if type(capture.get("warmups")) is not int or capture["warmups"] < 3:
@@ -312,7 +311,10 @@ def best_implementation(
 
 def row_identity(capture: dict, *, exclude: Iterable[str] = ()) -> dict:
     work = canonical_work(capture, exclude=exclude)
-    digest = lambda text: hashlib.sha256(text.encode()).hexdigest()
+
+    def digest(text):
+        return hashlib.sha256(text.encode()).hexdigest()
+
     return {
         "work_contract": json.loads(work),
         "work_contract_key": digest(work),

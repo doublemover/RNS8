@@ -379,7 +379,7 @@ def matrix_symbol_reports(
     for entry in entries:
         visited, active, failures = set(), set(), []
 
-        def visit(symbol):
+        def visit(symbol, *, active=active, failures=failures, visited=visited):
             if symbol in active:
                 failures.append("recursive_device_call_unsupported:" + symbol)
                 return

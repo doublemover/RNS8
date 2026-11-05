@@ -352,7 +352,7 @@ def held_out_report(bundle, observations, relative_tolerance):
             lower += lo
             upper += hi
 
-        def demand(value, target):
+        def demand(value, target, *, raw=raw):
             if value >= 2 and raw[value] < target:
                 add((value - 2, "lift", 0, raw[value], target))
                 raw[value] = target

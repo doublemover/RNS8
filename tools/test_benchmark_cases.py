@@ -112,7 +112,7 @@ class CatalogTests(unittest.TestCase):
                 value, _ = self.fixture()
                 (catalogs / "fixture.json").write_text(json.dumps(value))
 
-                def occupied_reader(source, target):
+                def occupied_reader(source, target, *, identical=identical):
                     Path(target).write_bytes(
                         Path(source).read_bytes() if identical else b"wrong winner"
                     )
@@ -151,7 +151,7 @@ class CatalogTests(unittest.TestCase):
                 original = Path.read_bytes
                 denied = 0
 
-                def reader(path):
+                def reader(path, *, original=original, persistent=persistent, target=target):
                     nonlocal denied
                     if path == target and (persistent or denied == 0):
                         denied += 1

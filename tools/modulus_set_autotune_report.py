@@ -69,7 +69,7 @@ def _candidate_index(search_report: dict[str, Any]) -> dict[str, dict[str, Any]]
 def _load_capture(path: Path) -> dict[str, Any]:
     try:
         capture = load_capture(path)
-    except Exception as exc:  # noqa: BLE001 - keep report tolerant over mixed roots.
+    except Exception as exc:
         return {
             "_path": str(path),
             "_schema_status": "invalid",

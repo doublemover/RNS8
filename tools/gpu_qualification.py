@@ -195,7 +195,10 @@ def command_plan(
     for lane, enabled_backends in lanes:
         # Every isolated or combined feature lane has its own build identity.
         build = out / "build" / lane
-        binary = lambda name: str(build / (name + extension))
+
+        def binary(name, *, build=build):
+            return str(build / (name + extension))
+
         options = [
             f"-DRNS8_ENABLE_{flag}={'ON' if name in enabled_backends else 'OFF'}"
             for name, flag in FLAGS.items()

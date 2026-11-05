@@ -76,7 +76,10 @@ def resources(case):
         return None
     m, n, k = (min(case[axis], case["panel_" + axis]) for axis in ("m", "n", "k"))
     p = case["prefix"]
-    align = lambda size: (size + 255) // 256 * 256
+
+    def align(size):
+        return (size + 255) // 256 * 256
+
     slots = (m * k * p, k * n * p, m * n * p, m * n * p, 8 * m * k, 8 * k * n, 8 * m * n, 4)
     overlap = case["mode"] == "stream-overlap"
     if overlap:

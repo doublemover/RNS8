@@ -1332,7 +1332,7 @@ class CollectorTest(unittest.TestCase):
         ):
             self.output = self.root / (candidate + key)
 
-            def mutate(capture, count):
+            def mutate(capture, count, *, key=key, value=value):
                 capture[key] = value
 
             with self.assertRaisesRegex(RuntimeError, "contract/reference mismatch"):
@@ -1354,7 +1354,7 @@ class CollectorTest(unittest.TestCase):
                 with self.subTest(candidate=candidate, key=key):
                     self.output = self.root / f"mismatch-{candidate}-{key}"
 
-                    def mutate(capture, count):
+                    def mutate(capture, count, *, key=key):
                         capture[key] = None if capture[key] is not None else "wrong"
 
                     with self.assertRaisesRegex(RuntimeError, "contract/reference mismatch"):
@@ -1369,7 +1369,7 @@ class CollectorTest(unittest.TestCase):
         for key in ("device", "target", "runtime_version", "build_manifest"):
             self.output = self.root / ("changed-" + key)
 
-            def mutate(capture, count):
+            def mutate(capture, count, *, key=key):
                 if count == 2:
                     if key == "build_manifest":
                         capture[key]["source_commit"] = "d" * 40
@@ -1397,7 +1397,7 @@ class CollectorTest(unittest.TestCase):
         for enabled, complete in (("ON", False), ("OFF", True)):
             self.output = self.root / ("garner-" + enabled)
 
-            def mutate(capture, count):
+            def mutate(capture, count, *, enabled=enabled):
                 capture["build_manifest"]["configuration"] += "\ngarner_table=" + enabled
 
             self.collect([BASE], mutate=mutate)

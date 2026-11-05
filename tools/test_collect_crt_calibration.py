@@ -618,7 +618,7 @@ class Collection(unittest.TestCase):
                 args = arguments(directory)
                 count = 0
 
-                def run(command, **kwargs):
+                def run(command, *, mutation=mutation, **kwargs):
                     nonlocal count
                     result = successful(command)
                     count += 1
@@ -657,7 +657,7 @@ class Collection(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 args = arguments(directory)
 
-                def run(command, **kwargs):
+                def run(command, *, diagnostic=diagnostic, **kwargs):
                     result = successful(command)
                     capture = json.loads(result.stdout)
                     if diagnostic == "dirty":
@@ -684,7 +684,7 @@ class Collection(unittest.TestCase):
                         json.dumps(dict(schema="rns8_conversion_cases_v1", cases=[BASE]))
                     )
 
-                def run(command, **kwargs):
+                def run(command, *, args=args, failure=failure, **kwargs):
                     if failure == "timeout":
                         raise subprocess.TimeoutExpired(
                             command, 10, output=b"partial", stderr=b"error"

@@ -301,7 +301,7 @@ def summarize(observations):
                     for metric in ("setup_us", "p50_us", "p95_us", "sustained_us")
                 }
 
-        def ratios(control):
+        def ratios(control, *, medians=medians):
             return {
                 mode: {
                     metric: medians[mode][metric] / medians[control][metric]

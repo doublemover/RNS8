@@ -628,7 +628,7 @@ class Collection(unittest.TestCase):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 args = arguments(directory)
 
-                def run(command, **kwargs):
+                def run(command, *, args=args, failure=failure, **kwargs):
                     if failure == "timeout":
                         raise subprocess.TimeoutExpired(
                             command, 10, output=b"partial", stderr=b"timeout"
@@ -696,7 +696,7 @@ class Collection(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 args = arguments(directory)
 
-                def run(command, **kwargs):
+                def run(command, *, kind=kind, **kwargs):
                     result = successful(command)
                     c = json.loads(result.stdout)
                     if kind == "dirty":

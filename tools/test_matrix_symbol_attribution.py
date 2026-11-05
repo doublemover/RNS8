@@ -94,7 +94,9 @@ class MatrixSymbols(unittest.TestCase):
                         patch("isa_common.device_function_symbols", return_value=names),
                         patch(
                             "isa_common.disassemble_code_object",
-                            side_effect=lambda tool, obj, arch, symbol: bodies[symbol],
+                            side_effect=lambda tool, obj, arch, symbol, *, bodies=bodies: bodies[
+                                symbol
+                            ],
                         ),
                     ):
                         if missing_body:
@@ -220,7 +222,9 @@ class MatrixSymbols(unittest.TestCase):
                 if change == "missing_metadata":
                     metadata["entry"].pop("vgpr_spill_count")
 
-                def disassemble(tool, obj, arch, symbol):
+                def disassemble(
+                    tool, obj, arch, symbol, *, bodies=bodies, change=change, host=host
+                ):
                     if change == "changed_object":
                         host.write_bytes(b"changed")
                     return bodies[symbol]

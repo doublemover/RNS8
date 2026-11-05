@@ -75,7 +75,7 @@ class ReviewReferenceTest(unittest.TestCase):
             for failure in ("mismatch", "missing", "pending"):
                 with self.subTest(policy=policy, failure=failure):
 
-                    def mutate(capture):
+                    def mutate(capture, *, failure=failure, policy=policy):
                         if failure == "mismatch":
                             capture["checksum_u64"] ^= 1
                         elif failure == "missing":

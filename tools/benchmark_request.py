@@ -43,9 +43,10 @@ def request_environment_identity(request: object) -> tuple[dict | None, str | No
         environment = _canonical_environment(request["environment"])
     except ValueError:
         return None, "execution_environment_malformed"
-    sha256 = lambda value: (
-        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
-    )
+
+    def sha256(value):
+        return isinstance(value, str) and re.fullmatch("[0-9a-f]{64}", value) is not None
+
     if (
         not isinstance(request.get("arguments"), list)
         or any(type(v) is not str for v in request["arguments"])

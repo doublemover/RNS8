@@ -131,8 +131,8 @@ class FloatingContracts(unittest.TestCase):
                 bound.instruction.target, bound.instruction.compiler, "b" * 64, (capability,)
             )
             calls = (
-                lambda: optimize([form], 1, False, 32),
-                lambda: joint_optimize(
+                lambda *, form=form: optimize([form], 1, False, 32),
+                lambda *, form=form: joint_optimize(
                     [ScheduledForm(form, "declared", 1, 0)],
                     1,
                     False,
@@ -144,8 +144,12 @@ class FloatingContracts(unittest.TestCase):
                     group_launch_ps=1,
                     prefix_bit_ps=0,
                 ),
-                lambda: predict(stages, {"matrix": rate}, certificate, 0, "synthetic-target"),
-                lambda: admit(recipe, problem, facts, target, 0),
+                lambda *, certificate=certificate, rate=rate, stages=stages: predict(
+                    stages, {"matrix": rate}, certificate, 0, "synthetic-target"
+                ),
+                lambda *, facts=facts, problem=problem, recipe=recipe, target=target: admit(
+                    recipe, problem, facts, target, 0
+                ),
             )
             for call in calls:
                 if accepted:

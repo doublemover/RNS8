@@ -144,7 +144,6 @@ class MetadataContracts(unittest.TestCase):
                 )
 
     def test_all_declared_profiles_admit_the_initial_native_type_plan(self):
-        root = Path(__file__).resolve().parents[1]
         for profile in (
             "hipblaslt-metadata.json",
             "hipblaslt-prepack.json",

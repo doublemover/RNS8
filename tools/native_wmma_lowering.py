@@ -191,7 +191,10 @@ def validate(ir):
 def render(ir):
     """Kernel body, not a wrapper around an independently implemented tile."""
     validate(ir)
-    e = lambda key: expression(ir[key])
+
+    def e(key):
+        return expression(ir[key])
+
     native = "uint64_t" if ir["unsigned_inputs"] else "int64_t"
     center = "center_native_u64" if ir["unsigned_inputs"] else "center_native_i64"
     init = "{}" if ir["accumulator_initialized"] else ""

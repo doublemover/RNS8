@@ -165,7 +165,7 @@ class Rank23SLPTests(unittest.TestCase):
                 for a, b, c, d in re.findall(r"\{(\d+), (\d+), (-?\d+), (true|false)\}", block)
             ]
 
-            def reg(name):
+            def reg(name, *, key=key, prefix=prefix):
                 letter, i = name[0], int(name[1:])
                 return (
                     i

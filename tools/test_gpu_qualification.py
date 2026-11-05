@@ -652,7 +652,7 @@ class QualificationTests(unittest.TestCase):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
                 out = Path(directory)
 
-                def runner(*args, **kwargs):
+                def runner(*args, outcome=outcome, **kwargs):
                     if isinstance(outcome, BaseException):
                         raise outcome
                     return outcome

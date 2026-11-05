@@ -144,7 +144,10 @@ def main():
         )
     binary = args.binary.resolve(strict=True)
     args.output.mkdir(parents=True, exist_ok=False)
-    digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def digest(path):
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
     pinned = digest(binary)
     result = dict(
         schema="rns8_large_address_collection_v1",

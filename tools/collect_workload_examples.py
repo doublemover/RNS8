@@ -843,7 +843,9 @@ def validate_cpu_lifecycles(report: dict, variants: list[dict]) -> None:
                     "matched native/Boost compute/materialization phases missing",
                 )
 
-        def snapshot(sample, calls, changed=False):
+        def snapshot(
+            sample, calls, changed=False, *, converted=converted, source_identity=source_identity
+        ):
             value = sample.get("execution_evidence")
             demand(type(value) is dict, "CPU lifecycle operation receipts missing")
             generations = (

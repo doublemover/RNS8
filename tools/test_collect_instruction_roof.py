@@ -299,7 +299,7 @@ class Collection(unittest.TestCase):
                 args = arguments(directory)
                 count = 0
 
-                def run(command, **kwargs):
+                def run(command, *, mutation=mutation, **kwargs):
                     nonlocal count
                     result = successful(command)
                     count += 1
@@ -327,7 +327,7 @@ class Collection(unittest.TestCase):
                 args.isa_file = Path(directory) / "fixture.isa"
                 args.isa_file.write_text("synthetic")
 
-                def run(command, **kwargs):
+                def run(command, *, args=args, failure=failure, **kwargs):
                     if failure == "timeout":
                         raise subprocess.TimeoutExpired(
                             command, 10, output=b"partial", stderr=b"error"
@@ -360,7 +360,7 @@ class Collection(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 args = arguments(directory)
 
-                def run(command, **kwargs):
+                def run(command, *, state=state, **kwargs):
                     result = successful(command)
                     capture = json.loads(result.stdout)
                     if state == "dirty":

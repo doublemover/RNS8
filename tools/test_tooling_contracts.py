@@ -70,7 +70,7 @@ class ToolingContracts(unittest.TestCase):
         ]:
             calls = []
 
-            def run(command, **kwargs):
+            def run(command, *, calls=calls, **kwargs):
                 calls.append(command)
                 return subprocess.CompletedProcess(command, 0, "", "")
 

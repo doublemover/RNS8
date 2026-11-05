@@ -149,7 +149,7 @@ class CapacityEvidence(unittest.TestCase):
                 binary.write_bytes(b"fixture")
                 output = root / "output"
 
-                def run(command, path, timeout):
+                def run(command, path, timeout, *, code=code):
                     path.with_suffix(".failed.json").write_text(
                         json.dumps(dict(returncode=code, timed_out=code is None, command=command))
                     )

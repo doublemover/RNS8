@@ -81,6 +81,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:  # noqa: BLE001 - command-line tool should print concise failure cause.
+    except Exception as exc:
         print(f"wrap64 ISA check: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)

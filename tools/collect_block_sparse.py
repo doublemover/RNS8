@@ -590,7 +590,7 @@ def collect(args):
             },
         )
 
-        def save():
+        def save(*, prefix=prefix, record=record):
             prefix.with_suffix(".record.json").write_text(
                 json.dumps(record, indent=2) + "\n", encoding="utf-8"
             )

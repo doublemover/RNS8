@@ -130,7 +130,7 @@ class LargeAddressContracts(unittest.TestCase):
                 binary.write_bytes(b"pinned")
                 output = root / "captures"
 
-                def run(command, **kwargs):
+                def run(command, *, mode=mode, **kwargs):
                     if mode == "timeout":
                         raise subprocess.TimeoutExpired(command, 1)
                     if mode == "malformed":

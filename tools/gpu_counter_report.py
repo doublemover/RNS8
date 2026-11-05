@@ -1095,6 +1095,6 @@ if __name__ == "__main__":
     except BenchmarkSchemaError as exc:
         print(f"GPU counter report: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)
-    except Exception as exc:  # noqa: BLE001 - CLI should show the concise failure cause.
+    except Exception as exc:
         print(f"GPU counter report: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)

@@ -29,7 +29,10 @@ def build(sweep_dir: Path, out_path: Path) -> int:
                     "correctness": capture.get("correctness"),
                 }
             )
-            escape = lambda value: html.escape(str(value), quote=True)
+
+            def escape(value):
+                return html.escape(str(value), quote=True)
+
             shape = " × ".join(str(capture.get(key)) for key in ("m", "n", "k"))
             cells = [
                 path.name,

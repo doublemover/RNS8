@@ -917,7 +917,7 @@ def optional_components(
                 ("/usr/local", "bounded_native_prefix", 50, False),
             ]
 
-        def inspect(candidate, config):
+        def inspect(candidate, config, *, headers=headers, library_name=library_name, name=name):
             root = Path(candidate.canonical_root)
             header = first_file(root, headers)
             multiarch_include = None

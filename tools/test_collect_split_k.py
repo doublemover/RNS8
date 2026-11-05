@@ -188,7 +188,7 @@ class Captures(unittest.TestCase):
                 case = dict(BASE, m=1, n=1, k=k, domain=domain)
                 a, b = words(case)
 
-                def val(v):
+                def val(v, *, domain=domain):
                     return v - (1 << 64) if domain == "signed" and v >> 63 else v
 
                 for generation in (1, 2):
@@ -409,7 +409,7 @@ class Collection(unittest.TestCase):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 args = arguments(directory)
 
-                def run(command, **kwargs):
+                def run(command, *, args=args, failure=failure, **kwargs):
                     if failure == "timeout":
                         raise subprocess.TimeoutExpired(
                             command, 10, output=b"partial", stderr=b"timeout"
@@ -475,7 +475,7 @@ class Collection(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 args = arguments(directory)
 
-                def run(command, **kwargs):
+                def run(command, *, kind=kind, **kwargs):
                     result = successful(command)
                     capture = json.loads(result.stdout)
                     if kind == "dirty":

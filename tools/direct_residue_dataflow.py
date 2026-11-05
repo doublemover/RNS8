@@ -175,7 +175,7 @@ def inspect_source(value: object, *, root: Path = ROOT) -> dict:
         compact = re.sub(r"\s+", "", body)
         fixed = row["reducer"] == "fixed"
 
-        def operand(letter):
+        def operand(letter, *, fixed=fixed, row=row):
             if row[letter.lower()] == "centered_i8":
                 value = "tile_" + letter if row["schedule"] in ("entry", "active_entry") else letter
                 return f"rns8::detail::CenteredResidueTileInput{{{value},ld{letter.lower()}}}"

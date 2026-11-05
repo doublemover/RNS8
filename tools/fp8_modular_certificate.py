@@ -34,7 +34,7 @@ def certificate(modulus, compiler, source_sha256, *, format=1, method=0):
     canonical = range(modulus)
     values = [x if x < (modulus + 1) // 2 else x - modulus for x in canonical]
     low = tuple((x + 8) % 16 - 8 for x in values)
-    high = tuple((x - l) // 16 for x, l in zip(values, low))
+    high = tuple((x - low_digit) // 16 for x, low_digit in zip(values, low))
     planes = []
     for a, wa in ((low, 1), (high, 16)):
         for b, wb in ((low, 1), (high, 16)):
@@ -42,7 +42,7 @@ def certificate(modulus, compiler, source_sha256, *, format=1, method=0):
     if method >= 2:
         high = tuple(-((-x + 15) // 16) if x < 0 else (x + 15) // 16 for x in values)
         low = tuple(x - 16 * h for x, h in zip(values, high))
-        summed = tuple(h + l for h, l in zip(high, low))
+        summed = tuple(h + low_digit for h, low_digit in zip(high, low))
         planes = [
             ProductPlane(
                 a,

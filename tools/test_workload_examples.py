@@ -739,7 +739,7 @@ def add_matched_cpu_fixture(report):
                 native_output_storage=storage,
             )
 
-        def evidence(calls, changed=False):
+        def evidence(calls, changed=False, *, converted=converted):
             generations = (
                 [2, 2 if report["workload"] == "integer_gram" else 1, 1] if changed else [1, 1, 1]
             )

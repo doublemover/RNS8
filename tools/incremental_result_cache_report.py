@@ -108,7 +108,6 @@ def row_for_capture(
     capture: dict[str, Any], references: CPUReferenceIndex | None = None
 ) -> dict[str, Any]:
     cache = _cache(capture)
-    scenario = _scenario(capture)
     numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
     blockers: list[str] = list(numerical.blockers)
     if cache.get("enabled") is not True:

@@ -201,7 +201,10 @@ def main():
         p.error("invalid budgets/device or bounded process count/timeout")
     binary = a.binary.resolve(strict=True)
     a.output.mkdir(parents=True, exist_ok=False)
-    digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def digest(path):
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
     root = Path(__file__).resolve().parents[1]
     sources = set()
     for module in tuple(sys.modules.values()):
