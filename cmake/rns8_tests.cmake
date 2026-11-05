@@ -461,6 +461,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME fuzz_case_codec_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_cases.py")
   add_test(NAME metadata_property_driver_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_metadata.py")
   add_test(NAME matrix_symbol_attribution_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_matrix_symbol_attribution.py")
+  add_test(NAME tiled_residue_source_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_direct_residue_dataflow.py")
   add_test(NAME process_capture_budgets_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_process_progress.py")
   add_test(NAME execution_observation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_execution_observation.py")
   set_tests_properties(process_capture_budgets_self_test PROPERTIES LABELS "cpu;tools;process" TIMEOUT 60)
@@ -1148,6 +1149,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
     tests/unit/test_fuzz_arithmetic_case.cpp
+    tests/unit/test_residue_tile.cpp
     tests/unit/test_hipblaslt_metadata.cpp
     tests/unit/test_streaming_measurement.cpp
     tests/unit/test_public_sustained.cpp

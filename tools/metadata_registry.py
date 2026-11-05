@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from direct_residue_dataflow import validate_policy_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -370,6 +371,10 @@ def validate_registry(registry: Registry) -> None:
     _require_string_list(registry.kernels(), "selected_kernels", "kernels")
     _kernel_groups(registry)
     _export_kernel_groups(registry)
+    try:
+        validate_policy_manifest(registry.kernels().get("direct_residue_tile_dataflow"))
+    except ValueError as error:
+        raise MetadataRegistryError(str(error)) from error
     claim = registry.claim_labels()
     _require_string_list(claim, "comparison_baseline_statuses", "claim_labels")
     _require_string_list(claim, "release_gate_review_statuses", "claim_labels")

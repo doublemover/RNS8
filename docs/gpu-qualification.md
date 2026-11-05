@@ -195,6 +195,26 @@ wave32, WMMA and the DP4A path. Cross-wave reduction assumptions must be checked
 against [AMD's HIP porting guidance](https://rocmdocs.amd.com/projects/HIP/en/latest/how-to/hip_porting_guide.html).
 A kernel name containing WMMA, DPP or VOPD is not ISA proof.
 
+The 13 byte-LDS wrappers in `hip_direct_gemm_tiled_kernels.cuh` share
+`hip_direct_tiled_residue_core.cuh` and the portable cooperative loader in
+`residue_tile.hpp`. Their original named entrypoints retain the concrete
+16×64 A / 64×17 B shared arrays and uniform task/prefix admission. The kernel
+registry's `direct_residue_tile_dataflow` records each input conversion,
+reducer, dot policy, region and task/plane addressing tuple. The ordinary
+default-ladder wrapper retains its selected-modulus dot4 policy; the region
+and task-prefix wrappers retain their configured arithmetic policy.
+
+`tools/direct_residue_dataflow.py` checks the current lexical source/registry
+contract and reports its source hashes. CPU controls compare cooperative loads,
+tail zeroing, LDS padding, signed-byte dots and carry reduction with a scalar
+Boost specification across all 13 tuples. The GPU differential extends actual
+resident/native/native-A/region routes through padded tails and K=65/65537;
+existing grouped/default-prefix differentials remain part of the batch.
+These controls are authored and syntax-checked, with execution deferred.
+Qualification still requires actual launched-symbol/ISA/resource attribution,
+exact outputs and matched before/after complete-call measurements. The shared
+dataflow has no new measured speedup or resource-regression result yet.
+
 The CK/rocWMMA checkers require matrix instructions for every selected kernel
 symbol. They parse the exact native function label and do not borrow work from
 a healthy sibling or an unrelated function in whole-object output. Explicitly

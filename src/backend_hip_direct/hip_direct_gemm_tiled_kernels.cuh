@@ -1,3 +1,5 @@
+#include "hip_direct_tiled_residue_core.cuh"
+
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_i8_i32_tiled_kernel(
     const int8_t* A,
     const int8_t* B,
@@ -21,50 +23,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8DynamicTileReducer{modulus,modulus_reciprocal});
 }
 
 template <int Modulus>
@@ -90,50 +52,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8FixedTileReducer<Modulus>{});
 }
 // === Packed integer-dot fixed-modulus GEMM (not a matrix instruction) ===
 // Uses v_dot4_i32_iu8 neg_lo:[1,1,0] (hardware i8 dot4, signed).
@@ -156,50 +78,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc, true);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::packed>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8FixedTileReducer<Modulus>{});
 }
 
 
@@ -239,50 +121,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8DynamicTileReducer{modulus,modulus_reciprocal});
 }
 
 constexpr int kRns8HipGemvN1Threads = 256;
@@ -458,50 +300,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8FixedTileReducer<Modulus>{});
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
@@ -528,54 +330,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent
-              ? rns8_center_u8_device(A[global_row * lda + source_k], modulus)
-              : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n
-              ? rns8_center_u8_device(B[source_k * ldb + global_col], modulus)
-              : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::NativeByteResidueTileInput<0>{A,lda,uint32_t(modulus)},rns8::detail::NativeByteResidueTileInput<0>{B,ldb,uint32_t(modulus)},C,Rns8DynamicTileReducer{modulus,modulus_reciprocal});
 }
 
 template <int Modulus>
@@ -601,54 +359,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent
-              ? rns8_center_u8_fixed_modulus_device<Modulus>(A[global_row * lda + source_k])
-              : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n
-              ? rns8_center_u8_fixed_modulus_device<Modulus>(B[source_k * ldb + global_col])
-              : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::NativeByteResidueTileInput<Modulus>{A,lda,uint32_t(Modulus)},rns8::detail::NativeByteResidueTileInput<Modulus>{B,ldb,uint32_t(Modulus)},C,Rns8FixedTileReducer<Modulus>{});
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
@@ -675,52 +389,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent
-              ? rns8_center_u8_device(A[global_row * lda + source_k], modulus)
-              : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::NativeByteResidueTileInput<0>{A,lda,uint32_t(modulus)},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8DynamicTileReducer{modulus,modulus_reciprocal});
 }
 
 template <int Modulus>
@@ -746,52 +418,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent
-              ? rns8_center_u8_fixed_modulus_device<Modulus>(A[global_row * lda + source_k])
-              : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::NativeByteResidueTileInput<Modulus>{A,lda,uint32_t(Modulus)},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8FixedTileReducer<Modulus>{});
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
@@ -835,59 +465,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      const bool use_dp4a = rns8::detail::kResidueDot4Enabled ||
-          (modulus == 256 || modulus == 255 || modulus == 251);
-      if (use_dp4a) {
-        acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc, true);
-      } else {
-        acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-      }
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] =
-        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::selected_default_moduli>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8DefaultLadderTileReducer{modulus_index,modulus,modulus_reciprocal});
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
@@ -919,49 +500,11 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int region_tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = region_row_offset + region_tile_row + thread_row;
   const int col = region_col_offset + region_tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active =
       row < m && col < n && region_tile_row + thread_row < region_rows && region_tile_col + thread_col < region_cols;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent = k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = region_row_offset + region_tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] = global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = region_col_offset + region_tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,region_row_offset+region_tile_row,region_col_offset+region_tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8DynamicTileReducer{modulus,modulus_reciprocal});
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
@@ -1009,50 +552,11 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int region_tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = region_row_offset + region_tile_row + thread_row;
   const int col = region_col_offset + region_tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active =
       row < m && col < n && region_tile_row + thread_row < region_rows && region_tile_col + thread_col < region_cols;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent = k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = region_row_offset + region_tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] = global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = region_col_offset + region_tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] =
-        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,region_row_offset+region_tile_row,region_col_offset+region_tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8DefaultLadderTileReducer{modulus_index,modulus,modulus_reciprocal});
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
@@ -1105,50 +609,9 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
   const int row = tile_row + thread_row;
   const int col = tile_col + thread_col;
-  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
-  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int32_t acc = 0;
-
-  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
-    const int tile_extent =
-        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
-
-    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
-      const int local_row = index / kRns8HipTileK;
-      const int local_k = index - local_row * kRns8HipTileK;
-      const int global_row = tile_row + local_row;
-      const int source_k = k_offset + tile_k + local_k;
-      a_tile[local_row][local_k] =
-          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
-    }
-
-    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
-      const int local_k = index / kRns8HipTileN;
-      const int local_col = index - local_k * kRns8HipTileN;
-      const int global_col = tile_col + local_col;
-      const int source_k = k_offset + tile_k + local_k;
-      b_tile[local_k][local_col] =
-          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
-    }
-
-    __syncthreads();
-
-    if (output_active) {
-      acc = rns8::detail::accumulate_residue_tile(
-          &a_tile[thread_row][0], &b_tile[0][thread_col],
-          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
-    }
-
-    __syncthreads();
-  }
-
-  if (output_active && accumulate) {
-    acc += static_cast<int32_t>(C[row * ldc + col]);
-  }
-  if (output_active) {
-    C[row * ldc + col] =
-        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
-  }
+  rns8_tiled_residue_body<rns8::detail::ResidueTileDot::configured>(
+      a_tile,b_tile,{m,n,tile_row,tile_col,k_offset,k_block,ldc,row,col,output_active,accumulate},
+      rns8::detail::CenteredResidueTileInput{A,lda},rns8::detail::CenteredResidueTileInput{B,ldb},C,Rns8DefaultLadderTileReducer{modulus_index,modulus,modulus_reciprocal});
 }
 

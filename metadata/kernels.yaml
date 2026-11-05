@@ -222,5 +222,138 @@
       "hip_direct_export_exact_wide_unsigned_fixed_prefix20_variable_limbs_device",
       "hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device"
     ]
+  },
+  "direct_residue_tile_dataflow": {
+    "id": "byte_lds_tiled_residue_v1",
+    "core": "src/backend_hip_direct/hip_direct_tiled_residue_core.cuh",
+    "load": "src/backend_common/residue_tile.hpp",
+    "wrappers": "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+    "tile": [
+      16,
+      16,
+      64,
+      17
+    ],
+    "safe_signed_byte_slab": 65536,
+    "barriers": "all_admitted_CTA_threads_each_load_compute_tile",
+    "policies": [
+      {
+        "symbol": "rns8_ring_gemm_i8_i32_tiled_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "dynamic",
+        "dot": "configured",
+        "region": false,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_i8_i32_fixed_modulus_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "fixed",
+        "dot": "configured",
+        "region": false,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_i8_i32_dp4a_fixed_modulus_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "fixed",
+        "dot": "packed",
+        "region": false,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_i8_i32_grouped_modulus_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "dynamic",
+        "dot": "configured",
+        "region": false,
+        "addressing": "task_pointers"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_i8_i32_grouped_fixed_modulus_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "fixed",
+        "dot": "configured",
+        "region": false,
+        "addressing": "task_pointers"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_u8_native_i32_kernel",
+        "a": "native_u8",
+        "b": "native_u8",
+        "reducer": "dynamic",
+        "dot": "configured",
+        "region": false,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_u8_native_i32_fixed_modulus_kernel",
+        "a": "native_u8",
+        "b": "native_u8",
+        "reducer": "fixed",
+        "dot": "configured",
+        "region": false,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_u8_native_a_i8_b_i32_kernel",
+        "a": "native_u8",
+        "b": "centered_i8",
+        "reducer": "dynamic",
+        "dot": "configured",
+        "region": false,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_finite_ring_gemm_u8_native_a_i8_b_i32_fixed_modulus_kernel",
+        "a": "native_u8",
+        "b": "centered_i8",
+        "reducer": "fixed",
+        "dot": "configured",
+        "region": false,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_ring_gemm_i8_i32_grouped_prefix_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "default_ladder",
+        "dot": "selected_default_moduli",
+        "region": false,
+        "addressing": "prefix_planes"
+      },
+      {
+        "symbol": "rns8_ring_gemm_i8_i32_region_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "dynamic",
+        "dot": "configured",
+        "region": true,
+        "addressing": "direct"
+      },
+      {
+        "symbol": "rns8_ring_gemm_i8_i32_grouped_prefix_region_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "default_ladder",
+        "dot": "configured",
+        "region": true,
+        "addressing": "prefix_planes"
+      },
+      {
+        "symbol": "rns8_ring_gemm_i8_i32_grouped_task_prefix_kernel",
+        "a": "centered_i8",
+        "b": "centered_i8",
+        "reducer": "default_ladder",
+        "dot": "configured",
+        "region": false,
+        "addressing": "task_prefix_planes"
+      }
+    ]
   }
 }
