@@ -1,6 +1,7 @@
 #pragma once
 #include "core/api_internal.hpp"
 #include <array>
+#include <cstring>
 #include <vector>
 namespace gram_five_fixture {
 template <class T> T abi() {
@@ -44,6 +45,10 @@ inline void check_compact_prefixes(rns8_context* ctx, bool matrix) {
         CHECK(owner == nullptr);
       } else {
         REQUIRE(status == RNS8_SUCCESS);
+        auto before_execution = abi<rns8_gram_classical_info>();
+        REQUIRE(rns8_get_gram_classical_info(owner, &before_execution) == RNS8_SUCCESS);
+        CHECK(before_execution.matrix_probe_observed == 0);
+        CHECK(before_execution.matrix_probe_supported == 0);
         REQUIRE(rns8_execute_prepared_gram(owner) == RNS8_SUCCESS);
         std::vector<int8_t> result(size_t(prefix * n * n + 16), 89);
         if (ctx->backend == RNS8_BACKEND_HIP_DIRECT)
@@ -70,6 +75,34 @@ inline void check_compact_prefixes(rns8_context* ctx, bool matrix) {
         REQUIRE(rns8_get_prepared_gram_info(owner, &info) == RNS8_SUCCESS);
         CHECK(info.algebraic_prime_planes == eligible);
         CHECK(info.classical_planes == prefix - eligible);
+        auto classical = abi<rns8_gram_classical_info>();
+        REQUIRE(rns8_get_gram_classical_info(owner, &classical) == RNS8_SUCCESS);
+        const auto kind = matrix ? gram_classical_matrix_kind(ctx->device_info.gcn_arch) : 0;
+        CHECK(classical.classical_planes == info.classical_planes);
+        CHECK(classical.method == (kind == 2 ? RNS8_GRAM_MFMA_GFX942 : kind));
+        CHECK(classical.matrix_probe_observed == uint32_t(kind != 0));
+        CHECK(classical.matrix_probe_supported == uint32_t(kind != 0));
+        for (unsigned malformed = 0; malformed < 3; ++malformed) {
+          auto invalid = classical;
+          if (malformed == 0)
+            --invalid.struct_size;
+          if (malformed == 1)
+            ++invalid.struct_size;
+          if (malformed == 2)
+            ++invalid.abi_version;
+          const auto unchanged = invalid;
+          CHECK(rns8_get_gram_classical_info(owner, &invalid) == RNS8_INVALID_ARGUMENT);
+          CHECK(std::memcmp(&invalid, &unchanged, sizeof(invalid)) == 0);
+        }
+        auto invalid_classical = classical;
+        invalid_classical.reserved = 1;
+        const auto unchanged_classical = invalid_classical;
+        CHECK(rns8_get_gram_classical_info(owner, &invalid_classical) == RNS8_INVALID_ARGUMENT);
+        CHECK(std::memcmp(&invalid_classical, &unchanged_classical, sizeof(invalid_classical)) ==
+              0);
+        alignas(rns8_gram_classical_info) uint64_t short_classical = sizeof(uint64_t);
+        CHECK(rns8_get_gram_classical_info(owner, reinterpret_cast<rns8_gram_classical_info*>(
+                                                      &short_classical)) == RNS8_INVALID_ARGUMENT);
         CHECK(info.algebraic_operand_bytes == 2 * uint64_t(eligible) * 2 * 4);
         CHECK(info.algebraic_product_bytes == 5 * uint64_t(eligible) * 2 * 2);
         CHECK(info.algebraic_staging_bytes == uint64_t(prefix) * n * n);
@@ -80,10 +113,66 @@ inline void check_compact_prefixes(rns8_context* ctx, bool matrix) {
       REQUIRE(rns8_destroy_matrix(x) == RNS8_SUCCESS);
     }
 }
+inline void check_finite_prime_owner(rns8_context* ctx, bool matrix) {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  for (uint16_t modulus : {2, 3, 17, 251})
+    for (bool transpose : {false, true})
+      for (int64_t n : {1, 17}) {
+        constexpr int64_t k = 33;
+        const int64_t rows = transpose ? k : n, cols = transpose ? n : k, ld = cols + 2;
+        auto md = abi<rns8_matrix_desc>();
+        md.rows = rows;
+        md.cols = cols;
+        md.logical_ld = cols;
+        md.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+        md.semantics = RNS8_FINITE_FIELD_U8;
+        md.bound_kind = RNS8_BOUND_NONE;
+        rns8_matrix *x = nullptr, *c = nullptr;
+        REQUIRE(rns8_create_matrix(ctx, &md, &x) == RNS8_SUCCESS);
+        md.rows = md.cols = md.logical_ld = n;
+        REQUIRE(rns8_create_matrix(ctx, &md, &c) == RNS8_SUCCESS);
+        std::vector<uint8_t> values(size_t(rows * ld), 255);
+        for (int64_t row = 0; row < rows; ++row)
+          for (int64_t col = 0; col < cols; ++col)
+            values[size_t(row * ld + col)] = uint8_t((row * 17 + col * 13) % modulus);
+        REQUIRE(rns8_pack_finite_u8(ctx, x, modulus, values.data(), ld, 0) == RNS8_SUCCESS);
+        rns8_prepared_gram* owner = nullptr;
+        REQUIRE(rns8_prepare_gram_five_product(ctx, x, c,
+                                               transpose ? RNS8_GRAM_TRANSPOSE_TIMES_SELF
+                                                         : RNS8_GRAM_SELF_TIMES_TRANSPOSE,
+                                               matrix, UINT64_MAX, &owner) == RNS8_SUCCESS);
+        REQUIRE(rns8_execute_prepared_gram(owner) == RNS8_SUCCESS);
+        std::vector<int8_t> actual(size_t(n * n));
+        if (ctx->backend == RNS8_BACKEND_HIP_DIRECT)
+          REQUIRE(hip_direct_copy_device_to_host(ctx->device_id, actual.data(), c->hip_residues,
+                                                 actual.size()) == RNS8_SUCCESS);
+        else
+          actual = c->residues;
+        for (int64_t row = 0; row < n; ++row)
+          for (int64_t col = 0; col < n; ++col) {
+            cpp_int expected = 0;
+            for (int64_t q = 0; q < k; ++q)
+              expected += cpp_int(values[size_t(transpose ? q * ld + row : row * ld + q)]) *
+                          values[size_t(transpose ? q * ld + col : col * ld + q)];
+            CHECK(actual[size_t(row * n + col)] == centered_residue(expected, modulus));
+          }
+        auto info = abi<rns8_gram_classical_info>();
+        REQUIRE(rns8_get_gram_classical_info(owner, &info) == RNS8_SUCCESS);
+        CHECK(info.classical_planes == 0);
+        CHECK(info.method == 0);
+        CHECK(info.matrix_probe_observed == 0);
+        CHECK(info.matrix_probe_supported == 0);
+        REQUIRE(rns8_destroy_prepared_gram(owner) == RNS8_SUCCESS);
+        REQUIRE(rns8_destroy_matrix(c) == RNS8_SUCCESS);
+        REQUIRE(rns8_destroy_matrix(x) == RNS8_SUCCESS);
+      }
+}
 inline void check(rns8_context* ctx, bool matrix) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   check_compact_prefixes(ctx, matrix);
+  check_finite_prime_owner(ctx, matrix);
   for (bool transpose : {false, true})
     for (auto shape :
          std::array<std::array<int64_t, 2>, 4>{{{1, 1}, {3, 5}, {17, 33}, {1, 65537}}}) {

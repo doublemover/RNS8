@@ -222,14 +222,19 @@ struct DenseEngine {
         {"mirror_policy", gram_mirror_method(gram_method) ? "separate_tiled" : "producer_stores"},
         {"output_validity", "complete_dense_residues"}};
     if (gram_five) {
+      rns8_gram_classical_info classical{};
+      classical.struct_size = sizeof(classical);
+      classical.abi_version = RNS8_ABI_VERSION;
+      rns8::check(rns8_get_gram_classical_info(prepared_gram.get(), &classical));
       metadata["gram_method"] = gram_method ? "builtin_matrix" : "scalar";
       require(info.method == 4 + uint32_t(gram_method) && info.algebraic_product_count == 5 &&
                   info.algebraic_prime_planes > 0 &&
                   info.algebraic_prime_planes + info.classical_planes == prefix,
               "five-product owner query disagrees with the requested recipe");
       metadata["gram_five_product"] = {
-          {"version", 1},
+          {"version", 2},
           {"matrix_subproducts", bool(gram_method)},
+          {"classical_method", classical.method},
           {"algebraic_product_count", info.algebraic_product_count},
           {"algebraic_prime_planes", info.algebraic_prime_planes},
           {"classical_planes", info.classical_planes},
@@ -246,11 +251,23 @@ struct DenseEngine {
     }
   }
   Json gram_execution_evidence() const {
-    return {{"generation_action", gram_generation_action},
-            {"packed_source_version", packed_version},
-            {"owner_first_execution", last_owner_first_execution},
-            {"owner_builds", gram_owner_builds},
-            {"owner_refreshes", gram_owner_refreshes}};
+    Json evidence = {{"generation_action", gram_generation_action},
+                     {"packed_source_version", packed_version},
+                     {"owner_first_execution", last_owner_first_execution},
+                     {"owner_builds", gram_owner_builds},
+                     {"owner_refreshes", gram_owner_refreshes}};
+    if (gram_five) {
+      rns8_gram_classical_info classical{};
+      classical.struct_size = sizeof(classical);
+      classical.abi_version = RNS8_ABI_VERSION;
+      rns8::check(rns8_get_gram_classical_info(prepared_gram.get(), &classical));
+      evidence["classical_provider"] = {
+          {"method", classical.method},
+          {"classical_planes", classical.classical_planes},
+          {"matrix_probe_observed", classical.matrix_probe_observed},
+          {"matrix_probe_supported", classical.matrix_probe_supported}};
+    }
+    return evidence;
   }
   void pack(uint64_t version) {
     if (a)

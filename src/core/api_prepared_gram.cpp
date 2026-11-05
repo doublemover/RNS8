@@ -27,6 +27,7 @@ struct rns8_prepared_gram {
   bool separate_mirror = false, jobs_ready = false, adapter_ready = false, active = false,
        commit_started = false, quarantined = false;
   bool five_product = false, five_matrix = false;
+  bool classical_probe_observed = false, classical_probe_supported = false;
   GramFiveResources five_resources;
   std::vector<int8_t> five_host;
   bool closing = false;
@@ -233,6 +234,7 @@ rns8_status rns8_prepare_gram_five_product(rns8_context* ctx, const rns8_matrix*
       status = amdgpu_builtins_probe(ctx->device_id, provider);
       if (status != RNS8_SUCCESS)
         return status;
+      owner->matrix_kind = gram_classical_matrix_kind(provider.gcn_arch);
     }
     owner->five_resources =
         query_gram_five_product(owner->problem, kDefaultModuli, budget, hip, matrix != 0);
@@ -247,6 +249,8 @@ rns8_status rns8_prepare_gram_five_product(rns8_context* ctx, const rns8_matrix*
     owner->five_product = true;
     owner->five_matrix = matrix != 0;
     const auto& resources = owner->five_resources;
+    if (!resources.job_bytes)
+      owner->matrix_kind = 0;
     if (resources.host_job_bytes)
       owner->jobs = gram_tiles(query_gram_support(owner->problem, UINT64_MAX, hip, false));
     const uint64_t host_jobs = owner->jobs.capacity() * sizeof(GramTile);
@@ -361,11 +365,12 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner) {
       source = hip ? x->hip_native_i64 : x->native_i64.data();
     if (owner->five_product) {
       if (hip) {
-        status = hip_direct_gram_five_product(owner->ctx->device_id, source, c->hip_residues,
-                                              owner->five_resources, owner->device_jobs,
-                                              owner->device_total_bytes, owner->five_matrix,
-                                              owner->commit_started, owner->jobs.data(),
-                                              owner->jobs_ready, owner->five_stream_pointer());
+        status = hip_direct_gram_five_product(
+            owner->ctx->device_id, source, c->hip_residues, owner->five_resources,
+            owner->device_jobs, owner->device_total_bytes, owner->five_matrix,
+            owner->commit_started, owner->jobs.data(), owner->jobs_ready,
+            owner->five_stream_pointer(), owner->matrix_kind, owner->classical_probe_observed,
+            owner->classical_probe_supported);
         if (status != RNS8_SUCCESS)
           return status;
         mark_output_device_residues_current(*c);
@@ -516,6 +521,29 @@ rns8_status rns8_export_prepared_gram_limbs(rns8_prepared_gram* owner, uint64_t*
     return RNS8_SUCCESS;
   });
 }
+rns8_status rns8_get_gram_classical_info(const rns8_prepared_gram* owner,
+                                         rns8_gram_classical_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if (!owner || !exact_abi_header(out) || out->reserved)
+      return RNS8_INVALID_ARGUMENT;
+    std::unique_lock<std::mutex> lock(owner->mutex, std::try_to_lock);
+    if (!lock.owns_lock())
+      return RNS8_BUSY;
+    if (!owner->five_product)
+      return RNS8_UNSUPPORTED_BACKEND;
+    rns8_gram_classical_info result{};
+    result.struct_size = sizeof(result);
+    result.abi_version = RNS8_ABI_VERSION;
+    result.method = owner->matrix_kind == 2 ? RNS8_GRAM_MFMA_GFX942 : owner->matrix_kind;
+    result.classical_planes = owner->five_resources.packet.planes.fallback_count;
+    result.matrix_probe_observed = owner->classical_probe_observed;
+    result.matrix_probe_supported =
+        owner->classical_probe_observed && owner->classical_probe_supported;
+    *out = result;
+    return RNS8_SUCCESS;
+  });
+}
+
 rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,
                                         rns8_prepared_gram_info* info) {
   return guard_api([&]() -> rns8_status {

@@ -71,7 +71,7 @@ recipe. A basis with no certified prime channel and an unavailable matrix
 provider receive individually named unsupported outcomes; neither uses a scalar
 substitute under a matrix name.
 
-The `gram_five_product_cohort=1` report records queried prime/classical channel
+The `gram_five_product_cohort=2` report records queried prime/classical channel
 counts, operand/product/staging requests, host/device jobs and total retained
 payload against a pre-admitted all-plane envelope. The collector recomputes the
 compact extents from the ordered default basis and padded half-dimensions. Five
@@ -80,6 +80,23 @@ instruction or physical multiply counts. Dispatch-bound ISA/resource evidence
 and same-contract profitability remain separate qualification work. The new
 workload integration and CPU/HIP each/once and malformed-report controls are
 authored; runtime execution is deferred with the current source pass.
+
+The classical composite bucket selects the maintained RDNA3 WMMA or gfx942
+MFMA producer for a matrix recipe when that physical mapping exists; RDNA4
+currently keeps its explicitly reported scalar classical bucket. Scalar recipes
+stay independent controls. `rns8_get_gram_classical_info` queries the planned
+method, classical-plane count and actual completed compiled-probe observation,
+without GPU work. First execution reuses the not-yet-uploaded tile directory's
+first word for the probe, then uploads the complete directory before ordered
+execution. This adds no overlapping device payload. A failed probe publishes no
+observation; an observed unsupported body rejects before transforms or writes.
+Changed input values do not invalidate immutable compiled-provider observations.
+
+Version2 metadata records the queried classical method. Each completed-call
+receipt queries observed/supported flags outside the production interval;
+unchanged, changed-input and sustained receipts must agree with the actual
+target/method. Zero classical planes mean no classical work or probe. These
+logical observations do not replace dispatch-bound instruction qualification.
 
 The project-only `rns8-workload-gram-calibrate` target uses the same workload
 implementation and controls, linked to the exact static library whose private

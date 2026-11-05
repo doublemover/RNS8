@@ -1,5 +1,6 @@
 #pragma once
 #include "address_domain.hpp"
+#include "matrix_target.hpp"
 #include "rns8/rns8.h"
 #include <vector>
 namespace rns8::detail {
@@ -20,6 +21,10 @@ inline constexpr uint32_t gram_query_policy(uint32_t algorithm) {
 }
 inline constexpr uint32_t gram_query_method(uint32_t algorithm) {
   return algorithm >= 12 ? 6 + (algorithm & 1) : algorithm % 4;
+}
+inline uint32_t gram_classical_matrix_kind(std::string_view target) {
+  const auto arch = builtin_arch(target);
+  return arch == BuiltinArch::cdna3 ? 2 : arch == BuiltinArch::rdna3 ? 1 : 0;
 }
 struct GramTile {
   uint32_t row, col;

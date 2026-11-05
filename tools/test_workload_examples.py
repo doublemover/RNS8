@@ -326,9 +326,9 @@ def prepared_gram_fixture(products=3, policy="once", expanded=False, hip=False):
     return report
 
 
-def mfma_gram_fixture():
+def mfma_gram_fixture(products=3, policy="once"):
     # Synthetic report admission only, never a gfx942 execution receipt.
-    report = prepared_gram_fixture(hip=True)
+    report = prepared_gram_fixture(products, policy, hip=True)
     report["gram_matrix_methods_cohort"] = 1
     for row in report["variants"]:
         if row["name"].startswith("rns8_"):
@@ -343,12 +343,22 @@ def mfma_gram_fixture():
     return report
 
 
-def five_gram_fixture(products=3, policy="once", hip=False, prefix=4):
-    report = prepared_gram_fixture(products, policy, hip=hip)
-    report["gram_five_product_cohort"] = 1
+def five_gram_fixture(products=3, policy="once", hip=False, prefix=4, target="gfx1100"):
+    report = (
+        mfma_gram_fixture(products, policy)
+        if hip and target == "gfx942"
+        else prepared_gram_fixture(products, policy, hip=hip)
+    )
+    if hip and target not in {"gfx1100", "gfx1101", "gfx1102", "gfx942"}:
+        report["variants"] = [
+            row for row in report["variants"] if not row["name"].endswith("_wmma")
+        ]
+    report["gram_five_product_cohort"] = 2
     for row in report["variants"]:
         if row["name"].startswith("rns8_"):
             row["metadata"]["plan"]["selected_prefix"] = prefix
+            if hip:
+                row["metadata"]["device"]["target"] = target
     prototype = next(
         row
         for row in report["variants"]
@@ -367,9 +377,15 @@ def five_gram_fixture(products=3, policy="once", hip=False, prefix=4):
         row["metadata"]["gram_method"] = "builtin_matrix" if matrix else "scalar"
         arena = 9 * prime + 4 * prefix
         owned = (arena + 3) // 4 * 4 + 16 if hip else arena + 8
+        classical_method = (
+            (6 if target == "gfx942" else 1 if target in {"gfx1100", "gfx1101", "gfx1102"} else 0)
+            if matrix
+            else 0
+        )
         row["metadata"]["gram_five_product"] = dict(
-            version=1,
+            version=2,
             matrix_subproducts=matrix,
+            classical_method=classical_method,
             algebraic_product_count=5,
             algebraic_prime_planes=prime,
             classical_planes=prefix - prime,
@@ -382,6 +398,20 @@ def five_gram_fixture(products=3, policy="once", hip=False, prefix=4):
             modeled_payload_envelope_bytes=23 + 13 * prefix,
             count_scope="queried_retained_requests_and_algebraic_products_not_observed_instructions",
         )
+        provider = dict(
+            method=classical_method,
+            classical_planes=prefix - prime,
+            matrix_probe_observed=int(classical_method != 0),
+            matrix_probe_supported=int(classical_method != 0),
+        )
+        for sample in [
+            row["cold_call"],
+            *row["samples"],
+            row["changed_input"],
+            row.get("sustained", {}),
+        ]:
+            if "execution_evidence" in sample:
+                sample["execution_evidence"]["classical_provider"] = copy.deepcopy(provider)
         report["variants"].append(row)
     return report
 
@@ -450,7 +480,33 @@ class FiveProductGramReports(unittest.TestCase):
                         0 if hip else -1,
                         collector.gram_batch_contract(3, policy),
                     )
-                    self.assertEqual(identity["gram_five_product_cohort"], 1)
+                    self.assertEqual(identity["gram_five_product_cohort"], 2)
+
+    def test_classical_bucket_method_and_completed_probe_follow_actual_target(self):
+        for target, method in (("gfx1100", 1), ("gfx942", 6), ("gfx1201", 0)):
+            report = five_gram_fixture(hip=True, target=target)
+            collector.validate_report(report, "run1", "hip-direct", 0)
+            self.assertEqual(
+                report["variants"][-1]["metadata"]["gram_five_product"]["classical_method"], method
+            )
+            for key, value in (
+                ("method", 3),
+                ("matrix_probe_observed", True),
+                ("matrix_probe_supported", 0 if method else 1),
+                ("classical_planes", 0),
+            ):
+                bad = copy.deepcopy(report)
+                bad["variants"][-1]["samples"][0]["execution_evidence"]["classical_provider"][
+                    key
+                ] = value
+                with self.subTest(target=target, key=key), self.assertRaises(ValueError):
+                    collector.validate_report(bad, "run1", "hip-direct", 0)
+            bad = copy.deepcopy(report)
+            bad["variants"][-1]["metadata"]["gram_five_product"]["classical_method"] = (
+                0 if method else 1
+            )
+            with self.assertRaises(ValueError):
+                collector.validate_report(bad, "run1", "hip-direct", 0)
 
     def test_omissions_recipe_drift_and_retained_extent_controls(self):
         mutations = [

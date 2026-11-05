@@ -58,6 +58,7 @@
         "alignof:rns8_fp8_info": 8,
         "alignof:rns8_fp8_recipe_pointer": 8,
         "alignof:rns8_gemm_desc": 8,
+        "alignof:rns8_gram_classical_info": 8,
         "alignof:rns8_gram_input_policy": 4,
         "alignof:rns8_gram_method": 4,
         "alignof:rns8_gram_orientation": 4,
@@ -823,6 +824,13 @@
         "field_size:rns8_gemm_desc.zero_a_rows_count": 8,
         "field_size:rns8_gemm_desc.zero_b_cols": 8,
         "field_size:rns8_gemm_desc.zero_b_cols_count": 8,
+        "field_size:rns8_gram_classical_info.abi_version": 4,
+        "field_size:rns8_gram_classical_info.classical_planes": 4,
+        "field_size:rns8_gram_classical_info.matrix_probe_observed": 4,
+        "field_size:rns8_gram_classical_info.matrix_probe_supported": 4,
+        "field_size:rns8_gram_classical_info.method": 4,
+        "field_size:rns8_gram_classical_info.reserved": 4,
+        "field_size:rns8_gram_classical_info.struct_size": 8,
         "field_size:rns8_graph_completion_token.epoch": 8,
         "field_size:rns8_graph_completion_token.graph_id": 8,
         "field_size:rns8_graph_execution_info.abi_version": 4,
@@ -2332,6 +2340,13 @@
         "offsetof:rns8_gemm_desc.zero_a_rows_count": 120,
         "offsetof:rns8_gemm_desc.zero_b_cols": 128,
         "offsetof:rns8_gemm_desc.zero_b_cols_count": 136,
+        "offsetof:rns8_gram_classical_info.abi_version": 8,
+        "offsetof:rns8_gram_classical_info.classical_planes": 20,
+        "offsetof:rns8_gram_classical_info.matrix_probe_observed": 24,
+        "offsetof:rns8_gram_classical_info.matrix_probe_supported": 28,
+        "offsetof:rns8_gram_classical_info.method": 16,
+        "offsetof:rns8_gram_classical_info.reserved": 12,
+        "offsetof:rns8_gram_classical_info.struct_size": 0,
         "offsetof:rns8_graph_completion_token.epoch": 8,
         "offsetof:rns8_graph_completion_token.graph_id": 0,
         "offsetof:rns8_graph_execution_info.abi_version": 8,
@@ -3439,6 +3454,7 @@
         "sizeof:rns8_fp8_info": 280,
         "sizeof:rns8_fp8_recipe_pointer": 8,
         "sizeof:rns8_gemm_desc": 144,
+        "sizeof:rns8_gram_classical_info": 32,
         "sizeof:rns8_gram_input_policy": 4,
         "sizeof:rns8_gram_method": 4,
         "sizeof:rns8_gram_orientation": 4,
@@ -4060,6 +4076,7 @@
       "rns8_get_device_info": "rns8_status (rns8_context *, rns8_device_info *)",
       "rns8_get_encoded_b_info": "rns8_status (const rns8_encoded_b *, rns8_encoded_b_info *)",
       "rns8_get_fp8_info": "rns8_status (const rns8_fp8_recipe *, rns8_fp8_info *)",
+      "rns8_get_gram_classical_info": "rns8_status (const rns8_prepared_gram *, rns8_gram_classical_info *)",
       "rns8_get_grouped_dispatch_contract_info": "rns8_status (const rns8_plan *, uint32_t, rns8_grouped_dispatch_contract_info *)",
       "rns8_get_int4_info": "rns8_status (const rns8_int4_recipe *, rns8_int4_info *)",
       "rns8_get_matrix_allocation_info": "rns8_status (const rns8_matrix *, rns8_matrix_allocation_info *)",
@@ -4251,7 +4268,7 @@
       "rns8/moduli.h": "bbb2626341efbc1c39641bb889a88b2005c6b478d105d39e9429ba807772c13e",
       "rns8/pipeline_recipe.h": "1aabfc7bc5a89763773ded12acda7b7be44729774cb7522dd5a665d9f89e6c9d",
       "rns8/public_abi.h": "20ccbb0b271bfa98c4303d52817d63902a131ffd895323032ae4feb0230828a5",
-      "rns8/rns8.h": "a091588e7d3ff1b8273f8db3dbb88036e2923005fce176a2f50c475efc085d77",
+      "rns8/rns8.h": "de8bf4f58203b627478179c3fadae84352e45a432ee058facef09ecbc1015592",
       "rns8/semantics.h": "9c8e8391013be3668833abcb57176c2ae0213eb3bfd5e0ac84261e7f380c2421",
       "rns8/status.h": "c7c68893c448f238fcdea3c3bf68f595e7c7868264be588d58a9620756ef7c8b"
     },
@@ -4351,6 +4368,7 @@
       "rns8_fp8_desc": "struct",
       "rns8_fp8_info": "struct",
       "rns8_gemm_desc": "struct",
+      "rns8_gram_classical_info": "struct",
       "rns8_graph_completion_token": "struct",
       "rns8_graph_execution_info": "struct",
       "rns8_grouped_dispatch_contract_info": "struct",
@@ -6099,6 +6117,36 @@
         [
           "zero_b_cols_count",
           "uint64_t"
+        ]
+      ],
+      "rns8_gram_classical_info": [
+        [
+          "struct_size",
+          "uint64_t"
+        ],
+        [
+          "abi_version",
+          "uint32_t"
+        ],
+        [
+          "reserved",
+          "uint32_t"
+        ],
+        [
+          "method",
+          "uint32_t"
+        ],
+        [
+          "classical_planes",
+          "uint32_t"
+        ],
+        [
+          "matrix_probe_observed",
+          "uint32_t"
+        ],
+        [
+          "matrix_probe_supported",
+          "uint32_t"
         ]
       ],
       "rns8_graph_completion_token": [
@@ -10891,6 +10939,9 @@
         "DLLImportAttr"
       ],
       "rns8_get_fp8_info": [
+        "DLLImportAttr"
+      ],
+      "rns8_get_gram_classical_info": [
         "DLLImportAttr"
       ],
       "rns8_get_grouped_dispatch_contract_info": [

@@ -2138,6 +2138,17 @@ typedef struct rns8_prepared_gram_info {
 } rns8_prepared_gram_info;
 RNS8_API rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,
                                                  rns8_prepared_gram_info* info);
+typedef struct rns8_gram_classical_info {
+  uint64_t struct_size;
+  uint32_t abi_version, reserved;
+  uint32_t method, classical_planes, matrix_probe_observed, matrix_probe_supported;
+} rns8_gram_classical_info;
+/* Read-only five-product classical-bucket identity. Method0/1/6 means scalar,
+ * RDNA3 WMMA/gfx942 MFMA; zero planes means no classical work. The planned
+ * method is not qualification: matrix support is meaningful only when observed.
+ * Exact current header, reserved zero; BUSY/errors preserve output. No GPU work. */
+RNS8_API rns8_status rns8_get_gram_classical_info(const rns8_prepared_gram*,
+                                                  rns8_gram_classical_info*);
 RNS8_API rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner);
 RNS8_API rns8_status rns8_refresh_prepared_gram(rns8_prepared_gram* owner);
 /* Failed drain/free retains the owner and any active reservations for retry. */

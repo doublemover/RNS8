@@ -466,6 +466,17 @@ def validate_five_gram_storage(row, report):
     prime = sum(is_prime(q) for q in DEFAULT_MODULI[:prefix])
     classical = prefix - prime
     matrix = row["name"].endswith("_matrix")
+    target = metadata.get("device", {}).get("target", "").split(":")[0]
+    if matrix:
+        demand(
+            target in {"gfx942", "gfx1100", "gfx1101", "gfx1102", "gfx1200", "gfx1201"},
+            "five-product matrix target has no mapped provider",
+        )
+    classical_method = (
+        (6 if target == "gfx942" else 1 if target in {"gfx1100", "gfx1101", "gfx1102"} else 0)
+        if matrix and classical
+        else 0
+    )
     demand(
         prime > 0 and (not matrix or report["backend_requested"] == "hip-direct"),
         "unavailable five-product recipe",
@@ -478,8 +489,9 @@ def validate_five_gram_storage(row, report):
     value = metadata.get("gram_five_product")
     variable = ("host_job_bytes", "owned_payload_bytes")
     expected = dict(
-        version=1,
+        version=2,
         matrix_subproducts=matrix,
+        classical_method=classical_method,
         algebraic_product_count=5,
         algebraic_prime_planes=prime,
         classical_planes=classical,
@@ -690,7 +702,7 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
     five_cohort = "gram_five_product_cohort" in report
     if five_cohort:
         demand(
-            exact_value(report["gram_five_product_cohort"], 1) and prepared_cohort,
+            exact_value(report["gram_five_product_cohort"], 2) and prepared_cohort,
             "invalid five-product cohort version",
         )
     if ablation_cohort:
@@ -1006,6 +1018,16 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
                 owner_builds=2 if expanded else 1,
                 owner_refreshes=0 if expanded else 1,
             )
+            if five:
+                method = row["metadata"]["gram_five_product"]["classical_method"]
+                provider = dict(
+                    method=method,
+                    classical_planes=row["metadata"]["gram_five_product"]["classical_planes"],
+                    matrix_probe_observed=int(method != 0),
+                    matrix_probe_supported=int(method != 0),
+                )
+                for evidence in (unchanged, cold, changed):
+                    evidence["classical_provider"] = provider
             demand(
                 exact_value(row["cold_call"].get("execution_evidence"), cold),
                 "prepared Gram first-use evidence missing",

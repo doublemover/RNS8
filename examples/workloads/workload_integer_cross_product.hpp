@@ -62,7 +62,7 @@ inline void integer_cross_product(const Options& options,
     report["gram_prepared_owner_cohort"] = 1;
     report["gram_ablation_cohort"] = 1;
     if (options.gram_five_product)
-      report["gram_five_product_cohort"] = 1;
+      report["gram_five_product_cohort"] = 2;
     report["bound_method"] =
         "K * max_abs_X_including_changed_X0 squared; no cancellation assumption";
     report["useful_integer_products_per_call"] =

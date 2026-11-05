@@ -7,6 +7,28 @@ extern "C" int rns8_hip_gram_export_once(const void*, void*, const GramTile*, in
                                          int*);
 extern "C" int rns8_hip_gram(const int8_t*, int8_t*, const GramTile*, int, int, int, int, int, int,
                              int, int, int, int);
+namespace {
+// The caller retains the actual flag allocation pending through both the probe
+// and owned readback. No partial observation is published on failure.
+rns8_status gram_matrix_capability(int device, void* flag, uint32_t kind, bool& supported) {
+  if (!flag || kind < 1 || kind > 2)
+    return RNS8_INVALID_ARGUMENT;
+  const auto error =
+      timed_hip_operation(kind == 2 ? "gram_mfma_capability" : "gram_wmma_capability", [&] {
+        const auto launch = static_cast<hipError_t>(
+            rns8_hip_gram_matrix_capability(static_cast<int*>(flag), int(kind)));
+        const auto drain = hipDeviceSynchronize();
+        return launch == hipSuccess ? drain : launch;
+      });
+  if (error != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  int value = 0;
+  const auto status = hip_direct_copy_device_to_host(device, &value, flag, sizeof(value));
+  if (status == RNS8_SUCCESS)
+    supported = value != 0;
+  return status;
+}
+} // namespace
 #endif
 rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const GramProblem& p,
                                    uint64_t source_instance, uint64_t source_generation,
@@ -47,16 +69,8 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
     auto* flag =
         reinterpret_cast<int*>(static_cast<uint8_t*>(device_jobs.get()) + support.job_bytes);
     device_jobs.mark_pending();
-    const auto launch =
-        static_cast<hipError_t>(rns8_hip_gram_matrix_capability(flag, int(matrix_kind)));
-    const auto drain = hipDeviceSynchronize();
-    if (drain == hipSuccess)
-      device_jobs.mark_completed();
-    if (launch != hipSuccess || drain != hipSuccess)
-      return RNS8_BACKEND_FAILURE;
-    int supported = 0;
-    device_jobs.mark_pending();
-    status = hip_direct_copy_device_to_host(device_id, &supported, flag, 4);
+    bool supported = false;
+    status = gram_matrix_capability(device_id, flag, matrix_kind, supported);
     if (status == RNS8_SUCCESS)
       device_jobs.mark_completed();
     if (status != RNS8_SUCCESS)
@@ -121,13 +135,8 @@ rns8_status hip_direct_gram_prepared_device(int device_id, const void* x, void* 
       return status;
     if (matrix_kind) {
       auto* flag = reinterpret_cast<int*>(static_cast<uint8_t*>(device_jobs) + support.job_bytes);
-      const auto launch =
-          static_cast<hipError_t>(rns8_hip_gram_matrix_capability(flag, int(matrix_kind)));
-      const auto drain = hipDeviceSynchronize();
-      if (launch != hipSuccess || drain != hipSuccess)
-        return RNS8_BACKEND_FAILURE;
-      int supported = 0;
-      status = hip_direct_copy_device_to_host(device_id, &supported, flag, 4);
+      bool supported = false;
+      status = gram_matrix_capability(device_id, flag, matrix_kind, supported);
       if (status != RNS8_SUCCESS)
         return status;
       if (!supported)
@@ -230,14 +239,16 @@ extern "C" int rns8_hip_gram_on_stream(const int8_t*, int8_t*, const GramTile*, 
 rns8_status hip_direct_gram_five_product(int device, const void* source, void* output,
                                          const GramFiveResources& r, void* scratch, uint64_t bytes,
                                          bool matrix, bool& commit_started,
-                                         const GramTile* host_jobs, bool& jobs_ready,
-                                         void* stream) {
+                                         const GramTile* host_jobs, bool& jobs_ready, void* stream,
+                                         uint32_t classical_kind, bool& classical_probe_observed,
+                                         bool& classical_probe_supported) {
   commit_started = false;
   if (r.status != RNS8_SUCCESS)
     return r.status;
   const auto& packet = r.packet;
   const uint64_t source_bytes = uint64_t(packet.rows) * packet.ld * packet.prefix;
-  if (!source || !output || !scratch || !stream || bytes < r.total || (r.job_bytes && !host_jobs) ||
+  if (!source || !output || !scratch || !stream || bytes < r.total || classical_kind > 2 ||
+      (classical_kind && (!matrix || r.job_bytes < sizeof(int))) || (r.job_bytes && !host_jobs) ||
       !nonoverlapping_byte_ranges(source, source_bytes, output, r.output) ||
       !nonoverlapping_byte_ranges(source, source_bytes, scratch, r.total) ||
       !nonoverlapping_byte_ranges(output, r.output, scratch, r.total))
@@ -254,6 +265,19 @@ rns8_status hip_direct_gram_five_product(int device, const void* source, void* o
   auto* products = left + r.products_offset;
   auto* stage = left + r.output_offset;
   auto* device_jobs = reinterpret_cast<GramTile*>(left + r.jobs_offset);
+  if (classical_kind && !classical_probe_observed) {
+    // Reuse the not-yet-uploaded directory's first word; the completed probe
+    // precedes its full upload. No extra device payload overlaps the recipe.
+    jobs_ready = false;
+    bool supported = false;
+    status = gram_matrix_capability(device, device_jobs, classical_kind, supported);
+    if (status != RNS8_SUCCESS)
+      return status;
+    classical_probe_supported = supported;
+    classical_probe_observed = true;
+  }
+  if (classical_kind && !classical_probe_supported)
+    return RNS8_UNSUPPORTED_BACKEND;
   if (r.job_bytes && !jobs_ready) {
     status = hip_direct_copy_host_to_device(device, device_jobs, host_jobs, size_t(r.job_bytes));
     if (status != RNS8_SUCCESS)
@@ -305,7 +329,8 @@ rns8_status hip_direct_gram_five_product(int device, const void* source, void* o
                 static_cast<const int8_t*>(source) + uint64_t(plane) * p.rows * p.ld,
                 stage + uint64_t(plane) * p.n * p.n, device_jobs,
                 int(r.job_bytes / sizeof(GramTile)), int(p.rows), int(p.transpose ? p.n : p.k),
-                int(p.ld), int(p.n), 1, int(p.moduli[plane]), p.transpose, 0, 0, stream));
+                int(p.ld), int(p.n), 1, int(p.moduli[plane]), p.transpose, int(classical_kind), 0,
+                stream));
             if (issued != hipSuccess)
               return issued;
           }
@@ -336,6 +361,8 @@ rns8_status hip_direct_gram_five_product(int device, const void* source, void* o
   (void)matrix;
   (void)host_jobs;
   (void)jobs_ready;
+  (void)classical_probe_observed;
+  (void)classical_probe_supported;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
