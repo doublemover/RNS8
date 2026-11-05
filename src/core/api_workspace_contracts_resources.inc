@@ -232,6 +232,10 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
   keep_first_error(workspace.exact_auto_scratch_owner.reset());
   keep_first_error(workspace.adaptive_summary_owner.reset());
   keep_first_error(workspace.narrow_product_owner.reset());
+  keep_first_error(workspace.narrow_scan_owner.reset());
+  workspace.narrow_domains[0] = {};
+  workspace.narrow_domains[1] = {};
+  workspace.narrow_capability_observation = {};
   workspace.adaptive_summary_identity[0] = {};
   workspace.adaptive_summary_identity[1] = {};
   keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena,

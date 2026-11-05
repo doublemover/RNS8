@@ -28,6 +28,7 @@ namespace {
 } // namespace
 
 #include "test_api_validation_cases.inc"
+#include "test_api_narrow_summary_cases.inc"
 #include "test_api_pipeline_recipe_cases.inc"
 #include "test_api_exact_wide_cases.inc"
 #include "test_api_host_address_cases.inc"

@@ -73,7 +73,7 @@ def validate_case(c):
     if (
         type(c["unsigned_inputs"]) is not bool
         or c["mode"] not in MODES
-        or c["residency"] not in ("cold", "resident", "repack")
+        or c["residency"] not in ("cold", "resident", "repack", "repack-a", "repack-b")
     ):
         raise ValueError("mode/domain")
     if (c["mode"].startswith("adaptive-") or c["mode"] in RESIDENT_OUTPUT_MODES) and c[
@@ -204,6 +204,8 @@ def validate_capture(c, entry):
         raise ValueError("public default route identity")
     if mode == "vector-exact-width" and f"_n{case['n']}_exact_width_" not in kernel:
         raise ValueError("exact-width vector route identity")
+    validate_narrow_summary_capture(c, case)
+    validate_narrow_native_observation(c, case)
     if mode.startswith("adaptive-"):
         validate_adaptive_summary_capture(c, case)
     if resident_output:
@@ -215,6 +217,168 @@ def validate_capture(c, entry):
             if type(c.get(key)) is not type(value) or c[key] != value:
                 raise ValueError("resident output identity " + key)
     return c
+
+
+def validate_narrow_native_observation(c, case):
+    info = c.get("separate_native_observation", False)
+    if not case["mode"].startswith(("scalar-", "wmma-")):
+        if info is not None:
+            raise ValueError("non-narrow native observation")
+        return
+    fixed = dict(
+        scope="one_separate_complete_public_call",
+        inside_timed_samples=False,
+        inside_sustained_interval=False,
+        public_calls=1,
+        exact_reference_passed=True,
+        native_event_receipts_complete=True,
+        copy_scope="tracked_completed_synchronous_HIP_copy_wrappers",
+    )
+    counters = {
+        "device_allocation_calls",
+        "device_free_calls",
+        "h2d_calls",
+        "h2d_bytes",
+        "d2h_calls",
+        "d2h_bytes",
+    }
+    if (
+        not isinstance(info, dict)
+        or set(info)
+        != {*fixed, *counters, "allocation_epoch", "event_labels", "event_microseconds"}
+        or any(type(info[k]) is not type(v) or info[k] != v for k, v in fixed.items())
+        or any(type(info[k]) is not int or not 0 <= info[k] < (1 << 64) for k in counters)
+        or type(info["allocation_epoch"]) is not int
+        or not 0 < info["allocation_epoch"] < (1 << 64)
+    ):
+        raise ValueError("narrow native observation record")
+    for direction in ("h2d", "d2h"):
+        calls, size = info[direction + "_calls"], info[direction + "_bytes"]
+        if not ((calls == 0 and size == 0) or 0 < calls <= size):
+            raise ValueError("narrow copy counter denominator")
+    labels, durations = info["event_labels"], info["event_microseconds"]
+    if (
+        not isinstance(labels, dict)
+        or not 1 <= len(labels) <= 64
+        or any(
+            not isinstance(k, str)
+            or not 1 <= len(k) <= 256
+            or type(v) is not int
+            or not 1 <= v <= 65536
+            for k, v in labels.items()
+        )
+        or sum(labels.values()) > 65536
+        or not isinstance(durations, dict)
+        or set(labels) != set(durations)
+        or any(
+            type(v) not in (int, float) or not 0 <= v <= 1e15 or not math.isfinite(v)
+            for v in durations.values()
+        )
+    ):
+        raise ValueError("narrow native event receipts")
+    wmma = case["mode"].startswith("wmma-")
+    fused = case["mode"].endswith("-fused")
+    product = (
+        ("native_byte_wmma_fused_rns" if fused else "native_byte_wmma_gemm")
+        if wmma
+        else ("narrow_native_i64_fused_rns_kernel" if fused else "narrow_native_i64_gemm_kernel")
+    )
+    if (
+        labels.get(product) != 1
+        or labels.get("narrow_native_encode_rns", 0) != int(not fused)
+        or labels.get("native_wmma_prepare_capability", 0)
+        != int(wmma and case["residency"] == "cold")
+        or any(
+            labels.get(key, 0)
+            for key in (
+                "narrow_native_domain_scan",
+                "narrow_native_bound_scan",
+                "native_byte_wmma_admission",
+            )
+        )
+    ):
+        raise ValueError("narrow actual native stages")
+    if case["residency"] == "resident" and case["mode"] in RESIDENT_OUTPUT_MODES:
+        if any(info[key] for key in counters):
+            raise ValueError("resident narrow call allocated or copied data")
+
+
+def validate_narrow_summary_capture(c, case):
+    narrow = case["mode"].startswith(("scalar-", "wmma-"))
+    cold = case["residency"] == "cold"
+    scope = (
+        "not_applicable"
+        if not narrow
+        else "cold_workspace_not_observed"
+        if cold
+        else "completed_retained_workspace_snapshots_outside_timing"
+    )
+    if c.get("narrow_summary_scope") != scope:
+        raise ValueError("narrow summary scope")
+    if not narrow or cold:
+        if (
+            c.get("narrow_summary_first", False) is not None
+            or c.get("narrow_summary_final", False) is not None
+        ):
+            raise ValueError("unobserved narrow summary")
+        return
+    calls = 1 + case["warmups"] + case["repeats"] + sum(b["calls"] for b in c["sustained"])
+    repack_a = case["residency"] in ("repack", "repack-a")
+    repack_b = case["residency"] in ("repack", "repack-b")
+    wmma = int(case["mode"].startswith("wmma-"))
+    keys = {
+        "retained_scan_bytes",
+        "retained_product_bytes",
+        "wmma_capability_observed",
+        "wmma_capability_supported",
+        "a_instance",
+        "a_generation",
+        "b_instance",
+        "b_generation",
+        "a_device_scans",
+        "b_device_scans",
+        "a_reuses",
+        "b_reuses",
+        "a_host_proofs",
+        "b_host_proofs",
+    }
+    for name, count in (("narrow_summary_first", 1), ("narrow_summary_final", calls)):
+        info = c.get(name)
+        if (
+            not isinstance(info, dict)
+            or set(info) != keys
+            or any(type(v) is not int or not 0 <= v <= (1 << 64) - 1 for v in info.values())
+        ):
+            raise ValueError("narrow summary record")
+        expected = dict(
+            retained_scan_bytes=0,
+            retained_product_bytes=0
+            if case["mode"].endswith("-fused")
+            else case["m"] * case["n"] * 8,
+            wmma_capability_observed=wmma,
+            wmma_capability_supported=wmma,
+            a_generation=1 + count if repack_a else 1,
+            b_generation=1 + count if repack_b else 1,
+            a_device_scans=0,
+            b_device_scans=0,
+            a_reuses=0 if repack_a else count - 1,
+            b_reuses=0 if repack_b else count - 1,
+            a_host_proofs=count if repack_a else 1,
+            b_host_proofs=count if repack_b else 1,
+        )
+        if (
+            not info["a_instance"]
+            or not info["b_instance"]
+            or info["a_instance"] == info["b_instance"]
+        ):
+            raise ValueError("narrow input instances")
+        if any(info[key] != value for key, value in expected.items()):
+            raise ValueError("narrow completed proof accounting")
+    if any(
+        c["narrow_summary_first"][key] != c["narrow_summary_final"][key]
+        for key in ("a_instance", "b_instance")
+    ):
+        raise ValueError("narrow retained input identity")
 
 
 def validate_adaptive_summary_capture(c, case):

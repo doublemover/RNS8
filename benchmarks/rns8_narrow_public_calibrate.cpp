@@ -1,4 +1,5 @@
 #include "call_observation.hpp"
+#include "native_diagnostic_observation.hpp"
 #include "core/api_internal.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include <chrono>
@@ -61,6 +62,26 @@ struct Owner {
   }
   ~Owner() { (void)close(); }
 };
+json narrow_summary_info(const Owner& owner) {
+  rns8_narrow_summary_info s{};
+  s.struct_size = sizeof(s);
+  s.abi_version = RNS8_ABI_VERSION;
+  check(rns8_get_narrow_summary_info(owner.work, &s));
+  return {{"retained_scan_bytes", s.retained_scan_bytes},
+          {"retained_product_bytes", s.retained_product_bytes},
+          {"wmma_capability_observed", s.wmma_capability_observed},
+          {"wmma_capability_supported", s.wmma_capability_supported},
+          {"a_instance", s.a_instance},
+          {"a_generation", s.a_generation},
+          {"b_instance", s.b_instance},
+          {"b_generation", s.b_generation},
+          {"a_device_scans", s.a_device_scans},
+          {"b_device_scans", s.b_device_scans},
+          {"a_reuses", s.a_reuses},
+          {"b_reuses", s.b_reuses},
+          {"a_host_proofs", s.a_host_proofs},
+          {"b_host_proofs", s.b_host_proofs}};
+}
 json summary_info(const Owner& owner) {
   rns8_adaptive_summary_info s{};
   s.struct_size = sizeof(s);
@@ -112,7 +133,8 @@ int main(int argc, char** argv) {
          mode != "scalar-resident-fused" && !wmma) ||
         (u && narrow && !wmma) || (parallel && n > 8) ||
         (mode == "vector-exact-width" && (n < 2 || n > 8 || k < 512)) ||
-        (residency != "cold" && residency != "resident" && residency != "repack") ||
+        (residency != "cold" && residency != "resident" && residency != "repack" &&
+         residency != "repack-a" && residency != "repack-b") ||
         ((adaptive || resident_output) && residency != "resident") ||
         uint64_t(m) * n * k > 134217728)
       throw std::invalid_argument("concrete route/domain");
@@ -152,16 +174,20 @@ int main(int argc, char** argv) {
     uint64_t generation = 0;
     std::string target, device, kernel;
     int runtime = 0;
-    auto pack = [&](Owner& o) {
+    auto pack = [&](Owner& o, bool repack_a = true, bool repack_b = true) {
       ++generation;
       if (u) {
-        check(rns8_pack_u64(o.ctx, o.a, av.data(), k + 1, generation));
-        check(rns8_pack_u64(o.ctx, o.b, bv.data(), n + 2, generation));
+        if (repack_a)
+          check(rns8_pack_u64(o.ctx, o.a, av.data(), k + 1, generation));
+        if (repack_b)
+          check(rns8_pack_u64(o.ctx, o.b, bv.data(), n + 2, generation));
       } else {
-        check(rns8_pack_i64(o.ctx, o.a, reinterpret_cast<const int64_t*>(av.data()), k + 1,
-                            generation));
-        check(rns8_pack_i64(o.ctx, o.b, reinterpret_cast<const int64_t*>(bv.data()), n + 2,
-                            generation));
+        if (repack_a)
+          check(rns8_pack_i64(o.ctx, o.a, reinterpret_cast<const int64_t*>(av.data()), k + 1,
+                              generation));
+        if (repack_b)
+          check(rns8_pack_i64(o.ctx, o.b, reinterpret_cast<const int64_t*>(bv.data()), n + 2,
+                              generation));
       }
     };
     auto create = [&]() {
@@ -256,8 +282,8 @@ int main(int argc, char** argv) {
       const auto start = clock.now();
       if (residency == "cold")
         owner = create();
-      else if (residency == "repack")
-        pack(*owner);
+      else if (residency == "repack" || residency == "repack-a" || residency == "repack-b")
+        pack(*owner, residency != "repack-b", residency != "repack-a");
       const auto prepared = clock.now();
       product(*owner);
       const auto computed = clock.now();
@@ -311,6 +337,7 @@ int main(int argc, char** argv) {
     auto first = sample_json(call());
     verify();
     const json first_summary = adaptive ? summary_info(*owner) : json(nullptr);
+    const json narrow_first = narrow && owner ? narrow_summary_info(*owner) : json(nullptr);
     for (uint32_t i = 0; i < warmups; ++i)
       call(false);
     json samples = json::array();
@@ -330,6 +357,31 @@ int main(int argc, char** argv) {
                            {"minimum_duration_reached", total >= 250000}});
     }
     const json final_summary = adaptive ? summary_info(*owner) : json(nullptr);
+    const json narrow_final = narrow && owner ? narrow_summary_info(*owner) : json(nullptr);
+    json native_observation = nullptr;
+    if (narrow) {
+      // Cold calls destroy their context inside the completed-call interval.
+      // A separate observer context keeps the process/device counter query alive.
+      Owner observer;
+      auto* observation_context = owner ? owner->ctx : nullptr;
+      if (!observation_context) {
+        rns8_context_options options{};
+        options.struct_size = sizeof(options);
+        options.abi_version = RNS8_ABI_VERSION;
+        options.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+        check(rns8_create_context(0, &options, &observer.ctx));
+        observation_context = observer.ctx;
+      }
+      native_observation =
+          rns8_benchmark::observe_native_batch(observation_context, [&] { call(false); });
+      verify();
+      native_observation["scope"] = "one_separate_complete_public_call";
+      native_observation["inside_timed_samples"] = false;
+      native_observation["inside_sustained_interval"] = false;
+      native_observation["public_calls"] = 1;
+      native_observation["exact_reference_passed"] = true;
+      check(observer.close());
+    }
     if (!vector) {
       if (!owner) {
         owner = create();
@@ -353,57 +405,64 @@ int main(int argc, char** argv) {
     if (owner)
       check(owner->close());
     const uint64_t scratch = narrow ? (wmma ? 32 : 16) + (fused ? 0 : uint64_t(m) * n * 8) : 0;
-    std::cout << json({{"hot_loop_serialization",
-                        "typed_observation_no_phase_clocks_in_sustained_v2"},
-                       {"schema", "rns8_public_narrow_microcase_v2"},
-                       {"case", c},
-                       {"run_id", argv[2]},
-                       {"target", target},
-                       {"device", device},
-                       {"runtime_version", runtime},
-                       {"build_manifest", json::parse(RNS8_BUILD_MANIFEST_JSON)},
-                       {"dataset", "affine_native_small_v1"},
-                       {"selected_prefix", prefix},
-                       {"ordinary_plan_kernel", kernel},
-                       {"narrow_producer", narrow ? mode : "not_applicable"},
-                       {"narrow_input_admission_policy",
-                        narrow ? "generation_bound_host_pack_certificate" : "not_applicable"},
-                       {"narrow_product_storage", !narrow ? "not_applicable"
-                                                  : fused ? "fused_no_native_product"
-                                                          : "workspace_retained_native_product"},
-                       {"known_narrow_scratch_bytes", scratch},
-                       {"output_boundary",
-                        resident_output
-                            ? "complete_public_product_resident_rns"
-                            : "complete_public_product_and_padded_three_limb_integer_adapter"},
-                       {"timed_host_export", !resident_output},
-                       {"oracle_export_outside_production_interval", resident_output},
-                       {"vector_export_adapter",
-                        vector ? "public_native64_export_then_host_sign_or_zero_extension"
-                               : "not_applicable"},
-                       {"host_instrumentation_state", "hooks_disabled"},
-                       {"adaptive_summary_policy",
-                        adaptive ? (cached ? "generation_bound" : "fresh_scan") : "not_applicable"},
-                       {"adaptive_summary_first", first_summary},
-                       {"adaptive_summary_final", final_summary},
-                       {"adaptive_method", adaptive ? "axis_l1" : "not_applicable"},
-                       {"adaptive_group", adaptive ? 2 : 0},
-                       {"adaptive_workers", adaptive ? 32 : 0},
-                       {"exact_proof_policy",
-                        (adaptive || resident_output) ? "scalar_first" : "default_eager"},
-                       {"setup_us", setup},
-                       {"first_call", first},
-                       {"samples", samples},
-                       {"sustained", sustained},
-                       {"native_useful_products", uint64_t(m) * n * k},
-                       {"exact_reference_passed", true},
-                       {"all_residue_planes_audited", !vector},
-                       {"residue_audit_scope",
-                        vector ? "not_applicable_native_control" : "post_timing_public_product"},
-                       {"oracle_inside_production_interval", false},
-                       {"promotion_eligible", false}})
-                     .dump(2)
-              << '\n';
+    std::cout
+        << json(
+               {{"hot_loop_serialization", "typed_observation_no_phase_clocks_in_sustained_v2"},
+                {"schema", "rns8_public_narrow_microcase_v2"},
+                {"case", c},
+                {"run_id", argv[2]},
+                {"target", target},
+                {"device", device},
+                {"runtime_version", runtime},
+                {"build_manifest", json::parse(RNS8_BUILD_MANIFEST_JSON)},
+                {"dataset", "affine_native_small_v1"},
+                {"selected_prefix", prefix},
+                {"ordinary_plan_kernel", kernel},
+                {"narrow_producer", narrow ? mode : "not_applicable"},
+                {"narrow_input_admission_policy",
+                 narrow ? "generation_bound_host_pack_certificate" : "not_applicable"},
+                {"narrow_product_storage", !narrow ? "not_applicable"
+                                           : fused ? "fused_no_native_product"
+                                                   : "workspace_retained_native_product"},
+                {"known_narrow_scratch_bytes", scratch},
+                {"narrow_summary_scope",
+                 !narrow               ? "not_applicable"
+                 : residency == "cold" ? "cold_workspace_not_observed"
+                                       : "completed_retained_workspace_snapshots_outside_timing"},
+                {"narrow_summary_first", narrow_first},
+                {"narrow_summary_final", narrow_final},
+                {"separate_native_observation", native_observation},
+                {"output_boundary",
+                 resident_output ? "complete_public_product_resident_rns"
+                                 : "complete_public_product_and_padded_three_limb_integer_adapter"},
+                {"timed_host_export", !resident_output},
+                {"oracle_export_outside_production_interval", resident_output},
+                {"vector_export_adapter",
+                 vector ? "public_native64_export_then_host_sign_or_zero_extension"
+                        : "not_applicable"},
+                {"host_instrumentation_state", "hooks_disabled"},
+                {"adaptive_summary_policy",
+                 adaptive ? (cached ? "generation_bound" : "fresh_scan") : "not_applicable"},
+                {"adaptive_summary_first", first_summary},
+                {"adaptive_summary_final", final_summary},
+                {"adaptive_method", adaptive ? "axis_l1" : "not_applicable"},
+                {"adaptive_group", adaptive ? 2 : 0},
+                {"adaptive_workers", adaptive ? 32 : 0},
+                {"exact_proof_policy",
+                 (adaptive || resident_output) ? "scalar_first" : "default_eager"},
+                {"setup_us", setup},
+                {"first_call", first},
+                {"samples", samples},
+                {"sustained", sustained},
+                {"native_useful_products", uint64_t(m) * n * k},
+                {"exact_reference_passed", true},
+                {"all_residue_planes_audited", !vector},
+                {"residue_audit_scope",
+                 vector ? "not_applicable_native_control" : "post_timing_public_product"},
+                {"oracle_inside_production_interval", false},
+                {"promotion_eligible", false}})
+               .dump(2)
+        << '\n';
     return 0;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

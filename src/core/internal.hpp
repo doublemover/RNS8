@@ -280,6 +280,10 @@ struct rns8_workspace {
   rns8::detail::hip_direct_device_buffer exact_auto_scratch_owner;
   rns8::detail::hip_direct_device_buffer adaptive_summary_owner;
   rns8::detail::hip_direct_device_buffer narrow_product_owner;
+  rns8::detail::hip_direct_device_buffer narrow_scan_owner;
+  rns8::detail::NativeDomainCertificate narrow_domains[2];
+  rns8::detail::NativeWmmaDeviceCapability narrow_capability_observation;
+  uint64_t narrow_device_scans[2]{}, narrow_reuses[2]{}, narrow_host_proofs[2]{};
   rns8::detail::NativeSummaryIdentity adaptive_summary_identity[2];
   uint64_t adaptive_summary_scans[2]{}, adaptive_summary_reuses[2]{};
   rns8::detail::hip_direct_device_buffer int32_scratch_owner;

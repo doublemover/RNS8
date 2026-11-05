@@ -30,33 +30,66 @@ runtime validation remains deferred.
 
 Public narrow microcase version2 records the host-pack certificate policy and
 fused versus retained staged-product storage explicitly. Its conservative
-scratch bound is not an observed allocation counter. This keeps source-current
+scratch bound is not an observed allocation counter. First/final public summary
+queries run outside the production intervals. Retained and repacked cases
+validate the actual input identities, completed proof counts and requested
+device bytes. Cold workspaces are destroyed inside each completed interval;
+their snapshots are explicitly unobserved, rather than queried inside timing
+or inferred from the scratch bound. This keeps source-current
 owner calls distinct from earlier always-scanned captures and private native
 output controls; no prior timing result qualifies this changed execution path.
+One additional complete public call enables native diagnostics separately from
+all production samples and sustained intervals, then verifies its complete
+integer output. It records actual allocation/free deltas, completed synchronous
+copy-wrapper counts/bytes, and per-label event counts/durations. Cold diagnostics
+use a separate observer context while the measured owner creates and destroys
+its own context normally. A separate post-timing product audits residue planes
+when the cold owner has already been destroyed. Label durations can overlap and
+are not summed into an end-to-end latency; asynchronous transfers outside those
+wrappers are not relabelled as measured traffic.
 
 The actual compiled native WMMA probe and its context capability owner are now
 shared with block-sparse preparation. The cache binds the target/device and
 loaded provider, publishes only successful observations, and retains an explicit
 unsupported result. Poisoned contexts and mismatched providers/targets cannot
 reuse it. Certified public byte execution observes it once per context; the
-private checked byte helper still probes each raw-pointer call. Device imports
-without a host-pack domain certificate retain the checked device-scan route.
-Generation-bound device summary caching for those imports is still in progress.
-Its device scan primitive is written: exact signed/unsigned min and max, bounded
-grid-stride work, a compact-input specialization, and16-byte reusable scratch with
-an owned compound readback. The authored differential compares independent CPU
-extrema for narrow/full-width values, poisoned padding and a forced extreme
-beyond the first grid span. HIP host and gfx1100 device syntax checks pass;
-the differential has not run and the public cache integration is still pending.
+private checked byte helper still probes each raw-pointer call. Public device
+imports without a host-pack certificate scan each changed input once into a
+workspace-owned certificate. Unchanged A and B proofs are reused independently;
+identical input handles can share the completed proof. Both changed keys are
+retired before scanning starts, so a failed scan cannot revive an older value.
+Each call revalidates the complete engine identity and recomputes its K-dependent
+partial bound. Caller source versions and a prior output bound confer no reuse
+authority. Exhausted generations cannot execute this route.
+
+The scan computes exact signed/unsigned min and max with bounded grid-stride
+work, a compact-input specialization, and one retained 16-byte device buffer
+shared by A/B scans. Its single compound readback uses an owned destination;
+pending scratch and all input/output/workspace leases survive an undrainable
+error. Certificates publish only after completed scans. The authored differential
+compares independent CPU extrema for narrow/full-width values, poisoned padding
+and a forced extreme beyond the first grid span. Public import/host-pack controls
+cover changed domains, separate A/B reuse and warm allocation/copy counters.
+Runtime validation remains deferred.
+
+`rns8_get_narrow_summary_info` exposes completed device scans, host-proof
+derivations, reuses, retained device bytes and the last observed WMMA capability
+snapshot without GPU work. Counts saturate; they describe logical proof work,
+not kernel launches. Keys describe the cached certificates, which may be older
+than a subsequently mutated input; execution always validates them again.
+Capability support is meaningful only when the observation flag is set.
+Malformed headers, nonzero reserved fields and busy workspaces preserve the
+caller output. These observations do not grant execution authority.
 
 The independent matrix-owned exact-range proof must also fit the selected CRT
-basis. The native result is staged, then encoded into every output residue
-plane. Peak transient device payload is `8*M*N+16` bytes for scalar, or
-`8*M*N+32` bytes for byte WMMA: the native output overlaps the input scan words.
+basis. A staged native result is encoded into every output residue plane.
+The conservative public device payload budget is `8*M*N+16` bytes for scalar, or
+`8*M*N+32` bytes for byte WMMA.
 The explicit scratch budget covers both; resident inputs/output and the caller's
 ordinary plan workspace are separate. A certified staged call instead retains
 `8*M*N` native product bytes in its workspace and reuses them; a certified fused
-call needs no product allocation. Switching to fused or untrusted-input execution
+call needs no product allocation. A device-import cache retains another 16 bytes
+for scans; a host-pack-only cache needs none. Switching to fused execution
 releases an inactive cached product before issuing work, avoiding hidden overlap.
 The conservative public scratch budget is unchanged. The implementation does not
 repack inputs or export results through the host. Uncertified admission reads

@@ -1,4 +1,5 @@
 #include "rns8/public_abi.h"
+#include "backend_common/abi_output_header.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -36,13 +37,7 @@ constexpr const char* runtime_model = "system-c-runtime";
 } // namespace
 
 rns8_status rns8_get_public_abi_info(rns8_public_abi_info* out) {
-  if (!out)
-    return RNS8_INVALID_ARGUMENT;
-  // Size admission reads only the documented mandatory prefix, including when
-  // a C caller supplies a genuinely shorter allocation.
-  uint64_t supplied_size = 0;
-  std::memcpy(&supplied_size, out, sizeof(supplied_size));
-  if (supplied_size != sizeof(*out) || out->abi_version != RNS8_ABI_VERSION)
+  if (!rns8::detail::exact_output_header(out))
     return RNS8_INVALID_ARGUMENT;
   rns8_public_abi_info result{};
   result.struct_size = sizeof(result);

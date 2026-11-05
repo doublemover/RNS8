@@ -2522,8 +2522,9 @@ typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
  * SCALAR_I64 accepts signed semantics and proves every partial within INT64_MAX;
  * BYTE_WMMA accepts signed/unsigned semantics, requires actual byte-domain values
  * and proves every partial within INT32_MAX. Target support is feature-detected.
- * Matching generation-bound native pack proofs avoid input scans; other imports
- * use actual device scans. Compiled WMMA capability is cached separately by
+ * Matching generation-bound native proofs avoid scans. Host packs supply exact
+ * extrema; unseen device imports scan once per changed input in the workspace.
+ * Compiled WMMA capability is cached separately by
  * device/target/provider. No scalar substitution or AUTO selection is performed.
  * max_scratch_bytes conservatively covers the native product and scan words;
  * staged calls reuse workspace-owned product storage, fused calls need none.
@@ -2532,6 +2533,24 @@ RNS8_API rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* 
                                             const rns8_matrix* A, const rns8_matrix* B,
                                             rns8_matrix* C, rns8_narrow_product_method method,
                                             uint64_t max_scratch_bytes, rns8_workspace* workspace);
+
+typedef struct rns8_narrow_summary_info {
+  uint64_t struct_size;
+  uint32_t abi_version, reserved;
+  uint32_t wmma_capability_observed, wmma_capability_supported;
+  uint64_t retained_scan_bytes, retained_product_bytes;
+  uint64_t a_instance, a_generation, b_instance, b_generation;
+  uint64_t a_device_scans, b_device_scans;
+  uint64_t a_reuses, b_reuses, a_host_proofs, b_host_proofs;
+} rns8_narrow_summary_info;
+/* Completed proof scans/derivations/reuses and requested device capacities for
+ * this direct-HIP workspace. Keys name cached certificates, not current matrix
+ * values; execution revalidates the complete identity. Capability flags describe
+ * the last narrow attempt's context observation; supported is meaningful only
+ * when observed. No GPU work/probe and no execution authority is granted.
+ * Requires the exact full header and reserved=0; busy/errors preserve all out. */
+RNS8_API rns8_status rns8_get_narrow_summary_info(const rns8_workspace* workspace,
+                                                  rns8_narrow_summary_info* out);
 
 typedef enum rns8_adaptive_bound_method RNS8_ENUM_BASE {
   RNS8_ADAPTIVE_TILE_MAX = 0,

@@ -9,6 +9,7 @@ using namespace rns8::detail::api;
 #include "core/api_block_sparse.inc"
 #include "core/api_encoded_b.inc"
 #include "core/api_int4.inc"
+#include "core/api_narrow_summary.inc"
 
 rns8_status rns8_gemm_complex_exact_signed(rns8_context* ctx, const rns8_plan* plan,
                                            const rns8_matrix* Ar, const rns8_matrix* Ai,
@@ -93,6 +94,8 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
     SynchronousLease lease(*ctx, lease_token);
     lease.track_write(commit_started);
     status = lease.hold_buffer(workspace->narrow_product_owner);
+    if (status == RNS8_SUCCESS)
+      status = lease.hold_buffer(workspace->narrow_scan_owner);
     if (status != RNS8_SUCCESS)
       return lease.finish(status);
     return lease.finish([&]() -> rns8_status {
@@ -101,48 +104,50 @@ rns8_status rns8_gemm_narrow_exact(rns8_context* ctx, const rns8_plan* plan, con
         return status;
       const bool byte_wmma = bool(uint32_t(method) & 1);
       const bool fused = method >= RNS8_NARROW_SCALAR_FUSED_RNS;
-      const bool certified = A->native_domain.matches(native_summary_identity(*ctx, *A, a)) &&
-                             B->native_domain.matches(native_summary_identity(*ctx, *B, b));
       auto& product = workspace->narrow_product_owner;
-      if (product.pending())
+      auto& scan = workspace->narrow_scan_owner;
+      if (product.pending() || scan.pending())
         return RNS8_BACKEND_FAILURE;
-      if (certified) {
-        if (byte_wmma) {
-          status = ensure_native_wmma_capability(*ctx);
-          if (status != RNS8_SUCCESS)
-            return status;
-          if (!ctx->native_wmma_capability.supported)
-            return RNS8_UNSUPPORTED_BACKEND;
-        }
-        uint64_t partial_bound = 0;
-        status = native_narrow_domain_admission(A->native_domain.range, B->native_domain.range,
-                                                uint64_t(plan->desc.k), byte_wmma, partial_bound);
-        if (status != RNS8_SUCCESS)
-          return status;
-        if (fused)
-          status = product.reset();
-        else if (product.bytes() != support.payload_bytes)
-          status = product.allocate(ctx->device_id, size_t(support.payload_bytes));
-        if (status != RNS8_SUCCESS)
-          return status;
-        if (!fused)
-          product.mark_pending();
-        status = hip_direct_gemm_narrow_rns_certified_device(
-            ctx->device_id, A->native_domain, B->native_domain, C->hip_residues, plan->prefix,
-            byte_wmma, fused, ctx->native_wmma_capability, product.get(), product.bytes(),
-            max_scratch_bytes, commit_started);
-        if (status == RNS8_SUCCESS && !fused)
-          product.mark_completed();
-      } else {
-        // An external native import has no host-pack certificate. Keep its
-        // actual-input checked route and do not overlap an idle cached product.
+      if ((product && product.device_id() != ctx->device_id) ||
+          (scan && scan.device_id() != ctx->device_id))
+        return RNS8_INVALID_ARGUMENT;
+      if (fused) {
         status = product.reset();
-        if (status == RNS8_SUCCESS)
-          status = hip_direct_gemm_narrow_rns_device(
-              ctx->device_id, a, b, C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
-              A->desc.cols, B->desc.cols, plan->prefix, unsigned_inputs, byte_wmma,
-              max_scratch_bytes, commit_started, fused);
+        if (status != RNS8_SUCCESS)
+          return status;
       }
+      workspace->narrow_capability_observation = {};
+      if (byte_wmma) {
+        status = ensure_native_wmma_capability(*ctx);
+        if (status != RNS8_SUCCESS)
+          return status;
+      }
+      if (native_wmma_capability_current(*ctx, ctx->native_wmma_capability))
+        workspace->narrow_capability_observation = ctx->native_wmma_capability;
+      if (byte_wmma && !ctx->native_wmma_capability.supported)
+        return RNS8_UNSUPPORTED_BACKEND;
+      status = prepare_narrow_domains(*ctx, *A, *B, a, b, *workspace);
+      if (status != RNS8_SUCCESS)
+        return status;
+      uint64_t partial_bound = 0;
+      status = native_narrow_domain_admission(workspace->narrow_domains[0].range,
+                                              workspace->narrow_domains[1].range,
+                                              uint64_t(plan->desc.k), byte_wmma, partial_bound);
+      if (status != RNS8_SUCCESS)
+        return status;
+      if (!fused && product.bytes() != support.payload_bytes) {
+        status = product.allocate(ctx->device_id, size_t(support.payload_bytes));
+        if (status != RNS8_SUCCESS)
+          return status;
+      }
+      if (!fused)
+        product.mark_pending();
+      status = hip_direct_gemm_narrow_rns_certified_device(
+          ctx->device_id, workspace->narrow_domains[0], workspace->narrow_domains[1],
+          C->hip_residues, plan->prefix, byte_wmma, fused, ctx->native_wmma_capability,
+          product.get(), product.bytes(), max_scratch_bytes, commit_started);
+      if (status == RNS8_SUCCESS && !fused)
+        product.mark_completed();
       if (status != RNS8_SUCCESS)
         return status;
       mark_output_device_residues_current(*C, plan);

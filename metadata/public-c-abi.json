@@ -80,6 +80,7 @@
         "alignof:rns8_matrix_pointer": 8,
         "alignof:rns8_matrix_storage_info": 8,
         "alignof:rns8_narrow_product_method": 4,
+        "alignof:rns8_narrow_summary_info": 8,
         "alignof:rns8_native_device_access": 4,
         "alignof:rns8_native_device_desc": 8,
         "alignof:rns8_native_device_lease_pointer": 8,
@@ -999,6 +1000,23 @@
         "field_size:rns8_matrix_storage_info.uses_byte_limb_storage": 4,
         "field_size:rns8_matrix_storage_info.uses_native_storage": 4,
         "field_size:rns8_matrix_storage_info.uses_residue_storage": 4,
+        "field_size:rns8_narrow_summary_info.a_device_scans": 8,
+        "field_size:rns8_narrow_summary_info.a_generation": 8,
+        "field_size:rns8_narrow_summary_info.a_host_proofs": 8,
+        "field_size:rns8_narrow_summary_info.a_instance": 8,
+        "field_size:rns8_narrow_summary_info.a_reuses": 8,
+        "field_size:rns8_narrow_summary_info.abi_version": 4,
+        "field_size:rns8_narrow_summary_info.b_device_scans": 8,
+        "field_size:rns8_narrow_summary_info.b_generation": 8,
+        "field_size:rns8_narrow_summary_info.b_host_proofs": 8,
+        "field_size:rns8_narrow_summary_info.b_instance": 8,
+        "field_size:rns8_narrow_summary_info.b_reuses": 8,
+        "field_size:rns8_narrow_summary_info.reserved": 4,
+        "field_size:rns8_narrow_summary_info.retained_product_bytes": 8,
+        "field_size:rns8_narrow_summary_info.retained_scan_bytes": 8,
+        "field_size:rns8_narrow_summary_info.struct_size": 8,
+        "field_size:rns8_narrow_summary_info.wmma_capability_observed": 4,
+        "field_size:rns8_narrow_summary_info.wmma_capability_supported": 4,
         "field_size:rns8_native_device_desc.abi_version": 4,
         "field_size:rns8_native_device_desc.access": 4,
         "field_size:rns8_native_device_desc.acquire": 8,
@@ -2491,6 +2509,23 @@
         "offsetof:rns8_matrix_storage_info.uses_byte_limb_storage": 108,
         "offsetof:rns8_matrix_storage_info.uses_native_storage": 112,
         "offsetof:rns8_matrix_storage_info.uses_residue_storage": 104,
+        "offsetof:rns8_narrow_summary_info.a_device_scans": 72,
+        "offsetof:rns8_narrow_summary_info.a_generation": 48,
+        "offsetof:rns8_narrow_summary_info.a_host_proofs": 104,
+        "offsetof:rns8_narrow_summary_info.a_instance": 40,
+        "offsetof:rns8_narrow_summary_info.a_reuses": 88,
+        "offsetof:rns8_narrow_summary_info.abi_version": 8,
+        "offsetof:rns8_narrow_summary_info.b_device_scans": 80,
+        "offsetof:rns8_narrow_summary_info.b_generation": 64,
+        "offsetof:rns8_narrow_summary_info.b_host_proofs": 112,
+        "offsetof:rns8_narrow_summary_info.b_instance": 56,
+        "offsetof:rns8_narrow_summary_info.b_reuses": 96,
+        "offsetof:rns8_narrow_summary_info.reserved": 12,
+        "offsetof:rns8_narrow_summary_info.retained_product_bytes": 32,
+        "offsetof:rns8_narrow_summary_info.retained_scan_bytes": 24,
+        "offsetof:rns8_narrow_summary_info.struct_size": 0,
+        "offsetof:rns8_narrow_summary_info.wmma_capability_observed": 16,
+        "offsetof:rns8_narrow_summary_info.wmma_capability_supported": 20,
         "offsetof:rns8_native_device_desc.abi_version": 4,
         "offsetof:rns8_native_device_desc.access": 12,
         "offsetof:rns8_native_device_desc.acquire": 104,
@@ -3424,6 +3459,7 @@
         "sizeof:rns8_matrix_pointer": 8,
         "sizeof:rns8_matrix_storage_info": 640,
         "sizeof:rns8_narrow_product_method": 4,
+        "sizeof:rns8_narrow_summary_info": 120,
         "sizeof:rns8_native_device_access": 4,
         "sizeof:rns8_native_device_desc": 136,
         "sizeof:rns8_native_device_lease_pointer": 8,
@@ -4025,6 +4061,7 @@
       "rns8_get_matrix_allocation_info": "rns8_status (const rns8_matrix *, rns8_matrix_allocation_info *)",
       "rns8_get_matrix_basis": "rns8_status (const rns8_matrix *, rns8_basis_info *)",
       "rns8_get_matrix_storage_info": "rns8_status (const rns8_matrix *, rns8_matrix_storage_info *)",
+      "rns8_get_narrow_summary_info": "rns8_status (const rns8_workspace *, rns8_narrow_summary_info *)",
       "rns8_get_native_group_dispatch_info": "rns8_status (const rns8_prepared_group *, rns8_native_group_dispatch_info *)",
       "rns8_get_native_group_info": "rns8_status (const rns8_prepared_group *, rns8_native_group_info *)",
       "rns8_get_native_group_locality_info": "rns8_status (const rns8_prepared_group *, rns8_locality_info *)",
@@ -4210,7 +4247,7 @@
       "rns8/moduli.h": "bbb2626341efbc1c39641bb889a88b2005c6b478d105d39e9429ba807772c13e",
       "rns8/pipeline_recipe.h": "1aabfc7bc5a89763773ded12acda7b7be44729774cb7522dd5a665d9f89e6c9d",
       "rns8/public_abi.h": "20ccbb0b271bfa98c4303d52817d63902a131ffd895323032ae4feb0230828a5",
-      "rns8/rns8.h": "95239a9030e9cc364cbf182083fb34679eb72bdfa5d1e435a2d2b63b33f14db6",
+      "rns8/rns8.h": "34d44a2b0cd08fde2d1da9c706beac5336debad25803a4ea4bdf27d60bea55bc",
       "rns8/semantics.h": "9c8e8391013be3668833abcb57176c2ae0213eb3bfd5e0ac84261e7f380c2421",
       "rns8/status.h": "c7c68893c448f238fcdea3c3bf68f595e7c7868264be588d58a9620756ef7c8b"
     },
@@ -4323,6 +4360,7 @@
       "rns8_matrix_allocation_info": "struct",
       "rns8_matrix_desc": "struct",
       "rns8_matrix_storage_info": "struct",
+      "rns8_narrow_summary_info": "struct",
       "rns8_native_device_desc": "struct",
       "rns8_native_device_resources": "struct",
       "rns8_native_group_binding": "struct",
@@ -6798,6 +6836,76 @@
         ],
         [
           "materialized_rns_schedule_fingerprint",
+          "uint64_t"
+        ]
+      ],
+      "rns8_narrow_summary_info": [
+        [
+          "struct_size",
+          "uint64_t"
+        ],
+        [
+          "abi_version",
+          "uint32_t"
+        ],
+        [
+          "reserved",
+          "uint32_t"
+        ],
+        [
+          "wmma_capability_observed",
+          "uint32_t"
+        ],
+        [
+          "wmma_capability_supported",
+          "uint32_t"
+        ],
+        [
+          "retained_scan_bytes",
+          "uint64_t"
+        ],
+        [
+          "retained_product_bytes",
+          "uint64_t"
+        ],
+        [
+          "a_instance",
+          "uint64_t"
+        ],
+        [
+          "a_generation",
+          "uint64_t"
+        ],
+        [
+          "b_instance",
+          "uint64_t"
+        ],
+        [
+          "b_generation",
+          "uint64_t"
+        ],
+        [
+          "a_device_scans",
+          "uint64_t"
+        ],
+        [
+          "b_device_scans",
+          "uint64_t"
+        ],
+        [
+          "a_reuses",
+          "uint64_t"
+        ],
+        [
+          "b_reuses",
+          "uint64_t"
+        ],
+        [
+          "a_host_proofs",
+          "uint64_t"
+        ],
+        [
+          "b_host_proofs",
           "uint64_t"
         ]
       ],
@@ -10794,6 +10902,9 @@
         "DLLImportAttr"
       ],
       "rns8_get_matrix_storage_info": [
+        "DLLImportAttr"
+      ],
+      "rns8_get_narrow_summary_info": [
         "DLLImportAttr"
       ],
       "rns8_get_native_group_dispatch_info": [

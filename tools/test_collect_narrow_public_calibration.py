@@ -6,6 +6,79 @@ from collect_narrow_public_calibration import validate_case, validate_capture, s
 from test_capture_identity_support import synthetic_identity
 
 
+def synthetic_narrow_summary(c):
+    case = c["case"]
+    narrow = case["mode"].startswith(("scalar-", "wmma-"))
+    cold = case["residency"] == "cold"
+    c["separate_native_observation"] = None
+    if narrow:
+        fused = case["mode"].endswith("-fused")
+        wmma = case["mode"].startswith("wmma-")
+        product = (
+            ("native_byte_wmma_fused_rns" if fused else "native_byte_wmma_gemm")
+            if wmma
+            else (
+                "narrow_native_i64_fused_rns_kernel" if fused else "narrow_native_i64_gemm_kernel"
+            )
+        )
+        labels = {product: 1}
+        if not fused:
+            labels["narrow_native_encode_rns"] = 1
+        if cold and wmma:
+            labels["native_wmma_prepare_capability"] = 1
+        c["separate_native_observation"] = dict(
+            scope="one_separate_complete_public_call",
+            inside_timed_samples=False,
+            inside_sustained_interval=False,
+            public_calls=1,
+            exact_reference_passed=True,
+            native_event_receipts_complete=True,
+            copy_scope="tracked_completed_synchronous_HIP_copy_wrappers",
+            allocation_epoch=1,
+            device_allocation_calls=0,
+            device_free_calls=0,
+            h2d_calls=0,
+            h2d_bytes=0,
+            d2h_calls=0,
+            d2h_bytes=0,
+            event_labels=labels,
+            event_microseconds={key: 1.5 for key in labels},
+        )
+    c["narrow_summary_scope"] = (
+        "not_applicable"
+        if not narrow
+        else "cold_workspace_not_observed"
+        if cold
+        else "completed_retained_workspace_snapshots_outside_timing"
+    )
+    c["narrow_summary_first"] = c["narrow_summary_final"] = None
+    if not narrow or cold:
+        return
+    calls = 1 + case["warmups"] + case["repeats"] + sum(b["calls"] for b in c["sustained"])
+    for name, count in (("narrow_summary_first", 1), ("narrow_summary_final", calls)):
+        repack_a = case["residency"] in ("repack", "repack-a")
+        repack_b = case["residency"] in ("repack", "repack-b")
+        wmma = int(case["mode"].startswith("wmma-"))
+        c[name] = dict(
+            retained_scan_bytes=0,
+            retained_product_bytes=0
+            if case["mode"].endswith("-fused")
+            else case["m"] * case["n"] * 8,
+            wmma_capability_observed=wmma,
+            wmma_capability_supported=wmma,
+            a_instance=11,
+            b_instance=12,
+            a_generation=1 + count if repack_a else 1,
+            b_generation=1 + count if repack_b else 1,
+            a_device_scans=0,
+            b_device_scans=0,
+            a_reuses=0 if repack_a else count - 1,
+            b_reuses=0 if repack_b else count - 1,
+            a_host_proofs=count if repack_a else 1,
+            b_host_proofs=count if repack_b else 1,
+        )
+
+
 class NarrowPublicCollection(unittest.TestCase):
     def test_checked_in_adaptive_cases_are_individual_matched_collector_inputs(self):
         folder = case_root() / "narrow-public/adaptive-summaries"
@@ -92,6 +165,7 @@ class NarrowPublicCollection(unittest.TestCase):
             ],
         )
         synthetic_identity(c)
+        synthetic_narrow_summary(c)
         return c, entry
 
     def test_complete_public_boundary_not_private_native_output(self):
@@ -144,6 +218,7 @@ class NarrowPublicCollection(unittest.TestCase):
                 narrow_product_storage="workspace_retained_native_product",
                 known_narrow_scratch_bytes=(32 if mode.startswith("wmma") else 16) + 17 * 19 * 8,
             )
+            synthetic_narrow_summary(c)
             self.assertEqual(validate_capture(c, entry), c)
             c["narrow_product_storage"] = "fused_no_native_product"
             with self.assertRaises(ValueError):
@@ -173,6 +248,7 @@ class NarrowPublicCollection(unittest.TestCase):
             )
             for sample in [c["first_call"], *c["samples"]]:
                 sample.update(export_us=0, total_us=3)
+            synthetic_narrow_summary(c)
             self.assertEqual(validate_capture(c, entry), c)
             for key, value in [
                 ("timed_host_export", True),
@@ -227,6 +303,7 @@ class NarrowPublicCollection(unittest.TestCase):
             )
             last = dict(first, a_reuses=52 if cached else 0, b_reuses=52 if cached else 0)
             c.update(adaptive_summary_first=first, adaptive_summary_final=last)
+            synthetic_narrow_summary(c)
             if resident:
                 c.update(
                     output_boundary="complete_public_product_resident_rns",
@@ -250,6 +327,61 @@ class NarrowPublicCollection(unittest.TestCase):
             bad["residency"] = "repack"
             with self.assertRaises(ValueError):
                 validate_case(bad)
+
+    def test_separate_native_observations_do_not_inherit_production_timing(self):
+        c, entry = self.capture()
+        for key, value in (
+            ("inside_timed_samples", True),
+            ("public_calls", True),
+            ("native_event_receipts_complete", False),
+            ("allocation_epoch", 0),
+            ("h2d_calls", -1),
+            ("h2d_bytes", 1),
+            ("event_microseconds", {}),
+            ("event_labels", {"narrow_native_domain_scan": 1}),
+        ):
+            bad = copy.deepcopy(c)
+            bad["separate_native_observation"][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_capture(bad, entry)
+        bad = copy.deepcopy(c)
+        bad["separate_native_observation"]["event_microseconds"][
+            "narrow_native_i64_fused_rns_kernel"
+        ] = True
+        with self.assertRaises(ValueError):
+            validate_capture(bad, entry)
+
+    def test_narrow_proof_snapshots_cover_retained_repack_and_unobserved_cold(self):
+        for residency in ("resident", "repack", "repack-a", "repack-b", "cold"):
+            c, entry = self.capture()
+            entry["case"]["residency"] = residency
+            synthetic_narrow_summary(c)
+            self.assertEqual(validate_capture(c, entry), c)
+            if residency == "cold":
+                c["narrow_summary_first"] = {}
+                with self.assertRaises(ValueError):
+                    validate_capture(c, entry)
+                continue
+            for key, value in (
+                ("a_device_scans", 1),
+                ("b_host_proofs", 0),
+                ("a_reuses", True),
+                ("a_generation", 0),
+                ("retained_scan_bytes", 16),
+                ("retained_product_bytes", 8),
+                ("wmma_capability_observed", 1),
+                ("wmma_capability_supported", True),
+                ("b_instance", 11),
+                ("a_instance", 13),
+                ("b_reuses", 1 << 64),
+            ):
+                bad = copy.deepcopy(c)
+                bad["narrow_summary_final"][key] = value
+                with self.subTest(residency=residency, key=key), self.assertRaises(ValueError):
+                    validate_capture(bad, entry)
+            c["narrow_summary_scope"] = "inside_production"
+            with self.assertRaises(ValueError):
+                validate_capture(c, entry)
 
 
 if __name__ == "__main__":

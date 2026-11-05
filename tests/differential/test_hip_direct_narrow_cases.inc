@@ -1,4 +1,5 @@
 #include "test_hip_direct_native_byte_cases.inc"
+#include "../support/native_device_fixture.hpp"
 template <class T> void check_native_domain_scan() {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
@@ -152,7 +153,8 @@ TEST_CASE("direct HIP native narrow admission proves partial sums from actual de
   }
 }
 
-template <class T> void check_public_narrow_owner(rns8_narrow_product_method method) {
+template <class T>
+void check_public_narrow_owner(rns8_narrow_product_method method, bool device_import = false) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   constexpr bool u = std::is_unsigned_v<T>;
@@ -189,6 +191,48 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
       bv[r * host_ld + q] = u ? T((r + q) % 3 ? 251 : 1) : T((r + q) % 3 ? -127 : 126);
     }
   const auto pack = [&](rns8_matrix* matrix, const std::vector<T>& data) {
+    if (device_import && matrix != c) {
+      hip_direct_device_buffer input;
+      struct Payload {
+        std::vector<T> values;
+        native_device_fixture::Owner owner;
+      };
+      auto host = std::make_shared<Payload>();
+      host->values = data;
+      auto status = input.allocate(0, host->values.size() * sizeof(T));
+      if (status != RNS8_SUCCESS)
+        return status;
+      status = input.retain_host_payload(host);
+      if (status != RNS8_SUCCESS)
+        return status;
+      input.mark_pending();
+      status = hip_direct_copy_host_to_device(0, input.get(), host->values.data(),
+                                              host->values.size() * sizeof(T));
+      if (status != RNS8_SUCCESS)
+        return status;
+      input.mark_completed();
+      auto view = native_device_fixture::descriptor(input.get(), host->values.size() * sizeof(T),
+                                                    host->owner);
+      view.byte_offset = 0;
+      view.rows = view.cols = side;
+      view.ld = host_ld;
+      view.element_type = u ? RNS8_NATIVE_DEVICE_U64 : RNS8_NATIVE_DEVICE_I64;
+      rns8_native_device_lease* lease = nullptr;
+      status = rns8_create_native_device_lease(ctx, &view, &lease);
+      if (status != RNS8_SUCCESS)
+        return status;
+      status = input.retain_host_payload(host);
+      if (status != RNS8_SUCCESS) {
+        (void)rns8_destroy_native_device_lease(lease);
+        return status;
+      }
+      input.mark_pending();
+      status = rns8_import_native_device(ctx, matrix, lease);
+      if (status == RNS8_SUCCESS)
+        input.mark_completed();
+      const auto released = rns8_destroy_native_device_lease(lease);
+      return status == RNS8_SUCCESS ? released : status;
+    }
     if constexpr (std::is_unsigned_v<T>)
       return rns8_pack_u64(ctx, matrix, data.data(), host_ld, 0);
     else
@@ -203,8 +247,9 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
   for (const auto* input : {a, b}) {
     const auto native = u ? input->hip_native_u64 : input->hip_native_i64;
     const auto identity = rns8::detail::api::native_summary_identity(*ctx, *input, native);
-    REQUIRE(input->native_domain.matches(identity));
-    CHECK(input->native_domain.range.byte_domain());
+    REQUIRE(input->native_domain.matches(identity) == !device_import);
+    if (!device_import)
+      CHECK(input->native_domain.range.byte_domain());
   }
   // Bind the explicit native producer through the same runtime shortlist.
   // Its output remains persistent RNS, and no ordinary GEMM cost prices the
@@ -295,6 +340,29 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
       SKIP("compiled device lacks requested narrow method");
     }
     REQUIRE(status == RNS8_SUCCESS);
+    const auto query = [&]() {
+      rns8_narrow_summary_info info{};
+      info.struct_size = sizeof(info);
+      info.abi_version = RNS8_ABI_VERSION;
+      REQUIRE(rns8_get_narrow_summary_info(ws, &info) == RNS8_SUCCESS);
+      CHECK(info.a_instance == a->matrix_instance_id);
+      CHECK(info.a_generation == a->content_generation);
+      CHECK(info.b_instance == b->matrix_instance_id);
+      CHECK(info.b_generation == b->content_generation);
+      CHECK(info.retained_scan_bytes == (device_import ? 16 : 0));
+      CHECK(info.retained_product_bytes ==
+            (method >= RNS8_NARROW_SCALAR_FUSED_RNS ? 0 : uint64_t(side) * side * 8));
+      CHECK(info.wmma_capability_observed == (uint32_t(method) & 1));
+      CHECK(info.wmma_capability_supported == (uint32_t(method) & 1));
+      CHECK(info.a_device_scans == (device_import ? uint64_t(mutation + 1) : 0));
+      CHECK(info.b_device_scans == uint64_t(device_import));
+      CHECK(info.a_host_proofs == (device_import ? 0 : uint64_t(mutation + 1)));
+      CHECK(info.b_host_proofs == uint64_t(!device_import));
+      return info;
+    };
+    auto proof = query();
+    CHECK(proof.a_reuses == uint64_t(mutation));
+    CHECK(proof.b_reuses == uint64_t(2 * mutation));
     // Observe another complete public product before export. A current native
     // certificate must avoid scans/readback/probes and reuse staged storage.
     const auto before = hip_direct_allocation_counters_snapshot();
@@ -316,11 +384,15 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
       CHECK(hip_direct_timing_failure_snapshot().empty());
       for (const auto& event : hip_direct_timing_snapshot()) {
         CHECK(event.label != "narrow_native_bound_scan");
+        CHECK(event.label != "narrow_native_domain_scan");
         CHECK(event.label != "native_byte_wmma_admission");
         CHECK(event.label != "native_wmma_prepare_capability");
       }
     }
     const auto after = hip_direct_allocation_counters_snapshot();
+    proof = query();
+    CHECK(proof.a_reuses == uint64_t(mutation + 1));
+    CHECK(proof.b_reuses == uint64_t(2 * mutation + 1));
     CHECK(after.allocate_calls == before.allocate_calls);
     CHECK(after.free_calls == before.free_calls);
     CHECK(after.h2d_calls == before.h2d_calls);
@@ -374,6 +446,85 @@ template <class T> void check_public_narrow_owner(rns8_narrow_product_method met
   CHECK(c->content_generation == generation);
   bv[0] = saved_b;
   REQUIRE(pack(b, bv) == RNS8_SUCCESS);
+  REQUIRE(run() == RNS8_SUCCESS);
+  const auto summary = [&]() {
+    rns8_narrow_summary_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_narrow_summary_info(ws, &info) == RNS8_SUCCESS);
+    return info;
+  };
+  const auto before_b = summary();
+  REQUIRE(pack(b, bv) == RNS8_SUCCESS); // Same caller version, new engine generation.
+  REQUIRE(run() == RNS8_SUCCESS);
+  const auto after_b = summary();
+  CHECK(after_b.a_device_scans == before_b.a_device_scans);
+  CHECK(after_b.a_host_proofs == before_b.a_host_proofs);
+  CHECK(after_b.a_reuses == before_b.a_reuses + 1);
+  CHECK(after_b.b_device_scans == before_b.b_device_scans + uint64_t(device_import));
+  CHECK(after_b.b_host_proofs == before_b.b_host_proofs + uint64_t(!device_import));
+  if (device_import) {
+    for (const char* phase : {"narrow_domain_a", "narrow_domain_b"}) {
+      REQUIRE(pack(a, av) == RNS8_SUCCESS);
+      REQUIRE(pack(b, bv) == RNS8_SUCCESS);
+      rns8_synchronous_test_hooks fault{};
+      fault.state = const_cast<char*>(phase);
+      fault.dispatch = [](void* state, const char* operation, bool*) {
+        return std::strcmp(static_cast<const char*>(state), operation) == 0 ? RNS8_BACKEND_FAILURE
+                                                                            : RNS8_SUCCESS;
+      };
+      fault.drain = [](void*) noexcept { return RNS8_SUCCESS; };
+      generation = c->content_generation;
+      ctx->synchronous_test_hooks = &fault;
+      const auto failed = run();
+      ctx->synchronous_test_hooks = nullptr;
+      CHECK(failed == RNS8_BACKEND_FAILURE);
+      CHECK(c->content_generation == generation);
+      CHECK(c->device_residues_current);
+      CHECK_FALSE(ws->in_flight);
+      CHECK_FALSE(ws->narrow_scan_owner.pending());
+      CHECK(ws->narrow_domains[1].identity.instance == 0);
+      if (std::strcmp(phase, "narrow_domain_a") == 0)
+        CHECK(ws->narrow_domains[0].identity.instance == 0);
+      else
+        CHECK(ws->narrow_domains[0].identity.generation == a->content_generation);
+      REQUIRE(run() == RNS8_SUCCESS);
+    }
+  }
+  generation = c->content_generation;
+  a->generation_exhausted = true;
+  CHECK(run() == RNS8_INVALID_ARGUMENT);
+  CHECK(c->content_generation == generation);
+  a->generation_exhausted = false;
+  // A==B shares the immutable native proof; no second domain scan is needed.
+  const auto before_self = summary();
+  REQUIRE(rns8_gemm_narrow_exact(ctx, plan, a, a, c, method, UINT64_MAX, ws) == RNS8_SUCCESS);
+  const auto after_self = summary();
+  CHECK(after_self.a_device_scans == before_self.a_device_scans);
+  CHECK(after_self.b_device_scans == before_self.b_device_scans);
+  CHECK(after_self.a_instance == after_self.b_instance);
+  CHECK(after_self.b_reuses == before_self.b_reuses + uint64_t(device_import));
+  std::vector<uint64_t> self_limbs(side * side * 3);
+  if constexpr (u)
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, self_limbs.data(), side, 3) ==
+            RNS8_SUCCESS);
+  else
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, self_limbs.data(), side, 3) ==
+            RNS8_SUCCESS);
+  for (int row = 0; row < side; ++row)
+    for (int col = 0; col < side; ++col) {
+      cpp_int expected = 0;
+      for (int k = 0; k < side; ++k)
+        expected += cpp_int(av[row * host_ld + k]) * av[k * host_ld + col];
+      const int i = (row * side + col) * 3;
+      cpp_int actual = cpp_int(self_limbs[i]) + (cpp_int(self_limbs[i + 1]) << 64) +
+                       (cpp_int(self_limbs[i + 2]) << 128);
+      if constexpr (!u)
+        if (self_limbs[i + 2] >> 63)
+          actual -= cpp_int(1) << 192;
+      CHECK(actual == expected);
+    }
+  generation = c->content_generation;
   REQUIRE(rns8_gemm_rns(ctx, plan, b, b, a, ws) == RNS8_SUCCESS);
   CHECK_FALSE(a->device_native_current);
   CHECK(run() == RNS8_INVALID_ARGUMENT);
@@ -400,5 +551,17 @@ TEST_CASE("public narrow products preserve exact ownership and reject changed do
   }
   SECTION("unsigned byte WMMA") {
     check_public_narrow_owner<uint64_t>(RNS8_NARROW_BYTE_WMMA);
+  }
+  SECTION("device imported signed scalar") {
+    check_public_narrow_owner<int64_t>(RNS8_NARROW_SCALAR_I64, true);
+  }
+  SECTION("device imported signed scalar fused") {
+    check_public_narrow_owner<int64_t>(RNS8_NARROW_SCALAR_FUSED_RNS, true);
+  }
+  SECTION("device imported signed WMMA") {
+    check_public_narrow_owner<int64_t>(RNS8_NARROW_BYTE_WMMA, true);
+  }
+  SECTION("device imported unsigned WMMA fused") {
+    check_public_narrow_owner<uint64_t>(RNS8_NARROW_BYTE_WMMA_FUSED_RNS, true);
   }
 }
