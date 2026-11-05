@@ -841,8 +841,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/97",
       "requirements_sha256": "cfe920a3a6026dc3c4a18ae0beaf45703138906f39adfaf1dfeb425401330181",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Share allocation-free nonthrowing from_chars integer/device parsing across inspector and benchmark. Require nonempty complete decimal tokens, reject overflow before any narrowing, and admit only -1 or nonnegative int ordinals while preserving omitted defaults. All benchmark parse_i64 consumers inherit strict conversion; move host-clock calibration after argument validation. Author unit canary/boundary/overflow coverage and actual CLI parse-only fixtures using final --help for malformed/valid/omitted/missing device and shape/padding controls before backend/context access. Update help/docs and register tests. Syntax checks only; CLI subprocess and runtime tests deferred."
+      ],
       "remaining_source_items": []
     },
     {

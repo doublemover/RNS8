@@ -48,7 +48,7 @@ const HostClockCalibration& host_clock_calibration() {
       << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|amdgpu-builtins|wrap64-byte-limb|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
       << "                  [--modulus M]\n"
-      << "                  [--device N] [--m M] [--n N] [--k K]\n"
+      << "                  [--device -1|NONNEGATIVE_INT_ORDINAL] [--m M] [--n N] [--k K]\n"
       << "                  [--output-ld-padding N]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"

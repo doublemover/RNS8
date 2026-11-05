@@ -8,6 +8,7 @@
 
 #include "rns8_bench_modes.hpp"
 #include "rns8_bench_support.hpp"
+#include "tool_common/cli_integer.hpp"
 
 #ifndef RNS8_CONFIGURED_HIP_ENABLED
 #  define RNS8_CONFIGURED_HIP_ENABLED 0
@@ -41,12 +42,11 @@ bool finite_input_profile(InputProfile profile) {
 }  // namespace
 
 int64_t parse_i64(const char* text, const char* label) {
-  char* end = nullptr;
-  const long long value = std::strtoll(text, &end, 10);
-  if (!end || *end != '\0') {
+  int64_t value=0;
+  if (!rns8::cli::parse_i64(text,value)) {
     usage_error(std::string("invalid integer for ") + label + ": " + text);
   }
-  return static_cast<int64_t>(value);
+  return value;
 }
 
 uint32_t parse_u32(const char* text, const char* label) {
@@ -277,7 +277,9 @@ Args parse_args(int argc, char** argv) {
       args.tile_n = parse_u32(argv[++i], "--tile-n");
       tile_n_set = true;
     } else if (arg == "--device" && i + 1 < argc) {
-      args.device_id = static_cast<int>(parse_i64(argv[++i], "--device"));
+      const auto* value=argv[++i];
+      if(!rns8::cli::parse_device(value,args.device_id))
+        usage_error(std::string("invalid device for --device: ")+value+" (expected -1 or a nonnegative int ordinal)");
     } else if (arg == "--backend" && i + 1 < argc) {
       parse_backend_option(argv[++i], args);
     } else if (arg == "--semantics" && i + 1 < argc) {
@@ -435,7 +437,7 @@ Args parse_args(int argc, char** argv) {
           << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|amdgpu-builtins|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
           << "                  [--semantics bounded-i64|bounded-u64|exact-wide-signed|exact-wide-unsigned|wrap-u64|finite-u8-ring|finite-u8-field]\n"
           << "                  [--modulus M]\n"
-          << "                  [--device N] [--m M] [--n N] [--k K]\n"
+          << "                  [--device -1|NONNEGATIVE_INT_ORDINAL] [--m M] [--n N] [--k K]\n"
           << "                  [--output-ld-padding N]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"

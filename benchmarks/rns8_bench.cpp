@@ -235,8 +235,8 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 }  // namespace
 
 int main(int argc, char** argv) try {
-  (void)rns8::bench::host_clock_calibration(); // Outside every workload timing interval.
   const Args args = parse_args(argc, argv);
+  (void)rns8::bench::host_clock_calibration(); // Validated args; outside every workload timing interval.
   struct ScopedAmdgpuBuiltinDenseVariantOverride {
     explicit ScopedAmdgpuBuiltinDenseVariantOverride(const Args& args) {
       rns8::detail::amdgpu_builtins_set_dense_kernel_variant_override(

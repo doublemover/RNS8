@@ -46,7 +46,8 @@ bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
 
 void print_usage(std::ostream& out) {
   out << "usage: rns8-inspect [--backend auto|cpu-reference|cpu-amx-int8|hip-direct|hip-vector-alu-int64|wrap64-byte-limb|hipblaslt|ck|rocwmma|amdgpu-builtins]"
-      << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache] [--selector-shadow]\n";
+      << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache] [--selector-shadow]\n"
+      << "--device accepts -1 or a nonnegative int ordinal as a complete decimal token.\n";
 }
 
 const char* backend_name(rns8_backend_kind backend) {

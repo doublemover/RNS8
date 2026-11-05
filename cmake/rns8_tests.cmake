@@ -1044,6 +1044,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     )
     set_tests_properties(inspect_cli_hard_cut_diagnostics PROPERTIES LABELS "tools;cli;hard-cut")
   endif()
+  if(TARGET rns8-inspect AND TARGET rns8-bench)
+    add_test(NAME cli_integer_selection_self_test
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cli_integer_selection.py"
+        "$<TARGET_FILE:rns8-inspect>" "$<TARGET_FILE:rns8-bench>"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(cli_integer_selection_self_test PROPERTIES LABELS "tools;cli;parse-only")
+  endif()
 
   # Isolate replacement global allocators from normal tests and shipping libraries.
   add_executable(rns8_exact_cpu_allocation_faults
@@ -1066,6 +1073,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set(
     RNS8_TEST_SOURCES
     tests/unit/test_public_abi.cpp
+    tests/unit/test_cli_integer.cpp
     tests/unit/test_matrix_target.cpp
     tests/unit/test_generated_address.cpp
     tests/unit/test_integer_split.cpp

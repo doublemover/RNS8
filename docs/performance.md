@@ -1,5 +1,14 @@
 # Performance evidence and promotion
 
+Inspector and benchmark integer controls require complete decimal tokens with
+an optional minus sign: no whitespace, trailing text, base prefixes, plus signs,
+empty strings or overflow. `--device` accepts only `-1` or an ordinal representable
+by a nonnegative `int`; explicit values are checked before backend/context access.
+Omitting the option retains the existing inspector default (`-1`) and benchmark
+backend-dependent default (`-1` for CPU, `0` for GPU routes). A valid numeric
+ordinal still needs actual device admission. Parser-only CLI checks use a final
+`--help` to avoid probing a device or starting a benchmark.
+
 ## Current evidence boundary
 
 The [SDK10.1 local follow-up](../metadata/sdk101-followup-20261026.json) records

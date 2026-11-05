@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
+#include "tool_common/cli_integer.hpp"
 
 namespace {
 #include "rns8_inspect_parse_helpers.inc"
@@ -42,8 +43,15 @@ int main(int argc, char** argv) {
         print_usage(std::cerr);
         return 2;
       }
-    } else if (arg == "--device" && i + 1 < argc) {
-      device_id = std::atoi(argv[++i]);
+    } else if (arg == "--device") {
+      if(i+1>=argc) {
+        std::cerr << "missing value for --device\n";print_usage(std::cerr);return 2;
+      }
+      const auto* value=argv[++i];
+      if(!rns8::cli::parse_device(value,device_id)) {
+        std::cerr << "invalid device for --device: " << value << " (expected -1 or a nonnegative int ordinal)\n";
+        print_usage(std::cerr);return 2;
+      }
     } else if (arg == "--help") {
       print_usage(std::cout);
       return 0;
