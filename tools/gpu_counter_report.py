@@ -13,7 +13,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from benchmark_schema import BenchmarkSchemaError, validate_capture
+from benchmark_request import file_digest
+from json_evidence import load_evidence_json
+from amd_profiler_review import review as review_native_profiler
+from markdown_tables import markdown_cell
 from observation_cohorts import canonical_work
 from perf_variance_report import execution_cohort
 from timing_eligibility import capture_identity
@@ -134,31 +138,6 @@ def _numeric_summary(values: list[float], total_count: int) -> dict[str, Any]:
     }
 
 
-def _first_metric(metrics: dict[str, float], patterns: tuple[str, ...]) -> float | None:
-    lowered = {key.lower(): value for key, value in metrics.items()}
-    for pattern in patterns:
-        regex = re.compile(pattern, re.IGNORECASE)
-        for key, value in lowered.items():
-            if regex.search(key):
-                return value
-    return None
-
-
-def _max_metric(metrics: dict[str, float], patterns: tuple[str, ...]) -> float | None:
-    values: list[float] = []
-    for pattern in patterns:
-        regex = re.compile(pattern, re.IGNORECASE)
-        values.extend(value for key, value in metrics.items() if regex.search(key))
-    return max(values) if values else None
-
-
-def _first_available(*values: Any) -> Any:
-    for value in values:
-        if value is not None:
-            return value
-    return None
-
-
 def _merged_counter_metrics(counter_reports: list[dict[str, Any]]) -> dict[str, float]:
     totals: dict[str, float] = {}; counts: dict[str, int] = {}
     for report in counter_reports:
@@ -266,7 +245,6 @@ def _counter_resource_summary(
                 group["identity"]["device"] in (None, str((capture.get("device") or {}).get("device_id")))]
     # A scalar resource summary must not silently choose between phases/units.
     # All matching groups remain available for per-kernel/phase interpretation.
-    metrics = _merged_counter_metrics(selected) if len(selected) == 1 else {}
     isa_totals = _isa_resource_summary(isa_reports)
     bottleneck = classify_bottleneck(capture)
     work = estimate_work(capture)
@@ -281,32 +259,17 @@ def _counter_resource_summary(
         else None,
     }
     return {
-        "counter_scope": ("execution_and_selected_symbol_bound" if len(selected) == 1 else
-                          "ambiguous_selected_phase_or_units" if selected else "unbound_inventory_only"),
+        "counter_scope": "flat_labels_inventory_only_native_dispatch_receipt_required",
         "selected_counter_groups": selected,
         "counter_metric_aggregation": "per_metric_observation_mean_not_resource_requirement_or_time_weighted_rate",
-        "vgpr": _first_available(
-            _first_metric(metrics, (r"\bvgpr\b", r"vgpr_count", r"num_vgprs")),
-            isa_totals.get("vgpr_count"),
-        ),
-        "sgpr": _first_available(
-            _first_metric(metrics, (r"\bsgpr\b", r"sgpr_count", r"num_sgprs")),
-            isa_totals.get("sgpr_count"),
-        ),
-        "lds_bytes": _first_available(
-            _first_metric(metrics, (r"lds.*bytes", r"lds_size", r"group_segment")),
-            isa_totals.get("lds_bytes"),
-        ),
-        "scratch_bytes": _first_available(
-            _max_metric(metrics, (r"scratch.*bytes", r"scratch_size", r"private_segment")),
-            isa_totals.get("scratch_bytes"),
-        ),
-        "occupancy": _first_available(
-            _first_metric(metrics, (r"occupancy", r"achieved_occupancy", r"wavefronts_per_cu")),
-            isa_totals.get("occupancy"),
-        ),
-        "wait_signal": _max_metric(metrics, (r"wait", r"stall", r"idle")),
-        "memory_pressure_signal": _max_metric(metrics, (r"tcc.*req", r"tcp.*req", r"dram", r"mem_", r"write_req")),
+        "vgpr": isa_totals.get("vgpr_count"),
+        "sgpr": isa_totals.get("sgpr_count"),
+        "lds_bytes": isa_totals.get("lds_bytes"),
+        "scratch_bytes": isa_totals.get("scratch_bytes"),
+        "static_resource_scope": "selected_artifact_ISA_requirement_not_dynamic_allocation_or_residency",
+        "occupancy": None,
+        "wait_signal": None,
+        "memory_pressure_signal": None,
         "global_store_instruction_count": isa_totals["global_store"],
         "lds_instruction_mentions": isa_totals["lds_mentions"],
         "wait_instruction_count": isa_totals["wait_instructions"],
@@ -374,7 +337,7 @@ def _evidence_status(
 
 
 def _json_counter_records(path: Path) -> list[dict[str, Any]]:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw = load_evidence_json(path)
     if isinstance(raw, list):
         return [item for item in raw if isinstance(item, dict)]
     if isinstance(raw, dict):
@@ -441,7 +404,7 @@ def load_counter_file(path: Path, top_limit: int) -> dict[str, Any]:
 def load_isa_summary(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise RuntimeError(f"ISA summary does not exist: {path}")
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = load_evidence_json(path)
     if not isinstance(data, dict):
         raise RuntimeError(f"ISA summary must be a JSON object: {path}")
     totals = data.get("instruction_totals")
@@ -463,8 +426,11 @@ def report_for_capture(
     counter_paths: list[Path],
     isa_paths: list[Path],
     top_limit: int,
+    dispatch_receipts: list[Path] | None = None,
 ) -> dict[str, Any]:
-    capture = load_capture(capture_path)
+    from target_qualification import EvidenceStore
+    store = EvidenceStore()
+    _, capture = store.json(dict(path=str(capture_path.resolve()), sha256=file_digest(capture_path)), capture_path.parent)
     validate_capture(capture, capture_path)
     counter_reports = [load_counter_file(path, top_limit) for path in counter_paths]
     isa_inventory = [load_isa_summary(path) for path in isa_paths]
@@ -477,6 +443,10 @@ def report_for_capture(
     event_medians = _event_medians(capture)
     resource_summary = _counter_resource_summary(capture, counter_reports, isa_reports)
     evidence_status = _evidence_status(counter_reports, isa_reports, event_medians, resource_summary)
+    from amd_profiler_evidence import validate_dispatch_receipt
+    native = [validate_dispatch_receipt(dict(path=str(path.resolve()), sha256=file_digest(path)),
+        capture=capture, store=store, parent=capture_path.parent) for path in dispatch_receipts or []]
+    store.finish()
     return {
         "schema_version": 1,
         "capture": _capture_identity(capture, capture_path),
@@ -487,6 +457,9 @@ def report_for_capture(
         "isa_selected_association": association,
         "counter_observation_metrics": _merged_counter_metrics(counter_reports),
         "counter_kernel_groups": _merged_counter_groups(counter_reports),
+        "native_profiler_evidence": native,
+        "native_profiler_review": review_native_profiler(native),
+        "native_metric_policy": "individual_vendor_defined_observations_no_implicit_unit_conversion_or_cross_instance_aggregation",
         "resource_summary": resource_summary,
         "evidence_status": evidence_status,
         "review_notes": [
@@ -547,6 +520,34 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
             lines.append("")
     else:
         lines.extend(["No counter exports were attached.", ""])
+
+    lines.extend(["## Native dispatch review", ""])
+    native_review = report.get("native_profiler_review") or {}
+    lines.append(str(native_review.get("conclusion", "no native dispatch receipt")))
+    for step in native_review.get("next_experiments", []):
+        lines.append("- "+step)
+    lines.append("")
+    if report.get("native_profiler_evidence"):
+        lines.extend(["Native observations retain per-pass units and dimensions. Full observations are in JSON.",
+            "", "| Pass | Process | Agent | Queue | Dispatch | Metric | Value | Unit | XCC / SE / Instance | Missingness |",
+            "| ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | --- | --- |"])
+        remaining = 200
+        omitted = 0
+        for index, receipt in enumerate(report["native_profiler_evidence"]):
+            for metric in receipt.get("native_metrics", []):
+                if remaining == 0:
+                    omitted += 1
+                    continue
+                values = [index, metric["process_id"], metric["agent_id"], metric["queue_id"],
+                    metric["dispatch_id"], metric["raw_name"], metric["value"], metric["unit"],
+                    " / ".join(str(metric[key]) if metric[key] is not None else "unknown"
+                               for key in ("xcc", "shader_engine", "instance")),
+                    metric["missingness"] or "observed"]
+                lines.append("| "+" | ".join(markdown_cell(value) for value in values)+" |")
+                remaining -= 1
+        if omitted:
+            lines.extend(["", str(omitted)+" additional native metrics are retained in JSON."])
+        lines.append("")
 
     lines.extend(["## ISA Summaries", ""])
     if report["isa_summaries"]:
@@ -776,7 +777,7 @@ def _resolve_manifest_paths(base_dir: Path, values: Any) -> list[Path]:
 def load_attachment_manifest(path: Path | None) -> dict[str, dict[str, list[Path]]]:
     if path is None:
         return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = load_evidence_json(path)
     base_dir = path.parent
     raw_entries: list[dict[str, Any]]
     if isinstance(data, dict) and isinstance(data.get("captures"), list):
@@ -798,6 +799,7 @@ def load_attachment_manifest(path: Path | None) -> dict[str, dict[str, list[Path
         if not isinstance(capture, str) or not capture:
             raise RuntimeError("attachment manifest entries require a capture string")
         manifest[capture] = {
+            "dispatch_receipts": _resolve_manifest_paths(base_dir, entry.get("dispatch_receipts")),
             "counters": _resolve_manifest_paths(base_dir, entry.get("counters") or entry.get("counter")),
             "isa_summaries": _resolve_manifest_paths(
                 base_dir,
@@ -830,7 +832,10 @@ def build_reports(
     global_isa_summaries: list[Path],
     attachment_manifest: dict[str, dict[str, list[Path]]],
     top_limit: int,
+    dispatch_receipts: list[Path] | None = None,
 ) -> list[dict[str, Any]]:
+    if dispatch_receipts and len(capture_paths) != 1:
+        raise ValueError("global native dispatch receipts require one capture; use per-capture manifest attachments for a batch")
     reports = []
     for capture_path in capture_paths:
         counters, isa_summaries = attachments_for_capture(
@@ -839,7 +844,13 @@ def build_reports(
             global_counters,
             global_isa_summaries,
         )
-        reports.append(report_for_capture(capture_path, counters, isa_summaries, top_limit))
+        native = list(dispatch_receipts or [])
+        for key in _path_lookup_keys(capture_path):
+            entry = attachment_manifest.get(key)
+            if entry:
+                native.extend(entry.get("dispatch_receipts") or [])
+                break
+        reports.append(report_for_capture(capture_path, counters, isa_summaries, top_limit, list(dict.fromkeys(native))))
     return reports
 
 
@@ -848,6 +859,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("captures", type=Path, nargs="+", help="schema-v4 benchmark JSON captures")
     parser.add_argument("--counter", action="append", type=Path, default=[], help="CSV or JSON profiler counter export")
     parser.add_argument("--isa-summary", action="append", type=Path, default=[], help="gpu_isa_report.py JSON summary")
+    parser.add_argument("--dispatch-receipt", action="append", type=Path, default=[],
+                        help="raw-bound native profiler receipt for one capture; use attachment manifest for batches")
     parser.add_argument(
         "--attachment-manifest",
         type=Path,
@@ -869,6 +882,7 @@ def main() -> int:
         args.isa_summary,
         load_attachment_manifest(args.attachment_manifest),
         args.top,
+        args.dispatch_receipt,
     )
     outputs: list[Path] = []
     for index, report in enumerate(reports):

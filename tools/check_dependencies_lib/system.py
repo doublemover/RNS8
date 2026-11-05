@@ -73,6 +73,7 @@ def command_names_for_host(host_system: str | None = None) -> list[str]:
         + WINDOWS_CORE_COMMANDS
         + WINDOWS_HIP_COMMANDS
         + LINUX_READINESS_COMMANDS
+        + LINUX_OPTIONAL_PROFILER_COMMANDS
         + RADEON_TOOLS
     )
     if host != "Windows":
@@ -119,7 +120,7 @@ def find_command(name: str) -> str | None:
                 ]
             )
 
-    if name in set(LINUX_READINESS_COMMANDS):
+    if name in set(LINUX_READINESS_COMMANDS) | set(LINUX_OPTIONAL_PROFILER_COMMANDS):
         rocm_root = os.environ.get("ROCM_PATH", "/opt/rocm")
         candidates.extend(
             [

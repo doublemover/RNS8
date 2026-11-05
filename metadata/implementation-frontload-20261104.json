@@ -945,10 +945,11 @@
       "comments_reviewed": 0,
       "implementation_status": "in_progress",
       "completed_slices": [
-        "First strict ROCprofiler-SDK native JSON dispatch reader joins actual benchmark PID/agent/queue/dispatch/correlation IDs, mangled selected ISA symbols and loaded file-URI code-object bytes; explicit instrumented capture relation and production-latency rejection; typed geometry, separate raw artifact hashes/freshness and offline negative controls authored"
+        "First strict ROCprofiler-SDK native JSON dispatch reader joins actual benchmark PID/agent/queue/dispatch/correlation IDs, mangled selected ISA symbols and loaded file-URI code-object bytes; explicit instrumented capture relation and production-latency rejection; typed geometry, separate raw artifact hashes/freshness and offline negative controls authored",
+        "Add explicit plan-only and bounded read-only AMD profiler preflight using existing dependency resolution/owned-process runner, separate RDP controller/service discovery, conservative OS/target/feature matrix, native availability parser and retained probe artifacts/states. Add immutable bounded read-only rocpd 3.0.4 adapter against pinned ROCm 10.1/SDK1.4.1 schema; join process/node/GUID-scoped inventories into existing dispatch/static-ISA/artifact validation; retain native graph/stream/event relationships and per-instance vendor metric definitions/units/missingness. Connect raw-bound native receipts to existing counter report and hypothesis review, remove flat-column resource/occupancy/wait/memory heuristics, separate interval service/union/overlap per pass, and share safe Markdown cells. Author/register protocol regressions and canonical profiler guide. AST/Ruff only; no probes, SQL fixtures, tests, GPU jobs or benchmarks run."
       ],
       "remaining_source_items": [
-        "Capability discovery and native acquisition with tool/version/permission receipts; Windows RDP/RGP supported exports; additional native ROCprof/rocpd/counter/ATT adapters and metric definitions; optional balanced ROCTx ranges; integration into existing counter/explanation reports and hypothesis/experiment output"
+        "Native capability-gated acquisition and converter/export receipts; Windows RDP/RGP machine-export/dispatch adapters; optional ROCTx phase/async ranges; additional ATT/sampling formats and complete counter-pass/loss coverage; remaining full issue acceptance reconciliation"
       ]
     },
     {

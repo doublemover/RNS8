@@ -315,6 +315,10 @@ the same work. Regression fixtures are authored; their execution is deferred.
 
 ## Independent observations and profiler partitions
 
+The [AMD profiler guide](amd-profiler.md) owns feature-level tool preflight,
+native dispatch/database adapters and their remaining acquisition work. Flat
+counter exports remain inventory unless a native receipt binds their evidence.
+
 Adaptive, finite-modulus, finite-distribution, layout, bound-discovery and FHE
 proxy reports share `observation_cohorts.py`. They aggregate **process medians**
 within an exact arithmetic/work, implementation, artifact and execution cohort

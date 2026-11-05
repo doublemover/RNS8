@@ -644,8 +644,7 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
     lines.extend(["", "## Candidate qualification", "",
                   "| capture | backend | kernel | artifact SHA256 | ready | blockers |",
                   "| --- | --- | --- | --- | --- | --- |"])
-    def cell(value):
-        return str(value).replace("|", chr(92) + "|").replace("\r", " ").replace("\n", " ")
+    from markdown_tables import markdown_cell as cell
     for group in report["groups"]:
         for verdict in group.get("candidate_qualifications", []):
             candidate = verdict.get("candidate") or {}

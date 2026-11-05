@@ -137,6 +137,9 @@ def main() -> int:
         assert report["resource_summary"]["vgpr"] is None
         assert report["counter_observation_metrics"]["ACHIEVED_OCCUPANCY"] == 0.5625
         assert report["resource_summary"]["occupancy"] is None
+        assert report["resource_summary"]["counter_scope"] == "flat_labels_inventory_only_native_dispatch_receipt_required"
+        assert report["native_profiler_evidence"] == []
+        assert report["native_profiler_review"]["conclusion"] == "inconclusive_for_whole_workload_bottleneck"
         assert report["evidence_status"]["profiler_counter_status"] == "present"
         assert report["evidence_status"]["isa_resource_status"] == "missing"
         assert not report["isa_selected_association"]["isa_association"]["qualified"]

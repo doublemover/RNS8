@@ -11,6 +11,7 @@ LINUX_ROCM_COMMANDS = LINUX_ROCM_REQUIRED_COMMANDS + LINUX_ROCM_DIAGNOSTIC_COMMA
 LINUX_SMI_COMMANDS = ["rocm-smi", "amd-smi"]
 LINUX_TOPOLOGY_COMMANDS = ["numactl", "lstopo"]
 LINUX_PROFILER_COMMANDS = ["rocprofv3", "rocprofv3-avail"]
+LINUX_OPTIONAL_PROFILER_COMMANDS = ["rocpd", "rocprof-compute"]
 LINUX_BANDWIDTH_COMMANDS = ["rocm-bandwidth-test"]
 RCCL_TEST_COMMANDS = ["all_reduce_perf", "all_gather_perf", "broadcast_perf", "reduce_scatter_perf"]
 LINUX_READINESS_COMMANDS = (
@@ -30,6 +31,7 @@ RADEON_TOOLS = [
     "RadeonDeveloperPanel",
     "RadeonMemoryVisualizer",
     "RadeonDeveloperServiceCLI",
+    "RadeonDeveloperPanelCLI",
 ]
 SUPPORTED_TARGETS = {
     "gfx1030": {"tier": "W2", "family": "RDNA2", "role": "functional HIP regression"},

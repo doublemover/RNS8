@@ -69,8 +69,8 @@ captures, identities, commands, outputs or summaries fail closed.
 
 ## Native profiler boundary
 
-The first dispatch reader accepts the documented ROCprofiler-SDK native JSON
-kernel-dispatch structure. It binds the profiled benchmark's actual process ID
+The dispatch readers accept the maintained ROCprofiler-SDK native JSON
+kernel-dispatch structure and finalized rocpd 3.0.4 databases. They bind the profiled benchmark's actual process ID
 to process-local agent/queue/dispatch/kernel/code-object records and the existing
 selected static ISA receipt. Exact mangled symbols and bytes from the loaded
 file-backed code-object URI must match the recorded executable/artifact.
@@ -87,9 +87,11 @@ production timing claim. The session must establish native outputs as newly
 created for that acquisition; stale files with a recycled process ID are not
 accepted.
 
-This reader establishes selected dispatch identity, not complete-run counter
+These readers establish selected dispatch identity, not complete-run counter
 coverage, occupancy, measured traffic or a performance gain. Native acquisition,
 capability discovery, additional vendor formats and Windows RDP/RGP dispatch
 exports remain implementation work under #104. Raw RGP and unsupported formats
 remain inventory-only; Linux traces do not qualify a Windows target. All native
-reader/runtime validation is still pending the final validation batch.
+reader/runtime validation is still pending the final validation batch. The
+[profiler guide](amd-profiler.md) owns supported contracts, feature-level
+preflight, database metric interpretation and remaining integration work.

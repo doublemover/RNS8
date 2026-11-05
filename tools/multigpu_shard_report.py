@@ -19,6 +19,7 @@ from reference_verdict import numerical_contract, checksum_u64
 from target_qualification import EvidenceStore
 from device_observation import capture_observation, IdentityUnavailable, IdentityMismatch, RuntimeDeviceIdentity, distinct_runtime_identities
 from multigpu_observation import validate_binding as validate_observation_binding
+from markdown_tables import markdown_cell as cell
 
 
 DEFAULT_OUT_DIR = Path("temp") / "multigpu-shard-report"
@@ -633,10 +634,6 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
     ]
     for row in report["rows"]:
         blockers = ", ".join(row.get("blockers", []))
-        def cell(value: Any) -> str:
-            return str(value if value is not None else "").replace("&", "&amp;").replace(
-                "<", "&lt;").replace(">", "&gt;").replace("|", "&#124;").replace(
-                "\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
         lines.append(
             "| {rank} | {physical} | {logical} | {case} | {target} | {name} | {bdf} | {binding} | {schema} | {median} | {checksum} | {blockers} |".format(
                 rank=cell(row.get("rank")),

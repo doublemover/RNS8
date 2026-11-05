@@ -29,6 +29,10 @@ from reference_verdict import numerical_observation
 from timing_eligibility import capture_identity
 
 SCHEMA = "rns8_amd_profiler_dispatch_receipt_v1"
+ADAPTERS = {
+    "rocprofiler-sdk-json-kernel-dispatch-v1": "json",
+    "rocprofiler-sdk-rocpd-3.0.4-kernel-dispatch-v1": "rocpd",
+}
 PROFILER_ENVIRONMENT = frozenset(
     (
         "ROCP_TOOL_LIBRARIES",
@@ -198,7 +202,7 @@ def validate_dispatch_receipt(
     receipt_path, receipt = store.json(reference, parent)
     if (
         receipt.get("schema") != SCHEMA
-        or receipt.get("adapter") != "rocprofiler-sdk-json-kernel-dispatch-v1"
+        or receipt.get("adapter") not in ADAPTERS
     ):
         raise ValueError(
             "unsupported native profiler adapter; raw RGP/unknown formats remain inventory-only"
@@ -212,7 +216,14 @@ def validate_dispatch_receipt(
     process_id = _integer(profiled.get("process_id"))
     if process_id == 0:
         raise ValueError("profiled benchmark must emit its actual OS process ID")
-    native_path, native = store.json(receipt.get("native_trace"), base)
+    native_extension = None
+    if ADAPTERS[receipt["adapter"]] == "rocpd":
+        from amd_rocpd import read_process
+        native_path = store.reference(receipt.get("native_trace"), base)
+        native_extension = read_process(native_path, process_id)
+        native = {"rocprofiler-sdk-tool": [native_extension["native"]]}
+    else:
+        native_path, native = store.json(receipt.get("native_trace"), base)
     processes = native.get("rocprofiler-sdk-tool")
     if (
         not isinstance(processes, list)
@@ -340,6 +351,7 @@ def validate_dispatch_receipt(
                 end_ns=record["end_timestamp"],
                 grid=copy.deepcopy(info.get("grid_size")),
                 workgroup=copy.deepcopy(info.get("workgroup_size")),
+                native_relationships=copy.deepcopy(record.get("native_rocpd")),
             )
         )
     command = receipt.get("acquisition_command")
@@ -353,8 +365,7 @@ def validate_dispatch_receipt(
     version_file = store.reference(receipt.get("tool_version_output"), base)
     version = receipt.get("tool_version")
     if (
-        not isinstance(version, str)
-        or re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", version) is None
+        version != "1.4.1"
         or re.search(
             r"(?<![\w.])" + re.escape(version) + r"(?![\w.+-])",
             version_file.read_text(encoding="utf-8"),
@@ -371,10 +382,10 @@ def validate_dispatch_receipt(
     separator = command.index("--")
     options = command[1:separator]
     if options.count("--kernel-trace") != 1 or options.count("--output-format") != 1:
-        raise ValueError("native acquisition does not select kernel-trace JSON output")
+        raise ValueError("native acquisition does not select its declared kernel-trace output")
     formats = options[options.index("--output-format") + 1 :]
-    if not formats or formats[0] != "json":
-        raise ValueError("this native adapter requires explicit JSON output")
+    if not formats or formats[0] != ADAPTERS[receipt["adapter"]]:
+        raise ValueError("native acquisition output format differs from its adapter")
     workload = command[separator + 1 :]
     if (
         not workload
@@ -399,4 +410,11 @@ def validate_dispatch_receipt(
         scope="selected_executed_dispatch_identity_not_complete_run_counters_or_production_latency",
         complete_run_coverage=False,
         performance_promotion_allowed=False,
+        native_schema_version=native_extension["schema_version"] if native_extension else "rocprofiler-sdk-json-1.4.1",
+        native_identity_namespace=native_extension["identity_namespace"] if native_extension else "rocprofiler-sdk-process-local-handles",
+        native_metrics=([metric for metric in native_extension["metrics"] if
+                         (metric["agent_id"], metric["queue_id"], metric["dispatch_id"]) in seen]
+                        if native_extension else []),
+        unresolved_metrics=native_extension["unresolved_metrics"] if native_extension else [],
+        loss_status=native_extension["loss_status"] if native_extension else "unknown_not_established_by_dispatch_identity",
     )
