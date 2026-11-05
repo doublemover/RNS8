@@ -27,6 +27,60 @@ class LiftRecipeContracts(unittest.TestCase):
             build_manifest={},execution_id='process1',target='gfx1100',device='fixture',artifact_capture=dict(unchanged_during_run=True,executable_sha256='a'*64),
             ragged_retained_bytes=0,ragged_materialized_input_bytes=0,ragged_binding_peak_bytes=0,recipe_arena_bytes=25600,recipe_retained_lift_bytes=17412,auto_retained_device_bytes=0,replay_hip_allocations=0,replay_hip_frees=0,selected_compute_prefixes=[p]*nodes if c['mode'] in ('manual-full','manual-scalar-first','native-roundtrip','eager-observe') else [1,2,3],cost_model=None,materialization_plan=None,
             stage_price_identity=None,stage_price_training_charge_ns=0,stage_price_graph_identity=None,timing_source='host_monotonic_completed_public_call',nominal_clock_tick_ns=1.,setup_us=10.,first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)],sustained=[dict(calls=16,total_us=250000.,per_call_us=15625.) for _ in range(3)])
+    def ordered_capture(self,policy=1):
+        c=self.capture(execution_policy=policy)
+        c['recipe_retained_lift_bytes']+=4 if policy else 0
+        c['hot_loop_serialization']='typed_observation_json_after_interval_v1'
+        c['recipe_execution']=dict(schema='rns8_product_recipe_execution_v1',policy=policy,
+            completion_contract='ordered_nondefault_single_terminal_v1' if policy else 'synchronous_wrappers_v1',
+            stream_prepared=bool(policy),guarded_layout_products=bool(policy),
+            retained_control_device_bytes=4 if policy else 0,retained_control_pinned_bytes=4 if policy else 0,
+            retained_layout_host_bytes=4096,stream_wait_calls=policy,ordered_gemm_calls=3 if policy else 0,
+            ordered_conversion_calls=0,ordered_lift_calls=3 if policy else 0,ordered_copy_calls=policy,
+            ordered_status_readback_bytes=4 if policy else 0,
+            planning_price_scope='synchronous_stage_prices_before_explicit_execution_policy')
+        return c
+    @patch('collect_lift_recipe.manifest_provenance_complete',return_value=True)
+    def test_ordered_recipe_requires_actual_completion_and_proof_receipts(self,_manifest):
+        for policy in (0,1):
+            c=self.ordered_capture(policy);entry=dict(case=c['case'],run_id='fixture')
+            self.assertEqual(validate_capture(c,entry),c)
+            for key,value in [('policy',1-policy),('stream_wait_calls',2),('ordered_gemm_calls',True),
+                              ('ordered_lift_calls',7),('ordered_copy_calls',2),('ordered_conversion_calls',1),
+                              ('ordered_status_readback_bytes',0 if policy else 4),('retained_layout_host_bytes',0),
+                              ('retained_control_device_bytes',0 if policy else 4),('retained_control_pinned_bytes',8),
+                              ('completion_contract','device_wide'),('planning_price_scope','ordered_optimal')]:
+                with self.subTest(policy=policy,key=key):
+                    bad=copy.deepcopy(c);bad['recipe_execution'][key]=value
+                    with self.assertRaises(ValueError):validate_capture(bad,entry)
+            for key in ('recipe_execution','hot_loop_serialization'):
+                bad=copy.deepcopy(c);bad.pop(key)
+                with self.assertRaises(ValueError):validate_capture(bad,entry)
+        for value in (True,-1,2,'1'):
+            with self.assertRaises(ValueError):validate_case(dict(self.case(),execution_policy=value))
+        with self.assertRaises(ValueError):validate_case(dict(self.case(),mode='manual-full',execution_policy=0))
+    @patch('collect_lift_recipe.manifest_provenance_complete',return_value=True)
+    def test_ordered_full_prefix_has_no_proof_flag_and_matched_policy_comparison(self,_manifest):
+        c=self.ordered_capture();c['case']['mode']='recipe-full';c['selected_compute_prefixes']=[20]*3
+        receipt=c['recipe_execution'];receipt.update(guarded_layout_products=False,retained_control_device_bytes=0,
+            retained_control_pinned_bytes=0,ordered_lift_calls=0,ordered_status_readback_bytes=0)
+        self.assertEqual(validate_capture(c,dict(case=c['case'],run_id='fixture')),c)
+        observations=[]
+        for policy in (0,1):
+            for run in range(2):
+                capture=self.ordered_capture(policy);capture['execution_id']=f'policy{policy}-run{run}'
+                for sample in capture['sustained']:
+                    sample['total_us']*=2 if not policy else 1;sample['per_call_us']=sample['total_us']/sample['calls']
+                entry=dict(case=capture['case'],run_id='fixture',independent_run=run,output=f'{policy}-{run}.json')
+                observations.append((entry,capture))
+        cohorts=summarize(observations);self.assertEqual(len(cohorts),1)
+        pair=cohorts[0]['execution_policy_comparisons']['recipe-minimum']
+        self.assertEqual(pair['speedup'],2);self.assertEqual(pair['cost_ratio'],.5)
+        # Historical JSON-bearing intervals cannot be pooled with corrected captures.
+        for run in range(2):
+            legacy=self.capture();legacy['execution_id']=f'legacy{run}'
+            observations.append((dict(case=legacy['case'],run_id='fixture',independent_run=run,output=f'old{run}.json'),legacy))
+        self.assertEqual(len(summarize(observations)),2)
     def test_chain_diamond_bounds_and_noop_lift(self):
         c=self.case();self.assertEqual(bounds(c),[1,1,32,1024,32768]);self.assertEqual(validate_case(c),c)
         c.update(topology='diamond',depth=4);self.assertEqual(bounds(c)[-1],32**5);self.assertEqual(validate_case(c),c)

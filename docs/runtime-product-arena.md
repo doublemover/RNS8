@@ -25,25 +25,46 @@ Kernel failure before publication preserves the old outputs. Copy failure invali
 the entire requested output batch. Successful publication installs the complete prefix and exact magnitude proof.
 Replay overwrites each logical value before reading it and rechecks input bindings.
 
-The current recipe executor still calls synchronous node wrappers. Private
-stream-taking layout conversion/GEMM primitives now share the same shape,
-ordered-basis, address and launch admission as those wrappers. Optional ordered
-predecessor-status guards skip operand reads and output stores; ordinary kernel
-entry points compile the guard away. A one-thread stream-ordered merge retains
-the first failed stage even after later stages reset their own scratch flags.
-Ordered lift enqueues now stage default or explicitly admitted experimental-basis
-suffixes on that same borrowed stream. They merge each stage into one persistent
-failure word before guarding the suffix copy. Only the replay owner resets that
-word; later local scratch resets cannot erase a failure. Guarded default lifts
-use public status codes, while the existing default-lift entry points retain
-their private status encoding. No per-node host status readback is performed.
-The owning recipe's stream/lift/publication integration remains source work;
-these primitives alone are not a one-stream recipe implementation or measured
-throughput result. Their authored differential controls reuse the independent
-Boost layout oracle, including composite/reordered moduli, tails and long K.
+`rns8_set_product_recipe_execution_policy` explicitly selects the existing
+synchronous node wrappers (0, default) or ordered HIP execution (1). CPU owners
+reject policy1 as unsupported. Preparation retains a nondefault stream and
+immutable layout descriptors; replay enqueues conversions, products, lifts and
+final copies on that stream, followed by one terminal stream wait. It performs
+no per-node allocation, readback or wait. Switching back to policy0 retains the
+prepared controls for subsequent reuse. No policy is automatically promoted.
+
+Owners needing prefix lifts also retain a four-byte device failure word and a
+four-byte pinned host result. Only the replay owner resets the word. Each lift
+validates into private suffix scratch, retains the first nonzero public status
+(1 invalid residue,5 range), and guards its suffix commit. Subsequent products,
+conversions and final copies skip operand reads and stores after a failed proof.
+The final four-byte asynchronous readback is included in completion and reported
+separately from synchronous HIP copy counters. Logical proof rejection preserves
+all previous public output bytes, generations and proofs; metadata publication
+occurs only after successful completion. Backend uncertainty invalidates possibly
+touched outputs and retains input readers, output writers and every resource
+until the owner's stream drains. A rejected busy close does not retire the owner.
+
+Guarded products use the layout GEMM lowering, including modulus-major operands.
+This is an explicit lowering difference from the synchronous wrappers. Full-prefix
+unpacked owners retain their grouped/persistent-small or experimental-basis
+arithmetic kernels without proof guards. Both controls use the same selected
+prefixes and materializations; existing stage prices describe synchronous stages
+before policy selection and do not establish an optimal ordered plan.
+
+`rns8_get_product_recipe_execution_info` reports the policy, prepared stream,
+guarded lowering, retained device/pinned/layout metadata capacities and last
+admitted replay's host enqueue/wait/readback counts. These are source observations,
+not GPU instruction counts or performance qualification. Lift-recipe calibration
+accepts optional integer `execution_policy`0/1, captures the actual receipt and
+compares matched policies separately. Sustained intervals return typed observations;
+JSON serialization occurs after each interval. Historical JSON-bearing intervals
+remain readable in distinct cohorts. Authored differential controls cover exact
+default/reordered bases, multi-output publication, rebind, sticky proof rejection,
+busy close and uncertain-drain retention. November4 runtime validation is deferred.
 
 The explicit budget covers aligned intermediate payload storage plus the maximum
-simultaneous HIP suffix-lift scratch, not retained public input/output matrices,
+simultaneous HIP suffix-lift scratch plus any ordered device failure word, not retained public input/output matrices,
 host proof/descriptor metadata or runtime allocator overhead. `arena_bytes` and the sum of unreused logical output bytes are exposed
 separately; alignment can make tiny cases larger than that unaligned sum. Lifetime
 holds are released on destruction; execution/destruction require ordinary external
@@ -172,13 +193,16 @@ recipe replay. A caller without a persistent owner retains the one-shot helper,
 now using one combined status/suffix allocation rather than two separate buffers.
 Failed drains/cleanup retain the existing whole recipe owner and all reservations.
 
-For the32×32 all-ones three-node minimum-prefix chain, compute prefixes remain
+For the synchronous-wrapper32×32 all-ones three-node minimum-prefix chain, compute prefixes remain
 1/2/3, arena capacity25,600 bytes and retained lift capacity17,412 bytes. Creation
 physically reserves43,012 bytes once. The three lifts no longer allocate/free
 workspace during replay; this is a source allocation count, not a hardware
 measurement. Regression coverage checks positive replay and compatible-rebind
 allocation/free deltas, every prefix pair, status reuse after rejected proofs,
-full output residues and exact budget boundaries. These regressions pass in the current validation.
+full output residues and exact budget boundaries. The earlier synchronous-wrapper
+regressions passed in the October27 validation; the new policy and lifetime cases
+remain deferred. Ordered preparation adds four device bytes to this example's
+`lift_scratch_bytes`, plus four pinned host bytes reported separately.
 
 Uniform primitive cost tables retain version2: HIP lift entries must price the retained
 workspace implementation, including reset/check and staged copy, while CPU
@@ -197,5 +221,5 @@ basis-plan handle. Basis pack, conversion, lift and export retain their explicit
 synchronous contracts. No library accelerator or default-basis owner is inferred.
 
 The [October27 validation receipt](../metadata/replay-extension-validation-20261027.json)
-records current CPU/HIP/ASan, zero-replay-transfer and collector checks. Earlier
+records that revision's CPU/HIP/ASan, zero-replay-transfer and collector checks. Earlier
 dated measurements retain their original source identities.

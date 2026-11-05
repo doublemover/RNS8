@@ -3,7 +3,7 @@
 #include "core/runtime_product_recipe.hpp"
 #include "experimental_basis_fixture.hpp"
 #include <array>
-inline void check_product_recipe_outputs(rns8_backend_kind backend,bool experimental=false) {
+inline void check_product_recipe_outputs(rns8_backend_kind backend,bool experimental=false,rns8_product_execution_policy execution=RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
@@ -81,6 +81,7 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend,bool experime
       rns8_product_recipe* rejected=nullptr;
       CHECK(rns8_create_product_recipe_outputs(ctx,&desc,ids,3,&rejected)==RNS8_WORKSPACE_TOO_SMALL);
       CHECK(rejected==nullptr);
+      REQUIRE(rns8_set_product_recipe_execution_policy(recipe,execution)==RNS8_SUCCESS);
       rns8_matrix* outputs[]{matrices[2],matrices[3],matrices[4]};
       CHECK(rns8_execute_product_recipe(recipe,outputs[0])==RNS8_INVALID_ARGUMENT);
       for(int repeat=0;repeat<2;++repeat) {
@@ -137,7 +138,9 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend,bool experime
           UINT64_MAX,selected,false,&costs,observed)==RNS8_SUCCESS);
       CHECK_FALSE(selected->cost_selection().chain_dynamic_programming);
       CHECK(selected->cost_selection().peak_bytes==selected->allocation().arena_bytes+selected->lift_scratch_bytes());
+      REQUIRE(selected->set_execution_policy(execution)==RNS8_SUCCESS);
       REQUIRE(selected->execute({outputs[0],outputs[1],outputs[2]})==RNS8_SUCCESS);
+      CHECK(selected->execution_info().stream_wait_calls==uint64_t(execution==RNS8_PRODUCT_EXECUTION_ORDERED_HIP));
       for(int i=0;i<3;++i) {
         std::vector<int8_t> residues(20*n*n);
         if(backend==RNS8_BACKEND_HIP_DIRECT)

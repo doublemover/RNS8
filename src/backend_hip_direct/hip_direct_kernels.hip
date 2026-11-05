@@ -401,27 +401,19 @@ extern "C" int rns8_hip_pack_finite_int4_b(const int8_t* b,uint32_t* packed,int 
 #include "hip_direct_exact_signed_export_wrappers.inc"
 
 
-// Persistent small-shape GEMM wrapper
-extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
-    const int8_t* a_residues,
-    const int8_t* b_residues,
-    int8_t* c_residues,
-    int m,
-    int n,
-    int k,
-    int prefix) {
-  const int total_cells = m * n;
-  const int block_size = 256;
-  const int grid_size = (total_cells + block_size - 1) / block_size;
-  rns8_persistent_small_gemm_rns_kernel<<<grid_size, block_size>>>(
-      a_residues, b_residues, c_residues, m, n, k, prefix);
-  hipError_t err = hipGetLastError();
-  if (err != hipSuccess) return static_cast<int>(err);
-  err = hipDeviceSynchronize();
-  return static_cast<int>(err);
+// One arithmetic body for the synchronous and explicitly ordered small route.
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_on_stream(
+    const int8_t* a,const int8_t* b,int8_t* c,int m,int n,int k,int prefix,void* stream) {
+  const int total_cells=m*n;
+  hipLaunchKernelGGL(rns8_persistent_small_gemm_rns_kernel,dim3((total_cells+255)/256),dim3(256),0,static_cast<hipStream_t>(stream),
+      a,b,c,m,n,k,prefix);
+  return int(hipGetLastError());
 }
-
-
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
+    const int8_t* a,const int8_t* b,int8_t* c,int m,int n,int k,int prefix) {
+  const auto launched=static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_on_stream(a,b,c,m,n,k,prefix,nullptr));
+  return int(launched==hipSuccess?hipDeviceSynchronize():launched);
+}
 
 // === Native-to-RNS VOPD 8-wide pack wrapper (Item F) ===
 // Launches one kernel per plane for VOPD-friendly 8-wide processing.

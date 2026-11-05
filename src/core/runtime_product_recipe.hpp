@@ -10,6 +10,8 @@ namespace rns8::detail {
 // input/output prefix and modulus-major layout, fixed topological order, staged
 // final publication. Optional minimum-prefix products lift on consumer demand.
 // Optional internal cost profiles select prefixes without changing admissibility.
+// Explicit HIP policy retains one ordered stream and observes final completion;
+// the synchronous public call and default wrapper control remain available.
 class RuntimeProductRecipe {
  public:
   ~RuntimeProductRecipe();
@@ -25,6 +27,9 @@ class RuntimeProductRecipe {
   rns8_status execute(const std::vector<rns8_matrix*>& outputs);
   rns8_status execute(rns8_matrix* const* outputs,size_t count);
   rns8_status close();
+  rns8_status set_execution_policy(rns8_product_execution_policy);
+  rns8_product_recipe_execution_info execution_info() const;
+  uint64_t additional_ordered_control_bytes() const;
   rns8_status rebind(const std::vector<const rns8_matrix*>& inputs);
   const ProductArenaPlan& allocation() const;
   uint64_t lift_scratch_bytes() const;

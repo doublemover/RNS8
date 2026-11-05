@@ -80,7 +80,7 @@ rns8_status add_synchronous_buffer_hold(rns8_context&,size_t,hip_direct_device_b
 bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;
 rns8_status invalidate_synchronous_output(rns8_context&, size_t token) noexcept;
 rns8_status synchronous_dispatch_checkpoint(rns8_context&,const char*,bool* write_started=nullptr);
-rns8_status drain_synchronous_context(rns8_context&) noexcept;
+rns8_status drain_synchronous_context(rns8_context&,void* owned_stream=nullptr) noexcept;
 
 // Own the reservation through publication and through exception unwinding.
 // Uncertain device failures retain the context's existing failed-work record.

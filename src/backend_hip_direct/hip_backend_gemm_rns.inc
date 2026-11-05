@@ -605,3 +605,28 @@ rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_on_stream(const int8_t*,const int8_t*,int8_t*,int,int,int,int,void*);
+extern "C" int rns8_hip_basis_gemm_stream(const int8_t*,const int8_t*,int8_t*,int,int,int,const uint16_t*,uint32_t,void*);
+#endif
+rns8_status hip_direct_enqueue_recipe_gemm_current(const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+    uint32_t prefix,void* stream,const uint16_t* moduli) {
+  if(!stream || !a || !b || !c)return RNS8_INVALID_ARGUMENT;
+  const auto support=query_residue_gemm_support(m,n,k,k,n,n,prefix);
+  if(support.status!=RNS8_SUCCESS)return support.status;
+  if(!nonoverlapping_byte_ranges(a,uint64_t(m)*k*prefix,c,uint64_t(m)*n*prefix) ||
+      !nonoverlapping_byte_ranges(b,uint64_t(k)*n*prefix,c,uint64_t(m)*n*prefix))return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(moduli)return rns8_hip_basis_gemm_stream(static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),static_cast<int8_t*>(c),
+      int(m),int(n),int(k),moduli,prefix,stream)==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+  const auto route=direct_rns_route(m,n,k,k,n,n,prefix,false);
+  const auto issued=route==DirectRnsRoute::persistent_small?
+      static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_on_stream(static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),
+          static_cast<int8_t*>(c),int(m),int(n),int(k),int(prefix),stream)):
+      launch_direct_rns_gemm_no_sync(a,b,c,m,n,k,k,n,n,prefix,stream);
+  return issued==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)moduli;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

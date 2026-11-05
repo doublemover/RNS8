@@ -1,6 +1,8 @@
 #pragma once
 #include "residue_layout.hpp"
 #include "residue_dot.hpp"
+#include "checked_arithmetic.hpp"
+#include "rns8/status.h"
 #include <algorithm>
 #include <array>
 
@@ -12,6 +14,20 @@ inline bool compatible_layout_gemm(const ResidueLayout& a,const ResidueLayout& b
   return valid_residue_layout(a) && valid_residue_layout(b) && valid_residue_layout(c) &&
       a.basis==b.basis && a.basis==c.basis && a.cols==b.rows && c.rows==a.rows &&
       c.cols==b.cols && prefix && prefix<=a.prefix && prefix<=b.prefix && prefix<=c.prefix;
+}
+// These layout kernels use 64-bit byte offsets. Bound actual launch geometry,
+// not the full allocation to INT32 merely because accumulation is INT32.
+inline rns8_status query_hip_layout_conversion_support(const ResidueLayout& source,const ResidueLayout& destination,
+    uint32_t first,uint32_t end) {
+  if(!compatible_residue_planes(source,destination,first,end))return RNS8_INVALID_ARGUMENT;
+  uint64_t cells=0,work=0;
+  if(!checked::multiply(source.rows,source.cols,cells) || !checked::multiply(cells,uint64_t(end-first),work))return RNS8_RANGE_ERROR;
+  return work/256+uint64_t(work%256!=0)>uint64_t(INT32_MAX)?RNS8_UNSUPPORTED_BACKEND:RNS8_SUCCESS;
+}
+inline rns8_status query_hip_layout_gemm_support(const ResidueLayout& a,const ResidueLayout& b,const ResidueLayout& c,uint32_t prefix) {
+  if(!compatible_layout_gemm(a,b,c,prefix))return RNS8_INVALID_ARGUMENT;
+  return a.rows/16+uint64_t(a.rows%16!=0)>65535 ||
+      b.cols/16+uint64_t(b.cols%16!=0)>uint64_t(INT32_MAX)?RNS8_UNSUPPORTED_BACKEND:RNS8_SUCCESS;
 }
 inline bool residue_layout_gemm_host(const int8_t* a,const ResidueLayout& al,
     const int8_t* b,const ResidueLayout& bl,int8_t* c,const ResidueLayout& cl,uint32_t prefix) {

@@ -91,7 +91,8 @@ TEST_CASE("public CPU product recipe rebinds generations within its compiled pro
 }
 TEST_CASE("public HIP product recipe rebinds owners without reallocating its arena") {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  check_product_recipe_rebind(RNS8_BACKEND_HIP_DIRECT);
+  for(auto execution:{RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS,RNS8_PRODUCT_EXECUTION_ORDERED_HIP})
+    check_product_recipe_rebind(RNS8_BACKEND_HIP_DIRECT,execution);
 #else
   SKIP("HIP recipe execution unavailable in this build");
 #endif

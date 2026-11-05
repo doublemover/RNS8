@@ -2170,6 +2170,31 @@ typedef struct rns8_product_recipe_resources {
   uint64_t ragged_retained_bytes;
   uint64_t materialization_peak_bytes;
 } rns8_product_recipe_resources;
+typedef enum rns8_product_execution_policy RNS8_ENUM_BASE {
+  RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS=0,
+  RNS8_PRODUCT_EXECUTION_ORDERED_HIP=1
+} rns8_product_execution_policy;
+typedef struct rns8_product_recipe_execution_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_product_execution_policy policy;
+  uint32_t stream_prepared, guarded_layout_products;
+  uint64_t retained_control_device_bytes, retained_control_pinned_bytes;
+  uint64_t retained_layout_host_bytes; /* prepared descriptor capacities; excludes allocator overhead */
+  uint64_t stream_wait_calls, ordered_gemm_calls, ordered_conversion_calls;
+  uint64_t ordered_lift_calls, ordered_copy_calls; /* last admitted attempt; host calls, not GPU instructions */
+  uint64_t ordered_status_readback_bytes; /* asynchronous terminal proof flag, reported separately from synchronous copy counters */
+} rns8_product_recipe_execution_info;
+/* Explicit ordered HIP experiment; CPU reports unsupported. Preparation retains
+ * one stream and, only when lifts are possible, a sticky device status and pinned
+ * result. Device status bytes count against max_arena_and_lift_bytes and the
+ * resources query's lift_scratch_bytes. Changing policy performs no execution;
+ * failed preparation preserves the prior policy. Policy 0 retains any prepared
+ * controls for reuse. Ordered recipes with possible lifts use guarded layout
+ * products; full-prefix default products retain their grouped/small route.
+ * Query counters describe host enqueue/wait calls, not device timing. */
+RNS8_API rns8_status rns8_set_product_recipe_execution_policy(rns8_product_recipe*,rns8_product_execution_policy);
+RNS8_API rns8_status rns8_get_product_recipe_execution_info(const rns8_product_recipe*,rns8_product_recipe_execution_info*);
 /* Synchronous CPU/direct-HIP exact-wide product DAG with owned intermediate arena.
  * Inputs share semantics/prefix/layout. IDs0..input_count-1 are external inputs;
  * node i produces ID input_count+i, and may read only earlier IDs. The final node

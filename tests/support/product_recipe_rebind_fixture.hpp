@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include <vector>
-inline void check_product_recipe_rebind(rns8_backend_kind backend) {
+inline void check_product_recipe_rebind(rns8_backend_kind backend,rns8_product_execution_policy execution=RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS) {
   rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=backend;
   rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(backend==RNS8_BACKEND_HIP_DIRECT?0:-1,&options,&ctx)==RNS8_SUCCESS);
   rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.rows=md.cols=md.logical_ld=1;
@@ -16,11 +16,15 @@ inline void check_product_recipe_rebind(rns8_backend_kind backend) {
   desc.inputs=inputs;desc.input_count=2;desc.nodes=&node;desc.node_count=1;
   desc.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;desc.max_arena_and_lift_bytes=UINT64_MAX;
   rns8_product_recipe* recipe=nullptr;REQUIRE(rns8_create_product_recipe(ctx,&desc,&recipe)==RNS8_SUCCESS);
+  REQUIRE(rns8_set_product_recipe_execution_policy(recipe,execution)==RNS8_SUCCESS);
   rns8_product_recipe_resources before{};before.struct_size=sizeof(before);before.abi_version=RNS8_ABI_VERSION;
   REQUIRE(rns8_get_product_recipe_resources(recipe,&before)==RNS8_SUCCESS);
   const auto check_value=[&](int64_t expected) {
     const auto allocations_before=rns8::detail::hip_direct_allocation_counters_snapshot();
     REQUIRE(rns8_execute_product_recipe(recipe,matrices[4])==RNS8_SUCCESS);
+    rns8_product_recipe_execution_info execution_info{sizeof(execution_info),RNS8_ABI_VERSION};
+    REQUIRE(rns8_get_product_recipe_execution_info(recipe,&execution_info)==RNS8_SUCCESS);CHECK(execution_info.policy==execution);
+    CHECK(execution_info.stream_wait_calls==uint64_t(execution==RNS8_PRODUCT_EXECUTION_ORDERED_HIP));
     const auto allocations_after=rns8::detail::hip_direct_allocation_counters_snapshot();
     CHECK(allocations_after.allocate_calls==allocations_before.allocate_calls);
     CHECK(allocations_after.free_calls==allocations_before.free_calls);

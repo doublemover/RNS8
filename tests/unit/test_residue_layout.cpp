@@ -274,3 +274,25 @@ TEST_CASE("layout packets prepare exact reciprocals for every admitted byte modu
     for(unsigned p=1;p<20;++p){CHECK(packet.values[p]==0);CHECK(packet.reciprocals[p]==0);}
   }
 }
+
+TEST_CASE("64-bit HIP layout addressing is admitted independently from INT32 accumulation") {
+  using namespace rns8::detail;
+  if(sizeof(size_t)<8)return;
+  ResidueLayout a,b,c,converted;
+  const uint64_t k=uint64_t(INT32_MAX)/20+1;
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,1,k,k,20,0,0,a));
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,k,1,1,20,0,0,b));
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,1,1,1,20,0,0,c));
+  CHECK(a.bytes>uint64_t(INT32_MAX));CHECK(query_hip_layout_gemm_support(a,b,c,20)==RNS8_SUCCESS);
+  REQUIRE(make_residue_layout(ResidueLayoutKind::tile_major,1,k,k,20,1,16,converted));
+  CHECK(query_hip_layout_conversion_support(a,converted,0,20)==RNS8_SUCCESS);
+  const uint64_t rows=65535ull*16+1;
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,rows,1,1,1,0,0,a));
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,1,1,1,1,0,0,b));
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,rows,1,1,1,0,0,c));
+  CHECK(query_hip_layout_gemm_support(a,b,c,1)==RNS8_UNSUPPORTED_BACKEND);
+  const uint64_t work=uint64_t(INT32_MAX)*256+1;
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,1,work,work,1,0,0,a));
+  REQUIRE(make_residue_layout(ResidueLayoutKind::tile_major,1,work,work,1,1,16,converted));
+  CHECK(query_hip_layout_conversion_support(a,converted,0,1)==RNS8_UNSUPPORTED_BACKEND);
+}

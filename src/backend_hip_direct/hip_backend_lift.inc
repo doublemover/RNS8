@@ -74,7 +74,7 @@ rns8_status hip_direct_enqueue_exact_lift(int device_id,void* residues,int64_t c
 extern "C" int rns8_hip_direct_lift_suffix_guarded(const int8_t*,int8_t*,int,int,int,bool,uint64_t,uint64_t,uint64_t,int*,void*,const int*);
 extern "C" int rns8_hip_basis_convert_value_guarded(const int8_t*,int8_t*,uint64_t,BasisPacket,BasisPacket,uint32_t,uint32_t,bool,BasisMagnitude,int*,void*,const int*);
 #endif
-rns8_status hip_direct_enqueue_recipe_lift(int device,void* residues,int64_t cells,uint32_t source,uint32_t target,
+rns8_status hip_direct_enqueue_recipe_lift_current(void* residues,int64_t cells,uint32_t source,uint32_t target,
     bool sign,const uint64_t* bound,void* scratch,uint64_t capacity,const BasisPacket* basis,int* sticky,void* stream) {
   if(!stream || !bound || !sticky || reinterpret_cast<uintptr_t>(sticky)%alignof(int))return RNS8_INVALID_ARGUMENT;
   int* stage=nullptr;int8_t* payload=nullptr;uint64_t copied=0;
@@ -97,7 +97,6 @@ rns8_status hip_direct_enqueue_recipe_lift(int device,void* residues,int64_t cel
   if(!nonoverlapping_byte_ranges(sticky,sizeof(int),scratch,capacity) ||
       !nonoverlapping_byte_ranges(sticky,sizeof(int),residues,uint64_t(cells)*target))return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if(set_hip_device(device)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
   const auto ordered=static_cast<hipStream_t>(stream);
   if(hipMemsetAsync(stage,0,sizeof(int),ordered)!=hipSuccess)return RNS8_BACKEND_FAILURE;
   int issued;
@@ -108,7 +107,7 @@ rns8_status hip_direct_enqueue_recipe_lift(int device,void* residues,int64_t cel
   } else issued=rns8_hip_direct_lift_suffix_guarded(static_cast<const int8_t*>(residues),payload,int(cells),int(source),int(target),
       sign,bound[0],bound[1],bound[2],stage,stream,sticky);
   if(issued!=int(hipSuccess))return RNS8_BACKEND_FAILURE;
-  const auto merged=hip_direct_enqueue_first_failure(device,stage,sticky,stream);
+  const auto merged=hip_direct_enqueue_first_failure_current(stage,sticky,stream);
   if(merged!=RNS8_SUCCESS)return merged;
   // Merge precedes suffix publication. A failure anywhere earlier in the recipe
   // suppresses this copy; resetting the local stage word never clears sticky.
@@ -116,6 +115,6 @@ rns8_status hip_direct_enqueue_recipe_lift(int device,void* residues,int64_t cel
   auto* destination=static_cast<int8_t*>(residues)+uint64_t(cells)*source;
   return rns8_hip_guarded_copy_bytes(suffix,destination,1,copied,copied,copied,sticky,stream)==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #else
-  (void)device;(void)sign;(void)stage;(void)payload;(void)copied;return RNS8_UNSUPPORTED_BACKEND;
+  (void)sign;(void)stage;(void)payload;(void)copied;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

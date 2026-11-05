@@ -38,12 +38,13 @@ rns8_status ragged_recipe_preflight(rns8_context* ctx,const std::vector<const rn
   resources.total=resources.inputs;if(!add(resources.total,resources.owners) || !add(resources.total,resources.conversion_peak))return RNS8_RANGE_ERROR;
   return resources.total>budget?RNS8_WORKSPACE_TOO_SMALL:RNS8_SUCCESS;
 }
-rns8_status validate_ragged_recipe_binding(const rns8_product_recipe& recipe) {
+rns8_status validate_ragged_recipe_binding(const rns8_product_recipe& recipe,uint64_t additional_control=0) {
   if(recipe.closing || !recipe.binding_valid)return RNS8_INVALID_ARGUMENT;
   if(recipe.ragged.empty())return RNS8_SUCCESS;
   RaggedRecipeResources resources;const auto status=ragged_recipe_preflight(recipe.ctx,recipe.inputs,recipe.ragged,recipe.total_budget,resources);if(status!=RNS8_SUCCESS)return status;
   const auto arena=recipe.owner->allocation().arena_bytes,lift=recipe.owner->lift_scratch_bytes();
-  return arena>recipe.total_budget-resources.total || lift>recipe.total_budget-resources.total-arena?RNS8_WORKSPACE_TOO_SMALL:RNS8_SUCCESS;
+  const auto available=recipe.total_budget-resources.total;
+  return arena>available || lift>available-arena || additional_control>available-arena-lift?RNS8_WORKSPACE_TOO_SMALL:RNS8_SUCCESS;
 }
 rns8_status retain_ragged_owners(const std::vector<rns8_ragged_materialization*>& owners,std::vector<rns8_ragged_materialization*>& retained) {
   retained=owners;size_t count=0;

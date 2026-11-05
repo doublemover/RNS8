@@ -246,9 +246,9 @@ TEST_CASE("ordered recipe lifts preserve first failure across scratch reuse and 
           REQUIRE(hip_direct_copy_host_to_device(ctx->device_id,control.get(),&initial,sizeof(initial))==RNS8_SUCCESS);
           uint64_t zero[3]{};auto* sticky=static_cast<int*>(control.get());
           const auto before=hip_direct_allocation_counters_snapshot();scratch.mark_pending();control.mark_pending();
-          REQUIRE(hip_direct_enqueue_recipe_lift(ctx->device_id,matrix->hip_residues,cells,source,target,sign,
+          REQUIRE(hip_direct_enqueue_recipe_lift_current(matrix->hip_residues,cells,source,target,sign,
               mode==1?zero:words,scratch.get(),scratch.bytes(),packet,sticky,stream.get())==RNS8_SUCCESS);
-          if(mode==1)REQUIRE(hip_direct_enqueue_recipe_lift(ctx->device_id,matrix->hip_residues,cells,source,target,sign,
+          if(mode==1)REQUIRE(hip_direct_enqueue_recipe_lift_current(matrix->hip_residues,cells,source,target,sign,
               words,scratch.get(),scratch.bytes(),packet,sticky,stream.get())==RNS8_SUCCESS);
           REQUIRE(hipStreamSynchronize(stream.get())==hipSuccess);scratch.mark_completed();control.mark_completed();
           const auto after=hip_direct_allocation_counters_snapshot();CHECK(after.allocate_calls==before.allocate_calls);CHECK(after.free_calls==before.free_calls);

@@ -36,12 +36,12 @@ TEST_CASE("HIP layout-aware products consume shared-prefix packed B without read
       REQUIRE(hip_direct_copy_host_to_device(0,flags.get(),controls,sizeof(controls))==RNS8_SUCCESS);
       auto* words=static_cast<int*>(flags.get());const auto* guard=mode?words:nullptr;
       for(auto* owner:{&da,&db,&dp,&dc,&flags})owner->mark_pending();
-      if(middle)REQUIRE(hip_direct_enqueue_residue_planes(0,db.get(),f.b,dp.get(),f.packed,0,middle,stream.get(),guard)==RNS8_SUCCESS);
-      REQUIRE(hip_direct_enqueue_residue_planes(0,db.get(),f.b,dp.get(),f.packed,middle,prefix,stream.get(),guard)==RNS8_SUCCESS);
-      REQUIRE(hip_direct_enqueue_residue_layout_gemm(0,da.get(),f.a,dp.get(),f.packed,dc.get(),f.c,prefix,stream.get(),guard)==RNS8_SUCCESS);
-      REQUIRE(hip_direct_enqueue_first_failure(0,words+1,words+3,stream.get())==RNS8_SUCCESS);
-      REQUIRE(hip_direct_enqueue_first_failure(0,words+2,words+3,stream.get())==RNS8_SUCCESS);
-      REQUIRE(hip_direct_enqueue_first_failure(0,words,words+3,stream.get())==RNS8_SUCCESS);
+      if(middle)REQUIRE(hip_direct_enqueue_residue_planes_current(db.get(),f.b,dp.get(),f.packed,0,middle,stream.get(),guard)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_residue_planes_current(db.get(),f.b,dp.get(),f.packed,middle,prefix,stream.get(),guard)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_residue_layout_gemm_current(da.get(),f.a,dp.get(),f.packed,dc.get(),f.c,prefix,stream.get(),guard)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_first_failure_current(words+1,words+3,stream.get())==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_first_failure_current(words+2,words+3,stream.get())==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_first_failure_current(words,words+3,stream.get())==RNS8_SUCCESS);
       REQUIRE(hipStreamSynchronize(stream.get())==hipSuccess);
       for(auto* owner:{&da,&db,&dp,&dc,&flags})owner->mark_completed();
       REQUIRE(hip_direct_copy_device_to_host(0,packed.data(),dp.get(),packed.size())==RNS8_SUCCESS);
@@ -52,9 +52,9 @@ TEST_CASE("HIP layout-aware products consume shared-prefix packed B without read
       CHECK(receipt[3]==1); // Later zero/range statuses cannot erase the first failure.
     }
     auto* words=static_cast<int*>(flags.get());
-    CHECK(hip_direct_enqueue_residue_planes(0,db.get(),f.b,dp.get(),f.packed,0,prefix,nullptr)==RNS8_INVALID_ARGUMENT);
-    CHECK(hip_direct_enqueue_residue_layout_gemm(0,da.get(),f.a,dp.get(),f.packed,dc.get(),f.c,prefix,stream.get(),static_cast<int*>(dc.get()))==RNS8_INVALID_ARGUMENT);
-    CHECK(hip_direct_enqueue_first_failure(0,words,words,stream.get())==RNS8_INVALID_ARGUMENT);
+    CHECK(hip_direct_enqueue_residue_planes_current(db.get(),f.b,dp.get(),f.packed,0,prefix,nullptr)==RNS8_INVALID_ARGUMENT);
+    CHECK(hip_direct_enqueue_residue_layout_gemm_current(da.get(),f.a,dp.get(),f.packed,dc.get(),f.c,prefix,stream.get(),static_cast<int*>(dc.get()))==RNS8_INVALID_ARGUMENT);
+    CHECK(hip_direct_enqueue_first_failure_current(words,words,stream.get())==RNS8_INVALID_ARGUMENT);
 
   }
 }

@@ -8,7 +8,7 @@
 #include <cstring>
 #include <vector>
 
-inline void check_product_materializations(rns8_backend_kind backend,bool experimental) {
+inline void check_product_materializations(rns8_backend_kind backend,bool experimental,rns8_product_execution_policy execution=RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS) {
   using namespace rns8::detail;using boost::multiprecision::cpp_int;
   rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=backend;
   rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(backend==RNS8_BACKEND_CPU_REFERENCE?-1:0,&options,&ctx)==RNS8_SUCCESS);
@@ -79,6 +79,7 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       auto stale=prices;stale.identity.build_sha256[0]=stale.identity.build_sha256[0]=='a'?'b':'a';
       CHECK(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,&stale,&recipe)==RNS8_INVALID_ARGUMENT);CHECK_FALSE(recipe);
       REQUIRE(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,&prices,&recipe)==RNS8_SUCCESS);
+      REQUIRE(rns8_set_product_recipe_execution_policy(recipe,execution)==RNS8_SUCCESS);
       rns8_product_materialization_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
       REQUIRE(rns8_get_product_materialization_info(recipe,&info)==RNS8_SUCCESS);CHECK(info.packed_payload_bytes>0);
       std::vector<rns8_product_materialization_choice> choices(nodes.size());
@@ -91,6 +92,10 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       for(unsigned repeat=0;repeat<2;++repeat) {
         const auto before=hip_direct_allocation_counters_snapshot();
         REQUIRE(rns8_execute_product_recipe_outputs(recipe,destinations.data(),2)==RNS8_SUCCESS);
+        rns8_product_recipe_execution_info execution_info{sizeof(execution_info),RNS8_ABI_VERSION};
+        REQUIRE(rns8_get_product_recipe_execution_info(recipe,&execution_info)==RNS8_SUCCESS);CHECK(execution_info.policy==execution);
+        CHECK(execution_info.stream_wait_calls==uint64_t(execution==RNS8_PRODUCT_EXECUTION_ORDERED_HIP));
+        if(execution==RNS8_PRODUCT_EXECUTION_ORDERED_HIP){CHECK(execution_info.ordered_gemm_calls==nodes.size());CHECK(execution_info.ordered_copy_calls==2);}
         const auto after=hip_direct_allocation_counters_snapshot();
         CHECK(after.allocate_calls==before.allocate_calls);CHECK(after.free_calls==before.free_calls);
         REQUIRE(rns8_get_product_materialization_info(recipe,&info)==RNS8_SUCCESS);
@@ -125,6 +130,10 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
         CHECK(rns8_execute_product_recipe_outputs(recipe,destinations.data(),2)==RNS8_INVALID_ARGUMENT);
         REQUIRE(rns8_rebind_product_recipe_inputs(recipe,inputs,2)==RNS8_SUCCESS);
         REQUIRE(rns8_execute_product_recipe_outputs(recipe,destinations.data(),2)==RNS8_SUCCESS);
+        rns8_product_recipe_execution_info execution_info{sizeof(execution_info),RNS8_ABI_VERSION};
+        REQUIRE(rns8_get_product_recipe_execution_info(recipe,&execution_info)==RNS8_SUCCESS);CHECK(execution_info.policy==execution);
+        CHECK(execution_info.stream_wait_calls==uint64_t(execution==RNS8_PRODUCT_EXECUTION_ORDERED_HIP));
+        if(execution==RNS8_PRODUCT_EXECUTION_ORDERED_HIP){CHECK(execution_info.ordered_gemm_calls==nodes.size());CHECK(execution_info.ordered_copy_calls==2);}
         REQUIRE(rns8_get_product_materialization_info(recipe,&info)==RNS8_SUCCESS);
         CHECK(info.completed_packing_calls==uint64_t(diamond?2:1));
       }

@@ -39,6 +39,7 @@ CHECK_ENUM_ABI(rns8_output_domain);
 CHECK_ENUM_ABI(rns8_pipeline_reconstruction_kind);
 CHECK_ENUM_ABI(rns8_pipeline_route_kind);
 CHECK_ENUM_ABI(rns8_product_prefix_policy);
+CHECK_ENUM_ABI(rns8_product_execution_policy);
 CHECK_ENUM_ABI(rns8_proof_verdict);
 CHECK_ENUM_ABI(rns8_resident_matrix_role);
 CHECK_ENUM_ABI(rns8_resident_node_kind);

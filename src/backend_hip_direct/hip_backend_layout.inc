@@ -17,15 +17,14 @@ rns8_status admit_layout_conversion(const void* src,const ResidueLayout& source,
   if(!compatible_residue_planes(source,destination,first,end) ||
       !nonoverlapping_byte_ranges(src,source.bytes,dst,destination.bytes) ||
       !layout_guard_disjoint(guard,src,source.bytes) || !layout_guard_disjoint(guard,dst,destination.bytes))return RNS8_INVALID_ARGUMENT;
-  return source.bytes>INT32_MAX || destination.bytes>INT32_MAX?RNS8_UNSUPPORTED_BACKEND:RNS8_SUCCESS;
+  return query_hip_layout_conversion_support(source,destination,first,end);
 }
 rns8_status admit_layout_product(const void* a,const ResidueLayout& al,const void* b,const ResidueLayout& bl,
     void* c,const ResidueLayout& cl,uint32_t prefix,const int* guard=nullptr) {
   if(!compatible_layout_gemm(al,bl,cl,prefix) || !nonoverlapping_byte_ranges(a,al.bytes,c,cl.bytes) ||
       !nonoverlapping_byte_ranges(b,bl.bytes,c,cl.bytes) || !layout_guard_disjoint(guard,a,al.bytes) ||
       !layout_guard_disjoint(guard,b,bl.bytes) || !layout_guard_disjoint(guard,c,cl.bytes))return RNS8_INVALID_ARGUMENT;
-  return al.bytes>INT32_MAX || bl.bytes>INT32_MAX || cl.bytes>INT32_MAX ||
-      (al.rows+15)/16>65535 || (bl.cols+15)/16>INT32_MAX?RNS8_UNSUPPORTED_BACKEND:RNS8_SUCCESS;
+  return query_hip_layout_gemm_support(al,bl,cl,prefix);
 }
 }
 
@@ -73,39 +72,48 @@ rns8_status hip_direct_gemm_residue_layout(int device_id,const void* a,const Res
 #endif
 }
 
-rns8_status hip_direct_enqueue_residue_planes(int device,const void* src,const ResidueLayout& source,
+rns8_status hip_direct_enqueue_residue_planes_current(const void* src,const ResidueLayout& source,
     void* dst,const ResidueLayout& destination,uint32_t first,uint32_t end,void* stream,const int* guard) {
   if(!stream)return RNS8_INVALID_ARGUMENT;
   const auto admitted=admit_layout_conversion(src,source,dst,destination,first,end,guard);
   if(admitted!=RNS8_SUCCESS)return admitted;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if(set_hip_device(device)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
   return rns8_hip_convert_residue_planes_on_stream(static_cast<const int8_t*>(src),source,static_cast<int8_t*>(dst),
       destination,first,end,stream,guard)==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #else
-  (void)device;return RNS8_UNSUPPORTED_BACKEND;
+  return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-rns8_status hip_direct_enqueue_residue_layout_gemm(int device,const void* a,const ResidueLayout& al,
+rns8_status hip_direct_enqueue_residue_layout_gemm_current(const void* a,const ResidueLayout& al,
     const void* b,const ResidueLayout& bl,void* c,const ResidueLayout& cl,uint32_t prefix,void* stream,const int* guard) {
   if(!stream)return RNS8_INVALID_ARGUMENT;
   const auto admitted=admit_layout_product(a,al,b,bl,c,cl,prefix,guard);
   if(admitted!=RNS8_SUCCESS)return admitted;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if(set_hip_device(device)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
   return rns8_hip_gemm_residue_layout_on_stream(static_cast<const int8_t*>(a),al,static_cast<const int8_t*>(b),bl,
       static_cast<int8_t*>(c),cl,prefix,residue_layout_moduli(al.basis),stream,guard)==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #else
-  (void)device;return RNS8_UNSUPPORTED_BACKEND;
+  return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-rns8_status hip_direct_enqueue_first_failure(int device,const int* stage,int* sticky,void* stream) {
+rns8_status hip_direct_enqueue_first_failure_current(const int* stage,int* sticky,void* stream) {
   if(!stream || !stage || !sticky || reinterpret_cast<uintptr_t>(stage)%alignof(int) ||
       reinterpret_cast<uintptr_t>(sticky)%alignof(int) || !nonoverlapping_byte_ranges(stage,sizeof(int),sticky,sizeof(int)))return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if(set_hip_device(device)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
   return rns8_hip_first_failure_on_stream(stage,sticky,stream)==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #else
-  (void)device;return RNS8_UNSUPPORTED_BACKEND;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_enqueue_recipe_copy_current(const void* source,void* destination,uint64_t bytes,void* stream,const int* guard) {
+  if(!stream || !bytes || bytes>SIZE_MAX || !nonoverlapping_byte_ranges(source,bytes,destination,bytes) ||
+      !layout_guard_disjoint(guard,source,bytes) || !layout_guard_disjoint(guard,destination,bytes))return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto error=guard?static_cast<hipError_t>(rns8_hip_guarded_copy_bytes(source,destination,1,bytes,bytes,bytes,guard,stream)):
+      hipMemcpyAsync(destination,source,static_cast<size_t>(bytes),hipMemcpyDeviceToDevice,static_cast<hipStream_t>(stream));
+  return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

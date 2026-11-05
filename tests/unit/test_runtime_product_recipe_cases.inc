@@ -275,6 +275,13 @@ TEST_CASE("public product recipe owns its arena and exposes exact prefix decisio
   desc.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;
   rns8_product_recipe* recipe=nullptr;
   REQUIRE(rns8_create_product_recipe(ctx,&desc,&recipe)==RNS8_SUCCESS);
+  rns8_product_recipe_execution_info execution_info{sizeof(execution_info),RNS8_ABI_VERSION};
+  REQUIRE(rns8_get_product_recipe_execution_info(recipe,&execution_info)==RNS8_SUCCESS);
+  CHECK(execution_info.policy==RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS);CHECK(execution_info.stream_prepared==0);
+  CHECK(rns8_set_product_recipe_execution_policy(recipe,RNS8_PRODUCT_EXECUTION_ORDERED_HIP)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_set_product_recipe_execution_policy(recipe,static_cast<rns8_product_execution_policy>(UINT32_MAX))==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_set_product_recipe_execution_policy(recipe,RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS)==RNS8_SUCCESS);
+  REQUIRE(rns8_get_product_recipe_execution_info(recipe,&execution_info)==RNS8_SUCCESS);CHECK(execution_info.stream_prepared==0);
   rns8_product_recipe_resources info{}; info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
   REQUIRE(rns8_get_product_recipe_resources(recipe,&info)==RNS8_SUCCESS);
   CHECK(info.node_count==4); CHECK(info.arena_bytes>0); CHECK(info.lift_scratch_bytes==0);

@@ -6,13 +6,22 @@
 #include "rns8/experimental_basis.h"
 #include "rns8/experimental_product.h"
 #include <array>
+#include <atomic>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_set>
 #include <unordered_map>
 namespace rns8::detail {
 using namespace api;
 namespace {
+// A nonblocking owner gate also rejects same-thread callbacks without invoking
+// std::mutex's undefined recursive try_lock behavior. No waiter spins or blocks.
+struct RecipeTryMutex {
+  std::atomic_flag entered=ATOMIC_FLAG_INIT;
+  bool try_lock() noexcept {return !entered.test_and_set(std::memory_order_acquire);}
+  void unlock() noexcept {entered.clear(std::memory_order_release);}
+};
 std::shared_ptr<const ExperimentalBasis> recipe_basis(const rns8_matrix& matrix) {
   return matrix.experimental_basis?matrix.experimental_basis:default_experimental_basis();
 }
@@ -48,6 +57,7 @@ struct RuntimeProductRecipe::Impl {
   // Immutable topology prepares these host metadata capacities once. The
   // execution mutex excludes reuse until publication/drain releases readers.
   std::vector<uint32_t> current,packed_current;
+  std::vector<ResidueLayout> layouts;
   std::vector<const rns8_matrix*> unique_inputs;
   std::vector<rns8_matrix*> sorted_outputs;
   std::vector<cpp_int> publication_bounds;
@@ -66,11 +76,56 @@ struct RuntimeProductRecipe::Impl {
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
   std::vector<int8_t> host;
   void* device=nullptr;
-  bool quarantined=false,closed=false,output_touched=false;
+  struct OrderedResources {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    hip_unique_stream stream;
+    hip_direct_device_buffer status;
+    hip_pinned_host_buffer result;
+#endif
+    bool pending=false;
+  };
+  std::unique_ptr<OrderedResources> ordered;
+  rns8_product_execution_policy execution_policy=RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS;
+  rns8_product_recipe_execution_info observations{};
+  uint64_t max_budget=UINT64_MAX;
+  bool needs_lift_guard=false;
+  bool quarantined=false,closed=false,closing=false,output_touched=false;
+  uint64_t control_device_bytes() const noexcept {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    return ordered?ordered->status.bytes():0;
+#else
+    return 0;
+#endif
+  }
+  void* stream() const noexcept {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    return ordered?ordered->stream.get():nullptr;
+#else
+    return nullptr;
+#endif
+  }
+  int* sticky() const noexcept {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    return ordered?static_cast<int*>(ordered->status.get()):nullptr;
+#else
+    return nullptr;
+#endif
+  }
+  rns8_status drain_ordered(bool record_wait) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(!ordered || !ordered->pending)return RNS8_SUCCESS;
+    if(record_wait)++observations.stream_wait_calls;
+    if(drain_synchronous_context(*ctx,ordered->stream.get())!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+    ordered->pending=false;ordered->status.mark_completed();ordered->result.mark_completed();
+    return RNS8_SUCCESS;
+#else
+    (void)record_wait;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+  }
   std::vector<const rns8_matrix*> active_inputs;
   std::vector<rns8_matrix*> active_outputs;
   std::vector<uint64_t*> holds;
-  std::mutex mutex;
+  RecipeTryMutex mutex;
   void release_active() noexcept {
     if(active_outputs.empty()) return;
     for(const auto* input:active_inputs) --input->in_flight_readers;
@@ -96,15 +151,23 @@ RuntimeProductRecipe::~RuntimeProductRecipe() {
 }
 rns8_status RuntimeProductRecipe::close() {
   return guard_api([&]() -> rns8_status {
-    auto& state=*impl_;std::unique_lock<std::mutex> lock(state.mutex,std::try_to_lock);
+    auto& state=*impl_;std::unique_lock<RecipeTryMutex> lock(state.mutex,std::try_to_lock);
     if(!lock.owns_lock()) return RNS8_BUSY;
     if(state.closed) return RNS8_SUCCESS;
+    state.closing=true;
     if(state.quarantined || !state.active_outputs.empty()) {
-      if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && hip_direct_synchronize(state.ctx->device_id)!=RNS8_SUCCESS) {
+      if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT &&
+          (state.execution_policy==RNS8_PRODUCT_EXECUTION_ORDERED_HIP?state.drain_ordered(false):hip_direct_synchronize(state.ctx->device_id))!=RNS8_SUCCESS) {
         state.ctx->hip_failure_poisoned=true;return RNS8_BACKEND_FAILURE;
       }
       state.invalidate_touched();state.release_active();state.quarantined=false;
     }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(state.ordered) {
+      if(state.ordered->stream.reset()!=hipSuccess || state.ordered->result.reset()!=hipSuccess ||
+          state.ordered->status.reset()!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+    }
+#endif
     if(state.device) {
       const auto status=hip_direct_free(state.ctx->device_id,state.device);
       if(status!=RNS8_SUCCESS) return status;state.device=nullptr;
@@ -121,10 +184,69 @@ uint64_t RuntimeProductRecipe::expected_replays() const {return impl_->expected_
 const ReplayCostPolicy& RuntimeProductRecipe::replay_policy() const {return impl_->replay_policy;}
 uint32_t RuntimeProductRecipe::materialization_b_value(uint32_t node) const {return impl_->nodes[node].b;}
 const ProductArenaPlan& RuntimeProductRecipe::allocation() const { return impl_->allocation; }
-uint64_t RuntimeProductRecipe::lift_scratch_bytes() const { return impl_->lift_scratch; }
+uint64_t RuntimeProductRecipe::lift_scratch_bytes() const { return impl_->lift_scratch+impl_->control_device_bytes(); }
 const std::vector<uint32_t>& RuntimeProductRecipe::compute_prefixes() const { return impl_->compute_prefixes; }
 const BasisPacket& RuntimeProductRecipe::basis_packet() const {return impl_->basis->packet;}
 uint32_t RuntimeProductRecipe::output_prefix() const {return impl_->prefix;}
+uint64_t RuntimeProductRecipe::additional_ordered_control_bytes() const {
+  return impl_->needs_lift_guard && !impl_->control_device_bytes()?sizeof(int):0;
+}
+rns8_product_recipe_execution_info RuntimeProductRecipe::execution_info() const {
+  const auto& state=*impl_;auto out=state.observations;
+  out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;out.policy=state.execution_policy;
+  out.stream_prepared=state.stream()!=nullptr;
+  out.guarded_layout_products=state.execution_policy==RNS8_PRODUCT_EXECUTION_ORDERED_HIP && state.needs_lift_guard;
+  out.retained_control_device_bytes=state.control_device_bytes();
+  out.retained_layout_host_bytes=state.layouts.capacity()*sizeof(ResidueLayout);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  out.retained_control_pinned_bytes=state.ordered?state.ordered->result.capacity():0;
+#endif
+  return out;
+}
+rns8_status RuntimeProductRecipe::set_execution_policy(rns8_product_execution_policy policy) {
+  return guard_api([&]() -> rns8_status {
+    auto& state=*impl_;std::unique_lock<RecipeTryMutex> lock(state.mutex,std::try_to_lock);
+    if(!lock.owns_lock())return RNS8_BUSY;
+    if(uint32_t(policy)>1 || state.closed || state.closing)return RNS8_INVALID_ARGUMENT;
+    if(state.ctx->hip_failure_poisoned || state.quarantined)return RNS8_BACKEND_FAILURE;
+    if(policy==RNS8_PRODUCT_EXECUTION_ORDERED_HIP) {
+      if(state.ctx->backend!=RNS8_BACKEND_HIP_DIRECT)return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      if(!state.ordered) {
+        for(size_t i=0;i<state.nodes.size();++i) {
+          const auto node=state.nodes[i];const auto prefix=state.compute_prefixes[i];
+          const bool packed=state.materializations.status==RNS8_SUCCESS && state.materializations.packed_b[i];
+          const auto& al=state.layouts[node.a];const auto& cl=state.layouts[state.inputs.size()+i];
+          if(packed) {
+            const auto& bl=state.materializations.packed[node.b].layout;
+            const auto converted=query_hip_layout_conversion_support(state.layouts[node.b],bl,0,prefix);
+            if(converted!=RNS8_SUCCESS)return converted;
+            const auto multiplied=query_hip_layout_gemm_support(al,bl,cl,prefix);if(multiplied!=RNS8_SUCCESS)return multiplied;
+          } else if(state.needs_lift_guard) {
+            const auto multiplied=query_hip_layout_gemm_support(al,state.layouts[node.b],cl,prefix);if(multiplied!=RNS8_SUCCESS)return multiplied;
+          }
+        }
+        const uint64_t base=state.allocation.arena_bytes+state.lift_scratch;
+        const uint64_t extra=additional_ordered_control_bytes();
+        if(base>state.max_budget || extra>state.max_budget-base)return RNS8_WORKSPACE_TOO_SMALL;
+        auto candidate=std::make_unique<Impl::OrderedResources>();
+        hip_scoped_device selected(state.ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+        if(candidate->stream.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+        if(state.needs_lift_guard) {
+          const auto allocated=candidate->status.allocate(state.ctx->device_id,sizeof(int));
+          if(allocated!=RNS8_SUCCESS)return allocated;
+          if(candidate->result.ensure(state.ctx->device_id,sizeof(int))!=hipSuccess)return RNS8_BACKEND_FAILURE;
+        }
+        state.ordered=std::move(candidate);
+      }
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
+    if(state.execution_policy!=policy)state.observations={};
+    state.execution_policy=policy;return RNS8_SUCCESS;
+  });
+}
 rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     const std::vector<const rns8_matrix*>& inputs,const std::vector<ProductNode>& nodes,
     uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix,const ProductCostProfile* costs,
@@ -137,7 +259,7 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     if(materializations)costs=&materializations->uniform;
     if(ctx->backend!=RNS8_BACKEND_CPU_REFERENCE && ctx->backend!=RNS8_BACKEND_HIP_DIRECT)
       return RNS8_UNSUPPORTED_BACKEND;
-    auto state=std::make_unique<Impl>(); state->ctx=ctx;
+    auto state=std::make_unique<Impl>();state->max_budget=budget; state->ctx=ctx;
     if(!inputs.front())return RNS8_INVALID_ARGUMENT;
     state->basis=recipe_basis(*inputs.front());state->basis_identity=ordered_basis_identity(state->basis->packet);
     state->experimental=bool(inputs.front()->experimental_basis);
@@ -233,6 +355,15 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       state->allocation=state->materializations.arena;
     } else state->allocation=plan_product_arena(shapes,nodes,state->prefix,budget-state->lift_scratch,state->capacities,state->outputs);
     if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
+    for(size_t i=0;i<state->compute_prefixes.size();++i)
+      state->needs_lift_guard|=state->compute_prefixes[i]<state->capacities[i];
+    state->layouts.resize(state->allocation.values.size());
+    for(size_t id=0;id<state->layouts.size();++id) {
+      const auto shape=state->allocation.values[id].shape;
+      const auto capacity=id<inputs.size()?state->prefix:state->capacities[id-inputs.size()];
+      if(!make_residue_layout(ResidueLayoutKind::modulus_major,shape.rows,shape.cols,shape.cols,capacity,0,0,state->layouts[id],state->basis_identity))
+        return RNS8_RANGE_ERROR;
+    }
     state->current.resize(state->allocation.values.size());
     if(std::any_of(state->materializations.packed_b.begin(),state->materializations.packed_b.end(),[](uint8_t value){return value!=0;}))
       state->packed_current.resize(state->allocation.values.size());
@@ -281,9 +412,9 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
 }
 rns8_status RuntimeProductRecipe::rebind(const std::vector<const rns8_matrix*>& inputs) {
   return guard_api([&]() -> rns8_status {
-    auto& state=*impl_;std::unique_lock<std::mutex> lock(state.mutex,std::try_to_lock);
+    auto& state=*impl_;std::unique_lock<RecipeTryMutex> lock(state.mutex,std::try_to_lock);
     if(!lock.owns_lock()) return RNS8_BUSY;
-    if(state.closed || inputs.size()!=state.inputs.size()) return RNS8_INVALID_ARGUMENT;
+    if(state.closed || state.closing || inputs.size()!=state.inputs.size()) return RNS8_INVALID_ARGUMENT;
     if(state.ctx->hip_failure_poisoned || state.quarantined) return RNS8_BACKEND_FAILURE;
     std::vector<Impl::Input> replacement;replacement.reserve(inputs.size());
     std::unordered_set<uint64_t*> new_holds{&state.ctx->prepared_references};
@@ -326,9 +457,9 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
 rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t count) {
   return guard_api([&]() -> rns8_status {
     auto& state=*impl_;
-    std::unique_lock<std::mutex> lock(state.mutex,std::try_to_lock);
+    std::unique_lock<RecipeTryMutex> lock(state.mutex,std::try_to_lock);
     if(!lock.owns_lock()) return RNS8_BUSY;
-    if(state.closed || !outputs || count!=state.outputs.size()) return RNS8_INVALID_ARGUMENT;
+    if(state.closed || state.closing || !outputs || count!=state.outputs.size()) return RNS8_INVALID_ARGUMENT;
     if(state.replays==UINT64_MAX)return RNS8_RANGE_ERROR;
     if(state.ctx->hip_failure_poisoned || state.quarantined) return RNS8_BACKEND_FAILURE;
     state.sorted_outputs.assign(outputs,outputs+count);
@@ -358,6 +489,11 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
     auto& bounds=state.publication_bounds;
     for(size_t i=0;i<count;++i)bounds[i]=state.bounds[state.outputs[i]];
     const bool hip=state.ctx->backend==RNS8_BACKEND_HIP_DIRECT;
+    const bool ordered=hip && state.execution_policy==RNS8_PRODUCT_EXECUTION_ORDERED_HIP;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    std::optional<hip_scoped_device> ordered_device;
+    if(ordered){ordered_device.emplace(state.ctx->device_id);if(ordered_device->status()!=hipSuccess)return RNS8_BACKEND_FAILURE;}
+#endif
     auto* arena=hip?static_cast<int8_t*>(state.device):state.host.data();
     const auto pointer=[&](uint32_t id) -> const int8_t* {
       if(id<state.inputs.size()) {
@@ -380,24 +516,43 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
     state.active_outputs.assign(outputs,outputs+count);
     for(const auto* input:state.active_inputs) ++input->in_flight_readers;
     for(auto* output:state.active_outputs) {++output->prepared_references;output->in_flight_writer=true;}
-    state.output_touched=false;
+    state.output_touched=false;state.observations={};
     struct RunGuard {
-      Impl& state;bool completed=false;
-      ~RunGuard() noexcept {
-        if(completed) return;
+      Impl& state;bool completed=false,quiescent=false,use_ordered=false;
+      rns8_status wait() {
+        const auto status=state.drain_ordered(true);quiescent=status==RNS8_SUCCESS;return status;
+      }
+      void clear_packing() noexcept {
         std::fill(state.packed_current.begin(),state.packed_current.end(),0);
-        state.invalidate_touched();
-        if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
+        state.packing_calls=state.reused_packing_calls=0;
+      }
+      ~RunGuard() noexcept {
+        if(completed)return;
+        clear_packing();state.invalidate_touched();
+        if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && !quiescent) {
           try {
-            if(hip_direct_synchronize(state.ctx->device_id)!=RNS8_SUCCESS) {
-              state.quarantined=true;state.ctx->hip_failure_poisoned=true;return;
-            }
-          } catch(...) {state.quarantined=true;state.ctx->hip_failure_poisoned=true;return;}
+            const auto drained=use_ordered?state.drain_ordered(true):hip_direct_synchronize(state.ctx->device_id);
+            if(drained!=RNS8_SUCCESS){state.quarantined=true;state.ctx->hip_failure_poisoned=true;return;}
+          }catch(...){state.quarantined=true;state.ctx->hip_failure_poisoned=true;return;}
         }
         state.release_active();
       }
       void finish() noexcept {state.release_active();completed=true;}
-    } run{state};
+      void reject_guarded() noexcept {state.output_touched=false;clear_packing();finish();}
+    } run{state,false,false,ordered};
+    if(ordered && state.ctx->synchronous_test_hooks) {
+      const auto checked=synchronous_dispatch_checkpoint(*state.ctx,"product_recipe_prepare");if(checked!=RNS8_SUCCESS)return checked;
+    }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(ordered) {
+      if(!state.ordered || !state.stream())return RNS8_INTERNAL_ERROR;
+      state.ordered->pending=true;
+      if(state.sticky()) {
+        state.ordered->status.mark_pending();state.ordered->result.mark_pending();
+        if(hipMemsetAsync(state.sticky(),0,sizeof(int),static_cast<hipStream_t>(state.stream()))!=hipSuccess)return RNS8_BACKEND_FAILURE;
+      }
+    }
+#endif
     const auto materialize=[&](uint32_t id,uint32_t target) -> rns8_status {
       if(current[id]>=target) return RNS8_SUCCESS;
       if(id<state.inputs.size() || !current[id]) return RNS8_INVALID_ARGUMENT;
@@ -409,7 +564,12 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
         bool touched=false;
         auto* lift_workspace=static_cast<int8_t*>(state.device)+state.allocation.arena_bytes;
         rns8_status status;
-        if(state.experimental) {
+        if(ordered) {
+          ++state.observations.ordered_lift_calls;
+          status=hip_direct_enqueue_recipe_lift_current(residues,cells,current[id],target,
+              state.semantics==RNS8_EXACT_WIDE_SIGNED,words,lift_workspace,state.lift_scratch,
+              state.experimental?&state.basis->packet:nullptr,state.sticky(),state.stream());
+        } else if(state.experimental) {
           const auto storage=basis_lift_storage(cells,current[id],target);
           if(storage.status!=RNS8_SUCCESS || storage.packet_offset>state.packet_offset)return RNS8_RANGE_ERROR;
           auto* packet=lift_workspace+state.packet_offset;
@@ -462,10 +622,8 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
       auto* c=arena+state.allocation.values[state.inputs.size()+i].offset;
       const auto* av=pointer(node.a); const auto* bv=pointer(node.b);
       const auto layout=[&](uint32_t id,ResidueLayout& value) {
-        const auto shape=state.allocation.values[id].shape;
-        const uint32_t capacity=id<state.inputs.size()?state.prefix:state.capacities[id-state.inputs.size()];
-        return make_residue_layout(ResidueLayoutKind::modulus_major,shape.rows,shape.cols,shape.cols,
-            capacity,0,0,value,state.basis_identity);
+        if(id>=state.layouts.size())return false;
+        value=state.layouts[id];return true;
       };
       if(packed) {
         const auto& view=state.materializations.packed[node.b];auto* packed_b=arena+view.offset;
@@ -474,24 +632,37 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
           return RNS8_INTERNAL_ERROR;
         if(packed_current[node.b]<prefix) {
           if(hip) {
-            const auto status=hip_direct_convert_residue_planes(state.ctx->device_id,bv,source,packed_b,view.layout,
-                packed_current[node.b],prefix);
+            if(ordered)++state.observations.ordered_conversion_calls;
+            const auto status=ordered?hip_direct_enqueue_residue_planes_current(bv,source,packed_b,view.layout,
+                packed_current[node.b],prefix,state.stream(),state.sticky()):
+                hip_direct_convert_residue_planes(state.ctx->device_id,bv,source,packed_b,view.layout,packed_current[node.b],prefix);
             if(status!=RNS8_SUCCESS)return status;
           } else if(!convert_residue_planes_host(bv,source,packed_b,view.layout,packed_current[node.b],prefix))
             return RNS8_INTERNAL_ERROR;
           packed_current[node.b]=prefix;++state.packing_calls;
         } else if(node.b<state.inputs.size() && state.materializations.retain_external_b)++state.reused_packing_calls;
         if(hip) {
-          const auto status=hip_direct_gemm_residue_layout(state.ctx->device_id,av,al,packed_b,view.layout,c,cl,prefix);
+          if(ordered)++state.observations.ordered_gemm_calls;
+          const auto status=ordered?hip_direct_enqueue_residue_layout_gemm_current(av,al,packed_b,view.layout,c,cl,prefix,state.stream(),state.sticky()):
+              hip_direct_gemm_residue_layout(state.ctx->device_id,av,al,packed_b,view.layout,c,cl,prefix);
           if(status!=RNS8_SUCCESS)return status;
         } else if(!residue_layout_gemm_host(av,al,packed_b,view.layout,c,cl,prefix))return RNS8_INTERNAL_ERROR;
         current[state.inputs.size()+i]=prefix;
         continue;
       }
       if(hip) {
-        const auto status=state.experimental
-            ? hip_direct_basis_gemm(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,state.basis->packet.moduli,prefix)
-            : hip_direct_gemm_rns_device(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,prefix);
+        rns8_status status;
+        if(ordered) {
+          ++state.observations.ordered_gemm_calls;
+          if(state.sticky()) {
+            ResidueLayout al,bl,cl;
+            if(!layout(node.a,al) || !layout(node.b,bl) || !layout(static_cast<uint32_t>(state.inputs.size()+i),cl))return RNS8_INTERNAL_ERROR;
+            status=hip_direct_enqueue_residue_layout_gemm_current(av,al,bv,bl,c,cl,prefix,state.stream(),state.sticky());
+          } else status=hip_direct_enqueue_recipe_gemm_current(av,bv,c,a.rows,b.cols,a.cols,prefix,state.stream(),
+              state.experimental?state.basis->packet.moduli:nullptr);
+        } else status=state.experimental?
+            hip_direct_basis_gemm(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,state.basis->packet.moduli,prefix):
+            hip_direct_gemm_rns_device(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,prefix);
         if(status!=RNS8_SUCCESS) return status;
       } else {
         ResidueLayout al,bl,cl;
@@ -506,17 +677,45 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* const* outputs,size_t cou
       const auto completed=materialize(id,state.prefix);
       if(completed!=RNS8_SUCCESS) return completed;
     }
+    if(ordered && state.ctx->synchronous_test_hooks) {
+      const auto checked=synchronous_dispatch_checkpoint(*state.ctx,"product_recipe_compute");if(checked!=RNS8_SUCCESS)return checked;
+    }
     state.output_touched=true;
-    state.invalidate_touched();
+    // Guarded publication leaves old bytes/metadata intact on logical rejection.
+    // Writer reservations prohibit every data consumer until final observation.
+    if(!ordered || !state.sticky())state.invalidate_touched();
     for(size_t i=0;i<count;++i) {
       auto* output=outputs[i];const auto& value=state.allocation.values[state.outputs[i]];
       const auto* result=arena+value.offset;
       if(hip) {
-        const auto status=hip_direct_copy_device_to_device(state.ctx->device_id,output->hip_residues,
-            result,static_cast<size_t>(value.bytes));
+        if(ordered)++state.observations.ordered_copy_calls;
+        const auto status=ordered?hip_direct_enqueue_recipe_copy_current(result,output->hip_residues,value.bytes,state.stream(),state.sticky()):
+            hip_direct_copy_device_to_device(state.ctx->device_id,output->hip_residues,result,static_cast<size_t>(value.bytes));
         if(status!=RNS8_SUCCESS) return status;
       } else std::copy_n(result,static_cast<size_t>(value.bytes),output->residues.data());
     }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(ordered) {
+      if(state.ctx->synchronous_test_hooks) {
+        const auto checked=synchronous_dispatch_checkpoint(*state.ctx,"product_recipe_publication");if(checked!=RNS8_SUCCESS)return checked;
+      }
+      if(state.sticky()) {
+        if(hipMemcpyAsync(state.ordered->result.get(),state.sticky(),sizeof(int),hipMemcpyDeviceToHost,
+            static_cast<hipStream_t>(state.stream()))!=hipSuccess)return RNS8_BACKEND_FAILURE;
+        state.observations.ordered_status_readback_bytes+=sizeof(int);
+      }
+      const auto waited=run.wait();if(waited!=RNS8_SUCCESS)return waited;
+      if(state.sticky()) {
+        const int flag=*static_cast<const int*>(state.ordered->result.get());
+        if(flag) {
+          run.reject_guarded();
+          if(flag==int(RNS8_INVALID_ARGUMENT))return RNS8_INVALID_ARGUMENT;
+          if(flag==int(RNS8_RANGE_ERROR))return RNS8_RANGE_ERROR;
+          state.ctx->hip_failure_poisoned=true;return RNS8_BACKEND_FAILURE;
+        }
+      }
+    }
+#endif
     // Publish only after every copy succeeds. Any failed publication invalidates
     // the entire output batch, including copies which had already completed.
     for(size_t i=0;i<count;++i) {
@@ -588,6 +787,18 @@ rns8_status rns8_execute_product_recipe_outputs(rns8_product_recipe* recipe,
 rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {if(!recipe)return RNS8_INVALID_ARGUMENT;const auto binding=validate_ragged_recipe_binding(*recipe);return binding==RNS8_SUCCESS?recipe->owner->execute(output):binding;});
 }
+rns8_status rns8_set_product_recipe_execution_policy(rns8_product_recipe* recipe,rns8_product_execution_policy policy) {
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if(!recipe || recipe->closing || uint32_t(policy)>1)return RNS8_INVALID_ARGUMENT;
+    const auto extra=policy==RNS8_PRODUCT_EXECUTION_ORDERED_HIP?recipe->owner->additional_ordered_control_bytes():0;
+    const auto binding=validate_ragged_recipe_binding(*recipe,extra);if(binding!=RNS8_SUCCESS)return binding;
+    return recipe->owner->set_execution_policy(policy);
+  });
+}
+rns8_status rns8_get_product_recipe_execution_info(const rns8_product_recipe* recipe,rns8_product_recipe_execution_info* out) {
+  if(!recipe || recipe->closing || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;
+  *out=recipe->owner->execution_info();return RNS8_SUCCESS;
+}
 rns8_status rns8_get_product_recipe_resources(const rns8_product_recipe* recipe,rns8_product_recipe_resources* out) {
   if(!recipe || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))
     return RNS8_INVALID_ARGUMENT;
@@ -616,7 +827,9 @@ rns8_status rns8_get_product_recipe_basis(const rns8_product_recipe* recipe,rns8
 }
 rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe) {
   if(!recipe) return RNS8_SUCCESS;
-  recipe->closing=true;const auto status=recipe->owner->close();if(status!=RNS8_SUCCESS) return status;
+  const auto status=recipe->owner->close();
+  if(status!=RNS8_BUSY)recipe->closing=true;
+  if(status!=RNS8_SUCCESS)return status;
   delete recipe;return RNS8_SUCCESS;
 }
 

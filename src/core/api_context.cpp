@@ -73,9 +73,22 @@ rns8_status synchronous_dispatch_checkpoint(rns8_context& ctx,const char* operat
   const auto* hooks=ctx.synchronous_test_hooks;
   return hooks && hooks->dispatch ? hooks->dispatch(hooks->state,operation,started) : RNS8_SUCCESS;
 }
-rns8_status drain_synchronous_context(rns8_context& ctx) noexcept {
+rns8_status drain_synchronous_context(rns8_context& ctx,void* stream) noexcept {
   const auto* hooks=ctx.synchronous_test_hooks;
-  if(hooks && hooks->drain)return hooks->drain(hooks->state);
+  if(hooks && hooks->drain) {
+    const auto status=hooks->drain(hooks->state);
+    if(status!=RNS8_SUCCESS || !stream)return status;
+    // A successful injection cannot stand in for real stream completion.
+  }
+  if(stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    rns8::detail::hip_scoped_device selected(ctx.device_id);
+    return selected.status()==hipSuccess && hipStreamSynchronize(static_cast<hipStream_t>(stream))==hipSuccess?
+        RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+    return RNS8_UNSUPPORTED_BACKEND;
+#endif
+  }
   return ctx.device_id>=0 ? rns8::detail::hip_direct_synchronize(ctx.device_id) : RNS8_SUCCESS;
 }
 bool finish_synchronous_lease(rns8_context& ctx,size_t token,rns8_status status,bool written) noexcept {

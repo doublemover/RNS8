@@ -576,13 +576,13 @@ TEST_CASE("ordered recipe lift rejects status alias and insufficient scratch bef
   alignas(int) int8_t storage[128]{};uint64_t bound[3]{};
   auto* residues=storage+64;auto* scratch=storage+16;auto* sticky=reinterpret_cast<int*>(storage);
   auto* borrowed_stream=reinterpret_cast<void*>(uintptr_t(1));
-  CHECK(hip_direct_enqueue_recipe_lift(-1,residues,1,1,3,true,bound,scratch,16,nullptr,sticky,nullptr)==RNS8_INVALID_ARGUMENT);
-  CHECK(hip_direct_enqueue_recipe_lift(-1,residues,1,1,3,true,bound,scratch,1,nullptr,sticky,borrowed_stream)==RNS8_WORKSPACE_TOO_SMALL);
-  CHECK(hip_direct_enqueue_recipe_lift(-1,residues,1,1,3,true,bound,scratch,16,nullptr,reinterpret_cast<int*>(scratch),borrowed_stream)==RNS8_INVALID_ARGUMENT);
-  CHECK(hip_direct_enqueue_recipe_lift(-1,residues,1,1,3,true,bound,scratch,16,nullptr,reinterpret_cast<int*>(residues),borrowed_stream)==RNS8_INVALID_ARGUMENT);
-  CHECK(hip_direct_enqueue_recipe_lift(-1,residues,1,1,3,true,bound,scratch,16,nullptr,reinterpret_cast<int*>(storage+1),borrowed_stream)==RNS8_INVALID_ARGUMENT);
+  CHECK(hip_direct_enqueue_recipe_lift_current(residues,1,1,3,true,bound,scratch,16,nullptr,sticky,nullptr)==RNS8_INVALID_ARGUMENT);
+  CHECK(hip_direct_enqueue_recipe_lift_current(residues,1,1,3,true,bound,scratch,1,nullptr,sticky,borrowed_stream)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(hip_direct_enqueue_recipe_lift_current(residues,1,1,3,true,bound,scratch,16,nullptr,reinterpret_cast<int*>(scratch),borrowed_stream)==RNS8_INVALID_ARGUMENT);
+  CHECK(hip_direct_enqueue_recipe_lift_current(residues,1,1,3,true,bound,scratch,16,nullptr,reinterpret_cast<int*>(residues),borrowed_stream)==RNS8_INVALID_ARGUMENT);
+  CHECK(hip_direct_enqueue_recipe_lift_current(residues,1,1,3,true,bound,scratch,16,nullptr,reinterpret_cast<int*>(storage+1),borrowed_stream)==RNS8_INVALID_ARGUMENT);
   BasisPacket basis;basis.count=3;
-  CHECK(hip_direct_enqueue_recipe_lift(-1,residues,1,1,3,true,bound,scratch,1,&basis,sticky,borrowed_stream)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(hip_direct_enqueue_recipe_lift_current(residues,1,1,3,true,bound,scratch,1,&basis,sticky,borrowed_stream)==RNS8_WORKSPACE_TOO_SMALL);
   basis.version=0;
-  CHECK(hip_direct_enqueue_recipe_lift(-1,residues,1,1,3,true,bound,scratch,16,&basis,sticky,borrowed_stream)==RNS8_INVALID_ARGUMENT);
+  CHECK(hip_direct_enqueue_recipe_lift_current(residues,1,1,3,true,bound,scratch,16,&basis,sticky,borrowed_stream)==RNS8_INVALID_ARGUMENT);
 }

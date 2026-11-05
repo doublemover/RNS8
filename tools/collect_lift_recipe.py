@@ -51,8 +51,10 @@ def payload_bytes(c):
 
 def validate_case(c):
     keys={'schema','side','depth','prefix','source_prefix','repeats','warmups','model_launch_ns','max_payload_bytes','unsigned_inputs','mode','topology'}
-    if type(c) is not dict or not keys<=set(c) or set(c)-keys-{'input_values','replay_policy'} or c['schema']!='lift_recipe_case_v1' or type(c['unsigned_inputs']) is not bool:
+    if type(c) is not dict or not keys<=set(c) or set(c)-keys-{'input_values','replay_policy','execution_policy'} or c['schema']!='lift_recipe_case_v1' or type(c['unsigned_inputs']) is not bool:
         raise ValueError('case ABI')
+    if 'execution_policy' in c and (type(c['mode']) is not str or not c['mode'].startswith('recipe-') or type(c['execution_policy']) is not int or c['execution_policy'] not in (0,1)):
+        raise ValueError('recipe execution policy')
     for key,lo,hi in [('side',1,256),('depth',1,12),('prefix',1,20),('source_prefix',1,20),('repeats',3,100),('warmups',1,100),('model_launch_ns',0,10**9),('max_payload_bytes',64,2**40)]:
         if type(c[key]) is not int or not lo<=c[key]<=hi:raise ValueError(key)
     dataset_inputs(c)
@@ -122,6 +124,7 @@ def validate_capture(c,entry):
     elif mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v3-blocked-k65536',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_integer_multiply',reduction_units='one_ns_per_safe_k_slab',arithmetic_policy='centered-byte-blocked-k65536-v2',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=3,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
     if mode!='recipe-measured' and (c.get('stage_price_identity',False) is not None or c.get('stage_price_graph_identity',False) is not None or type(c.get('stage_price_training_charge_ns')) is not int or c['stage_price_training_charge_ns']!=0):raise ValueError('unrequested stage prices')
     validate_materializations(c,case,selected,prices)
+    validate_recipe_execution(c,case,selected)
     if type(model) is not type(expected_model) or model!=expected_model or (expected_model is not None and any(type(model[k]) is not type(v) for k,v in expected_model.items())):raise ValueError('unqualified cost model identity')
     if not positive(c.get('setup_us')) or not positive(c.get('nominal_clock_tick_ns')) or len(c.get('samples',[]))!=case['repeats']:raise ValueError('samples/setup/clock')
     for s in [c.get('first_call',{}),*c['samples']]:
@@ -132,6 +135,54 @@ def validate_capture(c,entry):
         count=s.get('calls');duration=s.get('total_us')
         if type(count) is not int or not 16<=count<=4096 or not positive(duration) or (duration<250000 and count!=4096) or not math.isclose(s.get('per_call_us',-1),duration/count,rel_tol=1e-7):raise ValueError('sustained boundary')
     return c
+
+
+def validate_recipe_execution(c,case,selected):
+    receipt=c.get('recipe_execution')
+    if receipt is None:
+        if 'execution_policy' in case:raise ValueError('explicit execution policy requires its actual receipt')
+        return # historical synchronous-wrapper captures remain readable
+    if not case['mode'].startswith('recipe-'):raise ValueError('unrequested recipe execution receipt')
+    keys={'schema','policy','completion_contract','stream_prepared','guarded_layout_products',
+          'retained_control_device_bytes','retained_control_pinned_bytes','retained_layout_host_bytes',
+          'stream_wait_calls','ordered_gemm_calls','ordered_conversion_calls','ordered_lift_calls',
+          'ordered_copy_calls','ordered_status_readback_bytes','planning_price_scope'}
+    if type(receipt) is not dict or set(receipt)!=keys:raise ValueError('execution receipt ABI')
+    for key in keys-{'schema','completion_contract','stream_prepared','guarded_layout_products','planning_price_scope'}:
+        if type(receipt[key]) is not int or not 0<=receipt[key]<2**64:raise ValueError('execution receipt integer '+key)
+    policy=case.get('execution_policy',0);nodes=graph(case);prefix=case['prefix'];capacities=list(selected)
+    for (a,b),p in zip(nodes,selected):
+        for value in (a,b):
+            if value>=2:capacities[value-2]=max(capacities[value-2],p)
+    capacities[-1]=prefix
+    guarded=policy==1 and any(a<b for a,b in zip(selected,capacities))
+    expected=dict(schema='rns8_product_recipe_execution_v1',policy=policy,
+        completion_contract='ordered_nondefault_single_terminal_v1' if policy else 'synchronous_wrappers_v1',
+        stream_prepared=bool(policy),guarded_layout_products=guarded,
+        retained_control_device_bytes=4 if guarded else 0,retained_control_pinned_bytes=4 if guarded else 0,
+        stream_wait_calls=policy,ordered_gemm_calls=len(nodes) if policy else 0,
+        ordered_copy_calls=policy,ordered_status_readback_bytes=4 if guarded else 0,
+        planning_price_scope='synchronous_stage_prices_before_explicit_execution_policy')
+    raw=[prefix,prefix]+[0]*len(nodes);packed={};lifts=conversions=0
+    plan=c['materialization_plan'];flags=plan['packed_b'] if plan else [0]*len(nodes)
+    if plan and plan['replay_policy']['retain_external_b']:
+        packed={v['value_id']:v['capacity_prefix'] for v in plan['packed_values'] if v['value_id']<2}
+    def demand(value,p):
+        nonlocal lifts
+        if raw[value]<p:lifts+=1;raw[value]=p
+    for i,((a,b),p,flag) in enumerate(zip(nodes,selected,flags)):
+        demand(a,p)
+        if a==b or not flag or packed.get(b,0)<p:demand(b,p)
+        if flag and packed.get(b,0)<p:conversions+=1;packed[b]=p
+        raw[i+2]=p
+    demand(len(nodes)+1,prefix)
+    expected.update(ordered_lift_calls=lifts if policy else 0,ordered_conversion_calls=conversions if policy else 0)
+    for key,value in expected.items():
+        if type(receipt[key]) is not type(value) or receipt[key]!=value:raise ValueError('actual execution '+key)
+    if not receipt['retained_layout_host_bytes']:raise ValueError('retained layout descriptors omitted')
+    if c.get('hot_loop_serialization')!='typed_observation_json_after_interval_v1':raise ValueError('hot loop serialization boundary')
+    if c['recipe_retained_lift_bytes']<receipt['retained_control_device_bytes'] or c['recipe_arena_bytes']+c['recipe_retained_lift_bytes']>case['max_payload_bytes']-c['logical_payload_estimate_bytes']:
+        raise ValueError('execution controls omitted from retained device budget')
 
 
 def validate_materializations(c,case,selected,prices=None):
@@ -210,17 +261,19 @@ def summarize(observations):
     cohorts={}
     for entry,c in observations:
         validate_capture(c,entry)
-        identity=dict(case={k:v for k,v in entry['case'].items() if k!='mode'},boundary=c['output_boundary'],extra_intermediate_observations=c['extra_intermediate_observations'],build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),
+        identity=dict(case={k:v for k,v in entry['case'].items() if k not in ('mode','execution_policy')},boundary=c['output_boundary'],extra_intermediate_observations=c['extra_intermediate_observations'],build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),hot_loop_serialization=c.get('hot_loop_serialization','historical_json_in_interval'),
             artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
         training_us=c['stage_price_training_charge_ns']/1000
-        cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(mode=entry['case']['mode'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=entry['output'],setup_us=c['setup_us'],
+        policy=entry['case'].get('execution_policy',0)
+        label=entry['case']['mode']+('@ordered-hip' if policy else '')
+        cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(mode=label,execution_policy=policy,recipe_execution=c.get('recipe_execution'),execution_id=c['execution_id'],independent_run=entry['independent_run'],path=entry['output'],setup_us=c['setup_us'],
             stage_price_identity=c['stage_price_identity'],training_charge_us=training_us,inclusive_setup_us=c['setup_us']+training_us,
             p50_us=quantile([s['total_us'] for s in c['samples']],.5),p95_us=quantile([s['total_us'] for s in c['samples']],.95),sustained_us=statistics.median(s['per_call_us'] for s in c['sustained'])))
     result=[]
     for key,rows in cohorts.items():
         if len({r['execution_id'] for r in rows})!=len(rows):raise ValueError('duplicate process')
         modes={}
-        for mode in MODES:
+        for mode in (*MODES,*(mode+'@ordered-hip' for mode in MODES if mode.startswith('recipe-'))):
             selected=[r for r in rows if r['mode']==mode]
             if selected and len({r['independent_run'] for r in selected})<2:raise ValueError('independent process evidence')
             if selected and len({r['stage_price_identity'] for r in selected})!=1:raise ValueError('measured mode mixed frozen price identities')
@@ -234,8 +287,16 @@ def summarize(observations):
                 pretrained_setup=max(0,metrics['setup_us']-modes[baseline]['setup_us'])
                 pairs[mode]=dict(cost_ratio=metrics['sustained_us']/modes[baseline]['sustained_us'],break_even_replays=math.ceil(extra_setup/saving) if saving>0 else None,
                     conditional_pretrained_break_even_replays=math.ceil(pretrained_setup/saving) if saving>0 else None,
-                    amortization_scope='inclusive_training_charge' if mode=='recipe-measured' else 'owner_setup',profitable_measured_replay=saving>0)
-        result.append(dict(identity=json.loads(key),observations=rows,median_process_metrics=modes,baseline=baseline,matched_comparisons=pairs,promotion_eligible=False))
+                    amortization_scope='inclusive_training_charge' if mode.split('@',1)[0]=='recipe-measured' else 'owner_setup',profitable_measured_replay=saving>0)
+        execution_pairs={}
+        for mode in MODES:
+            ordered=mode+'@ordered-hip'
+            if mode in modes and ordered in modes:
+                control=modes[mode]['sustained_us'];candidate=modes[ordered]['sustained_us']
+                execution_pairs[mode]=dict(control_policy=0,candidate_policy=1,speedup=control/candidate,
+                    cost_ratio=candidate/control,profitable_measured_replay=candidate<control,
+                    scope='matched_plan_explicit_execution_policy_including_terminal_readback')
+        result.append(dict(identity=json.loads(key),observations=rows,median_process_metrics=modes,baseline=baseline,matched_comparisons=pairs,execution_policy_comparisons=execution_pairs,promotion_eligible=False))
     return result
 
 

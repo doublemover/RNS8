@@ -219,14 +219,18 @@ rns8_status hip_direct_convert_residue_planes(int device_id,const void* src,
 rns8_status hip_direct_gemm_residue_layout(int device_id,const void* a,const ResidueLayout& al,
     const void* b,const ResidueLayout& bl,void* c,const ResidueLayout& cl,uint32_t prefix);
 
-// Borrowed ordered-stream primitives: no allocation, synchronization or public
-// publication. The owner retains all storage and serializes the optional status
+// Caller-selected same-device ordered-stream primitives: no allocation, synchronization or public
+// metadata publication. The owner retains all storage and serializes the optional status
 // word with preceding/following grids; nonzero skips every operand load/store.
-rns8_status hip_direct_enqueue_residue_planes(int,const void*,const ResidueLayout&,void*,const ResidueLayout&,
+rns8_status hip_direct_enqueue_residue_planes_current(const void*,const ResidueLayout&,void*,const ResidueLayout&,
     uint32_t,uint32_t,void* stream,const int* guard=nullptr);
-rns8_status hip_direct_enqueue_residue_layout_gemm(int,const void*,const ResidueLayout&,const void*,const ResidueLayout&,
+rns8_status hip_direct_enqueue_residue_layout_gemm_current(const void*,const ResidueLayout&,const void*,const ResidueLayout&,
     void*,const ResidueLayout&,uint32_t,void* stream,const int* guard=nullptr);
-rns8_status hip_direct_enqueue_first_failure(int,const int* stage,int* sticky,void* stream);
+rns8_status hip_direct_enqueue_first_failure_current(const int* stage,int* sticky,void* stream);
+rns8_status hip_direct_enqueue_recipe_copy_current(const void*,void*,uint64_t,void* stream,const int* guard=nullptr);
+// Contiguous default-basis products preserve grouped/persistent-small selection;
+// an explicit modulus list selects the existing experimental-basis kernel.
+rns8_status hip_direct_enqueue_recipe_gemm_current(const void*,const void*,void*,int64_t,int64_t,int64_t,uint32_t,void* stream,const uint16_t* moduli=nullptr);
 
 // Native signed-i64 scalar candidate admitted by an actual device input scan.
 // The returned bound covers every partial absolute product sum. No automatic
@@ -293,10 +297,10 @@ rns8_status hip_direct_enqueue_exact_lift(int device_id,void* residues,int64_t c
     void* scratch,uint64_t scratch_bytes,void* pinned_status,bool mixed_radix,void* stream);
 
 // Ordered recipe lift: sticky uses public status codes (1 invalid, 5 range).
-// Reset sticky once per replay, not per node. No readback/wait/publication occurs;
+// Reset sticky once per replay, not per node. No readback/wait/public metadata publication occurs;
 // only private suffixes commit under the shared flag. nullptr basis means the
 // default ladder; a nonnull immutable packet is already admitted by its owner.
-rns8_status hip_direct_enqueue_recipe_lift(int,void*,int64_t,uint32_t,uint32_t,bool,const uint64_t*,
+rns8_status hip_direct_enqueue_recipe_lift_current(void*,int64_t,uint32_t,uint32_t,bool,const uint64_t*,
     void* scratch,uint64_t,const BasisPacket*,int* sticky,void* stream);
 
 // Borrowed status+suffix region; no allocations/frees. Caller retains and drains

@@ -400,6 +400,46 @@
         ["32-lift-9-u-lift-wide.json", "096dcc33cc4c8bdf1cfbd51bd11d00c14516143b77e2878925a9e0493076c0f5", 32, 1, 9, 2, true, "lift-wide", "chain"],
         ["32-lift-9-u-wider-producer.json", "1edf358a0cba978906b99af5a488df55fe51ae986d8f61b597a2b99e29b9ef98", 32, 1, 9, 2, true, "wider-producer", "chain"]
       ]
+    },
+    {
+      "root": "object",
+      "keys": ["schema", "side", "depth", "prefix", "source_prefix", "repeats", "warmups", "model_launch_ns", "max_payload_bytes", "unsigned_inputs", "mode", "topology", "execution_policy"],
+      "defaults": {"schema": "lift_recipe_case_v1", "prefix": 20, "source_prefix": 1, "repeats": 9, "warmups": 2, "model_launch_ns": 5000, "max_payload_bytes": 1073741824},
+      "columns": ["side", "depth", "unsigned_inputs", "mode", "topology", "execution_policy"],
+      "rows": [
+        ["1-chain-3-i-recipe-full-execution-0.json", "ef032625dd9a6669651bd7eb56c2809f8b91e548bdafd929aa51d5f6ec712601", 1, 3, false, "recipe-full", "chain", 0],
+        ["1-chain-3-i-recipe-full-execution-1.json", "87c39cb862cabf666908b29477580d2132795268d36c5e64277b1743bb965bac", 1, 3, false, "recipe-full", "chain", 1],
+        ["1-chain-3-i-recipe-minimum-execution-0.json", "db73154339aebb7fc5931b9fe2e2d33220794fe7444f9b2067a8c92c3b63002b", 1, 3, false, "recipe-minimum", "chain", 0],
+        ["1-chain-3-i-recipe-minimum-execution-1.json", "b737d1ceb30dff0ca28a1dfd3ea6d1b7eb6c1c92663b10e8d05fd762f2a6862f", 1, 3, false, "recipe-minimum", "chain", 1],
+        ["1-chain-3-i-recipe-packed-full-execution-0.json", "431682afb45feeef71b9760497461bc5def1e09df403b41ef4a17c2d343846b9", 1, 3, false, "recipe-packed-full", "chain", 0],
+        ["1-chain-3-i-recipe-packed-full-execution-1.json", "7dda7bdd8a18abf52cf7e02f312deabe80340c0ca08e9549b3f191cb0233e4a3", 1, 3, false, "recipe-packed-full", "chain", 1],
+        ["1-chain-3-i-recipe-packed-minimum-execution-0.json", "2a49d2cb514f754081366523cbbcce5b28bfb6957962d3fde61b46e596f26856", 1, 3, false, "recipe-packed-minimum", "chain", 0],
+        ["1-chain-3-i-recipe-packed-minimum-execution-1.json", "5dce3b0abd8f3a10715e8e0f6278722d560fe0d2e69a8d56c177dcbda3613888", 1, 3, false, "recipe-packed-minimum", "chain", 1],
+        ["17-diamond-4-u-recipe-full-execution-0.json", "17802be8fd04b034d540d7567deaa90eeeac47756198dbccf083e8418bbcd064", 17, 4, true, "recipe-full", "diamond", 0],
+        ["17-diamond-4-u-recipe-full-execution-1.json", "499fa617458250200a0b38f337e2d669d998f890e1e6b3f3ab0edb6633943d3c", 17, 4, true, "recipe-full", "diamond", 1],
+        ["17-diamond-4-u-recipe-minimum-execution-0.json", "1715c1c3ca51615e37fd214f054b8f08c1bb520125808f3148f44ac2e165a7c8", 17, 4, true, "recipe-minimum", "diamond", 0],
+        ["17-diamond-4-u-recipe-minimum-execution-1.json", "d3c3d46e0e197cc9bf5dc110814cabde30faf203e53fe341497b548b04a0c73b", 17, 4, true, "recipe-minimum", "diamond", 1],
+        ["17-diamond-4-u-recipe-packed-full-execution-0.json", "3d4fe5f650f52ad3902d1d6185f564cf4ea8e9a779f48d709835acf5f3bbd9c6", 17, 4, true, "recipe-packed-full", "diamond", 0],
+        ["17-diamond-4-u-recipe-packed-full-execution-1.json", "197ca18900659d65757ca421e75dccdcddf4ff1d533c6563cc44145ba49b87e1", 17, 4, true, "recipe-packed-full", "diamond", 1],
+        ["17-diamond-4-u-recipe-packed-minimum-execution-0.json", "f1ff66123868addb6f0445c56440b7f5efd31f064d74777e375ffa4e53c8a4d1", 17, 4, true, "recipe-packed-minimum", "diamond", 0],
+        ["17-diamond-4-u-recipe-packed-minimum-execution-1.json", "a7f85f26ad77e901136cadbf9a20bb9a7933eea038d0ffb72dfcaabf1b3867fc", 17, 4, true, "recipe-packed-minimum", "diamond", 1],
+        ["64-chain-6-u-recipe-full-execution-0.json", "872f7c8b0abd6d49e05e855ec1421b553f7f2898c11b5007f95a1bbf402d4bab", 64, 6, true, "recipe-full", "chain", 0],
+        ["64-chain-6-u-recipe-full-execution-1.json", "59b1df55eda0b3b9f073a85d18d927e6b9aa5098cd3fd7cf70dfda49aea17600", 64, 6, true, "recipe-full", "chain", 1],
+        ["64-chain-6-u-recipe-minimum-execution-0.json", "c495d1f050a5b54efa981cfd0082902e604c3a22937f6790cbb11b3d1bab19d3", 64, 6, true, "recipe-minimum", "chain", 0],
+        ["64-chain-6-u-recipe-minimum-execution-1.json", "d1e335729200e8a0be58a6c250a82868767a1c6654f4458a9acb524588576bb7", 64, 6, true, "recipe-minimum", "chain", 1],
+        ["64-chain-6-u-recipe-packed-full-execution-0.json", "fa3455f13daeabc05a8d8bfe5dcf6c9877a10e42dc33999af4f29876c3201890", 64, 6, true, "recipe-packed-full", "chain", 0],
+        ["64-chain-6-u-recipe-packed-full-execution-1.json", "516e63131c881c0ec0c6a3407c2f6fa7eb456cd25c5d3167449648ce117fc1d0", 64, 6, true, "recipe-packed-full", "chain", 1],
+        ["64-chain-6-u-recipe-packed-minimum-execution-0.json", "23220cb4596805919c88208024e3576329b17a35d8da7c2dd9f264429eb3420c", 64, 6, true, "recipe-packed-minimum", "chain", 0],
+        ["64-chain-6-u-recipe-packed-minimum-execution-1.json", "7509b50fc625d45f59d9b87bf2fe6ea0cd868a7a3c5bdad91971f870028a3a38", 64, 6, true, "recipe-packed-minimum", "chain", 1],
+        ["128-diamond-4-i-recipe-full-execution-0.json", "bf8ac78d9e0f7bf12324e215bb0bd7ee4e1aa1b7c545df953366e8bf9ff87f7c", 128, 4, false, "recipe-full", "diamond", 0],
+        ["128-diamond-4-i-recipe-full-execution-1.json", "b6736fec9c7b81cf9f53afb00f2e131f80ce68e71ffee01a86db8a0cf8c35013", 128, 4, false, "recipe-full", "diamond", 1],
+        ["128-diamond-4-i-recipe-minimum-execution-0.json", "d798ab9cfd04a5f2a7d6c4a08cd9bae945f345d02cca67e2309d94ce210c21dc", 128, 4, false, "recipe-minimum", "diamond", 0],
+        ["128-diamond-4-i-recipe-minimum-execution-1.json", "5ea0519a7249b60f2440265b84a1c545bf5df01a2b06724a87b4d92794e037f7", 128, 4, false, "recipe-minimum", "diamond", 1],
+        ["128-diamond-4-i-recipe-packed-full-execution-0.json", "b01cb0a877f14cdc8e1963e77337c97f9d5c4026aa25027c79f8f08c78d50367", 128, 4, false, "recipe-packed-full", "diamond", 0],
+        ["128-diamond-4-i-recipe-packed-full-execution-1.json", "1488fd75e33d11fd0a53a25a33739a0fe41d930781ede7bfa6982291c72fe3ee", 128, 4, false, "recipe-packed-full", "diamond", 1],
+        ["128-diamond-4-i-recipe-packed-minimum-execution-0.json", "e6755f91f6e95eba1649a9f090947accef93dc287dda14381be6c6eab3a1746a", 128, 4, false, "recipe-packed-minimum", "diamond", 0],
+        ["128-diamond-4-i-recipe-packed-minimum-execution-1.json", "be31f4066ddad30cf1c087d5bfe4a43757b788ab5ecaf8232c5d41d31d1a4c1b", 128, 4, false, "recipe-packed-minimum", "diamond", 1]
+      ]
     }
   ]
 }
