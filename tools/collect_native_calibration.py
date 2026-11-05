@@ -277,16 +277,30 @@ def epilogue_contract(case):
             "materialized_intermediate_bytes": size if case["candidate"] == "epilogue_unfused" else 0}
 
 
+def native_reuse_work(case):
+    """Candidate-independent native product/input identity; R remains a point axis."""
+    profile,seed=case.get('dataset_profile','full-width-v1'),case.get('dataset_seed',3135)
+    return dict(schema='rns8_native_reuse_work_v1',
+        **{key:case[key] for key in ('m','n','k','prefix','group','unsigned_inputs')},
+        dataset_profile=profile,dataset_seed=seed,dataset_identity=dataset_identity(profile,seed),
+        input_domain='resident_native_64',output_contract='product_residues_default_basis_no_integer_export',
+        batch_boundary='R_synchronous_calls_same_native_A_B_one_final_verified_output',
+        comparison_boundary='private_raw_residue_no_public_matrix_proof_or_generation',
+        input_mutation='none_within_batch_immutable_A_B')
+
+
 def reuse_contract(case):
     if case["candidate"] not in REUSE:
         return {}
     encoded, warm = case["candidate"] in ENCODED, case["candidate"] == "encoded_b_warm"
+    work=native_reuse_work(case)
     words = ((case["k"]+15)//16)*4 if encoded else 0
     size = case["prefix"]*case["n"]*words*4+4 if encoded else 0
     return {"reuse_count":case["reuse_count"], "batch_gemm_calls":case["reuse_count"],
-            "reuse_batch_boundary":"R_synchronous_calls_same_native_A_B_one_final_verified_output",
-            "reuse_comparison_boundary":"private_raw_residue_no_public_matrix_proof_or_generation",
-            "reuse_dataset":dataset_identity(case.get("dataset_profile","full-width-v1"),case.get("dataset_seed",3135)),
+            "reuse_batch_boundary":work['batch_boundary'],
+            "reuse_comparison_boundary":work['comparison_boundary'],
+            "reuse_dataset":work['dataset_identity'],
+            "input_domain":work['input_domain'],"output_contract":work['output_contract'],
             "reference_method":"boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue",
             "encoded_b_layout":"modulus_n_k_packed_word32_v1" if encoded else "none",
             "encoded_b_k_words":words,"encoded_b_cache_logical_bytes":size,
@@ -523,11 +537,12 @@ def summarize_encoded_reuse(observations):
         case = observation["case"]
         if case["candidate"] not in REUSE:
             continue
-        key = tuple(case[field] for field in dimensions)
+        key = json.dumps(native_reuse_work(case),sort_keys=True,separators=(',',':'))
         groups.setdefault(key,{}).setdefault(case["reuse_count"],{}).setdefault(case["candidate"],[]).append(observation)
     result = []
     for key, points in sorted(groups.items()):
-        row = {"case":dict(zip(dimensions,key)),"points":[],
+        work=json.loads(key)
+        row = {"case":{field:work[field] for field in dimensions},"work_contract":work,"points":[],
                "break_even_definition":"first_observed_cold_win_among_tested_reuse_counts_no_interpolation",
                "first_observed_cold_winning_reuse_count":None}
         for reuse_count, candidates in sorted(points.items()):
@@ -724,7 +739,7 @@ def main():
         if failure:
             raise RuntimeError(f"{failure}; retained {run_id}")
     if any(case["candidate"] in ENCODED for case in cases):
-        comparison = {"schema":"rns8_encoded_b_reuse_comparison_v1", "campaign_id":campaign,
+        comparison = {"schema":"rns8_encoded_b_reuse_comparison_v2", "campaign_id":campaign,
             "comparison_identity":{"artifact_sha256":artifact,**campaign_identity},
             "collector_sources_sha256":collector_identity,
             "observation":"one sustained batch mean per independent process; median across processes",

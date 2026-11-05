@@ -44,11 +44,26 @@ write failure invalidates all outputs. It has no per-task completion or async AP
 
 Private queue descriptors also accept encoded B alongside raw tasks; their builder
 checks encoded layout, full allocation spans and cross-task write hazards. Encoded
-queues use the heterogeneous kernel; original all-raw uniform specializations stay
-separate. The prepared ordinary-grid control consumes the same encoded storage.
+queues use heterogeneous dispatch by default; explicit dispatch policy1 may
+specialize a homogeneous encoded group and signedness, while policy2 retains
+forced generic dispatch as a control. Preparation reports the actual uniform
+hint. The prepared ordinary-grid control consumes the same encoded storage.
 The queue caches descriptors; the public encoded-B handle owns the value payload.
 New fixtures cover mixed raw/encoded tasks, groups/signedness, K-slab tails, shared B,
 logical aliases and changed source rejection. They remain unexecuted.
 
-Async completion slots and automatic materialization selection remain separate
-work. Existing descriptor-only queue reports do not measure this representation.
+Public [prepared native groups](persistent-native-queue.md) also retain optional
+encoded-B bindings through their completion and refresh lifetimes. Automatic
+materialization selection remains separate work. Descriptor-only queue reports
+do not measure encoded payload ownership.
+
+Private encoded-reuse comparison schema2 groups observations by one canonical
+native work contract: shape, prefix, group, signedness, effective dataset profile
+and seed, versioned dataset identity, residue output boundary and immutable input
+reuse semantics. Candidate/preparation strategy and reuse count remain comparison
+axes. An explicit default profile/seed joins the equivalent implicit default;
+different inputs form incomplete cohorts with no winner or break-even result.
+The same contract supplies per-capture input/output/dataset validation. This
+source repair does not invalidate the recorded prefix9/default-dataset cohorts
+or establish a new measured gain; new custom-dataset comparisons need matched
+validated captures.

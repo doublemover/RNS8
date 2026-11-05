@@ -690,8 +690,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/83",
       "requirements_sha256": "48aad45e52d8fa34c2d2051f9d94b38ef415a513dcd51759d14db055dcd922f0",
       "comments_reviewed": 1,
-      "implementation_status": "pending",
-      "completed_slices": [],
+      "implementation_status": "source_written_pending_batch_validation",
+      "completed_slices": [
+        "Share a candidate-independent versioned native reuse work contract across per-capture dataset/input/output/batch validation and encoded-B comparison grouping. Bind effective profile/seed and versioned dataset identity alongside shape, prefix, group, signedness, residue boundary and immutable input semantics; keep preparation strategy and reuse count as axes. Emit comparison schema2 with explicit work contracts. Different inputs remain incomplete with no win/break-even; implicit and explicitly equivalent defaults join. Author multiple-repeat/reuse, profile/seed mismatch and mocked valid-child final-summary integration regressions without broadening encoded dataset support. Reconcile encoded queue dispatch/completion documentation; preserve credit for documented default-dataset cohorts. Python3.15 AST syntax and diff checks pass; no regressions or campaigns executed."
+      ],
       "remaining_source_items": []
     },
     {

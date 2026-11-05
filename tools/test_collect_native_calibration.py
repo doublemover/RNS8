@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from collect_native_calibration import (
     ADAPTIVE, BOUND_CONTROLS, CANDIDATES, CONVERSION, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
-    reuse_contract, summarize_encoded_reuse, conversion_contract, summarize_conversion,
+    native_reuse_work, reuse_contract, summarize_encoded_reuse, conversion_contract, summarize_conversion,
     scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
 )
 from native_locality_contract import private_contract as locality_contract
@@ -544,6 +544,36 @@ class CaptureTest(unittest.TestCase):
 
 
 class EncodedComparisonTest(unittest.TestCase):
+    def test_dataset_profile_seed_and_effective_defaults_are_work_identity(self):
+        values=[]
+        for reuse in (1,8):
+            for independent in (0,1):
+                for candidate in REUSE:
+                    record=self.observation(candidate,reuse,independent,300 if candidate=='wmma' else 100)
+                    record['case']=case_for(candidate,m=17,n=19,k=17,prefix=20,group=1,reuse_count=reuse)
+                    values.append(record)
+        matched,=summarize_encoded_reuse(values)
+        self.assertEqual(matched['work_contract']['dataset_profile'],'full-width-v1')
+        self.assertEqual(matched['work_contract']['dataset_seed'],3135)
+        self.assertEqual(matched['first_observed_cold_winning_reuse_count'],1)
+        for profile,seed in [('mixed-tiles-v2',3136),('mixed-tiles-v2',3135),('full-width-v1',3136)]:
+            changed=copy.deepcopy([r for r in values if r['case']['reuse_count']==1])
+            for record in changed:
+                if record['case']['candidate']=='wmma':
+                    record['case']=validate_case(dict(record['case'],dataset_profile=profile,dataset_seed=seed))
+            rows=summarize_encoded_reuse(changed);self.assertEqual(len(rows),2)
+            for row in rows:
+                self.assertIsNone(row['first_observed_cold_winning_reuse_count'])
+                for point in row['points']:
+                    self.assertEqual(point['status'],'incomplete_cohort')
+                    self.assertIsNone(point['cold_faster_than_direct_median']);self.assertIsNone(point['warm_faster_than_direct_median'])
+        explicit=copy.deepcopy([r for r in values if r['case']['reuse_count']==1])
+        for record in explicit:
+            if record['case']['candidate']=='wmma':
+                record['case']=validate_case(dict(record['case'],dataset_profile='full-width-v1',dataset_seed=3135))
+        row,=summarize_encoded_reuse(explicit)
+        self.assertEqual(row['points'][0]['status'],'matched_independent_cohort')
+        self.assertEqual(native_reuse_work(explicit[0]['case']),row['work_contract'])
     def observation(self,candidate,reuse,independent,value,**changes):
         return {"case":case_for(candidate,reuse_count=reuse),"independent_repeat":independent,
                 "run_id":f"{candidate}-{reuse}-{independent}","sustained_batch_ns":value,
@@ -608,6 +638,9 @@ class CollectorTest(unittest.TestCase):
                                       **({"k_depth":int(command[11]),"lds_buffers":int(command[12]),"waves":int(command[13]),
                                           "conversion":command[14],"reuse_count":int(command[15]),"input_change":command[16]} if command[1] in CONVERSION else {}),
                                       **({"k_depth": int(command[11]), "lds_buffers": int(command[12])} if command[1] in TILED else {})))
+            if '--dataset' in command:
+                index=command.index('--dataset')
+                case=validate_case(dict(case,dataset_profile=command[index+1],dataset_seed=int(command[index+3])))
             capture = capture_for(case, command[10])
             if mutate:
                 mutate(capture, len(calls))
@@ -693,6 +726,18 @@ class CollectorTest(unittest.TestCase):
         self.assertEqual([point["cold_faster_than_direct_median"] for point in row["points"]],[False,True])
         self.assertEqual(result["comparison_identity"]["artifact_sha256"],records[0]["artifact_sha256"])
 
+    def test_individually_valid_different_datasets_stay_unmatched_at_final_summary(self):
+        cases=[case_for(candidate,m=17,n=19,k=17,prefix=20,group=1,reuse_count=1,
+            **(dict(dataset_profile='mixed-tiles-v2',dataset_seed=3136) if candidate=='wmma' else {})) for candidate in REUSE]
+        self.collect(cases,runs=2)
+        records=self.records();self.assertEqual(len(records),6);self.assertTrue(all(r['validated'] for r in records))
+        summary,=self.output.glob('encoded-b-reuse-comparison-*.json')
+        report=json.loads(summary.read_text(encoding='utf-8'))
+        self.assertEqual(report['schema'],'rns8_encoded_b_reuse_comparison_v2');self.assertFalse(report['promotion_eligible'])
+        self.assertEqual(len(report['groups']),2)
+        for row in report['groups']:
+            self.assertIsNone(row['first_observed_cold_winning_reuse_count'])
+            self.assertEqual(row['points'][0]['status'],'incomplete_cohort')
     def test_encoded_setup_and_batch_mismatches_retain_failed_captures(self):
         for candidate,key,value in (("encoded_b_warm","encoded_b_prepare_ns",None),
                                     ("encoded_b_cold","encoded_b_prepare_ns",100),
