@@ -29,6 +29,9 @@ set(RNS8_WORKLOAD_TARGETS
   complex-product
   exactness-walkthrough
 )
+if(RNS8_BUILD_BENCHMARKS AND NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  list(APPEND RNS8_WORKLOAD_TARGETS gram-calibrate)
+endif()
 
 # Bind example code/data separately: the library manifest does not hash examples/.
 file(GLOB _workload_inputs CONFIGURE_DEPENDS
@@ -51,12 +54,23 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/workload_source_identity.hpp" "${_identi
 
 foreach(_name IN LISTS RNS8_WORKLOAD_TARGETS)
   string(REPLACE "-" "_" _source "${_name}")
-  add_executable("rns8-workload-${_name}" "${_source}.cpp")
-  target_link_libraries("rns8-workload-${_name}" PRIVATE ${_workload_library} nlohmann_json::nlohmann_json)
+  if(_name STREQUAL "gram-calibrate")
+    add_executable("rns8-workload-${_name}" "${PROJECT_SOURCE_DIR}/benchmarks/rns8_gram_calibrate.cpp")
+    target_include_directories("rns8-workload-${_name}" PRIVATE "${PROJECT_SOURCE_DIR}/src")
+    if(RNS8_ENABLE_HIP)
+      target_include_directories("rns8-workload-${_name}" PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
+      target_compile_definitions("rns8-workload-${_name}" PRIVATE __HIP_PLATFORM_AMD__=1 RNS8_ENABLE_HIP=1)
+    endif()
+    # Native observations call private hooks from this exact linked library.
+    target_link_libraries("rns8-workload-${_name}" PRIVATE rns8::rns8_static nlohmann_json::nlohmann_json)
+  else()
+    add_executable("rns8-workload-${_name}" "${_source}.cpp")
+    target_link_libraries("rns8-workload-${_name}" PRIVATE ${_workload_library} nlohmann_json::nlohmann_json)
+  endif()
   target_include_directories("rns8-workload-${_name}" PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
   target_include_directories("rns8-workload-${_name}" SYSTEM PRIVATE "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
   target_compile_features("rns8-workload-${_name}" PRIVATE cxx_std_17)
-  if(_name STREQUAL "integer-cross-product" OR _name STREQUAL "resident-chain")
+  if(_name STREQUAL "integer-cross-product" OR _name STREQUAL "resident-chain" OR _name STREQUAL "gram-calibrate")
     rns8_bind_workload_optional_references("rns8-workload-${_name}")
   endif()
   if(COMMAND rns8_bind_manifest)
@@ -71,11 +85,11 @@ foreach(_name IN LISTS RNS8_WORKLOAD_TARGETS)
   else()
     target_compile_options("rns8-workload-${_name}" PRIVATE -Wall -Wextra -Wpedantic)
   endif()
-  if(WIN32 AND RNS8_WORKLOAD_USE_SHARED)
+  if(WIN32 AND RNS8_WORKLOAD_USE_SHARED AND NOT _name STREQUAL "gram-calibrate")
     add_custom_command(TARGET "rns8-workload-${_name}" POST_BUILD
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${_workload_library}>" "$<TARGET_FILE_DIR:rns8-workload-${_name}>")
   endif()
-  if(BUILD_TESTING)
+  if(BUILD_TESTING AND NOT _name STREQUAL "gram-calibrate")
     add_test(NAME "workload_${_source}_cpu" COMMAND "rns8-workload-${_name}" --reference-only --size tiny --repeats 1 --warmups 0 --json)
     set_tests_properties("workload_${_source}_cpu" PROPERTIES LABELS "examples;workloads;cpu" TIMEOUT 30)
     if(RNS8_WORKLOAD_GPU_TESTS)
@@ -122,6 +136,14 @@ if(BUILD_TESTING)
     --reference-only --size tiny --gram --gram-reuse 3 --gram-export once --pattern zero
     --repeats 2 --warmups 1 --sustained-ms 1 --json)
   set_tests_properties(workload_gram_prepared_expanded_proof_cpu PROPERTIES LABELS "examples;workloads;cpu;gram" TIMEOUT 60)
+  if(TARGET rns8-workload-gram-calibrate AND RNS8_WORKLOAD_GPU_TESTS)
+    foreach(_gram_export IN ITEMS each once)
+      add_test(NAME workload_gram_native_diagnostics_${_gram_export}_hip COMMAND rns8-workload-gram-calibrate
+        --backend hip-direct --device 0 --size tiny --m 3 --k 5 --wide --bits 40 --gram --gram-reuse 2
+        --gram-five-product --gram-export ${_gram_export} --repeats 2 --warmups 1 --sustained-ms 1 --json)
+      set_tests_properties(workload_gram_native_diagnostics_${_gram_export}_hip PROPERTIES LABELS "examples;workloads;hip;gram;experimental;native-observations" TIMEOUT 90 SKIP_RETURN_CODE 77)
+    endforeach()
+  endif()
   if(RNS8_WORKLOAD_GPU_TESTS)
     add_test(NAME workload_gram_prepared_expanded_proof_hip COMMAND rns8-workload-integer-cross-product
       --backend hip-direct --device 0 --size tiny --gram --gram-reuse 3 --gram-export once --pattern zero

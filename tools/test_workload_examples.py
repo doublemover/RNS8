@@ -435,6 +435,124 @@ class FiveProductGramReports(unittest.TestCase):
                 collector.requested_five_gram(args)
 
 
+def native_gram_fixture(policy="once"):
+    report = five_gram_fixture(policy=policy, hip=True)
+    report["native_diagnostics_cohort"] = 1
+    products = report["gram_batch"]["products_per_batch"]
+    exports = products if policy == "each" else 1
+    for row in report["variants"]:
+        if row["status"] != "passed" or not row["name"].startswith("rns8_"):
+            continue
+        labels = {"synthetic_ordinary_gram": products}
+        if "gram_five_product" in row["metadata"]:
+            labels = {
+                "gram_five_compact_transform_v2": 5 * products,
+                "gram_five_compact_products_v2": 5 * products,
+                "gram_five_classical_triangular_bucket_v2": products,
+                "gram_five_compact_recombine_v2": products,
+                "gram_five_ordered_commit_v2": products,
+            }
+            if row["metadata"]["gram_five_product"]["matrix_subproducts"]:
+                labels["amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel_indexed_batched_v2"] = (
+                    5 * products
+                )
+        row["separate_batch_observation"] = dict(
+            schema="rns8_native_application_batch_v1",
+            scope="one_separate_public_application_batch",
+            observed_batches=1,
+            gram_products=products,
+            rns_exports=exports,
+            inside_timed_samples=False,
+            inside_sustained_interval=False,
+            copy_scope="tracked_completed_synchronous_HIP_copy_wrappers",
+            native_event_receipts_complete=True,
+            event_time_scope="per_label_sums_may_overlap_not_additive_end_to_end",
+            full_exact_output_checked_after_observation=True,
+            checksum_u64=report["checksum_u64"],
+            allocation_epoch=1,
+            device_allocation_calls=0,
+            device_free_calls=0,
+            h2d_calls=0,
+            h2d_bytes=0,
+            d2h_calls=exports,
+            d2h_bytes=exports * 32,
+            event_labels=labels,
+            event_microseconds={key: 1.5 for key in labels},
+        )
+    return report
+
+
+class NativeGramReports(unittest.TestCase):
+    def test_separate_batch_durations_and_matched_native_identity(self):
+        for policy in ("each", "once"):
+            report = native_gram_fixture(policy)
+            identity = collector.validate_report(report, "run1", "hip-direct", 0)
+            self.assertEqual(identity["native_diagnostics_cohort"], 1)
+            self.assertEqual(len(identity["native_diagnostic_identity"]), 7)
+
+    def test_missing_inconsistent_or_timed_native_receipts_are_rejected(self):
+        mutations = [
+            lambda r: r.update(native_diagnostics_cohort=True),
+            lambda r: r.pop("native_diagnostics_cohort"),
+            lambda r: r["variants"][-1].pop("separate_batch_observation"),
+            lambda r: r["variants"][0].update(separate_batch_observation={}),
+        ]
+        values = dict(
+            inside_timed_samples=True,
+            inside_sustained_interval=True,
+            observed_batches=True,
+            checksum_u64=0,
+            gram_products=1,
+            rns_exports=2,
+            allocation_epoch=False,
+            event_labels={},
+            event_microseconds={},
+            copy_scope="all_async_and_sync_transfers",
+            native_event_receipts_complete=False,
+            full_exact_output_checked_after_observation=False,
+            device_allocation_calls=1,
+            device_free_calls=1,
+            h2d_calls=1,
+            h2d_bytes=1,
+            d2h_calls=0,
+            event_time_scope="additive_end_to_end",
+        )
+        for key, value in values.items():
+            mutations.append(
+                lambda r, key=key, value=value: r["variants"][-1][
+                    "separate_batch_observation"
+                ].update({key: value})
+            )
+        for key in native_gram_fixture()["variants"][-1]["separate_batch_observation"]:
+            mutations.append(
+                lambda r, key=key: r["variants"][-1]["separate_batch_observation"].pop(key)
+            )
+        for mutation in mutations:
+            report = native_gram_fixture()
+            mutation(report)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+        for value in (-1, True, float("inf"), float("nan"), 10**1000):
+            report = native_gram_fixture()
+            report["variants"][-1]["separate_batch_observation"]["event_microseconds"][
+                "gram_five_compact_products_v2"
+            ] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+        for phase in (
+            "gram_five_compact_transform_v2",
+            "gram_five_compact_products_v2",
+            "gram_five_classical_triangular_bucket_v2",
+            "gram_five_compact_recombine_v2",
+            "gram_five_ordered_commit_v2",
+            "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel_indexed_batched_v2",
+        ):
+            report = native_gram_fixture()
+            report["variants"][-1]["separate_batch_observation"]["event_labels"][phase] += 1
+            with self.subTest(phase=phase), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+
+
 class GramBatchReports(unittest.TestCase):
     def test_prepared_gram_controls_refresh_recreate_and_first_use(self):
         for products in (1, 3, 32):

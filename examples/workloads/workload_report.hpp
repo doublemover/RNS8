@@ -69,10 +69,10 @@ inline Json verified_sample(Variant& variant, uint64_t version, const Words& exp
   return result;
 }
 template <class Data>
-inline void run_variants(Json& report, const Options& options, const Data& data,
-                         std::vector<Variant>& variants, const Words& expected,
-                         const std::function<Words()>& mutate_and_reference,
-                         Json skipped = Json::array()) {
+inline void
+run_variants(Json& report, const Options& options, const Data& data, std::vector<Variant>& variants,
+             const Words& expected, const std::function<Words()>& mutate_and_reference,
+             Json skipped = Json::array(), const Variant::NativeBatchObserver& observe = {}) {
   Json records = Json::array(), order = Json::array();
   for (auto& variant : variants) {
     const auto cold = verified_sample(variant, 1, expected);
@@ -109,6 +109,19 @@ inline void run_variants(Json& report, const Options& options, const Data& data,
     }
   }
   report["sustained_order"] = sustained_order;
+  if (observe) {
+    report["native_diagnostics_cohort"] = 1;
+    for (std::size_t index = 0; index < variants.size(); ++index) {
+      if (!variants[index].separate_observation)
+        continue;
+      auto observation = variants[index].separate_observation(observe);
+      require(variants[index].output() == expected,
+              "separate diagnostic full exact output mismatch: " + variants[index].name);
+      observation["full_exact_output_checked_after_observation"] = true;
+      observation["checksum_u64"] = checksum(variants[index].output());
+      records[index]["separate_batch_observation"] = std::move(observation);
+    }
+  }
   const auto reference_start = Clock::now();
   const Words changed = mutate_and_reference();
   report["changed_input_reference_ns"] = since(reference_start);
@@ -136,6 +149,7 @@ inline void run_variants(Json& report, const Options& options, const Data& data,
     variants[index].execute = {};
     variants[index].output = {};
     variants[index].execution_evidence = {};
+    variants[index].separate_observation = {};
     const double teardown = since(teardown_start);
     records[index]["resource_teardown_ns"] = teardown;
     records[index]["cold_application_total_ns"] =

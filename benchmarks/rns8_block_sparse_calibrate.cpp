@@ -1,14 +1,13 @@
 // Public generation-bound block-sparse ownership and whole-call cost controls.
 #include <rns8/rns8.h>
 #include <rns8/moduli.h>
-#include "backend_hip_direct/hip_backend.hpp"
+#include "native_diagnostic_observation.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <array>
 #include <charconv>
 #include <chrono>
-#include <cmath>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -16,6 +15,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 namespace {
 using json = nlohmann::json;
@@ -238,62 +238,18 @@ json sparse_storage(const rns8_block_sparse_operand* operand) {
 }
 
 template <class Run> json observe_sparse_call(rns8_context* ctx, uint32_t reuse, Run&& run) {
-  using namespace rns8::detail;
-  struct Timing {
-    Timing() {
-      require(!hip_direct_timing_enabled(), "diagnostic timing was already enabled");
-      hip_direct_timing_reset();
-      hip_direct_timing_set_enabled(true);
-    }
-    ~Timing() {
-      hip_direct_timing_set_enabled(false);
-      hip_direct_timing_reset();
-    }
-  } timing;
-  auto observation = [&] {
-    rns8_allocation_observation value{};
-    value.struct_size = sizeof(value);
-    value.abi_version = RNS8_ABI_VERSION;
-    check(rns8_get_allocation_observation(ctx, &value));
-    return value;
-  };
-  const auto before = observation();
-  const auto copies_before = hip_direct_allocation_counters_snapshot();
-  run();
-  hip_direct_timing_flush_pending_events();
-  const auto copies_after = hip_direct_allocation_counters_snapshot();
-  const auto after = observation();
-  require(after.epoch == before.epoch, "allocation observation epoch changed");
-  require(hip_direct_timing_failures_complete() && hip_direct_timing_failure_snapshot().empty(),
-          "native diagnostic events are incomplete");
-  auto delta = [](uint64_t last, uint64_t first) {
-    require(last >= first, "native diagnostic counters went backwards");
-    return last - first;
-  };
-  json labels = json::object();
-  for (const auto& event : hip_direct_timing_snapshot()) {
-    require(!event.label.empty() && std::isfinite(event.microseconds) && event.microseconds >= 0,
-            "invalid native diagnostic event");
-    labels[event.label] = labels.value(event.label, uint64_t{0}) + 1;
-  }
-  return {
-      {"scope", "one_separate_public_batch_process_library_counters_and_native_events"},
-      {"inside_timed_samples", false},
-      {"inside_sustained_interval", false},
-      {"observed_batches", 1},
-      {"public_gemm_calls", reuse},
-      {"allocation_epoch", after.epoch},
-      {"device_allocation_calls",
-       delta(after.device.allocation_calls, before.device.allocation_calls)},
-      {"device_free_calls", delta(after.device.free_calls, before.device.free_calls)},
-      {"h2d_calls", delta(copies_after.h2d_calls, copies_before.h2d_calls)},
-      {"h2d_bytes", delta(copies_after.h2d_bytes, copies_before.h2d_bytes)},
-      {"d2h_calls", delta(copies_after.d2h_calls, copies_before.d2h_calls)},
-      {"d2h_bytes", delta(copies_after.d2h_bytes, copies_before.d2h_bytes)},
-      {"capability_probe_events", labels.value("block_sparse_prepare_capability", uint64_t{0})},
-      {"sparse_gemm_events", labels.value("block_sparse_intersection_gemm_kernel", uint64_t{0})},
-      {"native_event_receipts_complete", true},
-      {"event_labels", labels}};
+  auto value = rns8_benchmark::observe_native_batch(ctx, std::forward<Run>(run));
+  value.erase("event_microseconds");
+  value.erase("copy_scope");
+  value["scope"] = "one_separate_public_batch_process_library_counters_and_native_events";
+  value["inside_timed_samples"] = false;
+  value["inside_sustained_interval"] = false;
+  value["observed_batches"] = 1;
+  value["public_gemm_calls"] = reuse;
+  const auto& labels = value.at("event_labels");
+  value["capability_probe_events"] = labels.value("block_sparse_prepare_capability", uint64_t{0});
+  value["sparse_gemm_events"] = labels.value("block_sparse_intersection_gemm_kernel", uint64_t{0});
+  return value;
 }
 
 uint64_t payload(const rns8_matrix_storage_info& s) {

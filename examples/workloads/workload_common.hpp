@@ -493,6 +493,8 @@ struct Variant {
   std::function<WordView()> output;
   // Optional lifecycle evidence is read after timing, never between burst calls.
   std::function<Json()> execution_evidence;
+  using NativeBatchObserver = std::function<Json(rns8_context*, const std::function<void()>&)>;
+  std::function<Json(const NativeBatchObserver&)> separate_observation;
 };
 inline Json clock_info() {
   std::array<double, 1001> times{};

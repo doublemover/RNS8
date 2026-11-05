@@ -20,6 +20,7 @@ import subprocess
 import time
 import uuid
 from modulus_set_search import DEFAULT_MODULI, is_prime
+from metadata_registry_constants import AMDGPU_BUILTIN_EVENT_FAMILIES
 
 SCHEMA = "rns8_workload_observation_v1"
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -64,6 +65,7 @@ IDENTITY_KEYS = (
     "gram_prepared_owner_cohort",
     "gram_ablation_cohort",
     "gram_five_product_cohort",
+    "native_diagnostics_cohort",
     "optional_reference_cohort",
     "optional_references",
     "cpu_lifecycle_cohort",
@@ -500,6 +502,146 @@ def validate_five_gram_storage(row, report):
         and metadata.get("gram_method") == ("builtin_matrix" if matrix else "scalar"),
         "five-product recipe inherited a triangular ablation identity",
     )
+
+
+def validate_native_diagnostics(report, variants):
+    declared = "native_diagnostics_cohort" in report
+    if not declared:
+        demand(
+            all("separate_batch_observation" not in row for row in variants),
+            "native diagnostics lack a declared cohort",
+        )
+        return None
+    demand(
+        exact_value(report["native_diagnostics_cohort"], 1)
+        and report["backend_requested"] == "hip-direct"
+        and bool(report.get("gram_batch")),
+        "native diagnostics require explicit direct-HIP Gram batches",
+    )
+    products = report["gram_batch"]["products_per_batch"]
+    exports = products if report["gram_batch"]["export_policy"] == "each" else 1
+    fixed = dict(
+        schema="rns8_native_application_batch_v1",
+        scope="one_separate_public_application_batch",
+        observed_batches=1,
+        gram_products=products,
+        rns_exports=exports,
+        inside_timed_samples=False,
+        inside_sustained_interval=False,
+        copy_scope="tracked_completed_synchronous_HIP_copy_wrappers",
+        native_event_receipts_complete=True,
+        event_time_scope="per_label_sums_may_overlap_not_additive_end_to_end",
+        full_exact_output_checked_after_observation=True,
+        checksum_u64=report["checksum_u64"],
+    )
+    counters = {
+        "device_allocation_calls",
+        "device_free_calls",
+        "h2d_calls",
+        "h2d_bytes",
+        "d2h_calls",
+        "d2h_bytes",
+    }
+    identities = []
+    for row in variants:
+        if row["status"] != "passed" or not row["name"].startswith("rns8_"):
+            demand(
+                "separate_batch_observation" not in row,
+                "unsupported/CPU comparator has native observations",
+            )
+            continue
+        value = row.get("separate_batch_observation")
+        demand(
+            type(value) is dict
+            and set(value)
+            == {*fixed, *counters, "allocation_epoch", "event_labels", "event_microseconds"}
+            and all(exact_value(value[key], wanted) for key, wanted in fixed.items()),
+            "native diagnostic scope/output identity mismatch",
+        )
+        demand(
+            type(value["allocation_epoch"]) is int
+            and 1 <= value["allocation_epoch"] <= MASK
+            and all(type(value[key]) is int and 0 <= value[key] <= MASK for key in counters),
+            "invalid native diagnostic allocation/copy counters",
+        )
+        for direction in ("h2d", "d2h"):
+            calls, size = value[direction + "_calls"], value[direction + "_bytes"]
+            demand(
+                (calls == 0 and size == 0) or 0 < calls <= size,
+                "native copy counter denominator mismatch",
+            )
+        labels, durations = value["event_labels"], value["event_microseconds"]
+        demand(
+            type(labels) is dict
+            and 0 < len(labels) <= 64
+            and all(
+                type(key) is str
+                and 0 < len(key) <= 256
+                and type(count) is int
+                and 1 <= count <= 65536
+                for key, count in labels.items()
+            )
+            and sum(labels.values()) <= 65536,
+            "invalid native event denominator",
+        )
+        demand(
+            type(durations) is dict
+            and set(durations) == set(labels)
+            and all(
+                type(time) in (int, float) and 0 <= time <= 1e15 and math.isfinite(time)
+                for time in durations.values()
+            ),
+            "missing/invalid native phase durations",
+        )
+        if "gram_five_product" in row["metadata"]:
+            phase_counts = {
+                "gram_five_compact_transform_v2": 5 * products,
+                "gram_five_compact_products_v2": 5 * products,
+                "gram_five_classical_triangular_bucket_v2": products,
+                "gram_five_compact_recombine_v2": products,
+                "gram_five_ordered_commit_v2": products,
+            }
+            demand(
+                all(exact_value(labels.get(key), count) for key, count in phase_counts.items()),
+                "five-product native stage coverage mismatch",
+            )
+            demand(
+                all(
+                    value[key] == 0
+                    for key in (
+                        "device_allocation_calls",
+                        "device_free_calls",
+                        "h2d_calls",
+                        "h2d_bytes",
+                    )
+                ),
+                "warm five-product batch repeated allocation/setup/upload",
+            )
+            indexed = sum(
+                count
+                for label, count in labels.items()
+                if label.startswith("amdgpu_builtin_") and label.endswith("_indexed_batched_v2")
+            )
+            matrix = row["metadata"]["gram_five_product"]["matrix_subproducts"]
+            known = {
+                entry["integer_event"] + "_indexed_batched_v2"
+                for entry in AMDGPU_BUILTIN_EVENT_FAMILIES
+                if "_sparse_a_" not in entry["integer_event"]
+            }
+            demand(
+                all(
+                    not label.endswith("_indexed_batched_v2") or label in known for label in labels
+                ),
+                "unknown indexed matrix-provider event family",
+            )
+            demand(
+                indexed == (5 * products if matrix else 0),
+                "five-product matrix route missing provider events",
+            )
+        identities.append(
+            dict(name=row["name"], event_labels=labels, copy_scope=value["copy_scope"])
+        )
+    return identities
 
 
 def validate_gram_batch(report: dict, variants: list[dict], requested=None, dataset=None):
@@ -1459,6 +1601,9 @@ def validate_report(
         "sustained order must cover each measured variant exactly once",
     )
     validate_gram_batch(report, variants, gram_request, identity["dataset_bytes"])
+    native = validate_native_diagnostics(report, variants)
+    if native is not None:
+        identity["native_diagnostic_identity"] = native
     validate_optional_references(report, variants)
     validate_cpu_lifecycles(report, variants)
     identity["variants"] = admitted
@@ -1521,7 +1666,7 @@ def collect(
     digest = sha(executable)
     tools = {
         name: sha(Path(__file__).with_name(name))
-        for name in (Path(__file__).name, "modulus_set_search.py")
+        for name in (Path(__file__).name, "modulus_set_search.py", "metadata_registry_constants.py")
     }
     record = {
         "schema": "rns8_workload_collection_v1",

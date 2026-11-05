@@ -310,6 +310,16 @@ struct DenseEngine {
     }
   }
 };
+inline void bind_dense_variant(Variant& result, const std::shared_ptr<DenseEngine>& state) {
+  result.metadata = state->metadata;
+  result.execute = [state](Phases& phases, uint64_t version) { state->execute(phases, version); };
+  result.output = [state]() -> const Words& { return state->words; };
+  result.separate_observation = [state](const Variant::NativeBatchObserver& observe) {
+    Phases phases;
+    phases.enabled = false;
+    return observe(state->context.get(), [&] { state->execute(phases, 1); });
+  };
+}
 inline Variant dense_variant(const Dataset& data, const Options& options, const cpp_int& bound) {
   const auto start = Clock::now();
   auto state = std::make_shared<DenseEngine>(data, options, bound);
@@ -317,9 +327,7 @@ inline Variant dense_variant(const Dataset& data, const Options& options, const 
   result.name = options.gram_reuse ? "rns8_prepared_dense_gram_control"
                                    : "rns8_" + std::string(backend_name(options.backend));
   result.setup_ns = since(start);
-  result.metadata = state->metadata;
-  result.execute = [state](Phases& phases, uint64_t version) { state->execute(phases, version); };
-  result.output = [state]() -> const Words& { return state->words; };
+  bind_dense_variant(result, state);
   return result;
 }
 inline Variant gram_variant(const Dataset& data, const Options& options, const cpp_int& bound,
@@ -344,9 +352,7 @@ inline Variant gram_variant(const Dataset& data, const Options& options, const c
     result.name = std::string("rns8_prepared_single_source_gram_five_") +
                   (method == RNS8_GRAM_WMMA ? "matrix" : "scalar");
   result.setup_ns = since(start);
-  result.metadata = state->metadata;
-  result.execute = [state](Phases& phases, uint64_t version) { state->execute(phases, version); };
-  result.output = [state]() -> const Words& { return state->words; };
+  bind_dense_variant(result, state);
   if (prepared)
     result.execution_evidence = [state] { return state->gram_execution_evidence(); };
   return result;

@@ -37,8 +37,32 @@ and same-contract profitability remain separate qualification work. The new
 workload integration and CPU/HIP each/once and malformed-report controls are
 authored; runtime execution is deferred with the current source pass.
 
+The project-only `rns8-workload-gram-calibrate` target uses the same workload
+implementation and controls, linked to the exact static library whose private
+hooks it observes. Build it with examples and benchmarks enabled. It requires
+direct HIP and an explicit Gram batch. After all samples and sustained intervals,
+it executes one separate batch per RNS8 candidate with phase timing disabled on
+the host and native HIP events enabled, then checks every exact output word.
+`native_diagnostics_cohort=1` binds the separate receipts and event denominators
+across independent processes. The installed standalone examples keep the public
+consumer path and do not need these private hooks.
+
+Separate receipts include per-label microseconds and counts for the compact
+transforms, five product batches, classical triangular bucket, recombination and
+ordered commit. Matrix recipes additionally require the actual indexed AMDGPU
+provider events from the generated registry. A bucket event may cover several
+launches, and nested event durations can overlap: these are measured boundaries,
+not additive end-to-end time or physical instruction counts. Allocation/free
+deltas observe library-owned device requests; copy deltas cover the tracked
+completed synchronous HIP wrappers. Async commit traffic is represented by its
+native event and queried staging extent, not misreported as synchronous copy
+bytes. The collector requires warm algebraic replay to avoid allocation/free
+and uploads. Event collection, separate-batch correctness and each/once HIP
+registrations are authored and remain unexecuted.
+
 ```powershell
 python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-five.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size modest --m 33 --k 65 --wide --bits 40 --gram --gram-reuse 8 --gram-five-product --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-gram-calibrate.exe --output temp/workloads/gram-five-diagnostic.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size modest --m 33 --k 65 --wide --bits 40 --gram --gram-reuse 8 --gram-five-product --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
 ```
 
 | Candidate | Retained preparation | Work inside each batch |
