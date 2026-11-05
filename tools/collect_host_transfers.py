@@ -1,4 +1,5 @@
 """Matched public host-transfer calls; no route promotion or inferred overlap."""
+from call_observation_contract import observation_boundary
 import argparse
 import json
 import math
@@ -40,6 +41,7 @@ def validate_sample(s):
 
 
 def validate_capture(c,entry):
+    observation_boundary(c)
     case=validate_case(entry['case']);mode=case['mode'];pinned=mode!='pageable-sync';stream=mode in ('pinned-stream','pinned-graph');graph=mode=='pinned-graph'
     m,n,k=(case[key] for key in ('m','n','k'));ac,bc,cc=m*k,k*n,m*n
     fixed=dict(schema='rns8_host_transfer_microcase_v1',case=case,run_id=entry['run_id'],device_actual=case['device'],
@@ -108,7 +110,7 @@ def summarize(observations):
     for entry,capture in observations:
         c=validate_capture(capture,entry)
         for phase in c['phases']:
-            identity=dict(case={key:value for key,value in entry['case'].items() if key!='mode'},generation=phase['generation'],
+            identity=dict(hot_loop_serialization=observation_boundary(c),case={key:value for key,value in entry['case'].items() if key!='mode'},generation=phase['generation'],
                 build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c['runtime_version'],
                 artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},
                 environment=(c.get('request_identity') or {}).get('environment'))

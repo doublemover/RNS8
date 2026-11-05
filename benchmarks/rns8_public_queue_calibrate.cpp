@@ -1,3 +1,4 @@
+#include "call_observation.hpp"
 // Completed PUBLIC ownership/proof/export boundary; private queue microbenchmarks
 // remain separate and are never substituted for these generation-owned calls.
 #include "core/internal.hpp"
@@ -172,11 +173,11 @@ int main(int argc,char** argv){try{
   cold_observer.reset();const auto cold_finished_allocations=rns8::detail::hip_direct_allocation_counters_snapshot();
   uint64_t generation=1,groups_executed=0;
   std::vector<rns8_completion_token> tokens(owner.tasks.size());
-  const auto execute=[&](){std::array<double,3> phases{};const auto start=Clock::now();
-    for(uint32_t r=0;r<reuse;++r){const auto before=Clock::now();
+  const auto execute=[&](bool timed=true){const rns8::bench::CallClock<> clock(timed);std::array<double,3> phases{};const auto start=clock.now();
+    for(uint32_t r=0;r<reuse;++r){const auto before=clock.now();
       if(policy=="mutated-b") {++generation;for(auto& [slot,b]:owner.bs){if(b.u)b.unsigned_values[0]=(b.unsigned_values[0]+1)%8;
           else b.signed_values[0]=(b.signed_values[0]+8)%15-7;pack(b);}rebuild();}
-      const auto prepared=Clock::now();uint32_t completed=0;rns8_status status=RNS8_SUCCESS;
+      const auto prepared=clock.now();uint32_t completed=0;rns8_status status=RNS8_SUCCESS;
       if(mode!="graph")status=rns8_execute_prepared_group(owner.group,tokens.data(),uint32_t(tokens.size()),&completed);
       else {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -187,12 +188,12 @@ int main(int argc,char** argv){try{
         throw std::runtime_error("native graph requires a HIP build");
 #endif
       }
-      check(status);need(completed==owner.tasks.size(),"incomplete public group");const auto computed=Clock::now();
+      check(status);need(completed==owner.tasks.size(),"incomplete public group");const auto computed=clock.now();
       for(auto& task:owner.tasks)check(task.a.u?rns8_export_exact_wide_unsigned_limbs(owner.ctx,task.plan,task.c,task.output.data(),task.n+padding,3):
           rns8_export_exact_wide_signed_limbs(owner.ctx,task.plan,task.c,task.output.data(),task.n+padding,3));
-      const auto exported=Clock::now();phases[0]+=us(before,prepared);phases[1]+=us(prepared,computed);phases[2]+=us(computed,exported);++groups_executed;
+      const auto exported=clock.now();phases[0]+=us(before,prepared);phases[1]+=us(prepared,computed);phases[2]+=us(computed,exported);++groups_executed;
     }
-    const double total=us(start,Clock::now());return Observation{phases[0],phases[1],phases[2],std::max(0.0,total-phases[0]-phases[1]-phases[2]),total,reuse};
+    const double total=us(start,clock.now());return Observation{phases[0],phases[1],phases[2],std::max(0.0,total-phases[0]-phases[1]-phases[2]),total,reuse};
   };
   json integrity_receipts=nullptr;
   const auto audit=[&](){uint64_t digest=14695981039346656037ull;
@@ -216,10 +217,10 @@ int main(int argc,char** argv){try{
       }
     }return std::to_string(digest);
   };
-  const auto first=observation_json(execute());audit();for(uint32_t i=0;i<warmups;++i)execute();
+  const auto first=observation_json(execute());audit();for(uint32_t i=0;i<warmups;++i)execute(false);
   json samples=json::array();for(uint32_t i=0;i<repeats;++i){auto sample=observation_json(execute());sample["output_digest"]=audit();samples.push_back(std::move(sample));}
   json sustained=json::array();for(int batch=0;batch<3;++batch){const auto start_generation=generation,start_groups=groups_executed,start_rebuilds=rebuilds;
-    const auto start=Clock::now();uint32_t calls=0;double duration=0;do{execute();++calls;duration=us(start,Clock::now());}while(calls<4096 && (calls<16 || duration<250000));
+    const auto interval=rns8::bench::measure_completed_calls([&](){execute(false);});const auto calls=interval.calls;const double duration=interval.duration_us;
     sustained.push_back({{"calls",calls},{"complete_groups",groups_executed-start_groups},{"duration_us",duration},{"first_input_generation",start_generation},
       {"last_input_generation",generation},{"rebuilds",rebuilds-start_rebuilds},{"output_digest",audit()},{"exact_reference_passed",true}});
   }
@@ -242,7 +243,7 @@ int main(int argc,char** argv){try{
       {"preparation_peak_device_bytes",info.preparation_peak_device_metadata_bytes},{"graph_ready",info.graph_ready!=0}};}
   json result={{"schema","rns8_public_native_group_microcase_v1"},{"case",config},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"device",device.name},{"target",device.gcn_arch},{"runtime_version",device.hip_runtime_version},{"seed",seed},{"dataset","bounded_mt19937_64_shared_b_v1"},
-    {"native_integrity_receipts",integrity_receipts},{"host_control_diagnostics_compiled",rns8::detail::host_control_diagnostics_compiled()},{"host_control_diagnostic",host_diagnostic},{"hot_loop_serialization","typed_observations_json_after_intervals_v1"},{"host_instrumentation_state","hooks_disabled"},{"output_boundary","each_public_group_and_all_padded_three_limb_exports"},{"setup_us",setup_us},
+    {"native_integrity_receipts",integrity_receipts},{"host_control_diagnostics_compiled",rns8::detail::host_control_diagnostics_compiled()},{"host_control_diagnostic",host_diagnostic},{"hot_loop_serialization","typed_observation_no_phase_clocks_in_sustained_v2"},{"host_instrumentation_state","hooks_disabled"},{"output_boundary","each_public_group_and_all_padded_three_limb_exports"},{"setup_us",setup_us},
     {"setup_scope","context_plans_matrices_input_pack_encoded_B_descriptors_graph"},{"first_call",first},{"samples",samples},{"sustained",sustained},{"metadata",metadata},
     {"encoded_b_retained_device_bytes",encoded_bytes},{"encoded_b_peak_replacement_device_bytes",peak_encoded_bytes},{"useful_tile_channel_groups_per_call",useful_work},
     {"exact_reference_passed",true},{"oracle_inside_production_interval",false},

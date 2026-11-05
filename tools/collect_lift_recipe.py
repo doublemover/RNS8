@@ -1,4 +1,5 @@
 """Boundary-matched exact lift/recipe costs; no scientific qualification inferred."""
+from call_observation_contract import observation_boundary
 import argparse
 import json
 import math
@@ -77,6 +78,7 @@ def validate_case(c):
 
 
 def validate_capture(c,entry):
+    observation_boundary(c)
     case=validate_case(entry['case']);mode=case['mode'];lift=mode.startswith('lift-');single=lift or mode=='wider-producer';cells=case['side']**2;nodes=len(graph(case));p=case['prefix']
     native_h2d,native_d2h,native_host=native_payload(case)
     fixed=dict(schema='rns8_lift_recipe_microcase_v3',case=case,run_id=entry['run_id'],output_boundary='one_product_full_prefix_final_three_limb_export' if single else 'complete_dag_final_three_limb_export',
@@ -180,7 +182,7 @@ def validate_recipe_execution(c,case,selected):
     for key,value in expected.items():
         if type(receipt[key]) is not type(value) or receipt[key]!=value:raise ValueError('actual execution '+key)
     if not receipt['retained_layout_host_bytes']:raise ValueError('retained layout descriptors omitted')
-    if c.get('hot_loop_serialization')!='typed_observation_json_after_interval_v1':raise ValueError('hot loop serialization boundary')
+    if observation_boundary(c) not in ('typed_observation_json_after_interval_v1','typed_observation_no_phase_clocks_in_sustained_v2'):raise ValueError('hot loop serialization boundary')
     if c['recipe_retained_lift_bytes']<receipt['retained_control_device_bytes'] or c['recipe_arena_bytes']+c['recipe_retained_lift_bytes']>case['max_payload_bytes']-c['logical_payload_estimate_bytes']:
         raise ValueError('execution controls omitted from retained device budget')
 
@@ -261,7 +263,7 @@ def summarize(observations):
     cohorts={}
     for entry,c in observations:
         validate_capture(c,entry)
-        identity=dict(case={k:v for k,v in entry['case'].items() if k not in ('mode','execution_policy')},boundary=c['output_boundary'],extra_intermediate_observations=c['extra_intermediate_observations'],build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),hot_loop_serialization=c.get('hot_loop_serialization','historical_json_in_interval'),
+        identity=dict(case={k:v for k,v in entry['case'].items() if k not in ('mode','execution_policy')},boundary=c['output_boundary'],extra_intermediate_observations=c['extra_intermediate_observations'],build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),hot_loop_serialization=observation_boundary(c),
             artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
         training_us=c['stage_price_training_charge_ns']/1000
         policy=entry['case'].get('execution_policy',0)

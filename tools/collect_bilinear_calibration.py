@@ -1,4 +1,5 @@
 """Counterbalanced public bilinear controls; diagnostics never become timings."""
+from call_observation_contract import observation_boundary
 import argparse
 import json
 import math
@@ -48,6 +49,7 @@ def validate_case(c, *, compact=True):
 
 
 def validate_capture(c,entry):
+    observation_boundary(c)
     schema=c.get('schema');compact=schema in ('rns8_bilinear_microcase_v2','rns8_bilinear_microcase_v3')
     if schema not in ('rns8_bilinear_microcase_v1','rns8_bilinear_microcase_v2','rns8_bilinear_microcase_v3'):raise ValueError('capture ABI')
     case=validate_case(entry['case'],compact=compact);scratch,residue,host=resources(case,compact=compact);mode=case['mode'];diagnostic=case['instrumented']
@@ -139,7 +141,7 @@ def main():
         path=Path(entry['output'])
         if path.exists() or not run_command(entry['command'],path,a.timeout_seconds):raise RuntimeError('capture exists or process failed: '+str(path))
         c=validate_capture(strict_json(path.read_text()),entry)
-        identity=dict(capture_schema=c['schema'],case={k:v for k,v in entry['case'].items() if k not in ('mode','instrumented')},target=c.get('target'),device=c.get('device'),runtime=c.get('runtime_version'),
+        identity=dict(hot_loop_serialization=observation_boundary(c),capture_schema=c['schema'],case={k:v for k,v in entry['case'].items() if k not in ('mode','instrumented')},target=c.get('target'),device=c.get('device'),runtime=c.get('runtime_version'),
             build=c['build_manifest'],artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
         cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(capture_schema=c['schema'],mode=entry['case']['mode'],instrumented=entry['case']['instrumented'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=str(path),median_us=statistics.median(s['total_us'] for s in c['samples']),peak_bytes=c['known_peak_device_payload_bytes']))
     result=[dict(identity=json.loads(identity),**summarize(rows)) for identity,rows in cohorts.items()]

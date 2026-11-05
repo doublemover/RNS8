@@ -12,6 +12,15 @@ def replay_receipt(c,publish=0):
         reused_external_packing_calls=0,retained_external_packed_bytes=0)
 
 class LiftRecipeContracts(unittest.TestCase):
+    def test_observation_boundaries_are_strict_and_keep_historical_scopes_distinct(self):
+        from call_observation_contract import CURRENT,HISTORICAL,KNOWN,observation_boundary
+        self.assertEqual(observation_boundary({}),HISTORICAL)
+        for value in KNOWN:
+            self.assertEqual(observation_boundary(dict(hot_loop_serialization=value)),value)
+        self.assertNotEqual(CURRENT,HISTORICAL)
+        for value in (None,True,False,0,1,{},[],CURRENT+' ',HISTORICAL,'json_per_call'):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):observation_boundary(dict(hot_loop_serialization=value))
     def case(self):return dict(schema='lift_recipe_case_v1',side=32,depth=3,prefix=20,source_prefix=1,repeats=3,warmups=1,model_launch_ns=5000,max_payload_bytes=1<<30,unsigned_inputs=False,mode='recipe-minimum',topology='chain')
     def capture(self,mode=None,**changes):
         c=self.case();c.update(changes)
@@ -30,7 +39,7 @@ class LiftRecipeContracts(unittest.TestCase):
     def ordered_capture(self,policy=1):
         c=self.capture(execution_policy=policy)
         c['recipe_retained_lift_bytes']+=4 if policy else 0
-        c['hot_loop_serialization']='typed_observation_json_after_interval_v1'
+        c['hot_loop_serialization']='typed_observation_no_phase_clocks_in_sustained_v2'
         c['recipe_execution']=dict(schema='rns8_product_recipe_execution_v1',policy=policy,
             completion_contract='ordered_nondefault_single_terminal_v1' if policy else 'synchronous_wrappers_v1',
             stream_prepared=bool(policy),guarded_layout_products=bool(policy),

@@ -1,3 +1,4 @@
+#include "call_observation.hpp"
 // Matched public producer transactions plus explicitly labeled private standalone
 // sentinel control. No timing or performance outcome is inferred from this file.
 #include "core/api_internal.hpp"
@@ -61,20 +62,21 @@ int main(int argc,char** argv){try {
     rns8_plan_backend_info pi{};pi.struct_size=sizeof(pi);pi.abi_version=RNS8_ABI_VERSION;check(rns8_get_plan_backend_info(o->plan,&pi));kernel=pi.selected_kernel;
     if(mode=="sentinel-only"){rns8_completion_token t{};check(rns8_execute_prepared(o->execution,&t));}return o;};
   const auto setup_start=Clock::now();auto owner=create();const double setup=us(setup_start,Clock::now());if(residency=="cold"){check(owner->close());owner.reset();}
-  auto invoke=[&](){const auto start=Clock::now();if(residency=="cold")owner=create();else if(residency=="repack")pack(*owner);const auto prepared=Clock::now();
+  auto invoke=[&](bool timed=true){const rns8::bench::CallClock<> clock(timed);const auto start=clock.now();if(residency=="cold")owner=create();else if(residency=="repack")pack(*owner);const auto prepared=clock.now();
     if(mode=="sentinel-only"){
       const cpp_int mask=(cpp_int(1)<<64)-1;uint64_t bound[3];for(unsigned i=0;i<3;++i)bound[i]=((owner->c->exact_max_magnitude>>(64*i))&mask).convert_to<uint64_t>();
       IntegrityIdentity id{1,1,owner->a->matrix_instance_id,owner->a->content_generation,owner->b->matrix_instance_id,owner->b->content_generation,1,prefix};uint32_t failures=0;
       check(hip_direct_check_native_product_integrity(0,u?owner->a->hip_native_u64:owner->a->hip_native_i64,u?owner->b->hip_native_u64:owner->b->hip_native_i64,owner->c->hip_residues,m,n,k,k,n,u,bound,id,id,failures));
     } else {rns8_completion_token token{};check(rns8_execute_prepared(owner->execution,&token));if(mode=="compute-sentinel"){report={};report.struct_size=sizeof(report);report.abi_version=RNS8_ABI_VERSION;check(rns8_get_prepared_native_integrity_report(owner->execution,token,&report));if(report.outcome!=1 || report.failure_mask)throw std::runtime_error("sentinel outcome");}}
-    const auto computed=Clock::now();if(u)check(rns8_export_exact_wide_unsigned_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));else check(rns8_export_exact_wide_signed_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));
-    if(mode=="compute-cpu-reference")audit(reference());const auto exported=Clock::now();if(residency=="cold"){check(owner->close());owner.reset();}const auto end=Clock::now();
-    return json{{"prepare_us",us(start,prepared)},{"execute_us",us(prepared,computed)},{"export_reference_us",us(computed,exported)},{"cleanup_us",us(exported,end)},{"total_us",us(start,end)}};};
-  auto first=invoke();audit(gold);for(uint32_t i=0;i<warmups;++i)invoke();json samples=json::array();for(uint32_t i=0;i<repeats;++i){samples.push_back(invoke());audit(gold);}
-  json sustained=json::array();for(unsigned i=0;i<3;++i){unsigned count=0;const auto start=Clock::now();do{invoke();++count;}while(count<4096 && (count<16 || us(start,Clock::now())<250000));const auto elapsed=us(start,Clock::now());audit(gold);sustained.push_back({{"calls",count},{"total_us",elapsed},{"per_call_us",elapsed/count}});}
+    const auto computed=clock.now();if(u)check(rns8_export_exact_wide_unsigned_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));else check(rns8_export_exact_wide_signed_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));
+    if(mode=="compute-cpu-reference")audit(reference());const auto exported=clock.now();if(residency=="cold"){check(owner->close());owner.reset();}const auto end=clock.now();
+    return rns8::bench::PhaseObservation<4>{{us(start,prepared),us(prepared,computed),us(computed,exported),us(exported,end)},us(start,end)};};
+  const auto sample_json=[](const rns8::bench::PhaseObservation<4>& value){auto sample=rns8::bench::phase_observation_json(value,{"prepare_us","execute_us","export_reference_us","cleanup_us"},"total_us");return sample;};
+  auto first=sample_json(invoke());audit(gold);for(uint32_t i=0;i<warmups;++i)invoke(false);json samples=json::array();for(uint32_t i=0;i<repeats;++i){samples.push_back(sample_json(invoke()));audit(gold);}
+  json sustained=json::array();for(unsigned i=0;i<3;++i){const auto interval=rns8::bench::measure_completed_calls([&](){invoke(false);});const auto count=interval.calls;const auto elapsed=interval.duration_us;audit(gold);sustained.push_back({{"calls",count},{"total_us",elapsed},{"per_call_us",elapsed/count}});}
   if(owner)check(owner->close());
   json verification=nullptr;if(mode=="compute-sentinel")verification={{"outcome",report.outcome},{"failure_mask",report.failure_mask},{"operation",report.operation_id},{"epoch",report.epoch},{"a_generation",report.a_generation},{"b_generation",report.b_generation},{"basis_version",report.computational_basis_version},{"prefix",report.computational_prefix},{"check_moduli",{257,263}},{"device_flag_bytes",4},{"pinned_flag_bytes",4}};
-  std::cout<<json({{"schema","rns8_native_integrity_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
+  std::cout<<json({{"hot_loop_serialization","typed_observation_no_phase_clocks_in_sustained_v2"},{"schema","rns8_native_integrity_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"selected_compute_kernel",kernel},{"host_instrumentation_state","hooks_disabled"},{"output_boundary","public_prepared_product_and_padded_three_limb_export"},{"standalone_control",mode=="sentinel-only"},
     {"standalone_control_scope","private_read_only_checker_per_call_flag_allocation_device_sync_and_export"},{"known_payload_envelope_bytes",known_payload},{"memory_scope","logical_payload_excludes_cpp_int_heap_capacity_driver_allocator_and_opaque_runtime"},
     {"verification",verification},{"guarantee","fixed_redundant_residue_consistency_not_arbitrary_correctness"},{"ideal_failure_probability",nullptr},{"check_moduli_in_computational_range",false},

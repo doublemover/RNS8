@@ -1,3 +1,4 @@
+#include "call_observation.hpp"
 #include <rns8/rns8.h>
 #include "core/hip_resources.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
@@ -156,8 +157,8 @@ json run(const Case& c,const std::string& run_id) {
     rns8_completion_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
     check(rns8_wait_prepared_hip(owner.operations[3],token,&info));check(info.operation_status);need(info.output_is_current,"unpublished pinned output");
   };
-  const auto invoke=[&]() {
-    const auto start=Clock::now();std::array<rns8_completion_token,4> tokens{};
+  const auto invoke=[&](bool timed=true) {const rns8::bench::CallClock<> clock(timed);
+    const auto start=clock.now();std::array<rns8_completion_token,4> tokens{};
     if(!c.pinned) {
       pack();check(rns8_gemm_rns(owner.ctx,owner.plan,owner.matrices[0],owner.matrices[1],owner.matrices[2],owner.workspace));
       check(c.unsign?rns8_export_exact_wide_unsigned_limbs(owner.ctx,owner.plan,owner.matrices[2],output.data(),ldc,3):
@@ -178,10 +179,11 @@ json run(const Case& c,const std::string& run_id) {
       check(c.graph?rns8_submit_prepared_hip_graph_pipeline(owner.operations[3],owner.streams[3],&tokens[3]):
           rns8_submit_prepared_hip_pipeline(owner.operations[3],owner.streams[3],&tokens[3]));
     }
-    const auto enqueued=Clock::now();if(c.pinned)wait(tokens[3]);const auto end=Clock::now();++calls;
-    const auto enqueue=elapsed(start,enqueued),observe=elapsed(enqueued,end),total=elapsed(start,end);need(total>0,"censored complete-call duration");
-    return json{{"enqueue_ns",enqueue},{"observation_ns",observe},{"total_ns",total},{"phase_censored",enqueue==0 || observe==0}};
+    const auto enqueued=clock.now();if(c.pinned)wait(tokens[3]);const auto end=clock.now();++calls;
+    const auto enqueue=elapsed(start,enqueued),observe=elapsed(enqueued,end),total=elapsed(start,end);if(timed)need(total>0,"censored complete-call duration");
+    return rns8::bench::PhaseObservation<2,uint64_t>{{enqueue,observe},total};
   };
+  const auto sample_json=[](const rns8::bench::PhaseObservation<2,uint64_t>& value){auto sample=rns8::bench::phase_observation_json(value,{"enqueue_ns","observation_ns"},"total_ns");sample["phase_censored"]=value.phases[0]==0 || value.phases[1]==0;return sample;};
   const auto audit_words=[&](const uint64_t* words) {
     for(unsigned r=0;r<c.m;++r)for(unsigned col=0;col<ldc;++col) {
       const auto at=(uint64_t(r)*ldc+col)*3;
@@ -207,11 +209,11 @@ json run(const Case& c,const std::string& run_id) {
     uint64_t rebind_ns=0;if(generation==2) {
       a[0]=0;oracle();const auto start=Clock::now();if(c.pinned){fill(owner.pins[0],a,2);fill(owner.pins[1],b,2);}rebind_ns=elapsed(start,Clock::now());
     }
-    const auto before=calls,before_audits=audits;auto first=invoke();audit();for(unsigned i=0;i<c.warmups;++i)invoke();audit();
-    json samples=json::array();for(unsigned i=0;i<c.repeats;++i){samples.push_back(invoke());audit();}
+    const auto before=calls,before_audits=audits;auto first=sample_json(invoke());audit();for(unsigned i=0;i<c.warmups;++i)invoke(false);audit();
+    json samples=json::array();for(unsigned i=0;i<c.repeats;++i){samples.push_back(sample_json(invoke()));audit();}
     json sustained=json::array();for(unsigned i=0;i<3;++i) {
-      uint64_t count=0,time=0;const auto start=Clock::now();
-      do{invoke();++count;time=elapsed(start,Clock::now());}while(count<4096 && (count<16 || time<250000000));audit();
+      const auto interval=rns8::bench::measure_completed_calls([&](){invoke(false);});
+      const auto count=interval.calls;const uint64_t time=interval.duration_ns;audit();
       sustained.push_back({{"calls",count},{"elapsed_ns",time},{"mean_call_ns",double(time)/count},{"final_exact_reference_passed",true}});
     }
     phases.push_back({{"generation",generation},{"binding_action",generation==1?"initial_inputs":"changed_A0_same_handles"},
@@ -231,7 +233,7 @@ json run(const Case& c,const std::string& run_id) {
         {"retained_native_bytes",t.retained_native_matrix_bytes},{"verified_input_bound",t.verified_input_bound}});
   }
   need(host_bytes+device_bytes+pinned_bytes+128*cc<=c.budget,"queried payload/reference envelope exceeded");
-  json report={{"schema","rns8_host_transfer_microcase_v1"},{"case",c.original},{"run_id",run_id},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
+  json report={{"hot_loop_serialization","typed_observation_no_phase_clocks_in_sustained_v2"},{"schema","rns8_host_transfer_microcase_v1"},{"case",c.original},{"run_id",run_id},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
       {"target",device.gcn_arch},{"device",device.name},{"device_actual",device.device_id},{"runtime_version",device.hip_runtime_version},
       {"output_boundary","readable_host_padded_three_limb_result"},{"prefix",20},{"input_bound_policy",c.pinned?"full_native64_envelope":"engine_host_value_scan"},
       {"verify_input_bound",false},{"graph_requested",c.graph},{"graph_executed",c.graph},{"prepared_owners",c.pinned?4:0},{"pinned_buffers",c.pinned?3:0},

@@ -51,6 +51,11 @@ It still validates input generations and completes all required writes/status.
 No explicit result-cache owner is created by either route. Signed all-one inputs
 produce 22-bit and 25-bit final values at 128³ and 256³. This comparison holds the
 20-plane compute prefix fixed; graph admission/metadata/publication work differs.
+The November4 review also traced manual-only prefix-report JSON inside these
+historical timed calls and discarded sample JSON inside both sustained routes.
+The 9.83×/28.39× ratios and dependent projections below retain that original
+harness envelope. The callback repair does not establish corrected ratios or
+quantify the bias; matched remeasurement remains pending.
 
 | Addition / case | Public resident sequence | Compiled full-prefix DAG | Observed steady speedup | Setup charged over 100 replays, projected speedup |
 | --- | ---: | ---: | ---: | ---: |

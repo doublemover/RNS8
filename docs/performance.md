@@ -42,7 +42,16 @@ production calls.
 
 The fixed gain gate requires disjoint observed process ranges and a
 (max−min)/median spread of at most 10% in both baseline/candidate groups. These are the beneficial
-post-restart comparisons that pass that timing gate:
+post-restart comparisons that passed that timing gate within the original harness:
+
+The November4 review of [issue88](https://github.com/doublemover/RNS8/issues/88)
+traced discarded timing JSON inside the sustained narrow and graph callbacks.
+The graph manual controls also rebuilt prefix-report JSON inside each timed call,
+favoring compiled/manual comparisons relative to a reporting-free baseline.
+The table preserves those measured envelopes; its narrow/graph ratios, rates and
+payback projections await matched remeasurement with the repaired callbacks.
+The overhead magnitude and corrected ratios are unknown. Direct CRT uses a
+different driver and is unaffected by this trace; exact-output checks remain valid.
 
 | Addition / measured boundary | Baseline → candidate | Speedup | Candidate rate |
 |---|---:|---:|---:|
@@ -57,7 +66,7 @@ The three-product graph fixtures use signed all-one inputs and one final checked
 P20 host export. The costed 128³ resident-recipe model still fails the fixed 25% held-out
 interval gate; the 256³ resident model passes in both original and post-restart
 cohorts. The priced publication stage is a resident GPU copy; host CRT export is
-timed separately and remains included in complete-call speedup comparisons.
+timed separately and remains included in the historical complete-call comparisons.
 [Boundary review](../metadata/resident-model-boundary-review-20261027.json)
 reproduces the archived resident-model outcomes without new GPU observations or
 a changed tolerance. Held-out means

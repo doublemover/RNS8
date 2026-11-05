@@ -1,4 +1,5 @@
 """Matched public narrow/RNS/UInt192 routes; no measured-cache promotion."""
+from call_observation_contract import observation_boundary
 import argparse
 import json
 from pathlib import Path
@@ -46,6 +47,7 @@ def selected_prefix(c):
 
 
 def validate_capture(c, entry):
+    observation_boundary(c)
     case = validate_case(entry['case']); mode = case['mode']; narrow = mode.startswith(('scalar-', 'wmma-')); vector = mode.startswith('vector-')
     resident_output = mode in RESIDENT_OUTPUT_MODES
     scratch = ((32 if mode.startswith('wmma-') else 16)+(0 if mode.endswith('-fused') else case['m']*case['n']*8)) if narrow else 0
@@ -139,7 +141,7 @@ def main():
         if path.exists() or not run_command(entry['command'], path, a.timeout_seconds):
             raise RuntimeError('immutable capture exists or subprocess failed: '+str(path))
         c = validate_capture(strict_json(path.read_text()), entry)
-        identity = dict(case={k: v for k, v in entry['case'].items() if k != 'mode'}, target=c.get('target'), device=c.get('device'), runtime=c.get('runtime_version'),
+        identity = dict(hot_loop_serialization=observation_boundary(c),case={k: v for k, v in entry['case'].items() if k != 'mode'}, target=c.get('target'), device=c.get('device'), runtime=c.get('runtime_version'),
                         proof_policy=c.get('exact_proof_policy', 'default_eager'),
                         output_boundary=c['output_boundary'],
                         build=c['build_manifest'], artifact={k: c['artifact_capture'].get(k) for k in ('executable_sha256', 'rns8_linkage', 'shared_library_sha256')},

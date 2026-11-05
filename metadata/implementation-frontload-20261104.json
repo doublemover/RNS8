@@ -742,9 +742,10 @@
       "url": "https://github.com/doublemover/RNS8/issues/88",
       "requirements_sha256": "40c05b02d83d5cfc1f587a64b958e083c29b59176ee595f7827af34e8492daa2",
       "comments_reviewed": 1,
-      "implementation_status": "pending",
+      "implementation_status": "source_written_pending_batch_validation",
       "completed_slices": [
-        "Move public-native-queue observation JSON construction out of sustained callbacks; callbacks now return a typed scalar Observation, with serialization and Boost audit outside measured intervals. Host-control diagnostics run separately and identify instrumented builds. Other harness/report/document follow-through remains under review."
+        "Move public-native-queue observation JSON construction out of sustained callbacks; callbacks now return a typed scalar Observation, with serialization and Boost audit outside measured intervals. Host-control diagnostics run separately and identify instrumented builds. Other harness/report/document follow-through remains under review.",
+        "Repair all eight affected calibration callbacks: shared fixed-size PhaseObservation and gated CallClock, JSON only after completed-call/outer sustained intervals, no phase clocks in warmup/sustained callbacks, and one shared bounded completed-call loop preserving the real prepare/repack/proof/completion/export/cleanup boundaries and intentional CPU reference policy. Hoist fixed manual-prefix reports to setup; retain only dynamic AUTO prefix writes in preallocated slots. Preserve exact integer nanosecond observations for host-transfer captures. Add strict shared boundary identities to all eight collectors/cohort keys, retaining historical JSON-bearing and prior typed intervals separately. Author injectable-clock, completion/failure, integer serialization and malformed boundary/receipt regressions. Qualify historical3532e57/72c55c2 receipts and9.83/28.39,1.016/1.013 and1.288 comparisons without altering numeric observations or inferring bias amounts/corrected gains; preserve exact output credits and unaffected direct CRT. Runtime validation and matched target remeasurement remain deferred."
       ],
       "remaining_source_items": []
     },

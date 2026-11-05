@@ -1,4 +1,5 @@
 """Counterbalanced independent-process finite INT4 public-route research captures."""
+from call_observation_contract import observation_boundary
 import argparse
 import hashlib
 import json
@@ -28,6 +29,7 @@ def positive(v, zero=False):
 
 
 def validate_capture(c, entry):
+    observation_boundary(c)
     case = validate_case(entry['case'])
     fixed = dict(schema='rns8_public_int4_microcase_v1', case=case, run_id=entry['run_id'], dataset='affine_finite_bytes_v1',
                  host_instrumentation_state='hooks_disabled', output_boundary='complete_public_finite_product_and_padded_export',
@@ -100,7 +102,7 @@ def main():
         if not run_command(entry['command'], path, a.timeout_seconds):
             raise RuntimeError('capture failed: '+str(path))
         c = validate_capture(strict_json(path.read_text()), entry)
-        identity = dict(case={k: v for k, v in entry['case'].items() if k != 'mode'}, artifact=c['artifact_capture'],
+        identity = dict(hot_loop_serialization=observation_boundary(c),case={k: v for k, v in entry['case'].items() if k != 'mode'}, artifact=c['artifact_capture'],
                         build=c['build_manifest'], target=c.get('target'), device=c.get('device'), runtime=c.get('runtime_version'),
                         environment=(c.get('request_identity') or {}).get('environment'))
         # Process identifiers/paths are provenance, not pair identity.

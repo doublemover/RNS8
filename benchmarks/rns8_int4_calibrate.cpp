@@ -1,3 +1,4 @@
+#include "call_observation.hpp"
 #include "core/api_internal.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include <chrono>
@@ -42,19 +43,20 @@ int main(int argc,char** argv){try {
     rns8_device_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(owner->ctx,&info));target=info.gcn_arch;device=info.name;runtime=info.hip_runtime_version;return owner;};
   const auto setup_start=Clock::now();auto owner=create();const double setup=us(setup_start,Clock::now());
   if(residency=="cold"){check(owner->close());owner.reset();}
-  auto call=[&](){const auto begin=Clock::now();if(residency=="cold")owner=create();
+  auto call=[&](bool timed=true){const rns8::bench::CallClock<> clock(timed);const auto begin=clock.now();if(residency=="cold")owner=create();
     else if(residency=="repeated-b")check(rns8_pack_finite_u8(owner->ctx,owner->a,modulus,a.data(),k+1,++generation));
-    const auto prepared=Clock::now();if(mode=="int8")check(rns8_gemm_finite_u8(owner->ctx,owner->plan,modulus,owner->a,owner->b,owner->c,owner->work));
-    else check(rns8_gemm_int4(owner->recipe,owner->a,owner->c,owner->work));const auto computed=Clock::now();
-    check(rns8_export_finite_u8(owner->ctx,owner->plan,modulus,owner->c,out.data(),n+3));const auto exported=Clock::now();
-    if(residency=="cold"){check(owner->close());owner.reset();}const auto end=Clock::now();
-    return json{{"prepare_us",us(begin,prepared)},{"execute_us",us(prepared,computed)},{"export_us",us(computed,exported)},{"cleanup_us",us(exported,end)},{"total_us",us(begin,end)}};};
+    const auto prepared=clock.now();if(mode=="int8")check(rns8_gemm_finite_u8(owner->ctx,owner->plan,modulus,owner->a,owner->b,owner->c,owner->work));
+    else check(rns8_gemm_int4(owner->recipe,owner->a,owner->c,owner->work));const auto computed=clock.now();
+    check(rns8_export_finite_u8(owner->ctx,owner->plan,modulus,owner->c,out.data(),n+3));const auto exported=clock.now();
+    if(residency=="cold"){check(owner->close());owner.reset();}const auto end=clock.now();
+    return rns8::bench::PhaseObservation<4>{{us(begin,prepared),us(prepared,computed),us(computed,exported),us(exported,end)},us(begin,end)};};
+  const auto sample_json=[](const rns8::bench::PhaseObservation<4>& value){auto sample=rns8::bench::phase_observation_json(value,{"prepare_us","execute_us","export_us","cleanup_us"},"total_us");return sample;};
   auto verify=[&](){for(uint32_t r=0;r<m;++r)for(uint32_t col=0;col<n+3;++col)
     if(out[size_t(r)*(n+3)+col]!=(col<n?expected[size_t(r)*n+col]:0xa5))throw std::runtime_error("full exact output/padding mismatch");};
-  auto first=call();verify();for(uint32_t i=0;i<warmups;++i)call();json samples=json::array();for(uint32_t i=0;i<repeats;++i){samples.push_back(call());verify();}
-  json sustained=json::array();for(unsigned observation=0;observation<3;++observation){uint64_t calls=0;const auto start=Clock::now();do{call();++calls;}while(calls<4096 && (calls<16 || us(start,Clock::now())<250000));const double total=us(start,Clock::now());verify();sustained.push_back({{"calls",calls},{"total_us",total},{"per_call_us",total/calls},{"minimum_duration_reached",total>=250000}});}
+  auto first=sample_json(call());verify();for(uint32_t i=0;i<warmups;++i)call(false);json samples=json::array();for(uint32_t i=0;i<repeats;++i){samples.push_back(sample_json(call()));verify();}
+  json sustained=json::array();for(unsigned observation=0;observation<3;++observation){const auto interval=rns8::bench::measure_completed_calls([&](){call(false);});const auto calls=interval.calls;const double total=interval.duration_us;verify();sustained.push_back({{"calls",calls},{"total_us",total},{"per_call_us",total/calls},{"minimum_duration_reached",total>=250000}});}
   if(owner)check(owner->close());
-  std::cout<<json({{"schema","rns8_public_int4_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},
+  std::cout<<json({{"hot_loop_serialization","typed_observation_no_phase_clocks_in_sustained_v2"},{"schema","rns8_public_int4_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},
     {"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"dataset","affine_finite_bytes_v1"},{"host_instrumentation_state","hooks_disabled"},
     {"output_boundary","complete_public_finite_product_and_padded_export"},{"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},
     {"retained_packed_b_device_bytes",retained},{"signed_nibble_operands",mode!="int8"},{"layout_version",mode=="packed-b"?1:0},{"certificate_sha256",certificate},

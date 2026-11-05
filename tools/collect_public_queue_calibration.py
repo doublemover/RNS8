@@ -1,4 +1,5 @@
 """Counterbalanced public native queue observations; never changes promotion state."""
+from call_observation_contract import observation_boundary
 import argparse
 import hashlib
 import json
@@ -82,7 +83,7 @@ def validate_host_diagnostic(capture, case):
         if diagnostic is not None:raise ValueError('unrequested host-control diagnostic')
         return
     if capture.get('host_control_diagnostics_compiled') is not True:raise ValueError('host-control build admission')
-    if capture.get('hot_loop_serialization')!='typed_observations_json_after_intervals_v1':raise ValueError('typed hot loop')
+    if observation_boundary(capture) not in ('typed_observations_json_after_intervals_v1','typed_observation_no_phase_clocks_in_sustained_v2'):raise ValueError('typed hot loop')
     if not isinstance(diagnostic,dict) or diagnostic.get('schema')!='rns8_public_queue_host_control_v1':raise ValueError('host-control schema')
     fixed=dict(scope='calling_thread_one_complete_observation_after_timing',complete_groups=case['reuse'],
                attempt_count_scope='prepared_submission_and_managed_runtime_handles',latency_evidence=False,exact_reference_passed=True)
@@ -103,6 +104,7 @@ def validate_host_diagnostic(capture, case):
 
 
 def validate_capture(c, entry):
+    observation_boundary(c)
     case = entry['case']; work, metadata, encoded, output = counts(case)
     fixed = dict(schema='rns8_public_native_group_microcase_v1', case=case, run_id=entry['run_id'], seed=case['seed'],
                  dataset='bounded_mt19937_64_shared_b_v1', host_instrumentation_state='hooks_disabled',
@@ -217,7 +219,7 @@ def main():
         if not run_command(entry['command'], path, a.timeout_seconds):
             raise RuntimeError('capture failed: '+str(path))
         capture = validate_capture(strict_json(path.read_text()), entry)
-        identity = dict(case=entry['case'], artifact={k: capture['artifact_capture'].get(k) for k in ('executable_sha256', 'rns8_linkage', 'shared_library_sha256')},
+        identity = dict(hot_loop_serialization=observation_boundary(capture),case=entry['case'], artifact={k: capture['artifact_capture'].get(k) for k in ('executable_sha256', 'rns8_linkage', 'shared_library_sha256')},
                         build=capture['build_manifest'],host_control_diagnostics_compiled=capture.get('host_control_diagnostics_compiled',False), device=capture.get('device'), target=capture.get('target'), runtime=capture.get('runtime_version'))
         reuse = entry['case']['reuse']; latency = statistics.median(s['total_us'] for s in capture['samples'])
         cohorts.setdefault(json.dumps(identity, sort_keys=True), []).append(dict(path=str(path), execution_id=capture['execution_id'], run_id=entry['run_id'],

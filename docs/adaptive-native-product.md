@@ -195,6 +195,14 @@ the complete `4e21e9c` qualification. Every sustained burst reaches its declared
 250 ms minimum. The table reports medians of duration-weighted process means;
 all columns return the same complete P20 RNS output.
 
+These are historical harness observations. The November4 source review found
+sample JSON construction/destruction inside their sustained callbacks, after
+the individual latency timer stopped. The repaired callback now returns fixed
+phase data and skips phase clocks during sustained replay. Corrected sustained
+ratios, useful-throughput figures and setup projections require new matched
+cohorts; no overhead amount or winner reversal has been measured. The recorded
+exact-output and resident-output coverage remains credited.
+
 | Shape / semantics | Fixed RNS, ms | Narrow scalar fused, ms | Narrow WMMA fused, ms | Adaptive fresh, ms | Adaptive cached, ms |
 |---|---:|---:|---:|---:|---:|
 | 17×19×31 signed | **0.081** | 0.331 | 0.346 | 1.053 | 0.946 |

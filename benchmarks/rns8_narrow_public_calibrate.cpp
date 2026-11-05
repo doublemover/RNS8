@@ -1,3 +1,4 @@
+#include "call_observation.hpp"
 #include "core/api_internal.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include <chrono>
@@ -69,28 +70,29 @@ int main(int argc,char** argv){try{
     if(u)check(rns8_export_exact_wide_unsigned_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));
     else check(rns8_export_exact_wide_signed_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));
   };
-  auto call=[&](){const auto start=Clock::now();if(residency=="cold")owner=create();else if(residency=="repack")pack(*owner);const auto prepared=Clock::now();
-    product(*owner);const auto computed=Clock::now();
+  auto call=[&](bool timed=true){const rns8::bench::CallClock<> clock(timed);const auto start=clock.now();if(residency=="cold")owner=create();else if(residency=="repack")pack(*owner);const auto prepared=clock.now();
+    product(*owner);const auto computed=clock.now();
     if(vector){if(u)check(rns8_export_u64(owner->ctx,owner->plan,owner->c,native.data(),n+3));else check(rns8_export_i64(owner->ctx,owner->plan,owner->c,reinterpret_cast<int64_t*>(native.data()),n+3));
       for(uint32_t r=0;r<m;++r)for(uint32_t col=0;col<n;++col){const uint64_t value=native[size_t(r)*(n+3)+col];const size_t cell=(size_t(r)*(n+3)+col)*3;output[cell]=value;output[cell+1]=output[cell+2]=!u && (value>>63)?UINT64_MAX:0;}}
     else if(!resident_output) { export_wide(); }
-    const auto exported=resident_output?computed:Clock::now();
-    if(residency=="cold"){check(owner->close());owner.reset();}const auto end=Clock::now();return json{{"prepare_us",us(start,prepared)},{"execute_us",us(prepared,computed)},{"export_us",us(computed,exported)},{"cleanup_us",us(exported,end)},{"total_us",us(start,end)}};};
+    const auto exported=resident_output?computed:clock.now();
+    if(residency=="cold"){check(owner->close());owner.reset();}const auto end=clock.now();return rns8::bench::PhaseObservation<4>{{us(start,prepared),us(prepared,computed),us(computed,exported),us(exported,end)},us(start,end)};};
+  const auto sample_json=[](const rns8::bench::PhaseObservation<4>& value){auto sample=rns8::bench::phase_observation_json(value,{"prepare_us","execute_us","export_us","cleanup_us"},"total_us");return sample;};
   auto verify=[&](){
     if(resident_output)export_wide();
     for(uint32_t r=0;r<m;++r)for(uint32_t col=0;col<n+3;++col){cpp_int value=col<n?expected[size_t(r)*n+col]:0;if(value<0)value+=cpp_int(1)<<192;
     for(unsigned limb=0;limb<3;++limb){const auto expected_limb=col<n?uint64_t((value>>(64*limb))&UINT64_MAX):UINT64_C(0x5a5a5a5a5a5a5a5a);
       if(output[(size_t(r)*(n+3)+col)*3+limb]!=expected_limb)throw std::runtime_error("complete integer/padding oracle mismatch");}}};
-  auto first=call();verify();const json first_summary=adaptive?summary_info(*owner):json(nullptr);
-  for(uint32_t i=0;i<warmups;++i)call();json samples=json::array();for(uint32_t i=0;i<repeats;++i){samples.push_back(call());verify();}
-  json sustained=json::array();for(unsigned i=0;i<3;++i){uint64_t calls=0;const auto start=Clock::now();do{call();++calls;}while(calls<4096 && (calls<16 || us(start,Clock::now())<250000));const double total=us(start,Clock::now());verify();sustained.push_back({{"calls",calls},{"total_us",total},{"per_call_us",total/calls},{"minimum_duration_reached",total>=250000}});}
+  auto first=sample_json(call());verify();const json first_summary=adaptive?summary_info(*owner):json(nullptr);
+  for(uint32_t i=0;i<warmups;++i)call(false);json samples=json::array();for(uint32_t i=0;i<repeats;++i){samples.push_back(sample_json(call()));verify();}
+  json sustained=json::array();for(unsigned i=0;i<3;++i){const auto interval=rns8::bench::measure_completed_calls([&](){call(false);});const auto calls=interval.calls;const double total=interval.duration_us;verify();sustained.push_back({{"calls",calls},{"total_us",total},{"per_call_us",total/calls},{"minimum_duration_reached",total>=250000}});}
   const json final_summary=adaptive?summary_info(*owner):json(nullptr);
   if(!vector){if(!owner){owner=create();product(*owner);}std::vector<int8_t> planes(size_t(prefix)*m*n);
     check(rns8::detail::hip_direct_copy_device_to_host(0,planes.data(),owner->c->hip_residues,planes.size()));
     for(uint32_t p=0;p<prefix;++p)for(size_t cell=0;cell<size_t(m)*n;++cell){const int modulus=rns8_default_modulus(p);cpp_int residue=expected[cell]%modulus;
       if(residue<0)residue+=modulus;if(residue>=(modulus+1)/2)residue-=modulus;if(planes[size_t(p)*m*n+cell]!=residue.convert_to<int>())throw std::runtime_error("all-plane exact audit mismatch");}}
   if(owner)check(owner->close());const uint64_t scratch=narrow?(wmma?32:16)+(fused?0:uint64_t(m)*n*8):0;
-  std::cout<<json({{"schema","rns8_public_narrow_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
+  std::cout<<json({{"hot_loop_serialization","typed_observation_no_phase_clocks_in_sustained_v2"},{"schema","rns8_public_narrow_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"dataset","affine_native_small_v1"},{"selected_prefix",prefix},{"ordinary_plan_kernel",kernel},{"narrow_producer",narrow?mode:"not_applicable"},{"known_narrow_scratch_bytes",scratch},
     {"output_boundary",resident_output?"complete_public_product_resident_rns":"complete_public_product_and_padded_three_limb_integer_adapter"},
     {"timed_host_export",!resident_output},{"oracle_export_outside_production_interval",resident_output},

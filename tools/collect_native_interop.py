@@ -4,6 +4,7 @@ The unchanged-input resident control is a labeled input-binding-excluded cost
 floor, never a candidate speedup. All reported ratios require independent runs
 of the same build/artifact/environment and retain complete oracle validation.
 """
+from call_observation_contract import observation_boundary
 import argparse
 import json
 import math
@@ -43,6 +44,7 @@ def validate_case(c):
 
 
 def validate_capture(c, entry):
+    observation_boundary(c)
     case=validate_case(entry['case']);m,n,k,p=(case[x] for x in ('m','n','k','prefix'));mode=case['mode'];device=mode.startswith('device-');resident=mode=='resident-control'
     ac,bc,cc=m*k,k*n,m*(n+3)*3
     fixed=dict(schema='rns8_native_interop_microcase_v4',case=case,run_id=entry['run_id'],
@@ -121,7 +123,7 @@ def summarize(observations):
     cohorts={}
     for entry,c in observations:
         validate_capture(c,entry)
-        identity=dict(case={k:v for k,v in entry['case'].items() if k!='mode'},build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),
+        identity=dict(hot_loop_serialization=observation_boundary(c),case={k:v for k,v in entry['case'].items() if k!='mode'},build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),
             artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
         cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(mode=entry['case']['mode'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=entry['output'],
             setup_us=c['setup_us'],p50_us=quantile([s['total_us'] for s in c['samples']],.5),p95_us=quantile([s['total_us'] for s in c['samples']],.95),

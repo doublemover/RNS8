@@ -3,6 +3,9 @@
 The [group-CRT continuation](#group-crt-continuation-on-2026-10-26) records the
 latest **287737d** complete rebuild and test batch. Earlier tables retain their
 original artifact boundaries; correctness validation alone qualifies no timing gain.
+The November4 [callback scope review](performance.md) further qualifies sustained
+narrow/graph timings and their projections; their old reporting overhead has
+not been measured or subtracted. Exact-output coverage remains credited.
 The later [environment-admission repair](#environment-admission-repair-on-2026-10-26)
 has a separate Python/CLI validation scope.
 

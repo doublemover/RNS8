@@ -58,7 +58,9 @@ admitted replay's host enqueue/wait/readback counts. These are source observatio
 not GPU instruction counts or performance qualification. Lift-recipe calibration
 accepts optional integer `execution_policy`0/1, captures the actual receipt and
 compares matched policies separately. Sustained intervals return typed observations;
-JSON serialization occurs after each interval. Historical JSON-bearing intervals
+JSON serialization occurs after each interval and sustained callbacks skip phase
+clocks. Fixed manual prefix reports are prepared once; AUTO writes only its
+actual selected prefixes into preallocated numeric slots. Historical JSON-bearing intervals
 remain readable in distinct cohorts. Authored differential controls cover exact
 default/reordered bases, multi-output publication, rebind, sticky proof rejection,
 busy close and uncertain-drain retention. November4 runtime validation is deferred.

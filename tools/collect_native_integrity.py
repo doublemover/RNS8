@@ -1,4 +1,5 @@
 """Counterbalanced native-integrity costs, with distinct nonpromoting fault model."""
+from call_observation_contract import observation_boundary
 import argparse
 import json
 import math
@@ -43,6 +44,7 @@ def positive(x, zero=False):
 
 
 def validate_capture(c, entry):
+    observation_boundary(c)
     case = validate_case(entry['case']);m,n,k,p = (case[x] for x in ('m','n','k','prefix'))
     fixed = dict(schema='rns8_native_integrity_microcase_v1',case=case,run_id=entry['run_id'],
         host_instrumentation_state='hooks_disabled',output_boundary='public_prepared_product_and_padded_three_limb_export',
@@ -87,7 +89,7 @@ def summarize(observations):
     cohorts={}
     for entry,c in observations:
         validate_capture(c,entry)
-        identity=dict(case={k:v for k,v in entry['case'].items() if k!='mode'},build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),
+        identity=dict(hot_loop_serialization=observation_boundary(c),case={k:v for k,v in entry['case'].items() if k!='mode'},build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),
             artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
         key=json.dumps(identity,sort_keys=True);cohorts.setdefault(key,[]).append(dict(mode=entry['case']['mode'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=entry['output'],median_us=statistics.median(s['total_us'] for s in c['samples'])))
     result=[]

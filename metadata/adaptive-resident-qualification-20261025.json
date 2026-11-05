@@ -1,4 +1,24 @@
 {
+  "harness_scope_review_20261104": {
+    "issue": 88,
+    "date": "2026-11-04",
+    "reviewed_compiled_source": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+    "affected_families": [
+      "resident_narrow"
+    ],
+    "discarded_sample_json_in_sustained": true,
+    "manual_only_prefix_json_inside_graph_calls": false,
+    "exact_output_coverage_preserved": true,
+    "overhead_quantified": false,
+    "corrected_ratios_measured": false,
+    "dependent_metrics": [
+      "sustained_latency",
+      "speedup",
+      "useful_throughput",
+      "setup_training_payback"
+    ],
+    "followup": "Matched independent cohorts using fixed observations and reporting-free sustained callbacks; preserve original numeric observations and scope."
+  },
   "schema": "rns8_reviewed_evidence_summary_v1",
   "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
   "collection": {

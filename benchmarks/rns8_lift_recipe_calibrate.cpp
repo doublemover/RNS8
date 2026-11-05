@@ -4,6 +4,7 @@
 #include "product_stage_prices.hpp"
 #include "product_dataset.hpp"
 #include "product_replay_policy.hpp"
+#include "call_observation.hpp"
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -14,10 +15,9 @@ using json=nlohmann::json;using Clock=std::chrono::steady_clock;using boost::mul
 void check(rns8_status s){if(s!=RNS8_SUCCESS)throw std::runtime_error(rns8_status_string(s));}
 double us(Clock::time_point a,Clock::time_point b){return std::chrono::duration<double,std::micro>(b-a).count();}
 uint64_t number(const json& c,const char* key,uint64_t lo,uint64_t hi){if(!c.at(key).is_number_integer())throw std::invalid_argument(key);const auto n=c.at(key).get<int64_t>();if(n<0 || uint64_t(n)<lo || uint64_t(n)>hi)throw std::invalid_argument(key);return uint64_t(n);}
-struct Observation {double producer_us,execute_lift_us,final_export_us,total_us;};
+using Observation=rns8::bench::PhaseObservation<3>;
 json serialize(const Observation& value) {
-  return {{"producer_us",value.producer_us},{"execute_lift_us",value.execute_lift_us},
-      {"final_export_us",value.final_export_us},{"total_us",value.total_us}};
+  return rns8::bench::phase_observation_json(value,{"producer_us","execute_lift_us","final_export_us"});
 }
 }
 int main(int argc,char** argv){try {
@@ -128,7 +128,7 @@ int main(int argc,char** argv){try {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   hip_unique_stream stream;if(mode=="lift-graph" && stream.create_non_blocking()!=hipSuccess)throw std::runtime_error("stream setup");
 #endif
-  if(native_roundtrip)selected=std::vector<uint32_t>(nodes.size(),prefix);
+  if(!recipe && !lift && mode!="wider-producer")selected.assign(nodes.size(),prefix);
   // Choose the arithmetic/layout plan with its original stage prices first.
   // Execution policy is an explicit matched control, never an automatic promotion.
   if(ragged) {
@@ -138,9 +138,9 @@ int main(int argc,char** argv){try {
   } else if(owner) {check(owner->set_execution_policy(execution_policy));lift_bytes=owner->lift_scratch_bytes();}
   const double setup=us(setup_begin,Clock::now());uint64_t replay=0;
   const auto export_output=[&](rns8_matrix* result){check(u?rns8_export_exact_wide_unsigned_limbs(ctx,fixed,result,output.data(),side+3,3):rns8_export_exact_wide_signed_limbs(ctx,fixed,result,output.data(),side+3,3));};
-  auto invoke=[&](){const auto start=Clock::now();++replay;rns8_matrix* result=matrices.back();
+  auto invoke=[&](bool timed=true){const rns8::bench::CallClock<> clock(timed);const auto start=clock.now();++replay;rns8_matrix* result=matrices.back();
     if(lift){result=matrices[2];check(rns8_gemm_rns(ctx,producer,matrices[0],matrices[1],result,producer_work));}
-    const auto produced=Clock::now();
+    const auto produced=clock.now();
     if(ragged)check(rns8_execute_product_recipe(ragged_recipe,result));
     else if(recipe)check(owner->execute(result));
     else if(lift){if(cpu_lift){check(hip_direct_copy_device_to_host(ctx->device_id,host_matrix->residues.data(),result->hip_residues,size_t(cells*source)));
@@ -170,13 +170,13 @@ int main(int argc,char** argv){try {
             rns8_export_exact_wide_signed_limbs(ctx,fixed,target,native_values[i+2].data(),side,1));
       }
     }
-    else{selected.clear();for(size_t i=0;i<nodes.size();++i){const auto node=nodes[i];auto* target=matrices[i+2];
-        if(mode=="manual-auto"){uint32_t p=0;check(rns8_gemm_exact_wide_hip_auto(ctx,adaptive,matrices[node.a],matrices[node.b],target,auto_work,1,budget-known_payload,&p));selected.push_back(p);}
-        else{check(rns8_gemm_rns(ctx,fixed,matrices[node.a],matrices[node.b],target,fixed_work));selected.push_back(prefix);}
+    else{for(size_t i=0;i<nodes.size();++i){const auto node=nodes[i];auto* target=matrices[i+2];
+        if(mode=="manual-auto"){uint32_t p=0;check(rns8_gemm_exact_wide_hip_auto(ctx,adaptive,matrices[node.a],matrices[node.b],target,auto_work,1,budget-known_payload,&p));selected[i]=p;}
+        else check(rns8_gemm_rns(ctx,fixed,matrices[node.a],matrices[node.b],target,fixed_work));
         if(eager && i+1<nodes.size())export_output(target);}
       if(mode=="manual-auto")check(rns8_lift_exact_wide_hip(ctx,result,prefix,budget-known_payload));}
-    const auto computed=Clock::now();export_output(result);const auto end=Clock::now();
-    return Observation{us(start,produced),us(produced,computed),us(computed,end),us(start,end)};};
+    const auto computed=clock.now();export_output(result);const auto end=clock.now();
+    return Observation{{us(start,produced),us(produced,computed),us(computed,end)},us(start,end)};};
   auto audit=[&](){
     if(native_roundtrip)for(size_t id=2;id<native_values.size();++id)for(auto word:native_values[id]) {
       cpp_int got=word;if(!u && word>>63)got-=cpp_int(1)<<64;
@@ -185,8 +185,8 @@ int main(int argc,char** argv){try {
     for(unsigned row=0;row<side;++row)for(unsigned col=0;col<side+3;++col){const auto index=(uint64_t(row)*(side+3)+col)*3;if(col>=side){for(unsigned l=0;l<3;++l)if(output[index+l]!=99)throw std::runtime_error("padding");continue;}
       cpp_int got=cpp_int(output[index])+(cpp_int(output[index+1])<<64)+(cpp_int(output[index+2])<<128);if(!u && output[index+2]>>63)got-=cpp_int(1)<<192;
       const auto& expected=(lift || mode=="wider-producer")?cpp_int(side):values.back();if(got!=expected)throw std::runtime_error("independent integer oracle");}};
-  auto first=serialize(invoke());audit();for(unsigned i=0;i<warmups;++i)invoke();const auto before=hip_direct_allocation_counters_snapshot();json samples=json::array();for(unsigned i=0;i<repeats;++i){samples.push_back(serialize(invoke()));audit();}const auto after=hip_direct_allocation_counters_snapshot();
-  json sustained=json::array();for(unsigned i=0;i<3;++i){unsigned count=0;const auto begin=Clock::now();do{invoke();++count;}while(count<4096 && (count<16 || us(begin,Clock::now())<250000));const double elapsed=us(begin,Clock::now());audit();sustained.push_back({{"calls",count},{"total_us",elapsed},{"per_call_us",elapsed/count}});}
+  auto first=serialize(invoke());audit();for(unsigned i=0;i<warmups;++i)invoke(false);const auto before=hip_direct_allocation_counters_snapshot();json samples=json::array();for(unsigned i=0;i<repeats;++i){samples.push_back(serialize(invoke()));audit();}const auto after=hip_direct_allocation_counters_snapshot();
+  json sustained=json::array();for(unsigned i=0;i<3;++i){const auto interval=rns8::bench::measure_completed_calls([&](){invoke(false);});const auto count=interval.calls;const double elapsed=interval.duration_us;audit();sustained.push_back({{"calls",count},{"total_us",elapsed},{"per_call_us",elapsed/count}});}
   const uint64_t retained_auto=auto_work->exact_auto_scratch_owner.bytes();const std::string target=ctx->device_info.gcn_arch,device=ctx->device_info.name;const int runtime=ctx->device_info.hip_runtime_version;
   if(materialized) {
     const auto& plan=owner->materialization_selection();json packed=json::array();
@@ -226,7 +226,7 @@ int main(int argc,char** argv){try {
     {"timing_source","host_monotonic_completed_public_call"},{"nominal_clock_tick_ns",1e9*double(Clock::period::num)/double(Clock::period::den)},
     {"output_boundary",lift || mode=="wider-producer"?"one_product_full_prefix_final_three_limb_export":"complete_dag_final_three_limb_export"},{"extra_intermediate_observations",eager},{"private_residue_transfer_control",cpu_lift},{"native_roundtrip_control",native_roundtrip},
     {"fixed_plan_exact_proof_policy",scalar_first?"scalar_first":"eager_axis"},{"logical_payload_estimate_bytes",known_payload},
-    {"recipe_execution",execution},{"hot_loop_serialization","typed_observation_json_after_interval_v1"},
+    {"recipe_execution",execution},{"hot_loop_serialization","typed_observation_no_phase_clocks_in_sustained_v2"},
     {"ragged_retained_bytes",ragged_retained},{"ragged_materialized_input_bytes",ragged_input_bytes},{"ragged_binding_peak_bytes",ragged_peak},{"recipe_arena_bytes",arena_bytes},{"recipe_retained_lift_bytes",lift_bytes},{"auto_retained_device_bytes",retained_auto},{"selected_compute_prefixes",selected},{"cost_model",cost_model},{"materialization_plan",materialization_plan},{"stage_price_identity",stage_price_identity},
     {"host_payload_bytes_before_final_export",cpu_lift?cells*prefix:native_h2d+native_d2h},{"final_export_payload_bytes",cells*24},
     {"native_roundtrip_h2d_payload_bytes_per_replay",native_h2d},{"native_roundtrip_d2h_payload_bytes_per_replay",native_d2h},{"native_roundtrip_retained_host_bytes",native_host_bytes},

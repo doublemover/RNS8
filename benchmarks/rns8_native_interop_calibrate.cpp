@@ -1,3 +1,4 @@
+#include "call_observation.hpp"
 #include <rns8/rns8.h>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <nlohmann/json.hpp>
@@ -90,9 +91,9 @@ int main(int argc,char** argv){try {
   const double setup=us(setup_start,Clock::now());
   const auto owned_after_setup=observe(ctx);
   auto wait=[&](unsigned i,rns8_completion_token t){rns8_completion_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;check(rns8_wait_prepared_hip(operations[i],t,&info));check(info.operation_status);if(!info.output_is_current)throw std::runtime_error("unpublished result");};
-  auto invoke=[&](){const auto start=Clock::now();++generation;for(auto* lease:leases)if(lease)check(rns8_begin_native_device_write(lease));
+  auto invoke=[&](bool timed=true){const rns8::bench::CallClock<> clock(timed);const auto start=clock.now();++generation;for(auto* lease:leases)if(lease)check(rns8_begin_native_device_write(lease));
     hipcheck(static_cast<hipError_t>(rns8_interop_application_produce(allocations[0],allocations[1],allocations[2],ac,bc,cc,seed,u,full,streams[0])));
-    for(auto* lease:leases)if(lease)check(rns8_end_native_device_write_hip(lease,generation,streams[0]));const auto produced=Clock::now();
+    for(auto* lease:leases)if(lease)check(rns8_end_native_device_write_hip(lease,generation,streams[0]));const auto produced=clock.now();
     std::array<rns8_completion_token,4> tokens{};
     if(device || resident){check(rns8_refresh_prepared_inputs(operations[3]));
       if(device){for(unsigned i=0;i<2;++i){check(rns8_refresh_prepared_inputs(operations[i]));check(graph?rns8_submit_prepared_hip_graph(operations[i],streams[i+1],&tokens[i]):rns8_submit_prepared_hip(operations[i],streams[i+1],&tokens[i]));}
@@ -102,16 +103,17 @@ int main(int argc,char** argv){try {
       check(rns8_bind_prepared_dependency(operations[3],operations[2],tokens[2]));
       check(graph?rns8_submit_prepared_hip_graph_pipeline(operations[3],streams[4],&tokens[3]):rns8_submit_prepared_hip_pipeline(operations[3],streams[4],&tokens[3]));
     }else{hipcheck(hipStreamSynchronize(streams[0]));hipcheck(hipMemcpy(ha.data(),allocations[0],ac*8,hipMemcpyDeviceToHost));hipcheck(hipMemcpy(hb.data(),allocations[1],bc*8,hipMemcpyDeviceToHost));pack();check(rns8_refresh_prepared_inputs(operations[2]));check(rns8_submit_prepared_hip(operations[2],streams[3],&tokens[2]));wait(2,tokens[2]);}
-    const auto computed=Clock::now();
+    const auto computed=clock.now();
     if(device || resident){wait(3,tokens[3]);}
     else{if(u)check(rns8_export_exact_wide_unsigned_limbs(ctx,plan,matrices[2],hc.data(),n+3,3));else check(rns8_export_exact_wide_signed_limbs(ctx,plan,matrices[2],hc.data(),n+3,3));hipcheck(hipMemcpy(allocations[2],hc.data(),output_bytes,hipMemcpyHostToDevice));}
-    const auto exported=Clock::now();hipcheck(hipMemsetAsync(allocations[3],0,8,streams[4]));hipcheck(static_cast<hipError_t>(rns8_interop_application_consume(allocations[2],allocations[3],cc,streams[4])));hipcheck(hipStreamSynchronize(streams[4]));const auto end=Clock::now();
-    return json{{"producer_enqueue_us",us(start,produced)},{"input_compute_us",us(produced,computed)},{"export_observation_us",us(computed,exported)},{"consumer_us",us(exported,end)},{"total_us",us(start,end)}};};
+    const auto exported=clock.now();hipcheck(hipMemsetAsync(allocations[3],0,8,streams[4]));hipcheck(static_cast<hipError_t>(rns8_interop_application_consume(allocations[2],allocations[3],cc,streams[4])));hipcheck(hipStreamSynchronize(streams[4]));const auto end=clock.now();
+    return rns8::bench::PhaseObservation<4>{{us(start,produced),us(produced,computed),us(computed,exported),us(exported,end)},us(start,end)};};
+  const auto sample_json=[](const rns8::bench::PhaseObservation<4>& value){auto sample=rns8::bench::phase_observation_json(value,{"producer_enqueue_us","input_compute_us","export_observation_us","consumer_us"},"total_us");return sample;};
   auto audit=[&](){hipcheck(hipMemcpy(validation.data(),allocations[2],output_bytes,hipMemcpyDeviceToHost));uint64_t expected_digest=0;for(uint64_t i=0;i<cc;++i)expected_digest^=validation[i]^(i*UINT64_C(0x9e3779b97f4a7c15));uint64_t actual_digest=0;hipcheck(hipMemcpy(&actual_digest,allocations[3],8,hipMemcpyDeviceToHost));if(actual_digest!=expected_digest)throw std::runtime_error("external consumer");
     for(unsigned r=0;r<m;++r)for(unsigned col=0;col<n+3;++col){const auto index=(uint64_t(r)*(n+3)+col)*3;if(col>=n){for(unsigned l=0;l<3;++l)if(validation[index+l]!=UINT64_C(0x5a5a5a5a5a5a5a5a))throw std::runtime_error("padding");continue;}
       cpp_int got=cpp_int(validation[index])+(cpp_int(validation[index+1])<<64)+(cpp_int(validation[index+2])<<128);if(!u && validation[index+2]>>63)got-=cpp_int(1)<<192;if(got!=gold[uint64_t(r)*n+col])throw std::runtime_error("full independent oracle");}};
-  auto first=invoke();audit();for(unsigned i=0;i<warmups;++i)invoke();json samples=json::array();for(unsigned i=0;i<repeats;++i){samples.push_back(invoke());audit();}
-  json sustained=json::array();for(unsigned i=0;i<3;++i){unsigned count=0;const auto start=Clock::now();do{invoke();++count;}while(count<4096 && (count<16 || us(start,Clock::now())<250000));const double elapsed=us(start,Clock::now());audit();sustained.push_back({{"calls",count},{"total_us",elapsed},{"per_call_us",elapsed/count}});}
+  auto first=sample_json(invoke());audit();for(unsigned i=0;i<warmups;++i)invoke(false);json samples=json::array();for(unsigned i=0;i<repeats;++i){samples.push_back(sample_json(invoke()));audit();}
+  json sustained=json::array();for(unsigned i=0;i<3;++i){const auto interval=rns8::bench::measure_completed_calls([&](){invoke(false);});const auto count=interval.calls;const double elapsed=interval.duration_us;audit();sustained.push_back({{"calls",count},{"total_us",elapsed},{"per_call_us",elapsed/count}});}
   const auto owned_after_calls=observe(ctx);
   for(auto* e:operations)if(e)check(rns8_destroy_prepared_execution(e));for(auto* lease:leases)if(lease)check(rns8_destroy_native_device_lease(lease));
   const unsigned participating_owners=device?3:resident?1:0;
@@ -122,7 +124,7 @@ int main(int argc,char** argv){try {
       owned_after_cleanup.epoch!=allocation_epoch || !same_live_payload(owned_before.device,owned_after_cleanup.device) ||
       !same_live_payload(owned_before.pinned_host,owned_after_cleanup.pinned_host))throw std::runtime_error("owned payload did not retire to baseline");
   check(rns8_destroy_context(ctx));for(auto s:streams)if(s)hipcheck(hipStreamDestroy(s));for(auto a:allocations)hipcheck(hipFree(a));
-  std::cout<<json({{"schema","rns8_native_interop_microcase_v4"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",di.gcn_arch},{"device",di.name},{"runtime_version",di.hip_runtime_version},{"plan_default_compute_kernel",pi.selected_kernel},
+  std::cout<<json({{"hot_loop_serialization","typed_observation_no_phase_clocks_in_sustained_v2"},{"schema","rns8_native_interop_microcase_v4"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",di.gcn_arch},{"device",di.name},{"runtime_version",di.hip_runtime_version},{"plan_default_compute_kernel",pi.selected_kernel},
     {"compute_provider","public_prepared_direct_HIP_grouped_prefix"},{"compute_execution_mode",graph?"owned_graph":"borrowed_stream"},
     {"compute_provider_scope","source_bound_enqueue_prepared_to_hip_direct_enqueue_rns_no_publish_to_launch_rns_grouped_prefix_gemm"},
     {"dynamic_compute_symbol",nullptr},
