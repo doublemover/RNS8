@@ -1,13 +1,14 @@
 """Matched public narrow/RNS/UInt192 routes; no measured-cache promotion."""
 
-from call_observation_contract import observation_boundary
+from call_observation_contract import observation_boundary, validate_completed_call_samples
+from native_diagnostic_contract import COPY_COUNTERS, validate_native_observation
 import argparse
 import json
 from pathlib import Path
 import math
 import statistics
 import uuid
-from collect_int4_calibration import collection_plan as shared_plan, positive
+from collect_int4_calibration import collection_plan as shared_plan
 from json_evidence import parse_evidence_json as strict_json
 from collect_native_calibration import DEFAULT_MODULI
 from benchmark_sweep_lib.execution import run_command
@@ -170,31 +171,7 @@ def validate_capture(c, entry):
         or len(artifact.get("executable_sha256", "")) != 64
     ):
         raise ValueError("artifact identity")
-    if not positive(c.get("setup_us")) or len(c.get("samples", [])) != case["repeats"]:
-        raise ValueError("sample count/setup")
-    for sample in [c.get("first_call", {}), *c["samples"]]:
-        phases = [sample.get(k) for k in ("prepare_us", "execute_us", "export_us", "cleanup_us")]
-        if (
-            not all(positive(v, True) for v in phases)
-            or not positive(sample.get("total_us"))
-            or not math.isclose(sum(phases), sample["total_us"], rel_tol=1e-7, abs_tol=1e-6)
-        ):
-            raise ValueError("complete route")
-        if resident_output and sample["export_us"] != 0:
-            raise ValueError("resident route must not hide a timed host export")
-    if len(c.get("sustained", [])) != 3:
-        raise ValueError("sustained observations")
-    for burst in c["sustained"]:
-        calls = burst.get("calls")
-        duration = burst.get("total_us")
-        if (
-            type(calls) is not int
-            or not 16 <= calls <= 4096
-            or not positive(duration)
-            or (duration < 250000 and calls != 4096)
-            or not math.isclose(burst.get("per_call_us", -1), duration / calls, rel_tol=1e-7)
-        ):
-            raise ValueError("sustained work/duration")
+    validate_completed_call_samples(c, case["repeats"], resident_output=resident_output)
     kernel = c.get("ordinary_plan_kernel", "")
     if mode == "rns-parallel" and kernel != (
         "direct_hip_selected_prefix_rns_gemv_n1_v1"
@@ -231,57 +208,11 @@ def validate_narrow_native_observation(c, case):
         if info is not None:
             raise ValueError("non-narrow native observation")
         return
-    fixed = dict(
-        scope="one_separate_complete_public_call",
-        inside_timed_samples=False,
-        inside_sustained_interval=False,
-        public_calls=1,
-        exact_reference_passed=True,
-        native_event_receipts_complete=True,
-        copy_scope="tracked_completed_synchronous_HIP_copy_wrappers",
+    validate_native_observation(
+        info, scope="one_separate_complete_public_call", calls_key="public_calls", calls=1
     )
-    counters = {
-        "device_allocation_calls",
-        "device_free_calls",
-        "h2d_calls",
-        "h2d_bytes",
-        "d2h_calls",
-        "d2h_bytes",
-    }
-    if (
-        not isinstance(info, dict)
-        or set(info)
-        != {*fixed, *counters, "allocation_epoch", "event_labels", "event_microseconds"}
-        or any(type(info[k]) is not type(v) or info[k] != v for k, v in fixed.items())
-        or any(type(info[k]) is not int or not 0 <= info[k] < (1 << 64) for k in counters)
-        or type(info["allocation_epoch"]) is not int
-        or not 0 < info["allocation_epoch"] < (1 << 64)
-    ):
-        raise ValueError("narrow native observation record")
-    for direction in ("h2d", "d2h"):
-        calls, size = info[direction + "_calls"], info[direction + "_bytes"]
-        if not ((calls == 0 and size == 0) or 0 < calls <= size):
-            raise ValueError("narrow copy counter denominator")
-    labels, durations = info["event_labels"], info["event_microseconds"]
-    if (
-        not isinstance(labels, dict)
-        or not 1 <= len(labels) <= 64
-        or any(
-            not isinstance(k, str)
-            or not 1 <= len(k) <= 256
-            or type(v) is not int
-            or not 1 <= v <= 65536
-            for k, v in labels.items()
-        )
-        or sum(labels.values()) > 65536
-        or not isinstance(durations, dict)
-        or set(labels) != set(durations)
-        or any(
-            type(v) not in (int, float) or not 0 <= v <= 1e15 or not math.isfinite(v)
-            for v in durations.values()
-        )
-    ):
-        raise ValueError("narrow native event receipts")
+    counters = COPY_COUNTERS
+    labels = info["event_labels"]
     wmma = case["mode"].startswith("wmma-")
     fused = case["mode"].endswith("-fused")
     product = (

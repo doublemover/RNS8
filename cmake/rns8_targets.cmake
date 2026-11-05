@@ -207,6 +207,7 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-public-queue-calibrate benchmarks/rns8_public_queue_calibrate.cpp)
   add_executable(rns8-ragged-calibrate benchmarks/rns8_ragged_calibrate.cpp)
   add_executable(rns8-narrow-public-calibrate benchmarks/rns8_narrow_public_calibrate.cpp)
+  add_executable(rns8-narrow-group-calibrate benchmarks/rns8_narrow_group_calibrate.cpp)
   add_executable(rns8-bilinear-calibrate benchmarks/rns8_bilinear_calibrate.cpp)
   add_executable(rns8-native-integrity-calibrate benchmarks/rns8_native_integrity_calibrate.cpp)
   add_executable(rns8-native-interop-calibrate benchmarks/rns8_native_interop_calibrate.cpp)
@@ -250,6 +251,7 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-lift-recipe-calibrate
       rns8-product-stage-calibrate
       rns8-narrow-public-calibrate
+      rns8-narrow-group-calibrate
       rns8-stream-panel-calibrate
       rns8-stream-capacity-qualify)
     rns8_bind_manifest(${_calibrator})

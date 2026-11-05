@@ -1,6 +1,6 @@
 """Counterbalanced independent-process finite INT4 public-route research captures."""
 
-from call_observation_contract import observation_boundary
+from call_observation_contract import observation_boundary, validate_completed_call_samples
 import argparse
 import hashlib
 import json
@@ -77,32 +77,7 @@ def validate_capture(c, entry):
         or c.get("target", "").split(":")[0] not in ("gfx1100", "gfx1101", "gfx1102")
     ):
         raise ValueError("INT4 concrete target/certificate")
-    if not positive(c.get("setup_us")) or len(c.get("samples", [])) != case["repeats"]:
-        raise ValueError("setup/real sample count")
-    for sample in [c.get("first_call", {}), *c["samples"]]:
-        phases = [sample.get(k) for k in ("prepare_us", "execute_us", "export_us", "cleanup_us")]
-        if (
-            not all(positive(v, True) for v in phases)
-            or not positive(sample.get("total_us"))
-            or not math.isclose(sum(phases), sample["total_us"], rel_tol=1e-7, abs_tol=1e-6)
-        ):
-            raise ValueError("complete public phases")
-    if len(c.get("sustained", [])) != 3:
-        raise ValueError("sustained observations")
-    for burst in c["sustained"]:
-        calls = burst.get("calls")
-        duration = burst.get("total_us")
-        if (
-            type(calls) is not int
-            or not 16 <= calls <= 4096
-            or not positive(duration)
-            or (duration < 250000 and calls != 4096)
-        ):
-            raise ValueError("sustained duration")
-        if burst.get("minimum_duration_reached") is not (duration >= 250000) or not math.isclose(
-            burst.get("per_call_us", -1), duration / calls, rel_tol=1e-7
-        ):
-            raise ValueError("sustained work normalization")
+    validate_completed_call_samples(c, case["repeats"])
     return c
 
 

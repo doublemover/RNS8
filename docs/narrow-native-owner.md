@@ -218,6 +218,8 @@ without publishing partial results. Authored CPU resource/descriptor and public
 Boost/HIP controls cover shared inputs, distinct outputs, cache reuse, invalid
 last-task domains, duplicate output/workspace rejection and failed-drain custody.
 They have not executed, and no grouped latency or speedup is claimed.
+The [grouped calibration source](narrow-group-calibration.md) provides matched
+single/group/RNS cohorts with bounded raw acquisition and complete task oracles.
 
 The public narrow calibrator compares staged/fused scalar and WMMA, actual
 ordinary public RNS, explicit selected-prefix parallel RNS, and production
