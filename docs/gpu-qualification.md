@@ -195,6 +195,17 @@ wave32, WMMA and the DP4A path. Cross-wave reduction assumptions must be checked
 against [AMD's HIP porting guidance](https://rocmdocs.amd.com/projects/HIP/en/latest/how-to/hip_porting_guide.html).
 A kernel name containing WMMA, DPP or VOPD is not ISA proof.
 
+The CK/rocWMMA checkers require matrix instructions for every selected kernel
+symbol. They parse the exact native function label and do not borrow work from
+a healthy sibling or an unrelated function in whole-object output. Explicitly
+resolved direct device calls can contribute their reachable helper bodies;
+unresolved register-indirect calls, recursive graphs and exceeded attribution
+budgets remain unqualified. Static instruction counts and forbidden-instruction
+checks cover that attributed set. They establish instruction presence, not
+arithmetic execution, dynamic reachability or measured performance. New native-
+text controls are authored for both target families; their batch execution and
+real compiled-object checks remain deferred in the current implementation pass.
+
 ## After smoke, before promotion
 
 Run the bounded [release plan](performance.md), then selected larger/padded,

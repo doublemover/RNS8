@@ -463,9 +463,12 @@
         "Default and indexed dense matrix entry points share architecture-specific inlined bodies and common store/batch admission helpers; default kernel signatures and arithmetic are preserved",
         "Authored malformed-packet preflight controls and exact GPU differential controls for reordered moduli, 48 batches, padding, K65536 and both submission modes; HIP host/gfx1100 device syntax passed, runtime deferred",
         "Share exact-range algorithms across real matrices and compact metadata-only proof values; reuse the same axis/limb memory accounting for prepared and graph certificates rather than copying matrix resource owners into proof propagation.",
-        "Share independent physical native-queue schedule metadata accounting between private/public collectors, including sparse rank directory size and versioned identities; bounded catalog record repetition avoids checked-in expanded task arrays."
+        "Share independent physical native-queue schedule metadata accounting between private/public collectors, including sparse rank directory size and versioned identities; bounded catalog record repetition avoids checked-in expanded task arrays.",
+        "Require matrix instruction attribution independently for every selected CK/rocWMMA specialization rather than pooled or whole-object counts. Share exact native function-body selection and bounded direct-call/helper traversal; unresolved indirect calls, recursive graphs, missing bodies and exceeded budgets remain unqualified. Parse actual mnemonic records so instruction names in comments or unrelated sibling text cannot supply work. Preserve target-specific divide policy and report forbidden instructions with entry/helper origin. Author both real CLI entrypoint and helper controls for gfx1100/gfx942 healthy/empty ordinary/wrap siblings, CK specializations, unrelated functions, missing markers and resolved/unresolved helpers. AST/focused Ruff/diff checks only; no fixture, LLVM object tool, compiler or GPU execution."
       ],
-      "remaining_source_items": []
+      "remaining_source_items": [
+        "Hoist the 13 repeated direct-HIP byte/LDS tiled bodies into one inspectable policy-based dataflow while retaining stable named entrypoints, arithmetic/reducer distinctions and uniform barriers. Bind the shared core/policy tuple into maintained variant metadata and author per-policy CPU/GPU differential controls. Reconcile remaining full generated-family logical/memory ownership and resource/code-size/compile-cost reporting requirements. Real compiled-object/resource and matched performance qualification remains deferred."
+      ]
     },
     {
       "issue": 56,

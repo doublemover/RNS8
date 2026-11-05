@@ -6,6 +6,7 @@ import argparse
 from contextlib import contextmanager
 from dataclasses import dataclass
 import glob
+import hashlib
 import os
 import re
 import shutil
@@ -271,3 +272,93 @@ def mnemonic_lines(disassembly: str) -> list[tuple[str, str]]:
 
 def forbidden_mnemonic_lines(disassembly: str, pattern: re.Pattern[str]) -> list[str]:
     return [line for line, mnemonic in mnemonic_lines(disassembly) if pattern.search(mnemonic)]
+
+
+def selected_function_body(disassembly: str, symbol: str) -> str:
+    """Require the requested native label; never borrow another function body."""
+    headers = list(re.finditer(r"(?m)^\s*[0-9a-fA-F]+ <([^>]+)>:\s*$", disassembly))
+    matches = [index for index, header in enumerate(headers) if header.group(1) == symbol]
+    if len(matches) != 1:
+        raise RuntimeError("native disassembly has missing/ambiguous selected function: " + symbol)
+    index = matches[0]
+    start = headers[index].end()
+    end = headers[index+1].start() if index+1 < len(headers) else len(disassembly)
+    return disassembly[start:end]
+
+
+def matrix_symbol_reports(objdump: str, code_object: Path, target: str,
+                          entries: list[str], required: list[str]) -> list[dict]:
+    """Attribute instructions to each entry and only explicitly resolved callees.
+
+    Register-indirect calls without a native symbol target remain unsupported.
+    No nearby relocation or unrelated matrix-bearing function is guessed to be
+    their target. This is static attribution, never a runtime execution claim.
+    """
+    if not entries or len(entries)>4096 or len(set(entries)) != len(entries) or not required:
+        raise RuntimeError("nonempty unique matrix entrypoint/requirement inventory required")
+    known = set(device_function_symbols(objdump, code_object))
+    cache = {}
+
+    def inspect(symbol):
+        if symbol not in cache:
+            if len(cache)>=4096:
+                raise RuntimeError("matrix attribution function inventory exceeds its budget")
+            native = disassemble_code_object(objdump, code_object, target, symbol)
+            body = selected_function_body(native, symbol)
+            instructions = mnemonic_lines(body)
+            callees, unresolved = set(), []
+            for line, mnemonic in instructions:
+                call = mnemonic in {"s_call_b64", "s_swappc_b64"}
+                tail = mnemonic == "s_branch"
+                if not call and not tail:
+                    continue
+                match = re.search(r"<([^>]+)>", line)
+                label = match.group(1) if match else None
+                name = re.sub(r"\+0x[0-9a-fA-F]+$", "", label) if label else None
+                offset = label[len(name):] if label and name else ""
+                if tail and (name == symbol or name not in known):
+                    continue  # Intra-function branch/local label, not a call.
+                if name not in known or (offset and int(offset[1:],16)!=0):
+                    if call or name in known:
+                        unresolved.append(line)
+                else:
+                    callees.add(name)
+            counts = {expected:sum(mnemonic == expected or mnemonic.startswith(expected+"_")
+                                  for _,mnemonic in instructions) for expected in required}
+            cache[symbol] = dict(symbol=symbol, disassembly=body,
+                disassembly_sha256=hashlib.sha256(body.encode()).hexdigest(),
+                matrix_instructions=counts, callees=sorted(callees), unresolved_calls=unresolved)
+        return cache[symbol]
+
+    reports = []
+    for entry in entries:
+        visited, active, failures = set(), set(), []
+
+        def visit(symbol):
+            if symbol in active:
+                failures.append("recursive_device_call_unsupported:" + symbol)
+                return
+            if symbol in visited:
+                return
+            if len(visited) >= 64:
+                failures.append("device_call_graph_budget_exceeded")
+                return
+            if symbol not in known:
+                failures.append("selected_symbol_missing:" + symbol)
+                return
+            visited.add(symbol); active.add(symbol)
+            function = inspect(symbol)
+            if function["unresolved_calls"]:
+                failures.append("unresolved_device_call:" + symbol)
+            for callee in function["callees"]:
+                visit(callee)
+            active.remove(symbol)
+
+        visit(entry)
+        functions = [cache[symbol] for symbol in sorted(visited)]
+        count = sum(sum(function["matrix_instructions"].values()) for function in functions)
+        if count == 0:
+            failures.append("selected_entry_has_no_attributed_matrix_instructions")
+        reports.append(dict(symbol=entry, target=target, matrix_count=count,
+                            functions=functions, attribution_failures=failures))
+    return reports
