@@ -338,6 +338,7 @@ rns8_status execute_public_grouped_gemm(
     }
   }
 
+  bool compute_started=false;
   std::vector<SynchronousLease> leases;
   leases.reserve(task_count);
   for (uint32_t i = 0; i < task_count; ++i) {
@@ -348,6 +349,7 @@ rns8_status execute_public_grouped_gemm(
       return status;
     }
     leases.emplace_back(ctx, token);
+    leases.back().track_write(compute_started);
   }
   rns8::detail::hip_direct_grouped_device_resources resources;
   status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(*descriptor, 0, 0, 0, 0, &resources);
@@ -357,12 +359,12 @@ rns8_status execute_public_grouped_gemm(
   resources.mark_pending();
   status = synchronous_dispatch_checkpoint(ctx,"grouped_prepare");
   if(status==RNS8_SUCCESS)status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(*descriptor, resources);
+  if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(ctx,"grouped_compute",&compute_started);
   if (status == RNS8_SUCCESS) {
     for (auto& lease : leases) {
       status = lease.begin_write();
       if (status != RNS8_SUCCESS) break;
     }
-    if(status==RNS8_SUCCESS)status=synchronous_dispatch_checkpoint(ctx,"grouped_compute");
     if (status == RNS8_SUCCESS) status = finite_u8 ? rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
                              *descriptor,
                              resources,
@@ -977,8 +979,7 @@ rns8_status rns8::detail::api::gemm_rns_with_proof(
     if(reserved!=RNS8_SUCCESS)return reserved;
     SynchronousLease lease(*ctx,token);
     return lease.finish([&]() -> rns8_status {
-    const auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"gemm_rns");if(dispatched!=RNS8_SUCCESS)return dispatched;
+    const auto writing=lease.checkpoint_before_write("gemm_rns");if(writing!=RNS8_SUCCESS)return writing;
     if (plan->backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       auto* mutable_c = C;
       rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
@@ -1421,8 +1422,7 @@ rns8_status rns8_gemm_finite_u8(
     if(reserved!=RNS8_SUCCESS)return reserved;
     SynchronousLease lease(*ctx,token);
     return lease.finish([&]() -> rns8_status {
-    const auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"gemm_finite");if(dispatched!=RNS8_SUCCESS)return dispatched;
+    const auto writing=lease.checkpoint_before_write("gemm_finite");if(writing!=RNS8_SUCCESS)return writing;
     if (host_rns_backend(plan->backend)) {
       const rns8_status status = plan->backend==RNS8_BACKEND_CPU_AMX
           ? (workspace->cpu_amx?rns8::detail::cpu_amx_gemm(*plan,*A,*B,*C,*workspace->cpu_amx):RNS8_INVALID_ARGUMENT)
@@ -1633,8 +1633,7 @@ rns8_status rns8_gemm_wrap_u64(
     if(reserved!=RNS8_SUCCESS)return reserved;
     SynchronousLease lease(*ctx,token);
     return lease.finish([&]() -> rns8_status {
-    const auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
-    const auto dispatched=synchronous_dispatch_checkpoint(*ctx,"gemm_wrap64");if(dispatched!=RNS8_SUCCESS)return dispatched;
+    const auto writing=lease.checkpoint_before_write("gemm_wrap64");if(writing!=RNS8_SUCCESS)return writing;
     if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       const rns8_status status = rns8::detail::cpu_gemm_wrap_u64(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {

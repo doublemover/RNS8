@@ -131,3 +131,48 @@ TEST_CASE("public incremental GEMM retains snapshot custody through each copy an
     REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
   }
 }
+
+TEST_CASE("public grouped GEMM preserves unissued outputs and retains shared readers on failure", "[api][grouped][hip][lifetime]") {
+  if(!rns8::detail::api::direct_hip_compiled())SKIP("direct HIP grouped provider not compiled");
+  for(bool finite:{false,true})for(unsigned phase=0;phase<3;++phase)for(bool throws:{false,true})for(bool uncertain:{false,true}){
+    CAPTURE(finite,phase,throws,uncertain);
+    auto* ctx=create_dispatch_context(RNS8_BACKEND_HIP_DIRECT);
+    const auto semantics=finite?RNS8_FINITE_RING_U8:RNS8_EXACT_WIDE_SIGNED;
+    auto desc=finite?finite_gemm_desc(semantics,1,1,1,251):exact_desc(semantics,1,1,1);
+    desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;rns8_plan* plan=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+    auto md=finite?finite_matrix_desc(1,1,semantics):exact_matrix_desc(1,1,semantics);
+    rns8_matrix *a=nullptr,*b=nullptr,*c0=nullptr,*c1=nullptr;
+    for(auto** matrix:{&a,&b,&c0,&c1})REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+    const int64_t value=1;const uint8_t byte=1;
+    for(auto* matrix:{a,b})REQUIRE((finite?rns8_pack_finite_u8(ctx,matrix,251,&byte,1,1):rns8_pack_i64(ctx,matrix,&value,1,1))==RNS8_SUCCESS);
+    rns8_workspace *w0=nullptr,*w1=nullptr;
+    REQUIRE(rns8_create_workspace(ctx,plan,&w0)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,plan,&w1)==RNS8_SUCCESS);
+    const rns8_grouped_gemm_task tasks[]{
+      {sizeof(rns8_grouped_gemm_task),RNS8_ABI_VERSION,a,b,c0,w0},
+      {sizeof(rns8_grouped_gemm_task),RNS8_ABI_VERSION,a,b,c1,w1}};
+    auto execute=[&](){return finite?rns8_gemm_finite_u8_grouped(ctx,plan,251,tasks,2):rns8_gemm_rns_grouped(ctx,plan,tasks,2);};
+    REQUIRE(execute()==RNS8_SUCCESS);
+    const uint64_t generations[]{c0->content_generation,c1->content_generation};
+    SynchronousDispatchFixture state;state.readers={a,b};state.writers={c0,c1};state.workspace=w0;
+    state.target_operation=phase==0?"grouped_prepare":"grouped_compute";
+    state.fail=true;state.write_started_on_failure=phase==2;state.throw_after_issue=throws;state.drain_fails=uncertain;
+    const rns8_synchronous_test_hooks hooks{&state,&SynchronousDispatchFixture::dispatch,&SynchronousDispatchFixture::drain};
+    ctx->synchronous_test_hooks=&hooks;
+    CHECK(execute()==(throws?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE));CHECK(state.reservations_observed);
+    CHECK(c0->content_generation==generations[0]);CHECK(c1->content_generation==generations[1]);
+    for(auto* output:{c0,c1})CHECK(output->device_residues_current==(phase!=2));
+    if(uncertain){
+      CHECK(ctx->hip_failure_poisoned);CHECK(a->in_flight_readers==2);CHECK(b->in_flight_readers==2);
+      for(auto* matrix:{a,b,c0,c1})CHECK(rns8_destroy_matrix(matrix)==RNS8_BUSY);
+      for(auto* workspace:{w0,w1})CHECK(rns8_destroy_workspace(workspace)==RNS8_BUSY);
+      state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
+    }
+    CHECK(ctx->failed_work_leases.empty());CHECK(a->in_flight_readers==0);CHECK(b->in_flight_readers==0);
+    CHECK_FALSE(c0->in_flight_writer);CHECK_FALSE(c1->in_flight_writer);CHECK_FALSE(w0->in_flight);CHECK_FALSE(w1->in_flight);
+    ctx->synchronous_test_hooks=nullptr;
+    for(auto* matrix:{a,b,c0,c1})REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_workspace(w0)==RNS8_SUCCESS);REQUIRE(rns8_destroy_workspace(w1)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
+}

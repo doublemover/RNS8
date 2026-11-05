@@ -4,7 +4,7 @@ void check_basis_dispatch_custody(rns8_backend_kind backend) {
     for(unsigned phase=0;phase<5;++phase)for(bool throws:{false,true})for(bool uncertain:{false,true}){
       if(operation=="export" && phase>0 && phase<4)continue;
       CAPTURE(backend,operation,sign,phase,throws,uncertain);
-      auto* ctx=create_ragged_custody_context(backend);
+      auto* ctx=create_dispatch_context(backend);
       const auto semantics=sign?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;
       auto* ordered=experimental_basis_fixture::create(experimental_basis_fixture::moduli());
       auto* ordinary=experimental_basis_fixture::plan(ctx,nullptr,semantics,1,1,1,20);

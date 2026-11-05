@@ -1,4 +1,10 @@
 namespace {
+rns8_context* create_dispatch_context(rns8_backend_kind backend) {
+  if(backend==RNS8_BACKEND_CPU_REFERENCE)return create_cpu_context();
+  rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
+  options.requested_backend=backend;rns8_context* ctx=nullptr;
+  REQUIRE(rns8_create_context(0,&options,&ctx)==RNS8_SUCCESS);return ctx;
+}
 struct SynchronousDispatchFixture {
   std::vector<const rns8_matrix*> readers;
   std::vector<const rns8_matrix*> writers;
@@ -106,7 +112,7 @@ TEST_CASE("public exports retain read ownership without invalidating resident va
 
 TEST_CASE("public synchronous dispatch retains every dependency after uncertain completion", "[api][lifetime]") {
   for(const std::string operation:{"rns","finite","wrap64","gram","axpby","complex","verify"})
-    for(unsigned failure=0;failure<5;++failure) {
+    for(unsigned failure=0;failure<9;++failure) {
       CAPTURE(operation,failure);
       const bool wrap=operation=="wrap64",finite=operation=="finite" || operation=="verify";
       auto* ctx=wrap?create_wrap_context():create_cpu_context();
@@ -141,17 +147,24 @@ TEST_CASE("public synchronous dispatch retains every dependency after uncertain 
           operation=="gram"?std::vector<const rns8_matrix*>{a}:std::vector<const rns8_matrix*>{a,b};
       if(operation!="verify")state.writers={c};if(operation=="complex")state.writers.push_back(ci);
       if(operation!="verify" && operation!="gram")state.workspace=work;
-      state.fail=failure!=0;state.throw_after_issue=failure>=3;state.drain_fails=failure==2 || failure==3;
+      const bool early=failure>=5;
+      state.fail=failure!=0;state.write_started_on_failure=!early;
+      state.throw_after_issue=failure==3 || failure==4 || failure==6 || failure==8;
+      state.drain_fails=failure==2 || failure==3 || failure==7 || failure==8;
       const rns8_synchronous_test_hooks hooks{&state,&SynchronousDispatchFixture::dispatch,&SynchronousDispatchFixture::drain};
       ctx->synchronous_test_hooks=&hooks;
       auto* saved=ctx;ctx=nullptr;CHECK(execute()==RNS8_INVALID_ARGUMENT);ctx=saved;
       CHECK(state.calls==0);CHECK(c->content_generation==generation);
       report.passed=99;
-      const auto expected=failure==0?RNS8_SUCCESS:failure>=3?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE;
+      const auto expected=failure==0?RNS8_SUCCESS:state.throw_after_issue?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE;
       CHECK(execute()==expected);CHECK(state.calls==1);CHECK(state.reservations_observed);
       CHECK(c->content_generation==generation+(failure==0 && operation!="verify"));
       if(operation=="complex")CHECK(ci->content_generation==imag_generation+(failure==0));
       if(operation=="verify")CHECK(report.passed==(failure==0?1:99));
+      if(early){
+        CHECK((c->host_residues_current || c->host_byte_limbs_current));
+        if(operation=="complex")CHECK(ci->host_residues_current);
+      }
       if(failure==0)CHECK(state.drains==0); // no added success-path device wait
       if(state.drain_fails) {
         CHECK(ctx->hip_failure_poisoned);CHECK_FALSE(ctx->failed_work_leases.empty());

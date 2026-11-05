@@ -246,8 +246,7 @@ rns8_status rns8::detail::api::gemm_axpby_with_proof(rns8_context *ctx,const rns
     if(status!=RNS8_SUCCESS)return write.finish(status);
     SynchronousLease addend(*ctx,addend_token);
     return addend.finish(write.finish([&]() -> rns8_status {
-    status=write.begin_write();if(status!=RNS8_SUCCESS)return status;
-    status=synchronous_dispatch_checkpoint(*ctx,"exact_axpby");if(status!=RNS8_SUCCESS)return status;
+    status=write.checkpoint_before_write("exact_axpby");if(status!=RNS8_SUCCESS)return status;
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
       status = hip_direct_gemm_rns_axpby_device(
           ctx->device_id, A->hip_residues, B->hip_residues, D->hip_residues,

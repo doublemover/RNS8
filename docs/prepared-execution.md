@@ -528,6 +528,13 @@ controls include native signed/unsigned extremes, changed basis order and
 successful retry after recoverable failure. Syntax checks pass; runtime and
 provider qualification remain deferred.
 
+Ordinary RNS, finite, wrap and exact-axpby dispatch share the lease-owned
+prewrite checkpoint. Grouped dispatch checks compute admission before invalidating
+its outputs and retains one batch issue flag through every member's unwinding.
+Early rejection preserves prior outputs even if a cleanup drain fails; simulated
+partial issue invalidates the attempted outputs while retaining their custody.
+Expanded host and optional grouped HIP controls are authored and syntax-checked.
+
 
 ## Prepared exact conversion variant
 

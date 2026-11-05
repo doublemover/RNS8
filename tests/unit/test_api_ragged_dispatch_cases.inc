@@ -1,15 +1,9 @@
 namespace {
-rns8_context* create_ragged_custody_context(rns8_backend_kind backend) {
-  if(backend==RNS8_BACKEND_CPU_REFERENCE)return create_cpu_context();
-  rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
-  options.requested_backend=backend;rns8_context* ctx=nullptr;
-  REQUIRE(rns8_create_context(0,&options,&ctx)==RNS8_SUCCESS);return ctx;
-}
 void check_ragged_constructor_custody(rns8_backend_kind backend) {
   for(const char* phase:{"ragged_discover","ragged_compact","ragged_prepare_publish"})
     for(bool throws:{false,true})for(bool uncertain:{false,true}){
       CAPTURE(backend,phase,throws,uncertain);
-      auto* ctx=create_ragged_custody_context(backend);
+      auto* ctx=create_dispatch_context(backend);
       auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);rns8_matrix* source=nullptr;
       REQUIRE(rns8_create_matrix(ctx,&md,&source)==RNS8_SUCCESS);
       const int64_t value=-7;REQUIRE(rns8_pack_i64(ctx,source,&value,1,1)==RNS8_SUCCESS);
@@ -40,7 +34,7 @@ void check_ragged_constructor_custody(rns8_backend_kind backend) {
 void check_ragged_materialization_custody(rns8_backend_kind backend) {
   for(unsigned phase=0;phase<3;++phase)for(bool throws:{false,true})for(bool uncertain:{false,true}){
     CAPTURE(backend,phase,throws,uncertain);
-    auto* ctx=create_ragged_custody_context(backend);
+    auto* ctx=create_dispatch_context(backend);
     auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);rns8_matrix *source=nullptr,*output=nullptr;
     REQUIRE(rns8_create_matrix(ctx,&md,&source)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&md,&output)==RNS8_SUCCESS);
     const int64_t value=-7,prior=9;REQUIRE(rns8_pack_i64(ctx,source,&value,1,1)==RNS8_SUCCESS);
