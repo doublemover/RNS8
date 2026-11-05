@@ -9,7 +9,15 @@ import tempfile
 from pathlib import Path
 
 import export_selector_report
-from test_benchmark_schema import add_helper_lane_fields, as_exact_wide_capture, expect_valid
+from test_benchmark_schema_support_chains_wrap64 import (
+    as_exact_wide_capture,
+)
+from test_benchmark_schema_support_core import (
+    expect_valid,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+)
 from test_starfoundry_reports import starfoundry_capture
 
 

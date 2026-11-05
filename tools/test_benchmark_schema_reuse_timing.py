@@ -5,7 +5,13 @@ from __future__ import annotations
 
 import copy
 
-from test_benchmark_schema import expect_invalid, expect_valid, as_reused_pack_capture
+from test_benchmark_schema_support_chains_wrap64 import (
+    as_reused_pack_capture,
+)
+from test_benchmark_schema_support_core import (
+    expect_invalid,
+    expect_valid,
+)
 from benchmark_schema import validate_capture
 
 

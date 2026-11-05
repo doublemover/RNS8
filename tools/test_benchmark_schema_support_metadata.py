@@ -1,3 +1,13 @@
+"""Independent schema fixture builders with explicit dependencies."""
+
+from __future__ import annotations
+
+import copy
+from test_benchmark_schema_support_core import (
+    summary,
+    zero_summary,
+)
+
 def add_output_padding_fields(capture: dict, padding: int) -> dict:
     output_ld = capture["n"] + padding
     capture["output_logical_ld"] = output_ld

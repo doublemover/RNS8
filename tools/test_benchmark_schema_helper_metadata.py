@@ -6,13 +6,17 @@ from __future__ import annotations
 import copy
 
 from benchmark_schema import validate_capture
-from test_benchmark_schema import (
-    add_helper_lane_fields,
-    add_timing_helper_fields,
+from test_benchmark_schema_support_chains_wrap64 import (
     as_residue_chain_final_export_capture,
     as_residue_current_chain_capture,
+)
+from test_benchmark_schema_support_core import (
     expect_invalid,
     expect_valid,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+    add_timing_helper_fields,
 )
 
 

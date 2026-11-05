@@ -6,7 +6,10 @@ from __future__ import annotations
 import copy
 
 from benchmark_schema import validate_capture
-from test_benchmark_schema import expect_invalid, expect_valid
+from test_benchmark_schema_support_core import (
+    expect_invalid,
+    expect_valid,
+)
 
 
 def main() -> int:

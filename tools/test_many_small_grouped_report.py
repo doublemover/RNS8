@@ -10,7 +10,12 @@ from pathlib import Path
 import many_small_grouped_report
 from benchmark_schema import load_capture
 from metadata_registry_constants import GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
-from test_benchmark_schema import as_grouped_dispatch_capture, as_host_api_batch_capture
+from test_benchmark_schema_support_core import (
+    as_host_api_batch_capture,
+)
+from test_benchmark_schema_support_grouped import (
+    as_grouped_dispatch_capture,
+)
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"

@@ -2,7 +2,12 @@
 from copy import deepcopy
 import unittest
 from benchmark_schema import validate_capture
-from test_benchmark_schema import expect_valid,add_helper_lane_fields
+from test_benchmark_schema_support_core import (
+    expect_valid,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+)
 from metadata_registry_constants import SELECTOR_REJECTION_REASONS
 
 

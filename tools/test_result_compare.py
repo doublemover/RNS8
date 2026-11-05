@@ -242,7 +242,13 @@ def main() -> int:
     assert target_compare["gpu_compatible"] is False
     assert target_compare["gpu_compatibility"]["target_variant.target_namespace"]["match"] is False
 
-    from test_benchmark_schema import as_exact_wide_capture, as_host_api_batch_capture, expect_valid
+    from test_benchmark_schema_support_chains_wrap64 import (
+        as_exact_wide_capture,
+    )
+    from test_benchmark_schema_support_core import (
+        as_host_api_batch_capture,
+        expect_valid,
+    )
     from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
     from benchmark_sweep_lib.capture_metadata import capture_contract_key
     from perf_variance_report import execution_cohort, variance_group_key

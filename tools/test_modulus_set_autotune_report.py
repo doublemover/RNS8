@@ -10,7 +10,9 @@ from pathlib import Path
 
 import modulus_set_autotune_report
 import modulus_set_search
-from test_benchmark_schema import add_helper_lane_fields
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+)
 
 
 FIXTURE = Path("tests") / "fixtures" / "benchmark_schema" / "v4_bounded_i64_adaptive_hip.json"

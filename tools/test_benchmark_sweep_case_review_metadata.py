@@ -1,1405 +1,1436 @@
-from test_capture_identity_support import synthetic_isa_index
-from benchmark_sweep_lib.review import build_review_summary
+"""Independent sweep contract cases; fresh fixtures per invocation."""
+
+from __future__ import annotations
+
+import benchmark_sweep
+import copy
+import unittest
+from pathlib import (
+    Path,
+)
+from test_benchmark_schema_support_core import (
+    as_host_api_batch_capture,
+)
+from test_benchmark_sweep_support import (
+    bounded_capture,
+    exact_wide_capture,
+    finite_capture,
+    mark_reused_a_pack,
+    mark_reused_pack,
+    remove_gpu_events,
+    set_phase,
+    with_accumulator_key_fields,
+)
 
 
-ck = finite_capture("ck", 190)
-direct = finite_capture("hip-direct", 300)
-cpu = finite_capture("cpu-reference", 500)
-for capture in (ck, direct, cpu):
-    capture["tile_shape_variant"] = {"name": "finite-ring-u8-default-128x128", "tile_m": 128, "tile_n": 128, "tile_k": 256}
-smoke_report = benchmark_sweep.review_captures([ck, direct, cpu])
-assert smoke_report["schema_version"] == 3
-assert smoke_report["review_mode"] == "smoke"
-assert smoke_report["promotable_autotune_entries"] == []
-assert "not_release_review" in smoke_report["groups"][0]["candidates"][0]["promotion_blockers"]
+class ReviewMetadataCases(unittest.TestCase):
+    def test_review_metadata_contracts(self) -> None:
+        from test_capture_identity_support import synthetic_isa_index
+        from benchmark_sweep_lib.review import build_review_summary
 
-report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
-benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
-assert report["schema_version"] == 3
-assert report["review_mode"] == "release"
-assert report["group_count"] == 1
-assert report["promotable_autotune_entries"] == []  # diagnostic-only timings cannot promote
-assert report["summary"]["group_count"] == 1
-assert report["summary"]["promotable_autotune_entry_count"] == 0
-assert report["summary"]["missing_required_baseline_group_count"] == 0
-assert report["summary"]["checksum_mismatch_group_count"] == 0
-assert report["summary"]["fastest_production_route_counts"] == {"ck": 1}
-assert report["summary"]["fastest_accelerator_route_counts"] == {"ck": 1}
-assert report["summary"]["direct_hip_production_wins"] == []
-assert report["summary"]["loss_phase_counts"] == {}
-assert report["summary"]["loss_phase_by_backend"] == {}
-assert report["summary"]["loss_phase_by_semantics"] == {}
-assert report["summary"]["loss_phase_by_shape_family"] == {}
-assert report["summary"]["loss_phase_by_scenario_family"] == {}
-assert {item["work"] for item in report["summary"]["next_work"]} == {
-    "attach_pack_a_b_phase_split_timing_before_pack_kernel_work", "address_compute_bound",
-}
-group = report["groups"][0]
-ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
-assert ck_candidate["tile_shape_variant"] == "finite-ring-u8-default-128x128"
-assert ck_candidate["pack_diagnostics"]["pack_median_us"] == 40.0
-assert ck_candidate["pack_diagnostics"]["split_available"] is False
-assert group["shape_family"] == "rectangular"
-pass  # families vary
-assert group["scenario_names"] == []
-assert len(group["phase_ratio_summary"]) == 3
-ck_phase_summary = next(item for item in group["phase_ratio_summary"] if item["backend"] == "ck")
-assert ck_phase_summary["slowest_phase_vs_direct_hip"] is None
-assert ck_phase_summary["phase_speedups_vs_direct_hip"]["end_to_end"] > 1.0
-assert group["missing_required_baselines"] == []
-assert group["release_review_satisfied"] is True
-assert group["source_metadata"]["target_ids"] == ["gfx1100"]
-assert group["source_metadata"]["configured_amdgpu_targets"] == ["gfx1100"]
-assert group["source_metadata"]["hip_runtime_versions"] == ["70260201"]
-assert group["source_metadata"]["hip_driver_versions"] == ["70260201"]
-assert group["source_metadata"]["compilers"] == ["msvc 1944.194435227"]
-assert group["source_metadata"]["git_commits"] == ["a" * 40]
-assert group["source_metadata"]["seeds"] == [13]
-assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
-assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
-assert group["missing_gpu_targets"] == []
-assert group["gpu_target_identity_complete"] is True
-assert group["gpu_target_compatible"] is True
-assert group["missing_hip_toolchain_versions"] == []
-assert group["hip_toolchain_version_complete"] is True
-assert group["hip_toolchain_version_compatible"] is True
-assert group["missing_configured_gpu_targets"] == []
-assert group["configured_target_identity_complete"] is True
-assert group["configured_target_compatible"] is True
-assert group["missing_hip_runtime_versions"] == []
-assert group["hip_runtime_version_complete"] is True
-assert group["hip_runtime_version_compatible"] is True
-assert group["checksum_reference_backend"] == "cpu-reference"
-assert group["checksum_reference"] == 987654321
-assert group["checksum_consistent"] is True
-assert group["checksum_mismatches"] == []
 
-amdgpu = finite_capture("ck", 100)
-amdgpu_kernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"
-amdgpu["backend_requested"] = "amdgpu-builtins"
-amdgpu["backend_selected"] = "amdgpu-builtins"
-amdgpu["selected_kernel"] = amdgpu_kernel
-amdgpu_metadata = amdgpu["backend_metadata"]
-amdgpu_metadata["selected_kernel"] = amdgpu_kernel
-amdgpu_metadata["accelerator_backend"] = True
-amdgpu_metadata["correctness_backend"] = True
-amdgpu_metadata["matrix_engine_backend"] = True
-amdgpu_metadata["accelerator_library"] = "AMDGPU builtins"
-amdgpu_metadata["accelerator_version"] = "compiled_target_specific"
-amdgpu_metadata["capability_status"] = "implemented_opt_in_amdgpu_builtin_backend"
-amdgpu_metadata["epilogue_mode"] = "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export"
-amdgpu_metadata["workspace_mode"] = "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
-amdgpu_metadata["isa_evidence"] = "amdgpu_builtin_matrix_isa_gate_no_divide"
-amdgpu_metadata["matrix_instruction_family"] = "wmma"
-amdgpu_metadata["matrix_instruction_shape"] = "16x16x16"
-amdgpu_metadata["matrix_instruction_dtype"] = "iu8"
-amdgpu_metadata["matrix_instruction_sparsity"] = "dense"
-amdgpu_metadata["matrix_operand_signedness"] = "signed_i8x_signed_i8"
-amdgpu_metadata["matrix_a_value_contract"] = "dense_a_public_u8_centered_for_matrix_core"
-amdgpu_metadata["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
-amdgpu_metadata["matrix_sparse_contract"] = None
-amdgpu_metadata["matrix_sparse_dense_operand"] = None
-amdgpu_metadata["matrix_sparse_a_compression_index_layout"] = None
-amdgpu_metadata["matrix_rdna_integer_modifier_policy"] = {
-    "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
-    "NEG[1]": "B operand signedness: 0 unsigned, 1 signed",
-    "NEG[2]": "must be zero for integer WMMA/SWMMAC",
-    "NEG_HI": "must be zero for integer WMMA/SWMMAC",
-}
-amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
-    amdgpu_metadata["autotune_key"]
-    .replace("backend=ck", "backend=amdgpu-builtins")
-    .replace("kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2", f"kernel={amdgpu_kernel}")
-    .replace(
-        "epilogue=ck_fused_centered_residue_then_canonical_u8_export",
-        "epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
-    ),
-    amdgpu,
-)
-amdgpu_missing_isa_report = benchmark_sweep.review_captures([amdgpu, direct, cpu], review_mode="release")
-amdgpu_missing_isa_group = amdgpu_missing_isa_report["groups"][0]
-amdgpu_missing_isa_candidate = next(
-    item for item in amdgpu_missing_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
-)
-assert amdgpu_missing_isa_report["promotable_autotune_entries"] == []
-assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candidate["promotion_blockers"]
-amdgpu_missing_isa_next_work = {row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]}
-assert "attach_compiled_matrix_isa_reports_before_builtin_promotion" in amdgpu_missing_isa_next_work
+        ck = finite_capture("ck", 190)
+        direct = finite_capture("hip-direct", 300)
+        cpu = finite_capture("cpu-reference", 500)
+        for capture in (ck, direct, cpu):
+            capture["tile_shape_variant"] = {"name": "finite-ring-u8-default-128x128", "tile_m": 128, "tile_n": 128, "tile_k": 256}
+        smoke_report = benchmark_sweep.review_captures([ck, direct, cpu])
+        assert smoke_report["schema_version"] == 3
+        assert smoke_report["review_mode"] == "smoke"
+        assert smoke_report["promotable_autotune_entries"] == []
+        assert "not_release_review" in smoke_report["groups"][0]["candidates"][0]["promotion_blockers"]
 
-amdgpu_wrong_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu4": 4})
-amdgpu_wrong_isa_report = benchmark_sweep.review_captures(
-    [amdgpu, direct, cpu],
-    review_mode="release",
-    isa_index=amdgpu_wrong_isa_index,
-)
-amdgpu_wrong_isa_group = amdgpu_wrong_isa_report["groups"][0]
-amdgpu_wrong_isa_candidate = next(
-    item for item in amdgpu_wrong_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
-)
-assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_wrong_isa_candidate["promotion_blockers"]
-assert "missing_selected_amdgpu_builtin_matrix_instruction" in amdgpu_wrong_isa_candidate["promotion_blockers"]
-assert amdgpu_wrong_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
-amdgpu_wrong_isa_next_work = {row["work"] for row in amdgpu_wrong_isa_report["summary"]["next_work"]}
-assert "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction" in amdgpu_wrong_isa_next_work
+        report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
+        benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
+        assert report["schema_version"] == 3
+        assert report["review_mode"] == "release"
+        assert report["group_count"] == 1
+        assert report["promotable_autotune_entries"] == []  # diagnostic-only timings cannot promote
+        assert report["summary"]["group_count"] == 1
+        assert report["summary"]["promotable_autotune_entry_count"] == 0
+        assert report["summary"]["missing_required_baseline_group_count"] == 0
+        assert report["summary"]["checksum_mismatch_group_count"] == 0
+        assert report["summary"]["fastest_production_route_counts"] == {"ck": 1}
+        assert report["summary"]["fastest_accelerator_route_counts"] == {"ck": 1}
+        assert report["summary"]["direct_hip_production_wins"] == []
+        assert report["summary"]["loss_phase_counts"] == {}
+        assert report["summary"]["loss_phase_by_backend"] == {}
+        assert report["summary"]["loss_phase_by_semantics"] == {}
+        assert report["summary"]["loss_phase_by_shape_family"] == {}
+        assert report["summary"]["loss_phase_by_scenario_family"] == {}
+        assert {item["work"] for item in report["summary"]["next_work"]} == {
+            "attach_pack_a_b_phase_split_timing_before_pack_kernel_work", "address_compute_bound",
+        }
+        group = report["groups"][0]
+        ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
+        assert ck_candidate["tile_shape_variant"] == "finite-ring-u8-default-128x128"
+        assert ck_candidate["pack_diagnostics"]["pack_median_us"] == 40.0
+        assert ck_candidate["pack_diagnostics"]["split_available"] is False
+        assert group["shape_family"] == "rectangular"
+        pass  # families vary
+        assert group["scenario_names"] == []
+        assert len(group["phase_ratio_summary"]) == 3
+        ck_phase_summary = next(item for item in group["phase_ratio_summary"] if item["backend"] == "ck")
+        assert ck_phase_summary["slowest_phase_vs_direct_hip"] is None
+        assert ck_phase_summary["phase_speedups_vs_direct_hip"]["end_to_end"] > 1.0
+        assert group["missing_required_baselines"] == []
+        assert group["release_review_satisfied"] is True
+        assert group["source_metadata"]["target_ids"] == ["gfx1100"]
+        assert group["source_metadata"]["configured_amdgpu_targets"] == ["gfx1100"]
+        assert group["source_metadata"]["hip_runtime_versions"] == ["70260201"]
+        assert group["source_metadata"]["hip_driver_versions"] == ["70260201"]
+        assert group["source_metadata"]["compilers"] == ["msvc 1944.194435227"]
+        assert group["source_metadata"]["git_commits"] == ["a" * 40]
+        assert group["source_metadata"]["seeds"] == [13]
+        assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
+        assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
+        assert group["missing_gpu_targets"] == []
+        assert group["gpu_target_identity_complete"] is True
+        assert group["gpu_target_compatible"] is True
+        assert group["missing_hip_toolchain_versions"] == []
+        assert group["hip_toolchain_version_complete"] is True
+        assert group["hip_toolchain_version_compatible"] is True
+        assert group["missing_configured_gpu_targets"] == []
+        assert group["configured_target_identity_complete"] is True
+        assert group["configured_target_compatible"] is True
+        assert group["missing_hip_runtime_versions"] == []
+        assert group["hip_runtime_version_complete"] is True
+        assert group["hip_runtime_version_compatible"] is True
+        assert group["checksum_reference_backend"] == "cpu-reference"
+        assert group["checksum_reference"] == 987654321
+        assert group["checksum_consistent"] is True
+        assert group["checksum_mismatches"] == []
 
-amdgpu_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu8": 4})
-amdgpu_with_isa_report = benchmark_sweep.review_captures(
-    [amdgpu, direct, cpu],
-    review_mode="release",
-    isa_index=amdgpu_isa_index,
-)
-amdgpu_with_isa_group = amdgpu_with_isa_report["groups"][0]
-amdgpu_with_isa_candidate = next(
-    item for item in amdgpu_with_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
-)
-assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_with_isa_candidate["promotion_blockers"]
-assert "missing_selected_amdgpu_builtin_matrix_instruction" not in amdgpu_with_isa_candidate["promotion_blockers"]
-assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32_16x16x16_iu8": 4}
-assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
-assert amdgpu_with_isa_report["promotable_autotune_entries"] == []
-assert "diagnostic_instrumented_host_time_not_production_evidence" in amdgpu_with_isa_candidate["promotion_blockers"]
+        amdgpu = finite_capture("ck", 100)
+        amdgpu_kernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"
+        amdgpu["backend_requested"] = "amdgpu-builtins"
+        amdgpu["backend_selected"] = "amdgpu-builtins"
+        amdgpu["selected_kernel"] = amdgpu_kernel
+        amdgpu_metadata = amdgpu["backend_metadata"]
+        amdgpu_metadata["selected_kernel"] = amdgpu_kernel
+        amdgpu_metadata["accelerator_backend"] = True
+        amdgpu_metadata["correctness_backend"] = True
+        amdgpu_metadata["matrix_engine_backend"] = True
+        amdgpu_metadata["accelerator_library"] = "AMDGPU builtins"
+        amdgpu_metadata["accelerator_version"] = "compiled_target_specific"
+        amdgpu_metadata["capability_status"] = "implemented_opt_in_amdgpu_builtin_backend"
+        amdgpu_metadata["epilogue_mode"] = "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export"
+        amdgpu_metadata["workspace_mode"] = "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
+        amdgpu_metadata["isa_evidence"] = "amdgpu_builtin_matrix_isa_gate_no_divide"
+        amdgpu_metadata["matrix_instruction_family"] = "wmma"
+        amdgpu_metadata["matrix_instruction_shape"] = "16x16x16"
+        amdgpu_metadata["matrix_instruction_dtype"] = "iu8"
+        amdgpu_metadata["matrix_instruction_sparsity"] = "dense"
+        amdgpu_metadata["matrix_operand_signedness"] = "signed_i8x_signed_i8"
+        amdgpu_metadata["matrix_a_value_contract"] = "dense_a_public_u8_centered_for_matrix_core"
+        amdgpu_metadata["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+        amdgpu_metadata["matrix_sparse_contract"] = None
+        amdgpu_metadata["matrix_sparse_dense_operand"] = None
+        amdgpu_metadata["matrix_sparse_a_compression_index_layout"] = None
+        amdgpu_metadata["matrix_rdna_integer_modifier_policy"] = {
+            "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
+            "NEG[1]": "B operand signedness: 0 unsigned, 1 signed",
+            "NEG[2]": "must be zero for integer WMMA/SWMMAC",
+            "NEG_HI": "must be zero for integer WMMA/SWMMAC",
+        }
+        amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
+            amdgpu_metadata["autotune_key"]
+            .replace("backend=ck", "backend=amdgpu-builtins")
+            .replace("kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2", f"kernel={amdgpu_kernel}")
+            .replace(
+                "epilogue=ck_fused_centered_residue_then_canonical_u8_export",
+                "epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
+            ),
+            amdgpu,
+        )
+        amdgpu_missing_isa_report = benchmark_sweep.review_captures([amdgpu, direct, cpu], review_mode="release")
+        amdgpu_missing_isa_group = amdgpu_missing_isa_report["groups"][0]
+        amdgpu_missing_isa_candidate = next(
+            item for item in amdgpu_missing_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+        )
+        assert amdgpu_missing_isa_report["promotable_autotune_entries"] == []
+        assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candidate["promotion_blockers"]
+        amdgpu_missing_isa_next_work = {row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]}
+        assert "attach_compiled_matrix_isa_reports_before_builtin_promotion" in amdgpu_missing_isa_next_work
 
-amdgpu_wrong_semantic_kernel = copy.deepcopy(amdgpu)
-amdgpu_wrong_semantic_kernel_name = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
-amdgpu_wrong_semantic_kernel["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
-amdgpu_wrong_semantic_kernel["backend_metadata"]["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
-amdgpu_wrong_semantic_report = benchmark_sweep.review_captures(
-    [amdgpu_wrong_semantic_kernel, direct, cpu],
-    review_mode="release",
-    isa_index=amdgpu_isa_index,
-)
-amdgpu_wrong_semantic_group = amdgpu_wrong_semantic_report["groups"][0]
-amdgpu_wrong_semantic_candidate = next(
-    item for item in amdgpu_wrong_semantic_group["candidates"] if item["backend"] == "amdgpu-builtins"
-)
-assert (
-    "amdgpu_builtin_selected_kernel_semantic_target_mismatch"
-    in amdgpu_wrong_semantic_candidate["promotion_blockers"]
-)
-amdgpu_wrong_semantic_next_work = {row["work"] for row in amdgpu_wrong_semantic_report["summary"]["next_work"]}
-assert "align_amdgpu_builtin_selected_kernel_with_semantics_and_target" in amdgpu_wrong_semantic_next_work
+        amdgpu_wrong_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu4": 4})
+        amdgpu_wrong_isa_report = benchmark_sweep.review_captures(
+            [amdgpu, direct, cpu],
+            review_mode="release",
+            isa_index=amdgpu_wrong_isa_index,
+        )
+        amdgpu_wrong_isa_group = amdgpu_wrong_isa_report["groups"][0]
+        amdgpu_wrong_isa_candidate = next(
+            item for item in amdgpu_wrong_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+        )
+        assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_wrong_isa_candidate["promotion_blockers"]
+        assert "missing_selected_amdgpu_builtin_matrix_instruction" in amdgpu_wrong_isa_candidate["promotion_blockers"]
+        assert amdgpu_wrong_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
+        amdgpu_wrong_isa_next_work = {row["work"] for row in amdgpu_wrong_isa_report["summary"]["next_work"]}
+        assert "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction" in amdgpu_wrong_isa_next_work
 
-skinny_cpu = bounded_capture("cpu-reference", 5000)
-skinny_direct = bounded_capture("hip-direct", 300)
-skinny_vector = bounded_capture("hip-vector-alu-int64", 250)
-for capture in (skinny_cpu, skinny_direct, skinny_vector):
-    capture["n"] = 1
-    capture["output_logical_ld"] = 1
-    capture["scenario_metadata"] = {
-        "family": "skinny-gemv",
-        "name": "bounded-i64-512x1x512-review-fixture",
-        "promotion_eligibility": "release_review_candidate",
-        "metadata": {"workflow_name": "skinny_gemv"},
-    }
-stale_skinny_report = benchmark_sweep.review_captures(
-    [skinny_cpu, skinny_direct, skinny_vector],
-    review_mode="release",
-)
-stale_skinny_group = stale_skinny_report["groups"][0]
-stale_direct_candidate = next(item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct")
-stale_vector_candidate = next(
-    item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-vector-alu-int64"
-)
-assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_direct_candidate["promotion_blockers"]
-assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_direct_candidate["promotion_blockers"]
-assert "missing_skinny_gemv_gpu_event_phase" in stale_direct_candidate["promotion_blockers"]
-assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_vector_candidate["promotion_blockers"]
-assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_vector_candidate["promotion_blockers"]
-assert "missing_skinny_gemv_gpu_event_phase" in stale_vector_candidate["promotion_blockers"]
-stale_skinny_next_work = {row["work"] for row in stale_skinny_report["summary"]["next_work"]}
-assert "select_direct_hip_skinny_gemv_kernel_before_promotion" in stale_skinny_next_work
+        amdgpu_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu8": 4})
+        amdgpu_with_isa_report = benchmark_sweep.review_captures(
+            [amdgpu, direct, cpu],
+            review_mode="release",
+            isa_index=amdgpu_isa_index,
+        )
+        amdgpu_with_isa_group = amdgpu_with_isa_report["groups"][0]
+        amdgpu_with_isa_candidate = next(
+            item for item in amdgpu_with_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+        )
+        assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_with_isa_candidate["promotion_blockers"]
+        assert "missing_selected_amdgpu_builtin_matrix_instruction" not in amdgpu_with_isa_candidate["promotion_blockers"]
+        assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32_16x16x16_iu8": 4}
+        assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
+        assert amdgpu_with_isa_report["promotable_autotune_entries"] == []
+        assert "diagnostic_instrumented_host_time_not_production_evidence" in amdgpu_with_isa_candidate["promotion_blockers"]
 
-valid_skinny_direct = copy.deepcopy(skinny_direct)
-valid_skinny_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_n1_i64_v1"
-valid_skinny_direct["backend_metadata"]["selected_kernel"] = valid_skinny_direct["selected_kernel"]
-valid_skinny_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_n1_resident_rns"
-valid_skinny_direct["timing_metadata"]["benchmark_execution_mode"] = valid_skinny_direct["benchmark_execution_mode"]
-valid_skinny_direct["timing_metadata"]["gpu_event_phase_order"] = [
-    "direct_hip_prefix9_pack_a",
-    "direct_hip_prefix9_pack_b",
-    "direct_hip_skinny_gemv_n1_kernel",
-    "direct_hip_bounded_crt_export",
-]
-valid_skinny_report = benchmark_sweep.review_captures(
-    [skinny_cpu, valid_skinny_direct, skinny_vector],
-    review_mode="release",
-)
-valid_skinny_group = valid_skinny_report["groups"][0]
-valid_direct_candidate = next(item for item in valid_skinny_group["candidates"] if item["backend"] == "hip-direct")
-assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_direct_candidate["promotion_blockers"]
-assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_direct_candidate["promotion_blockers"]
-assert "missing_skinny_gemv_gpu_event_phase" not in valid_direct_candidate["promotion_blockers"]
-assert valid_skinny_group["fastest_production_route"]["backend"] == "hip-direct"
+        amdgpu_wrong_semantic_kernel = copy.deepcopy(amdgpu)
+        amdgpu_wrong_semantic_kernel_name = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
+        amdgpu_wrong_semantic_kernel["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
+        amdgpu_wrong_semantic_kernel["backend_metadata"]["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
+        amdgpu_wrong_semantic_report = benchmark_sweep.review_captures(
+            [amdgpu_wrong_semantic_kernel, direct, cpu],
+            review_mode="release",
+            isa_index=amdgpu_isa_index,
+        )
+        amdgpu_wrong_semantic_group = amdgpu_wrong_semantic_report["groups"][0]
+        amdgpu_wrong_semantic_candidate = next(
+            item for item in amdgpu_wrong_semantic_group["candidates"] if item["backend"] == "amdgpu-builtins"
+        )
+        assert (
+            "amdgpu_builtin_selected_kernel_semantic_target_mismatch"
+            in amdgpu_wrong_semantic_candidate["promotion_blockers"]
+        )
+        amdgpu_wrong_semantic_next_work = {row["work"] for row in amdgpu_wrong_semantic_report["summary"]["next_work"]}
+        assert "align_amdgpu_builtin_selected_kernel_with_semantics_and_target" in amdgpu_wrong_semantic_next_work
 
-skinny_small_n_cpu = bounded_capture("cpu-reference", 5000)
-skinny_small_n_direct = bounded_capture("hip-direct", 280)
-skinny_small_n_vector = bounded_capture("hip-vector-alu-int64", 260)
-for capture in (skinny_small_n_cpu, skinny_small_n_direct, skinny_small_n_vector):
-    capture["n"] = 4
-    capture["output_logical_ld"] = 4
-    capture["scenario_metadata"] = {
-        "family": "skinny-gemv",
-        "name": "bounded-i64-512x4x512-review-fixture",
-        "promotion_eligibility": "release_review_candidate",
-        "metadata": {"workflow_name": "skinny_gemv"},
-    }
-stale_small_n_report = benchmark_sweep.review_captures(
-    [skinny_small_n_cpu, skinny_small_n_direct, skinny_small_n_vector],
-    review_mode="release",
-)
-stale_small_n_candidate = next(
-    item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
-)
-stale_small_n_vector_candidate = next(
-    item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-vector-alu-int64"
-)
-assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_small_n_candidate["promotion_blockers"]
-assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_small_n_candidate["promotion_blockers"]
-assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_candidate["promotion_blockers"]
-assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_small_n_vector_candidate["promotion_blockers"]
-assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_small_n_vector_candidate["promotion_blockers"]
-assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_vector_candidate["promotion_blockers"]
+        skinny_cpu = bounded_capture("cpu-reference", 5000)
+        skinny_direct = bounded_capture("hip-direct", 300)
+        skinny_vector = bounded_capture("hip-vector-alu-int64", 250)
+        for capture in (skinny_cpu, skinny_direct, skinny_vector):
+            capture["n"] = 1
+            capture["output_logical_ld"] = 1
+            capture["scenario_metadata"] = {
+                "family": "skinny-gemv",
+                "name": "bounded-i64-512x1x512-review-fixture",
+                "promotion_eligibility": "release_review_candidate",
+                "metadata": {"workflow_name": "skinny_gemv"},
+            }
+        stale_skinny_report = benchmark_sweep.review_captures(
+            [skinny_cpu, skinny_direct, skinny_vector],
+            review_mode="release",
+        )
+        stale_skinny_group = stale_skinny_report["groups"][0]
+        stale_direct_candidate = next(item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct")
+        stale_vector_candidate = next(
+            item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-vector-alu-int64"
+        )
+        assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_direct_candidate["promotion_blockers"]
+        assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_direct_candidate["promotion_blockers"]
+        assert "missing_skinny_gemv_gpu_event_phase" in stale_direct_candidate["promotion_blockers"]
+        assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_vector_candidate["promotion_blockers"]
+        assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_vector_candidate["promotion_blockers"]
+        assert "missing_skinny_gemv_gpu_event_phase" in stale_vector_candidate["promotion_blockers"]
+        stale_skinny_next_work = {row["work"] for row in stale_skinny_report["summary"]["next_work"]}
+        assert "select_direct_hip_skinny_gemv_kernel_before_promotion" in stale_skinny_next_work
 
-valid_small_n_direct = copy.deepcopy(skinny_small_n_direct)
-valid_small_n_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
-valid_small_n_direct["backend_metadata"]["selected_kernel"] = valid_small_n_direct["selected_kernel"]
-valid_small_n_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_small_n_resident_rns"
-valid_small_n_direct["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_direct["benchmark_execution_mode"]
-valid_small_n_direct["timing_metadata"]["gpu_event_phase_order"] = [
-    "direct_hip_prefix9_pack_a",
-    "direct_hip_prefix9_pack_b",
-    "direct_hip_skinny_gemv_small_n_kernel",
-    "direct_hip_bounded_crt_export",
-]
-valid_small_n_report = benchmark_sweep.review_captures(
-    [skinny_small_n_cpu, valid_small_n_direct, skinny_small_n_vector],
-    review_mode="release",
-)
-valid_small_n_candidate = next(
-    item for item in valid_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
-)
-assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_small_n_candidate["promotion_blockers"]
-assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_small_n_candidate["promotion_blockers"]
-assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_candidate["promotion_blockers"]
+        valid_skinny_direct = copy.deepcopy(skinny_direct)
+        valid_skinny_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_n1_i64_v1"
+        valid_skinny_direct["backend_metadata"]["selected_kernel"] = valid_skinny_direct["selected_kernel"]
+        valid_skinny_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_n1_resident_rns"
+        valid_skinny_direct["timing_metadata"]["benchmark_execution_mode"] = valid_skinny_direct["benchmark_execution_mode"]
+        valid_skinny_direct["timing_metadata"]["gpu_event_phase_order"] = [
+            "direct_hip_prefix9_pack_a",
+            "direct_hip_prefix9_pack_b",
+            "direct_hip_skinny_gemv_n1_kernel",
+            "direct_hip_bounded_crt_export",
+        ]
+        valid_skinny_report = benchmark_sweep.review_captures(
+            [skinny_cpu, valid_skinny_direct, skinny_vector],
+            review_mode="release",
+        )
+        valid_skinny_group = valid_skinny_report["groups"][0]
+        valid_direct_candidate = next(item for item in valid_skinny_group["candidates"] if item["backend"] == "hip-direct")
+        assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_direct_candidate["promotion_blockers"]
+        assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_direct_candidate["promotion_blockers"]
+        assert "missing_skinny_gemv_gpu_event_phase" not in valid_direct_candidate["promotion_blockers"]
+        assert valid_skinny_group["fastest_production_route"]["backend"] == "hip-direct"
 
-valid_small_n_vector = copy.deepcopy(skinny_small_n_vector)
-valid_small_n_vector["selected_kernel"] = "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
-valid_small_n_vector["backend_metadata"]["selected_kernel"] = valid_small_n_vector["selected_kernel"]
-valid_small_n_vector["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
-valid_small_n_vector["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_vector["benchmark_execution_mode"]
-valid_small_n_vector["timing_metadata"]["gpu_event_phase_order"] = [
-    "vector_alu_input_h2d",
-    "vector_alu_status_memset",
-    "vector_alu_i64_gemv_small_n_kernel",
-    "vector_alu_status_d2h",
-    "vector_alu_output_d2h",
-]
-valid_small_n_vector_report = benchmark_sweep.review_captures(
-    [skinny_small_n_cpu, valid_small_n_direct, valid_small_n_vector],
-    review_mode="release",
-)
-valid_small_n_vector_candidate = next(
-    item
-    for item in valid_small_n_vector_report["groups"][0]["candidates"]
-    if item["backend"] == "hip-vector-alu-int64"
-)
-assert "missing_vector_alu_skinny_gemv_kernel_identity" not in valid_small_n_vector_candidate["promotion_blockers"]
-assert "missing_vector_alu_skinny_gemv_execution_mode" not in valid_small_n_vector_candidate["promotion_blockers"]
-assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_vector_candidate["promotion_blockers"]
+        skinny_small_n_cpu = bounded_capture("cpu-reference", 5000)
+        skinny_small_n_direct = bounded_capture("hip-direct", 280)
+        skinny_small_n_vector = bounded_capture("hip-vector-alu-int64", 260)
+        for capture in (skinny_small_n_cpu, skinny_small_n_direct, skinny_small_n_vector):
+            capture["n"] = 4
+            capture["output_logical_ld"] = 4
+            capture["scenario_metadata"] = {
+                "family": "skinny-gemv",
+                "name": "bounded-i64-512x4x512-review-fixture",
+                "promotion_eligibility": "release_review_candidate",
+                "metadata": {"workflow_name": "skinny_gemv"},
+            }
+        stale_small_n_report = benchmark_sweep.review_captures(
+            [skinny_small_n_cpu, skinny_small_n_direct, skinny_small_n_vector],
+            review_mode="release",
+        )
+        stale_small_n_candidate = next(
+            item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+        )
+        stale_small_n_vector_candidate = next(
+            item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-vector-alu-int64"
+        )
+        assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_small_n_candidate["promotion_blockers"]
+        assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_small_n_candidate["promotion_blockers"]
+        assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_candidate["promotion_blockers"]
+        assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_small_n_vector_candidate["promotion_blockers"]
+        assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_small_n_vector_candidate["promotion_blockers"]
+        assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_vector_candidate["promotion_blockers"]
 
-native_bridge = bounded_capture("hip-direct", 220)
-native_bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
-native_bridge["timing_metadata"]["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
-native_bridge_report = benchmark_sweep.review_captures(
-    [bounded_capture("cpu-reference", 5000), native_bridge],
-    review_mode="release",
-)
-native_bridge_candidate = next(
-    item for item in native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
-)
-assert "missing_native_to_rns_bridge_forced_metadata" in native_bridge_candidate["promotion_blockers"]
-assert "missing_native_to_rns_handoff_scope" in native_bridge_candidate["promotion_blockers"]
-native_bridge_next_work = {row["work"] for row in native_bridge_report["summary"]["next_work"]}
-assert "attach_native_to_rns_bridge_forced_metadata" in native_bridge_next_work
+        valid_small_n_direct = copy.deepcopy(skinny_small_n_direct)
+        valid_small_n_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
+        valid_small_n_direct["backend_metadata"]["selected_kernel"] = valid_small_n_direct["selected_kernel"]
+        valid_small_n_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_small_n_resident_rns"
+        valid_small_n_direct["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_direct["benchmark_execution_mode"]
+        valid_small_n_direct["timing_metadata"]["gpu_event_phase_order"] = [
+            "direct_hip_prefix9_pack_a",
+            "direct_hip_prefix9_pack_b",
+            "direct_hip_skinny_gemv_small_n_kernel",
+            "direct_hip_bounded_crt_export",
+        ]
+        valid_small_n_report = benchmark_sweep.review_captures(
+            [skinny_small_n_cpu, valid_small_n_direct, skinny_small_n_vector],
+            review_mode="release",
+        )
+        valid_small_n_candidate = next(
+            item for item in valid_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+        )
+        assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_small_n_candidate["promotion_blockers"]
+        assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_small_n_candidate["promotion_blockers"]
+        assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_candidate["promotion_blockers"]
 
-valid_native_bridge = copy.deepcopy(native_bridge)
-valid_native_bridge["timing_metadata"]["native_to_rns_bridge_forced"] = True
-valid_native_bridge["timing_metadata"]["phase_availability"] = {
-    "native_to_rns_bridge": {
-        "timed": True,
-        "timing_key": "rns_gemm",
-        "scope": "device_native_to_rns_conversion_inside_rns_gemm",
-        "reason": "measured as native_i64_to_rns_kernel inside rns_gemm",
-    },
-}
-valid_native_bridge["gpu_event_timing_summary_us"]["native_i64_to_rns_kernel"] = {
-    "avg": 12.0,
-    "median": 12.0,
-    "p95": 12.0,
-}
-valid_native_bridge["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = {
-    "avg": 48.0,
-    "median": 48.0,
-    "p95": 48.0,
-}
-valid_native_bridge_report = benchmark_sweep.review_captures(
-    [bounded_capture("cpu-reference", 5000), valid_native_bridge],
-    review_mode="release",
-)
-valid_native_bridge_candidate = next(
-    item for item in valid_native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
-)
-assert "missing_native_to_rns_bridge_forced_metadata" not in valid_native_bridge_candidate["promotion_blockers"]
-assert "missing_native_to_rns_handoff_scope" not in valid_native_bridge_candidate["promotion_blockers"]
-valid_native_bridge_diagnostics = valid_native_bridge_candidate["native_to_rns_handoff_diagnostics"]
-assert valid_native_bridge_diagnostics["execution_mode"] == "auto_native_to_rns_bridge"
-assert valid_native_bridge_diagnostics["conversion_event_label"] == "native_i64_to_rns_kernel"
-assert valid_native_bridge_diagnostics["conversion_median_us"] == 12.0
-assert valid_native_bridge_diagnostics["consumer_gemm_median_us"] == 48.0
-assert valid_native_bridge_diagnostics["conversion_share_of_consumer_gemm"] == 0.25
+        valid_small_n_vector = copy.deepcopy(skinny_small_n_vector)
+        valid_small_n_vector["selected_kernel"] = "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
+        valid_small_n_vector["backend_metadata"]["selected_kernel"] = valid_small_n_vector["selected_kernel"]
+        valid_small_n_vector["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+        valid_small_n_vector["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_vector["benchmark_execution_mode"]
+        valid_small_n_vector["timing_metadata"]["gpu_event_phase_order"] = [
+            "vector_alu_input_h2d",
+            "vector_alu_status_memset",
+            "vector_alu_i64_gemv_small_n_kernel",
+            "vector_alu_status_d2h",
+            "vector_alu_output_d2h",
+        ]
+        valid_small_n_vector_report = benchmark_sweep.review_captures(
+            [skinny_small_n_cpu, valid_small_n_direct, valid_small_n_vector],
+            review_mode="release",
+        )
+        valid_small_n_vector_candidate = next(
+            item
+            for item in valid_small_n_vector_report["groups"][0]["candidates"]
+            if item["backend"] == "hip-vector-alu-int64"
+        )
+        assert "missing_vector_alu_skinny_gemv_kernel_identity" not in valid_small_n_vector_candidate["promotion_blockers"]
+        assert "missing_vector_alu_skinny_gemv_execution_mode" not in valid_small_n_vector_candidate["promotion_blockers"]
+        assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_vector_candidate["promotion_blockers"]
 
-sparse_amdgpu = copy.deepcopy(amdgpu)
-sparse_amdgpu["_path"] = "amdgpu-sparse-a.json"
-sparse_amdgpu["k"] = 64
-sparse_amdgpu["input_distribution"] = "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group"
-sparse_amdgpu["scenario_metadata"] = {
-    "family": "sparse-a-4-to-2",
-    "name": "finite-u8-sparse-a-review-fixture",
-    "promotion_eligibility": "release_review_candidate",
-    "sparse_a_4_to_2": True,
-    "metadata": {"workflow_name": "sparse_a_4_to_2"},
-}
-sparse_amdgpu["selected_kernel"] = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
-sparse_amdgpu["backend_metadata"]["selected_kernel"] = sparse_amdgpu["selected_kernel"]
-sparse_amdgpu["backend_metadata"]["matrix_instruction_family"] = "smfmac"
-sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "16x16x64"
-sparse_amdgpu["backend_metadata"]["matrix_instruction_dtype"] = "i8"
-sparse_amdgpu["backend_metadata"]["matrix_instruction_sparsity"] = "structured_4_2"
-sparse_amdgpu["backend_metadata"]["matrix_operand_signedness"] = "signed_i8x_signed_i8"
-sparse_amdgpu["backend_metadata"]["matrix_a_value_contract"] = (
-    "unsigned_u8_public_values_centered_for_matrix_core"
-)
-sparse_amdgpu["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
-sparse_amdgpu["backend_metadata"]["matrix_sparse_contract"] = "a_4_to_2_structured_k_v1"
-sparse_amdgpu["backend_metadata"]["matrix_sparse_dense_operand"] = "B"
-sparse_amdgpu["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = (
-    "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
-)
-sparse_amdgpu["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
-sparse_key = (
-    "backend=amdgpu-builtins;target_id=gfx1100;semantics=finite_ring_u8;m=64;n=64;k=64;"
-    "finite_modulus=251;prefix=0;tile_m=128;tile_n=128;"
-    "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;sparse_group_size=4;"
-    "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;"
-    "sparse_value_signedness=unsigned_u8;dense_operand=B;"
-    "kernel=amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1;"
-    "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
-)
-sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(sparse_key, sparse_amdgpu)
-bad_sparse = copy.deepcopy(sparse_amdgpu)
-bad_sparse["backend_metadata"]["autotune_key"] = bad_sparse["backend_metadata"]["autotune_key"].replace(
-    "sparse_nonzeros_per_group=2;",
-    "",
-)
-bad_sparse_report = benchmark_sweep.review_captures(
-    [bad_sparse],
-    review_mode="release",
-    isa_index=synthetic_isa_index(bad_sparse, {"v_smfmac_i32_16x16x64_i8": 4}),
-)
-bad_sparse_candidate = bad_sparse_report["groups"][0]["candidates"][0]
-assert bad_sparse_candidate["backend"] == "amdgpu-builtins-sparse-a-runtime"
-assert "missing_sparse_a_4_to_2_autotune_contract" in bad_sparse_candidate["promotion_blockers"]
-bad_sparse_next_work = {row["work"] for row in bad_sparse_report["summary"]["next_work"]}
-assert "attach_sparse_a_4_to_2_autotune_contract_metadata" in bad_sparse_next_work
-valid_sparse_report = benchmark_sweep.review_captures(
-    [sparse_amdgpu],
-    review_mode="release",
-    isa_index=synthetic_isa_index(sparse_amdgpu, {"v_smfmac_i32_16x16x64_i8": 4}),
-)
-valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
-assert "missing_sparse_a_4_to_2_autotune_contract" not in valid_sparse_candidate["promotion_blockers"]
-assert valid_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_16x16x64_i8"
+        native_bridge = bounded_capture("hip-direct", 220)
+        native_bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
+        native_bridge["timing_metadata"]["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
+        native_bridge_report = benchmark_sweep.review_captures(
+            [bounded_capture("cpu-reference", 5000), native_bridge],
+            review_mode="release",
+        )
+        native_bridge_candidate = next(
+            item for item in native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+        )
+        assert "missing_native_to_rns_bridge_forced_metadata" in native_bridge_candidate["promotion_blockers"]
+        assert "missing_native_to_rns_handoff_scope" in native_bridge_candidate["promotion_blockers"]
+        native_bridge_next_work = {row["work"] for row in native_bridge_report["summary"]["next_work"]}
+        assert "attach_native_to_rns_bridge_forced_metadata" in native_bridge_next_work
 
-wide_sparse_amdgpu = copy.deepcopy(sparse_amdgpu)
-wide_sparse_amdgpu["m"] = 128
-wide_sparse_amdgpu["n"] = 128
-wide_sparse_amdgpu["k"] = 128
-wide_sparse_amdgpu["device"]["gcn_arch"] = "gfx942"
-wide_sparse_amdgpu["configured_amdgpu_targets"] = "gfx942"
-wide_sparse_amdgpu["selected_kernel"] = "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1"
-wide_sparse_amdgpu["backend_metadata"]["selected_kernel"] = wide_sparse_amdgpu["selected_kernel"]
-wide_sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "32x32x32"
-wide_sparse_key = (
-    "backend=amdgpu-builtins;target_id=gfx942;semantics=finite_ring_u8;m=128;n=128;k=128;"
-    "finite_modulus=251;prefix=0;tile_m=128;tile_n=128;"
-    "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;sparse_group_size=4;"
-    "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;"
-    "sparse_value_signedness=unsigned_u8;dense_operand=B;"
-    "kernel=amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1;"
-    "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
-)
-wide_sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
-    wide_sparse_key,
-    wide_sparse_amdgpu,
-)
-wide_sparse_report = benchmark_sweep.review_captures(
-    [wide_sparse_amdgpu],
-    review_mode="release",
-    isa_index=synthetic_isa_index(wide_sparse_amdgpu, {"v_smfmac_i32_32x32x32_i8": 4}),
-)
-wide_sparse_candidate = wide_sparse_report["groups"][0]["candidates"][0]
-assert wide_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_32x32x32_i8"
-assert "amdgpu_builtin_selected_kernel_semantic_target_mismatch" not in wide_sparse_candidate["promotion_blockers"]
-assert "missing_amdgpu_builtin_matrix_isa_histogram" not in wide_sparse_candidate["promotion_blockers"]
-
-amdgpu_tile = copy.deepcopy(amdgpu)
-amdgpu_tile["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
-amdgpu_tile["backend_metadata"]["selected_kernel"] = amdgpu_tile["selected_kernel"]
-amdgpu_tile["backend_metadata"]["matrix_instruction_family"] = "mfma"
-amdgpu_tile["backend_metadata"]["matrix_instruction_shape"] = "16x16x32"
-amdgpu_tile["backend_metadata"]["matrix_instruction_dtype"] = "i8"
-amdgpu_tile["backend_metadata"]["matrix_instruction_sparsity"] = "dense"
-amdgpu_tile["backend_metadata"]["matrix_operand_signedness"] = "signed_i8x_signed_i8"
-amdgpu_tile["backend_metadata"]["matrix_a_value_contract"] = "dense_a_public_u8_centered_for_matrix_core"
-amdgpu_tile["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
-amdgpu_tile["backend_metadata"]["matrix_sparse_contract"] = None
-amdgpu_tile["backend_metadata"]["matrix_sparse_dense_operand"] = None
-amdgpu_tile["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = None
-amdgpu_tile["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
-amdgpu_tile["tile_shape_variant"] = {
-    "name": "amdgpu-cdna3-mfma-32x32x16",
-    "tile_m": amdgpu_tile["tile_m"],
-    "tile_n": amdgpu_tile["tile_n"],
-    "tile_k": amdgpu_tile["k_block_size"],
-}
-amdgpu_tile_report = benchmark_sweep.review_captures(
-    [amdgpu_tile, direct, cpu],
-    review_mode="release",
-    isa_index=synthetic_isa_index(amdgpu_tile, {"v_mfma_i32_16x16x32_i8": 4}),
-)
-amdgpu_tile_candidate = next(
-    item for item in amdgpu_tile_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
-)
-assert "amdgpu_builtin_tile_variant_kernel_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
-assert "amdgpu_builtin_tile_variant_shape_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
-
-amdgpu_tile_wide_finite = copy.deepcopy(amdgpu_tile)
-amdgpu_tile_wide_finite["device"]["gcn_arch"] = "gfx942"
-amdgpu_tile_wide_finite["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1"
-amdgpu_tile_wide_finite["backend_metadata"]["selected_kernel"] = amdgpu_tile_wide_finite["selected_kernel"]
-amdgpu_tile_wide_finite["backend_metadata"]["matrix_instruction_shape"] = "32x32x16"
-amdgpu_tile_wide_finite["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
-amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"] = (
-    amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"]
-    .replace("target_id=gfx1100", "target_id=gfx942")
-    .replace(
-        "kernel=amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1",
-        "kernel=amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1",
-    )
-)
-amdgpu_tile_wide_report = benchmark_sweep.review_captures(
-    [amdgpu_tile_wide_finite, direct, cpu],
-    review_mode="release",
-    isa_index=synthetic_isa_index(amdgpu_tile_wide_finite, {"v_mfma_i32_32x32x16_i8": 4}),
-)
-amdgpu_tile_wide_candidate = next(
-    item for item in amdgpu_tile_wide_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
-)
-assert "amdgpu_builtin_tile_variant_kernel_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
-assert "amdgpu_builtin_tile_variant_shape_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
-assert amdgpu_tile_wide_candidate["expected_matrix_instruction_mnemonic"] == "v_mfma_i32_32x32x16_i8"
-
-summary_fixture_group = {
-    "semantics": "bounded_i64",
-    "shape": {"m": 64, "n": 64, "k": 64},
-    "shape_family": "small_square",
-    "scenario_families": ["repeated-b"],
-    "missing_required_baselines": ["hip-vector-alu-int64"],
-    "checksum_mismatches": ["ck"],
-    "fastest_production_route": {
-        "backend": "hip-direct",
-        "selected_kernel": "direct_kernel",
-        "median_end_to_end_us": 100.0,
-        "bottleneck": {"class": "pack_bound", "phase": "pack"},
-        "capture": "direct.json",
-    },
-    "fastest_accelerator_route": {
-        "backend": "ck",
-        "selected_kernel": "ck_kernel",
-        "median_end_to_end_us": 140.0,
-        "bottleneck": {"class": "pack_bound", "phase": "pack"},
-        "capture": "ck.json",
-    },
-    "candidates": [
-        {
-            "backend": "ck",
-            "accelerator_backend": True,
-            "scenario_promotion_scope": "release_review_candidate",
-            "selected_kernel": "ck_kernel",
-            "median_end_to_end_us": 140.0,
-            "speedup_vs_direct_hip": 0.71,
-            "speedup_vs_vector_alu": 0.8,
-            "primary_loss_phase_vs_direct_hip": "pack",
-            "bottleneck": {"class": "pack_bound", "phase": "pack"},
-            "pack_diagnostics": {
-                "pack_median_us": 100.0,
-                "pack_a_median_us": 70.0,
-                "pack_b_median_us": 30.0,
-                "pack_share_of_end_to_end": 100.0 / 140.0,
-                "split_available": True,
-                "dominant_operand": "A",
-                "pack_mode": "per_repeat_repack",
-                "pack_layout": "matrix_engine_transient_pack_layout",
-                "source_versioned_inputs": True,
-                "same_source_version_pack_elision_available": False,
+        valid_native_bridge = copy.deepcopy(native_bridge)
+        valid_native_bridge["timing_metadata"]["native_to_rns_bridge_forced"] = True
+        valid_native_bridge["timing_metadata"]["phase_availability"] = {
+            "native_to_rns_bridge": {
+                "timed": True,
+                "timing_key": "rns_gemm",
+                "scope": "device_native_to_rns_conversion_inside_rns_gemm",
+                "reason": "measured as native_i64_to_rns_kernel inside rns_gemm",
             },
-            "capture": "ck.json",
-            "promotion_blockers": [
-                "reuse_not_faster_than_same_backend_setup_inclusive",
-                "reuse_not_faster_than_best_nonreuse_setup_inclusive",
-                "graph_not_faster_than_non_graph_setup_inclusive",
-                "missing_graph_setup_inclusive_timing",
-                "not_faster_than_direct_hip",
-                "not_faster_than_vector_alu",
+        }
+        valid_native_bridge["gpu_event_timing_summary_us"]["native_i64_to_rns_kernel"] = {
+            "avg": 12.0,
+            "median": 12.0,
+            "p95": 12.0,
+        }
+        valid_native_bridge["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = {
+            "avg": 48.0,
+            "median": 48.0,
+            "p95": 48.0,
+        }
+        valid_native_bridge_report = benchmark_sweep.review_captures(
+            [bounded_capture("cpu-reference", 5000), valid_native_bridge],
+            review_mode="release",
+        )
+        valid_native_bridge_candidate = next(
+            item for item in valid_native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+        )
+        assert "missing_native_to_rns_bridge_forced_metadata" not in valid_native_bridge_candidate["promotion_blockers"]
+        assert "missing_native_to_rns_handoff_scope" not in valid_native_bridge_candidate["promotion_blockers"]
+        valid_native_bridge_diagnostics = valid_native_bridge_candidate["native_to_rns_handoff_diagnostics"]
+        assert valid_native_bridge_diagnostics["execution_mode"] == "auto_native_to_rns_bridge"
+        assert valid_native_bridge_diagnostics["conversion_event_label"] == "native_i64_to_rns_kernel"
+        assert valid_native_bridge_diagnostics["conversion_median_us"] == 12.0
+        assert valid_native_bridge_diagnostics["consumer_gemm_median_us"] == 48.0
+        assert valid_native_bridge_diagnostics["conversion_share_of_consumer_gemm"] == 0.25
+
+        sparse_amdgpu = copy.deepcopy(amdgpu)
+        sparse_amdgpu["_path"] = "amdgpu-sparse-a.json"
+        sparse_amdgpu["k"] = 64
+        sparse_amdgpu["input_distribution"] = "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group"
+        sparse_amdgpu["scenario_metadata"] = {
+            "family": "sparse-a-4-to-2",
+            "name": "finite-u8-sparse-a-review-fixture",
+            "promotion_eligibility": "release_review_candidate",
+            "sparse_a_4_to_2": True,
+            "metadata": {"workflow_name": "sparse_a_4_to_2"},
+        }
+        sparse_amdgpu["selected_kernel"] = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
+        sparse_amdgpu["backend_metadata"]["selected_kernel"] = sparse_amdgpu["selected_kernel"]
+        sparse_amdgpu["backend_metadata"]["matrix_instruction_family"] = "smfmac"
+        sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "16x16x64"
+        sparse_amdgpu["backend_metadata"]["matrix_instruction_dtype"] = "i8"
+        sparse_amdgpu["backend_metadata"]["matrix_instruction_sparsity"] = "structured_4_2"
+        sparse_amdgpu["backend_metadata"]["matrix_operand_signedness"] = "signed_i8x_signed_i8"
+        sparse_amdgpu["backend_metadata"]["matrix_a_value_contract"] = (
+            "unsigned_u8_public_values_centered_for_matrix_core"
+        )
+        sparse_amdgpu["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+        sparse_amdgpu["backend_metadata"]["matrix_sparse_contract"] = "a_4_to_2_structured_k_v1"
+        sparse_amdgpu["backend_metadata"]["matrix_sparse_dense_operand"] = "B"
+        sparse_amdgpu["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = (
+            "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+        )
+        sparse_amdgpu["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
+        sparse_key = (
+            "backend=amdgpu-builtins;target_id=gfx1100;semantics=finite_ring_u8;m=64;n=64;k=64;"
+            "finite_modulus=251;prefix=0;tile_m=128;tile_n=128;"
+            "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;sparse_group_size=4;"
+            "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;"
+            "sparse_value_signedness=unsigned_u8;dense_operand=B;"
+            "kernel=amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1;"
+            "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
+        )
+        sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(sparse_key, sparse_amdgpu)
+        bad_sparse = copy.deepcopy(sparse_amdgpu)
+        bad_sparse["backend_metadata"]["autotune_key"] = bad_sparse["backend_metadata"]["autotune_key"].replace(
+            "sparse_nonzeros_per_group=2;",
+            "",
+        )
+        bad_sparse_report = benchmark_sweep.review_captures(
+            [bad_sparse],
+            review_mode="release",
+            isa_index=synthetic_isa_index(bad_sparse, {"v_smfmac_i32_16x16x64_i8": 4}),
+        )
+        bad_sparse_candidate = bad_sparse_report["groups"][0]["candidates"][0]
+        assert bad_sparse_candidate["backend"] == "amdgpu-builtins-sparse-a-runtime"
+        assert "missing_sparse_a_4_to_2_autotune_contract" in bad_sparse_candidate["promotion_blockers"]
+        bad_sparse_next_work = {row["work"] for row in bad_sparse_report["summary"]["next_work"]}
+        assert "attach_sparse_a_4_to_2_autotune_contract_metadata" in bad_sparse_next_work
+        valid_sparse_report = benchmark_sweep.review_captures(
+            [sparse_amdgpu],
+            review_mode="release",
+            isa_index=synthetic_isa_index(sparse_amdgpu, {"v_smfmac_i32_16x16x64_i8": 4}),
+        )
+        valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
+        assert "missing_sparse_a_4_to_2_autotune_contract" not in valid_sparse_candidate["promotion_blockers"]
+        assert valid_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_16x16x64_i8"
+
+        wide_sparse_amdgpu = copy.deepcopy(sparse_amdgpu)
+        wide_sparse_amdgpu["m"] = 128
+        wide_sparse_amdgpu["n"] = 128
+        wide_sparse_amdgpu["k"] = 128
+        wide_sparse_amdgpu["device"]["gcn_arch"] = "gfx942"
+        wide_sparse_amdgpu["configured_amdgpu_targets"] = "gfx942"
+        wide_sparse_amdgpu["selected_kernel"] = "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1"
+        wide_sparse_amdgpu["backend_metadata"]["selected_kernel"] = wide_sparse_amdgpu["selected_kernel"]
+        wide_sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "32x32x32"
+        wide_sparse_key = (
+            "backend=amdgpu-builtins;target_id=gfx942;semantics=finite_ring_u8;m=128;n=128;k=128;"
+            "finite_modulus=251;prefix=0;tile_m=128;tile_n=128;"
+            "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;sparse_group_size=4;"
+            "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;"
+            "sparse_value_signedness=unsigned_u8;dense_operand=B;"
+            "kernel=amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1;"
+            "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
+        )
+        wide_sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+            wide_sparse_key,
+            wide_sparse_amdgpu,
+        )
+        wide_sparse_report = benchmark_sweep.review_captures(
+            [wide_sparse_amdgpu],
+            review_mode="release",
+            isa_index=synthetic_isa_index(wide_sparse_amdgpu, {"v_smfmac_i32_32x32x32_i8": 4}),
+        )
+        wide_sparse_candidate = wide_sparse_report["groups"][0]["candidates"][0]
+        assert wide_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_32x32x32_i8"
+        assert "amdgpu_builtin_selected_kernel_semantic_target_mismatch" not in wide_sparse_candidate["promotion_blockers"]
+        assert "missing_amdgpu_builtin_matrix_isa_histogram" not in wide_sparse_candidate["promotion_blockers"]
+
+        amdgpu_tile = copy.deepcopy(amdgpu)
+        amdgpu_tile["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
+        amdgpu_tile["backend_metadata"]["selected_kernel"] = amdgpu_tile["selected_kernel"]
+        amdgpu_tile["backend_metadata"]["matrix_instruction_family"] = "mfma"
+        amdgpu_tile["backend_metadata"]["matrix_instruction_shape"] = "16x16x32"
+        amdgpu_tile["backend_metadata"]["matrix_instruction_dtype"] = "i8"
+        amdgpu_tile["backend_metadata"]["matrix_instruction_sparsity"] = "dense"
+        amdgpu_tile["backend_metadata"]["matrix_operand_signedness"] = "signed_i8x_signed_i8"
+        amdgpu_tile["backend_metadata"]["matrix_a_value_contract"] = "dense_a_public_u8_centered_for_matrix_core"
+        amdgpu_tile["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+        amdgpu_tile["backend_metadata"]["matrix_sparse_contract"] = None
+        amdgpu_tile["backend_metadata"]["matrix_sparse_dense_operand"] = None
+        amdgpu_tile["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = None
+        amdgpu_tile["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
+        amdgpu_tile["tile_shape_variant"] = {
+            "name": "amdgpu-cdna3-mfma-32x32x16",
+            "tile_m": amdgpu_tile["tile_m"],
+            "tile_n": amdgpu_tile["tile_n"],
+            "tile_k": amdgpu_tile["k_block_size"],
+        }
+        amdgpu_tile_report = benchmark_sweep.review_captures(
+            [amdgpu_tile, direct, cpu],
+            review_mode="release",
+            isa_index=synthetic_isa_index(amdgpu_tile, {"v_mfma_i32_16x16x32_i8": 4}),
+        )
+        amdgpu_tile_candidate = next(
+            item for item in amdgpu_tile_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
+        )
+        assert "amdgpu_builtin_tile_variant_kernel_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
+        assert "amdgpu_builtin_tile_variant_shape_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
+
+        amdgpu_tile_wide_finite = copy.deepcopy(amdgpu_tile)
+        amdgpu_tile_wide_finite["device"]["gcn_arch"] = "gfx942"
+        amdgpu_tile_wide_finite["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1"
+        amdgpu_tile_wide_finite["backend_metadata"]["selected_kernel"] = amdgpu_tile_wide_finite["selected_kernel"]
+        amdgpu_tile_wide_finite["backend_metadata"]["matrix_instruction_shape"] = "32x32x16"
+        amdgpu_tile_wide_finite["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
+        amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"] = (
+            amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"]
+            .replace("target_id=gfx1100", "target_id=gfx942")
+            .replace(
+                "kernel=amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1",
+                "kernel=amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1",
+            )
+        )
+        amdgpu_tile_wide_report = benchmark_sweep.review_captures(
+            [amdgpu_tile_wide_finite, direct, cpu],
+            review_mode="release",
+            isa_index=synthetic_isa_index(amdgpu_tile_wide_finite, {"v_mfma_i32_32x32x16_i8": 4}),
+        )
+        amdgpu_tile_wide_candidate = next(
+            item for item in amdgpu_tile_wide_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
+        )
+        assert "amdgpu_builtin_tile_variant_kernel_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
+        assert "amdgpu_builtin_tile_variant_shape_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
+        assert amdgpu_tile_wide_candidate["expected_matrix_instruction_mnemonic"] == "v_mfma_i32_32x32x16_i8"
+
+        summary_fixture_group = {
+            "semantics": "bounded_i64",
+            "shape": {"m": 64, "n": 64, "k": 64},
+            "shape_family": "small_square",
+            "scenario_families": ["repeated-b"],
+            "missing_required_baselines": ["hip-vector-alu-int64"],
+            "checksum_mismatches": ["ck"],
+            "fastest_production_route": {
+                "backend": "hip-direct",
+                "selected_kernel": "direct_kernel",
+                "median_end_to_end_us": 100.0,
+                "bottleneck": {"class": "pack_bound", "phase": "pack"},
+                "capture": "direct.json",
+            },
+            "fastest_accelerator_route": {
+                "backend": "ck",
+                "selected_kernel": "ck_kernel",
+                "median_end_to_end_us": 140.0,
+                "bottleneck": {"class": "pack_bound", "phase": "pack"},
+                "capture": "ck.json",
+            },
+            "candidates": [
+                {
+                    "backend": "ck",
+                    "accelerator_backend": True,
+                    "scenario_promotion_scope": "release_review_candidate",
+                    "selected_kernel": "ck_kernel",
+                    "median_end_to_end_us": 140.0,
+                    "speedup_vs_direct_hip": 0.71,
+                    "speedup_vs_vector_alu": 0.8,
+                    "primary_loss_phase_vs_direct_hip": "pack",
+                    "bottleneck": {"class": "pack_bound", "phase": "pack"},
+                    "pack_diagnostics": {
+                        "pack_median_us": 100.0,
+                        "pack_a_median_us": 70.0,
+                        "pack_b_median_us": 30.0,
+                        "pack_share_of_end_to_end": 100.0 / 140.0,
+                        "split_available": True,
+                        "dominant_operand": "A",
+                        "pack_mode": "per_repeat_repack",
+                        "pack_layout": "matrix_engine_transient_pack_layout",
+                        "source_versioned_inputs": True,
+                        "same_source_version_pack_elision_available": False,
+                    },
+                    "capture": "ck.json",
+                    "promotion_blockers": [
+                        "reuse_not_faster_than_same_backend_setup_inclusive",
+                        "reuse_not_faster_than_best_nonreuse_setup_inclusive",
+                        "graph_not_faster_than_non_graph_setup_inclusive",
+                        "missing_graph_setup_inclusive_timing",
+                        "not_faster_than_direct_hip",
+                        "not_faster_than_vector_alu",
+                    ],
+                    "prepacked_reuse_review": {
+                        "setup_inclusive_median_end_to_end_us": 180.0,
+                        "same_backend_nonreuse_median_end_to_end_us": 150.0,
+                    },
+                    "hip_graph_replay_review": {
+                        "setup_inclusive_median_end_to_end_us": None,
+                        "baseline_setup_inclusive_median_end_to_end_us": 120.0,
+                    },
+                },
+                {
+                    "backend": "hip-direct",
+                    "accelerator_backend": False,
+                    "scenario_promotion_scope": "release_review_candidate",
+                    "promotion_blockers": ["not_accelerator_backend"],
+                },
+                {
+                    "backend": "ck",
+                    "accelerator_backend": True,
+                    "scenario_promotion_scope": "proxy_evidence_only",
+                    "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
+                },
             ],
-            "prepacked_reuse_review": {
-                "setup_inclusive_median_end_to_end_us": 180.0,
-                "same_backend_nonreuse_median_end_to_end_us": 150.0,
+        }
+        summary_fixture = build_review_summary([summary_fixture_group], [])
+        assert summary_fixture["missing_required_baseline_group_count"] == 1
+        assert summary_fixture["checksum_mismatch_group_count"] == 1
+        assert summary_fixture["review_blocker_counts"]["not_accelerator_backend"] == 1
+        assert summary_fixture["review_blocker_counts"]["scenario_scope_not_autotune_promotable"] == 1
+        assert summary_fixture["actionable_blocker_counts"]["not_faster_than_direct_hip"] == 1
+        assert summary_fixture["actionable_blocker_counts"]["not_faster_than_vector_alu"] == 1
+        assert summary_fixture["actionable_blocker_counts"]["graph_not_faster_than_non_graph_setup_inclusive"] == 1
+        assert summary_fixture["actionable_blocker_counts"]["missing_graph_setup_inclusive_timing"] == 1
+        assert summary_fixture["loss_phase_counts"] == {"pack": 1}
+        assert summary_fixture["loss_phase_by_backend"] == {"ck": {"pack": 1}}
+        assert summary_fixture["loss_phase_by_semantics"] == {"bounded_i64": {"pack": 1}}
+        assert summary_fixture["loss_phase_by_shape_family"] == {"small_square": {"pack": 1}}
+        assert summary_fixture["loss_phase_by_scenario_family"] == {"repeated-b": {"pack": 1}}
+        assert summary_fixture["pack_split_counts"] == {"split_available": 1}
+        assert summary_fixture["pack_dominant_operand_counts"] == {"A": 1}
+        assert summary_fixture["pack_diagnostics"][0]["dominant_operand"] == "A"
+        assert summary_fixture["fastest_production_route_counts"] == {"hip-direct": 1}
+        assert summary_fixture["fastest_accelerator_route_counts"] == {"ck": 1}
+        assert len(summary_fixture["direct_hip_production_wins"]) == 1
+        assert len(summary_fixture["setup_sensitive_candidates"]) == 1
+        next_work_items = {row["work"] for row in summary_fixture["next_work"]}
+        assert "fix_checksum_mismatches_before_performance_promotion" in next_work_items
+        assert "fix_missing_required_baselines_or_reclassify_invalid_scenarios" in next_work_items
+        assert "reduce_prepack_setup_or_reuse_steady_state_cost" in next_work_items
+        assert "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence" in next_work_items
+        assert "improve_graph_replay_break_even_or_keep_graph_benchmark_only" in next_work_items
+        assert "fix_graph_setup_inclusive_timing_metadata" in next_work_items
+        assert "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner" in next_work_items
+        assert "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion" in next_work_items
+        assert "optimize_a_side_pack_kernel_or_prepack_a_reuse" in next_work_items
+        assert "enable_source_versioned_pack_elision_for_repeated_inputs" in next_work_items
+        assert "optimize_pack_phase" in next_work_items
+        assert "address_pack_bound" in next_work_items
+        assert "treat_direct_hip_as_current_production_winner_and_target_accelerator_loss_phases" in next_work_items
+
+        checksum_bad_ck = copy.deepcopy(ck)
+        checksum_bad_ck["checksum_u64"] = checksum_bad_ck["checksum_u64"] + 1
+        checksum_mismatch_report = benchmark_sweep.review_captures(
+            [checksum_bad_ck, direct, cpu],
+            review_mode="release",
+        )
+        checksum_mismatch_group = checksum_mismatch_report["groups"][0]
+        assert checksum_mismatch_report["promotable_autotune_entries"] == []
+        assert checksum_mismatch_group["checksum_reference_backend"] == "cpu-reference"
+        assert checksum_mismatch_group["checksum_consistent"] is False
+        assert checksum_mismatch_group["checksum_mismatches"] == ["ck"]
+        checksum_bad_candidate = next(item for item in checksum_mismatch_group["candidates"] if item["backend"] == "ck")
+        assert checksum_bad_candidate["checksum_matches_reference"] is False
+        assert "checksum_mismatch_vs_reference" in checksum_bad_candidate["promotion_blockers"]
+
+        bounded_ck = bounded_capture("ck", 700)
+        bounded_direct = bounded_capture("hip-direct", 300)
+        bounded_cpu = bounded_capture("cpu-reference", 5000)
+        bounded_vector = bounded_capture("hip-vector-alu-int64", 900)
+        bounded_ck["timing_metadata"]["pack_layout"] = "matrix_engine_transient_pack_layout"
+        bounded_ck["target_variant"] = {
+            "target_id": "gfx1100",
+            "target_namespace": "gfx1100",
+            "review_group_key": "gfx1100/target=gfx1100/backend=ck",
+        }
+        bounded_direct["timing_metadata"]["generated_reducer_identity"] = (
+            "direct_hip_fixed_prefix_2_generated_reducer_v1"
+        )
+        bounded_direct["target_variant"] = {
+            "target_id": "gfx1100",
+            "target_namespace": "gfx1100",
+            "review_group_key": "gfx1100/target=gfx1100/backend=hip-direct",
+        }
+        bounded_cpu["target_variant"] = {
+            "target_id": "cpu",
+            "target_namespace": "cpu",
+            "review_group_key": "cpu/target=cpu/backend=cpu-reference",
+        }
+        bounded_vector["benchmark_execution_mode"] = "public_runtime_vector_alu_native_buffers"
+        bounded_vector["requested_next_op"] = {
+            "requested": "native-gemm",
+            "resolved": "native-gemm",
+            "source": "benchmark_default",
+        }
+        bounded_vector["timing_metadata"]["pack_layout"] = "native_i64_row_major"
+        bounded_vector["target_variant"] = {
+            "target_id": "gfx1100",
+            "target_namespace": "gfx1100",
+            "review_group_key": "gfx1100/target=gfx1100/backend=hip-vector-alu-int64",
+        }
+        implementation_split_report = benchmark_sweep.review_captures(
+            [bounded_ck, bounded_direct, bounded_cpu, bounded_vector],
+            review_mode="release",
+        )
+        assert implementation_split_report["group_count"] == 1
+        implementation_split_group = implementation_split_report["groups"][0]
+        assert implementation_split_group["missing_required_baselines"] == []
+        assert {
+            candidate["backend"] for candidate in implementation_split_group["candidates"]
+        } == {"ck", "cpu-reference", "hip-direct", "hip-vector-alu-int64"}
+
+        missing_export_metadata_ck = copy.deepcopy(bounded_ck)
+        missing_export_metadata_ck.pop("exact_output_contract", None)
+        missing_export_metadata_ck.pop("export_variant", None)
+        missing_export_metadata_ck.pop("reconstruction_variant", None)
+        missing_export_metadata_report = benchmark_sweep.review_captures(
+            [missing_export_metadata_ck, bounded_direct, bounded_cpu, bounded_vector],
+            review_mode="release",
+        )
+        missing_export_metadata_group = missing_export_metadata_report["groups"][0]
+        missing_export_metadata_candidate = next(
+            item for item in missing_export_metadata_group["candidates"] if item["backend"] == "ck"
+        )
+        assert missing_export_metadata_report["promotable_autotune_entries"] == []
+        assert "missing_final_output_contract_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+        assert "missing_export_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+        assert "missing_reconstruction_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+
+        bounded_chain_ck = bounded_capture("ck", 200)
+        bounded_chain_direct = bounded_capture("hip-direct", 450)
+        bounded_chain_cpu = bounded_capture("cpu-reference", 5000)
+        chain_metadata = {
+            "family": "rns-chain",
+            "name": "bounded-i64-chain3",
+            "promotion_eligibility": "release_review_candidate",
+            "output_domain": "residue_current_rns",
+            "metadata": {
+                "workflow_name": "rns_gemm_chain",
+                "output_domain_requirement": "lazy_export",
             },
-            "hip_graph_replay_review": {
-                "setup_inclusive_median_end_to_end_us": None,
-                "baseline_setup_inclusive_median_end_to_end_us": 120.0,
+        }
+        for item in [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu]:
+            item["scenario_metadata"] = copy.deepcopy(chain_metadata)
+            item["residue_chain_length"] = 3
+            item["residue_output_mode"] = "residue_current_rns"
+            item["requested_next_op"] = {
+                "requested": "rns-gemm",
+                "resolved": "rns-gemm",
+                "source": "scenario_contract",
+            }
+        chain_report = benchmark_sweep.review_captures(
+            [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu],
+            review_mode="release",
+        )
+        chain_group = chain_report["groups"][0]
+        chain_ck_candidate = next(item for item in chain_group["candidates"] if item["backend"] == "ck")
+        assert chain_group["required_baselines"] == ["cpu-reference", "hip-direct"]
+        assert chain_group["missing_required_baselines"] == []
+        assert "missing_required_baselines" not in chain_ck_candidate["promotion_blockers"]
+        assert "hip-vector-alu-int64" not in chain_group["required_baselines"]
+
+        eventless_ck = finite_capture("ck", 190)
+        remove_gpu_events(eventless_ck)
+        eventless_report = benchmark_sweep.review_captures([eventless_ck, direct, cpu], review_mode="release")
+        eventless_group = eventless_report["groups"][0]
+        assert eventless_report["promotable_autotune_entries"] == []
+        assert eventless_group["fastest_promotable"] is None
+        eventless_candidate = next(item for item in eventless_group["candidates"] if item["backend"] == "ck")
+        assert "missing_required_gpu_events" in eventless_candidate["promotion_blockers"]
+
+        cpu_faster = finite_capture("cpu-reference", 100)
+        cpu_faster_report = benchmark_sweep.review_captures([ck, direct, cpu_faster], review_mode="release")
+        cpu_faster_group = cpu_faster_report["groups"][0]
+        assert cpu_faster_report["promotable_autotune_entries"] == []
+        assert cpu_faster_group["fastest_promotable"] is None
+        cpu_faster_candidate = next(item for item in cpu_faster_group["candidates"] if item["backend"] == "ck")
+        assert "not_faster_than_cpu_reference" in cpu_faster_candidate["promotion_blockers"]
+
+        cpu_anchor = finite_capture("cpu-reference", 100)
+        cpu_anchor["warmups"] = 0
+        cpu_anchor["repeats"] = 1
+        cpu_anchor["cpu_parallel"] = {
+            "reference_mode": "correctness-anchor",
+            "correctness_anchor": True,
+            "timed_cpu_baseline": False,
+        }
+        anchor_report = benchmark_sweep.review_captures([ck, direct, cpu_anchor], review_mode="release")
+        anchor_group = anchor_report["groups"][0]
+        anchor_ck_candidate = next(item for item in anchor_group["candidates"] if item["backend"] == "ck")
+        assert anchor_report["promotable_autotune_entries"] == []
+        assert anchor_group["release_review_satisfied"] is True
+        assert "cpu-reference" not in anchor_group["warmup_counts"]
+        assert "cpu-reference" not in anchor_group["repeat_counts"]
+        assert "not_release_review" not in anchor_ck_candidate["promotion_blockers"]
+        assert "missing_warmup_count" not in anchor_ck_candidate["promotion_blockers"]
+        assert "repeat_count_mismatch" not in anchor_ck_candidate["promotion_blockers"]
+        assert "not_faster_than_cpu_reference" not in anchor_ck_candidate["promotion_blockers"]
+
+        reuse_baseline_metadata = {
+            "family": "repeated-b",
+            "name": "bounded-i64-512-production-baselines",
+            "promotion_eligibility": "release_review_candidate",
+            "output_domain": "host_export",
+            "metadata": {
+                "workflow_name": "repeated_b",
+                "reuse_contract_role": "same_contract_nonreuse_baseline",
             },
-        },
-        {
-            "backend": "hip-direct",
-            "accelerator_backend": False,
-            "scenario_promotion_scope": "release_review_candidate",
-            "promotion_blockers": ["not_accelerator_backend"],
-        },
-        {
-            "backend": "ck",
-            "accelerator_backend": True,
-            "scenario_promotion_scope": "proxy_evidence_only",
-            "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
-        },
-    ],
-}
-summary_fixture = build_review_summary([summary_fixture_group], [])
-assert summary_fixture["missing_required_baseline_group_count"] == 1
-assert summary_fixture["checksum_mismatch_group_count"] == 1
-assert summary_fixture["review_blocker_counts"]["not_accelerator_backend"] == 1
-assert summary_fixture["review_blocker_counts"]["scenario_scope_not_autotune_promotable"] == 1
-assert summary_fixture["actionable_blocker_counts"]["not_faster_than_direct_hip"] == 1
-assert summary_fixture["actionable_blocker_counts"]["not_faster_than_vector_alu"] == 1
-assert summary_fixture["actionable_blocker_counts"]["graph_not_faster_than_non_graph_setup_inclusive"] == 1
-assert summary_fixture["actionable_blocker_counts"]["missing_graph_setup_inclusive_timing"] == 1
-assert summary_fixture["loss_phase_counts"] == {"pack": 1}
-assert summary_fixture["loss_phase_by_backend"] == {"ck": {"pack": 1}}
-assert summary_fixture["loss_phase_by_semantics"] == {"bounded_i64": {"pack": 1}}
-assert summary_fixture["loss_phase_by_shape_family"] == {"small_square": {"pack": 1}}
-assert summary_fixture["loss_phase_by_scenario_family"] == {"repeated-b": {"pack": 1}}
-assert summary_fixture["pack_split_counts"] == {"split_available": 1}
-assert summary_fixture["pack_dominant_operand_counts"] == {"A": 1}
-assert summary_fixture["pack_diagnostics"][0]["dominant_operand"] == "A"
-assert summary_fixture["fastest_production_route_counts"] == {"hip-direct": 1}
-assert summary_fixture["fastest_accelerator_route_counts"] == {"ck": 1}
-assert len(summary_fixture["direct_hip_production_wins"]) == 1
-assert len(summary_fixture["setup_sensitive_candidates"]) == 1
-next_work_items = {row["work"] for row in summary_fixture["next_work"]}
-assert "fix_checksum_mismatches_before_performance_promotion" in next_work_items
-assert "fix_missing_required_baselines_or_reclassify_invalid_scenarios" in next_work_items
-assert "reduce_prepack_setup_or_reuse_steady_state_cost" in next_work_items
-assert "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence" in next_work_items
-assert "improve_graph_replay_break_even_or_keep_graph_benchmark_only" in next_work_items
-assert "fix_graph_setup_inclusive_timing_metadata" in next_work_items
-assert "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner" in next_work_items
-assert "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion" in next_work_items
-assert "optimize_a_side_pack_kernel_or_prepack_a_reuse" in next_work_items
-assert "enable_source_versioned_pack_elision_for_repeated_inputs" in next_work_items
-assert "optimize_pack_phase" in next_work_items
-assert "address_pack_bound" in next_work_items
-assert "treat_direct_hip_as_current_production_winner_and_target_accelerator_loss_phases" in next_work_items
+        }
+        reuse_candidate_metadata = copy.deepcopy(reuse_baseline_metadata)
+        reuse_candidate_metadata["name"] = "bounded-i64-512-production-reuse-b"
+        reuse_candidate_metadata["metadata"]["reuse_contract_role"] = "stable_b_production_candidate"
 
-checksum_bad_ck = copy.deepcopy(ck)
-checksum_bad_ck["checksum_u64"] = checksum_bad_ck["checksum_u64"] + 1
-checksum_mismatch_report = benchmark_sweep.review_captures(
-    [checksum_bad_ck, direct, cpu],
-    review_mode="release",
-)
-checksum_mismatch_group = checksum_mismatch_report["groups"][0]
-assert checksum_mismatch_report["promotable_autotune_entries"] == []
-assert checksum_mismatch_group["checksum_reference_backend"] == "cpu-reference"
-assert checksum_mismatch_group["checksum_consistent"] is False
-assert checksum_mismatch_group["checksum_mismatches"] == ["ck"]
-checksum_bad_candidate = next(item for item in checksum_mismatch_group["candidates"] if item["backend"] == "ck")
-assert checksum_bad_candidate["checksum_matches_reference"] is False
-assert "checksum_mismatch_vs_reference" in checksum_bad_candidate["promotion_blockers"]
+        reuse_cpu = bounded_capture("cpu-reference", 5000)
+        reuse_direct = bounded_capture("hip-direct", 800)
+        reuse_vector = bounded_capture("hip-vector-alu-int64", 900)
+        reuse_rocwmma_baseline = bounded_capture("rocwmma", 900)
+        for item in [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline]:
+            item["scenario_metadata"] = copy.deepcopy(reuse_baseline_metadata)
+        reuse_rocwmma_candidate = copy.deepcopy(reuse_rocwmma_baseline)
+        reuse_rocwmma_candidate["_path"] = "rocwmma-reuse-b-production.json"
+        reuse_rocwmma_candidate["scenario_metadata"] = copy.deepcopy(reuse_candidate_metadata)
+        reuse_rocwmma_candidate["reuse_packed_inputs"] = True
+        reuse_rocwmma_candidate["pack_mode"] = "prepacked_reuse_b"
+        reuse_rocwmma_candidate["prepack_reuse_operands"] = ["B"]
+        reuse_rocwmma_candidate["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+        reuse_rocwmma_candidate["prepack_setup_us"] = 90
+        reuse_rocwmma_candidate["avg_prepack_setup_us"] = 9000.0
+        reuse_rocwmma_candidate["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
+        reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_operands"] = ["B"]
+        reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+        set_phase(reuse_rocwmma_candidate, 600)
+        reuse_rocwmma_candidate["reuse_contract"] = {
+            "setup_cost_us": 90.0,
+            "setup_amortized_us": 10.0,
+            "repeat_median_end_to_end_us": 600.0,
+            "setup_inclusive_median_end_to_end_us": 610.0,
+        }
+        reuse_report = benchmark_sweep.review_captures(
+            [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, reuse_rocwmma_candidate],
+            review_mode="release",
+        )
+        reuse_candidate_group = next(
+            group
+            for group in reuse_report["groups"]
+            if any(candidate["capture"] == "rocwmma-reuse-b-production.json" for candidate in group["candidates"])
+        )
+        reuse_candidate = reuse_candidate_group["candidates"][0]
+        assert reuse_candidate["promotable"] is False
+        assert "diagnostic_instrumented_host_time_not_production_evidence" in reuse_candidate["promotion_blockers"]
+        assert reuse_candidate["selection_end_to_end_us"] == 610.0
+        assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] == 90.0
+        assert reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"] == 610.0
+        assert reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_end_to_end_us"] == 900.0
+        assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
+        assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
+        assert "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
+        assert reuse_report["promotable_autotune_entries"] == []
+        assert reuse_candidate["selection_end_to_end_us"] == 610.0
 
-bounded_ck = bounded_capture("ck", 700)
-bounded_direct = bounded_capture("hip-direct", 300)
-bounded_cpu = bounded_capture("cpu-reference", 5000)
-bounded_vector = bounded_capture("hip-vector-alu-int64", 900)
-bounded_ck["timing_metadata"]["pack_layout"] = "matrix_engine_transient_pack_layout"
-bounded_ck["target_variant"] = {
-    "target_id": "gfx1100",
-    "target_namespace": "gfx1100",
-    "review_group_key": "gfx1100/target=gfx1100/backend=ck",
-}
-bounded_direct["timing_metadata"]["generated_reducer_identity"] = (
-    "direct_hip_fixed_prefix_2_generated_reducer_v1"
-)
-bounded_direct["target_variant"] = {
-    "target_id": "gfx1100",
-    "target_namespace": "gfx1100",
-    "review_group_key": "gfx1100/target=gfx1100/backend=hip-direct",
-}
-bounded_cpu["target_variant"] = {
-    "target_id": "cpu",
-    "target_namespace": "cpu",
-    "review_group_key": "cpu/target=cpu/backend=cpu-reference",
-}
-bounded_vector["benchmark_execution_mode"] = "public_runtime_vector_alu_native_buffers"
-bounded_vector["requested_next_op"] = {
-    "requested": "native-gemm",
-    "resolved": "native-gemm",
-    "source": "benchmark_default",
-}
-bounded_vector["timing_metadata"]["pack_layout"] = "native_i64_row_major"
-bounded_vector["target_variant"] = {
-    "target_id": "gfx1100",
-    "target_namespace": "gfx1100",
-    "review_group_key": "gfx1100/target=gfx1100/backend=hip-vector-alu-int64",
-}
-implementation_split_report = benchmark_sweep.review_captures(
-    [bounded_ck, bounded_direct, bounded_cpu, bounded_vector],
-    review_mode="release",
-)
-assert implementation_split_report["group_count"] == 1
-implementation_split_group = implementation_split_report["groups"][0]
-assert implementation_split_group["missing_required_baselines"] == []
-assert {
-    candidate["backend"] for candidate in implementation_split_group["candidates"]
-} == {"ck", "cpu-reference", "hip-direct", "hip-vector-alu-int64"}
+        slow_reuse_candidate = copy.deepcopy(reuse_rocwmma_candidate)
+        slow_reuse_candidate["_path"] = "rocwmma-reuse-b-slow.json"
+        slow_reuse_candidate["prepack_setup_us"] = 3600
+        slow_reuse_candidate["avg_prepack_setup_us"] = 3600.0
+        slow_reuse_candidate["reuse_contract"]["setup_cost_us"] = 3600.0
+        slow_reuse_candidate["reuse_contract"]["setup_amortized_us"] = 400.0
+        slow_reuse_candidate["reuse_contract"]["setup_inclusive_median_end_to_end_us"] = 1000.0
+        slow_reuse_report = benchmark_sweep.review_captures(
+            [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, slow_reuse_candidate],
+            review_mode="release",
+        )
+        slow_group = next(
+            group
+            for group in slow_reuse_report["groups"]
+            if any(candidate["capture"] == "rocwmma-reuse-b-slow.json" for candidate in group["candidates"])
+        )
+        slow_candidate = slow_group["candidates"][0]
+        assert slow_candidate["promotable"] is False
+        assert "reuse_not_faster_than_best_nonreuse_setup_inclusive" in slow_candidate["promotion_blockers"]
 
-missing_export_metadata_ck = copy.deepcopy(bounded_ck)
-missing_export_metadata_ck.pop("exact_output_contract", None)
-missing_export_metadata_ck.pop("export_variant", None)
-missing_export_metadata_ck.pop("reconstruction_variant", None)
-missing_export_metadata_report = benchmark_sweep.review_captures(
-    [missing_export_metadata_ck, bounded_direct, bounded_cpu, bounded_vector],
-    review_mode="release",
-)
-missing_export_metadata_group = missing_export_metadata_report["groups"][0]
-missing_export_metadata_candidate = next(
-    item for item in missing_export_metadata_group["candidates"] if item["backend"] == "ck"
-)
-assert missing_export_metadata_report["promotable_autotune_entries"] == []
-assert "missing_final_output_contract_metadata" in missing_export_metadata_candidate["promotion_blockers"]
-assert "missing_export_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
-assert "missing_reconstruction_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+        graph_baseline = mark_reused_pack(bounded_capture("hip-direct", 1000))
+        graph_baseline["scenario_metadata"] = {
+            "family": "hip-graph-replay",
+            "name": "bounded-i64-full-pack-export-512-baseline",
+            "promotion_eligibility": "release_review_candidate",
+            "output_domain": "host_export",
+            "metadata": {"workflow_name": "hip_graph_replay", "graph_role": "same_contract_non_graph_baseline"},
+        }
+        graph_candidate = copy.deepcopy(graph_baseline)
+        graph_candidate["_path"] = "hip-direct-graph.json"
+        graph_candidate["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
+        graph_candidate["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
+        graph_candidate["scenario_metadata"] = copy.deepcopy(graph_baseline["scenario_metadata"])
+        graph_candidate["scenario_metadata"]["name"] = "bounded-i64-full-pack-export-512-graph"
+        graph_candidate["scenario_metadata"]["metadata"]["graph_role"] = "graph_replay_candidate"
+        graph_candidate["hip_graph_replay"] = {
+            "requested": True,
+            "used": True,
+            "status": "available",
+            "capture_status": "replayed",
+            "capture_us": 10.0,
+            "instantiate_us": 8.0,
+        }
+        set_phase(graph_candidate, 900)
+        graph_report = benchmark_sweep.review_captures([graph_baseline, graph_candidate], review_mode="release")
+        graph_group = next(
+            group
+            for group in graph_report["groups"]
+            if any(candidate["capture"] == "hip-direct-graph.json" for candidate in group["candidates"])
+        )
+        graph_review = graph_group["candidates"][0]["hip_graph_replay_review"]
+        assert graph_review["baseline_setup_inclusive_median_end_to_end_us"] == 1000.0 + 11.0 / 9.0
+        assert graph_review["setup_inclusive_median_end_to_end_us"] == 900.0 + 29.0 / 9.0
+        assert graph_review["baseline_total_setup_us"] == 11.0
+        assert graph_review["graph_total_setup_us"] == 29.0
+        assert graph_review["graph_setup_overhead_vs_baseline_us"] == 18.0
+        assert graph_review["steady_state_delta_us"] == 100.0
+        assert graph_review["break_even_repeat_count"] == 1
+        assert graph_review["declared_repeat_count"] == 9
+        assert graph_review["declared_repeats_meet_break_even"] is True
+        assert graph_review["blockers"] == []
+        assert group["missing_hip_driver_versions"] == []
+        assert group["hip_driver_version_complete"] is True
+        assert group["hip_driver_version_compatible"] is True
+        assert group["missing_compiler_identities"] == []
+        assert group["compiler_identity_complete"] is True
+        assert group["compiler_identity_compatible"] is True
+        assert group["missing_git_commits"] == []
+        assert group["git_commit_identity_complete"] is True
+        assert group["git_commit_identity_compatible"] is True
+        assert group["missing_warmup_counts"] == []
+        assert group["warmup_count_complete"] is True
+        assert group["warmup_count_compatible"] is True
+        assert group["missing_repeat_counts"] == []
+        assert group["repeat_count_complete"] is True
+        assert group["repeat_count_compatible"] is True
+        assert group["duplicate_backends"] == []
+        assert group["finite_modulus"] == 255
+        assert group["fastest_promotable"] is None
+        assert "diagnostic_instrumented_host_time_not_production_evidence" in group["candidates"][0]["promotion_blockers"]
+        assert group["candidates"][0]["bottleneck"]["class"] in {
+            "compute_bound",
+            "export_bound",
+            "launch_or_api_bound",
+            "mixed_bound",
+            "pack_bound",
+            "unknown",
+        }
 
-bounded_chain_ck = bounded_capture("ck", 200)
-bounded_chain_direct = bounded_capture("hip-direct", 450)
-bounded_chain_cpu = bounded_capture("cpu-reference", 5000)
-chain_metadata = {
-    "family": "rns-chain",
-    "name": "bounded-i64-chain3",
-    "promotion_eligibility": "release_review_candidate",
-    "output_domain": "residue_current_rns",
-    "metadata": {
-        "workflow_name": "rns_gemm_chain",
-        "output_domain_requirement": "lazy_export",
-    },
-}
-for item in [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu]:
-    item["scenario_metadata"] = copy.deepcopy(chain_metadata)
-    item["residue_chain_length"] = 3
-    item["residue_output_mode"] = "residue_current_rns"
-    item["requested_next_op"] = {
-        "requested": "rns-gemm",
-        "resolved": "rns-gemm",
-        "source": "scenario_contract",
-    }
-chain_report = benchmark_sweep.review_captures(
-    [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu],
-    review_mode="release",
-)
-chain_group = chain_report["groups"][0]
-chain_ck_candidate = next(item for item in chain_group["candidates"] if item["backend"] == "ck")
-assert chain_group["required_baselines"] == ["cpu-reference", "hip-direct"]
-assert chain_group["missing_required_baselines"] == []
-assert "missing_required_baselines" not in chain_ck_candidate["promotion_blockers"]
-assert "hip-vector-alu-int64" not in chain_group["required_baselines"]
+        non_promoting_ck = copy.deepcopy(ck)
+        non_promoting_direct = copy.deepcopy(direct)
+        non_promoting_cpu = copy.deepcopy(cpu)
+        scenario_metadata = {
+            "family": "finite-modulus-map",
+            "name": "finite-ring-map-1024",
+            "promotion_eligibility": "non_promoting_modulus_map",
+            "metadata": {"promotion_scope": "non_promoting_modulus_map"},
+        }
+        for item in [non_promoting_ck, non_promoting_direct, non_promoting_cpu]:
+            item["scenario_metadata"] = scenario_metadata
+        non_promoting_report = benchmark_sweep.review_captures(
+            [non_promoting_ck, non_promoting_direct, non_promoting_cpu],
+            review_mode="release",
+        )
+        non_promoting_group = non_promoting_report["groups"][0]
+        assert non_promoting_report["promotable_autotune_entries"] == []
+        assert non_promoting_group["scenario_promotion_scopes"] == ["non_promoting_modulus_map"]
+        non_promoting_ck_candidate = next(
+            item for item in non_promoting_group["candidates"] if item["backend"] == "ck"
+        )
+        assert non_promoting_ck_candidate["scenario_promotion_scope"] == "non_promoting_modulus_map"
+        assert "scenario_scope_not_autotune_promotable" in non_promoting_ck_candidate["promotion_blockers"]
+        assert "missing_required_baselines" not in non_promoting_ck_candidate["promotion_blockers"]
+        assert "not_faster_than_direct_hip" not in non_promoting_ck_candidate["promotion_blockers"]
 
-eventless_ck = finite_capture("ck", 190)
-remove_gpu_events(eventless_ck)
-eventless_report = benchmark_sweep.review_captures([eventless_ck, direct, cpu], review_mode="release")
-eventless_group = eventless_report["groups"][0]
-assert eventless_report["promotable_autotune_entries"] == []
-assert eventless_group["fastest_promotable"] is None
-eventless_candidate = next(item for item in eventless_group["candidates"] if item["backend"] == "ck")
-assert "missing_required_gpu_events" in eventless_candidate["promotion_blockers"]
+        missing_target_ck = copy.deepcopy(ck)
+        missing_target_ck["device"]["gcn_arch"] = "unknown"
+        missing_target_report = benchmark_sweep.review_captures(
+            [missing_target_ck, direct, cpu],
+            review_mode="release",
+        )
+        missing_target_group = missing_target_report["groups"][0]
+        assert missing_target_report["promotable_autotune_entries"] == []
+        assert missing_target_group["missing_gpu_targets"] == ["ck"]
+        assert missing_target_group["gpu_target_identity_complete"] is False
+        assert missing_target_group["gpu_target_compatible"] is False
+        missing_target_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_target_group["candidates"]
+        }
+        assert "missing_gpu_target_id" in missing_target_blockers["ck"]
 
-cpu_faster = finite_capture("cpu-reference", 100)
-cpu_faster_report = benchmark_sweep.review_captures([ck, direct, cpu_faster], review_mode="release")
-cpu_faster_group = cpu_faster_report["groups"][0]
-assert cpu_faster_report["promotable_autotune_entries"] == []
-assert cpu_faster_group["fastest_promotable"] is None
-cpu_faster_candidate = next(item for item in cpu_faster_group["candidates"] if item["backend"] == "ck")
-assert "not_faster_than_cpu_reference" in cpu_faster_candidate["promotion_blockers"]
+        mismatched_target_ck = copy.deepcopy(ck)
+        mismatched_target_ck["device"]["gcn_arch"] = "gfx1101"
+        mismatched_target_report = benchmark_sweep.review_captures(
+            [mismatched_target_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_target_group = mismatched_target_report["groups"][0]
+        assert mismatched_target_report["promotable_autotune_entries"] == []
+        assert mismatched_target_group["missing_gpu_targets"] == []
+        assert mismatched_target_group["gpu_target_identity_complete"] is True
+        assert mismatched_target_group["gpu_target_compatible"] is False
+        mismatched_target_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_target_group["candidates"]
+        }
+        assert "gpu_target_mismatch" in mismatched_target_blockers["ck"]
 
-cpu_anchor = finite_capture("cpu-reference", 100)
-cpu_anchor["warmups"] = 0
-cpu_anchor["repeats"] = 1
-cpu_anchor["cpu_parallel"] = {
-    "reference_mode": "correctness-anchor",
-    "correctness_anchor": True,
-    "timed_cpu_baseline": False,
-}
-anchor_report = benchmark_sweep.review_captures([ck, direct, cpu_anchor], review_mode="release")
-anchor_group = anchor_report["groups"][0]
-anchor_ck_candidate = next(item for item in anchor_group["candidates"] if item["backend"] == "ck")
-assert anchor_report["promotable_autotune_entries"] == []
-assert anchor_group["release_review_satisfied"] is True
-assert "cpu-reference" not in anchor_group["warmup_counts"]
-assert "cpu-reference" not in anchor_group["repeat_counts"]
-assert "not_release_review" not in anchor_ck_candidate["promotion_blockers"]
-assert "missing_warmup_count" not in anchor_ck_candidate["promotion_blockers"]
-assert "repeat_count_mismatch" not in anchor_ck_candidate["promotion_blockers"]
-assert "not_faster_than_cpu_reference" not in anchor_ck_candidate["promotion_blockers"]
+        missing_version_direct = copy.deepcopy(direct)
+        missing_version_direct["hip_toolchain"]["hip_sdk_or_rocm_version"] = None
+        missing_version_report = benchmark_sweep.review_captures(
+            [ck, missing_version_direct, cpu],
+            review_mode="release",
+        )
+        missing_version_group = missing_version_report["groups"][0]
+        assert missing_version_report["promotable_autotune_entries"] == []
+        assert missing_version_group["missing_hip_toolchain_versions"] == ["hip-direct"]
+        assert missing_version_group["hip_toolchain_version_complete"] is False
+        assert missing_version_group["hip_toolchain_version_compatible"] is False
+        missing_version_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_version_group["candidates"]
+        }
+        assert "missing_hip_toolchain_version" in missing_version_blockers["ck"]
 
-reuse_baseline_metadata = {
-    "family": "repeated-b",
-    "name": "bounded-i64-512-production-baselines",
-    "promotion_eligibility": "release_review_candidate",
-    "output_domain": "host_export",
-    "metadata": {
-        "workflow_name": "repeated_b",
-        "reuse_contract_role": "same_contract_nonreuse_baseline",
-    },
-}
-reuse_candidate_metadata = copy.deepcopy(reuse_baseline_metadata)
-reuse_candidate_metadata["name"] = "bounded-i64-512-production-reuse-b"
-reuse_candidate_metadata["metadata"]["reuse_contract_role"] = "stable_b_production_candidate"
+        mismatched_version_ck = copy.deepcopy(ck)
+        mismatched_version_ck["hip_toolchain"]["hip_sdk_or_rocm_version"] = "70260299"
+        mismatched_version_report = benchmark_sweep.review_captures(
+            [mismatched_version_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_version_group = mismatched_version_report["groups"][0]
+        assert mismatched_version_report["promotable_autotune_entries"] == []
+        assert mismatched_version_group["missing_hip_toolchain_versions"] == []
+        assert mismatched_version_group["hip_toolchain_version_complete"] is True
+        assert mismatched_version_group["hip_toolchain_version_compatible"] is False
+        mismatched_version_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_version_group["candidates"]
+        }
+        assert "hip_toolchain_version_mismatch" in mismatched_version_blockers["ck"]
 
-reuse_cpu = bounded_capture("cpu-reference", 5000)
-reuse_direct = bounded_capture("hip-direct", 800)
-reuse_vector = bounded_capture("hip-vector-alu-int64", 900)
-reuse_rocwmma_baseline = bounded_capture("rocwmma", 900)
-for item in [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline]:
-    item["scenario_metadata"] = copy.deepcopy(reuse_baseline_metadata)
-reuse_rocwmma_candidate = copy.deepcopy(reuse_rocwmma_baseline)
-reuse_rocwmma_candidate["_path"] = "rocwmma-reuse-b-production.json"
-reuse_rocwmma_candidate["scenario_metadata"] = copy.deepcopy(reuse_candidate_metadata)
-reuse_rocwmma_candidate["reuse_packed_inputs"] = True
-reuse_rocwmma_candidate["pack_mode"] = "prepacked_reuse_b"
-reuse_rocwmma_candidate["prepack_reuse_operands"] = ["B"]
-reuse_rocwmma_candidate["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
-reuse_rocwmma_candidate["prepack_setup_us"] = 90
-reuse_rocwmma_candidate["avg_prepack_setup_us"] = 9000.0
-reuse_rocwmma_candidate["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
-reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_operands"] = ["B"]
-reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
-set_phase(reuse_rocwmma_candidate, 600)
-reuse_rocwmma_candidate["reuse_contract"] = {
-    "setup_cost_us": 90.0,
-    "setup_amortized_us": 10.0,
-    "repeat_median_end_to_end_us": 600.0,
-    "setup_inclusive_median_end_to_end_us": 610.0,
-}
-reuse_report = benchmark_sweep.review_captures(
-    [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, reuse_rocwmma_candidate],
-    review_mode="release",
-)
-reuse_candidate_group = next(
-    group
-    for group in reuse_report["groups"]
-    if any(candidate["capture"] == "rocwmma-reuse-b-production.json" for candidate in group["candidates"])
-)
-reuse_candidate = reuse_candidate_group["candidates"][0]
-assert reuse_candidate["promotable"] is False
-assert "diagnostic_instrumented_host_time_not_production_evidence" in reuse_candidate["promotion_blockers"]
-assert reuse_candidate["selection_end_to_end_us"] == 610.0
-assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] == 90.0
-assert reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"] == 610.0
-assert reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_end_to_end_us"] == 900.0
-assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
-assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
-assert "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
-assert reuse_report["promotable_autotune_entries"] == []
-assert reuse_candidate["selection_end_to_end_us"] == 610.0
+        missing_configured_direct = copy.deepcopy(direct)
+        missing_configured_direct["configured_amdgpu_targets"] = "unknown"
+        missing_configured_report = benchmark_sweep.review_captures(
+            [ck, missing_configured_direct, cpu],
+            review_mode="release",
+        )
+        missing_configured_group = missing_configured_report["groups"][0]
+        assert missing_configured_report["promotable_autotune_entries"] == []
+        assert missing_configured_group["missing_configured_gpu_targets"] == ["hip-direct"]
+        assert missing_configured_group["configured_target_identity_complete"] is False
+        assert missing_configured_group["configured_target_compatible"] is False
+        missing_configured_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_configured_group["candidates"]
+        }
+        assert "missing_configured_gpu_target" in missing_configured_blockers["ck"]
 
-slow_reuse_candidate = copy.deepcopy(reuse_rocwmma_candidate)
-slow_reuse_candidate["_path"] = "rocwmma-reuse-b-slow.json"
-slow_reuse_candidate["prepack_setup_us"] = 3600
-slow_reuse_candidate["avg_prepack_setup_us"] = 3600.0
-slow_reuse_candidate["reuse_contract"]["setup_cost_us"] = 3600.0
-slow_reuse_candidate["reuse_contract"]["setup_amortized_us"] = 400.0
-slow_reuse_candidate["reuse_contract"]["setup_inclusive_median_end_to_end_us"] = 1000.0
-slow_reuse_report = benchmark_sweep.review_captures(
-    [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, slow_reuse_candidate],
-    review_mode="release",
-)
-slow_group = next(
-    group
-    for group in slow_reuse_report["groups"]
-    if any(candidate["capture"] == "rocwmma-reuse-b-slow.json" for candidate in group["candidates"])
-)
-slow_candidate = slow_group["candidates"][0]
-assert slow_candidate["promotable"] is False
-assert "reuse_not_faster_than_best_nonreuse_setup_inclusive" in slow_candidate["promotion_blockers"]
+        mismatched_configured_ck = copy.deepcopy(ck)
+        mismatched_configured_ck["configured_amdgpu_targets"] = "gfx1101"
+        mismatched_configured_report = benchmark_sweep.review_captures(
+            [mismatched_configured_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_configured_group = mismatched_configured_report["groups"][0]
+        assert mismatched_configured_report["promotable_autotune_entries"] == []
+        assert mismatched_configured_group["missing_configured_gpu_targets"] == []
+        assert mismatched_configured_group["configured_target_identity_complete"] is True
+        assert mismatched_configured_group["configured_target_compatible"] is False
+        mismatched_configured_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_configured_group["candidates"]
+        }
+        assert "configured_gpu_target_mismatch" in mismatched_configured_blockers["ck"]
 
-graph_baseline = mark_reused_pack(bounded_capture("hip-direct", 1000))
-graph_baseline["scenario_metadata"] = {
-    "family": "hip-graph-replay",
-    "name": "bounded-i64-full-pack-export-512-baseline",
-    "promotion_eligibility": "release_review_candidate",
-    "output_domain": "host_export",
-    "metadata": {"workflow_name": "hip_graph_replay", "graph_role": "same_contract_non_graph_baseline"},
-}
-graph_candidate = copy.deepcopy(graph_baseline)
-graph_candidate["_path"] = "hip-direct-graph.json"
-graph_candidate["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
-graph_candidate["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
-graph_candidate["scenario_metadata"] = copy.deepcopy(graph_baseline["scenario_metadata"])
-graph_candidate["scenario_metadata"]["name"] = "bounded-i64-full-pack-export-512-graph"
-graph_candidate["scenario_metadata"]["metadata"]["graph_role"] = "graph_replay_candidate"
-graph_candidate["hip_graph_replay"] = {
-    "requested": True,
-    "used": True,
-    "status": "available",
-    "capture_status": "replayed",
-    "capture_us": 10.0,
-    "instantiate_us": 8.0,
-}
-set_phase(graph_candidate, 900)
-graph_report = benchmark_sweep.review_captures([graph_baseline, graph_candidate], review_mode="release")
-graph_group = next(
-    group
-    for group in graph_report["groups"]
-    if any(candidate["capture"] == "hip-direct-graph.json" for candidate in group["candidates"])
-)
-graph_review = graph_group["candidates"][0]["hip_graph_replay_review"]
-assert graph_review["baseline_setup_inclusive_median_end_to_end_us"] == 1000.0 + 11.0 / 9.0
-assert graph_review["setup_inclusive_median_end_to_end_us"] == 900.0 + 29.0 / 9.0
-assert graph_review["baseline_total_setup_us"] == 11.0
-assert graph_review["graph_total_setup_us"] == 29.0
-assert graph_review["graph_setup_overhead_vs_baseline_us"] == 18.0
-assert graph_review["steady_state_delta_us"] == 100.0
-assert graph_review["break_even_repeat_count"] == 1
-assert graph_review["declared_repeat_count"] == 9
-assert graph_review["declared_repeats_meet_break_even"] is True
-assert graph_review["blockers"] == []
-assert group["missing_hip_driver_versions"] == []
-assert group["hip_driver_version_complete"] is True
-assert group["hip_driver_version_compatible"] is True
-assert group["missing_compiler_identities"] == []
-assert group["compiler_identity_complete"] is True
-assert group["compiler_identity_compatible"] is True
-assert group["missing_git_commits"] == []
-assert group["git_commit_identity_complete"] is True
-assert group["git_commit_identity_compatible"] is True
-assert group["missing_warmup_counts"] == []
-assert group["warmup_count_complete"] is True
-assert group["warmup_count_compatible"] is True
-assert group["missing_repeat_counts"] == []
-assert group["repeat_count_complete"] is True
-assert group["repeat_count_compatible"] is True
-assert group["duplicate_backends"] == []
-assert group["finite_modulus"] == 255
-assert group["fastest_promotable"] is None
-assert "diagnostic_instrumented_host_time_not_production_evidence" in group["candidates"][0]["promotion_blockers"]
-assert group["candidates"][0]["bottleneck"]["class"] in {
-    "compute_bound",
-    "export_bound",
-    "launch_or_api_bound",
-    "mixed_bound",
-    "pack_bound",
-    "unknown",
-}
+        missing_runtime_direct = copy.deepcopy(direct)
+        missing_runtime_direct["device"]["hip_runtime_version"] = 0
+        missing_runtime_report = benchmark_sweep.review_captures(
+            [ck, missing_runtime_direct, cpu],
+            review_mode="release",
+        )
+        missing_runtime_group = missing_runtime_report["groups"][0]
+        assert missing_runtime_report["promotable_autotune_entries"] == []
+        assert missing_runtime_group["missing_hip_runtime_versions"] == ["hip-direct"]
+        assert missing_runtime_group["hip_runtime_version_complete"] is False
+        assert missing_runtime_group["hip_runtime_version_compatible"] is False
+        missing_runtime_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_runtime_group["candidates"]
+        }
+        assert "missing_hip_runtime_version" in missing_runtime_blockers["ck"]
 
-non_promoting_ck = copy.deepcopy(ck)
-non_promoting_direct = copy.deepcopy(direct)
-non_promoting_cpu = copy.deepcopy(cpu)
-scenario_metadata = {
-    "family": "finite-modulus-map",
-    "name": "finite-ring-map-1024",
-    "promotion_eligibility": "non_promoting_modulus_map",
-    "metadata": {"promotion_scope": "non_promoting_modulus_map"},
-}
-for item in [non_promoting_ck, non_promoting_direct, non_promoting_cpu]:
-    item["scenario_metadata"] = scenario_metadata
-non_promoting_report = benchmark_sweep.review_captures(
-    [non_promoting_ck, non_promoting_direct, non_promoting_cpu],
-    review_mode="release",
-)
-non_promoting_group = non_promoting_report["groups"][0]
-assert non_promoting_report["promotable_autotune_entries"] == []
-assert non_promoting_group["scenario_promotion_scopes"] == ["non_promoting_modulus_map"]
-non_promoting_ck_candidate = next(
-    item for item in non_promoting_group["candidates"] if item["backend"] == "ck"
-)
-assert non_promoting_ck_candidate["scenario_promotion_scope"] == "non_promoting_modulus_map"
-assert "scenario_scope_not_autotune_promotable" in non_promoting_ck_candidate["promotion_blockers"]
-assert "missing_required_baselines" not in non_promoting_ck_candidate["promotion_blockers"]
-assert "not_faster_than_direct_hip" not in non_promoting_ck_candidate["promotion_blockers"]
+        mismatched_runtime_ck = copy.deepcopy(ck)
+        mismatched_runtime_ck["device"]["hip_runtime_version"] = 70260299
+        mismatched_runtime_report = benchmark_sweep.review_captures(
+            [mismatched_runtime_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_runtime_group = mismatched_runtime_report["groups"][0]
+        assert mismatched_runtime_report["promotable_autotune_entries"] == []
+        assert mismatched_runtime_group["missing_hip_runtime_versions"] == []
+        assert mismatched_runtime_group["hip_runtime_version_complete"] is True
+        assert mismatched_runtime_group["hip_runtime_version_compatible"] is False
+        mismatched_runtime_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_runtime_group["candidates"]
+        }
+        assert "hip_runtime_version_mismatch" in mismatched_runtime_blockers["ck"]
 
-missing_target_ck = copy.deepcopy(ck)
-missing_target_ck["device"]["gcn_arch"] = "unknown"
-missing_target_report = benchmark_sweep.review_captures(
-    [missing_target_ck, direct, cpu],
-    review_mode="release",
-)
-missing_target_group = missing_target_report["groups"][0]
-assert missing_target_report["promotable_autotune_entries"] == []
-assert missing_target_group["missing_gpu_targets"] == ["ck"]
-assert missing_target_group["gpu_target_identity_complete"] is False
-assert missing_target_group["gpu_target_compatible"] is False
-missing_target_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_target_group["candidates"]
-}
-assert "missing_gpu_target_id" in missing_target_blockers["ck"]
+        missing_driver_direct = copy.deepcopy(direct)
+        missing_driver_direct["device"]["hip_driver_version"] = 0
+        missing_driver_report = benchmark_sweep.review_captures(
+            [ck, missing_driver_direct, cpu],
+            review_mode="release",
+        )
+        missing_driver_group = missing_driver_report["groups"][0]
+        assert missing_driver_report["promotable_autotune_entries"] == []
+        assert missing_driver_group["missing_hip_driver_versions"] == ["hip-direct"]
+        assert missing_driver_group["hip_driver_version_complete"] is False
+        assert missing_driver_group["hip_driver_version_compatible"] is False
+        missing_driver_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_driver_group["candidates"]
+        }
+        assert "missing_hip_driver_version" in missing_driver_blockers["ck"]
 
-mismatched_target_ck = copy.deepcopy(ck)
-mismatched_target_ck["device"]["gcn_arch"] = "gfx1101"
-mismatched_target_report = benchmark_sweep.review_captures(
-    [mismatched_target_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_target_group = mismatched_target_report["groups"][0]
-assert mismatched_target_report["promotable_autotune_entries"] == []
-assert mismatched_target_group["missing_gpu_targets"] == []
-assert mismatched_target_group["gpu_target_identity_complete"] is True
-assert mismatched_target_group["gpu_target_compatible"] is False
-mismatched_target_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_target_group["candidates"]
-}
-assert "gpu_target_mismatch" in mismatched_target_blockers["ck"]
+        mismatched_driver_ck = copy.deepcopy(ck)
+        mismatched_driver_ck["device"]["hip_driver_version"] = 70260299
+        mismatched_driver_report = benchmark_sweep.review_captures(
+            [mismatched_driver_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_driver_group = mismatched_driver_report["groups"][0]
+        assert mismatched_driver_report["promotable_autotune_entries"] == []
+        assert mismatched_driver_group["missing_hip_driver_versions"] == []
+        assert mismatched_driver_group["hip_driver_version_complete"] is True
+        assert mismatched_driver_group["hip_driver_version_compatible"] is False
+        mismatched_driver_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_driver_group["candidates"]
+        }
+        assert "hip_driver_version_mismatch" in mismatched_driver_blockers["ck"]
 
-missing_version_direct = copy.deepcopy(direct)
-missing_version_direct["hip_toolchain"]["hip_sdk_or_rocm_version"] = None
-missing_version_report = benchmark_sweep.review_captures(
-    [ck, missing_version_direct, cpu],
-    review_mode="release",
-)
-missing_version_group = missing_version_report["groups"][0]
-assert missing_version_report["promotable_autotune_entries"] == []
-assert missing_version_group["missing_hip_toolchain_versions"] == ["hip-direct"]
-assert missing_version_group["hip_toolchain_version_complete"] is False
-assert missing_version_group["hip_toolchain_version_compatible"] is False
-missing_version_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_version_group["candidates"]
-}
-assert "missing_hip_toolchain_version" in missing_version_blockers["ck"]
+        missing_compiler_direct = copy.deepcopy(direct)
+        missing_compiler_direct["compiler"]["version"] = ""
+        missing_compiler_report = benchmark_sweep.review_captures(
+            [ck, missing_compiler_direct, cpu],
+            review_mode="release",
+        )
+        missing_compiler_group = missing_compiler_report["groups"][0]
+        assert missing_compiler_report["promotable_autotune_entries"] == []
+        assert missing_compiler_group["missing_compiler_identities"] == ["hip-direct"]
+        assert missing_compiler_group["compiler_identity_complete"] is False
+        assert missing_compiler_group["compiler_identity_compatible"] is False
+        missing_compiler_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_compiler_group["candidates"]
+        }
+        assert "missing_compiler_identity" in missing_compiler_blockers["ck"]
 
-mismatched_version_ck = copy.deepcopy(ck)
-mismatched_version_ck["hip_toolchain"]["hip_sdk_or_rocm_version"] = "70260299"
-mismatched_version_report = benchmark_sweep.review_captures(
-    [mismatched_version_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_version_group = mismatched_version_report["groups"][0]
-assert mismatched_version_report["promotable_autotune_entries"] == []
-assert mismatched_version_group["missing_hip_toolchain_versions"] == []
-assert mismatched_version_group["hip_toolchain_version_complete"] is True
-assert mismatched_version_group["hip_toolchain_version_compatible"] is False
-mismatched_version_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_version_group["candidates"]
-}
-assert "hip_toolchain_version_mismatch" in mismatched_version_blockers["ck"]
+        mismatched_compiler_ck = copy.deepcopy(ck)
+        mismatched_compiler_ck["compiler"]["version"] = "1944.999999"
+        mismatched_compiler_report = benchmark_sweep.review_captures(
+            [mismatched_compiler_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_compiler_group = mismatched_compiler_report["groups"][0]
+        assert mismatched_compiler_report["promotable_autotune_entries"] == []
+        assert mismatched_compiler_group["missing_compiler_identities"] == []
+        assert mismatched_compiler_group["compiler_identity_complete"] is True
+        assert mismatched_compiler_group["compiler_identity_compatible"] is False
+        mismatched_compiler_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_compiler_group["candidates"]
+        }
+        assert "compiler_identity_mismatch" in mismatched_compiler_blockers["ck"]
 
-missing_configured_direct = copy.deepcopy(direct)
-missing_configured_direct["configured_amdgpu_targets"] = "unknown"
-missing_configured_report = benchmark_sweep.review_captures(
-    [ck, missing_configured_direct, cpu],
-    review_mode="release",
-)
-missing_configured_group = missing_configured_report["groups"][0]
-assert missing_configured_report["promotable_autotune_entries"] == []
-assert missing_configured_group["missing_configured_gpu_targets"] == ["hip-direct"]
-assert missing_configured_group["configured_target_identity_complete"] is False
-assert missing_configured_group["configured_target_compatible"] is False
-missing_configured_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_configured_group["candidates"]
-}
-assert "missing_configured_gpu_target" in missing_configured_blockers["ck"]
+        missing_git_direct = copy.deepcopy(direct)
+        missing_git_direct["git_commit"] = "unknown"
+        missing_git_report = benchmark_sweep.review_captures(
+            [ck, missing_git_direct, cpu],
+            review_mode="release",
+        )
+        missing_git_group = missing_git_report["groups"][0]
+        assert missing_git_report["promotable_autotune_entries"] == []
+        assert missing_git_group["missing_git_commits"] == ["hip-direct"]
+        assert missing_git_group["git_commit_identity_complete"] is False
+        assert missing_git_group["git_commit_identity_compatible"] is False
+        missing_git_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_git_group["candidates"]
+        }
+        assert "missing_git_commit" in missing_git_blockers["ck"]
 
-mismatched_configured_ck = copy.deepcopy(ck)
-mismatched_configured_ck["configured_amdgpu_targets"] = "gfx1101"
-mismatched_configured_report = benchmark_sweep.review_captures(
-    [mismatched_configured_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_configured_group = mismatched_configured_report["groups"][0]
-assert mismatched_configured_report["promotable_autotune_entries"] == []
-assert mismatched_configured_group["missing_configured_gpu_targets"] == []
-assert mismatched_configured_group["configured_target_identity_complete"] is True
-assert mismatched_configured_group["configured_target_compatible"] is False
-mismatched_configured_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_configured_group["candidates"]
-}
-assert "configured_gpu_target_mismatch" in mismatched_configured_blockers["ck"]
+        mismatched_git_ck = copy.deepcopy(ck)
+        mismatched_git_ck["git_commit"] = "different-fixture"
+        mismatched_git_report = benchmark_sweep.review_captures(
+            [mismatched_git_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_git_group = mismatched_git_report["groups"][0]
+        assert mismatched_git_report["promotable_autotune_entries"] == []
+        assert mismatched_git_group["missing_git_commits"] == []
+        assert mismatched_git_group["git_commit_identity_complete"] is True
+        assert mismatched_git_group["git_commit_identity_compatible"] is False
+        mismatched_git_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_git_group["candidates"]
+        }
+        assert "git_commit_mismatch" in mismatched_git_blockers["ck"]
 
-missing_runtime_direct = copy.deepcopy(direct)
-missing_runtime_direct["device"]["hip_runtime_version"] = 0
-missing_runtime_report = benchmark_sweep.review_captures(
-    [ck, missing_runtime_direct, cpu],
-    review_mode="release",
-)
-missing_runtime_group = missing_runtime_report["groups"][0]
-assert missing_runtime_report["promotable_autotune_entries"] == []
-assert missing_runtime_group["missing_hip_runtime_versions"] == ["hip-direct"]
-assert missing_runtime_group["hip_runtime_version_complete"] is False
-assert missing_runtime_group["hip_runtime_version_compatible"] is False
-missing_runtime_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_runtime_group["candidates"]
-}
-assert "missing_hip_runtime_version" in missing_runtime_blockers["ck"]
+        missing_warmups_direct = copy.deepcopy(direct)
+        missing_warmups_direct["warmups"] = 0
+        missing_warmups_report = benchmark_sweep.review_captures(
+            [ck, missing_warmups_direct, cpu],
+            review_mode="release",
+        )
+        missing_warmups_group = missing_warmups_report["groups"][0]
+        assert missing_warmups_report["promotable_autotune_entries"] == []
+        assert missing_warmups_group["missing_warmup_counts"] == ["hip-direct"]
+        assert missing_warmups_group["warmup_count_complete"] is False
+        assert missing_warmups_group["warmup_count_compatible"] is False
+        missing_warmups_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_warmups_group["candidates"]
+        }
+        assert "missing_warmup_count" in missing_warmups_blockers["ck"]
 
-mismatched_runtime_ck = copy.deepcopy(ck)
-mismatched_runtime_ck["device"]["hip_runtime_version"] = 70260299
-mismatched_runtime_report = benchmark_sweep.review_captures(
-    [mismatched_runtime_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_runtime_group = mismatched_runtime_report["groups"][0]
-assert mismatched_runtime_report["promotable_autotune_entries"] == []
-assert mismatched_runtime_group["missing_hip_runtime_versions"] == []
-assert mismatched_runtime_group["hip_runtime_version_complete"] is True
-assert mismatched_runtime_group["hip_runtime_version_compatible"] is False
-mismatched_runtime_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_runtime_group["candidates"]
-}
-assert "hip_runtime_version_mismatch" in mismatched_runtime_blockers["ck"]
+        mismatched_warmups_ck = copy.deepcopy(ck)
+        mismatched_warmups_ck["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS + 1
+        mismatched_warmups_report = benchmark_sweep.review_captures(
+            [mismatched_warmups_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_warmups_group = mismatched_warmups_report["groups"][0]
+        assert mismatched_warmups_report["promotable_autotune_entries"] == []
+        assert mismatched_warmups_group["missing_warmup_counts"] == []
+        assert mismatched_warmups_group["warmup_count_complete"] is True
+        assert mismatched_warmups_group["warmup_count_compatible"] is False
+        mismatched_warmups_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_warmups_group["candidates"]
+        }
+        assert "warmup_count_mismatch" in mismatched_warmups_blockers["ck"]
 
-missing_driver_direct = copy.deepcopy(direct)
-missing_driver_direct["device"]["hip_driver_version"] = 0
-missing_driver_report = benchmark_sweep.review_captures(
-    [ck, missing_driver_direct, cpu],
-    review_mode="release",
-)
-missing_driver_group = missing_driver_report["groups"][0]
-assert missing_driver_report["promotable_autotune_entries"] == []
-assert missing_driver_group["missing_hip_driver_versions"] == ["hip-direct"]
-assert missing_driver_group["hip_driver_version_complete"] is False
-assert missing_driver_group["hip_driver_version_compatible"] is False
-missing_driver_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_driver_group["candidates"]
-}
-assert "missing_hip_driver_version" in missing_driver_blockers["ck"]
+        missing_repeats_direct = copy.deepcopy(direct)
+        missing_repeats_direct["repeats"] = 0
+        missing_repeats_report = benchmark_sweep.review_captures(
+            [ck, missing_repeats_direct, cpu],
+            review_mode="release",
+        )
+        missing_repeats_group = missing_repeats_report["groups"][0]
+        assert missing_repeats_report["promotable_autotune_entries"] == []
+        assert missing_repeats_group["missing_repeat_counts"] == ["hip-direct"]
+        assert missing_repeats_group["repeat_count_complete"] is False
+        assert missing_repeats_group["repeat_count_compatible"] is False
+        missing_repeats_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_repeats_group["candidates"]
+        }
+        assert "missing_repeat_count" in missing_repeats_blockers["ck"]
 
-mismatched_driver_ck = copy.deepcopy(ck)
-mismatched_driver_ck["device"]["hip_driver_version"] = 70260299
-mismatched_driver_report = benchmark_sweep.review_captures(
-    [mismatched_driver_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_driver_group = mismatched_driver_report["groups"][0]
-assert mismatched_driver_report["promotable_autotune_entries"] == []
-assert mismatched_driver_group["missing_hip_driver_versions"] == []
-assert mismatched_driver_group["hip_driver_version_complete"] is True
-assert mismatched_driver_group["hip_driver_version_compatible"] is False
-mismatched_driver_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_driver_group["candidates"]
-}
-assert "hip_driver_version_mismatch" in mismatched_driver_blockers["ck"]
+        mismatched_repeats_ck = copy.deepcopy(ck)
+        mismatched_repeats_ck["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS + 1
+        mismatched_repeats_report = benchmark_sweep.review_captures(
+            [mismatched_repeats_ck, direct, cpu],
+            review_mode="release",
+        )
+        mismatched_repeats_group = mismatched_repeats_report["groups"][0]
+        assert mismatched_repeats_report["promotable_autotune_entries"] == []
+        assert mismatched_repeats_group["missing_repeat_counts"] == []
+        assert mismatched_repeats_group["repeat_count_complete"] is True
+        assert mismatched_repeats_group["repeat_count_compatible"] is False
+        mismatched_repeats_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_repeats_group["candidates"]
+        }
+        assert "repeat_count_mismatch" in mismatched_repeats_blockers["ck"]
 
-missing_compiler_direct = copy.deepcopy(direct)
-missing_compiler_direct["compiler"]["version"] = ""
-missing_compiler_report = benchmark_sweep.review_captures(
-    [ck, missing_compiler_direct, cpu],
-    review_mode="release",
-)
-missing_compiler_group = missing_compiler_report["groups"][0]
-assert missing_compiler_report["promotable_autotune_entries"] == []
-assert missing_compiler_group["missing_compiler_identities"] == ["hip-direct"]
-assert missing_compiler_group["compiler_identity_complete"] is False
-assert missing_compiler_group["compiler_identity_compatible"] is False
-missing_compiler_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_compiler_group["candidates"]
-}
-assert "missing_compiler_identity" in missing_compiler_blockers["ck"]
+        duplicate_ck_report = benchmark_sweep.review_captures(
+            [ck, copy.deepcopy(ck), direct, cpu],
+            review_mode="release",
+        )
+        duplicate_ck_group = duplicate_ck_report["groups"][0]
+        assert duplicate_ck_report["promotable_autotune_entries"] == []
+        assert duplicate_ck_group["duplicate_backends"] == ["ck"]
+        duplicate_ck_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in duplicate_ck_group["candidates"]
+        }
+        assert "duplicate_backend_capture" in duplicate_ck_blockers["ck"]
 
-mismatched_compiler_ck = copy.deepcopy(ck)
-mismatched_compiler_ck["compiler"]["version"] = "1944.999999"
-mismatched_compiler_report = benchmark_sweep.review_captures(
-    [mismatched_compiler_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_compiler_group = mismatched_compiler_report["groups"][0]
-assert mismatched_compiler_report["promotable_autotune_entries"] == []
-assert mismatched_compiler_group["missing_compiler_identities"] == []
-assert mismatched_compiler_group["compiler_identity_complete"] is True
-assert mismatched_compiler_group["compiler_identity_compatible"] is False
-mismatched_compiler_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_compiler_group["candidates"]
-}
-assert "compiler_identity_mismatch" in mismatched_compiler_blockers["ck"]
+        host_batch_ck = as_host_api_batch_capture(ck)
+        host_batch_report = benchmark_sweep.review_captures(
+            [ck, host_batch_ck, direct, cpu],
+            review_mode="release",
+        )
+        assert host_batch_report["group_count"] == 2
+        host_batch_group = next(
+            group
+            for group in host_batch_report["groups"]
+            if any(candidate["backend"] == "ck-hostbatch" for candidate in group["candidates"])
+        )
+        assert host_batch_group["duplicate_backends"] == []
+        host_batch_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in host_batch_group["candidates"]
+        }
+        assert "host_api_batch_not_autotune_promotable" in host_batch_blockers["ck-hostbatch"]
 
-missing_git_direct = copy.deepcopy(direct)
-missing_git_direct["git_commit"] = "unknown"
-missing_git_report = benchmark_sweep.review_captures(
-    [ck, missing_git_direct, cpu],
-    review_mode="release",
-)
-missing_git_group = missing_git_report["groups"][0]
-assert missing_git_report["promotable_autotune_entries"] == []
-assert missing_git_group["missing_git_commits"] == ["hip-direct"]
-assert missing_git_group["git_commit_identity_complete"] is False
-assert missing_git_group["git_commit_identity_compatible"] is False
-missing_git_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_git_group["candidates"]
-}
-assert "missing_git_commit" in missing_git_blockers["ck"]
+        scenario_a_cpu = copy.deepcopy(cpu)
+        scenario_a_direct = copy.deepcopy(direct)
+        scenario_b_cpu = copy.deepcopy(cpu)
+        scenario_b_direct = copy.deepcopy(direct)
+        scenario_a_cpu["checksum_u64"] = 111
+        scenario_a_direct["checksum_u64"] = 111
+        scenario_b_cpu["checksum_u64"] = 222
+        scenario_b_direct["checksum_u64"] = 222
+        for item in [scenario_a_cpu, scenario_a_direct]:
+            item["scenario_metadata"] = {
+                "family": "many-small",
+                "name": "bounded-i64-64-proxy",
+                "promotion_eligibility": "release_review_candidate",
+                "output_domain": "host_export",
+                "metadata": {"workflow_name": "many_small"},
+            }
+        for item in [scenario_b_cpu, scenario_b_direct]:
+            item["scenario_metadata"] = {
+                "family": "small-oneshot",
+                "name": "bounded-i64-64-oneshot",
+                "promotion_eligibility": "release_review_candidate",
+                "output_domain": "host_export",
+                "metadata": {"workflow_name": "small_oneshot"},
+            }
+        scenario_split_report = benchmark_sweep.review_captures(
+            [scenario_a_cpu, scenario_a_direct, scenario_b_cpu, scenario_b_direct],
+            review_mode="release",
+        )
+        assert scenario_split_report["group_count"] == 2
+        pass  # lenient
 
-mismatched_git_ck = copy.deepcopy(ck)
-mismatched_git_ck["git_commit"] = "different-fixture"
-mismatched_git_report = benchmark_sweep.review_captures(
-    [mismatched_git_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_git_group = mismatched_git_report["groups"][0]
-assert mismatched_git_report["promotable_autotune_entries"] == []
-assert mismatched_git_group["missing_git_commits"] == []
-assert mismatched_git_group["git_commit_identity_complete"] is True
-assert mismatched_git_group["git_commit_identity_compatible"] is False
-mismatched_git_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_git_group["candidates"]
-}
-assert "git_commit_mismatch" in mismatched_git_blockers["ck"]
+        reuse_report = benchmark_sweep.review_captures(
+            [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
+            review_mode="release",
+        )
+        reuse_group = reuse_report["groups"][0]
+        assert reuse_group["source_metadata"]["pack_modes"] == ["prepacked_reuse"]
+        assert reuse_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
+        assert reuse_group["source_metadata"]["prepack_reuse_operands"] == ["A/B"]
+        assert reuse_report["promotable_autotune_entries"] == []
+        reuse_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_group["candidates"]
+        }
+        assert "missing_same_backend_nonreuse_baseline" in reuse_blockers["ck"]
+        assert "missing_best_nonreuse_contract_baseline" in reuse_blockers["ck"]
+        assert "prepacked_reuse_not_autotune_promotable" not in reuse_blockers["ck"]
 
-missing_warmups_direct = copy.deepcopy(direct)
-missing_warmups_direct["warmups"] = 0
-missing_warmups_report = benchmark_sweep.review_captures(
-    [ck, missing_warmups_direct, cpu],
-    review_mode="release",
-)
-missing_warmups_group = missing_warmups_report["groups"][0]
-assert missing_warmups_report["promotable_autotune_entries"] == []
-assert missing_warmups_group["missing_warmup_counts"] == ["hip-direct"]
-assert missing_warmups_group["warmup_count_complete"] is False
-assert missing_warmups_group["warmup_count_compatible"] is False
-missing_warmups_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_warmups_group["candidates"]
-}
-assert "missing_warmup_count" in missing_warmups_blockers["ck"]
+        reuse_a_report = benchmark_sweep.review_captures(
+            [mark_reused_a_pack(ck), mark_reused_a_pack(direct), mark_reused_a_pack(cpu)],
+            review_mode="release",
+        )
+        reuse_a_group = reuse_a_report["groups"][0]
+        assert reuse_a_group["source_metadata"]["pack_modes"] == ["prepacked_reuse_a"]
+        assert reuse_a_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
+        assert reuse_a_group["source_metadata"]["prepack_reuse_operands"] == ["A"]
+        reuse_a_blockers = {
+            candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_a_group["candidates"]
+        }
+        assert "missing_same_backend_nonreuse_baseline" in reuse_a_blockers["ck"]
+        assert "missing_best_nonreuse_contract_baseline" in reuse_a_blockers["ck"]
+        assert "prepacked_reuse_not_autotune_promotable" not in reuse_a_blockers["ck"]
 
-mismatched_warmups_ck = copy.deepcopy(ck)
-mismatched_warmups_ck["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS + 1
-mismatched_warmups_report = benchmark_sweep.review_captures(
-    [mismatched_warmups_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_warmups_group = mismatched_warmups_report["groups"][0]
-assert mismatched_warmups_report["promotable_autotune_entries"] == []
-assert mismatched_warmups_group["missing_warmup_counts"] == []
-assert mismatched_warmups_group["warmup_count_complete"] is True
-assert mismatched_warmups_group["warmup_count_compatible"] is False
-mismatched_warmups_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_warmups_group["candidates"]
-}
-assert "warmup_count_mismatch" in mismatched_warmups_blockers["ck"]
+        reuse_evidence_direct = mark_reused_a_pack(direct)
+        reuse_evidence_direct["scenario_metadata"] = {
+            "family": "direct-hip-reuse-expansion",
+            "name": "bounded-u64-adaptive-512-reuse-a",
+            "promotion_eligibility": "reuse_contract_evidence_only",
+            "metadata": {
+                "workflow_name": "direct_hip_reuse_expansion",
+                "reuse_contract_role": "stable_a_candidate",
+                "promotion_scope": "reuse_contract_evidence_only",
+            },
+        }
+        reuse_evidence_report = benchmark_sweep.review_captures([reuse_evidence_direct], review_mode="release")
+        reuse_evidence_group = reuse_evidence_report["groups"][0]
+        assert reuse_evidence_group["required_baselines"] == []
+        assert reuse_evidence_group["missing_required_baselines"] == []
+        reuse_evidence_blockers = reuse_evidence_group["candidates"][0]["promotion_blockers"]
+        assert "missing_required_baselines" not in reuse_evidence_blockers
+        assert "prepacked_reuse_not_autotune_promotable" not in reuse_evidence_blockers
+        assert "scenario_scope_not_autotune_promotable" in reuse_evidence_blockers
 
-missing_repeats_direct = copy.deepcopy(direct)
-missing_repeats_direct["repeats"] = 0
-missing_repeats_report = benchmark_sweep.review_captures(
-    [ck, missing_repeats_direct, cpu],
-    review_mode="release",
-)
-missing_repeats_group = missing_repeats_report["groups"][0]
-assert missing_repeats_report["promotable_autotune_entries"] == []
-assert missing_repeats_group["missing_repeat_counts"] == ["hip-direct"]
-assert missing_repeats_group["repeat_count_complete"] is False
-assert missing_repeats_group["repeat_count_compatible"] is False
-missing_repeats_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_repeats_group["candidates"]
-}
-assert "missing_repeat_count" in missing_repeats_blockers["ck"]
+        graph_evidence_direct = mark_reused_a_pack(direct)
+        graph_evidence_direct["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+        graph_evidence_direct["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+        graph_evidence_direct["scenario_metadata"] = {
+            "family": "hip-graph-replay",
+            "name": "bounded-i64-chain3-512-graph",
+            "promotion_eligibility": "hip_graph_replay_evidence_only",
+            "metadata": {
+                "workflow_name": "hip_graph_replay",
+                "graph_role": "graph_replay_candidate",
+            },
+        }
+        graph_evidence_report = benchmark_sweep.review_captures([graph_evidence_direct], review_mode="release")
+        graph_evidence_group = graph_evidence_report["groups"][0]
+        assert graph_evidence_group["required_baselines"] == []
+        assert graph_evidence_group["missing_required_baselines"] == []
+        graph_evidence_blockers = graph_evidence_group["candidates"][0]["promotion_blockers"]
+        assert "missing_required_baselines" not in graph_evidence_blockers
+        assert "hip_graph_replay_not_autotune_promotable" not in graph_evidence_blockers
+        assert "scenario_scope_not_autotune_promotable" in graph_evidence_blockers
 
-mismatched_repeats_ck = copy.deepcopy(ck)
-mismatched_repeats_ck["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS + 1
-mismatched_repeats_report = benchmark_sweep.review_captures(
-    [mismatched_repeats_ck, direct, cpu],
-    review_mode="release",
-)
-mismatched_repeats_group = mismatched_repeats_report["groups"][0]
-assert mismatched_repeats_report["promotable_autotune_entries"] == []
-assert mismatched_repeats_group["missing_repeat_counts"] == []
-assert mismatched_repeats_group["repeat_count_complete"] is True
-assert mismatched_repeats_group["repeat_count_compatible"] is False
-mismatched_repeats_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_repeats_group["candidates"]
-}
-assert "repeat_count_mismatch" in mismatched_repeats_blockers["ck"]
-
-duplicate_ck_report = benchmark_sweep.review_captures(
-    [ck, copy.deepcopy(ck), direct, cpu],
-    review_mode="release",
-)
-duplicate_ck_group = duplicate_ck_report["groups"][0]
-assert duplicate_ck_report["promotable_autotune_entries"] == []
-assert duplicate_ck_group["duplicate_backends"] == ["ck"]
-duplicate_ck_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in duplicate_ck_group["candidates"]
-}
-assert "duplicate_backend_capture" in duplicate_ck_blockers["ck"]
-
-host_batch_ck = as_host_api_batch_capture(ck)
-host_batch_report = benchmark_sweep.review_captures(
-    [ck, host_batch_ck, direct, cpu],
-    review_mode="release",
-)
-assert host_batch_report["group_count"] == 2
-host_batch_group = next(
-    group
-    for group in host_batch_report["groups"]
-    if any(candidate["backend"] == "ck-hostbatch" for candidate in group["candidates"])
-)
-assert host_batch_group["duplicate_backends"] == []
-host_batch_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in host_batch_group["candidates"]
-}
-assert "host_api_batch_not_autotune_promotable" in host_batch_blockers["ck-hostbatch"]
-
-scenario_a_cpu = copy.deepcopy(cpu)
-scenario_a_direct = copy.deepcopy(direct)
-scenario_b_cpu = copy.deepcopy(cpu)
-scenario_b_direct = copy.deepcopy(direct)
-scenario_a_cpu["checksum_u64"] = 111
-scenario_a_direct["checksum_u64"] = 111
-scenario_b_cpu["checksum_u64"] = 222
-scenario_b_direct["checksum_u64"] = 222
-for item in [scenario_a_cpu, scenario_a_direct]:
-    item["scenario_metadata"] = {
-        "family": "many-small",
-        "name": "bounded-i64-64-proxy",
-        "promotion_eligibility": "release_review_candidate",
-        "output_domain": "host_export",
-        "metadata": {"workflow_name": "many_small"},
-    }
-for item in [scenario_b_cpu, scenario_b_direct]:
-    item["scenario_metadata"] = {
-        "family": "small-oneshot",
-        "name": "bounded-i64-64-oneshot",
-        "promotion_eligibility": "release_review_candidate",
-        "output_domain": "host_export",
-        "metadata": {"workflow_name": "small_oneshot"},
-    }
-scenario_split_report = benchmark_sweep.review_captures(
-    [scenario_a_cpu, scenario_a_direct, scenario_b_cpu, scenario_b_direct],
-    review_mode="release",
-)
-assert scenario_split_report["group_count"] == 2
-pass  # lenient
-
-reuse_report = benchmark_sweep.review_captures(
-    [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
-    review_mode="release",
-)
-reuse_group = reuse_report["groups"][0]
-assert reuse_group["source_metadata"]["pack_modes"] == ["prepacked_reuse"]
-assert reuse_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
-assert reuse_group["source_metadata"]["prepack_reuse_operands"] == ["A/B"]
-assert reuse_report["promotable_autotune_entries"] == []
-reuse_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_group["candidates"]
-}
-assert "missing_same_backend_nonreuse_baseline" in reuse_blockers["ck"]
-assert "missing_best_nonreuse_contract_baseline" in reuse_blockers["ck"]
-assert "prepacked_reuse_not_autotune_promotable" not in reuse_blockers["ck"]
-
-reuse_a_report = benchmark_sweep.review_captures(
-    [mark_reused_a_pack(ck), mark_reused_a_pack(direct), mark_reused_a_pack(cpu)],
-    review_mode="release",
-)
-reuse_a_group = reuse_a_report["groups"][0]
-assert reuse_a_group["source_metadata"]["pack_modes"] == ["prepacked_reuse_a"]
-assert reuse_a_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
-assert reuse_a_group["source_metadata"]["prepack_reuse_operands"] == ["A"]
-reuse_a_blockers = {
-    candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_a_group["candidates"]
-}
-assert "missing_same_backend_nonreuse_baseline" in reuse_a_blockers["ck"]
-assert "missing_best_nonreuse_contract_baseline" in reuse_a_blockers["ck"]
-assert "prepacked_reuse_not_autotune_promotable" not in reuse_a_blockers["ck"]
-
-reuse_evidence_direct = mark_reused_a_pack(direct)
-reuse_evidence_direct["scenario_metadata"] = {
-    "family": "direct-hip-reuse-expansion",
-    "name": "bounded-u64-adaptive-512-reuse-a",
-    "promotion_eligibility": "reuse_contract_evidence_only",
-    "metadata": {
-        "workflow_name": "direct_hip_reuse_expansion",
-        "reuse_contract_role": "stable_a_candidate",
-        "promotion_scope": "reuse_contract_evidence_only",
-    },
-}
-reuse_evidence_report = benchmark_sweep.review_captures([reuse_evidence_direct], review_mode="release")
-reuse_evidence_group = reuse_evidence_report["groups"][0]
-assert reuse_evidence_group["required_baselines"] == []
-assert reuse_evidence_group["missing_required_baselines"] == []
-reuse_evidence_blockers = reuse_evidence_group["candidates"][0]["promotion_blockers"]
-assert "missing_required_baselines" not in reuse_evidence_blockers
-assert "prepacked_reuse_not_autotune_promotable" not in reuse_evidence_blockers
-assert "scenario_scope_not_autotune_promotable" in reuse_evidence_blockers
-
-graph_evidence_direct = mark_reused_a_pack(direct)
-graph_evidence_direct["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
-graph_evidence_direct["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
-graph_evidence_direct["scenario_metadata"] = {
-    "family": "hip-graph-replay",
-    "name": "bounded-i64-chain3-512-graph",
-    "promotion_eligibility": "hip_graph_replay_evidence_only",
-    "metadata": {
-        "workflow_name": "hip_graph_replay",
-        "graph_role": "graph_replay_candidate",
-    },
-}
-graph_evidence_report = benchmark_sweep.review_captures([graph_evidence_direct], review_mode="release")
-graph_evidence_group = graph_evidence_report["groups"][0]
-assert graph_evidence_group["required_baselines"] == []
-assert graph_evidence_group["missing_required_baselines"] == []
-graph_evidence_blockers = graph_evidence_group["candidates"][0]["promotion_blockers"]
-assert "missing_required_baselines" not in graph_evidence_blockers
-assert "hip_graph_replay_not_autotune_promotable" not in graph_evidence_blockers
-assert "scenario_scope_not_autotune_promotable" in graph_evidence_blockers
-
-variant_direct_a = exact_wide_capture("hip-direct", 3000)
-variant_direct_b = copy.deepcopy(variant_direct_a)
-variant_direct_a["export_variant"] = {
-    "name": "compact-d2h-export-candidate",
-}
-variant_direct_b["export_variant"] = {
-    "name": "tree-crt-export-candidate",
-}
-variant_direct_b["reconstruction_variant"] = {
-    "name": "tree_crt_candidate",
-}
-variant_report = benchmark_sweep.review_captures(
-    [variant_direct_a, variant_direct_b],
-    review_mode="release",
-)
-assert variant_report["group_count"] == 2
-pass  # lenient
-assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == [
-    "compact-d2h-export-candidate",
-    "tree-crt-export-candidate",
-]
+        variant_direct_a = exact_wide_capture("hip-direct", 3000)
+        variant_direct_b = copy.deepcopy(variant_direct_a)
+        variant_direct_a["export_variant"] = {
+            "name": "compact-d2h-export-candidate",
+        }
+        variant_direct_b["export_variant"] = {
+            "name": "tree-crt-export-candidate",
+        }
+        variant_direct_b["reconstruction_variant"] = {
+            "name": "tree_crt_candidate",
+        }
+        variant_report = benchmark_sweep.review_captures(
+            [variant_direct_a, variant_direct_b],
+            review_mode="release",
+        )
+        assert variant_report["group_count"] == 2
+        pass  # lenient
+        assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == [
+            "compact-d2h-export-candidate",
+            "tree-crt-export-candidate",
+        ]
 
 
-for field in ("build_manifest", "artifact_capture"):
-    missing = finite_capture("ck",190)
-    missing.pop(field)
-    provenance_report = benchmark_sweep.review_captures([missing,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
-    assert not provenance_report["promotable_autotune_entries"]
-dirty = finite_capture("ck",190)
-dirty["build_manifest"]["source_dirty"] = True
-provenance_report = benchmark_sweep.review_captures([dirty,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
-assert not provenance_report["promotable_autotune_entries"]
+        for field in ("build_manifest", "artifact_capture"):
+            missing = finite_capture("ck",190)
+            missing.pop(field)
+            provenance_report = benchmark_sweep.review_captures([missing,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+            assert not provenance_report["promotable_autotune_entries"]
+        dirty = finite_capture("ck",190)
+        dirty["build_manifest"]["source_dirty"] = True
+        provenance_report = benchmark_sweep.review_captures([dirty,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+        assert not provenance_report["promotable_autotune_entries"]
 
-for field in ("dependency_digest", "linkage", "identity_scope"):
-    incomplete=finite_capture("ck",190)
-    incomplete["build_manifest"].pop(field)
-    provenance_report=benchmark_sweep.review_captures([incomplete,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
-    assert not provenance_report["promotable_autotune_entries"]
+        for field in ("dependency_digest", "linkage", "identity_scope"):
+            incomplete=finite_capture("ck",190)
+            incomplete["build_manifest"].pop(field)
+            provenance_report=benchmark_sweep.review_captures([incomplete,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+            assert not provenance_report["promotable_autotune_entries"]
+
+
+if __name__ == "__main__":
+    unittest.main()

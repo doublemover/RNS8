@@ -1,3 +1,21 @@
+"""Independent schema fixture builders with explicit dependencies."""
+
+from __future__ import annotations
+
+import copy
+from test_benchmark_schema_support_core import (
+    add_ck_chain_gpu_events,
+    add_prefix_policy_fields,
+    summary,
+    zero_summary,
+)
+from test_benchmark_schema_support_metadata import (
+    add_output_policy_fields,
+    add_requested_next_op_fields,
+    add_target_variant_fields,
+    with_accumulator_key_fields,
+)
+
 def as_reused_pack_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]

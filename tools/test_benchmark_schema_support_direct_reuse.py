@@ -1,3 +1,23 @@
+"""Independent schema fixture builders with explicit dependencies."""
+
+from __future__ import annotations
+
+import copy
+from test_benchmark_schema_support_core import (
+    add_prefix_policy_fields,
+    summary,
+    zero_summary,
+)
+from test_benchmark_schema_support_metadata import (
+    add_output_policy_fields,
+    add_requested_next_op_fields,
+    add_target_variant_fields,
+    add_timing_helper_fields,
+    apply_int32_accumulator_contract,
+    as_direct_hip_finite_capture,
+    with_accumulator_key_fields,
+)
+
 def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
     oneshot = as_direct_hip_finite_capture(
         capture,

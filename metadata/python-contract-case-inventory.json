@@ -1,0 +1,72 @@
+{
+  "schema": "rns8_python_contract_case_inventory_v1",
+  "status": "source_migrated_pending_final_batch",
+  "cases": [
+    {
+      "module": "test_benchmark_schema_case_vector_grouped",
+      "case": "VectorGroupedCases.test_vector_grouped_contracts",
+      "original_assertions": 2,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_schema_case_reuse_chain",
+      "case": "ReuseChainCases.test_reuse_chain_contracts",
+      "original_assertions": 0,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_schema_case_oneshot_accelerators",
+      "case": "OneshotAcceleratorsCases.test_oneshot_accelerators_contracts",
+      "original_assertions": 0,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_schema_case_events_schedule",
+      "case": "EventsScheduleCases.test_events_schedule_contracts",
+      "original_assertions": 2,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_sweep_case_scenarios",
+      "case": "ScenariosCases.test_scenarios_contracts",
+      "original_assertions": 72,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_sweep_case_command_matrix",
+      "case": "CommandMatrixCases.test_command_matrix_contracts",
+      "original_assertions": 48,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_sweep_case_large_resume",
+      "case": "LargeResumeCases.test_large_resume_contracts",
+      "original_assertions": 67,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_sweep_case_chain_adaptive",
+      "case": "ChainAdaptiveCases.test_chain_adaptive_contracts",
+      "original_assertions": 56,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_sweep_case_cli_review",
+      "case": "CliReviewCases.test_cli_review_contracts",
+      "original_assertions": 19,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_sweep_case_review_metadata",
+      "case": "ReviewMetadataCases.test_review_metadata_contracts",
+      "original_assertions": 355,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    },
+    {
+      "module": "test_benchmark_sweep_case_cache_wrap_exact",
+      "case": "CacheWrapExactCases.test_cache_wrap_exact_contracts",
+      "original_assertions": 30,
+      "migration": "same assertions; ordinary imports; fresh explicit fixture inputs"
+    }
+  ]
+}

@@ -8,7 +8,9 @@ from pathlib import Path
 
 import host_api_batch_report
 from benchmark_schema import load_capture, validate_capture
-from test_benchmark_schema import as_host_api_batch_capture
+from test_benchmark_schema_support_core import (
+    as_host_api_batch_capture,
+)
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"

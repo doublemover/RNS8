@@ -12,16 +12,20 @@ from metadata_registry_constants import (
     GROUPED_TASK_BUCKET_POLICIES,
     GROUPED_TASK_DESCRIPTOR_LAYOUTS,
 )
-from test_benchmark_schema import (
-    as_grouped_dispatch_capture,
+from test_benchmark_schema_support_chains_wrap64 import (
     as_hip_graph_full_bounded_capture,
     as_hip_graph_full_exact_wide_capture,
     as_hip_graph_full_finite_capture,
     as_hip_graph_full_wrap64_capture,
     as_hip_graph_replay_capture,
+)
+from test_benchmark_schema_support_core import (
     as_host_api_batch_capture,
     expect_invalid,
     expect_valid,
+)
+from test_benchmark_schema_support_grouped import (
+    as_grouped_dispatch_capture,
 )
 
 

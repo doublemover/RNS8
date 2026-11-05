@@ -5,20 +5,10 @@ from __future__ import annotations
 
 import copy
 import argparse
-import json
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
 import benchmark_sweep
-from benchmark_schema import load_capture, validate_capture
-from benchmark_sweep_lib.capture_metadata import backend_family_id
-from metadata_registry_constants import (
-    GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_BOUNDED_EXPORT_KERNELS_BATCHED_D2H,
-    GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H,
-)
-from test_benchmark_schema import as_host_api_batch_capture
+from benchmark_schema import load_capture
 from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
 
 
@@ -241,7 +231,6 @@ def _export_kernel_for_capture(capture: dict, semantics: str) -> str:
 
 def attach_final_output_metadata(capture: dict) -> None:
     semantics = capture.get("semantics")
-    selected_kernel = capture.get("selected_kernel") or capture.get("backend_metadata", {}).get("selected_kernel")
     export_kernel = _export_kernel_for_capture(capture, semantics)
     output_ld = capture.get("output_logical_ld", capture.get("n", 0))
     exact_wide = semantics in {"exact_wide_signed", "exact_wide_unsigned"}
@@ -572,3 +561,59 @@ def mark_reused_a_pack(capture: dict) -> dict:
     return reused
 
 
+
+
+def exact_command_args() -> argparse.Namespace:
+    """Fresh complete CLI input; mutations never cross test cases."""
+    return argparse.Namespace(
+        bench=Path("rns8-bench"),
+        bench_for=[],
+        out_root=Path("temp") / "exact-wide",
+        backends=["cpu", "hip-direct"],
+        semantics=["exact_wide_signed"],
+        case=["small:16,16,16"],
+        adaptive_case=None,
+        shapes=None,
+        modulus=None,
+        exact_wide_limbs=None,
+        include_exact_wide_limb_variants=False,
+        residue_chain_length=1,
+        include_default_adaptive=False,
+        include_adaptive_workloads=False,
+        adaptive_only=False,
+        include_wrap64=False,
+        include_wrap64_rocwmma_candidate=False,
+        include_exact_wide=False,
+        reuse_packed_inputs=False,
+        reuse_packed_a=False,
+        reuse_packed_b=False,
+        release_matrix=False,
+        include_exploratory_large=False,
+        review_mode="smoke",
+        warmups=1,
+        repeats=2,
+        seed=7,
+        write_autotune_cache=False,
+        autotune_cache=None,
+    )
+
+
+def scenario_command_args() -> argparse.Namespace:
+    args = exact_command_args()
+    args.out_root = Path("temp") / "scenario"
+    args.backends = ["hip-direct"]
+    args.semantics = None
+    args.case = None
+    args.scenario = ["repeated-b"]
+    return args
+
+
+def finite_review_cohort() -> tuple[dict, dict, dict, dict]:
+    ck = finite_capture("ck", 190)
+    direct = finite_capture("hip-direct", 300)
+    cpu = finite_capture("cpu-reference", 500)
+    for capture in (ck, direct, cpu):
+        capture["tile_shape_variant"] = {"name": "finite-ring-u8-default-128x128", "tile_m": 128, "tile_n": 128, "tile_k": 256}
+    report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
+    benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
+    return ck, direct, cpu, report

@@ -6,14 +6,20 @@ from __future__ import annotations
 import copy
 
 from benchmark_schema import validate_capture
-from test_benchmark_schema import (
-    add_helper_lane_fields,
+from test_benchmark_schema_support_chains_wrap64 import (
     as_exact_wide_capture,
-    as_grouped_dispatch_capture,
     as_hip_graph_replay_capture,
     as_reused_pack_capture,
+)
+from test_benchmark_schema_support_core import (
     expect_invalid,
     expect_valid,
+)
+from test_benchmark_schema_support_grouped import (
+    as_grouped_dispatch_capture,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
     with_accumulator_key_fields,
 )
 

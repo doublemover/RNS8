@@ -5,7 +5,13 @@ from __future__ import annotations
 
 import copy
 
-from test_benchmark_schema import add_output_padding_fields, expect_invalid, expect_valid
+from test_benchmark_schema_support_core import (
+    expect_invalid,
+    expect_valid,
+)
+from test_benchmark_schema_support_metadata import (
+    add_output_padding_fields,
+)
 from benchmark_schema import validate_capture
 
 

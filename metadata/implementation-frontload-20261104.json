@@ -908,9 +908,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/100",
       "requirements_sha256": "fc76fd75ce070ad69262f8dd64a3eb8590d64196754c1560d5db690760fc0def",
       "comments_reviewed": 0,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Replace schema and sweep exec/compile fragments and wildcard fixture facade with 11 independently runnable unittest case modules, normal explicit owner imports and fresh local baseline/command/cohort factories. Preserve all 651 original assertion nodes and map named cases in a durable source inventory. Split the grouped fixture leaf to keep primitive/metadata/chain imports acyclic; migrate every schema facade consumer directly to actual helper owners and delete the loader facade. Preserve runtime get_type_hints coverage in a named aggregate case; aggregates reject changed/empty case counts. Author loader, assertion-retention, import-cycle and mutable-factory isolation controls for the deferred batch. AST and focused undefined-name/import checks passed; no case or fixture executed."
+      ],
+      "remaining_source_items": [
+        "Move common strict scalar/JSON ownership out of collector modules and update direct consumers; implement meaningful pinned mypy boundary projections, checker smoke controls and CI gate with explicit migration scope. Restore existing lenient sweep placeholders under #95 and complete format/lint baseline under #98."
+      ]
     },
     {
       "issue": 101,

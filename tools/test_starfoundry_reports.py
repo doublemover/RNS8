@@ -9,7 +9,9 @@ import tempfile
 from pathlib import Path
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
-from test_benchmark_schema import add_helper_lane_fields
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+)
 
 import fhe_workload_report
 import many_small_grouped_report
