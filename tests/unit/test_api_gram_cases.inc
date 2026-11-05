@@ -1,4 +1,40 @@
 #include <cstring>
+TEST_CASE("Gram physical method and query identities keep MFMA distinct from other recipes") {
+  using namespace rns8::detail;
+  for (uint32_t method = 0; method < 8; ++method) {
+    CHECK(gram_method_valid(method) == (method <= 3 || method >= 6));
+    if (!gram_method_valid(method))
+      continue;
+    CHECK(gram_matrix_kind(method) == (method >= 6 ? 2u : method & 1));
+    CHECK(gram_separate_mirror(method) == (method >= 6 ? bool(method & 1) : bool(method & 2)));
+  }
+  for (uint32_t policy = 0; policy < 3; ++policy)
+    for (uint32_t method : {0u, 1u, 2u, 3u, 6u, 7u}) {
+      const auto algorithm = method >= 6 ? 12 + 2 * policy + (method & 1) : 4 * policy + method;
+      CHECK(gram_query_method(algorithm) == method);
+      CHECK(gram_query_policy(algorithm) == policy);
+    }
+  CHECK_FALSE(gram_method_valid(UINT32_MAX));
+  auto* ctx = create_cpu_context();
+  auto md = bounded_matrix_desc(1, 1, RNS8_BOUNDED_I64);
+  rns8_matrix *x = nullptr, *c = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &md, &x) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &md, &c) == RNS8_SUCCESS);
+  int64_t value = 3;
+  REQUIRE(rns8_pack_i64(ctx, x, &value, 1, 0) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx, c, &value, 1, 0) == RNS8_SUCCESS);
+  const auto before = c->residues;
+  const auto generation = c->content_generation;
+  for (auto method : {RNS8_GRAM_MFMA_GFX942, RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR})
+    CHECK(rns8_gram_residues(ctx, x, c, RNS8_GRAM_TRANSPOSE_TIMES_SELF, method, UINT64_MAX) ==
+          RNS8_UNSUPPORTED_BACKEND);
+  CHECK(c->residues == before);
+  CHECK(c->content_generation == generation);
+  REQUIRE(rns8_destroy_matrix(c) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_matrix(x) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("single-source Gram CPU products preserve full signed and finite semantics") {
   check_public_gram(RNS8_BACKEND_CPU_REFERENCE);
 }

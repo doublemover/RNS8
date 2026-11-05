@@ -9,6 +9,7 @@ struct rns8_prepared_gram {
   const rns8_matrix* x = nullptr;
   rns8_matrix* c = nullptr;
   GramProblem problem;
+  uint32_t matrix_kind = 0, method = 0;
   cpp_int bound;
   std::vector<GramTile> jobs;
   std::vector<int8_t> host_adapter, export_residues;
@@ -23,8 +24,8 @@ struct rns8_prepared_gram {
   rns8_gram_input_policy input_policy = RNS8_GRAM_RESIDENT_RESIDUES;
   uint32_t export_limbs = 0;
   int export_status = 0;
-  bool separate_mirror = false, wmma = false, jobs_ready = false, adapter_ready = false,
-       active = false, commit_started = false, quarantined = false;
+  bool separate_mirror = false, jobs_ready = false, adapter_ready = false, active = false,
+       commit_started = false, quarantined = false;
   bool five_product = false, five_matrix = false;
   GramFiveResources five_resources;
   std::vector<int8_t> five_host;
@@ -118,15 +119,16 @@ rns8_status prepare_gram_impl(rns8_context* ctx, const rns8_matrix* x, rns8_matr
     return RNS8_UNSUPPORTED_BACKEND;
   if (limbs && owner->bound >= (cpp_int(1) << (64 * limbs - 1)))
     return RNS8_RANGE_ERROR;
-  const auto support = query_gram_support(owner->problem, budget, hip, bool(uint32_t(method) & 1));
+  const auto support =
+      query_gram_support(owner->problem, budget, hip, gram_matrix_kind(uint32_t(method)) != 0);
   if (support.status != RNS8_SUCCESS)
     return support.status;
   if (limbs && (!valid_limb_export_access(support.order, support.order, support.order, limbs) ||
                 (hip && !qualified_i32_matrix_address(support.order, support.order, support.order,
                                                       1, uint64_t(limbs) * 8))))
     return RNS8_RANGE_ERROR;
-  const auto storage = query_gram_prepared_storage(owner->problem, hip, bool(uint32_t(method) & 1),
-                                                   policy, limbs, budget);
+  const auto storage = query_gram_prepared_storage(
+      owner->problem, hip, gram_matrix_kind(uint32_t(method)) != 0, policy, limbs, budget);
   if (storage.status != RNS8_SUCCESS)
     return storage.status;
   const uint64_t adapter = storage.adapter_bytes, exported = storage.export_bytes;
@@ -136,8 +138,9 @@ rns8_status prepare_gram_impl(rns8_context* ctx, const rns8_matrix* x, rns8_matr
   owner->ctx = ctx;
   owner->x = x;
   owner->c = c;
-  owner->wmma = bool(uint32_t(method) & 1);
-  owner->separate_mirror = bool(uint32_t(method) & 2);
+  owner->matrix_kind = gram_matrix_kind(uint32_t(method));
+  owner->method = uint32_t(method);
+  owner->separate_mirror = gram_separate_mirror(uint32_t(method));
   owner->input_policy = policy;
   owner->export_limbs = limbs;
   owner->jobs = gram_tiles(support);
@@ -289,11 +292,10 @@ rns8_status rns8_refresh_prepared_gram(rns8_prepared_gram* owner) {
       return RNS8_BACKEND_FAILURE;
     GramProblem replacement;
     cpp_int bound;
-    auto status = validate_gram_contract(
-        owner->ctx, owner->x, owner->c,
-        static_cast<rns8_gram_orientation>(owner->problem.orientation),
-        static_cast<rns8_gram_method>(uint32_t(owner->wmma) + 2 * uint32_t(owner->separate_mirror)),
-        replacement, bound);
+    auto status =
+        validate_gram_contract(owner->ctx, owner->x, owner->c,
+                               static_cast<rns8_gram_orientation>(owner->problem.orientation),
+                               static_cast<rns8_gram_method>(owner->method), replacement, bound);
     if (status != RNS8_SUCCESS)
       return status;
     if (bound > owner->bound || replacement.modulus != owner->problem.modulus)
@@ -378,8 +380,8 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner) {
     } else if (hip) {
       status = hip_direct_gram_prepared_device(
           owner->ctx->device_id, source, c->hip_residues, p, owner->jobs.data(), owner->device_jobs,
-          owner->device_job_bytes, owner->wmma, owner->jobs_ready, owner->commit_started, native,
-          owner->separate_mirror);
+          owner->device_job_bytes, owner->matrix_kind, owner->jobs_ready, owner->commit_started,
+          native, owner->separate_mirror);
       if (status != RNS8_SUCCESS)
         return status;
       mark_output_device_residues_current(*c);
@@ -526,9 +528,7 @@ rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,
     info->struct_size = sizeof(*info);
     info->abi_version = RNS8_ABI_VERSION;
     info->input_policy = owner->input_policy;
-    info->method = owner->five_product
-                       ? 4 + uint32_t(owner->five_matrix)
-                       : uint32_t(owner->wmma) + 2 * uint32_t(owner->separate_mirror);
+    info->method = owner->five_product ? 4 + uint32_t(owner->five_matrix) : owner->method;
     info->export_limbs = owner->export_limbs;
     info->source_instance = owner->problem.source_instance;
     info->source_generation = owner->problem.source_generation;

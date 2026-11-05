@@ -3693,7 +3693,7 @@ RNS8_ABI_FUNCTION(rns8_wait_resident_graph_hip_for,rns8_abi_function_293);
 #undef RNS8_ABI_FUNCTION
 
 namespace {
-constexpr char rns8_public_declaration_sha256[] = "ad02490375e85ca8b99c8ba7df5daaef585f61d796f0fa0af10639759228e267";
+constexpr char rns8_public_declaration_sha256[] = "ebb1e217a282f85c4e4e6573e64474c4940018c8cbd40bf3fbda995df9ba9929";
 constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"CHAR_BIT",(uint64_t)(CHAR_BIT)},
   {"alignof:rns8_adaptive_bound_method",(uint64_t)(RNS8_ABI_ALIGNOF(rns8_adaptive_bound_method))},
@@ -3966,6 +3966,8 @@ constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"constant:RNS8_FINITE_FIELD_U8",(uint64_t)(RNS8_FINITE_FIELD_U8)},
   {"constant:RNS8_FINITE_RING_U8",(uint64_t)(RNS8_FINITE_RING_U8)},
   {"constant:RNS8_FREIVALDS_RESEARCH",(uint64_t)(RNS8_FREIVALDS_RESEARCH)},
+  {"constant:RNS8_GRAM_MFMA_GFX942",(uint64_t)(RNS8_GRAM_MFMA_GFX942)},
+  {"constant:RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR",(uint64_t)(RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR)},
   {"constant:RNS8_GRAM_RESIDENT_RESIDUES",(uint64_t)(RNS8_GRAM_RESIDENT_RESIDUES)},
   {"constant:RNS8_GRAM_RETAINED_NATIVE_I64",(uint64_t)(RNS8_GRAM_RETAINED_NATIVE_I64)},
   {"constant:RNS8_GRAM_RETAINED_TRANSPOSE",(uint64_t)(RNS8_GRAM_RETAINED_TRANSPOSE)},

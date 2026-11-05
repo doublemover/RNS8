@@ -124,24 +124,30 @@ inline void integer_cross_product(const Options& options,
     if (options.backend == RNS8_BACKEND_HIP_DIRECT) {
       rns8::Context probe(options.device, options.backend);
       const std::string target = probe.device_info().gcn_arch;
-      if (target.rfind("gfx1100", 0) == 0 || target.rfind("gfx1101", 0) == 0 ||
+      const bool mfma = target.substr(0, target.find(':')) == "gfx942";
+      const auto method = mfma ? RNS8_GRAM_MFMA_GFX942 : RNS8_GRAM_WMMA;
+      const auto mirror =
+          mfma ? RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR : RNS8_GRAM_WMMA_SEPARATE_MIRROR;
+      if (mfma || target.rfind("gfx1100", 0) == 0 || target.rfind("gfx1101", 0) == 0 ||
           target.rfind("gfx1102", 0) == 0) {
-        variants.push_back(gram_variant(data, options, bound, RNS8_GRAM_WMMA));
+        if (mfma)
+          report["gram_matrix_methods_cohort"] = 1;
+        variants.push_back(gram_variant(data, options, bound, method));
         if (options.gram_reuse) {
-          variants.push_back(gram_variant(data, options, bound, RNS8_GRAM_WMMA, true));
+          variants.push_back(gram_variant(data, options, bound, method, true));
           if (options.wide)
-            variants.push_back(gram_variant(data, options, bound, RNS8_GRAM_WMMA, true,
-                                            RNS8_GRAM_RETAINED_NATIVE_I64));
+            variants.push_back(
+                gram_variant(data, options, bound, method, true, RNS8_GRAM_RETAINED_NATIVE_I64));
           else
-            skipped.push_back({{"name", "rns8_prepared_single_source_gram_native_wmma"},
+            skipped.push_back({{"name", std::string("rns8_prepared_single_source_gram_native_") +
+                                            gram_method_name(method)},
                                {"status", "unsupported"},
                                {"reason", "native retention requires exact-wide matrices"}});
-          variants.push_back(gram_variant(data, options, bound, RNS8_GRAM_WMMA, true,
-                                          RNS8_GRAM_RETAINED_TRANSPOSE));
-          variants.push_back(gram_variant(data, options, bound, RNS8_GRAM_WMMA, true,
-                                          RNS8_GRAM_RESIDENT_RESIDUES, true));
           variants.push_back(
-              gram_variant(data, options, bound, RNS8_GRAM_WMMA_SEPARATE_MIRROR, true));
+              gram_variant(data, options, bound, method, true, RNS8_GRAM_RETAINED_TRANSPOSE));
+          variants.push_back(
+              gram_variant(data, options, bound, method, true, RNS8_GRAM_RESIDENT_RESIDUES, true));
+          variants.push_back(gram_variant(data, options, bound, mirror, true));
         }
       } else {
         skipped.push_back({{"name", "rns8_single_source_gram_wmma"},

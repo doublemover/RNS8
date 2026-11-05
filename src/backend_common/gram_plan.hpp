@@ -4,6 +4,23 @@
 #include <vector>
 namespace rns8::detail {
 enum class GramOrientation : uint32_t { transpose_times_self = 0, self_times_transpose = 1 };
+inline constexpr bool gram_method_valid(uint32_t method) {
+  return method <= 3 || method == 6 || method == 7;
+}
+// Matrix kind is physical provider identity: scalar, RDNA3 wave32 WMMA,
+// or CDNA3 wave64 MFMA. Five-product info identities 4/5 are separate.
+inline constexpr uint32_t gram_matrix_kind(uint32_t method) {
+  return method >= 6 ? 2 : method & 1;
+}
+inline constexpr bool gram_separate_mirror(uint32_t method) {
+  return method >= 6 ? bool(method & 1) : bool(method & 2);
+}
+inline constexpr uint32_t gram_query_policy(uint32_t algorithm) {
+  return algorithm >= 12 ? (algorithm - 12) / 2 : algorithm / 4;
+}
+inline constexpr uint32_t gram_query_method(uint32_t algorithm) {
+  return algorithm >= 12 ? 6 + (algorithm & 1) : algorithm % 4;
+}
 struct GramTile {
   uint32_t row, col;
 };

@@ -18,6 +18,8 @@ __global__ void rns8_gram_mirror_kernel(int8_t* c, const rns8::detail::GramTile*
   if (dst_row < n && dst_col < n && dst_row > dst_col)
     c[(int64_t(plane) * n + dst_row) * ld + dst_col] = tile[t][r];
 }
+#include "hip_direct_gram_mfma.cuh"
+
 template <bool Wmma>
 __global__ void rns8_gram_kernel(const int8_t* x, int8_t* c, const rns8::detail::GramTile* jobs,
                                  int rows, int cols, int ld, int ldc, int modulus, bool transposed,
@@ -90,7 +92,14 @@ static int rns8_launch_gram(const int8_t* x, int8_t* c, const rns8::detail::Gram
                             int count, int rows, int cols, int ld, int ldc, int prefix, int modulus,
                             int transposed, int wmma, int separate_mirror, hipStream_t stream) {
   const dim3 grid(count, prefix);
-  if (wmma)
+  if (wmma == 2) {
+#if RNS8_GRAM_MFMA_GFX942_BODY
+    hipLaunchKernelGGL((rns8_gram_mfma_gfx942_kernel<false>), grid, dim3(64), 0, stream, x, c, jobs,
+                       rows, cols, ld, ldc, modulus, transposed != 0, separate_mirror != 0);
+#else
+    return int(hipErrorNotSupported);
+#endif
+  } else if (wmma)
     hipLaunchKernelGGL((rns8_gram_kernel<true>), grid, dim3(32), 0, stream, x, c, jobs, rows, cols,
                        ld, ldc, modulus, transposed != 0, separate_mirror != 0);
   else
@@ -256,7 +265,15 @@ __global__ void rns8_gram_export_once_kernel(const int8_t* residues, uint64_t* o
 extern "C" int rns8_hip_gram_native(const void* x, void* c, const rns8::detail::GramTile* jobs,
                                     int count, int rows, int cols, int ld, int ldc, int prefix,
                                     int transposed, int wmma, int separate_mirror) {
-  if (wmma)
+  if (wmma == 2) {
+#if RNS8_GRAM_MFMA_GFX942_BODY
+    hipLaunchKernelGGL((rns8_gram_mfma_gfx942_kernel<true>), dim3(count, prefix), dim3(64), 0,
+                       nullptr, x, static_cast<int8_t*>(c), jobs, rows, cols, ld, ldc, 0,
+                       transposed != 0, separate_mirror != 0);
+#else
+    return int(hipErrorNotSupported);
+#endif
+  } else if (wmma)
     hipLaunchKernelGGL((rns8_gram_native_kernel<true>), dim3(count, prefix), dim3(32), 0, nullptr,
                        static_cast<const int64_t*>(x), static_cast<int8_t*>(c), jobs, rows, cols,
                        ld, ldc, transposed != 0, separate_mirror != 0);

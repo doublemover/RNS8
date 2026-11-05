@@ -65,6 +65,7 @@ IDENTITY_KEYS = (
     "gram_prepared_owner_cohort",
     "gram_ablation_cohort",
     "gram_five_product_cohort",
+    "gram_matrix_methods_cohort",
     "native_diagnostics_cohort",
     "optional_reference_cohort",
     "optional_references",
@@ -620,6 +621,17 @@ def validate_native_diagnostics(report, variants):
             ),
             "missing/invalid native phase durations",
         )
+        if row["name"].endswith("_mfma_gfx942"):
+            phase = (
+                "gram_native_mfma"
+                if "_gram_native_" in row["name"]
+                else "gram_prepared_mfma"
+                if row["name"].startswith("rns8_prepared_")
+                else "gram_triangular_mfma"
+            )
+            demand(
+                exact_value(labels.get(phase), products), "MFMA Gram native stage count mismatch"
+            )
         if "gram_five_product" in row["metadata"]:
             phase_counts = {
                 "gram_five_compact_transform_v2": 5 * products,
@@ -732,6 +744,12 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
     )
     passed = [row for row in variants if row.get("status") == "passed"]
     names = {row["name"] for row in passed}
+    mfma_present = any(name.endswith("_mfma_gfx942") for name in names)
+    if mfma_present or "gram_matrix_methods_cohort" in report:
+        demand(
+            mfma_present and exact_value(report.get("gram_matrix_methods_cohort"), 1),
+            "explicit MFMA Gram cohort missing or empty",
+        )
     demand(
         {"rns8_prepared_dense_gram_control", "rns8_single_source_gram_scalar", "blocked_cpp_int"}
         <= names,
@@ -751,7 +769,15 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
         )
         magnitudes = dataset["gram_max_magnitudes"]
         expanded = int(magnitudes["changed"]) > int(magnitudes["original"])
-    ablation_methods = ["scalar"] + (["wmma"] if "rns8_single_source_gram_wmma" in names else [])
+    ablation_methods = ["scalar"] + [
+        method for method in ("wmma", "mfma_gfx942") if f"rns8_single_source_gram_{method}" in names
+    ]
+    if prepared_cohort:
+        demand(
+            ("rns8_single_source_gram_mfma_gfx942" in names)
+            == ("rns8_prepared_single_source_gram_mfma_gfx942" in names),
+            "ordinary/prepared MFMA controls must match",
+        )
     native_supported = (
         report.get("backend_requested") == "hip-direct"
         and report.get("semantics") == "exact_wide_signed"
@@ -804,11 +830,13 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
             "rns8_prepared_dense_gram_control",
             "rns8_single_source_gram_scalar",
             "rns8_single_source_gram_wmma",
+            "rns8_single_source_gram_mfma_gfx942",
         }
         if prepared_cohort:
             allowed |= {
                 "rns8_prepared_single_source_gram_scalar",
                 "rns8_prepared_single_source_gram_wmma",
+                "rns8_prepared_single_source_gram_mfma_gfx942",
             }
         if ablation_cohort:
             allowed |= ablation_names
@@ -817,6 +845,8 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
         demand(not rns or name in allowed, "unexpected Gram implementation")
         single = rns and name != "rns8_prepared_dense_gram_control"
         wmma = name.endswith("_wmma")
+        mfma = name.endswith("_mfma_gfx942")
+        matrix_method = wmma or mfma
         prepared = name.startswith("rns8_prepared_single_source_gram_")
         five = name in five_names
         expected = dict(
@@ -839,7 +869,7 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
             native_serializations_per_batch=0 if rns else products,
             prepared_gram_api=prepared,
             job_list_allocated_per_call=single and not prepared,
-            capability_probed_per_call=wmma and not prepared,
+            capability_probed_per_call=matrix_method and not prepared,
         )
         if not rns and row.get("metadata", {}).get("cpu_lifecycle", {}).get("version") == 2:
             demand(
@@ -859,6 +889,14 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
                 in {"gfx1100", "gfx1101", "gfx1102"},
                 "Gram WMMA requires explicit admitted direct-HIP target",
             )
+        if mfma:
+            demand(
+                report["backend_requested"] == "hip-direct"
+                and row.get("metadata", {}).get("device", {}).get("target", "").split(":")[0]
+                == "gfx942"
+                and row["metadata"].get("gram_method") == "gfx942_mfma_i8_wave64",
+                "Gram MFMA requires explicit gfx942 direct-HIP identity",
+            )
         if prepared:
             hip = report["backend_requested"] == "hip-direct"
             expected.update(
@@ -870,6 +908,8 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
                 device_job_initialization="first_execution_per_owner" if hip else "not_applicable",
                 wmma_capability_probe="first_execution_per_owner" if wmma else "not_applicable",
             )
+            if mfma:
+                expected["mfma_capability_probe"] = "first_execution_per_owner"
         demand(
             exact_value(row.get("metadata", {}).get("gram_batch"), expected),
             "Gram variant preparation/export identity mismatch",
@@ -932,7 +972,7 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None, data
                     "Gram ablation identity or payload mismatch",
                 )
                 jobs = tiles * (tiles + 1) // 2 * 8
-                device = jobs + (4 if wmma else 0) + adapter if hip else 0
+                device = jobs + (4 if matrix_method else 0) + adapter if hip else 0
                 if hip and once:
                     device = (device + 7) // 8 * 8 + device_export
                 minimum = (

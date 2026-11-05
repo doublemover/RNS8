@@ -54,8 +54,9 @@ inline void check_public_gram(rns8_backend_kind backend, bool prepared = false) 
         CHECK(rns8_gram_residues(ctx, x, x, orientation, RNS8_GRAM_SCALAR, UINT64_MAX) ==
               RNS8_INVALID_ARGUMENT);
         for (auto method : {RNS8_GRAM_SCALAR, RNS8_GRAM_WMMA, RNS8_GRAM_SCALAR_SEPARATE_MIRROR,
-                            RNS8_GRAM_WMMA_SEPARATE_MIRROR}) {
-          if (backend == RNS8_BACKEND_CPU_REFERENCE && (uint32_t(method) & 1))
+                            RNS8_GRAM_WMMA_SEPARATE_MIRROR, RNS8_GRAM_MFMA_GFX942,
+                            RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR}) {
+          if (backend == RNS8_BACKEND_CPU_REFERENCE && gram_matrix_kind(uint32_t(method)))
             continue;
           rns8_prepared_gram* owner = nullptr;
           if (prepared) {
@@ -70,7 +71,7 @@ inline void check_public_gram(rns8_backend_kind backend, bool prepared = false) 
                             : rns8_gram_residues(ctx, x, c, orientation, method, UINT64_MAX);
           };
           const auto status = execute();
-          if (status == RNS8_UNSUPPORTED_BACKEND && (uint32_t(method) & 1)) {
+          if (status == RNS8_UNSUPPORTED_BACKEND && gram_matrix_kind(uint32_t(method))) {
             REQUIRE(rns8_destroy_prepared_gram(owner) == RNS8_SUCCESS);
             continue;
           }
@@ -170,8 +171,9 @@ inline void check_gram_prepared_ablations(rns8_backend_kind backend) {
         for (auto policy : {RNS8_GRAM_RESIDENT_RESIDUES, RNS8_GRAM_RETAINED_NATIVE_I64,
                             RNS8_GRAM_RETAINED_TRANSPOSE})
           for (auto method : {RNS8_GRAM_SCALAR, RNS8_GRAM_WMMA, RNS8_GRAM_SCALAR_SEPARATE_MIRROR,
-                              RNS8_GRAM_WMMA_SEPARATE_MIRROR}) {
-            if (backend == RNS8_BACKEND_CPU_REFERENCE && (uint32_t(method) & 1))
+                              RNS8_GRAM_WMMA_SEPARATE_MIRROR, RNS8_GRAM_MFMA_GFX942,
+                              RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR}) {
+            if (backend == RNS8_BACKEND_CPU_REFERENCE && gram_matrix_kind(uint32_t(method)))
               continue;
             rns8_prepared_gram* owner = nullptr;
             if (backend == RNS8_BACKEND_CPU_REFERENCE && policy == RNS8_GRAM_RETAINED_NATIVE_I64) {
@@ -189,6 +191,7 @@ inline void check_gram_prepared_ablations(rns8_backend_kind backend) {
             info.struct_size = sizeof(info);
             info.abi_version = RNS8_ABI_VERSION;
             REQUIRE(rns8_get_prepared_gram_info(owner, &info) == RNS8_SUCCESS);
+            CHECK(info.method == uint32_t(method));
             CHECK(info.independent_cells == uint64_t(n) * (n + 1) / 2);
             CHECK(info.dense_cells == uint64_t(n) * n);
             CHECK(info.orientation_adapter_bytes ==
@@ -204,7 +207,7 @@ inline void check_gram_prepared_ablations(rns8_backend_kind backend) {
                   RNS8_INVALID_ARGUMENT);
             const auto generation = c->content_generation;
             const auto status = rns8_execute_prepared_gram(owner);
-            if (status == RNS8_UNSUPPORTED_BACKEND && (uint32_t(method) & 1)) {
+            if (status == RNS8_UNSUPPORTED_BACKEND && gram_matrix_kind(uint32_t(method))) {
               CHECK(c->content_generation == generation);
               REQUIRE(rns8_destroy_prepared_gram(owner) == RNS8_SUCCESS);
               continue;

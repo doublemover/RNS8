@@ -2,6 +2,20 @@
 #define RNS8_WORKLOAD_ENGINE_HPP
 #include "workload_common.hpp"
 namespace rns8_workload {
+inline bool gram_matrix_method(int method) {
+  return method == RNS8_GRAM_WMMA || method == RNS8_GRAM_WMMA_SEPARATE_MIRROR ||
+         method == RNS8_GRAM_MFMA_GFX942 || method == RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR;
+}
+inline bool gram_mirror_method(int method) {
+  return method == RNS8_GRAM_SCALAR_SEPARATE_MIRROR || method == RNS8_GRAM_WMMA_SEPARATE_MIRROR ||
+         method == RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR;
+}
+inline const char* gram_method_name(int method) {
+  return method == RNS8_GRAM_MFMA_GFX942 || method == RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR
+             ? "mfma_gfx942"
+         : gram_matrix_method(method) ? "wmma"
+                                      : "scalar";
+}
 inline cpp_int maximum_after_change(const std::vector<int64_t>& values) {
   const int64_t changed = values[0] == INT64_MAX ? values[0] - 1 : values[0] + 1;
   return std::max(maximum(values), cpp_int(magnitude(changed)));
@@ -148,7 +162,9 @@ struct DenseEngine {
       metadata["gram_batch"]["job_list_allocated_per_call"] =
           gram_method >= 0 && !prepared_gram_route;
       metadata["gram_batch"]["capability_probed_per_call"] =
-          gram_method >= 0 && (gram_method & 1) && !prepared_gram_route;
+          gram_matrix_method(gram_method) && !prepared_gram_route;
+      if (!gram_five && gram_method >= 6)
+        metadata["gram_method"] = "gfx942_mfma_i8_wave64";
       if (prepared_gram_route) {
         metadata["gram_batch"]["generation_policy"] =
             "refresh_or_explicit_recreate_on_expanded_bound";
@@ -162,7 +178,11 @@ struct DenseEngine {
             options.backend == RNS8_BACKEND_HIP_DIRECT ? "first_execution_per_owner"
                                                        : "not_applicable";
         metadata["gram_batch"]["wmma_capability_probe"] =
-            !gram_five && (gram_method & 1) ? "first_execution_per_owner" : "not_applicable";
+            !gram_five && gram_matrix_method(gram_method) && gram_method < 6
+                ? "first_execution_per_owner"
+                : "not_applicable";
+        if (!gram_five && gram_method >= 6)
+          metadata["gram_batch"]["mfma_capability_probe"] = "first_execution_per_owner";
       }
     }
   }
@@ -199,7 +219,7 @@ struct DenseEngine {
         {"dense_cells", info.dense_cells},
         {"native_storage_retained", gram_input == RNS8_GRAM_RETAINED_NATIVE_I64},
         {"adapter_generation_policy", "first_execute_after_prepare_or_refresh"},
-        {"mirror_policy", (gram_method & 2) ? "separate_tiled" : "producer_stores"},
+        {"mirror_policy", gram_mirror_method(gram_method) ? "separate_tiled" : "producer_stores"},
         {"output_validity", "complete_dense_residues"}};
     if (gram_five) {
       metadata["gram_method"] = gram_method ? "builtin_matrix" : "scalar";
@@ -340,14 +360,14 @@ inline Variant gram_variant(const Dataset& data, const Options& options, const c
   Variant result;
   result.name =
       std::string(prepared ? "rns8_prepared_single_source_gram_" : "rns8_single_source_gram_") +
-      ((uint32_t(method) & 1) ? "wmma" : "scalar");
-  if (policy || once || (uint32_t(method) & 2))
+      gram_method_name(method);
+  if (policy || once || gram_mirror_method(method))
     result.name = std::string("rns8_prepared_single_source_gram_") +
                   (policy == RNS8_GRAM_RETAINED_NATIVE_I64  ? "native_"
                    : policy == RNS8_GRAM_RETAINED_TRANSPOSE ? "transpose_"
                                                             : "") +
-                  ((uint32_t(method) & 2) ? "separate_mirror_" : "") +
-                  (once ? "reconstruct_once_" : "") + ((uint32_t(method) & 1) ? "wmma" : "scalar");
+                  (gram_mirror_method(method) ? "separate_mirror_" : "") +
+                  (once ? "reconstruct_once_" : "") + gram_method_name(method);
   if (five)
     result.name = std::string("rns8_prepared_single_source_gram_five_") +
                   (method == RNS8_GRAM_WMMA ? "matrix" : "scalar");

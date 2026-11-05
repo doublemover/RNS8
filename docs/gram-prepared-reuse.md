@@ -9,6 +9,26 @@ new timing or speedup is claimed.
 
 ## Matched application contracts
 
+The source frontload adds explicit `RNS8_GRAM_MFMA_GFX942` and separate-mirror
+methods, with method identities6/7 distinct from scalar/WMMA0..3 and prepared
+five-product4/5. Static operation algorithms12..17 encode
+`12+2*input_policy+separate_mirror`; existing algorithms0..11 retain their meaning.
+The classical kernel uses the shared wave64 `MfmaI8Layout<32>` for
+`v_mfma_i32_16x16x32_i8`, reduces each32-term slab before the next instruction,
+and handles both orientations, residue/native input and tails. Diagonal jobs
+reuse the same loaded/reduced raw bytes for both physical roles. Unsupported
+compiled targets return unsupported before output writes; this is not a WMMA
+fallback or a five-product mapping.
+
+On gfx942, the workload adds distinctly named `mfma_gfx942` ordinary/prepared,
+retained-native, retained-transpose, reconstruction-once and separate-mirror
+controls. Reports require a new explicit matrix-method cohort, physical method
+and actual target identity; native diagnostics use separate MFMA event labels.
+The public/Boost differential source covers finite prime/composite and signed
+full-width values, odd edges, long K, mirrored outputs, refreshed generations,
+retained payload and unsupported targets. This new route has no executed
+correctness, instruction/resource or performance qualification yet.
+
 `--gram-reuse R` accepts1..256 complete recomputations per application call.
 R is a computation count, not a result-cache hit count: each product overwrites
 the same output with the same mathematical result. `--gram-export each` exports

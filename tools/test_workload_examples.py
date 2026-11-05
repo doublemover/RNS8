@@ -326,6 +326,23 @@ def prepared_gram_fixture(products=3, policy="once", expanded=False, hip=False):
     return report
 
 
+def mfma_gram_fixture():
+    # Synthetic report admission only, never a gfx942 execution receipt.
+    report = prepared_gram_fixture(hip=True)
+    report["gram_matrix_methods_cohort"] = 1
+    for row in report["variants"]:
+        if row["name"].startswith("rns8_"):
+            row["metadata"]["device"]["target"] = "gfx942"
+        if row["name"].endswith("_wmma"):
+            row["name"] = row["name"][:-5] + "_mfma_gfx942"
+            row["metadata"]["gram_method"] = "gfx942_mfma_i8_wave64"
+            batch = row["metadata"]["gram_batch"]
+            if batch["prepared_gram_api"]:
+                batch["wmma_capability_probe"] = "not_applicable"
+                batch["mfma_capability_probe"] = "first_execution_per_owner"
+    return report
+
+
 def five_gram_fixture(products=3, policy="once", hip=False, prefix=4):
     report = prepared_gram_fixture(products, policy, hip=hip)
     report["gram_five_product_cohort"] = 1
@@ -655,6 +672,25 @@ class GramBatchReports(unittest.TestCase):
         report["variants"][-1]["metadata"]["gram_batch"]["capability_probed_per_call"] = True
         with self.assertRaises(ValueError):
             collector.validate_report(report, "run1", "hip-direct", 0)
+
+    def test_mfma_gram_identity_cannot_inherit_wmma_or_other_target_evidence(self):
+        report = mfma_gram_fixture()
+        collector.validate_report(report, "run1", "hip-direct", 0)
+        for mutate in (
+            lambda r: r.pop("gram_matrix_methods_cohort"),
+            lambda r: r.update(gram_matrix_methods_cohort=True),
+            lambda r: r["variants"][-1]["metadata"]["device"].update(target="gfx1100"),
+            lambda r: r["variants"][-1]["metadata"].update(gram_method="wmma"),
+            lambda r: r["variants"][-1]["metadata"]["gram_batch"].pop("mfma_capability_probe"),
+            lambda r: r["variants"][-1]["metadata"]["gram_batch"].update(
+                wmma_capability_probe="first_execution_per_owner"
+            ),
+            lambda r: r["variants"].pop(),
+        ):
+            bad = mfma_gram_fixture()
+            mutate(bad)
+            with self.assertRaises(ValueError):
+                collector.validate_report(bad, "run1", "hip-direct", 0)
 
     def test_gram_ablation_payload_and_matched_controls(self):
         for hip in (False, True):

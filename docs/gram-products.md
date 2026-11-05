@@ -8,7 +8,7 @@ matrix, with the same semantics and residue basis/prefix. The first public
 subset admits bounded-i64, exact-wide signed and finite ring/field contracts.
 Unsigned, complex, wraparound, alpha/beta, async and capture remain unsupported.
 
-The CPU scalar and direct-HIP scalar/WMMA methods share a versioned internal
+The CPU scalar and direct-HIP scalar/WMMA/gfx942-MFMA methods share a versioned internal
 problem descriptor and checked shape/span/resource admission. Finite field
 admission requires prime modulus; finite rings include even composites.
 Exact-wide signed admission requires X's current unique range proof and proves
@@ -49,7 +49,7 @@ the actual compiler builtin are required. Scalar is a separately selected
 control, not a hidden WMMA fallback. Both orientations support padded internal
 source/output views; public owned matrices use their compact resident storage.
 
-Budget covers the host job list, its device copy on HIP, and a four-byte WMMA
+Budget covers the host job list, its device copy on HIP, and a four-byte matrix
 capability word. Query and launch share admission. CPU uses only the host list.
 Output alias, stale private source binding, unsupported mode, invalid range or
 insufficient budget rejects before mutation. Issued execution failure invalidates
@@ -58,7 +58,7 @@ or destruction; existing in-flight readers/writers are respected.
 
 For repeated work, `rns8_prepare_gram` retains X, C and the context, constructs the
 triangular job list once and allocates its device storage once. The first
-`rns8_execute_prepared_gram` uploads jobs and probes WMMA support; later calls
+`rns8_execute_prepared_gram` uploads jobs and probes the requested compiled matrix provider; later calls
 reuse both. Creation and first-use work belong in cold timings. This owner is
 synchronous and does not imply capture or asynchronous completion. Output C is
 fixed; input repacking makes execution reject until `rns8_refresh_prepared_gram`

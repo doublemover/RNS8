@@ -76,7 +76,7 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
       query.operation == RNS8_OP_NARROW_NATIVE || query.operation == RNS8_OP_NATIVE_LEASE ||
       query.operation == RNS8_OP_NATIVE_INTEGRITY || query.operation == RNS8_OP_NATIVE_IMPORT ||
       query.operation == RNS8_OP_HOST_IMPORT ||
-      (query.operation == RNS8_OP_GRAM && query.algorithm / 4 == 1);
+      (query.operation == RNS8_OP_GRAM && rns8::detail::gram_query_policy(query.algorithm) == 1);
   const uint32_t input_domain =
       query.operation == RNS8_OP_PACK ? (finite ? 2 : 4) : (native ? 4 : default_domain);
   const uint32_t output_domain =
@@ -96,7 +96,7 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
       : query.operation == RNS8_OP_NARROW_NATIVE ? 3
       : query.operation == RNS8_OP_STRASSEN      ? 19
       : query.operation == RNS8_OP_GRAM
-          ? 11
+          ? 17
           : (query.operation == RNS8_OP_GRAM || query.operation == RNS8_OP_BASE_EXTEND ||
                      query.operation == RNS8_OP_NATIVE_IMPORT ||
                      query.operation == RNS8_OP_HOST_IMPORT ||
@@ -269,10 +269,16 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     if (d.m != d.n)
       return reject(RNS8_INVALID_ARGUMENT, RNS8_SUPPORT_SHAPE, "shape",
                     "Gram query is normalized as square output M=N, reduction K");
-    if ((query.algorithm & 1) && (!hip || !rdna3))
+    if (rns8::detail::gram_matrix_kind(rns8::detail::gram_query_method(query.algorithm)) == 1 &&
+        (!hip || !rdna3))
       return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_TARGET, "algorithm",
                     "current Gram WMMA provider requires gfx11 direct HIP");
-    if (query.algorithm / 4 == 1 && !(query.proof_flags & RNS8_QUERY_NATIVE_RETAINED))
+    if (rns8::detail::gram_matrix_kind(rns8::detail::gram_query_method(query.algorithm)) == 2 &&
+        (!hip || arch != "gfx942"))
+      return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_TARGET, "algorithm",
+                    "classical Gram MFMA provider requires gfx942 direct HIP");
+    if (rns8::detail::gram_query_policy(query.algorithm) == 1 &&
+        !(query.proof_flags & RNS8_QUERY_NATIVE_RETAINED))
       return reject(RNS8_RANGE_ERROR, RNS8_SUPPORT_MISSING_PROOF, "native_storage",
                     "native Gram requires current retained signed64 input");
     break;
@@ -561,13 +567,16 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     p.output_ld = ldc;
     p.prefix = finite ? 1 : prefix;
     p.modulus = finite ? d.finite_modulus : 0;
-    const auto support =
-        rns8::detail::query_gram_support(p, UINT64_MAX, hip, bool(query.algorithm & 1));
+    const auto support = rns8::detail::query_gram_support(
+        p, UINT64_MAX, hip,
+        rns8::detail::gram_matrix_kind(rns8::detail::gram_query_method(query.algorithm)) != 0);
     if (support.status != RNS8_SUCCESS)
       return reject(support.status, RNS8_SUPPORT_ADDRESS, "gram_resources",
                     "shared Gram provider rejected orientation/shape/address domain");
     const auto storage = rns8::detail::query_gram_prepared_storage(
-        p, hip, bool(query.algorithm & 1), query.algorithm / 4, query.output_limbs, UINT64_MAX);
+        p, hip,
+        rns8::detail::gram_matrix_kind(rns8::detail::gram_query_method(query.algorithm)) != 0,
+        rns8::detail::gram_query_policy(query.algorithm), query.output_limbs, UINT64_MAX);
     if (storage.status != RNS8_SUCCESS)
       return reject(storage.status, RNS8_SUPPORT_ADDRESS, "gram_prepared_resources",
                     "prepared adapter/export address or semantic domain rejected");

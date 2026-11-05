@@ -1,4 +1,5 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_gram_matrix_capability(int*, int);
 extern "C" int rns8_hip_gram_native(const void*, void*, const GramTile*, int, int, int, int, int,
                                     int, int, int, int);
 extern "C" int rns8_hip_gram_transpose(const void*, void*, int, int, int);
@@ -8,10 +9,13 @@ extern "C" int rns8_hip_gram(const int8_t*, int8_t*, const GramTile*, int, int, 
                              int, int, int, int);
 #endif
 rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const GramProblem& p,
-                                   uint64_t source_instance, uint64_t source_generation, bool wmma,
-                                   uint64_t budget, bool& commit_started, bool separate_mirror) {
+                                   uint64_t source_instance, uint64_t source_generation,
+                                   uint32_t matrix_kind, uint64_t budget, bool& commit_started,
+                                   bool separate_mirror) {
   commit_started = false;
-  const auto support = query_gram_support(p, budget, true, wmma);
+  if (matrix_kind > 2)
+    return RNS8_INVALID_ARGUMENT;
+  const auto support = query_gram_support(p, budget, true, matrix_kind != 0);
   if (support.status != RNS8_SUCCESS)
     return support.status;
   if (p.source_instance != source_instance || p.source_generation != source_generation ||
@@ -23,7 +27,7 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
     return status;
   auto jobs = std::make_shared<std::vector<GramTile>>(gram_tiles(support));
   hip_direct_device_buffer device_jobs;
-  status = device_jobs.allocate(device_id, support.job_bytes + (wmma ? 4 : 0));
+  status = device_jobs.allocate(device_id, support.job_bytes + (matrix_kind ? 4 : 0));
   if (status != RNS8_SUCCESS)
     return status;
   // The actual upload source must survive a failed copy and uncertain drain.
@@ -39,11 +43,12 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
     return status;
   }
   device_jobs.mark_completed();
-  if (wmma) {
+  if (matrix_kind) {
     auto* flag =
         reinterpret_cast<int*>(static_cast<uint8_t*>(device_jobs.get()) + support.job_bytes);
     device_jobs.mark_pending();
-    const auto launch = static_cast<hipError_t>(rns8_hip_native_wmma_capability(flag));
+    const auto launch =
+        static_cast<hipError_t>(rns8_hip_gram_matrix_capability(flag, int(matrix_kind)));
     const auto drain = hipDeviceSynchronize();
     if (drain == hipSuccess)
       device_jobs.mark_completed();
@@ -61,13 +66,16 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
   }
   commit_started = true;
   device_jobs.mark_pending();
-  const auto error =
-      timed_hip_operation(wmma ? "gram_triangular_wmma" : "gram_triangular_scalar", [&]() {
+  const auto error = timed_hip_operation(
+      matrix_kind == 2 ? "gram_triangular_mfma"
+      : matrix_kind    ? "gram_triangular_wmma"
+                       : "gram_triangular_scalar",
+      [&]() {
         const auto launch = static_cast<hipError_t>(rns8_hip_gram(
             static_cast<const int8_t*>(x), static_cast<int8_t*>(c),
             static_cast<const GramTile*>(device_jobs.get()), int(support.tile_count), int(p.rows),
             int(p.cols), int(p.source_ld), int(p.output_ld), int(p.prefix), int(p.modulus),
-            p.orientation == GramOrientation::transpose_times_self, wmma, separate_mirror));
+            p.orientation == GramOrientation::transpose_times_self, matrix_kind, separate_mirror));
         const auto drain = hipDeviceSynchronize();
         if (drain == hipSuccess)
           device_jobs.mark_completed();
@@ -82,18 +90,21 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
 
 rns8_status hip_direct_gram_prepared_device(int device_id, const void* x, void* c,
                                             const GramProblem& p, const GramTile* host_jobs,
-                                            void* device_jobs, uint64_t device_job_bytes, bool wmma,
-                                            bool& jobs_ready, bool& commit_started, bool native_i64,
+                                            void* device_jobs, uint64_t device_job_bytes,
+                                            uint32_t matrix_kind, bool& jobs_ready,
+                                            bool& commit_started, bool native_i64,
                                             bool separate_mirror) {
   commit_started = false;
-  const auto support = query_gram_support(p, UINT64_MAX, true, wmma);
+  if (matrix_kind > 2)
+    return RNS8_INVALID_ARGUMENT;
+  const auto support = query_gram_support(p, UINT64_MAX, true, matrix_kind != 0);
   if (support.status != RNS8_SUCCESS)
     return support.status;
   if (native_i64 && (p.modulus || !qualified_i32_matrix_address(p.rows, p.cols, p.source_ld, 1, 8)))
     return RNS8_INVALID_ARGUMENT;
   const uint64_t source_bytes =
       native_i64 ? uint64_t(p.rows) * p.source_ld * 8 : support.source_bytes;
-  const uint64_t required = support.job_bytes + (wmma ? 4 : 0);
+  const uint64_t required = support.job_bytes + (matrix_kind ? 4 : 0);
   if (!host_jobs || !device_jobs || device_job_bytes < required)
     return RNS8_INVALID_ARGUMENT;
   if (!nonoverlapping_byte_ranges(x, source_bytes, c, support.output_bytes) ||
@@ -108,9 +119,10 @@ rns8_status hip_direct_gram_prepared_device(int device_id, const void* x, void* 
     status = hip_direct_copy_host_to_device(device_id, device_jobs, host_jobs, support.job_bytes);
     if (status != RNS8_SUCCESS)
       return status;
-    if (wmma) {
+    if (matrix_kind) {
       auto* flag = reinterpret_cast<int*>(static_cast<uint8_t*>(device_jobs) + support.job_bytes);
-      const auto launch = static_cast<hipError_t>(rns8_hip_native_wmma_capability(flag));
+      const auto launch =
+          static_cast<hipError_t>(rns8_hip_gram_matrix_capability(flag, int(matrix_kind)));
       const auto drain = hipDeviceSynchronize();
       if (launch != hipSuccess || drain != hipSuccess)
         return RNS8_BACKEND_FAILURE;
@@ -126,20 +138,25 @@ rns8_status hip_direct_gram_prepared_device(int device_id, const void* x, void* 
   commit_started = true;
   bool completed = false;
   const auto error = timed_hip_operation(
-      native_i64 ? (wmma ? "gram_native_wmma" : "gram_native_scalar")
-                 : (wmma ? "gram_prepared_wmma" : "gram_prepared_scalar"),
+      native_i64 ? (matrix_kind == 2 ? "gram_native_mfma"
+                    : matrix_kind    ? "gram_native_wmma"
+                                     : "gram_native_scalar")
+                 : (matrix_kind == 2 ? "gram_prepared_mfma"
+                    : matrix_kind    ? "gram_prepared_wmma"
+                                     : "gram_prepared_scalar"),
       [&]() {
         const auto launch = static_cast<hipError_t>(
             native_i64
-                ? rns8_hip_gram_native(
-                      x, c, static_cast<const GramTile*>(device_jobs), int(support.tile_count),
-                      int(p.rows), int(p.cols), int(p.source_ld), int(p.output_ld), int(p.prefix),
-                      p.orientation == GramOrientation::transpose_times_self, wmma, separate_mirror)
+                ? rns8_hip_gram_native(x, c, static_cast<const GramTile*>(device_jobs),
+                                       int(support.tile_count), int(p.rows), int(p.cols),
+                                       int(p.source_ld), int(p.output_ld), int(p.prefix),
+                                       p.orientation == GramOrientation::transpose_times_self,
+                                       matrix_kind, separate_mirror)
                 : rns8_hip_gram(static_cast<const int8_t*>(x), static_cast<int8_t*>(c),
                                 static_cast<const GramTile*>(device_jobs), int(support.tile_count),
                                 int(p.rows), int(p.cols), int(p.source_ld), int(p.output_ld),
                                 int(p.prefix), int(p.modulus),
-                                p.orientation == GramOrientation::transpose_times_self, wmma,
+                                p.orientation == GramOrientation::transpose_times_self, matrix_kind,
                                 separate_mirror));
         const auto drain = hipDeviceSynchronize();
         completed = drain == hipSuccess;

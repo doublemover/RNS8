@@ -13,7 +13,8 @@ rns8_status rns8_gram_residues(rns8_context* ctx, const rns8_matrix* x, rns8_mat
       return admitted;
     const bool hip = x->backend == RNS8_BACKEND_HIP_DIRECT;
     const bool finite = uses_finite_storage(x->desc.semantics);
-    const auto support = query_gram_support(p, budget, hip, bool(uint32_t(method) & 1));
+    const auto kind = gram_matrix_kind(uint32_t(method));
+    const auto support = query_gram_support(p, budget, hip, kind != 0);
     if (support.status != RNS8_SUCCESS)
       return support.status;
     bool started = false;
@@ -28,10 +29,9 @@ rns8_status rns8_gram_residues(rns8_context* ctx, const rns8_matrix* x, rns8_mat
       if (dispatched != RNS8_SUCCESS)
         return dispatched;
       if (hip) {
-        const auto status = hip_direct_gram_device(ctx->device_id, x->hip_residues, c->hip_residues,
-                                                   p, x->matrix_instance_id, x->content_generation,
-                                                   bool(uint32_t(method) & 1), budget, started,
-                                                   bool(uint32_t(method) & 2));
+        const auto status = hip_direct_gram_device(
+            ctx->device_id, x->hip_residues, c->hip_residues, p, x->matrix_instance_id,
+            x->content_generation, kind, budget, started, gram_separate_mirror(uint32_t(method)));
         if (status != RNS8_SUCCESS)
           return status;
         mark_output_device_residues_current(*c);
@@ -39,7 +39,7 @@ rns8_status rns8_gram_residues(rns8_context* ctx, const rns8_matrix* x, rns8_mat
         const auto jobs = gram_tiles(support);
         started = true;
         gram_residues_cpu(x->residues.data(), c->residues.data(), p, jobs, kDefaultModuli,
-                          bool(uint32_t(method) & 2));
+                          gram_separate_mirror(uint32_t(method)));
         mark_output_host_residues_current(*c);
       }
       c->finite_modulus = finite ? x->finite_modulus : 0;

@@ -1000,14 +1000,16 @@ rns8_status hip_direct_wrap_radix_wmma_device(int device_id, const void* a, cons
 
 rns8_status hip_direct_gram_device(int device_id, const void* x, void* c,
                                    const GramProblem& problem, uint64_t source_instance,
-                                   uint64_t source_generation, bool wmma, uint64_t budget,
-                                   bool& commit_started, bool separate_mirror = false);
+                                   uint64_t source_generation, uint32_t matrix_kind,
+                                   uint64_t budget, bool& commit_started,
+                                   bool separate_mirror = false);
 
 rns8_status hip_direct_gram_prepared_device(int device_id, const void* x, void* c,
                                             const GramProblem& problem, const GramTile* host_jobs,
-                                            void* device_jobs, uint64_t device_job_bytes, bool wmma,
-                                            bool& jobs_ready, bool& commit_started,
-                                            bool native_i64 = false, bool separate_mirror = false);
+                                            void* device_jobs, uint64_t device_job_bytes,
+                                            uint32_t matrix_kind, bool& jobs_ready,
+                                            bool& commit_started, bool native_i64 = false,
+                                            bool separate_mirror = false);
 rns8_status hip_direct_gram_transpose(int device_id, const void* source, void* target,
                                       const GramProblem& problem);
 rns8_status hip_direct_gram_export_once(int device_id, const void* residues, void* staged,

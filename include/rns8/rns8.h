@@ -927,7 +927,8 @@ typedef struct rns8_operation_query {
   int64_t lda, ldb, ldc; /* zero means compact */
   uint32_t output_limbs, device_count;
   /* Family-specific method: narrow 0/1 staged scalar/WMMA,2/3 fused;
-   * Gram 4*input_policy + method (0/1 scalar/WMMA, +2 separate mirror);
+   * Gram 4*input_policy + method (0/1 scalar/WMMA, +2 separate mirror),
+   * or 12+2*input_policy+separate_mirror for gfx942 MFMA;
    * input_policy 0 resident,1 retained native i64,2 cached transpose; bilinear 0 Strassen,1
    * coefficient rank23, 2 September SLP,3 October55 retained,4 October55 recompute; add 5 for
    * explicit matrix-engine subproducts; checked CRT policy + 5*output mode.
@@ -1417,10 +1418,13 @@ typedef enum rns8_gram_method RNS8_ENUM_BASE {
   RNS8_GRAM_SCALAR = 0,
   RNS8_GRAM_WMMA = 1,
   RNS8_GRAM_SCALAR_SEPARATE_MIRROR = 2,
-  RNS8_GRAM_WMMA_SEPARATE_MIRROR = 3
+  RNS8_GRAM_WMMA_SEPARATE_MIRROR = 3,
+  /* 4/5 remain reserved for the prepared five-product info identities. */
+  RNS8_GRAM_MFMA_GFX942 = 6,
+  RNS8_GRAM_MFMA_GFX942_SEPARATE_MIRROR = 7
 } rns8_gram_method;
 /* Explicit single-source Gram product. Bounded i64, exact-wide signed and finite ring/field
- * only; CPU scalar or direct HIP scalar/WMMA. Dense symmetric output, same basis.
+ * only; CPU scalar or direct HIP scalar/WMMA/gfx942 MFMA. Dense symmetric output, same basis.
  * Budget includes host/device triangular job lists and capability word. */
 RNS8_API rns8_status rns8_gram_residues(rns8_context* ctx, const rns8_matrix* source,
                                         rns8_matrix* output, rns8_gram_orientation orientation,
