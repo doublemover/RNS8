@@ -449,12 +449,15 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
 #endif
       set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
       set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+#if RNS8_CK_USE_XDL
       set_text(
           out->detail,
           sizeof(out->detail),
-#if RNS8_CK_USE_XDL
           "CK packs A/B into transient centered signed INT8 workspaces and uses temporary centered output storage; no reusable production prepack cache.");
 #else
+      set_text(
+          out->detail,
+          sizeof(out->detail),
           "CK packs A/B into transient canonical INT8 workspaces and uses temporary centered output storage; no reusable production prepack cache.");
 #endif
       return RNS8_SUCCESS;
