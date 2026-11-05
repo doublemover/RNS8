@@ -30,6 +30,7 @@
         "alignof:rns8_block_sparse_method": 4,
         "alignof:rns8_block_sparse_operand_pointer": 8,
         "alignof:rns8_block_sparse_role": 4,
+        "alignof:rns8_block_sparse_storage_info": 8,
         "alignof:rns8_bound_kind": 4,
         "alignof:rns8_caller_hip_graph_pointer": 8,
         "alignof:rns8_completion_info": 8,
@@ -603,6 +604,20 @@
         "field_size:rns8_basis_selection_desc.reuse_count": 8,
         "field_size:rns8_basis_selection_desc.semantics": 4,
         "field_size:rns8_basis_selection_desc.struct_size": 8,
+        "field_size:rns8_block_sparse_storage_info.abi_version": 4,
+        "field_size:rns8_block_sparse_storage_info.device_directory_bytes": 8,
+        "field_size:rns8_block_sparse_storage_info.device_id": 4,
+        "field_size:rns8_block_sparse_storage_info.device_payload_bytes": 8,
+        "field_size:rns8_block_sparse_storage_info.host_directory_capacity_bytes": 8,
+        "field_size:rns8_block_sparse_storage_info.matrix_method_support": 4,
+        "field_size:rns8_block_sparse_storage_info.prefix": 4,
+        "field_size:rns8_block_sparse_storage_info.preparation_budget_bytes": 8,
+        "field_size:rns8_block_sparse_storage_info.preparation_peak_bound_bytes": 8,
+        "field_size:rns8_block_sparse_storage_info.retained_metadata_object_bytes": 8,
+        "field_size:rns8_block_sparse_storage_info.role": 4,
+        "field_size:rns8_block_sparse_storage_info.source_generation": 8,
+        "field_size:rns8_block_sparse_storage_info.source_instance": 8,
+        "field_size:rns8_block_sparse_storage_info.struct_size": 4,
         "field_size:rns8_completion_info.a_generation": 8,
         "field_size:rns8_completion_info.a_instance": 8,
         "field_size:rns8_completion_info.abi_version": 4,
@@ -2081,6 +2096,20 @@
         "offsetof:rns8_basis_selection_desc.reuse_count": 120,
         "offsetof:rns8_basis_selection_desc.semantics": 16,
         "offsetof:rns8_basis_selection_desc.struct_size": 0,
+        "offsetof:rns8_block_sparse_storage_info.abi_version": 4,
+        "offsetof:rns8_block_sparse_storage_info.device_directory_bytes": 56,
+        "offsetof:rns8_block_sparse_storage_info.device_id": 16,
+        "offsetof:rns8_block_sparse_storage_info.device_payload_bytes": 48,
+        "offsetof:rns8_block_sparse_storage_info.host_directory_capacity_bytes": 40,
+        "offsetof:rns8_block_sparse_storage_info.matrix_method_support": 20,
+        "offsetof:rns8_block_sparse_storage_info.prefix": 12,
+        "offsetof:rns8_block_sparse_storage_info.preparation_budget_bytes": 80,
+        "offsetof:rns8_block_sparse_storage_info.preparation_peak_bound_bytes": 72,
+        "offsetof:rns8_block_sparse_storage_info.retained_metadata_object_bytes": 64,
+        "offsetof:rns8_block_sparse_storage_info.role": 8,
+        "offsetof:rns8_block_sparse_storage_info.source_generation": 32,
+        "offsetof:rns8_block_sparse_storage_info.source_instance": 24,
+        "offsetof:rns8_block_sparse_storage_info.struct_size": 0,
         "offsetof:rns8_completion_info.a_generation": 24,
         "offsetof:rns8_completion_info.a_instance": 16,
         "offsetof:rns8_completion_info.abi_version": 8,
@@ -3345,6 +3374,7 @@
         "sizeof:rns8_block_sparse_method": 4,
         "sizeof:rns8_block_sparse_operand_pointer": 8,
         "sizeof:rns8_block_sparse_role": 4,
+        "sizeof:rns8_block_sparse_storage_info": 88,
         "sizeof:rns8_bound_kind": 4,
         "sizeof:rns8_caller_hip_graph_pointer": 8,
         "sizeof:rns8_completion_info": 112,
@@ -3983,6 +4013,7 @@
       "rns8_get_backend_capability_info": "rns8_status (rns8_backend_kind, rns8_backend_capability_info *)",
       "rns8_get_basis_info": "rns8_status (const rns8_basis *, uint32_t, rns8_basis_info *)",
       "rns8_get_basis_plan_info": "rns8_status (const rns8_basis_plan *, rns8_basis_info *, rns8_basis_resources *)",
+      "rns8_get_block_sparse_storage_info": "rns8_status (const rns8_block_sparse_operand *, rns8_block_sparse_storage_info *)",
       "rns8_get_cpu_amx_workspace_info": "rns8_status (const rns8_workspace *, rns8_cpu_amx_workspace_info *)",
       "rns8_get_cpu_i8mm_info": "rns8_status (const rns8_prepared_cpu_i8mm *, rns8_cpu_i8mm_info *)",
       "rns8_get_crt_export_info": "rns8_status (const rns8_crt_export *, rns8_crt_export_info *)",
@@ -4169,19 +4200,19 @@
     ],
     "header_functions": {},
     "headers": {
-      "rns8/abi.h": "081d031e2dcc38e3b37d13398523bc43e1adcd772f7466acf2b45eebc3d9a120",
-      "rns8/bounds.h": "d7fe5d27c4fdaeca4827e5bcf22c2b98a49326d51e622f523853e3f412b1dcc5",
-      "rns8/cpu_i8mm.h": "73a0b98b560bd082516acd4ebd87d43a60ac5733e60b24785952705c3780662a",
-      "rns8/device_identity.h": "c6aa8fe5d4ac917f33d0a90093931da45c1d7e069a53a7c7bc92c03433f66665",
-      "rns8/experimental_basis.h": "478760211bbb8fed6bb44eeb9186e1e4b6d3eebda70dc8d91ee892977de181af",
-      "rns8/experimental_product.h": "a2146ea6e160dfa2ce593691212b671eb11e693df8329d2906525ac2cfcd83fb",
-      "rns8/integer_split.h": "7266ba2545782cfee20f4fa10b46ad30f4380ccab2bd8b47020757faf5146593",
-      "rns8/moduli.h": "99fdc92580cf500d632f193715d2251f89f46a927736051ddf281c63fb20b2bb",
-      "rns8/pipeline_recipe.h": "49b94e7c71d823e91be7f986938280dbf895e02cddfac0108d9b6f55372545aa",
+      "rns8/abi.h": "7e9fcab2487f861b556ae0b93284c1deaffe8dcea36d9ee84d480f1ccc40769c",
+      "rns8/bounds.h": "f1baf58019b34e522e7faa76d45043dcb4c59c5946600101a9acbc96a20d3b82",
+      "rns8/cpu_i8mm.h": "9328e08a913cad14753463329f8f220e5e09976d4d44c0200cbc32932fc689c2",
+      "rns8/device_identity.h": "478c6f5240dd6fe47e2f34efd1ed9a87b04674e0a6596079d8b858800bf44467",
+      "rns8/experimental_basis.h": "1a7b25c082a4bc17cc105fcd2c7e03fddc82f87da029b6cdcd5e47596cf42438",
+      "rns8/experimental_product.h": "10b7654e7b7a49db897fbc2f08ee626aa72cd3d32958a25e5dc6bb71df5a83d7",
+      "rns8/integer_split.h": "6473eaa7b4ec12f2369a662c16ede9a2ad6b8561d85528608faccf2015ee3e0d",
+      "rns8/moduli.h": "bbb2626341efbc1c39641bb889a88b2005c6b478d105d39e9429ba807772c13e",
+      "rns8/pipeline_recipe.h": "1aabfc7bc5a89763773ded12acda7b7be44729774cb7522dd5a665d9f89e6c9d",
       "rns8/public_abi.h": "20ccbb0b271bfa98c4303d52817d63902a131ffd895323032ae4feb0230828a5",
-      "rns8/rns8.h": "04c3f1f87e4d02d275ff00d304de5abadfdc64e232bb365eede26ceb68554324",
-      "rns8/semantics.h": "75ceba49e8bd975b4f03a0fa199535a864dde5beb6d8ac7e081a2489eb30b047",
-      "rns8/status.h": "01fe71b1e6cafba2036240266615bfbaebf70dce810e309f165574f9b768debb"
+      "rns8/rns8.h": "5513108aa4380f9559f94cb4ecac27f3ed63cc6e1f7effb648b05a6461f134ee",
+      "rns8/semantics.h": "9c8e8391013be3668833abcb57176c2ae0213eb3bfd5e0ac84261e7f380c2421",
+      "rns8/status.h": "c7c68893c448f238fcdea3c3bf68f595e7c7868264be588d58a9620756ef7c8b"
     },
     "macros": {
       "RNS8_ABI_VERSION": "1u",
@@ -4260,6 +4291,7 @@
       "rns8_basis_resources": "struct",
       "rns8_basis_selection": "struct",
       "rns8_basis_selection_desc": "struct",
+      "rns8_block_sparse_storage_info": "struct",
       "rns8_completion_info": "struct",
       "rns8_completion_token": "struct",
       "rns8_context_options": "struct",
@@ -5123,6 +5155,64 @@
         [
           "magnitude_bound",
           "uint64_t[3]"
+        ]
+      ],
+      "rns8_block_sparse_storage_info": [
+        [
+          "struct_size",
+          "uint32_t"
+        ],
+        [
+          "abi_version",
+          "uint32_t"
+        ],
+        [
+          "role",
+          "rns8_block_sparse_role"
+        ],
+        [
+          "prefix",
+          "uint32_t"
+        ],
+        [
+          "device_id",
+          "int32_t"
+        ],
+        [
+          "matrix_method_support",
+          "rns8_status"
+        ],
+        [
+          "source_instance",
+          "uint64_t"
+        ],
+        [
+          "source_generation",
+          "uint64_t"
+        ],
+        [
+          "host_directory_capacity_bytes",
+          "uint64_t"
+        ],
+        [
+          "device_payload_bytes",
+          "uint64_t"
+        ],
+        [
+          "device_directory_bytes",
+          "uint64_t"
+        ],
+        [
+          "retained_metadata_object_bytes",
+          "uint64_t"
+        ],
+        [
+          "preparation_peak_bound_bytes",
+          "uint64_t"
+        ],
+        [
+          "preparation_budget_bytes",
+          "uint64_t"
         ]
       ],
       "rns8_completion_info": [
@@ -10668,6 +10758,9 @@
         "DLLImportAttr"
       ],
       "rns8_get_basis_plan_info": [
+        "DLLImportAttr"
+      ],
+      "rns8_get_block_sparse_storage_info": [
         "DLLImportAttr"
       ],
       "rns8_get_cpu_amx_workspace_info": [

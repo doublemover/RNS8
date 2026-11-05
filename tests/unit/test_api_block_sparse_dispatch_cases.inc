@@ -3,7 +3,8 @@ TEST_CASE("public block-sparse construction retains complete unpublished owners 
   if (!rns8::detail::api::direct_hip_compiled())
     SKIP("direct HIP block-sparse provider not compiled");
   for (const char* phase :
-       {"block_sparse_download", "block_sparse_upload", "block_sparse_prepare_publish"})
+       {"block_sparse_capability", "block_sparse_download", "block_sparse_directory_upload",
+        "block_sparse_upload", "block_sparse_prepare_publish"})
     for (bool throws : {false, true})
       for (bool uncertain : {false, true}) {
         CAPTURE(phase, throws, uncertain);

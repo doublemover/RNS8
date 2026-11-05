@@ -25,9 +25,11 @@ medians. Every cold sample also reports its measured preparation and destruction
 subintervals. Warm preparation is a separate setup duration, and total setup
 includes context/plan/workspace/matrix creation and input packing. Native/RNS
 setup before warm preparation has its own duration. Each sparse public call
-includes proof admission, temporary metadata allocation/upload, capability probe
-when applicable, execution, synchronization and publication. Those costs remain
-inside the measurement. Dense RNS computation is the ordinary public control;
+includes proof admission, execution, synchronization and publication. Directory
+allocation/upload and the context's first compiled capability probe now belong
+to preparation, inside warm setup or a cold batch as applicable. The current
+report adapter is being extended with the new storage query and an independent
+diagnostic observation of warm allocation/upload/probe activity. Dense RNS computation is the ordinary public control;
 no optimized CPU comparator or matrix-engine dense route is implied by its name.
 
 R is explicit in 1..256. One batch leaves one repeatedly overwritten output,

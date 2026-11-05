@@ -23,6 +23,7 @@
 #include "backend_common/native_wmma_queue.hpp"
 #include "backend_common/ragged_residues.hpp"
 #include "backend_common/block_sparse.hpp"
+#include "backend_common/block_sparse_directory.hpp"
 #include "backend_common/integrity_identity.hpp"
 #include "backend_common/native_narrow.hpp"
 #include "backend_common/native_tdm.hpp"
@@ -150,6 +151,14 @@ rns8_status hip_direct_gemm_rank23_oct55_recompute_device(
     void* stream = nullptr);
 // Private modular block-sparse producer; its public materialization owner or
 // another caller supplies bounded/exact admission and output transaction ownership.
+rns8_status hip_direct_query_block_sparse_capability(int device_id,
+                                                     BlockSparseDeviceCapability& out);
+rns8_status hip_direct_gemm_prepared_block_sparse_device(
+    int device_id, const void* a, const BlockSparseOperand& lhs,
+    const BlockSparseDeviceDirectory& lhs_directory, const void* b, const BlockSparseOperand& rhs,
+    const BlockSparseDeviceDirectory& rhs_directory, const BlockSparseDeviceCapability& capability,
+    void* c, int64_t ldc, bool& commit_started, uint32_t method,
+    uint32_t scalar_intersection_limit);
 rns8_status hip_direct_gemm_block_sparse_device(
     int device_id, const void* a, const BlockSparseOperand& lhs, uint64_t a_instance,
     uint64_t a_generation, const void* b, const BlockSparseOperand& rhs, uint64_t b_instance,

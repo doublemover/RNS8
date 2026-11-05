@@ -30,6 +30,7 @@
 #include "core/internal.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <map>
 #include <memory>

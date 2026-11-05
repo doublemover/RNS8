@@ -1,7 +1,75 @@
 #include "backend_common/block_sparse.hpp"
+#include "backend_common/block_sparse_directory.hpp"
 #include "core/internal.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
+
+TEST_CASE("prepared sparse directory admission binds device extents roles and generations") {
+  using namespace rns8::detail;
+  const int64_t native = 7;
+  BlockSparseOperand layout;
+  std::vector<int8_t> payload;
+  REQUIRE(pack_block_sparse_i64(&native, 1, 1, 1, 9, BlockSparseRole::lhs, 21, 4, UINT64_MAX,
+                                layout, payload) == RNS8_SUCCESS);
+  uint64_t bytes = 0;
+  REQUIRE(block_sparse_directory_bytes(layout, bytes));
+  std::vector<uint32_t> storage(static_cast<size_t>(bytes / sizeof(uint32_t)));
+  BlockSparseDeviceDirectory directory;
+  REQUIRE(make_block_sparse_device_directory(layout, 3, storage.data(), bytes, directory));
+  REQUIRE(block_sparse_directory_matches(directory, layout, 3, 21, 4));
+  for (unsigned mutation = 0; mutation < 12; ++mutation) {
+    CAPTURE(mutation);
+    auto changed = directory;
+    switch (mutation) {
+    case 0:
+      ++changed.version;
+      break;
+    case 1:
+      ++changed.basis_version;
+      break;
+    case 2:
+      ++changed.prefix;
+      break;
+    case 3:
+      changed.role = BlockSparseRole::rhs;
+      break;
+    case 4:
+      ++changed.device_id;
+      break;
+    case 5:
+      ++changed.instance;
+      break;
+    case 6:
+      ++changed.generation;
+      break;
+    case 7:
+      ++changed.allocation_bytes;
+      break;
+    case 8:
+      ++changed.offset_count;
+      break;
+    case 9:
+      ++changed.block_count;
+      break;
+    case 10:
+      changed.offsets = nullptr;
+      break;
+    default:
+      changed.k_blocks = nullptr;
+      break;
+    }
+    CHECK_FALSE(block_sparse_directory_matches(changed, layout, 3, 21, 4));
+  }
+  const auto original = directory;
+  CHECK_FALSE(make_block_sparse_device_directory(layout, 3, storage.data(), bytes - 1, directory));
+  CHECK(directory.allocation == original.allocation);
+  CHECK(directory.allocation_bytes == original.allocation_bytes);
+  auto malformed = layout;
+  malformed.k_blocks[0] = UINT32_MAX;
+  CHECK_FALSE(make_block_sparse_device_directory(malformed, 3, storage.data(), bytes, directory));
+  CHECK_FALSE(block_sparse_directory_matches(directory, layout, 3, 21, 5));
+  CHECK_FALSE(block_sparse_directory_matches(directory, layout, 4, 21, 4));
+}
 
 TEST_CASE("native block sparsity is exact and dense materialization preserves "
           "every plane") {

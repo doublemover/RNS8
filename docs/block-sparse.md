@@ -31,10 +31,11 @@ generations and insufficient budgets. Registered applicable compilation/test evi
 [October 23 all-feature validation](local-all-features-20261023.md).
 ## Public generation-bound owner
 
-The newly authored `rns8_prepare_block_sparse_operand` creates a direct-HIP
+`rns8_prepare_block_sparse_operand` creates a direct-HIP
 exact-wide signed/unsigned handle from a current retained-native matrix. Explicit
 LHS/RHS roles select the layouts above. Preparation downloads the native snapshot
-for exact-zero discovery and uploads the packed payload; this cold cost is part
+for exact-zero discovery and uploads the packed payload and immutable CSR/CSC
+directory; this cold cost is part
 of any reuse/break-even comparison. The handle retains its source matrix and
 context lifetimes. Repacking the source is legal, but makes the old handle stale;
 `rns8_gemm_block_sparse_exact` rejects it before changing C. Prepare a replacement
@@ -47,25 +48,31 @@ destruction preserves the handle and its source/context references for retry;
 cleanup-started handles cannot execute. These ownership controls are authored
 and await the final validation batch.
 
-The logical preparation budget covers the native host snapshot plus twice the
-packed payload and metadata. This conservative ceiling covers overlapping host
-and device payloads; allocator bookkeeping/vector spare capacity are excluded.
+The preparation budget covers the native snapshot, packed host/device bytes,
+actual host directory capacities, retained device directories, owner/retry
+objects and conservative probe scratch. The admitted upper bound is checked
+before the retained device allocations. Allocator/driver rounding and shared
+context/runtime/TLS storage are excluded. `rns8_get_block_sparse_storage_info`
+reports these requests/capacities and the preparation bound without GPU work.
 Preparation failure leaves the caller's output handle untouched. Existing handles
 are separate retained allocations and must be added when budgeting replacement.
-Execution's separate scratch cap covers the temporary device metadata upload;
-retained payloads, dense RNS inputs/output and ordinary workspace are separate.
+Warm execution needs zero transient directory scratch; its scratch cap may be
+zero. Retained payloads/directories, dense RNS inputs/output and ordinary
+workspace remain separate resources. The private unprepared baseline still
+includes metadata allocation and upload on each call.
 
 Execution uses the existing scalar intersection kernel after shared public
 shape/semantic/reservation and exact-range proof checks. Successful output is a
-complete ordinary persistent RNS matrix. Preflight, metadata allocation and upload
-failures preserve C; failure after its kernel launch invalidates C. Source instance,
+complete ordinary persistent RNS matrix. Prepared directory admission checks
+device, extents, role, basis, prefix and source generation without rescanning
+immutable host indices. Preflight failures preserve C; failure after its kernel launch invalidates C. Source instance,
 generation, role, prefix and context must all match. There is no AUTO promotion. The original entrypoint remains the scalar control;
 the explicit method entrypoint below adds matrix-engine execution. Source matrices must remain current, even though
 the handle has an independent packed payload.
 
 New public fixtures cover full-width signed/unsigned values, tails, Boost export,
 source lifetime, stale generation rejection, empty sparse payloads and output
-preservation on scratch/BUSY errors. These additions are authored and unexecuted;
+zero-scratch warm calls and preservation on BUSY/stale errors. These additions are authored and unexecuted;
 the older private baseline receipt above does not qualify this owner. The authored
 WMMA/hybrid extension below also needs fresh qualification and end-to-end
 break-even measurements under issue #51.
@@ -88,12 +95,17 @@ the workgroup before scalar barriers. This is a work-count dispatch experiment,
 not a calibrated universal crossover or pruning of small nonzero values. Setting
 threshold zero or UINT32_MAX supplies useful all-nonempty-WMMA/all-scalar controls.
 Non-hybrid methods require threshold zero. Both accelerated modes positively
-probe matrix-instruction capability before publishing any output and account for
-the extra capability status word in scratch.
+require a positive matrix-instruction observation before publishing output.
+Preparation performs the real compiled probe once per context/provider and
+caches both supported and unsupported outcomes; errors remain unobserved and
+fail preparation. Device/target and loaded provider identity bind this
+process-local observation. Warm scalar, WMMA and hybrid calls allocate/upload no
+directories and repeat no capability probe. This is capability admission, not
+ISA, numerical or performance qualification.
 
 The public owners retain the same source-generation, range, alias, workspace and
 transaction checks. Dense public GEMM and AUTO do not select these modes. Existing
-packed blocks are reused; preparation/metadata/probe costs belong in whole-call
+packed blocks and directories are reused; preparation/metadata/probe costs belong in whole-call
 measurements. The hybrid kernel reserves scalar shared-memory resources even
 when a particular tile chooses WMMA, so it may lose to the explicit WMMA route.
 No positive performance claim is made before the final campaign.

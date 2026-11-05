@@ -2453,18 +2453,41 @@ typedef enum rns8_block_sparse_role RNS8_ENUM_BASE {
 /* Experimental synchronous direct-HIP exact-wide materialization. Source must
  * retain a current native input. Preparation copies it to host to distinguish
  * exact zeros from zero residues, then uploads packed blocks. The logical peak
- * budget includes native host snapshot plus twice packed payload/metadata;
- * allocator bookkeeping/capacity is excluded. The handle retains source/context
- * lifetimes, but does not prevent repacking: changed source generations reject
+ * budget includes native host snapshot, packed host/device payloads, directory
+ * capacities and retry records; allocator/driver rounding is excluded. The handle retains
+ * source/context lifetimes, but does not prevent repacking: changed source generations reject
  * execution until a new handle is prepared. Failure preserves *out. */
 RNS8_API rns8_status rns8_prepare_block_sparse_operand(rns8_context* ctx, const rns8_matrix* source,
                                                        rns8_block_sparse_role role,
                                                        uint64_t max_preparation_bytes,
                                                        rns8_block_sparse_operand** out);
 RNS8_API rns8_status rns8_destroy_block_sparse_operand(rns8_block_sparse_operand* operand);
+/* Immutable allocation requests/capacities; excludes allocator/driver rounding
+ * and context/runtime/TLS storage. Preparation bounds include the conservative
+ * native snapshot, packed host/device copies, directory capacities and retry
+ * records. Capability belongs to this context and loaded compiled provider. */
+typedef struct rns8_block_sparse_storage_info {
+  uint32_t struct_size;
+  uint32_t abi_version;
+  rns8_block_sparse_role role;
+  uint32_t prefix;
+  int32_t device_id;
+  rns8_status matrix_method_support;
+  uint64_t source_instance;
+  uint64_t source_generation;
+  uint64_t host_directory_capacity_bytes;
+  uint64_t device_payload_bytes;
+  uint64_t device_directory_bytes;
+  uint64_t retained_metadata_object_bytes;
+  uint64_t preparation_peak_bound_bytes;
+  uint64_t preparation_budget_bytes;
+} rns8_block_sparse_storage_info;
+RNS8_API rns8_status rns8_get_block_sparse_storage_info(const rns8_block_sparse_operand* operand,
+                                                        rns8_block_sparse_storage_info* out);
 /* Both handles must have matching plan semantics/prefix/context and LHS/RHS
- * roles. Ordinary exact proof and reservation checks precede writes. Transient
- * device metadata is charged to max_scratch_bytes. No AUTO, hybrid or matrix-
+ * roles. Ordinary exact proof and reservation checks precede writes. Prepared
+ * directories are resident; this route needs zero transient device scratch,
+ * so max_scratch_bytes may be zero. No AUTO, hybrid or matrix-
  * instruction selection; this executes the scalar block-intersection kernel. */
 RNS8_API rns8_status rns8_gemm_block_sparse_exact(rns8_context* ctx, const rns8_plan* plan,
                                                   const rns8_block_sparse_operand* a,
