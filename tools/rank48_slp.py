@@ -4,7 +4,6 @@ import ast
 from fractions import Fraction
 import hashlib
 import json
-from pathlib import Path
 import re
 
 from rank48_certificate import DATA, ROOT, load

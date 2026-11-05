@@ -1,7 +1,6 @@
 from benchmark_cases import case_root
 from copy import deepcopy
 import json
-from pathlib import Path
 import unittest
 from benchmark_schema.rocwmma_packing import (
     FIELDS,

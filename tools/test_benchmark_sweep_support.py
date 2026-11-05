@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import benchmark_sweep_lib.config as sweep_config
+import benchmark_sweep_lib.review as sweep_review
+import review_contract as review_contract
 import copy
 import argparse
 from pathlib import Path
 
-import benchmark_sweep
 from benchmark_schema import load_capture
 from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
 
@@ -23,7 +25,7 @@ def attach_test_provenance(capture):
 
 def set_phase(capture: dict, end_to_end: int) -> None:
     repeats = capture.get("repeats", 2)
-    for phase in benchmark_sweep.PHASES:
+    for phase in sweep_config.PHASES:
         value = (
             end_to_end
             if phase == "end_to_end"
@@ -168,8 +170,8 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
     capture["_path"] = f"{backend}.json"
     capture["backend_requested"] = backend
     capture["backend_selected"] = backend
-    capture["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
-    capture["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
+    capture["warmups"] = review_contract.RELEASE_MIN_WARMUPS
+    capture["repeats"] = review_contract.RELEASE_MIN_REPEATS
     metadata = capture["backend_metadata"]
     metadata["source"] = "rns8_get_plan_backend_info"
     if backend == "cpu-reference":
@@ -326,8 +328,8 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
     capture["_path"] = f"{backend}-bounded.json"
     capture["backend_requested"] = backend
     capture["backend_selected"] = backend
-    capture["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
-    capture["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
+    capture["warmups"] = review_contract.RELEASE_MIN_WARMUPS
+    capture["repeats"] = review_contract.RELEASE_MIN_REPEATS
     metadata = capture["backend_metadata"]
     metadata["source"] = "rns8_get_plan_backend_info"
     if backend == "cpu-reference":
@@ -395,8 +397,8 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         vector["k"] = capture["k"]
         vector["bound"] = capture["bound"]
         vector["k_block_size"] = capture["k_block_size"]
-        vector["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
-        vector["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
+        vector["warmups"] = review_contract.RELEASE_MIN_WARMUPS
+        vector["repeats"] = review_contract.RELEASE_MIN_REPEATS
         vector["seed"] = capture["seed"]
         vector["git_commit"] = capture["git_commit"]
         vector["compiler"] = copy.deepcopy(capture["compiler"])
@@ -434,7 +436,7 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
     capture["finite_modulus"] = None
     capture["tile_bounds_u64"] = None
     capture["epilogue_type"] = "exact_wide_signed_limb_export"
-    capture["exact_wide_limb_count"] = benchmark_sweep.DEFAULT_EXACT_WIDE_LIMB_COUNT
+    capture["exact_wide_limb_count"] = sweep_config.DEFAULT_EXACT_WIDE_LIMB_COUNT
     capture["input_distribution"] = "signed_uniform_-16_16"
     capture["comparison_baseline"]["required_before_speedup_claim"] = [
         "same_contract_cpu_reference",
@@ -471,8 +473,8 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
     capture["_path"] = f"{backend}-wrap64.json"
     capture["backend_requested"] = backend
     capture["backend_selected"] = backend
-    capture["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
-    capture["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
+    capture["warmups"] = review_contract.RELEASE_MIN_WARMUPS
+    capture["repeats"] = review_contract.RELEASE_MIN_REPEATS
     metadata = capture["backend_metadata"]
     metadata["source"] = "rns8_get_plan_backend_info"
     metadata["accelerator_backend"] = False
@@ -503,8 +505,8 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
             "hip_driver_version": 0,
             "global_mem_bytes": 0,
         }
-    elif backend == benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND:
-        capture["backend_requested"] = benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND
+    elif backend == sweep_config.WRAP64_ROCWMMA_CANDIDATE_BACKEND:
+        capture["backend_requested"] = sweep_config.WRAP64_ROCWMMA_CANDIDATE_BACKEND
         capture["backend_selected"] = "rocwmma"
         capture["selected_kernel"] = "rocwmma_wrap64_byte_gemm36_candidate_v0"
         capture["tile_m"] = 16
@@ -656,6 +658,6 @@ def finite_review_cohort() -> tuple[dict, dict, dict, dict]:
             "tile_n": 128,
             "tile_k": 256,
         }
-    report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
-    benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
+    report = sweep_review.review_captures([ck, direct, cpu], review_mode="release")
+    sweep_review.attach_cache_write_status(report, False, Path("unused.json"), 0)
     return ck, direct, cpu, report

@@ -8,7 +8,6 @@ from crt_research import make_plan, quarter_certificate, quarter_reconstruct
 from modulus_set_search import DEFAULT_MODULI
 from collect_crt_calibration import QUARTER_CANDIDATES, dataset, validate_capture, load_cases
 from test_collect_crt_calibration import fixture
-from pathlib import Path
 
 
 class QuarterCrt(unittest.TestCase):

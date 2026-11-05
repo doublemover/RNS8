@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import benchmark_sweep
+import benchmark_sweep_lib.review as sweep_review
+import review_contract as review_contract
 import copy
 import unittest
 from pathlib import (
@@ -38,7 +39,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "tile_n": 128,
                 "tile_k": 256,
             }
-        smoke_report = benchmark_sweep.review_captures([ck, direct, cpu])
+        smoke_report = sweep_review.review_captures([ck, direct, cpu])
         assert smoke_report["schema_version"] == 3
         assert smoke_report["review_mode"] == "smoke"
         assert smoke_report["promotable_autotune_entries"] == []
@@ -46,8 +47,8 @@ class ReviewMetadataCases(unittest.TestCase):
             "not_release_review" in smoke_report["groups"][0]["candidates"][0]["promotion_blockers"]
         )
 
-        report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
-        benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
+        report = sweep_review.review_captures([ck, direct, cpu], review_mode="release")
+        sweep_review.attach_cache_write_status(report, False, Path("unused.json"), 0)
         assert report["schema_version"] == 3
         assert report["review_mode"] == "release"
         assert report["group_count"] == 1
@@ -91,8 +92,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert group["source_metadata"]["compilers"] == ["msvc 1944.194435227"]
         assert group["source_metadata"]["git_commits"] == ["a" * 40]
         assert group["source_metadata"]["seeds"] == [13]
-        assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
-        assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
+        assert group["source_metadata"]["warmups"] == [review_contract.RELEASE_MIN_WARMUPS]
+        assert group["source_metadata"]["repeats"] == [review_contract.RELEASE_MIN_REPEATS]
         assert group["missing_gpu_targets"] == []
         assert group["gpu_target_identity_complete"] is True
         assert group["gpu_target_compatible"] is True
@@ -159,7 +160,7 @@ class ReviewMetadataCases(unittest.TestCase):
             ),
             amdgpu,
         )
-        amdgpu_missing_isa_report = benchmark_sweep.review_captures(
+        amdgpu_missing_isa_report = sweep_review.review_captures(
             [amdgpu, direct, cpu], review_mode="release"
         )
         amdgpu_missing_isa_group = amdgpu_missing_isa_report["groups"][0]
@@ -182,7 +183,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
 
         amdgpu_wrong_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu4": 4})
-        amdgpu_wrong_isa_report = benchmark_sweep.review_captures(
+        amdgpu_wrong_isa_report = sweep_review.review_captures(
             [amdgpu, direct, cpu],
             review_mode="release",
             isa_index=amdgpu_wrong_isa_index,
@@ -214,7 +215,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
 
         amdgpu_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu8": 4})
-        amdgpu_with_isa_report = benchmark_sweep.review_captures(
+        amdgpu_with_isa_report = sweep_review.review_captures(
             [amdgpu, direct, cpu],
             review_mode="release",
             isa_index=amdgpu_isa_index,
@@ -254,7 +255,7 @@ class ReviewMetadataCases(unittest.TestCase):
         amdgpu_wrong_semantic_kernel["backend_metadata"]["selected_kernel"] = (
             amdgpu_wrong_semantic_kernel_name
         )
-        amdgpu_wrong_semantic_report = benchmark_sweep.review_captures(
+        amdgpu_wrong_semantic_report = sweep_review.review_captures(
             [amdgpu_wrong_semantic_kernel, direct, cpu],
             review_mode="release",
             isa_index=amdgpu_isa_index,
@@ -289,7 +290,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "promotion_eligibility": "release_review_candidate",
                 "metadata": {"workflow_name": "skinny_gemv"},
             }
-        stale_skinny_report = benchmark_sweep.review_captures(
+        stale_skinny_report = sweep_review.review_captures(
             [skinny_cpu, skinny_direct, skinny_vector],
             review_mode="release",
         )
@@ -340,7 +341,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "direct_hip_skinny_gemv_n1_kernel",
             "direct_hip_bounded_crt_export",
         ]
-        valid_skinny_report = benchmark_sweep.review_captures(
+        valid_skinny_report = sweep_review.review_captures(
             [skinny_cpu, valid_skinny_direct, skinny_vector],
             review_mode="release",
         )
@@ -374,7 +375,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "promotion_eligibility": "release_review_candidate",
                 "metadata": {"workflow_name": "skinny_gemv"},
             }
-        stale_small_n_report = benchmark_sweep.review_captures(
+        stale_small_n_report = sweep_review.review_captures(
             [skinny_small_n_cpu, skinny_small_n_direct, skinny_small_n_vector],
             review_mode="release",
         )
@@ -429,7 +430,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "direct_hip_skinny_gemv_small_n_kernel",
             "direct_hip_bounded_crt_export",
         ]
-        valid_small_n_report = benchmark_sweep.review_captures(
+        valid_small_n_report = sweep_review.review_captures(
             [skinny_small_n_cpu, valid_small_n_direct, skinny_small_n_vector],
             review_mode="release",
         )
@@ -469,7 +470,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "vector_alu_status_d2h",
             "vector_alu_output_d2h",
         ]
-        valid_small_n_vector_report = benchmark_sweep.review_captures(
+        valid_small_n_vector_report = sweep_review.review_captures(
             [skinny_small_n_cpu, valid_small_n_direct, valid_small_n_vector],
             review_mode="release",
         )
@@ -494,7 +495,7 @@ class ReviewMetadataCases(unittest.TestCase):
         native_bridge = bounded_capture("hip-direct", 220)
         native_bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
         native_bridge["timing_metadata"]["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
-        native_bridge_report = benchmark_sweep.review_captures(
+        native_bridge_report = sweep_review.review_captures(
             [bounded_capture("cpu-reference", 5000), native_bridge],
             review_mode="release",
         )
@@ -535,7 +536,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "median": 48.0,
             "p95": 48.0,
         }
-        valid_native_bridge_report = benchmark_sweep.review_captures(
+        valid_native_bridge_report = sweep_review.review_captures(
             [bounded_capture("cpu-reference", 5000), valid_native_bridge],
             review_mode="release",
         )
@@ -614,7 +615,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "sparse_nonzeros_per_group=2;",
             "",
         )
-        bad_sparse_report = benchmark_sweep.review_captures(
+        bad_sparse_report = sweep_review.review_captures(
             [bad_sparse],
             review_mode="release",
             isa_index=synthetic_isa_index(bad_sparse, {"v_smfmac_i32_16x16x64_i8": 4}),
@@ -627,7 +628,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         bad_sparse_next_work = {row["work"] for row in bad_sparse_report["summary"]["next_work"]}
         assert "attach_sparse_a_4_to_2_autotune_contract_metadata" in bad_sparse_next_work
-        valid_sparse_report = benchmark_sweep.review_captures(
+        valid_sparse_report = sweep_review.review_captures(
             [sparse_amdgpu],
             review_mode="release",
             isa_index=synthetic_isa_index(sparse_amdgpu, {"v_smfmac_i32_16x16x64_i8": 4}),
@@ -668,7 +669,7 @@ class ReviewMetadataCases(unittest.TestCase):
             wide_sparse_key,
             wide_sparse_amdgpu,
         )
-        wide_sparse_report = benchmark_sweep.review_captures(
+        wide_sparse_report = sweep_review.review_captures(
             [wide_sparse_amdgpu],
             review_mode="release",
             isa_index=synthetic_isa_index(wide_sparse_amdgpu, {"v_smfmac_i32_32x32x32_i8": 4}),
@@ -713,7 +714,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "tile_n": amdgpu_tile["tile_n"],
             "tile_k": amdgpu_tile["k_block_size"],
         }
-        amdgpu_tile_report = benchmark_sweep.review_captures(
+        amdgpu_tile_report = sweep_review.review_captures(
             [amdgpu_tile, direct, cpu],
             review_mode="release",
             isa_index=synthetic_isa_index(amdgpu_tile, {"v_mfma_i32_16x16x32_i8": 4}),
@@ -750,7 +751,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "kernel=amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1",
             )
         )
-        amdgpu_tile_wide_report = benchmark_sweep.review_captures(
+        amdgpu_tile_wide_report = sweep_review.review_captures(
             [amdgpu_tile_wide_finite, direct, cpu],
             review_mode="release",
             isa_index=synthetic_isa_index(amdgpu_tile_wide_finite, {"v_mfma_i32_32x32x16_i8": 4}),
@@ -909,7 +910,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         checksum_bad_ck = copy.deepcopy(ck)
         checksum_bad_ck["checksum_u64"] = checksum_bad_ck["checksum_u64"] + 1
-        checksum_mismatch_report = benchmark_sweep.review_captures(
+        checksum_mismatch_report = sweep_review.review_captures(
             [checksum_bad_ck, direct, cpu],
             review_mode="release",
         )
@@ -959,7 +960,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "target_namespace": "gfx1100",
             "review_group_key": "gfx1100/target=gfx1100/backend=hip-vector-alu-int64",
         }
-        implementation_split_report = benchmark_sweep.review_captures(
+        implementation_split_report = sweep_review.review_captures(
             [bounded_ck, bounded_direct, bounded_cpu, bounded_vector],
             review_mode="release",
         )
@@ -977,7 +978,7 @@ class ReviewMetadataCases(unittest.TestCase):
         missing_export_metadata_ck.pop("exact_output_contract", None)
         missing_export_metadata_ck.pop("export_variant", None)
         missing_export_metadata_ck.pop("reconstruction_variant", None)
-        missing_export_metadata_report = benchmark_sweep.review_captures(
+        missing_export_metadata_report = sweep_review.review_captures(
             [missing_export_metadata_ck, bounded_direct, bounded_cpu, bounded_vector],
             review_mode="release",
         )
@@ -1021,7 +1022,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "resolved": "rns-gemm",
                 "source": "scenario_contract",
             }
-        chain_report = benchmark_sweep.review_captures(
+        chain_report = sweep_review.review_captures(
             [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu],
             review_mode="release",
         )
@@ -1036,7 +1037,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         eventless_ck = finite_capture("ck", 190)
         remove_gpu_events(eventless_ck)
-        eventless_report = benchmark_sweep.review_captures(
+        eventless_report = sweep_review.review_captures(
             [eventless_ck, direct, cpu], review_mode="release"
         )
         eventless_group = eventless_report["groups"][0]
@@ -1048,7 +1049,7 @@ class ReviewMetadataCases(unittest.TestCase):
         assert "missing_required_gpu_events" in eventless_candidate["promotion_blockers"]
 
         cpu_faster = finite_capture("cpu-reference", 100)
-        cpu_faster_report = benchmark_sweep.review_captures(
+        cpu_faster_report = sweep_review.review_captures(
             [ck, direct, cpu_faster], review_mode="release"
         )
         cpu_faster_group = cpu_faster_report["groups"][0]
@@ -1067,7 +1068,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "correctness_anchor": True,
             "timed_cpu_baseline": False,
         }
-        anchor_report = benchmark_sweep.review_captures(
+        anchor_report = sweep_review.review_captures(
             [ck, direct, cpu_anchor], review_mode="release"
         )
         anchor_group = anchor_report["groups"][0]
@@ -1126,7 +1127,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "repeat_median_end_to_end_us": 600.0,
             "setup_inclusive_median_end_to_end_us": 610.0,
         }
-        reuse_report = benchmark_sweep.review_captures(
+        reuse_report = sweep_review.review_captures(
             [
                 reuse_cpu,
                 reuse_direct,
@@ -1175,7 +1176,7 @@ class ReviewMetadataCases(unittest.TestCase):
         slow_reuse_candidate["reuse_contract"]["setup_cost_us"] = 3600.0
         slow_reuse_candidate["reuse_contract"]["setup_amortized_us"] = 400.0
         slow_reuse_candidate["reuse_contract"]["setup_inclusive_median_end_to_end_us"] = 1000.0
-        slow_reuse_report = benchmark_sweep.review_captures(
+        slow_reuse_report = sweep_review.review_captures(
             [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, slow_reuse_candidate],
             review_mode="release",
         )
@@ -1223,7 +1224,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "instantiate_us": 8.0,
         }
         set_phase(graph_candidate, 900)
-        graph_report = benchmark_sweep.review_captures(
+        graph_report = sweep_review.review_captures(
             [graph_baseline, graph_candidate], review_mode="release"
         )
         graph_group = next(
@@ -1286,7 +1287,7 @@ class ReviewMetadataCases(unittest.TestCase):
         }
         for item in [non_promoting_ck, non_promoting_direct, non_promoting_cpu]:
             item["scenario_metadata"] = scenario_metadata
-        non_promoting_report = benchmark_sweep.review_captures(
+        non_promoting_report = sweep_review.review_captures(
             [non_promoting_ck, non_promoting_direct, non_promoting_cpu],
             review_mode="release",
         )
@@ -1306,7 +1307,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_target_ck = copy.deepcopy(ck)
         missing_target_ck["device"]["gcn_arch"] = "unknown"
-        missing_target_report = benchmark_sweep.review_captures(
+        missing_target_report = sweep_review.review_captures(
             [missing_target_ck, direct, cpu],
             review_mode="release",
         )
@@ -1323,7 +1324,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         mismatched_target_ck = copy.deepcopy(ck)
         mismatched_target_ck["device"]["gcn_arch"] = "gfx1101"
-        mismatched_target_report = benchmark_sweep.review_captures(
+        mismatched_target_report = sweep_review.review_captures(
             [mismatched_target_ck, direct, cpu],
             review_mode="release",
         )
@@ -1340,7 +1341,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_version_direct = copy.deepcopy(direct)
         missing_version_direct["hip_toolchain"]["hip_sdk_or_rocm_version"] = None
-        missing_version_report = benchmark_sweep.review_captures(
+        missing_version_report = sweep_review.review_captures(
             [ck, missing_version_direct, cpu],
             review_mode="release",
         )
@@ -1357,7 +1358,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         mismatched_version_ck = copy.deepcopy(ck)
         mismatched_version_ck["hip_toolchain"]["hip_sdk_or_rocm_version"] = "70260299"
-        mismatched_version_report = benchmark_sweep.review_captures(
+        mismatched_version_report = sweep_review.review_captures(
             [mismatched_version_ck, direct, cpu],
             review_mode="release",
         )
@@ -1374,7 +1375,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_configured_direct = copy.deepcopy(direct)
         missing_configured_direct["configured_amdgpu_targets"] = "unknown"
-        missing_configured_report = benchmark_sweep.review_captures(
+        missing_configured_report = sweep_review.review_captures(
             [ck, missing_configured_direct, cpu],
             review_mode="release",
         )
@@ -1391,7 +1392,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         mismatched_configured_ck = copy.deepcopy(ck)
         mismatched_configured_ck["configured_amdgpu_targets"] = "gfx1101"
-        mismatched_configured_report = benchmark_sweep.review_captures(
+        mismatched_configured_report = sweep_review.review_captures(
             [mismatched_configured_ck, direct, cpu],
             review_mode="release",
         )
@@ -1408,7 +1409,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_runtime_direct = copy.deepcopy(direct)
         missing_runtime_direct["device"]["hip_runtime_version"] = 0
-        missing_runtime_report = benchmark_sweep.review_captures(
+        missing_runtime_report = sweep_review.review_captures(
             [ck, missing_runtime_direct, cpu],
             review_mode="release",
         )
@@ -1425,7 +1426,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         mismatched_runtime_ck = copy.deepcopy(ck)
         mismatched_runtime_ck["device"]["hip_runtime_version"] = 70260299
-        mismatched_runtime_report = benchmark_sweep.review_captures(
+        mismatched_runtime_report = sweep_review.review_captures(
             [mismatched_runtime_ck, direct, cpu],
             review_mode="release",
         )
@@ -1442,7 +1443,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_driver_direct = copy.deepcopy(direct)
         missing_driver_direct["device"]["hip_driver_version"] = 0
-        missing_driver_report = benchmark_sweep.review_captures(
+        missing_driver_report = sweep_review.review_captures(
             [ck, missing_driver_direct, cpu],
             review_mode="release",
         )
@@ -1459,7 +1460,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         mismatched_driver_ck = copy.deepcopy(ck)
         mismatched_driver_ck["device"]["hip_driver_version"] = 70260299
-        mismatched_driver_report = benchmark_sweep.review_captures(
+        mismatched_driver_report = sweep_review.review_captures(
             [mismatched_driver_ck, direct, cpu],
             review_mode="release",
         )
@@ -1476,7 +1477,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_compiler_direct = copy.deepcopy(direct)
         missing_compiler_direct["compiler"]["version"] = ""
-        missing_compiler_report = benchmark_sweep.review_captures(
+        missing_compiler_report = sweep_review.review_captures(
             [ck, missing_compiler_direct, cpu],
             review_mode="release",
         )
@@ -1493,7 +1494,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         mismatched_compiler_ck = copy.deepcopy(ck)
         mismatched_compiler_ck["compiler"]["version"] = "1944.999999"
-        mismatched_compiler_report = benchmark_sweep.review_captures(
+        mismatched_compiler_report = sweep_review.review_captures(
             [mismatched_compiler_ck, direct, cpu],
             review_mode="release",
         )
@@ -1510,7 +1511,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_git_direct = copy.deepcopy(direct)
         missing_git_direct["git_commit"] = "unknown"
-        missing_git_report = benchmark_sweep.review_captures(
+        missing_git_report = sweep_review.review_captures(
             [ck, missing_git_direct, cpu],
             review_mode="release",
         )
@@ -1527,7 +1528,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         mismatched_git_ck = copy.deepcopy(ck)
         mismatched_git_ck["git_commit"] = "different-fixture"
-        mismatched_git_report = benchmark_sweep.review_captures(
+        mismatched_git_report = sweep_review.review_captures(
             [mismatched_git_ck, direct, cpu],
             review_mode="release",
         )
@@ -1544,7 +1545,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_warmups_direct = copy.deepcopy(direct)
         missing_warmups_direct["warmups"] = 0
-        missing_warmups_report = benchmark_sweep.review_captures(
+        missing_warmups_report = sweep_review.review_captures(
             [ck, missing_warmups_direct, cpu],
             review_mode="release",
         )
@@ -1560,8 +1561,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert "missing_warmup_count" in missing_warmups_blockers["ck"]
 
         mismatched_warmups_ck = copy.deepcopy(ck)
-        mismatched_warmups_ck["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS + 1
-        mismatched_warmups_report = benchmark_sweep.review_captures(
+        mismatched_warmups_ck["warmups"] = review_contract.RELEASE_MIN_WARMUPS + 1
+        mismatched_warmups_report = sweep_review.review_captures(
             [mismatched_warmups_ck, direct, cpu],
             review_mode="release",
         )
@@ -1578,7 +1579,7 @@ class ReviewMetadataCases(unittest.TestCase):
 
         missing_repeats_direct = copy.deepcopy(direct)
         missing_repeats_direct["repeats"] = 0
-        missing_repeats_report = benchmark_sweep.review_captures(
+        missing_repeats_report = sweep_review.review_captures(
             [ck, missing_repeats_direct, cpu],
             review_mode="release",
         )
@@ -1594,8 +1595,8 @@ class ReviewMetadataCases(unittest.TestCase):
         assert "missing_repeat_count" in missing_repeats_blockers["ck"]
 
         mismatched_repeats_ck = copy.deepcopy(ck)
-        mismatched_repeats_ck["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS + 1
-        mismatched_repeats_report = benchmark_sweep.review_captures(
+        mismatched_repeats_ck["repeats"] = review_contract.RELEASE_MIN_REPEATS + 1
+        mismatched_repeats_report = sweep_review.review_captures(
             [mismatched_repeats_ck, direct, cpu],
             review_mode="release",
         )
@@ -1610,7 +1611,7 @@ class ReviewMetadataCases(unittest.TestCase):
         }
         assert "repeat_count_mismatch" in mismatched_repeats_blockers["ck"]
 
-        duplicate_ck_report = benchmark_sweep.review_captures(
+        duplicate_ck_report = sweep_review.review_captures(
             [ck, copy.deepcopy(ck), direct, cpu],
             review_mode="release",
         )
@@ -1624,7 +1625,7 @@ class ReviewMetadataCases(unittest.TestCase):
         assert "duplicate_backend_capture" in duplicate_ck_blockers["ck"]
 
         host_batch_ck = as_host_api_batch_capture(ck)
-        host_batch_report = benchmark_sweep.review_captures(
+        host_batch_report = sweep_review.review_captures(
             [ck, host_batch_ck, direct, cpu],
             review_mode="release",
         )
@@ -1665,7 +1666,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "output_domain": "host_export",
                 "metadata": {"workflow_name": "small_oneshot"},
             }
-        scenario_split_report = benchmark_sweep.review_captures(
+        scenario_split_report = sweep_review.review_captures(
             [scenario_a_cpu, scenario_a_direct, scenario_b_cpu, scenario_b_direct],
             review_mode="release",
         )
@@ -1678,7 +1679,7 @@ class ReviewMetadataCases(unittest.TestCase):
             group["checksum_consistent"] is True for group in scenario_split_report["groups"]
         )
 
-        reuse_report = benchmark_sweep.review_captures(
+        reuse_report = sweep_review.review_captures(
             [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
             review_mode="release",
         )
@@ -1697,7 +1698,7 @@ class ReviewMetadataCases(unittest.TestCase):
         assert "missing_best_nonreuse_contract_baseline" in reuse_blockers["ck"]
         assert "prepacked_reuse_not_autotune_promotable" not in reuse_blockers["ck"]
 
-        reuse_a_report = benchmark_sweep.review_captures(
+        reuse_a_report = sweep_review.review_captures(
             [mark_reused_a_pack(ck), mark_reused_a_pack(direct), mark_reused_a_pack(cpu)],
             review_mode="release",
         )
@@ -1726,7 +1727,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "promotion_scope": "reuse_contract_evidence_only",
             },
         }
-        reuse_evidence_report = benchmark_sweep.review_captures(
+        reuse_evidence_report = sweep_review.review_captures(
             [reuse_evidence_direct], review_mode="release"
         )
         reuse_evidence_group = reuse_evidence_report["groups"][0]
@@ -1751,7 +1752,7 @@ class ReviewMetadataCases(unittest.TestCase):
                 "graph_role": "graph_replay_candidate",
             },
         }
-        graph_evidence_report = benchmark_sweep.review_captures(
+        graph_evidence_report = sweep_review.review_captures(
             [graph_evidence_direct], review_mode="release"
         )
         graph_evidence_group = graph_evidence_report["groups"][0]
@@ -1773,7 +1774,7 @@ class ReviewMetadataCases(unittest.TestCase):
         variant_direct_b["reconstruction_variant"] = {
             "name": "tree_crt_candidate",
         }
-        variant_report = benchmark_sweep.review_captures(
+        variant_report = sweep_review.review_captures(
             [variant_direct_a, variant_direct_b],
             review_mode="release",
         )
@@ -1793,14 +1794,14 @@ class ReviewMetadataCases(unittest.TestCase):
         for field in ("build_manifest", "artifact_capture"):
             missing = finite_capture("ck", 190)
             missing.pop(field)
-            provenance_report = benchmark_sweep.review_captures(
+            provenance_report = sweep_review.review_captures(
                 [missing, finite_capture("hip-direct", 300), finite_capture("cpu-reference", 500)],
                 review_mode="release",
             )
             assert not provenance_report["promotable_autotune_entries"]
         dirty = finite_capture("ck", 190)
         dirty["build_manifest"]["source_dirty"] = True
-        provenance_report = benchmark_sweep.review_captures(
+        provenance_report = sweep_review.review_captures(
             [dirty, finite_capture("hip-direct", 300), finite_capture("cpu-reference", 500)],
             review_mode="release",
         )
@@ -1809,7 +1810,7 @@ class ReviewMetadataCases(unittest.TestCase):
         for field in ("dependency_digest", "linkage", "identity_scope"):
             incomplete = finite_capture("ck", 190)
             incomplete["build_manifest"].pop(field)
-            provenance_report = benchmark_sweep.review_captures(
+            provenance_report = sweep_review.review_captures(
                 [
                     incomplete,
                     finite_capture("hip-direct", 300),

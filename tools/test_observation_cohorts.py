@@ -1,12 +1,10 @@
 """Authored independent-run and profiler partition regressions; no GPU use."""
 
 from copy import deepcopy
-import csv
 import json
 from pathlib import Path
 import tempfile
 import unittest
-import uuid
 
 from observation_cohorts import aggregate_captures, evidence, phase_median, compound_median
 from test_benchmark_sweep_support import finite_capture, bounded_capture

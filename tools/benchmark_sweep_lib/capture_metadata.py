@@ -11,7 +11,7 @@ from measurement_contract import (
     host_observation_contract,
 )
 
-from .config import PHASES, PLACEHOLDER_TARGET_IDS, WRAP64_ROCWMMA_CANDIDATE_BACKEND
+from .config import PLACEHOLDER_TARGET_IDS, WRAP64_ROCWMMA_CANDIDATE_BACKEND
 
 
 def capture_contract_key(capture: dict[str, Any]) -> str:

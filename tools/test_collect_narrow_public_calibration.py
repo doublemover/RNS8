@@ -1,7 +1,6 @@
 from benchmark_cases import case_root
 import copy
 import json
-from pathlib import Path
 import unittest
 from collect_narrow_public_calibration import validate_case, validate_capture, selected_prefix
 from test_capture_identity_support import synthetic_identity

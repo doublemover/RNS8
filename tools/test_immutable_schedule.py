@@ -1,4 +1,3 @@
-import copy
 import unittest
 from benchmark_schema.immutable_schedule import FIELDS, validate_immutable_schedule
 

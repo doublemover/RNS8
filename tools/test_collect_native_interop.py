@@ -1,7 +1,6 @@
 from benchmark_cases import case_root
 import copy
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 from collect_native_interop import validate_case, validate_capture, summarize, quantile
 

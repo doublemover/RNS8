@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import benchmark_sweep_lib.capture_metadata as sweep_capture_metadata
+import benchmark_sweep_lib.review as sweep_review
 import json
 import os
 import subprocess
@@ -10,7 +12,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-import benchmark_sweep
 from timing_diagnostics import is_censored_gpu_event_capture
 
 
@@ -65,10 +66,10 @@ def validate(schema: Path, capture: Path) -> None:
 
 def write_reviewed_cache(path: Path, capture: dict) -> dict:
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
-    target_id = benchmark_sweep.normalized_target_id(device.get("gcn_arch")) or "cpu"
-    entry = benchmark_sweep.cache_entry_from_capture(
+    target_id = sweep_capture_metadata.normalized_target_id(device.get("gcn_arch")) or "cpu"
+    entry = sweep_review.cache_entry_from_capture(
         capture,
-        benchmark_sweep.reviewed_release_status_for_target(target_id),
+        sweep_review.reviewed_release_status_for_target(target_id),
     )
     if not entry.get("key"):
         raise SystemExit("explicit backend capture did not report an autotune key")

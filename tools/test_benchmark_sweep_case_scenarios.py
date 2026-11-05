@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import benchmark_sweep_lib.commands as sweep_commands
+import benchmark_sweep_lib.config as sweep_config
+import benchmark_sweep_lib.execution as sweep_execution
+import benchmark_sweep_lib.parsing as sweep_parsing
+import benchmark_sweep_lib.scenarios as sweep_scenarios
 import argparse
-import benchmark_sweep
 import json
 import tempfile
 import unittest
@@ -21,40 +25,40 @@ from test_benchmark_sweep_support import (
 
 class ScenariosCases(unittest.TestCase):
     def test_scenarios_contracts(self) -> None:
-        parsed = benchmark_sweep.parse_case("rect:64,128,256")
+        parsed = sweep_parsing.parse_case("rect:64,128,256")
         assert parsed.name == "rect"
         assert (parsed.m, parsed.n, parsed.k) == (64, 128, 256)
-        adaptive = benchmark_sweep.parse_case("adaptive:65,65,64,64,64", adaptive=True)
+        adaptive = sweep_parsing.parse_case("adaptive:65,65,64,64,64", adaptive=True)
         assert adaptive.bound_mode == "per-tile"
         assert adaptive.input_profile == "uniform-small"
         assert adaptive.require_adaptive is True
-        adaptive_profile = benchmark_sweep.parse_case(
+        adaptive_profile = sweep_parsing.parse_case(
             "adaptive-bands:256,256,512,64,64,adaptive-bands", adaptive=True
         )
         assert adaptive_profile.input_profile == "adaptive-bands"
-        assert benchmark_sweep.backend_allowed_for("wrap-u64", parsed, "wrap64-byte-limb") is True
+        assert sweep_commands.backend_allowed_for("wrap-u64", parsed, "wrap64-byte-limb") is True
         assert (
-            benchmark_sweep.backend_allowed_for("bounded-i64", parsed, "wrap64-byte-limb") is False
+            sweep_commands.backend_allowed_for("bounded-i64", parsed, "wrap64-byte-limb") is False
         )
         assert (
-            benchmark_sweep.backend_allowed_for("finite-u8-ring", parsed, "hip-vector-alu-int64")
+            sweep_commands.backend_allowed_for("finite-u8-ring", parsed, "hip-vector-alu-int64")
             is False
         )
-        assert benchmark_sweep.backend_allowed_for("exact-wide-signed", parsed, "ck") is True
+        assert sweep_commands.backend_allowed_for("exact-wide-signed", parsed, "ck") is True
         assert (
-            benchmark_sweep.backend_allowed_for(
+            sweep_commands.backend_allowed_for(
                 "exact-wide-unsigned", parsed, "hip-vector-alu-int64"
             )
             is False
         )
-        assert benchmark_sweep.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
-        assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
-        assert benchmark_sweep.cli_backend("rocwmma") == "rocwmma"
-        assert benchmark_sweep.cli_backend("hip-vector-alu-int64") == "hip-vector-alu-int64-runtime"
-        assert benchmark_sweep.cli_backend("hip-direct") == "hip-direct"
+        assert sweep_commands.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
+        assert sweep_commands.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
+        assert sweep_execution.cli_backend("rocwmma") == "rocwmma"
+        assert sweep_execution.cli_backend("hip-vector-alu-int64") == "hip-vector-alu-int64-runtime"
+        assert sweep_execution.cli_backend("hip-direct") == "hip-direct"
 
-        catalog = benchmark_sweep.scenario_catalog()
-        scenario_files = sorted(benchmark_sweep.scenario_data_dir().glob("*.json"))
+        catalog = sweep_commands.scenario_catalog()
+        scenario_files = sorted(sweep_config.scenario_data_dir().glob("*.json"))
         assert len(scenario_files) == len(catalog)
         loaded_families = set(catalog)
         for path in scenario_files:
@@ -168,28 +172,28 @@ class ScenariosCases(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_path = Path(temp_dir) / "bad_scenario.json"
             payload = json.loads(
-                (benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(
+                (sweep_config.scenario_data_dir() / "grouped_dispatch.json").read_text(
                     encoding="utf-8"
                 )
             )
             payload["items"][0]["review_mode_expectation"] = "unregistered_review_mode"
             scenario_path.write_text(json.dumps(payload), encoding="utf-8")
             try:
-                benchmark_sweep.load_scenario_data_family(scenario_path)
+                sweep_scenarios.load_scenario_data_family(scenario_path)
             except SystemExit as exc:
                 assert "registered scenario review mode" in str(exc)
             else:
                 raise AssertionError("expected stale scenario review mode to fail validation")
 
             payload = json.loads(
-                (benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(
+                (sweep_config.scenario_data_dir() / "grouped_dispatch.json").read_text(
                     encoding="utf-8"
                 )
             )
             payload["items"][0]["promotion_eligibility"] = "unregistered_promotion_scope"
             scenario_path.write_text(json.dumps(payload), encoding="utf-8")
             try:
-                benchmark_sweep.load_scenario_data_family(scenario_path)
+                sweep_scenarios.load_scenario_data_family(scenario_path)
             except SystemExit as exc:
                 assert "registered promotion scope" in str(exc)
             else:
@@ -214,8 +218,8 @@ class ScenariosCases(unittest.TestCase):
             next_op_hint=None,
             residue_channel_fusion=False,
         )
-        fusion_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, fusion_item)
-        fusion_command = benchmark_sweep.command_for(
+        fusion_args = sweep_commands.scenario_args_for_item(scenario_base_args, fusion_item)
+        fusion_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             fusion_item.semantics,
@@ -229,8 +233,8 @@ class ScenariosCases(unittest.TestCase):
         assert "--prefix-policy" in fusion_command and "fixed-requested" in fusion_command
         assert "--max-prefix" in fusion_command and "9" in fusion_command
         modulus_item = catalog["modulus-set-autotune"][0]
-        modulus_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, modulus_item)
-        modulus_command = benchmark_sweep.command_for(
+        modulus_args = sweep_commands.scenario_args_for_item(scenario_base_args, modulus_item)
+        modulus_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             modulus_item.semantics,
@@ -248,8 +252,8 @@ class ScenariosCases(unittest.TestCase):
             for item in catalog["tile-shape-sweeps"]
             if item.tile_shape_variant == "direct-hip-bounded-512-64x64"
         )
-        tile_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, tile_item)
-        tile_command = benchmark_sweep.command_for(
+        tile_args = sweep_commands.scenario_args_for_item(scenario_base_args, tile_item)
+        tile_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             tile_item.semantics,
@@ -272,8 +276,8 @@ class ScenariosCases(unittest.TestCase):
             and item.pack_mode == graph_item.pack_mode
             for item in catalog["hip-graph-replay"]
         )
-        graph_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, graph_item)
-        graph_command = benchmark_sweep.command_for(
+        graph_args = sweep_commands.scenario_args_for_item(scenario_base_args, graph_item)
+        graph_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             graph_item.semantics,
@@ -284,8 +288,8 @@ class ScenariosCases(unittest.TestCase):
         )
         assert "--hip-graph-replay" in graph_command
         grouped_item = catalog["grouped-dispatch"][0]
-        grouped_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, grouped_item)
-        grouped_command = benchmark_sweep.command_for(
+        grouped_args = sweep_commands.scenario_args_for_item(scenario_base_args, grouped_item)
+        grouped_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             grouped_item.semantics,
@@ -296,8 +300,8 @@ class ScenariosCases(unittest.TestCase):
         )
         assert "--grouped-dispatch" in grouped_command and "32" in grouped_command
         resident_item = catalog["resident-lifetime-arena"][0]
-        resident_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, resident_item)
-        resident_command = benchmark_sweep.command_for(
+        resident_args = sweep_commands.scenario_args_for_item(scenario_base_args, resident_item)
+        resident_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             resident_item.semantics,
@@ -308,11 +312,11 @@ class ScenariosCases(unittest.TestCase):
         )
         assert "--resident-lifetime" in resident_command
         assert "--workspace-arena" in resident_command
-        resident_redesign_item = benchmark_sweep.ScenarioItem(
+        resident_redesign_item = sweep_config.ScenarioItem(
             "direct-hip-resident-redesign",
             "grouped-active-schedule",
             "bounded-i64",
-            benchmark_sweep.SweepCase(
+            sweep_config.SweepCase(
                 "adaptive-redesign",
                 512,
                 512,
@@ -338,10 +342,10 @@ class ScenariosCases(unittest.TestCase):
                 "workspace_reuse",
             ),
         )
-        resident_redesign_args = benchmark_sweep.scenario_args_for_item(
+        resident_redesign_args = sweep_commands.scenario_args_for_item(
             scenario_base_args, resident_redesign_item
         )
-        resident_redesign_command = benchmark_sweep.command_for(
+        resident_redesign_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             resident_redesign_item.semantics,
@@ -358,10 +362,10 @@ class ScenariosCases(unittest.TestCase):
             in resident_redesign_command
         )
         adaptive_group_item = catalog["adaptive-grouped-scheduler"][0]
-        adaptive_group_args = benchmark_sweep.scenario_args_for_item(
+        adaptive_group_args = sweep_commands.scenario_args_for_item(
             scenario_base_args, adaptive_group_item
         )
-        adaptive_group_command = benchmark_sweep.command_for(
+        adaptive_group_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             adaptive_group_item.semantics,
@@ -372,8 +376,8 @@ class ScenariosCases(unittest.TestCase):
         )
         assert "--adaptive-grouped-scheduler" in adaptive_group_command
         overlap_item = next(item for item in catalog["streaming-overlap"] if item.streaming_overlap)
-        overlap_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, overlap_item)
-        overlap_command = benchmark_sweep.command_for(
+        overlap_args = sweep_commands.scenario_args_for_item(scenario_base_args, overlap_item)
+        overlap_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             overlap_item.semantics,
@@ -384,8 +388,8 @@ class ScenariosCases(unittest.TestCase):
         )
         assert "--streaming-overlap" in overlap_command
         release_item = catalog["release-gate-closeout"][0]
-        release_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, release_item)
-        release_command = benchmark_sweep.command_for(
+        release_args = sweep_commands.scenario_args_for_item(scenario_base_args, release_item)
+        release_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             release_item.semantics,
@@ -399,10 +403,10 @@ class ScenariosCases(unittest.TestCase):
             and "large-release-validation-4096-budgeted" in release_command
         )
         error_detection_item = catalog["error-detecting-fast-path"][0]
-        error_detection_args = benchmark_sweep.scenario_args_for_item(
+        error_detection_args = sweep_commands.scenario_args_for_item(
             scenario_base_args, error_detection_item
         )
-        error_detection_command = benchmark_sweep.command_for(
+        error_detection_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             error_detection_item.semantics,
@@ -414,10 +418,10 @@ class ScenariosCases(unittest.TestCase):
         assert "--error-detection-policy" in error_detection_command
         assert "freivalds_two_round_product_check_research" in error_detection_command
         cpu_selector_item = catalog["cpu-small-shape-selector"][0]
-        cpu_selector_args = benchmark_sweep.scenario_args_for_item(
+        cpu_selector_args = sweep_commands.scenario_args_for_item(
             scenario_base_args, cpu_selector_item
         )
-        cpu_selector_command = benchmark_sweep.command_for(
+        cpu_selector_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             cpu_selector_item.semantics,
@@ -429,10 +433,10 @@ class ScenariosCases(unittest.TestCase):
         assert "--cpu-small-shape-selector" in cpu_selector_command
         assert "bounded_i64_32_cpu_cutoff_review" in cpu_selector_command
         incremental_item = catalog["incremental-result-cache"][0]
-        incremental_args = benchmark_sweep.scenario_args_for_item(
+        incremental_args = sweep_commands.scenario_args_for_item(
             scenario_base_args, incremental_item
         )
-        incremental_command = benchmark_sweep.command_for(
+        incremental_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             incremental_item.semantics,
@@ -453,7 +457,7 @@ class ScenariosCases(unittest.TestCase):
                 "promotion_eligibility": "non_promoting_modulus_map",
                 "metadata": {"promotion_scope": "non_promoting_modulus_map"},
             }
-            benchmark_sweep.annotate_scenario_metadata(capture_path, metadata)
+            sweep_execution.annotate_scenario_metadata(capture_path, metadata)
             annotated = load_capture(capture_path)
             validate_capture(annotated, capture_path)
             assert annotated["scenario_metadata"] == metadata
@@ -473,10 +477,10 @@ class ScenariosCases(unittest.TestCase):
             for shape in [512, 1024]
             for independent in [False, True]
         }
-        broader_chain_args = benchmark_sweep.scenario_args_for_item(
+        broader_chain_args = sweep_commands.scenario_args_for_item(
             scenario_base_args, broader_chain_items[0]
         )
-        broader_chain_command = benchmark_sweep.command_for(
+        broader_chain_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             broader_chain_items[0].semantics,
@@ -506,8 +510,8 @@ class ScenariosCases(unittest.TestCase):
         residue_item = next(
             item for item in exact_wide_output_chain_items if not item.residue_chain_final_export
         )
-        residue_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, residue_item)
-        residue_command = benchmark_sweep.command_for(
+        residue_args = sweep_commands.scenario_args_for_item(scenario_base_args, residue_item)
+        residue_command = sweep_commands.command_for(
             Path("rns8-bench"),
             "hip-direct",
             residue_item.semantics,

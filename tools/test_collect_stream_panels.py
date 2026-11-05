@@ -15,7 +15,6 @@ from collect_stream_panels import (
     MODES,
     KEYS,
     BUDGET,
-    MASK,
     MODULI,
     collect,
     contract,

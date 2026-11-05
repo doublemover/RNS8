@@ -11,7 +11,8 @@ from evidence_database_lib.io import discover_capture_paths, discover_isa_report
 
 from .commands import scenario_names, sweep_command_entries
 from .scenario_lint import validate_scenario_catalog
-from .config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS, scenario_data_dir, SweepCommand
+from .config import scenario_data_dir, SweepCommand
+from review_contract import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
 from .execution import autotune_cache_path, execute_sweep_entries, validate_paths
 from .reports import write_markdown_report, write_scenario_manifest
 from .review import attach_cache_write_status, review_captures, write_promoted_cache_entries

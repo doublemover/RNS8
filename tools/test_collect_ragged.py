@@ -14,7 +14,6 @@ from collect_ragged import (
     MODES,
     KEYS,
     MASK,
-    BUDGET,
     collect,
     contract,
     envelope,

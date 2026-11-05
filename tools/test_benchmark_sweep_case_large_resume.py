@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import benchmark_sweep_lib.commands as sweep_commands
+import benchmark_sweep_lib.config as sweep_config
+import benchmark_sweep_lib.execution as sweep_execution
+import benchmark_sweep_lib.reports as sweep_reports
 import argparse
-import benchmark_sweep
 import copy
 import json
 import tempfile
@@ -21,12 +24,12 @@ from test_benchmark_sweep_support import (
 class LargeResumeCases(unittest.TestCase):
     def test_large_resume_contracts(self) -> None:
         scenario_args = scenario_command_args()
-        scenario_entries = benchmark_sweep.sweep_command_entries(scenario_args)
+        scenario_entries = sweep_commands.sweep_command_entries(scenario_args)
         large_bounded_args = copy.copy(scenario_args)
         large_bounded_args.backends = ["hip-direct"]
         large_bounded_args.scenario = ["large-exploratory"]
         large_bounded_args.semantics = ["bounded-i64", "bounded-u64"]
-        large_bounded_entries = benchmark_sweep.sweep_command_entries(large_bounded_args)
+        large_bounded_entries = sweep_commands.sweep_command_entries(large_bounded_args)
         assert [entry.scenario["name"] for entry in large_bounded_entries] == [
             "bounded-i64-2048",
             "bounded-i64-2048-reuse-b",
@@ -47,7 +50,7 @@ class LargeResumeCases(unittest.TestCase):
         large_validation_args = copy.copy(scenario_args)
         large_validation_args.backends = None
         large_validation_args.scenario = ["large-release-validation"]
-        large_validation_entries = benchmark_sweep.sweep_command_entries(large_validation_args)
+        large_validation_entries = sweep_commands.sweep_command_entries(large_validation_args)
         assert_scenario_commands(large_validation_entries)
         assert {entry.scenario["name"] for entry in large_validation_entries} == {
             "bounded-i64-2048-required-baselines",
@@ -96,9 +99,7 @@ class LargeResumeCases(unittest.TestCase):
         large_4096_budgeted_args = copy.copy(scenario_args)
         large_4096_budgeted_args.backends = None
         large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
-        large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(
-            large_4096_budgeted_args
-        )
+        large_4096_budgeted_entries = sweep_commands.sweep_command_entries(large_4096_budgeted_args)
         assert_scenario_commands(large_4096_budgeted_entries)
         assert {
             entry.scenario["backend"]
@@ -165,7 +166,7 @@ class LargeResumeCases(unittest.TestCase):
         finite_generic_args = copy.copy(scenario_args)
         finite_generic_args.backends = ["hip-direct", "ck", "rocwmma"]
         finite_generic_args.scenario = ["finite-generic-moduli"]
-        finite_generic_entries = benchmark_sweep.sweep_command_entries(finite_generic_args)
+        finite_generic_entries = sweep_commands.sweep_command_entries(finite_generic_args)
         assert_scenario_commands(finite_generic_entries)
         assert {entry.scenario["name"] for entry in finite_generic_entries} == {
             "ring-prime-127-512",
@@ -192,7 +193,7 @@ class LargeResumeCases(unittest.TestCase):
         finite_modulus_map_args = copy.copy(scenario_args)
         finite_modulus_map_args.backends = None
         finite_modulus_map_args.scenario = ["finite-modulus-map"]
-        finite_modulus_map_entries = benchmark_sweep.sweep_command_entries(finite_modulus_map_args)
+        finite_modulus_map_entries = sweep_commands.sweep_command_entries(finite_modulus_map_args)
         assert_scenario_commands(finite_modulus_map_entries)
         assert {
             entry.scenario["modulus"]
@@ -220,7 +221,7 @@ class LargeResumeCases(unittest.TestCase):
         bridge_args.backends = None
         bridge_args.bench_for = ["hip-direct=hip-direct-release-bench"]
         bridge_args.scenario = ["native-to-rns-bridge"]
-        bridge_entries = benchmark_sweep.sweep_command_entries(bridge_args)
+        bridge_entries = sweep_commands.sweep_command_entries(bridge_args)
         assert_scenario_commands(bridge_entries)
         assert {entry.scenario["name"] for entry in bridge_entries} == {
             "bounded-i64-64",
@@ -245,7 +246,7 @@ class LargeResumeCases(unittest.TestCase):
         vector_chain_args.backends = None
         vector_chain_args.bench_for = ["hip-direct=hip-direct-release-bench"]
         vector_chain_args.scenario = ["vector-to-rns-chain"]
-        vector_chain_entries = benchmark_sweep.sweep_command_entries(vector_chain_args)
+        vector_chain_entries = sweep_commands.sweep_command_entries(vector_chain_args)
         assert_scenario_commands(vector_chain_entries)
         assert all(entry.command[0] == "hip-direct-release-bench" for entry in vector_chain_entries)
         assert {
@@ -289,7 +290,7 @@ class LargeResumeCases(unittest.TestCase):
         algebra_args = copy.copy(scenario_args)
         algebra_args.backends = ["ck"]
         algebra_args.scenario = ["computational-algebra-proxies"]
-        algebra_entries = benchmark_sweep.sweep_command_entries(algebra_args)
+        algebra_entries = sweep_commands.sweep_command_entries(algebra_args)
         assert_scenario_commands(algebra_entries)
         assert all(option(entry.command, "--backend") == "ck" for entry in algebra_entries)
         assert {
@@ -304,7 +305,7 @@ class LargeResumeCases(unittest.TestCase):
         fhe_args = copy.copy(scenario_args)
         fhe_args.backends = ["hip-direct"]
         fhe_args.scenario = ["fhe-lattice-proxies"]
-        fhe_entries = benchmark_sweep.sweep_command_entries(fhe_args)
+        fhe_entries = sweep_commands.sweep_command_entries(fhe_args)
         assert_scenario_commands(fhe_entries)
         assert all(option(entry.command, "--backend") == "hip-direct" for entry in fhe_entries)
         assert {entry.scenario.get("metadata", {}).get("source_role") for entry in fhe_entries} == {
@@ -321,7 +322,7 @@ class LargeResumeCases(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as tmp:
-            manifest_paths = benchmark_sweep.write_scenario_manifest(
+            manifest_paths = sweep_reports.write_scenario_manifest(
                 scenario_entries, scenario_args, Path(tmp)
             )
             assert manifest_paths is not None
@@ -350,15 +351,15 @@ class LargeResumeCases(unittest.TestCase):
             missing = tmp_path / "missing.json"
             invalid = tmp_path / "invalid.json"
             invalid.write_text("{", encoding="utf-8")
-            assert benchmark_sweep.existing_capture_valid(existing) is True
-            assert benchmark_sweep.existing_capture_valid(missing) is False
-            assert benchmark_sweep.existing_capture_valid(invalid) is False
+            assert sweep_execution.existing_capture_valid(existing) is True
+            assert sweep_execution.existing_capture_valid(missing) is False
+            assert sweep_execution.existing_capture_valid(invalid) is False
             resume_args = argparse.Namespace(skip_existing=True, max_new_captures=0)
             capture_paths = []
-            stats = benchmark_sweep.execute_sweep_entries(
+            stats = sweep_execution.execute_sweep_entries(
                 [
-                    benchmark_sweep.SweepCommand("existing", ["not-run"], existing),
-                    benchmark_sweep.SweepCommand("missing", ["not-run"], missing),
+                    sweep_config.SweepCommand("existing", ["not-run"], existing),
+                    sweep_config.SweepCommand("missing", ["not-run"], missing),
                 ],
                 resume_args,
                 capture_paths,

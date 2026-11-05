@@ -2,7 +2,6 @@ from benchmark_cases import case_root
 import copy
 import unittest
 from unittest.mock import patch
-from pathlib import Path
 import json
 from collect_residue_dot import validate_case, validate_capture, summarize, paired_manifest
 from gpu_isa_report import scan_disassembly

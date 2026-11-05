@@ -6,7 +6,6 @@ from typing import Any
 
 from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
 from benchmark_cases import case_root
-from review_contract import REVIEW_SCHEMA_VERSION, RELEASE_MIN_WARMUPS, RELEASE_MIN_REPEATS
 
 BOUNDED_BACKENDS = [
     "cpu",

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import benchmark_sweep_lib.commands as sweep_commands
+import benchmark_sweep_lib.config as sweep_config
+import benchmark_sweep_lib.execution as sweep_execution
+import review_contract as review_contract
 import argparse
-import benchmark_sweep
 import copy
 import json
 import subprocess
@@ -53,14 +56,14 @@ class CommandMatrixCases(unittest.TestCase):
             release_matrix=True,
             include_exploratory_large=False,
             review_mode="release",
-            warmups=benchmark_sweep.RELEASE_MIN_WARMUPS,
-            repeats=benchmark_sweep.RELEASE_MIN_REPEATS,
+            warmups=review_contract.RELEASE_MIN_WARMUPS,
+            repeats=review_contract.RELEASE_MIN_REPEATS,
             seed=20260602,
             write_autotune_cache=False,
             autotune_cache=None,
         )
-        wrap64_commands = benchmark_sweep.sweep_commands(wrap64_args)
-        assert len(wrap64_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 2
+        wrap64_commands = sweep_commands.sweep_commands(wrap64_args)
+        assert len(wrap64_commands) == len(sweep_config.PROMOTABLE_RELEASE_SHAPES) * 2
         assert wrap64_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-wrap64-byte-limb.json"
         assert wrap64_commands[1][0] == "wrap-u64-wrap64-64-64x64x64-hip-direct.json"
         assert all(
@@ -68,15 +71,15 @@ class CommandMatrixCases(unittest.TestCase):
             for _, command, _ in wrap64_commands
         )
         wrap64_args.include_wrap64_rocwmma_candidate = True
-        candidate_commands = benchmark_sweep.sweep_commands(wrap64_args)
-        assert len(candidate_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 3
+        candidate_commands = sweep_commands.sweep_commands(wrap64_args)
+        assert len(candidate_commands) == len(sweep_config.PROMOTABLE_RELEASE_SHAPES) * 3
         candidate_name, candidate_command, _candidate_output = candidate_commands[2]
         assert candidate_name == "wrap-u64-wrap64-64-64x64x64-rocwmma-wrap64-candidate.json"
         assert "--backend" in candidate_command and "rocwmma-wrap64-candidate" in candidate_command
         assert "--tile-m" in candidate_command and "16" in candidate_command
         wrap64_args.include_wrap64_rocwmma_candidate = False
         wrap64_args.reuse_packed_inputs = True
-        reuse_commands = benchmark_sweep.sweep_commands(wrap64_args)
+        reuse_commands = sweep_commands.sweep_commands(wrap64_args)
         assert (
             reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
         )
@@ -84,7 +87,7 @@ class CommandMatrixCases(unittest.TestCase):
             assert_reuse(command, "prepacked_reuse")
         wrap64_args.reuse_packed_inputs = False
         wrap64_args.reuse_packed_a = True
-        reuse_a_commands = benchmark_sweep.sweep_commands(wrap64_args)
+        reuse_a_commands = sweep_commands.sweep_commands(wrap64_args)
         assert (
             reuse_a_commands[0][0]
             == "wrap-u64-wrap64-64-64x64x64-reuse-packed-a-wrap64-byte-limb.json"
@@ -93,7 +96,7 @@ class CommandMatrixCases(unittest.TestCase):
             assert_reuse(command, "prepacked_reuse_a")
         wrap64_args.reuse_packed_a = False
         wrap64_args.reuse_packed_b = True
-        reuse_b_commands = benchmark_sweep.sweep_commands(wrap64_args)
+        reuse_b_commands = sweep_commands.sweep_commands(wrap64_args)
         assert (
             reuse_b_commands[0][0]
             == "wrap-u64-wrap64-64-64x64x64-reuse-packed-b-wrap64-byte-limb.json"
@@ -103,7 +106,7 @@ class CommandMatrixCases(unittest.TestCase):
         wrap64_args.reuse_packed_b = False
         wrap64_args.adaptive_only = True
         try:
-            benchmark_sweep.sweep_commands(wrap64_args)
+            sweep_commands.sweep_commands(wrap64_args)
         except SystemExit as exc:
             assert "--adaptive-only requires" in str(exc)
         else:
@@ -143,7 +146,7 @@ class CommandMatrixCases(unittest.TestCase):
             write_autotune_cache=False,
             autotune_cache=None,
         )
-        exact_commands = benchmark_sweep.sweep_commands(exact_args)
+        exact_commands = sweep_commands.sweep_commands(exact_args)
         assert [name for name, _command, _output in exact_commands] == [
             "exact-wide-signed-small-16x16x16-cpu.json",
             "exact-wide-signed-small-16x16x16-hip-direct.json",
@@ -162,7 +165,7 @@ class CommandMatrixCases(unittest.TestCase):
         anchor_args.cpu_threads = 4
         anchor_args.cpu_parallel_threshold = 0
         anchor_args.progress = True
-        anchor_commands = benchmark_sweep.sweep_commands(anchor_args)
+        anchor_commands = sweep_commands.sweep_commands(anchor_args)
         anchor_cpu_command = anchor_commands[0][1]
         anchor_gpu_command = anchor_commands[1][1]
         assert anchor_cpu_command[anchor_cpu_command.index("--warmups") + 1] == "0"
@@ -183,7 +186,7 @@ class CommandMatrixCases(unittest.TestCase):
             visible_args.rocr_visible_devices = None
             visible_args.gpu_device_ordinal = None
             visible_args.gpu_shards = None
-            visible_entries = benchmark_sweep.sweep_command_entries(visible_args)
+            visible_entries = sweep_commands.sweep_command_entries(visible_args)
             assert visible_entries
             assert_visibility(visible_entries, {"HIP_VISIBLE_DEVICES": mask})
             assert_unique_destinations(visible_entries)
@@ -196,7 +199,7 @@ class CommandMatrixCases(unittest.TestCase):
         sharded_args.rocr_visible_devices = None
         sharded_args.gpu_device_ordinal = None
         sharded_args.gpu_shards = "0,1,2,3"
-        sharded_entries = benchmark_sweep.sweep_command_entries(sharded_args)
+        sharded_entries = sweep_commands.sweep_command_entries(sharded_args)
         assert len(sharded_entries) == len(exact_commands) * 4
         assert_unique_destinations(sharded_entries)
         assert {entry.name for entry in sharded_entries} == {
@@ -236,8 +239,8 @@ class CommandMatrixCases(unittest.TestCase):
                 "7",
             ]
             entries = [
-                benchmark_sweep.SweepCommand("cpu-a", fake_command, temp_path / "cpu-a.json"),
-                benchmark_sweep.SweepCommand("cpu-b", fake_command, temp_path / "cpu-b.json"),
+                sweep_config.SweepCommand("cpu-a", fake_command, temp_path / "cpu-a.json"),
+                sweep_config.SweepCommand("cpu-b", fake_command, temp_path / "cpu-b.json"),
             ]
             dedupe_args = argparse.Namespace(
                 skip_existing=False,
@@ -246,7 +249,7 @@ class CommandMatrixCases(unittest.TestCase):
                 progress=False,
             )
             capture_paths = []
-            stats = benchmark_sweep.execute_sweep_entries(entries, dedupe_args, capture_paths)
+            stats = sweep_execution.execute_sweep_entries(entries, dedupe_args, capture_paths)
             assert stats["new_captures_attempted"] == 1
             assert stats["new_captures_completed"] == 1
             assert stats["deduped_cpu_captures"] == 1
@@ -354,8 +357,8 @@ class CommandMatrixCases(unittest.TestCase):
         exact_variant_args = copy.copy(exact_args)
         exact_variant_args.backends = ["cpu"]
         exact_variant_args.include_exact_wide_limb_variants = True
-        exact_variant_commands = benchmark_sweep.sweep_commands(exact_variant_args)
-        assert len(exact_variant_commands) == len(benchmark_sweep.EXACT_WIDE_LIMB_VARIANTS)
+        exact_variant_commands = sweep_commands.sweep_commands(exact_variant_args)
+        assert len(exact_variant_commands) == len(sweep_config.EXACT_WIDE_LIMB_VARIANTS)
         assert [name for name, _command, _output in exact_variant_commands] == [
             "exact-wide-signed-small-16x16x16-limbs1-cpu.json",
             "exact-wide-signed-small-16x16x16-limbs2-cpu.json",
@@ -384,7 +387,7 @@ class CommandMatrixCases(unittest.TestCase):
         scenario_args.semantics = None
         scenario_args.case = None
         scenario_args.scenario = ["repeated-b"]
-        scenario_entries = benchmark_sweep.sweep_command_entries(scenario_args)
+        scenario_entries = sweep_commands.sweep_command_entries(scenario_args)
         assert_scenario_commands(scenario_entries)
         assert {entry.scenario["family"] for entry in scenario_entries} == {"repeated-b"}
         assert sum(1 for entry in scenario_entries if "--reuse-packed-b" in entry.command) >= 1
@@ -395,7 +398,7 @@ class CommandMatrixCases(unittest.TestCase):
         fused_pack_args = copy.copy(scenario_args)
         fused_pack_args.backends = None
         fused_pack_args.scenario = ["fused-pack-gemm-small"]
-        fused_pack_entries = benchmark_sweep.sweep_command_entries(fused_pack_args)
+        fused_pack_entries = sweep_commands.sweep_command_entries(fused_pack_args)
         assert_scenario_commands(fused_pack_entries)
         assert {entry.scenario["family"] for entry in fused_pack_entries} == {
             "fused-pack-gemm-small"

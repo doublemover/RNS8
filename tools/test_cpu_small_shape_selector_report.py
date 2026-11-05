@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from test_review_reference_support import add_synthetic_full_reference
 
-import copy
 import json
 import tempfile
 from pathlib import Path

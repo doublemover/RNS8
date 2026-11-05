@@ -1,7 +1,7 @@
 import copy
 import unittest
-from native_dataset import inputs, model, mt19937_64, PROFILES
-from collect_native_calibration import validate_case, validate_capture
+from native_dataset import model, mt19937_64, PROFILES
+from collect_native_calibration import validate_capture
 from test_collect_native_calibration import case_for, capture_for
 
 

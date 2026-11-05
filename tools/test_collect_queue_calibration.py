@@ -2,7 +2,6 @@ from benchmark_cases import case_root
 import copy
 import json
 from pathlib import Path
-import tempfile
 import unittest
 from collect_queue_calibration import MODES, commands, validate_case, validate_capture
 from native_queue_schedule_contract import IDENTITIES, layout

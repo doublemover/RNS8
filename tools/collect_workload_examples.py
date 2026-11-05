@@ -17,7 +17,6 @@ from pathlib import Path
 import platform
 import re
 import subprocess
-import sys
 import time
 import uuid
 

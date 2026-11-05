@@ -1,7 +1,6 @@
 """Authored exact import/schedule fixtures; no GPU or performance qualification."""
 
 import copy
-from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path

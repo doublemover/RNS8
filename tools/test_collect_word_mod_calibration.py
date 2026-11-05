@@ -14,7 +14,6 @@ from collect_word_mod_calibration import (
     INTEGER_METHODS,
     FLOAT_METHODS,
     MFMA_METHODS,
-    METHODS,
     SCOPES,
     collect,
     contract,

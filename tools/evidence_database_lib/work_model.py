@@ -5,7 +5,7 @@ from statistics import median
 from typing import Any
 
 from .config import DIAGNOSTIC_PHASES, OPTIMIZATION_HINTS, PHASES
-from .io import event_medians, median_phase
+from .io import median_phase
 from .event_cover import disjoint_event_cover
 from .isa import normalized_backend, normalized_target, safe_float, sorted_strings
 

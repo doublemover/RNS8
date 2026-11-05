@@ -7,7 +7,6 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import cdna_env_summary as summary
 

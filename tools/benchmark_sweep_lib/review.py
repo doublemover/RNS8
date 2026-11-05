@@ -38,7 +38,6 @@ from .capture_metadata import (
     backend_requires_gpu_target,
     capture_backend_metadata,
     capture_bound_source,
-    capture_compiler,
     capture_contract_key,
     capture_device,
     capture_execution_mode,
@@ -59,13 +58,8 @@ from .capture_metadata import (
     normalized_target_id,
     selected_kernel,
 )
-from .config import (
-    PHASES,
-    RELEASE_MIN_REPEATS,
-    RELEASE_MIN_WARMUPS,
-    REVIEW_SCHEMA_VERSION,
-    WRAP64_ROCWMMA_CANDIDATE_BACKEND,
-)
+from .config import PHASES, WRAP64_ROCWMMA_CANDIDATE_BACKEND
+from review_contract import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS, REVIEW_SCHEMA_VERSION
 
 DIAGNOSTIC_PHASES = tuple(PHASES) + ("pack_a", "pack_b")
 

@@ -13,7 +13,6 @@ from unittest.mock import patch
 from collect_block_sparse import (
     BUDGET,
     MODES,
-    active,
     checksum,
     collect,
     contract,

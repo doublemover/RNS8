@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import benchmark_sweep_lib.commands as sweep_commands
+import benchmark_sweep_lib.config as sweep_config
+import benchmark_sweep_lib.execution as sweep_execution
+import review_contract as review_contract
 import argparse
-import benchmark_sweep
 import copy
 import json
 import sys
@@ -24,7 +27,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         scenario_args = scenario_command_args()
         with tempfile.TemporaryDirectory() as tmp:
             timeout_output = Path(tmp) / "timeout.json"
-            ok = benchmark_sweep.run_command(
+            ok = sweep_execution.run_command(
                 [sys.executable, "-c", "import time; time.sleep(5)"],
                 timeout_output,
                 timeout_seconds=0.01,
@@ -41,7 +44,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         bad_scenario_args = copy.copy(scenario_args)
         bad_scenario_args.include_oneshot = True
         try:
-            benchmark_sweep.sweep_commands(bad_scenario_args)
+            sweep_commands.sweep_commands(bad_scenario_args)
         except SystemExit as exc:
             assert "--scenario cannot be combined" in str(exc)
         else:
@@ -60,7 +63,7 @@ class ChainAdaptiveCases(unittest.TestCase):
             bad_scenario_args = copy.copy(scenario_args)
             setattr(bad_scenario_args, attr, value)
             try:
-                benchmark_sweep.sweep_commands(bad_scenario_args)
+                sweep_commands.sweep_commands(bad_scenario_args)
             except SystemExit as exc:
                 assert "--scenario cannot be combined" in str(exc)
             else:
@@ -69,7 +72,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         exact_chain_args = copy.copy(exact_args)
         exact_chain_args.backends = ["cpu"]
         exact_chain_args.residue_chain_length = 3
-        exact_chain_commands = benchmark_sweep.sweep_commands(exact_chain_args)
+        exact_chain_commands = sweep_commands.sweep_commands(exact_chain_args)
         assert [name for name, _command, _output in exact_chain_commands] == [
             "exact-wide-signed-small-16x16x16-chain3-cpu.json",
         ]
@@ -81,7 +84,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         exact_chain_final_args = copy.copy(exact_chain_args)
         exact_chain_final_args.residue_chain_final_export = True
         exact_chain_final_args.next_op_hint = "final-export"
-        exact_chain_final_commands = benchmark_sweep.sweep_commands(exact_chain_final_args)
+        exact_chain_final_commands = sweep_commands.sweep_commands(exact_chain_final_args)
         assert [name for name, _command, _output in exact_chain_final_commands] == [
             "exact-wide-signed-small-16x16x16-chain3-finalexport-cpu.json",
         ]
@@ -99,7 +102,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         bounded_independent_chain_args.residue_chain_length = 3
         bounded_independent_chain_args.residue_chain_independent_final_export = True
         bounded_independent_chain_args.next_op_hint = "final-export"
-        bounded_independent_chain_commands = benchmark_sweep.sweep_commands(
+        bounded_independent_chain_commands = sweep_commands.sweep_commands(
             bounded_independent_chain_args
         )
         assert [name for name, _command, _output in bounded_independent_chain_commands] == [
@@ -112,7 +115,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         exact_independent_chain_args = copy.copy(exact_chain_args)
         exact_independent_chain_args.residue_chain_independent_final_export = True
         exact_independent_chain_args.next_op_hint = "final-export"
-        exact_independent_chain_commands = benchmark_sweep.sweep_commands(
+        exact_independent_chain_commands = sweep_commands.sweep_commands(
             exact_independent_chain_args
         )
         assert [name for name, _command, _output in exact_independent_chain_commands] == [
@@ -127,7 +130,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         vector_args.backends = ["hip-vector-alu-int64"]
         vector_args.semantics = ["bounded-i64"]
         vector_args.case = ["small:16,16,16"]
-        vector_commands = benchmark_sweep.sweep_commands(vector_args)
+        vector_commands = sweep_commands.sweep_commands(vector_args)
         vector_name, vector_command, _vector_output = vector_commands[0]
         assert vector_name == "bounded-i64-small-16x16x16-hip-vector-alu-int64.json"
         assert (
@@ -137,7 +140,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         padded_output_args = copy.copy(vector_args)
         padded_output_args.backends = ["hip-direct"]
         padded_output_args.output_ld_padding = 7
-        padded_output_commands = benchmark_sweep.sweep_commands(padded_output_args)
+        padded_output_commands = sweep_commands.sweep_commands(padded_output_args)
         padded_name, padded_command, _padded_output = padded_output_commands[0]
         assert padded_name == "bounded-i64-small-16x16x16-outpad7-hip-direct.json"
         assert "--output-ld-padding" in padded_command
@@ -145,7 +148,7 @@ class ChainAdaptiveCases(unittest.TestCase):
 
         input_scan_args = copy.copy(vector_args)
         input_scan_args.bound_source = "input-scan"
-        input_scan_commands = benchmark_sweep.sweep_commands(input_scan_args)
+        input_scan_commands = sweep_commands.sweep_commands(input_scan_args)
         input_scan_command = input_scan_commands[0][1]
         assert "--bound-source" in input_scan_command
         assert input_scan_command[input_scan_command.index("--bound-source") + 1] == "input-scan"
@@ -153,7 +156,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         exact_input_scan_args = copy.copy(exact_args)
         exact_input_scan_args.bound_source = "input-scan"
         try:
-            benchmark_sweep.sweep_commands(exact_input_scan_args)
+            sweep_commands.sweep_commands(exact_input_scan_args)
         except SystemExit as exc:
             assert "--bound-source input-scan is only valid for bounded RNS sweeps" in str(exc)
         else:
@@ -166,7 +169,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         oneshot_args.case = ["small:16,16,16"]
         oneshot_args.include_oneshot = True
         oneshot_args.oneshot_only = False
-        oneshot_commands = benchmark_sweep.sweep_commands(oneshot_args)
+        oneshot_commands = sweep_commands.sweep_commands(oneshot_args)
         assert [name for name, _command, _output in oneshot_commands] == [
             "bounded-i64-small-16x16x16-hip-direct.json",
             "bounded-i64-small-16x16x16-oneshot-hip-direct.json",
@@ -176,7 +179,7 @@ class ChainAdaptiveCases(unittest.TestCase):
 
         oneshot_only_args = copy.copy(oneshot_args)
         oneshot_only_args.oneshot_only = True
-        oneshot_only_commands = benchmark_sweep.sweep_commands(oneshot_only_args)
+        oneshot_only_commands = sweep_commands.sweep_commands(oneshot_only_args)
         assert [name for name, _command, _output in oneshot_only_commands] == [
             "bounded-i64-small-16x16x16-oneshot-hip-direct.json",
         ]
@@ -190,7 +193,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         finite_oneshot_args.modulus = [255]
         finite_oneshot_args.include_oneshot = True
         finite_oneshot_args.oneshot_only = False
-        finite_oneshot_commands = benchmark_sweep.sweep_commands(finite_oneshot_args)
+        finite_oneshot_commands = sweep_commands.sweep_commands(finite_oneshot_args)
         assert [name for name, _command, _output in finite_oneshot_commands] == [
             "finite-u8-ring-small-16x16x16-mod255-hip-direct.json",
             "finite-u8-ring-small-16x16x16-mod255-oneshot-hip-direct.json",
@@ -200,7 +203,7 @@ class ChainAdaptiveCases(unittest.TestCase):
 
         finite_oneshot_only_args = copy.copy(finite_oneshot_args)
         finite_oneshot_only_args.oneshot_only = True
-        finite_oneshot_only_commands = benchmark_sweep.sweep_commands(finite_oneshot_only_args)
+        finite_oneshot_only_commands = sweep_commands.sweep_commands(finite_oneshot_only_args)
         assert [name for name, _command, _output in finite_oneshot_only_commands] == [
             "finite-u8-ring-small-16x16x16-mod255-oneshot-hip-direct.json",
         ]
@@ -237,7 +240,7 @@ class ChainAdaptiveCases(unittest.TestCase):
             write_autotune_cache=False,
             autotune_cache=None,
         )
-        exact_include_commands = benchmark_sweep.sweep_commands(exact_include_args)
+        exact_include_commands = sweep_commands.sweep_commands(exact_include_args)
         exact_include_names = [name for name, _command, _output in exact_include_commands]
         assert "exact-wide-signed-small-16x16x16-cpu.json" in exact_include_names
         assert "exact-wide-unsigned-small-16x16x16-rocwmma.json" in exact_include_names
@@ -276,13 +279,13 @@ class ChainAdaptiveCases(unittest.TestCase):
             release_matrix=True,
             include_exploratory_large=False,
             review_mode="release",
-            warmups=benchmark_sweep.RELEASE_MIN_WARMUPS,
-            repeats=benchmark_sweep.RELEASE_MIN_REPEATS,
+            warmups=review_contract.RELEASE_MIN_WARMUPS,
+            repeats=review_contract.RELEASE_MIN_REPEATS,
             seed=20260602,
             write_autotune_cache=False,
             autotune_cache=None,
         )
-        commands = benchmark_sweep.sweep_commands(adaptive_only_args)
+        commands = sweep_commands.sweep_commands(adaptive_only_args)
         assert len(commands) == 2
         assert all(
             "--require-adaptive-execution" in command for _name, command, _output in commands
@@ -297,7 +300,7 @@ class ChainAdaptiveCases(unittest.TestCase):
         ]
         adaptive_input_scan_args = copy.copy(adaptive_only_args)
         adaptive_input_scan_args.bound_source = "input-scan"
-        adaptive_input_scan_commands = benchmark_sweep.sweep_commands(adaptive_input_scan_args)
+        adaptive_input_scan_commands = sweep_commands.sweep_commands(adaptive_input_scan_args)
         assert len(adaptive_input_scan_commands) == 2
         assert all(
             "--bound-source" in command for _name, command, _output in adaptive_input_scan_commands
@@ -313,14 +316,14 @@ class ChainAdaptiveCases(unittest.TestCase):
 
         adaptive_only_args.include_default_adaptive = False
         try:
-            benchmark_sweep.sweep_commands(adaptive_only_args)
+            sweep_commands.sweep_commands(adaptive_only_args)
         except SystemExit as exc:
             assert "--adaptive-only requires" in str(exc)
         else:
             raise AssertionError("adaptive-only without adaptive cases should fail")
         adaptive_only_args.include_adaptive_workloads = True
-        workload_commands = benchmark_sweep.sweep_commands(adaptive_only_args)
-        assert len(workload_commands) == len(benchmark_sweep.ADAPTIVE_WORKLOAD_CASES)
+        workload_commands = sweep_commands.sweep_commands(adaptive_only_args)
+        assert len(workload_commands) == len(sweep_config.ADAPTIVE_WORKLOAD_CASES)
         assert all(
             "--input-profile" in command and "adaptive-bands" in command
             for _name, command, _output in workload_commands

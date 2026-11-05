@@ -3,7 +3,6 @@
 from benchmark_cases import case_root
 import copy
 import math
-from pathlib import Path
 from benchmark_schema.wide_magnitude import MODULI, validate_magnitude
 from benchmark_sweep_lib.scenarios import load_scenario_data_family
 from result_compare import contract_value
