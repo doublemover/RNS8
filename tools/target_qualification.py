@@ -23,6 +23,7 @@ from measurement_contract import host_instrumentation
 from review_contract import release_capture_satisfied
 from timing_eligibility import capture_identity
 from reference_verdict import numerical_contract
+from process_progress import capture_succeeded
 
 SCHEMA = "rns8_target_candidate_qualification_v1"
 VERDICT_SCHEMA = "rns8_target_candidate_verdict_v1"
@@ -370,9 +371,7 @@ def phase_observation(
                         "required GPU qualification test is missing or skipped"
                     )
             if (
-                check_result.get("returncode") != 0
-                or type(check_result.get("returncode")) is not int
-                or check_result.get("timed_out") is not False
+                not capture_succeeded(check_result)
                 or check_result.get("validation_errors") != []
             ):
                 raise ValueError("required GPU correctness stage failed")
@@ -445,8 +444,7 @@ def phase_observation(
         if not isinstance(observed.get("validation_errors"), list):
             raise ValueError("phase validation result is absent")
     passed = all(
-        observed["returncode"] == 0
-        and observed["timed_out"] is False
+        capture_succeeded(observed)
         and not observed["validation_errors"]
         for observed in (identity_result, result)
     )

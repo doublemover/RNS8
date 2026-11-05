@@ -11,6 +11,7 @@ from device_observation import capture_relation, inspection_observation
 from json_evidence import load_evidence_json, parse_evidence_json, same_evidence_value
 from reference_verdict import numerical_contract
 from session_environment import RUNTIME_MAPPING_KEYS, VISIBILITY_KEYS
+from process_progress import capture_succeeded
 from target_qualification import (
     EvidenceStore,
     candidate_binding,
@@ -23,12 +24,7 @@ SCHEMA = "rns8_multigpu_observation_binding_v1"
 
 
 def _passed(result: dict) -> None:
-    if (
-        type(result.get("returncode")) is not int
-        or result["returncode"] != 0
-        or result.get("timed_out") is not False
-        or result.get("validation_errors") != []
-    ):
+    if not capture_succeeded(result) or result.get("validation_errors") != []:
         raise ValueError("observation stage did not complete successfully")
 
 

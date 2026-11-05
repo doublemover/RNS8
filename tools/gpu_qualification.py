@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from process_progress import run_capture
+from process_progress import run_capture, capture_succeeded
 from session_artifacts import load_inventory, inspect_cache, stage_cache
 from check_dependencies_lib.resolution import Request, REQUEST_KEYS, resolve
 from session_environment import build_environment, execution_blockers, isolated_environment, snapshot, runtime_mapping_snapshot
@@ -177,8 +177,8 @@ def device_command_plan(backend, device, arch, binary, python, wrapper, build, o
 
 def validate_result(item: dict, result: dict, parent_info: dict | None = None) -> list[str]:
     errors = []
-    if result["returncode"] != 0 or result["timed_out"]:
-        return ["command failed or timed out"]
+    if not capture_succeeded(result):
+        return ["command failed, timed out or exceeded its capture budget"]
     if item.get("compiled_identity"):
         try:
             value = parse_evidence_json(result["stdout"])

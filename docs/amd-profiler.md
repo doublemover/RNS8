@@ -54,6 +54,16 @@ edited readiness field cannot replace these raw inputs. The consumer reports
 inventory facts; permissions and physical HIP-to-profiler mapping remain
 separate capture gates.
 
+The shared process runner retains at most 64 MiB of combined stdout/stderr by
+default, draining both streams concurrently. Output overrun, decoding failure
+and incomplete cleanup remain failures even if the child exits zero. Optional
+owned artifact roots have a sampled byte budget, bounded inventory scans and
+explicit rejection of links/junctions. Artifact monitoring can overshoot
+between polls; it preserves partial files and reports their observed size.
+It never deletes captures or kills an unrelated service to recover space.
+Session, preflight, observation and qualification consumers share the same
+process-success rule.
+
 The maintained policy keeps discrete Radeon outside Compute Profiler's
 Instinct/APU support envelope, gfx1100 ATT trace-only, and stochastic PC sampling
 separate from CDNA2 host-trap sampling. Unknown/new tuples remain unqualified

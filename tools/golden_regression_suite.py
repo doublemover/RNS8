@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from process_progress import run_capture
+from process_progress import run_capture, capture_succeeded
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -197,10 +197,10 @@ def run_case(case: SuiteCase) -> dict[str, Any]:
         "name": case.name,
         "category": case.category,
         **result,
-        "status": "passed" if result["returncode"] == 0 and not result["timed_out"] else "failed",
+        "status": "passed" if capture_succeeded(result) else "failed",
         "attempted": True,
         "tested": True,
-        "passed": result["returncode"] == 0 and not result["timed_out"],
+        "passed": capture_succeeded(result),
         "output": result["stdout"] + result["stderr"],
     }
 

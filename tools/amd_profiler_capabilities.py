@@ -20,7 +20,7 @@ from typing import Callable, Literal, Mapping
 from benchmark_request import file_digest
 from check_dependencies_lib.system import find_command
 from compiled_binary_identity import canonical_digest
-from process_progress import run_capture
+from process_progress import run_capture, capture_succeeded
 from session_environment import build_environment, snapshot
 from amd_profiler_evidence import EvidenceReader
 
@@ -365,12 +365,7 @@ def preflight(
                 raw.write_text(observed[stream], encoding="utf-8")
                 artifacts[str(raw.resolve())] = file_digest(raw)
             stable = file_digest(path) == before
-            complete = (
-                type(observed.get("returncode")) is int
-                and observed["returncode"] == 0
-                and observed.get("timed_out") is False
-                and stable
-            )
+            complete = capture_succeeded(observed) and stable
             result["observations"].append(
                 dict(
                     name=command["name"],
@@ -511,7 +506,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
                 raise ValueError(
                     "preflight stream summary differs from its retained process output"
                 )
-        complete = type(returned) is int and returned == 0 and not process["timed_out"]
+        complete = capture_succeeded(process)
         if row.get("completed") is not complete:
             raise ValueError(
                 "preflight completion label contradicts its process status"
