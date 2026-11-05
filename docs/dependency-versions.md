@@ -58,18 +58,22 @@ Use the explicit developer initializer described in
 download or install tools.
 
 [scripts/requirements-build-tools.txt](../scripts/requirements-build-tools.txt)
-pins CMake 4.4.4, Ninja 1.13.2 and pip 26.3 with publisher-index SHA256 values
+pins Ninja 1.13.2 and pip 26.3 with publisher-index SHA256 values
 for Linux glibc x86_64 and Windows AMD64 wheels. Those hashes are integrity
 identities, not signature verification. Other architectures require a reviewed
 artifact set; installation must fail rather than silently build an unpinned
 source distribution. The CMake project minimum remains 3.22; it is distinct
 from this selected candidate toolchain.
 
-The November5 publisher refresh records [CMake4.4.5](https://www.kitware.com/cmake-4-4-5-available-for-download/)
-as the newer native release while PyPI still publishes4.4.4. The locked wheel
-bootstrap remains4.4.4 until the verified native bootstrap is implemented and
-qualified; it is an explicit open gap, not a latest-version claim. The policy
-also records Git for Windows2.56.0.windows.4 and host LLVM23.1.5 candidates
+The November5 selection uses the official [CMake4.4.5](https://github.com/Kitware/CMake/releases/tag/v4.4.5)
+Windows AMD64 ZIP and Linux x86_64 tarball while PyPI still publishes4.4.4.
+`python tools/init_build_tools.py` installs the matching archive from the native
+artifact lock, verifies its SHA256, and atomically publishes the complete prefix
+including CTest, CPack and CMake modules. Reuse checks the receipt and hashes of
+all prefix files; incomplete or modified installations fail without an overlay.
+Downloads and extraction have byte, member and path limits shared with SDK
+provisioning. This source implementation still awaits offline controls and
+project qualification. The policy also records Git for Windows2.56.0.windows.4 and host LLVM23.1.5 candidates
 separately from installed tools and AMD's matched compiler.
 
 Fresh quality environments install the shared hashed build-tool requirements
@@ -147,15 +151,22 @@ after selecting the desired interpreter:
 ```sh
 python -m venv temp/dependency-tools
 temp/dependency-tools/bin/python -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
+python tools/init_build_tools.py
 ```
 
 On Windows use `temp/dependency-tools/Scripts/python.exe`. CI creates this
-job-local environment and adds its tools only to the job's PATH. The existing
-CDNA fallback uses the same exact requirements rather than a moving pip/CMake
-range. Its Catch2 fallback verifies the locked source commit and refuses a
-modified checkout. CDNA session safety, explicit device mapping, offline staging
-and installation opt-in remain [#58](https://github.com/doublemover/RNS8/issues/58)
-work; these dependency pins do not close that issue.
+job-local environment and adds its tools only to the job's PATH. CI explicitly
+requests `--github-path` to add the native CMake bin directory as well. Outside
+CI the initializer prints exact executable paths without changing PATH; use
+those paths for direct CMake/CTest commands. `tools/init.py` selects them
+automatically for a requested SDK build. Its `--dry-run` and `--no-build` modes
+do not install build tools. The managed root is
+`%LOCALAPPDATA%/RNS8/dependencies/build-tools` on Windows or
+`${XDG_CACHE_HOME:-~/.cache}/rns8/build-tools` on Linux, overridden explicitly by
+`RNS8_BUILD_TOOLS_ROOT` or the standalone installer's `--root` option.
+CDNA session entrypoints remain dispatch-only; provisioning requires the
+explicit installation workflow. These dependency pins do not close
+[#58](https://github.com/doublemover/RNS8/issues/58).
 
 Windows C++ packages are installed explicitly through the selected vcpkg
 toolchain. Configure defaults continue to disable manifest installation. Use a

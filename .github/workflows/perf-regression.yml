@@ -36,7 +36,9 @@ jobs:
         run: |
           python -m venv temp/dependency-tools
           temp/dependency-tools/Scripts/python.exe -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "$pwd/temp/dependency-tools/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          python tools/init_build_tools.py --github-path
 
       - name: Build HIP Release
         run: |

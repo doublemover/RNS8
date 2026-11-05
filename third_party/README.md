@@ -16,6 +16,14 @@ owns exact candidate versions, artifact hashes, installed receipts and upgrade
 gates. Candidate pins do not inherit the qualification of an earlier
 [dated build](../docs/local-all-features-20261023.md).
 
+The selected build-tool candidate is CMake4.4.5 with Ninja1.13.2 and pip26.3.
+The explicit SDK initializer selects a hash-pinned native CMake/CTest prefix
+automatically; standalone setup uses `python tools/init_build_tools.py`.
+It preserves the complete module tree and checks receipts before reuse.
+Managed locations and CI PATH setup are documented in the
+[version policy](../docs/dependency-versions.md#inspect-and-enforce-the-selection).
+These new bootstrap controls and project qualification remain deferred.
+
 | Role | Dependency | Installation source |
 |---|---|---|
 | Required C++ headers | Boost.Multiprecision, nlohmann-json | [Windows vcpkg](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started), or native Linux development packages |

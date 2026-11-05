@@ -197,6 +197,39 @@ def validate_policy(value: dict) -> list[str]:
             errors.append(filename + ": invalid SHA256")
         if not isinstance(artifact.get("url"), str) or not artifact["url"].startswith("https://"):
             errors.append(filename + ": artifact URL must use HTTPS")
+    native = bootstrap.get("native_artifacts")
+    if not isinstance(native, list):
+        return errors + ["native build-tool artifacts must be an array"]
+    platforms = set()
+    for artifact in native:
+        if not isinstance(artifact, dict):
+            errors.append("invalid native build-tool artifact")
+            continue
+        key, version = artifact.get("platform"), artifact.get("version")
+        if not isinstance(key, str) or key not in {"windows-amd64", "linux-x86_64"}:
+            errors.append("unsupported native build-tool platform")
+            continue
+        if key in platforms:
+            errors.append("duplicate native build-tool platform")
+        platforms.add(key)
+        if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+            errors.append("invalid native CMake version")
+            continue
+        prefix = (
+            "cmake-" + version + ("-windows-x86_64" if key == "windows-amd64" else "-linux-x86_64")
+        )
+        filename = prefix + (".zip" if key == "windows-amd64" else ".tar.gz")
+        if (
+            artifact.get("component") != "cmake"
+            or artifact.get("prefix") != prefix
+            or artifact.get("filename") != filename
+            or artifact.get("url")
+            != "https://github.com/Kitware/CMake/releases/download/v" + version + "/" + filename
+            or not hexadecimal(artifact.get("sha256"), 64)
+        ):
+            errors.append("native CMake artifact is not a reviewed exact release archive")
+    if platforms != {"windows-amd64", "linux-x86_64"}:
+        errors.append("native CMake lock must cover both supported bootstrap platforms")
     return errors
 
 
@@ -208,7 +241,7 @@ def check_repository(root: Path, policy: dict) -> list[str]:
     components = {item["name"]: item for item in policy["components"]}
     if policy["bootstrap"]["catch2_tag"] != "v" + components["catch2"]["selected"]["version"]:
         errors.append("Catch2 bootstrap version differs from selected candidate")
-    for artifact in policy["bootstrap"]["artifacts"]:
+    for artifact in policy["bootstrap"]["artifacts"] + policy["bootstrap"]["native_artifacts"]:
         component = components.get(artifact.get("component"))
         if (
             not component

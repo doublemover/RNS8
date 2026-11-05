@@ -10,16 +10,17 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import platform
 import re
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
 import urllib.request
 
+from archive_install import extract_tar
+from init_build_tools import install as install_build_tools
 from check_dependencies_lib.resolution import (
     FEATURE_KEYS,
     REQUEST_KEYS,
@@ -34,8 +35,6 @@ from check_dependencies_lib.version_policy import installed_vcpkg_receipt
 BASE_URL = "https://stable.repo.amd.com/rocm/core/tarball/"
 VERSION = "10.1.0"
 MAX_DOWNLOAD = 8 * 1024**3
-MAX_EXTRACT = 64 * 1024**3
-MAX_MEMBERS = 500_000
 ROOT = Path(__file__).resolve().parents[1]
 
 # Exact known targets, not a wildcard guess about future GPU architectures.
@@ -247,91 +246,6 @@ def download(lane: dict, cache: Path, expected: str | None) -> tuple[Path, str]:
         partial.unlink(missing_ok=True)
 
 
-def extract(archive: Path, destination: Path, host: str) -> None:
-    """Bounded tar extraction into a new empty staging directory, never overlays."""
-    count = size = 0
-    seen: set[str] = set()
-    links = []
-    with tarfile.open(archive, "r|gz") as source:
-        for member in source:
-            count += 1
-            size += max(0, member.size)
-            if count > MAX_MEMBERS or size > MAX_EXTRACT:
-                raise ValueError("SDK extraction exceeds member/expanded-byte limit")
-            parts = PurePosixPath(member.name).parts
-            if not parts or any(p in ("..", "/") or "\\" in p or ":" in p for p in parts):
-                raise ValueError("Unsafe SDK archive path: " + member.name)
-            if host == "Windows" and any(
-                p.endswith((".", " "))
-                or re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?", p, re.I)
-                for p in parts
-            ):
-                raise ValueError("Unsafe Windows SDK archive path: " + member.name)
-            key = "/".join(parts).casefold() if host == "Windows" else "/".join(parts)
-            if key in seen:
-                raise ValueError("Duplicate SDK archive path: " + member.name)
-            seen.add(key)
-            if member.size < 0 or not (
-                member.isfile() or member.isdir() or member.issym() or member.islnk()
-            ):
-                raise ValueError("Unsupported SDK archive member: " + member.name)
-            if (member.issym() or member.islnk()) and (
-                PurePosixPath(member.linkname).is_absolute()
-                or "\\" in member.linkname
-                or ":" in member.linkname
-            ):
-                raise ValueError("Unsafe SDK archive link: " + member.name)
-            # Python's data filter rejects escaping/absolute links and device
-            # nodes, and checks the resolved path again at extraction time.
-            if member.issym() or member.islnk():
-                links.append(member)
-            else:
-                source.extract(member, destination, filter="data")
-    # Resolve links after streaming all payloads. tarfile's fallback for hosts
-    # without symlink privilege seeks backwards into the compressed stream;
-    # forward references need the payload to exist before link creation too.
-    root = destination.resolve()
-    depth = 0
-    while links:
-        depth += 1
-        if depth > 64:
-            raise ValueError("SDK archive link dependency depth exceeds 64")
-        pending = []
-        for member in links:
-            filtered = tarfile.data_filter(member, destination)
-            path = destination / filtered.name
-            target = (
-                (path.parent if member.issym() else destination) / filtered.linkname
-            ).resolve()
-            if not target.is_relative_to(root) or not path.resolve().is_relative_to(root):
-                raise ValueError("SDK link escapes extraction root")
-            if not target.exists():
-                pending.append(member)
-                continue
-            if path.exists() or path.is_symlink():
-                raise ValueError("SDK link collides with an extracted path")
-            path.parent.mkdir(parents=True, exist_ok=True)
-            if member.issym():
-                try:
-                    path.symlink_to(filtered.linkname, target_is_directory=target.is_dir())
-                    continue
-                except OSError:
-                    if host != "Windows" or not target.is_file():
-                        raise
-            if not target.is_file():
-                raise ValueError("SDK hard links require a regular file")
-            try:
-                os.link(target, path)
-            except OSError:
-                size += target.stat().st_size
-                if size > MAX_EXTRACT:
-                    raise ValueError("SDK link materialization exceeds expanded-byte limit")
-                shutil.copy2(target, path)
-        if len(pending) == len(links):
-            raise ValueError("SDK archive contains dangling or cyclic links")
-        links = pending
-
-
 def inspect(root: Path, host: str, version: str | None = None) -> dict:
     resolution = resolve(
         Request(
@@ -427,12 +341,13 @@ def build_tools() -> dict[str, str]:
             os.environ.get("PATH", ""),
         )
     )
-    result = {name: shutil.which(name, path=search) for name in ("cmake", "ninja", "ctest")}
-    if any(not path for path in result.values()):
+    ninja = shutil.which("ninja", path=search)
+    if not ninja:
         raise ValueError(
-            "Missing CMake/Ninja/CTest; install scripts/requirements-build-tools.txt with the selected Python"
+            "Missing Ninja; install scripts/requirements-build-tools.txt with the selected Python"
         )
-    return result
+    native = install_build_tools()
+    return {"cmake": native["cmake"], "ctest": native["ctest"], "ninja": ninja}
 
 
 def package_installation(resolution: dict, definitions: dict[str, str]) -> dict:
@@ -551,7 +466,7 @@ def provision(lane: dict, cache: Path, expected: str | None = None) -> tuple[Pat
     # tempfile owns this exact directory; its cleanup cannot target user paths.
     with tempfile.TemporaryDirectory(prefix=".rns8-sdk-", dir=destination.parent) as staging_name:
         staging = Path(staging_name)
-        extract(archive, staging, lane["host"])
+        extract_tar(archive, staging, lane["host"])
         if (staging / "rns8-sdk.json").exists() or (staging / "rns8-sdk.json").is_symlink():
             raise ValueError("SDK archive collides with managed receipt path")
         roots = [path.parent for path in staging.glob("**/.info/version")]

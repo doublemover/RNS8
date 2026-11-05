@@ -37,6 +37,8 @@ jobs:
           allow-prereleases: false
       - name: Install hash-locked developer tools
         run: python tools/init_quality.py --out temp/quality-tools
+      - name: Select hash-locked native CMake
+        run: python tools/init_build_tools.py --github-path
       - name: Check canonical source and orchestration
         run: python tools/quality.py check --tool-bin temp/quality-tools/${{ matrix.tool-bin }}
       - name: Prove deliberate checker failures
@@ -79,10 +81,12 @@ jobs:
           python -m venv temp/dependency-tools
           temp/dependency-tools/bin/python -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
           echo "$PWD/temp/dependency-tools/bin" >> "$GITHUB_PATH"
+          python tools/init_build_tools.py --github-path
 
       - name: Python tooling tests
         run: |
           python tools/test_dependency_policy.py
+          python tools/test_init_build_tools.py
           python tools/check_dependencies.py --check-lock
           python tools/test_documentation.py
           python tools/check_documentation.py
@@ -159,6 +163,7 @@ jobs:
           python -m venv temp/dependency-tools
           temp/dependency-tools/bin/python -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
           echo "$PWD/temp/dependency-tools/bin" >> "$GITHUB_PATH"
+          python tools/init_build_tools.py --github-path
       - name: Configure enabled or disabled OpenMP branch
         run: >-
           cmake -S . -B build/ci-openmp -G Ninja

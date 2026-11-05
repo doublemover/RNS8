@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from archive_install import extract_tar
 import rocm_sdk as sdk
 import init as init_entry
 from check_dependencies_lib import resolution as shared_resolution
@@ -99,6 +100,7 @@ class SDKTests(unittest.TestCase):
         with (
             patch.object(sdk, "official_inventory", side_effect=AssertionError("network")),
             patch.object(sdk, "inspect", side_effect=AssertionError("probe")),
+            patch.object(sdk, "install_build_tools", side_effect=AssertionError("installation")),
             patch.object(sdk.subprocess, "run", side_effect=AssertionError("execution")),
         ):
             result = sdk.run(args)
@@ -117,19 +119,19 @@ class SDKTests(unittest.TestCase):
             "sdk/name ",
         ):
             with self.subTest(name=name), self.assertRaises((ValueError, tarfile.TarError)):
-                sdk.extract(self.archive({name: b"bad"}), self.base / "unpack", "Windows")
+                extract_tar(self.archive({name: b"bad"}), self.base / "unpack", "Windows")
         self.assertFalse((self.base.parent / "escape").exists())
 
     def test_expansion_limit(self):
         archive = self.archive({"sdk/test": b"12345"})
-        with patch.object(sdk, "MAX_EXTRACT", 4), self.assertRaises(ValueError):
-            sdk.extract(archive, self.base / "unpack", "Windows")
-        with patch.object(sdk, "MAX_MEMBERS", 0), self.assertRaises(ValueError):
-            sdk.extract(archive, self.base / "unpack", "Windows")
+        with self.assertRaises(ValueError):
+            extract_tar(archive, self.base / "unpack", "Windows", max_bytes=4)
+        with self.assertRaises(ValueError):
+            extract_tar(archive, self.base / "unpack", "Windows", max_members=0)
 
     def test_duplicate_case_alias_and_special_member(self):
         with self.assertRaises(ValueError):
-            sdk.extract(
+            extract_tar(
                 self.archive({"sdk/A": b"a", "sdk/a": b"b"}), self.base / "unpack", "Windows"
             )
         archive = self.base / "device.tar.gz"
@@ -138,7 +140,7 @@ class SDKTests(unittest.TestCase):
             member.type = tarfile.FIFOTYPE
             stream.addfile(member)
         with self.assertRaises(ValueError):
-            sdk.extract(archive, self.base / "unpack", "Linux")
+            extract_tar(archive, self.base / "unpack", "Linux")
 
     def test_escaping_links_rejected(self):
         archive = self.base / "link.tar.gz"
@@ -149,7 +151,7 @@ class SDKTests(unittest.TestCase):
                 member.linkname = "../../outside"
                 stream.addfile(member)
             with self.subTest(kind=kind), self.assertRaises(tarfile.TarError):
-                sdk.extract(archive, self.base / "unpack", "Linux")
+                extract_tar(archive, self.base / "unpack", "Linux")
 
     def test_internal_library_links_preserve_contents(self):
         archive = self.base / "libraries.tar.gz"
@@ -166,7 +168,7 @@ class SDKTests(unittest.TestCase):
             member.linkname = "libfixture.so.1"
             stream.addfile(member)
         destination = self.base / "unpack"
-        sdk.extract(archive, destination, sdk.platform.system())
+        extract_tar(archive, destination, sdk.platform.system())
         self.assertEqual((destination / "sdk/lib/libfixture-copy.so.1").read_bytes(), b"fixture")
         # tarfile may copy a link on Windows hosts lacking symlink privileges;
         # native Linux retains the relative library link through the data filter.
@@ -302,6 +304,9 @@ class SDKTests(unittest.TestCase):
         with (
             patch.object(sdk, "inspect", return_value=resolution),
             patch.object(sdk, "package_installation", return_value={}),
+            patch.object(
+                sdk, "build_tools", return_value=dict(cmake="cmake", ninja="ninja", ctest="ctest")
+            ),
             patch.object(sdk, "resolve", return_value={**resolution, "errors": []}),
             patch.object(sdk.subprocess, "run") as run,
         ):
@@ -320,7 +325,7 @@ class SDKTests(unittest.TestCase):
         )
 
     def test_auto_uses_shared_explicit_priority_and_never_downloads_around_bad_roots(self):
-        sdk.extract(self.archive(), self.base / "unpack", "Windows")
+        extract_tar(self.archive(), self.base / "unpack", "Windows")
         one = self.base / "unpack/sdk"
         two = self.base / "default SDK"
         shutil.copytree(one, two)
@@ -351,7 +356,7 @@ class SDKTests(unittest.TestCase):
                 sdk.existing_sdk(lane)
 
     def test_managed_receipt_is_a_lower_ranked_candidate_and_pins_report_overrides(self):
-        sdk.extract(self.archive(), self.base / "unpack", "Windows")
+        extract_tar(self.archive(), self.base / "unpack", "Windows")
         one = self.base / "unpack/sdk"
         lane = sdk.plan(["gfx1100"], "Windows", "10.1.0", self.base / "managed")[0]
         destination = Path(lane["destination"])
@@ -380,7 +385,7 @@ class SDKTests(unittest.TestCase):
             )
 
     def test_equivalent_sdk_root_aliases_are_one_shared_candidate(self):
-        sdk.extract(self.archive(), self.base / "unpack", "Windows")
+        extract_tar(self.archive(), self.base / "unpack", "Windows")
         one = self.base / "unpack/sdk"
         alias = self.base / "alias SDK"
         try:
@@ -398,7 +403,7 @@ class SDKTests(unittest.TestCase):
             self.assertTrue(next(c for c in report if c["selected"])["aliases"])
 
     def test_auto_reuses_exact_standard_sdk_without_network(self):
-        sdk.extract(self.archive(), self.base / "unpack", "Windows")
+        extract_tar(self.archive(), self.base / "unpack", "Windows")
         root = self.base / "unpack/sdk"
         lane = sdk.plan(["gfx1100"], "Windows", "10.1.0", self.base / "managed")[0]
         with (

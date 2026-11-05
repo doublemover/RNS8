@@ -70,23 +70,20 @@
         "source": "https://www.kitware.com/cmake-4-4-5-available-for-download/"
       },
       "selected": {
-        "version": "4.4.4",
+        "version": "4.4.5",
         "status": "candidate_pending_qualification"
       },
       "license": "BSD-3-Clause",
       "last_tested": null,
-      "observed": {
-        "version": "4.4.4",
-        "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
-        "qualification": "pending"
-      },
-      "upgrade_exception": {
-        "status": "native_bootstrap_source_pending",
-        "observed_pypi_version": "4.4.4",
-        "publisher_metadata": "https://pypi.org/pypi/cmake/json",
-        "checked_date_utc": "2026-11-05",
-        "reason": "Upstream4.4.5 exists but the locked PyPI distribution still publishes4.4.4; add verified native artifact bootstrap before changing the coherent bootstrap candidate."
-      }
+      "prior_observations": [
+        {
+          "version": "4.4.4",
+          "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
+          "qualification": "pending"
+        }
+      ],
+      "distribution": "upstream_native_archive",
+      "qualification": "source_ready_not_installed_or_project_qualified"
     },
     {
       "name": "ninja",
@@ -2077,24 +2074,6 @@
         "authentication": "publisher-index SHA256; signature not verified"
       },
       {
-        "component": "cmake",
-        "version": "4.4.4",
-        "filename": "cmake-4.4.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-        "url": "https://files.pythonhosted.org/packages/7e/d5/664ea06d01864f25d6067f09fa218404e4d588edd5e495135ac91429fecb/cmake-4.4.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-        "sha256": "f773a0544c66370408f451acd487c2c643b0dfebb48c5d64f3638bc1bb820238",
-        "publisher_metadata": "https://pypi.org/pypi/cmake/4.4.4/json",
-        "authentication": "publisher-index SHA256; signature not verified"
-      },
-      {
-        "component": "cmake",
-        "version": "4.4.4",
-        "filename": "cmake-4.4.4-py3-none-win_amd64.whl",
-        "url": "https://files.pythonhosted.org/packages/87/9c/a7918eeeed09b34aa5dc1b767367fb1a2dcbb56171be00be0fd1280fe752/cmake-4.4.4-py3-none-win_amd64.whl",
-        "sha256": "ad8e0a38b5707e27882701146bdfffecacd80e7703fa0fc36c77528518d545af",
-        "publisher_metadata": "https://pypi.org/pypi/cmake/4.4.4/json",
-        "authentication": "publisher-index SHA256; signature not verified"
-      },
-      {
         "component": "ninja",
         "version": "1.13.2",
         "filename": "ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
@@ -2115,7 +2094,47 @@
     ],
     "catch2_tag": "v3.16.1",
     "catch2_commit": "08092139210881f01a34e60c5f2fd6afa0ea4024",
-    "catch2_source_sha512": "a6b0f1d1bd9178382f06de9773b31e3efdcdfb20fc3b65b23d9675e0838da6f64c417a75e062bda918dd28781e5d11a78e7130cef2394e676c7bc2da9e49106b"
+    "catch2_source_sha512": "a6b0f1d1bd9178382f06de9773b31e3efdcdfb20fc3b65b23d9675e0838da6f64c417a75e062bda918dd28781e5d11a78e7130cef2394e676c7bc2da9e49106b",
+    "prior_cmake_wheels": [
+      {
+        "component": "cmake",
+        "version": "4.4.4",
+        "filename": "cmake-4.4.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/7e/d5/664ea06d01864f25d6067f09fa218404e4d588edd5e495135ac91429fecb/cmake-4.4.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "sha256": "f773a0544c66370408f451acd487c2c643b0dfebb48c5d64f3638bc1bb820238",
+        "publisher_metadata": "https://pypi.org/pypi/cmake/4.4.4/json",
+        "authentication": "publisher-index SHA256; signature not verified"
+      },
+      {
+        "component": "cmake",
+        "version": "4.4.4",
+        "filename": "cmake-4.4.4-py3-none-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/87/9c/a7918eeeed09b34aa5dc1b767367fb1a2dcbb56171be00be0fd1280fe752/cmake-4.4.4-py3-none-win_amd64.whl",
+        "sha256": "ad8e0a38b5707e27882701146bdfffecacd80e7703fa0fc36c77528518d545af",
+        "publisher_metadata": "https://pypi.org/pypi/cmake/4.4.4/json",
+        "authentication": "publisher-index SHA256; signature not verified"
+      }
+    ],
+    "native_artifacts": [
+      {
+        "component": "cmake",
+        "version": "4.4.5",
+        "platform": "windows-amd64",
+        "filename": "cmake-4.4.5-windows-x86_64.zip",
+        "prefix": "cmake-4.4.5-windows-x86_64",
+        "sha256": "326c826486d46a23cf9d5a1c9ee3a567d427bdd02c4a34071937a2a675cff004",
+        "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-windows-x86_64.zip"
+      },
+      {
+        "component": "cmake",
+        "version": "4.4.5",
+        "platform": "linux-x86_64",
+        "filename": "cmake-4.4.5-linux-x86_64.tar.gz",
+        "prefix": "cmake-4.4.5-linux-x86_64",
+        "sha256": "ed85135c5a5135b45e50423cb406dea04ca3338da0b8ef3c9ede963559680be0",
+        "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-x86_64.tar.gz"
+      }
+    ]
   },
   "prior_supported": {
     "vcpkg_baseline": "2979dbff1b38167a2a0d2b47b7c549c61273eabf",

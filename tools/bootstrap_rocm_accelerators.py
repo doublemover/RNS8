@@ -8,6 +8,7 @@ import json
 import platform
 import subprocess
 import tarfile
+import zipfile
 from pathlib import Path
 from typing import Sequence
 
@@ -379,7 +380,13 @@ def main() -> int:
             )
         try:
             report = rocm_sdk.run(args)
-        except (OSError, ValueError, tarfile.TarError, subprocess.SubprocessError) as error:
+        except (
+            OSError,
+            ValueError,
+            tarfile.TarError,
+            zipfile.BadZipFile,
+            subprocess.SubprocessError,
+        ) as error:
             print(json.dumps({"schema": "rns8_rocm_sdk_init_v1", "error": str(error)}))
             return 1
         print(json.dumps(report, indent=2, sort_keys=True))

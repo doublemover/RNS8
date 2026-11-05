@@ -82,6 +82,15 @@ class Policy(unittest.TestCase):
             lambda d: d["bootstrap"]["artifacts"][0].update(url="http://untrusted.invalid/wheel"),
             lambda d: d["bootstrap"]["artifacts"][0].update(sha256="bad"),
             lambda d: d["bootstrap"].update(artifacts=None),
+            lambda d: d["bootstrap"].update(native_artifacts=None),
+            lambda d: d["bootstrap"]["native_artifacts"][0].update(prefix="../escape"),
+            lambda d: d["bootstrap"]["native_artifacts"][0].update(sha256="bad"),
+            lambda d: d["bootstrap"]["native_artifacts"][0].update(
+                url="https://example.invalid/a.zip"
+            ),
+            lambda d: d["bootstrap"]["native_artifacts"].append(
+                deepcopy(d["bootstrap"]["native_artifacts"][0])
+            ),
         ]
         for mutate in mutations:
             data = deepcopy(self.policy)
@@ -118,7 +127,7 @@ class Policy(unittest.TestCase):
         path = self.root / "scripts/requirements-build-tools.txt"
         original = path.read_text()
         for changed in (
-            original.replace("cmake==4.4.4", "cmake>=3.22,<4"),
+            original.replace("ninja==1.13.2", "ninja>=1.0"),
             original.replace(self.policy["bootstrap"]["artifacts"][0]["sha256"], "0" * 64),
         ):
             path.write_text(changed)
