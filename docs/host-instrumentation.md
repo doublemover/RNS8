@@ -52,6 +52,27 @@ own those compiler/runtime requirements. Matching llvm-profdata/llvm-cov,
 instrumented-library/test inventories, raw artifact identities and native
 detector observations still need the maintained reporting driver.
 
+`tools/execution_inventory.py` reconciles retained native CTest JSON-v1 full
+discovery and selected discovery with its JUnit report. It requires explicitly
+named mandatory passing tests. Missing/extra cases, changed argv/properties,
+empty execution, unapproved disabled/skipped cases and application failures
+block acceptance. Optional skips require exact test names and reviewed reasons;
+startup, fixture and resource failures cannot be approved as ordinary skips.
+Disabled and skipped cases remain outside the executed denominator. The report
+binds immutable input digests and writes only a fresh child of ignored `temp/`:
+
+```sh
+python tools/execution_inventory.py --discovered temp/lane/discovered.json \
+  --selected temp/lane/selected.json --junit temp/lane/tests.xml \
+  --required 'mandatory test name' --output temp/lane/inventory.json
+```
+
+This reader follows the selected CMake producer's
+[JSON property encoding](https://github.com/Kitware/CMake/blob/v4.4.5/Source/CTest/cmCTestMultiProcessHandler.cxx)
+and [JUnit statuses](https://github.com/Kitware/CMake/blob/v4.4.5/Source/CTest/cmCTestTestHandler.cxx).
+The output qualifies inventory reconciliation only; it does not prove that
+objects were instrumented, detectors worked or GPU memory was checked.
+
 Windows gfx1100 device ASan remains unsupported/unqualified. Native Linux
 ROCm device ASan needs its own release/target/HMM/XNACK/runtime and actual
 device-object instrumentation proof. Host compiler flags and canary tests
