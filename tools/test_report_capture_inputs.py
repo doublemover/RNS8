@@ -32,8 +32,13 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
         root = Path(tmp_name)
         capture = load_capture(FIXTURE_DIR / "v4_bounded_i64_hipblaslt.json")
+        capture['_observation_aggregate'] = {'qualified': True, 'numerical_observations': ['injected']}
+        capture['_path'] = 'injected-path.json'
         capture_path = root / "capture.json"
         _write_json(capture_path, capture)
+        raw, = load_report_captures([capture_path])
+        assert '_observation_aggregate' not in raw
+        assert raw['_path'] == str(capture_path)
         _write_json(root / "review_report.json", {"schema_version": 3, "groups": []})
         _write_json(root / "scenario_manifest.json", {"scenarios": []})
         _write_json(root / "generated-report.json", {"schema": "not_a_capture", "rows": []})

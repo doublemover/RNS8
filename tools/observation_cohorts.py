@@ -13,6 +13,7 @@ from measurement_contract import exact_proof_policy, host_batch_contract, host_i
 from perf_variance_report import execution_cohort, execution_id, DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD, DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD, DEFAULT_MIN_REPEATS
 from result_compare import CONTRACT_KEYS, contract_value
 from timing_eligibility import capture_identity, phase_blockers
+from reference_verdict import numerical_observation
 from benchmark_request import request_environment_identity
 
 
@@ -131,7 +132,15 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
         elif (spread.get("end_to_end") or {}).get("relative_range", math.inf) > DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD:
             blockers.add("process_spread_exceeds_ten_percent")
         view = deepcopy(items[0])
+        numerical, numerical_errors = {}, []
+        for capture in items:
+            try:
+                fact = numerical_observation(capture)
+                numerical[fact['capture_sha256']] = fact
+            except (KeyError, TypeError, ValueError, OverflowError):
+                numerical_errors.append('numerical_capture_identity_invalid')
         view["_observation_aggregate"] = {"schema": "rns8_process_observations_v1", "cohort": cohort,
+            "numerical_observations": list(numerical.values()), "numerical_observation_errors": numerical_errors,
             "environment_identity": request_environment_identity(items[0].get("request_identity"))[0],
             "implementation_key": hashlib.sha256(key.encode()).hexdigest(), "submitted_records": len(items),
             "unique_records": len({capture_identity(c) for c in items}), "independent_runs": independent, "minimum_runs": minimum_runs,

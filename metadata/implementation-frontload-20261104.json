@@ -759,9 +759,15 @@
       "url": "https://github.com/doublemover/RNS8/issues/89",
       "requirements_sha256": "396e6ed236a3601b7eced8f4837ccbd65ecb5f39868d986746fdcd9e34dd04ff",
       "comments_reviewed": 6,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Add shared typed numerical ReferenceVerdict and raw/cohort observation facts. Require explicit uint64 checksum fields, mathematical/input-key identities and complete input-bound native integer postflight coverage; checksum equality or CPU names alone never imply full output comparison. Preserve known mismatches, reference conflicts, partial/missing proof, all-process coverage and content binding independently of timing qualification or promotion policy. Cohort views retain deduplicated numerical facts for every submitted raw content hash; shared report loading drops saved/injected private verdicts before schema admission. Author metadata-only checksum0/extrema/type/alias, known mismatch/conflict, pending/partial/cache/input identity, padding-independent comparison, cohort coverage and forged-private-input regressions. Register reference verdict self-test. Python3.15 AST syntax passes; no module/fixture execution. Report-adapter integration and producer input-key/status updates remain source work."
+      ],
+      "remaining_source_items": [
+        "Bind uncached/composed native integer postflight input keys and actual full-comparison status in the benchmark producer without moving oracle work into production intervals.",
+        "Implement one content-bound current-schema review sidecar reader; reject legacy/missing/conflicting/stale reference verdicts and retain research-only promotion prohibitions separately.",
+        "Integrate the shared numerical gate into verification-amortization, error-detection, reconstruction/export, adaptive scheduler, CPU selector, FHE proxy, vector-to-RNS, tile-shape, incremental-cache and layout-search reports; reconcile producer-to-consumer fixtures and docs."
+      ]
     },
     {
       "issue": 90,

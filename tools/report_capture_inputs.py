@@ -32,6 +32,9 @@ def load_report_capture(path: Path, *, from_directory: bool) -> dict[str, Any] |
         raise
     if from_directory and not looks_like_benchmark_capture(capture):
         return None
+    # Derived report views are never input evidence. A saved/injected private
+    # cohort verdict must not bypass reconstruction from the raw public record.
+    capture = {key: value for key, value in capture.items() if not key.startswith('_')}
     validate_capture(capture, path)
     capture["_path"] = str(path)
     return capture
