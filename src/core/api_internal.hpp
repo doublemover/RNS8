@@ -73,6 +73,8 @@ inline rns8_status begin_synchronous_lease(rns8_context& ctx,const rns8_matrix& 
 }
 rns8_status begin_synchronous_read_lease(rns8_context&,const rns8_matrix&,size_t&);
 rns8_status begin_synchronous_output_lease(rns8_context&,rns8_matrix&,size_t&);
+// Private uploads/readers retain real owners without inventing a matrix writer.
+rns8_status begin_synchronous_owner_lease(rns8_context&,size_t&);
 // Counter belongs to an owner whose destruction/replacement rejects nonzero holds.
 rns8_status add_synchronous_owner_hold(rns8_context&,size_t,uint64_t& counter);
 // Buffer object belongs to a matrix/workspace/owner retained by this lease.

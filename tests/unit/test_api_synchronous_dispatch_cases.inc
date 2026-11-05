@@ -3,6 +3,7 @@ struct SynchronousDispatchFixture {
   std::vector<const rns8_matrix*> readers;
   std::vector<const rns8_matrix*> writers;
   const rns8_workspace* workspace=nullptr;
+  std::vector<const uint64_t*> private_owners;
   unsigned calls=0,drains=0;
   bool fail=false,throw_after_issue=false,drain_fails=false,reservations_observed=false,write_started_on_failure=true;
   static rns8_status dispatch(void* opaque,const char*,bool* started) {
@@ -11,6 +12,7 @@ struct SynchronousDispatchFixture {
     for(auto* matrix:s.readers)s.reservations_observed&=matrix->in_flight_readers>0;
     for(auto* matrix:s.writers)s.reservations_observed&=matrix->in_flight_writer;
     if(s.workspace)s.reservations_observed&=s.workspace->in_flight;
+    for(auto* counter:s.private_owners)s.reservations_observed&=*counter>0;
     if(s.fail && started && s.write_started_on_failure)*started=true; // simulated issue; no faulty device work
     if(s.throw_after_issue)throw std::bad_alloc{};
     return s.fail?RNS8_BACKEND_FAILURE:RNS8_SUCCESS;
@@ -182,4 +184,126 @@ TEST_CASE("failed synchronous work retains private owner counters until one succ
   CHECK_FALSE(first_buffer.pending());CHECK_FALSE(second_buffer.pending());
   REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);CHECK(first==0);CHECK(second==0);
   ctx->synchronous_test_hooks=nullptr;REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("owner-only completion records retain uploads without a fake matrix writer", "[api][lifetime]") {
+  using namespace rns8::detail::api;
+  auto* ctx=create_cpu_context();uint64_t owner=0;
+  SynchronousDispatchFixture state;state.drain_fails=true;
+  const rns8_synchronous_test_hooks hooks{&state,nullptr,&SynchronousDispatchFixture::drain};ctx->synchronous_test_hooks=&hooks;
+  size_t token=0;REQUIRE(begin_synchronous_owner_lease(*ctx,token)==RNS8_SUCCESS);
+  SynchronousLease custody(*ctx,token);
+  REQUIRE(add_synchronous_owner_hold(*ctx,token,owner)==RNS8_SUCCESS);
+  REQUIRE(add_synchronous_owner_hold(*ctx,token,owner)==RNS8_SUCCESS);CHECK(owner==1);
+  CHECK(custody.begin_write()==RNS8_INVALID_ARGUMENT);
+  CHECK(ctx->failed_work_leases[token].a==nullptr);CHECK(ctx->failed_work_leases[token].c==nullptr);
+  // Releasing a newer ordinary record must not prune the live private record.
+  rns8_matrix a{},b{},c{};rns8_workspace work{};size_t later=0;
+  REQUIRE(begin_synchronous_lease(*ctx,a,b,c,work,later)==RNS8_SUCCESS);
+  {SynchronousLease ordinary(*ctx,later);REQUIRE(ordinary.finish(RNS8_SUCCESS)==RNS8_SUCCESS);}
+  REQUIRE(ctx->failed_work_leases.size()==1);CHECK(owner==1);
+  CHECK(custody.finish(RNS8_BACKEND_FAILURE)==RNS8_BACKEND_FAILURE);
+  CHECK(ctx->hip_failure_poisoned);CHECK(owner==1);
+  state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
+  CHECK(owner==0);CHECK(ctx->failed_work_leases.empty());
+  REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);CHECK(owner==0);
+  ctx->synchronous_test_hooks=nullptr;REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("public sparse writers retain packed owners and distinguish prewrite from issued failure", "[api][sparse][lifetime]") {
+  for(auto semantics:{RNS8_BOUNDED_I64,RNS8_EXACT_WIDE_SIGNED,RNS8_FINITE_RING_U8})for(unsigned failure=0;failure<6;++failure){
+    CAPTURE(semantics,failure);
+    const bool finite=semantics==RNS8_FINITE_RING_U8,bounded=semantics==RNS8_BOUNDED_I64;
+    auto* ctx=create_cpu_context();
+    auto desc=finite?finite_gemm_desc(semantics,1,1,4,251):bounded?bounded_gemm_desc(semantics,1,1,4):exact_desc(semantics,1,1,4);
+    auto bmd=finite?finite_matrix_desc(4,1,semantics):bounded?bounded_matrix_desc(4,1,semantics):exact_matrix_desc(4,1,semantics);
+    auto cmd=bmd;cmd.rows=1;
+    rns8_plan* plan=nullptr;rns8_workspace* work=nullptr;rns8_matrix *b=nullptr,*c=nullptr;rns8_sparse_matrix* a=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,plan,&work)==RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx,&bmd,&b)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&cmd,&c)==RNS8_SUCCESS);
+    const int64_t bv[]{3,4,5,6};const uint8_t fb[]{3,4,5,6};
+    REQUIRE((finite?rns8_pack_finite_u8(ctx,b,251,fb,1,1):rns8_pack_i64(ctx,b,bv,1,1))==RNS8_SUCCESS);
+    rns8_sparse_matrix_desc sd{};sd.struct_size=sizeof(sd);sd.abi_version=RNS8_ABI_VERSION;
+    sd.semantics=semantics;sd.bound_kind=desc.bound_kind;sd.contract=RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+    sd.sparse_operand=RNS8_SPARSE_OPERAND_A;sd.index_layout=RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+    sd.value_signedness=finite?RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8:RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+    sd.rows=1;sd.expanded_k=4;sd.group_size=4;sd.nonzeros_per_group=2;
+    sd.max_prefix=finite?0:bmd.max_prefix;sd.finite_modulus=finite?251:0;
+    REQUIRE(rns8_create_sparse_matrix(ctx,&sd,&a)==RNS8_SUCCESS);
+    std::vector<uint8_t> dense(4*(finite?1:sd.max_prefix));
+    for(std::size_t index=0;index<dense.size();index+=4){dense[index]=1;dense[index+2]=2;}
+    REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx,a,dense.data(),4,1)==RNS8_SUCCESS);
+    auto execute=[&](){return finite?rns8_gemm_finite_u8_sparse_a(ctx,plan,251,a,b,c,work):rns8_gemm_rns_sparse_a(ctx,plan,a,b,c,work);};
+    REQUIRE(execute()==RNS8_SUCCESS);const auto generation=c->content_generation;const auto old=c->residues;
+    SynchronousDispatchFixture state;state.readers={b};state.writers={c};state.workspace=work;state.private_owners={&a->in_flight_readers};
+    state.fail=failure!=0;state.write_started_on_failure=failure!=1 && failure!=5;
+    state.throw_after_issue=failure==4 || failure==5;state.drain_fails=failure==3 || failure==4;
+    const rns8_synchronous_test_hooks hooks{&state,&SynchronousDispatchFixture::dispatch,&SynchronousDispatchFixture::drain};ctx->synchronous_test_hooks=&hooks;
+    CHECK(execute()==(failure==0?RNS8_SUCCESS:state.throw_after_issue?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE));
+    CHECK(state.calls==1);CHECK(state.reservations_observed);CHECK(c->residues==old);
+    CHECK(c->content_generation==generation+(failure==0));
+    CHECK(c->host_residues_current==(failure==0 || !state.write_started_on_failure));
+    if(state.drain_fails){
+      CHECK(a->in_flight_readers==1);CHECK(ctx->hip_failure_poisoned);CHECK(b->in_flight_readers==1);CHECK(c->in_flight_writer);CHECK(work->in_flight);
+      CHECK(rns8_destroy_sparse_matrix(a)==RNS8_BUSY);
+      CHECK(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx,a,dense.data(),4,2)==RNS8_BUSY);
+      CHECK(a->source_version==1);
+      CHECK(rns8_destroy_matrix(b)==RNS8_BUSY);CHECK(rns8_destroy_matrix(c)==RNS8_BUSY);
+      state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
+    }
+    CHECK(a->in_flight_readers==0);CHECK(a->in_flight_writers==0);CHECK(b->in_flight_readers==0);CHECK_FALSE(c->in_flight_writer);CHECK_FALSE(work->in_flight);
+    CHECK(ctx->failed_work_leases.empty());ctx->synchronous_test_hooks=nullptr;
+    REQUIRE(rns8_destroy_sparse_matrix(a)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_workspace(work)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
+}
+
+TEST_CASE("sparse upload failure seam retains real host and device owners without a dense writer", "[api][sparse][hip][lifetime]") {
+  using namespace rns8::detail;
+  if(!amdgpu_builtins_compiled())SKIP("AMDGPU builtin sparse storage provider not compiled");
+  for(bool finite:{false,true})for(bool late:{false,true})for(bool throws:{false,true})for(bool uncertain:{false,true}){
+    CAPTURE(finite,late,throws,uncertain);
+    rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=RNS8_BACKEND_AMDGPU_BUILTINS;
+    rns8_context* ctx=nullptr;const auto created=rns8_create_context(0,&options,&ctx);
+    if(created==RNS8_UNSUPPORTED_BACKEND || created==RNS8_UNSUPPORTED_ARCH)SKIP("no applicable AMDGPU storage device");
+    REQUIRE(created==RNS8_SUCCESS);
+    rns8_sparse_matrix_desc sd{};sd.struct_size=sizeof(sd);sd.abi_version=RNS8_ABI_VERSION;
+    sd.semantics=finite?RNS8_FINITE_RING_U8:RNS8_EXACT_WIDE_SIGNED;sd.bound_kind=RNS8_BOUND_NONE;
+    sd.contract=RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;sd.sparse_operand=RNS8_SPARSE_OPERAND_A;
+    sd.index_layout=RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+    sd.value_signedness=finite?RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8:RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+    sd.rows=1;sd.expanded_k=4;sd.group_size=4;sd.nonzeros_per_group=2;sd.max_prefix=finite?0:3;sd.finite_modulus=finite?251:0;
+    rns8_sparse_matrix* matrix=nullptr;REQUIRE(rns8_create_sparse_matrix(ctx,&sd,&matrix)==RNS8_SUCCESS);
+    std::vector<uint8_t> values(4*(finite?1:3));
+    for(std::size_t index=0;index<values.size();index+=4){values[index]=1;values[index+2]=2;}
+    REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx,matrix,values.data(),4,1)==RNS8_SUCCESS);
+    REQUIRE(matrix->device_current);const auto packed=matrix->packed_values,indices=matrix->packed_indices;const auto key=matrix->cache_key;
+    const auto* device_values=matrix->hip_packed_values;const auto* device_indices=matrix->hip_packed_indices;
+    SynchronousDispatchFixture state;state.fail=true;state.write_started_on_failure=late;state.throw_after_issue=throws;state.drain_fails=uncertain;
+    state.private_owners={&matrix->in_flight_writers};
+    const rns8_synchronous_test_hooks hooks{&state,&SynchronousDispatchFixture::dispatch,&SynchronousDispatchFixture::drain};ctx->synchronous_test_hooks=&hooks;
+    values[0]=3;
+    // The checkpoint fails before actual H2D; late means simulated issue only.
+    CHECK(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx,matrix,values.data(),4,2)==(throws?RNS8_INTERNAL_ERROR:RNS8_BACKEND_FAILURE));
+    CHECK(state.calls==1);CHECK(state.reservations_observed);
+    CHECK(matrix->packed_values==packed);CHECK(matrix->packed_indices==indices);CHECK(matrix->source_version==1);CHECK(matrix->cache_key==key);
+    CHECK(matrix->host_current);CHECK(matrix->device_current==!late);
+    if(uncertain){
+      CHECK(ctx->hip_failure_poisoned);CHECK(matrix->in_flight_writers==1);
+      CHECK(matrix->packed_values_owner.pending());CHECK(matrix->packed_indices_owner.pending());
+      CHECK(rns8_destroy_sparse_matrix(matrix)==RNS8_BUSY);
+      CHECK(matrix->hip_packed_values==device_values);CHECK(matrix->hip_packed_indices==device_indices);
+      std::vector<uint8_t> expanded(values.size(),91);
+      CHECK(rns8_expand_sparse_a_4_to_2_matrix_u8(matrix,expanded.data(),4)==RNS8_BUSY);
+      CHECK(expanded==std::vector<uint8_t>(values.size(),91));
+      state.drain_fails=false;REQUIRE(rns8_drain_failed_work(ctx)==RNS8_SUCCESS);
+    }
+    CHECK(matrix->in_flight_writers==0);CHECK_FALSE(matrix->packed_values_owner.pending());CHECK_FALSE(matrix->packed_indices_owner.pending());
+    CHECK(ctx->failed_work_leases.empty());ctx->synchronous_test_hooks=nullptr;
+    if(!uncertain){
+      REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx,matrix,values.data(),4,3)==RNS8_SUCCESS);
+      CHECK(matrix->source_version==3);CHECK(matrix->cache_key.find("source_version=3")!=std::string::npos);CHECK(matrix->device_current);
+    }
+    REQUIRE(rns8_destroy_sparse_matrix(matrix)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
 }

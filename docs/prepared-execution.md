@@ -461,6 +461,27 @@ records from the first allocation: an exception or failed release transfers
 unpublished buffers to the existing device-drain cleanup queue, not a lost raw
 pointer. No failure-injection or hardware qualification is implied by this rule.
 
+Sparse synchronous GEMM now retains dense B, output/workspace and the actual
+packed sparse owner through dispatch and proof publication. Early rejection
+preserves the prior output; simulated/actual issued failure invalidates it.
+Uncertain completion retains readers, writer and workspace until a successful
+drain. Sparse upload uses an owner-only completion record: its packed host
+vectors, two device buffers and private writer custody are retained without
+inventing a dense matrix output. Repack/destruction reject live sparse readers
+or writers, and expansion rejects a pending sparse writer.
+
+Upload allocation, custody admission and cache-key construction precede host
+publication. A rejected upload checkpoint preserves the previous packed host
+values/version/key; an issued failure can invalidate device currentness.
+After host publication, upload failure leaves a complete matching host value
+and key while device storage remains invalid. Failed drains preserve the owner
+and staging lifetimes; successful drain releases memory custody while the
+poisoned context still requires recreation. Success adds no cleanup wait.
+The new public CPU sparse dispatch, owner-only bookkeeping and real-device
+upload checkpoint controls are authored and syntax-checked; their runtime
+batch remains deferred. They do not qualify sparse matrix instructions on an
+unsupported target or induce real device faults.
+
 
 ## Prepared exact conversion variant
 

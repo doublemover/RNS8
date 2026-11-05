@@ -24,6 +24,7 @@ struct rns8_synchronous_lease {
   bool unary=false,read_only=false;
   uint64_t* owner_holds[2]{};
   rns8::detail::hip_direct_device_buffer* buffer_holds[2]{};
+  bool owner_only=false;
 };
 // Private deterministic completion seam for host state-machine tests. Null in
 // ordinary contexts; it never changes target admission or executes faulty HIP.
@@ -229,6 +230,7 @@ struct rns8_matrix {
 };
 
 struct rns8_sparse_matrix {
+  mutable uint64_t in_flight_readers=0,in_flight_writers=0;
   rns8::detail::hip_direct_device_buffer packed_values_owner;
   rns8::detail::hip_direct_device_buffer packed_indices_owner;
   rns8_sparse_matrix_desc desc{};
