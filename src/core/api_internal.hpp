@@ -580,6 +580,32 @@ native_summary_identity(const rns8_context& ctx, const rns8_matrix& matrix, cons
   return identity;
 }
 
+inline bool native_wmma_capability_current(const rns8_context& ctx,
+                                           const NativeWmmaDeviceCapability& capability) {
+  return !ctx.hip_failure_poisoned && ctx.backend == RNS8_BACKEND_HIP_DIRECT &&
+         capability.provider == &hip_direct_query_native_wmma_capability &&
+         capability.device_id == ctx.device_id && capability.target[0] &&
+         std::equal(capability.target.begin(), capability.target.end(), ctx.device_info.gcn_arch);
+}
+
+inline rns8_status ensure_native_wmma_capability(rns8_context& ctx) {
+  if (ctx.hip_failure_poisoned)
+    return RNS8_BACKEND_FAILURE;
+  if (ctx.backend != RNS8_BACKEND_HIP_DIRECT)
+    return RNS8_UNSUPPORTED_BACKEND;
+  if (!ctx.native_wmma_capability.provider) {
+    NativeWmmaDeviceCapability observed;
+    const auto status = hip_direct_query_native_wmma_capability(ctx.device_id, observed);
+    if (status != RNS8_SUCCESS)
+      return status;
+    if (!native_wmma_capability_current(ctx, observed))
+      return RNS8_INVALID_ARGUMENT;
+    ctx.native_wmma_capability = observed;
+  }
+  return native_wmma_capability_current(ctx, ctx.native_wmma_capability) ? RNS8_SUCCESS
+                                                                         : RNS8_INVALID_ARGUMENT;
+}
+
 // Invalidates on unwinding or any failed post-write status, including native uploads.
 struct MatrixWriteGuard {
   rns8_matrix& matrix;

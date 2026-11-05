@@ -396,7 +396,7 @@ class Captures(unittest.TestCase):
             lambda d: d.update(event_labels={"block_sparse_intersection_gemm_kernel": True}),
             lambda d: d.update(sparse_gemm_events=0),
             lambda d: d.update(capability_probe_events=1),
-            lambda d: d["event_labels"].update(block_sparse_prepare_capability=1),
+            lambda d: d["event_labels"].update(native_wmma_prepare_capability=1),
             lambda d: d["event_labels"].update(unexpected_warm_work=1),
         ]
         for key in (

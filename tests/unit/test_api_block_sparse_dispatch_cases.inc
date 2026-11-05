@@ -1,3 +1,43 @@
+TEST_CASE("cached native WMMA capability metadata is bound to context target and provider",
+          "[api][capability][host]") {
+  using namespace rns8::detail;
+  using namespace rns8::detail::api;
+  // Synthetic metadata only. No device or compiled-body qualification is claimed.
+  rns8_context ctx;
+  ctx.backend = RNS8_BACKEND_HIP_DIRECT;
+  ctx.device_id = 0;
+  std::copy_n("gfx1100", 8, ctx.device_info.gcn_arch);
+  auto& capability = ctx.native_wmma_capability;
+  capability.device_id = 0;
+  capability.provider = &hip_direct_query_native_wmma_capability;
+  std::copy_n(ctx.device_info.gcn_arch, capability.target.size(), capability.target.begin());
+  for (bool supported : {false, true}) {
+    capability.supported = supported;
+    const auto before = hip_direct_allocation_counters_snapshot();
+    CHECK(native_wmma_capability_current(ctx, capability));
+    CHECK(ensure_native_wmma_capability(ctx) == RNS8_SUCCESS);
+    const auto after = hip_direct_allocation_counters_snapshot();
+    CHECK(after.allocate_calls == before.allocate_calls);
+    CHECK(capability.supported == supported);
+  }
+  const auto saved = capability;
+  capability.target[0] = '!';
+  CHECK(ensure_native_wmma_capability(ctx) == RNS8_INVALID_ARGUMENT);
+  capability = saved;
+  ++capability.device_id;
+  CHECK_FALSE(native_wmma_capability_current(ctx, capability));
+  capability = saved;
+  capability.provider = nullptr;
+  CHECK_FALSE(native_wmma_capability_current(ctx, capability));
+  capability = saved;
+  ctx.hip_failure_poisoned = true;
+  CHECK(ensure_native_wmma_capability(ctx) == RNS8_BACKEND_FAILURE);
+  CHECK_FALSE(native_wmma_capability_current(ctx, capability));
+  ctx.hip_failure_poisoned = false;
+  ctx.backend = RNS8_BACKEND_CPU_REFERENCE;
+  CHECK(ensure_native_wmma_capability(ctx) == RNS8_UNSUPPORTED_BACKEND);
+}
+
 TEST_CASE("public block-sparse construction retains complete unpublished owners on failure",
           "[api][block-sparse][hip][lifetime]") {
   if (!rns8::detail::api::direct_hip_compiled())

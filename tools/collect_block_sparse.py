@@ -368,9 +368,7 @@ def validate_separate_observation(capture, case, counts):
     )
     demand(
         same(value["sparse_gemm_events"], labels.get("block_sparse_intersection_gemm_kernel", 0))
-        and same(
-            value["capability_probe_events"], labels.get("block_sparse_prepare_capability", 0)
-        ),
+        and same(value["capability_probe_events"], labels.get("native_wmma_prepare_capability", 0)),
         "contradictory native event counters",
     )
     if case["mode"] == "dense":

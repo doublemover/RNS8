@@ -26,6 +26,13 @@ elide narrow dispatch scans; the trusted-owner execution integration is in
 progress. Portable extrema/padding/identity and real-HIP pack controls are
 authored; runtime validation remains deferred.
 
+The actual compiled native WMMA probe and its context capability owner are now
+shared with block-sparse preparation. The cache binds the target/device and
+loaded provider, publishes only successful observations, and retains an explicit
+unsupported result. Poisoned contexts and mismatched providers/targets cannot
+reuse it. The private checked byte helper still probes each raw-pointer call;
+connecting the shared owner to public narrow execution remains in progress.
+
 The independent matrix-owned exact-range proof must also fit the selected CRT
 basis. The native result is staged, then encoded into every output residue
 plane. Peak transient device payload is `8*M*N+16` bytes for scalar, or

@@ -122,22 +122,14 @@ rns8_status rns8_prepare_block_sparse_operand(rns8_context* ctx, const rns8_matr
                                      pack_budget, result->layout, result->packed);
     };
     status = lease.finish([&]() -> rns8_status {
-      if (!ctx->block_sparse_capability.provider) {
+      if (!ctx->native_wmma_capability.provider) {
         auto status = synchronous_dispatch_checkpoint(*ctx, "block_sparse_capability");
         if (status != RNS8_SUCCESS)
           return status;
-        BlockSparseDeviceCapability observed;
-        status = hip_direct_query_block_sparse_capability(ctx->device_id, observed);
-        if (status != RNS8_SUCCESS)
-          return status;
-        ctx->block_sparse_capability = observed;
       }
-      const auto& capability = ctx->block_sparse_capability;
-      if (capability.provider != &hip_direct_query_block_sparse_capability ||
-          capability.device_id != ctx->device_id ||
-          !std::equal(capability.target.begin(), capability.target.end(),
-                      ctx->device_info.gcn_arch))
-        return RNS8_INVALID_ARGUMENT;
+      const auto capability_status = ensure_native_wmma_capability(*ctx);
+      if (capability_status != RNS8_SUCCESS)
+        return capability_status;
       auto status = u ? prepare(uint64_t{}) : prepare(int64_t{});
       if (status != RNS8_SUCCESS)
         return status;
@@ -242,7 +234,7 @@ rns8_status rns8_get_block_sparse_storage_info(const rns8_block_sparse_operand* 
   result.prefix = operand->layout.prefix;
   result.device_id = operand->ctx->device_id;
   result.matrix_method_support =
-      operand->ctx->block_sparse_capability.supported ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
+      operand->ctx->native_wmma_capability.supported ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
   result.source_instance = operand->layout.value_instance;
   result.source_generation = operand->layout.value_generation;
   result.host_directory_capacity_bytes =
@@ -300,10 +292,8 @@ rns8_status rns8_gemm_block_sparse_exact_with_method(
                                           source.matrix_instance_id, source.content_generation))
         return RNS8_INVALID_ARGUMENT;
     }
-    const auto& capability = ctx->block_sparse_capability;
-    if (capability.provider != &hip_direct_query_block_sparse_capability ||
-        capability.device_id != ctx->device_id ||
-        !std::equal(capability.target.begin(), capability.target.end(), ctx->device_info.gcn_arch))
+    const auto& capability = ctx->native_wmma_capability;
+    if (!native_wmma_capability_current(*ctx, capability))
       return RNS8_INVALID_ARGUMENT;
     if (method != RNS8_BLOCK_SPARSE_SCALAR && !capability.supported)
       return RNS8_UNSUPPORTED_BACKEND;

@@ -119,58 +119,10 @@ rns8_status hip_direct_gemm_block_sparse_device(
 #endif
 }
 
-rns8_status hip_direct_query_block_sparse_capability(int device_id,
-                                                     BlockSparseDeviceCapability& out) {
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  rns8_device_info device{};
-  auto status = hip_direct_probe(device_id, device);
-  if (status != RNS8_SUCCESS)
-    return status;
-  if (!device.gcn_arch[0])
-    return RNS8_BACKEND_FAILURE;
-  status = set_hip_device(device_id);
-  if (status != RNS8_SUCCESS)
-    return status;
-  hip_direct_device_buffer flag;
-  status = flag.allocate(device_id, sizeof(uint32_t));
-  if (status != RNS8_SUCCESS)
-    return status;
-  flag.mark_pending();
-  status = hip_direct_zero(device_id, flag.get(), sizeof(uint32_t));
-  if (status != RNS8_SUCCESS)
-    return status;
-  const auto error = timed_hip_operation("block_sparse_prepare_capability", [&] {
-    const auto launch =
-        static_cast<hipError_t>(rns8_hip_native_wmma_capability(static_cast<int*>(flag.get())));
-    return launch == hipSuccess ? hipDeviceSynchronize() : launch;
-  });
-  if (error != hipSuccess)
-    return RNS8_BACKEND_FAILURE;
-  uint32_t supported = 0;
-  status = hip_direct_copy_device_to_host(device_id, &supported, flag.get(), sizeof(supported));
-  if (status != RNS8_SUCCESS)
-    return status;
-  flag.mark_completed();
-  if (supported > 1)
-    return RNS8_BACKEND_FAILURE;
-  BlockSparseDeviceCapability candidate;
-  candidate.device_id = device_id;
-  candidate.supported = supported != 0;
-  std::copy_n(device.gcn_arch, candidate.target.size(), candidate.target.begin());
-  candidate.provider = &hip_direct_query_block_sparse_capability;
-  out = candidate;
-  return RNS8_SUCCESS;
-#else
-  (void)device_id;
-  (void)out;
-  return RNS8_UNSUPPORTED_BACKEND;
-#endif
-}
-
 rns8_status hip_direct_gemm_prepared_block_sparse_device(
     int device_id, const void* a, const BlockSparseOperand& lhs,
     const BlockSparseDeviceDirectory& lhs_directory, const void* b, const BlockSparseOperand& rhs,
-    const BlockSparseDeviceDirectory& rhs_directory, const BlockSparseDeviceCapability& capability,
+    const BlockSparseDeviceDirectory& rhs_directory, const NativeWmmaDeviceCapability& capability,
     void* c, int64_t ldc, bool& commit_started, uint32_t method,
     uint32_t scalar_intersection_limit) {
   commit_started = false;
@@ -178,7 +130,7 @@ rns8_status hip_direct_gemm_prepared_block_sparse_device(
                                       lhs.value_generation) ||
       !block_sparse_directory_matches(rhs_directory, rhs, device_id, rhs.value_instance,
                                       rhs.value_generation) ||
-      capability.provider != &hip_direct_query_block_sparse_capability ||
+      capability.provider != &hip_direct_query_native_wmma_capability ||
       capability.device_id != device_id || !capability.target[0])
     return RNS8_INVALID_ARGUMENT;
   const auto admitted =

@@ -153,12 +153,12 @@ void check_public_block_sparse_owner(rns8_block_sparse_method method = RNS8_BLOC
   CHECK(sparse_info.device_payload_bytes == unchanged_payload);
   sparse_info.struct_size = valid_size;
   CHECK(rns8_get_block_sparse_storage_info(nullptr, &sparse_info) == RNS8_INVALID_ARGUMENT);
-  const auto capability = ctx->block_sparse_capability;
+  const auto capability = ctx->native_wmma_capability;
   const auto initial_generation = c->content_generation;
-  ctx->block_sparse_capability.target[0] = '!';
+  ctx->native_wmma_capability.target[0] = '!';
   CHECK(run(0) == RNS8_INVALID_ARGUMENT);
   CHECK(c->content_generation == initial_generation);
-  ctx->block_sparse_capability = capability;
+  ctx->native_wmma_capability = capability;
   const auto before_warm = rns8::detail::hip_direct_allocation_counters_snapshot();
   REQUIRE(run(0) == RNS8_SUCCESS);
   const auto after_warm = rns8::detail::hip_direct_allocation_counters_snapshot();

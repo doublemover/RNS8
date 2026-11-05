@@ -4,6 +4,54 @@ extern "C" int rns8_hip_native_wmma_grouped(const void*, const void*, int8_t*, i
                                             int, int, int, int, bool);
 #endif
 
+rns8_status hip_direct_query_native_wmma_capability(int device_id,
+                                                    NativeWmmaDeviceCapability& out) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8_device_info device{};
+  auto status = hip_direct_probe(device_id, device);
+  if (status != RNS8_SUCCESS)
+    return status;
+  if (!device.gcn_arch[0])
+    return RNS8_BACKEND_FAILURE;
+  status = set_hip_device(device_id);
+  if (status != RNS8_SUCCESS)
+    return status;
+  hip_direct_device_buffer flag;
+  status = flag.allocate(device_id, sizeof(uint32_t));
+  if (status != RNS8_SUCCESS)
+    return status;
+  flag.mark_pending();
+  status = hip_direct_zero(device_id, flag.get(), sizeof(uint32_t));
+  if (status != RNS8_SUCCESS)
+    return status;
+  const auto error = timed_hip_operation("native_wmma_prepare_capability", [&] {
+    const auto launch =
+        static_cast<hipError_t>(rns8_hip_native_wmma_capability(static_cast<int*>(flag.get())));
+    return launch == hipSuccess ? hipDeviceSynchronize() : launch;
+  });
+  if (error != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  uint32_t supported = 0;
+  status = hip_direct_copy_device_to_host(device_id, &supported, flag.get(), sizeof(supported));
+  if (status != RNS8_SUCCESS)
+    return status;
+  flag.mark_completed();
+  if (supported > 1)
+    return RNS8_BACKEND_FAILURE;
+  NativeWmmaDeviceCapability candidate;
+  candidate.device_id = device_id;
+  candidate.supported = supported != 0;
+  std::copy_n(device.gcn_arch, candidate.target.size(), candidate.target.begin());
+  candidate.provider = &hip_direct_query_native_wmma_capability;
+  out = candidate;
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)out;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_gemm_native_wmma_grouped_device(int device_id, const void* a, const void* b,
                                                        int8_t* c, int64_t m, int64_t n, int64_t k,
                                                        int64_t lda, int64_t ldb, int64_t ldc,

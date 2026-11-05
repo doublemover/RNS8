@@ -1,21 +1,11 @@
 #pragma once
 
 #include "block_sparse.hpp"
-#include <array>
+#include "native_wmma_capability.hpp"
 #include <cstddef>
 #include <cstdint>
 
 namespace rns8::detail {
-struct BlockSparseDeviceCapability;
-using BlockSparseCapabilityProvider = rns8_status (*)(int, BlockSparseDeviceCapability&);
-struct BlockSparseDeviceCapability {
-  int device_id = -1;
-  bool supported = false;
-  std::array<char, 64> target{};
-  // Process-local provider identity: never serialize or reuse across libraries.
-  BlockSparseCapabilityProvider provider = nullptr;
-};
-
 struct BlockSparseDeviceDirectory {
   uint32_t version = 1, basis_version = 0, prefix = 0;
   BlockSparseRole role = BlockSparseRole::lhs;

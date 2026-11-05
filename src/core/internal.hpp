@@ -6,6 +6,7 @@
 #include "core/hip_resources.hpp"
 #include "backend_common/native_summary_identity.hpp"
 #include "backend_common/native_domain.hpp"
+#include "backend_common/native_wmma_capability.hpp"
 #include "backend_common/block_sparse_directory.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -70,7 +71,7 @@ struct rns8_context {
   bool hip_failure_poisoned = false;
   int device_id = -1;
   rns8_device_info device_info{};
-  rns8::detail::BlockSparseDeviceCapability block_sparse_capability;
+  rns8::detail::NativeWmmaDeviceCapability native_wmma_capability;
   void* hipblaslt_handle = nullptr;
   std::string hipblaslt_library_version;
 };

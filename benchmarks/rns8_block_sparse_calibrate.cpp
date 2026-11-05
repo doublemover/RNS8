@@ -247,7 +247,7 @@ template <class Run> json observe_sparse_call(rns8_context* ctx, uint32_t reuse,
   value["observed_batches"] = 1;
   value["public_gemm_calls"] = reuse;
   const auto& labels = value.at("event_labels");
-  value["capability_probe_events"] = labels.value("block_sparse_prepare_capability", uint64_t{0});
+  value["capability_probe_events"] = labels.value("native_wmma_prepare_capability", uint64_t{0});
   value["sparse_gemm_events"] = labels.value("block_sparse_intersection_gemm_kernel", uint64_t{0});
   return value;
 }
