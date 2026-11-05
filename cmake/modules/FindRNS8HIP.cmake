@@ -136,13 +136,75 @@ function(rns8_compile_hip_source out_var source)
       -o "${_object}")
   rns8_record_hip_compile("${_source_abs}" "${_object}" "${_compiler_args}"
     "${RNS8_HIP_COMPILER_ENVIRONMENT}" "${RNS8_MANIFEST_HEADER};${_compat_dependencies}")
+  set(_execute_args "${_compiler_args}")
+  set(_receipt_dependencies)
+  set(_receipt_byproducts)
+  if(RNS8_CAPTURE_HIP_COMPILE_COST)
+    if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+      message(FATAL_ERROR "HIP compile receipts require a named configuration, for example CMAKE_BUILD_TYPE=Release")
+    endif()
+    set(_receipt_context "{}")
+    foreach(_field IN ITEMS schema source_root build_root directory file output configuration)
+      if(_field STREQUAL "schema")
+        set(_value "rns8_native_compile_context_v1")
+      elseif(_field STREQUAL "source_root")
+        set(_value "${PROJECT_SOURCE_DIR}")
+      elseif(_field STREQUAL "build_root")
+        set(_value "${CMAKE_BINARY_DIR}")
+      elseif(_field STREQUAL "directory")
+        set(_value "${CMAKE_CURRENT_BINARY_DIR}")
+      elseif(_field STREQUAL "file")
+        set(_value "${_source_abs}")
+      elseif(_field STREQUAL "output")
+        set(_value "${_object}")
+      else()
+        set(_value "$<CONFIG>")
+      endif()
+      rns8_json_string(_quoted "${_value}")
+      string(JSON _receipt_context SET "${_receipt_context}" "${_field}" "${_quoted}")
+    endforeach()
+    set(_receipt_inputs "${_source_abs}" "${RNS8_MANIFEST_HEADER}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS} ${_compat_dependencies})
+    foreach(_compiler IN ITEMS "${RNS8_HIP_CLANG}" "${CMAKE_CXX_COMPILER}")
+      if(_compiler)
+        list(APPEND _receipt_inputs "${_compiler}")
+      endif()
+    endforeach()
+    set(_absolute_inputs)
+    foreach(_input IN LISTS _receipt_inputs)
+      get_filename_component(_absolute_input "${_input}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+      list(APPEND _absolute_inputs "${_absolute_input}")
+    endforeach()
+    list(REMOVE_DUPLICATES _absolute_inputs)
+    foreach(_field IN ITEMS arguments inputs targets)
+      if(_field STREQUAL "arguments")
+        set(_values "${_compiler_args}")
+      elseif(_field STREQUAL "inputs")
+        set(_values "${_absolute_inputs}")
+      else()
+        set(_values "${RNS8_AMDGPU_TARGETS}")
+      endif()
+      rns8_json_array(_array _values)
+      string(JSON _receipt_context SET "${_receipt_context}" "${_field}" "${_array}")
+    endforeach()
+    set(_receipt_context_file "${_object}.compile-context-$<CONFIG>.json")
+    file(GENERATE OUTPUT "${_receipt_context_file}" CONTENT "${_receipt_context}\n")
+    set(_execute_args "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/compile_receipt.py"
+      --execute --context "${_receipt_context_file}")
+    set(_receipt_dependencies "${_receipt_context_file}" "${PROJECT_SOURCE_DIR}/tools/compile_receipt.py"
+      "${PROJECT_SOURCE_DIR}/tools/compiler_context.py" "${PROJECT_SOURCE_DIR}/tools/process_progress.py"
+      "${PROJECT_SOURCE_DIR}/tools/benchmark_request.py" "${PROJECT_SOURCE_DIR}/tools/compiled_binary_identity.py"
+      "${PROJECT_SOURCE_DIR}/tools/json_evidence.py")
+    set(_receipt_byproducts "${_object}.compile.json")
+  endif()
   add_custom_command(
     OUTPUT "${_object}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/hip"
     COMMAND
       "${CMAKE_COMMAND}" -E env ${RNS8_HIP_COMPILER_ENVIRONMENT}
-      ${_compiler_args}
-    DEPENDS rns8_build_manifest "${RNS8_MANIFEST_HEADER}" "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS} ${_compat_dependencies}
+      ${_execute_args}
+    DEPENDS rns8_build_manifest "${RNS8_MANIFEST_HEADER}" "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS} ${_compat_dependencies} ${_receipt_dependencies}
+    BYPRODUCTS ${_receipt_byproducts}
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     VERBATIM
     COMMENT "Compiling HIP source ${_source_name} with explicit hipcc integration"
   )

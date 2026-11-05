@@ -20,6 +20,7 @@ from analysis_diagnostics import read_diagnostics, SUPPORTED_TOOL
 from analysis_inputs import Compilation, load_inputs
 from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest
+from compiler_context import compiler_environment
 from gpu_qualification import owned_artifact_files, write_json
 from json_evidence import load_evidence_json
 from process_progress import run_capture, capture_succeeded
@@ -29,37 +30,6 @@ from quality_policy import load_quality_lock
 SCHEMA = "rns8_static_analysis_plan_v1"
 RESULT_SCHEMA = "rns8_static_analysis_results_v1"
 CONTROL_CHECK = "clang-analyzer-core.NullDereference"
-COMPILER_ENVIRONMENT = frozenset(
-    (
-        "PATH",
-        "INCLUDE",
-        "LIB",
-        "LIBPATH",
-        "VCINSTALLDIR",
-        "VCTOOLSINSTALLDIR",
-        "WINDOWSSDKDIR",
-        "WINDOWSSDKVERSION",
-        "CPATH",
-        "CPLUS_INCLUDE_PATH",
-        "C_INCLUDE_PATH",
-        "LIBRARY_PATH",
-        "SDKROOT",
-        "HIP_PATH",
-        "ROCM_PATH",
-        "HIP_CLANG_PATH",
-        "HIP_DEVICE_LIB_PATH",
-        "HIP_PLATFORM",
-        "CL",
-        "_CL_",
-        "CCC_OVERRIDE_OPTIONS",
-        "CLANG_CONFIG_FILE_USER_DIR",
-        "CLANG_CONFIG_FILE_SYSTEM_DIR",
-        "GCC_EXEC_PREFIX",
-        "COMPILER_PATH",
-        "HIPCC_COMPILE_FLAGS_APPEND",
-        "HIPCC_LINK_FLAGS_APPEND",
-    )
-)
 
 
 @dataclass(frozen=True)
@@ -175,14 +145,6 @@ def native_analyzer(tool: Path | None, tool_bin: Path | None) -> Path:
             "locked native clang-tidy binary is absent or ambiguous; do not bind only its Python launcher"
         )
     return candidates[0]
-
-
-def compiler_environment(environment: dict[str, str]) -> dict[str, str]:
-    return {
-        name: value
-        for name, value in environment.items()
-        if (name.upper() if os.name == "nt" else name) in COMPILER_ENVIRONMENT
-    }
 
 
 def build_plan(

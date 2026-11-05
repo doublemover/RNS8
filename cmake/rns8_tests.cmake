@@ -176,6 +176,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME native_wmma_logical_checker_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_native_wmma_logic.py")
   set_tests_properties(native_wmma_logical_checker_self_test PROPERTIES TIMEOUT 900 LABELS "tools;proof;exhaustive")
   add_test(NAME native_wmma_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_native_wmma.py")
+  add_test(NAME native_compile_receipt_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_compile_receipt.py")
+  set_tests_properties(native_compile_receipt_self_test PROPERTIES TIMEOUT 120 LABELS "tools;build;process")
   add_test(NAME block_gemm_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_block_gemm_research.py")
   add_test(NAME cpu_amx_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_cpu_amx.py")
   add_test(NAME distributed_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_distributed_calibration.py")
@@ -1230,11 +1232,16 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     target_sources(rns8_tests PRIVATE "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hpp")
     target_include_directories(rns8_tests PRIVATE "${RNS8_GENERATED_NATIVE_DIR}")
     target_compile_definitions(rns8_tests PRIVATE RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=1)
+    set(_rns8_native_compile_receipt_args)
+    if(RNS8_CAPTURE_HIP_COMPILE_COST)
+      list(APPEND _rns8_native_compile_receipt_args --compile-receipt "${RNS8_GENERATED_NATIVE_OBJECT}.compile.json")
+    endif()
     add_test(NAME generated_native_wmma_isa_check
       COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_generated_native_wmma.py"
               --object "${RNS8_GENERATED_NATIVE_OBJECT}" --generated-dir "${RNS8_GENERATED_NATIVE_DIR}"
               --target "${RNS8_AMDGPU_TARGETS}" --hipcc "${RNS8_HIP_HIPCC}"
               --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
+              ${_rns8_native_compile_receipt_args}
               --output "${CMAKE_CURRENT_BINARY_DIR}/generated-native-wmma/isa.json"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(generated_native_wmma_isa_check PROPERTIES LABELS "hip;isa;generated-native")

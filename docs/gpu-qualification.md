@@ -244,9 +244,32 @@ unknown and fail inspection; source-only instruction counts cannot supply them.
 Object hashes must remain stable throughout inspection. General ISA summaries
 also slice the exact selected native label before counting instructions.
 The generated report distinguishes variant coverage, native code size and
-unrecorded compile cost; it does not infer compile time from artifact size or
-instruction count. These authored reporting controls have syntax/lint checks;
+compile cost; it does not infer compile time from artifact size or instruction
+count. These authored reporting controls have syntax/lint checks;
 no native object inspection or fixture execution has run for the new slice.
+
+Configure `RNS8_CAPTURE_HIP_COMPILE_COST=ON` in a named build configuration
+(for example `CMAKE_BUILD_TYPE=Release`) alongside explicit HIP integration
+to record the actual configured compiler command. Default builds use the direct
+compiler command. Recording uses the same argv and working directory, bounded
+process/output/object budgets and source/compiler/prerequisite bookends. It
+requires 5 GiB free before compilation. A stale old object is removed before
+issue; successful exit without a new nonempty object cannot supply a receipt.
+Each attempt retains logs and a sealed receipt beneath
+`<object>.compile/<attempt>/`; `<object>.compile.json` points to the latest attempt.
+Failure, interruption or changed inputs remain incomplete evidence.
+
+Generated-native ISA CTest automatically consumes that pointer when recording
+is enabled. Standalone inspection accepts `--compile-receipt` for the same
+pointer or retained receipt. Reported seconds cover the owned host/device
+compiler-process capture, including startup and completion observation; generator
+and outer receipt bookkeeping are excluded. Driver elapsed time is recorded
+separately through artifact bookending. Hash coverage includes configured CMake
+prerequisites, selected compiler binaries and receipt tooling; transitive system
+SDK headers remain part of the separate build/dependency provenance. Missing
+receipts report unrecorded cost. New process/configure/tamper controls are
+authored; no build, fake-compiler fixture or CMake configuration was executed
+during this source pass.
 
 ## After smoke, before promotion
 

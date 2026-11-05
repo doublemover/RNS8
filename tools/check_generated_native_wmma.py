@@ -34,10 +34,13 @@ def verify_generated_source(directory, root=None):
     return manifest
 
 
-def inspect(config, directory, logical_report=None):
+def inspect(config, directory, logical_report=None, compile_receipt=None):
     manifest = verify_generated_source(directory)
     from check_native_wmma_logic import load_bound_report
     logical = load_bound_report(directory, logical_report) if logical_report else None
+    from compile_receipt import load_compile_cost
+    compile_cost=load_compile_cost(compile_receipt,source=directory/"native_variants.hip",
+        host_object=config.host_object,target=config.target) if compile_receipt else dict(status="not_recorded",seconds=None)
     if any(entry["spec"]["target"] != config.target for entry in manifest["variants"]):
         raise ValueError("inspection target does not match generated target")
     reports, failures = [], []
@@ -97,7 +100,7 @@ def inspect(config, directory, logical_report=None):
             "family_inventory": {"generated_variants":len(manifest["variants"]),"inspected_variants":len(reports),
                 "unique_reachable_functions":len(owned_functions),
                 "unique_reachable_code_bytes":sum(sizes[name]["bytes"] for name in owned_functions) if all_sizes_known else None,
-                "compile_cost":{"status":"not_recorded","seconds":None}},
+                "compile_cost":compile_cost},
             "inspection_failures": failures, "inspection_passed": not failures,
             "checker_sha256": sha(Path(__file__).read_bytes()),
             "device_differential_executed": False, "performance_qualified": False, "promotion_eligible": False}
@@ -109,6 +112,7 @@ def main():
     parser.add_argument("--generated-dir", type=Path, required=True)
     parser.add_argument("--target", required=True)
     parser.add_argument("--logical-report", type=Path)
+    parser.add_argument("--compile-receipt", type=Path)
     parser.add_argument("--hipcc", type=Path)
     parser.add_argument("--scratch-root", type=Path, default=Path("temp"))
     parser.add_argument("--output", type=Path, required=True)
@@ -116,7 +120,7 @@ def main():
     config = IsaToolConfig(args.object, args.target, sibling_tool(args.hipcc, "llvm-objcopy"),
                            sibling_tool(args.hipcc, "llvm-objdump"), sibling_tool(args.hipcc, "clang-offload-bundler"),
                            args.scratch_root)
-    result = inspect(config, args.generated_dir, args.logical_report)
+    result = inspect(config, args.generated_dir, args.logical_report, args.compile_receipt)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     print("Generated native WMMA ISA:", "PASS" if result["inspection_passed"] else "FAIL")
