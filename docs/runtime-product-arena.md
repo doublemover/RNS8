@@ -19,11 +19,22 @@ and arena budget violations reject before execution.
 
 The actual executor allocates one CPU vector or HIP device buffer and dispatches
 each product into its assigned region. HIP products use the existing direct RNS
-kernel; CPU products independently reduce every scalar accumulation. Intermediate
+kernel; CPU products use the shared exact blocked residue dot implementation. Intermediate
 values stay private until every requested result is ready for publication.
 Kernel failure before publication preserves the old outputs. Copy failure invalidates
 the entire requested output batch. Successful publication installs the complete prefix and exact magnitude proof.
 Replay overwrites each logical value before reading it and rechecks input bindings.
+
+The current recipe executor still calls synchronous node wrappers. Private
+stream-taking layout conversion/GEMM primitives now share the same shape,
+ordered-basis, address and launch admission as those wrappers. Optional ordered
+predecessor-status guards skip operand reads and output stores; ordinary kernel
+entry points compile the guard away. A one-thread stream-ordered merge retains
+the first failed stage even after later stages reset their own scratch flags.
+The owning recipe's stream/lift/publication integration remains source work;
+these primitives alone are not a one-stream recipe implementation or measured
+throughput result. Their authored differential controls reuse the independent
+Boost layout oracle, including composite/reordered moduli, tails and long K.
 
 The explicit budget covers aligned intermediate payload storage plus the maximum
 simultaneous HIP suffix-lift scratch, not retained public input/output matrices,

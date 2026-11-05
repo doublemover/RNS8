@@ -2,6 +2,9 @@
 TEST_CASE("HIP layout-aware products consume shared-prefix packed B without reading poison planes") {
   if(!hip_available())SKIP("no HIP device for layout-aware residue product");
   using namespace rns8::detail;
+  hip_scoped_device selected(0);REQUIRE(selected.status()==hipSuccess);
+  hip_unique_stream stream;REQUIRE(stream.create_non_blocking()==hipSuccess);
+  hip_direct_device_buffer flags;REQUIRE(flags.allocate(0,4*sizeof(int))==RNS8_SUCCESS);
   for(const auto& test:rns8::test::layout_gemm_cases()) {
     const auto prefix=test.prefix;rns8::test::LayoutGemmFixture f(test);
     hip_direct_device_buffer da,db,dp,dc;
@@ -23,6 +26,36 @@ TEST_CASE("HIP layout-aware products consume shared-prefix packed B without read
     REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);
     REQUIRE(actual==f.expected);
     CHECK(hip_direct_gemm_residue_layout(0,da.get(),f.a,dp.get(),f.packed,da.get(),f.c,prefix)==RNS8_INVALID_ARGUMENT);
+    // Identical arithmetic/oracle with one explicitly owned stream and no
+    // node-local wait. A failed predecessor must suppress every downstream store.
+    for(unsigned mode=0;mode<3;++mode) {
+      std::fill(packed.begin(),packed.end(),99);std::fill(actual.begin(),actual.end(),77);
+      const int controls[]{mode==2?1:0,1,2,0};
+      REQUIRE(hip_direct_copy_host_to_device(0,dp.get(),packed.data(),packed.size())==RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),actual.data(),actual.size())==RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0,flags.get(),controls,sizeof(controls))==RNS8_SUCCESS);
+      auto* words=static_cast<int*>(flags.get());const auto* guard=mode?words:nullptr;
+      for(auto* owner:{&da,&db,&dp,&dc,&flags})owner->mark_pending();
+      if(middle)REQUIRE(hip_direct_enqueue_residue_planes(0,db.get(),f.b,dp.get(),f.packed,0,middle,stream.get(),guard)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_residue_planes(0,db.get(),f.b,dp.get(),f.packed,middle,prefix,stream.get(),guard)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_residue_layout_gemm(0,da.get(),f.a,dp.get(),f.packed,dc.get(),f.c,prefix,stream.get(),guard)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_first_failure(0,words+1,words+3,stream.get())==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_first_failure(0,words+2,words+3,stream.get())==RNS8_SUCCESS);
+      REQUIRE(hip_direct_enqueue_first_failure(0,words,words+3,stream.get())==RNS8_SUCCESS);
+      REQUIRE(hipStreamSynchronize(stream.get())==hipSuccess);
+      for(auto* owner:{&da,&db,&dp,&dc,&flags})owner->mark_completed();
+      REQUIRE(hip_direct_copy_device_to_host(0,packed.data(),dp.get(),packed.size())==RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);
+      if(mode==2){CHECK(packed==std::vector<int8_t>(f.packed.bytes,99));CHECK(actual==std::vector<int8_t>(f.c.bytes,77));}
+      else {CHECK(packed==f.packed_expected);CHECK(actual==f.expected);}
+      int receipt[4]{};REQUIRE(hip_direct_copy_device_to_host(0,receipt,flags.get(),sizeof(receipt))==RNS8_SUCCESS);
+      CHECK(receipt[3]==1); // Later zero/range statuses cannot erase the first failure.
+    }
+    auto* words=static_cast<int*>(flags.get());
+    CHECK(hip_direct_enqueue_residue_planes(0,db.get(),f.b,dp.get(),f.packed,0,prefix,nullptr)==RNS8_INVALID_ARGUMENT);
+    CHECK(hip_direct_enqueue_residue_layout_gemm(0,da.get(),f.a,dp.get(),f.packed,dc.get(),f.c,prefix,stream.get(),static_cast<int*>(dc.get()))==RNS8_INVALID_ARGUMENT);
+    CHECK(hip_direct_enqueue_first_failure(0,words,words,stream.get())==RNS8_INVALID_ARGUMENT);
+
   }
 }
 

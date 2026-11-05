@@ -1,6 +1,8 @@
-__global__ void rns8_convert_residue_layout_kernel(
+template<bool Guarded>
+__device__ __forceinline__ void rns8_convert_residue_layout_body(
     const int8_t* src,rns8::detail::ResidueLayout source,int8_t* dst,rns8::detail::ResidueLayout destination,
-    uint32_t first,uint32_t end) {
+    uint32_t first,uint32_t end,const int* guard) {
+  if constexpr(Guarded)if(*guard)return;
   const uint64_t index = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const uint64_t cells = source.rows * source.cols;
   if (index >= cells * (end-first)) return;
@@ -13,9 +15,12 @@ __global__ void rns8_convert_residue_layout_kernel(
 // LDS tiles do not set reduction cadence: each certified 65536-term slab plus
 // its centered carry fits INT32. The reciprocal is prepared once on the host.
 // This is a packed-byte/vector consumer, not a matrix-instruction claim.
-__global__ __launch_bounds__(256) void rns8_gemm_residue_layout_kernel(
+template<bool Guarded>
+__device__ __forceinline__ void rns8_gemm_residue_layout_body(
     const int8_t* a,rns8::detail::ResidueLayout al,const int8_t* b,rns8::detail::ResidueLayout bl,
-    int8_t* c,rns8::detail::ResidueLayout cl,uint32_t prefix,rns8::detail::ResidueLayoutModuli moduli) {
+    int8_t* c,rns8::detail::ResidueLayout cl,uint32_t prefix,rns8::detail::ResidueLayoutModuli moduli,const int* guard) {
+  // An earlier ordered kernel owns this flag; it cannot change during this grid.
+  if constexpr(Guarded)if(*guard)return;
   static_assert((rns8::detail::kResidueDotKBlock&(rns8::detail::kResidueDotKBlock-1))==0 &&
                 rns8::detail::kResidueDotKBlock%32==0);
   __shared__ int8_t sa[16][32],sb[32][16];
@@ -53,4 +58,31 @@ __global__ __launch_bounds__(256) void rns8_gemm_residue_layout_kernel(
   if(row<cl.rows && col<cl.cols && plane<prefix) {
     c[cl.offset(plane,row,col)]=static_cast<int8_t>(sum);
   }
+}
+
+// Preserve the ordinary kernel entry points and compile guard checks away there.
+__global__ void rns8_convert_residue_layout_kernel(
+    const int8_t* src,rns8::detail::ResidueLayout source,int8_t* dst,rns8::detail::ResidueLayout destination,
+    uint32_t first,uint32_t end) {
+  rns8_convert_residue_layout_body<false>(src,source,dst,destination,first,end,nullptr);
+}
+__global__ void rns8_convert_residue_layout_guarded_kernel(
+    const int8_t* src,rns8::detail::ResidueLayout source,int8_t* dst,rns8::detail::ResidueLayout destination,
+    uint32_t first,uint32_t end,const int* guard) {
+  rns8_convert_residue_layout_body<true>(src,source,dst,destination,first,end,guard);
+}
+__global__ __launch_bounds__(256) void rns8_gemm_residue_layout_kernel(
+    const int8_t* a,rns8::detail::ResidueLayout al,const int8_t* b,rns8::detail::ResidueLayout bl,
+    int8_t* c,rns8::detail::ResidueLayout cl,uint32_t prefix,rns8::detail::ResidueLayoutModuli moduli) {
+  rns8_gemm_residue_layout_body<false>(a,al,b,bl,c,cl,prefix,moduli,nullptr);
+}
+__global__ __launch_bounds__(256) void rns8_gemm_residue_layout_guarded_kernel(
+    const int8_t* a,rns8::detail::ResidueLayout al,const int8_t* b,rns8::detail::ResidueLayout bl,
+    int8_t* c,rns8::detail::ResidueLayout cl,uint32_t prefix,rns8::detail::ResidueLayoutModuli moduli,const int* guard) {
+  rns8_gemm_residue_layout_body<true>(a,al,b,bl,c,cl,prefix,moduli,guard);
+}
+__global__ void rns8_first_failure_kernel(const int* stage,int* sticky) {
+  // Exactly one thread, after the stage's complete grid on the same stream.
+  // Preserve the first failed stage when later stages reset their own scratch.
+  if(!*sticky && *stage)*sticky=*stage;
 }

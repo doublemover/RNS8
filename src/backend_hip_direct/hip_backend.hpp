@@ -219,6 +219,15 @@ rns8_status hip_direct_convert_residue_planes(int device_id,const void* src,
 rns8_status hip_direct_gemm_residue_layout(int device_id,const void* a,const ResidueLayout& al,
     const void* b,const ResidueLayout& bl,void* c,const ResidueLayout& cl,uint32_t prefix);
 
+// Borrowed ordered-stream primitives: no allocation, synchronization or public
+// publication. The owner retains all storage and serializes the optional status
+// word with preceding/following grids; nonzero skips every operand load/store.
+rns8_status hip_direct_enqueue_residue_planes(int,const void*,const ResidueLayout&,void*,const ResidueLayout&,
+    uint32_t,uint32_t,void* stream,const int* guard=nullptr);
+rns8_status hip_direct_enqueue_residue_layout_gemm(int,const void*,const ResidueLayout&,const void*,const ResidueLayout&,
+    void*,const ResidueLayout&,uint32_t,void* stream,const int* guard=nullptr);
+rns8_status hip_direct_enqueue_first_failure(int,const int* stage,int* sticky,void* stream);
+
 // Native signed-i64 scalar candidate admitted by an actual device input scan.
 // The returned bound covers every partial absolute product sum. No automatic
 // selection or matrix-engine claim; reject rather than infer safety from C.

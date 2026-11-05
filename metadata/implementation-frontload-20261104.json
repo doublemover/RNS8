@@ -289,9 +289,13 @@
       "implementation_status": "in_progress",
       "completed_slices": [
         "Prime-channel five-product Gram transforms, explicit-basis or matrix products, maintained classical bucket, recombine and final commit share one retained stream with terminal completion; timing helper accepts actual stream",
-        "Bilinear coefficient and retained/recompute DAG routes now compose transforms, default/indexed matrix batches, classical fallback, recombination and commit on one retained nondefault stream with one terminal observation; general pipeline recipes remain separate source work."
+        "Bilinear coefficient and retained/recompute DAG routes now compose transforms, default/indexed matrix batches, classical fallback, recombination and commit on one retained nondefault stream with one terminal observation; general pipeline recipes remain separate source work.",
+        "Implement borrowed-stream residue layout conversion/GEMM with optional predecessor-failure guards and one-stream first-failure accumulation. Ordinary entry points retain compile-time unguarded bodies. Share complete shape/basis/address/launch admission between synchronous and enqueue routes; reject control-word aliasing/alignment hazards before launch. Extend existing independent Boost layout fixtures for guarded/unguarded ordered calls, unchanged poison output on predecessor failure, tails/reordered/composite moduli/long K and first-error retention. Recipe-owner/lift/publication integration remains pending."
       ],
-      "remaining_source_items": []
+      "remaining_source_items": [
+        "Wire ordered stream ownership, sticky lift proofs, guarded final publication and replay/close failure retention into RuntimeProductRecipe.",
+        "Expose explicit synchronous-wrapper/ordered controls and bind resource/timing capture identities; author recipe-level exact/rebind/failure coverage."
+      ]
     },
     {
       "issue": 43,
