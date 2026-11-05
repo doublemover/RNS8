@@ -477,25 +477,30 @@ rns8_status ensure_result_cache_snapshot(rns8_context& ctx, rns8_result_cache& c
   return RNS8_SUCCESS;
 }
 
-rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C,bool already_reserved) {
-  auto copy=[&]() -> rns8_status {
+rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C,SynchronousLease* reservation) {
+  auto copy=[&](SynchronousLease& lease) -> rns8_status {
+  auto status=lease.hold_buffer(cache.snapshot_owner);
+  if(status!=RNS8_SUCCESS)return status;
+  status=synchronous_dispatch_checkpoint(ctx,"incremental_snapshot");
+  if(status!=RNS8_SUCCESS)return status;
   // Allocation or an in-place copy may fail after destroying the previous
   // snapshot. Only bind_result_cache_after_compute can publish a new hit.
   cache.initialized = false;
-  const rns8_status status = ensure_result_cache_snapshot(ctx, cache, C.hip_residue_bytes);
+  status = ensure_result_cache_snapshot(ctx, cache, C.hip_residue_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  return rns8::detail::hip_direct_copy_device_to_device(
+  status = rns8::detail::hip_direct_copy_device_to_device(
       ctx.device_id, cache.hip_snapshot_residues, C.hip_residues, C.hip_residue_bytes);
+  return status==RNS8_SUCCESS?synchronous_dispatch_checkpoint(ctx,"incremental_snapshot_publish"):status;
   };
-  if(already_reserved)return copy();
+  if(reservation)return copy(*reservation);
   size_t token=0;auto reserved=begin_synchronous_read_lease(ctx,C,token);
   if(reserved!=RNS8_SUCCESS)return reserved;
   SynchronousLease lease(ctx,token);
   reserved=add_synchronous_owner_hold(ctx,token,cache.in_flight_uses);
   if(reserved!=RNS8_SUCCESS)return lease.finish(reserved);
-  return lease.finish(copy());
+  return lease.finish(copy(lease));
 }
 
 rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C,SynchronousLease* lease) {
@@ -510,14 +515,15 @@ rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache&
     if(status!=RNS8_SUCCESS)return reservation.finish(status);
     return reservation.finish(restore_result_cache_to_output(ctx,cache,C,&reservation));
   }
-  // A failed device copy may have partially changed C for any contract.
-  const auto writing=lease->begin_write();if(writing!=RNS8_SUCCESS)return writing;
+  auto held=lease->hold_buffer(cache.snapshot_owner);if(held!=RNS8_SUCCESS)return held;
+  // Rejection before issue preserves C; a failed issued copy invalidates it.
+  const auto writing=lease->checkpoint_before_write("incremental_restore");if(writing!=RNS8_SUCCESS)return writing;
   const rns8_status status = rns8::detail::hip_direct_copy_device_to_device(
       ctx.device_id, C.hip_residues, cache.hip_snapshot_residues, C.hip_residue_bytes);
   if (status == RNS8_SUCCESS) {
     cache.copied_from_cache_bytes += static_cast<uint64_t>(C.hip_residue_bytes);
   }
-  return status;
+  return status==RNS8_SUCCESS?synchronous_dispatch_checkpoint(ctx,"incremental_restore_publish"):status;
 }
 
 void bind_result_cache_after_compute(
@@ -654,6 +660,8 @@ rns8_status execute_incremental_region_recompute(
   }
   for (uint32_t index = 0; index < dirty_region_count; ++index) {
     const rns8_dirty_region& region = dirty_regions[index];
+    status=synchronous_dispatch_checkpoint(ctx,"incremental_region_compute");
+    if(status!=RNS8_SUCCESS)return status;
     status = finite ? rns8::detail::hip_direct_gemm_finite_u8_region_device(
                           ctx.device_id,
                           A.hip_residues,
@@ -695,7 +703,7 @@ rns8_status execute_incremental_region_recompute(
   if (finite) {
     C.finite_modulus = modulus;
   }
-  status = snapshot_result_cache_from_output(ctx, cache, C,true);
+  status = snapshot_result_cache_from_output(ctx, cache, C,&lease);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -1345,9 +1353,11 @@ rns8_status rns8_gemm_rns_prepacked_b(
     SynchronousLease lease(*ctx,token);
     reserved=add_synchronous_owner_hold(*ctx,token,B->in_flight_readers);
     if(reserved!=RNS8_SUCCESS)return lease.finish(reserved);
+    reserved=lease.hold_buffer(B->data_owner);
+    if(reserved==RNS8_SUCCESS)reserved=lease.hold_buffer(workspace->accelerator_workspace_owner);
+    if(reserved!=RNS8_SUCCESS)return lease.finish(reserved);
     return lease.finish([&]() -> rns8_status {
-    auto writing=lease.begin_write();if(writing!=RNS8_SUCCESS)return writing;
-    writing=synchronous_dispatch_checkpoint(*ctx,"gemm_prepacked_b");if(writing!=RNS8_SUCCESS)return writing;
+    auto writing=lease.checkpoint_before_write("gemm_prepacked_b");if(writing!=RNS8_SUCCESS)return writing;
     const rns8_status status = rns8::detail::rocwmma_gemm_rns_prepacked_b_device(
         ctx->device_id,
         A->hip_residues,

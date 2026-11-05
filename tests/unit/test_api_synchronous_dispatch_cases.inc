@@ -11,6 +11,8 @@ struct SynchronousDispatchFixture {
   bool fail=false,throw_after_issue=false,drain_fails=false,reservations_observed=false,write_started_on_failure=true;
   static rns8_status dispatch(void* opaque,const char* operation,bool* started) {
     auto& s=*static_cast<SynchronousDispatchFixture*>(opaque);++s.calls;
+    const bool trigger=!s.target_operation || std::string(operation)==s.target_operation;
+    if(!trigger)return RNS8_SUCCESS;
     s.reservations_observed=true;
     for(auto* matrix:s.readers)s.reservations_observed&=matrix->in_flight_readers>0;
     for(auto* matrix:s.writers)s.reservations_observed&=matrix->in_flight_writer;
@@ -20,10 +22,9 @@ struct SynchronousDispatchFixture {
       const auto& record=s.owner_context->failed_work_leases.back();
       s.reservations_observed&=record.owner_only==s.expect_owner_only && record.owner_holds[0] && *record.owner_holds[0]>0;
     }
-    const bool trigger=!s.target_operation || std::string(operation)==s.target_operation;
-    if(trigger && s.fail && started && s.write_started_on_failure)*started=true; // simulated issue; no faulty device work
-    if(trigger && s.throw_after_issue)throw std::bad_alloc{};
-    return trigger && s.fail?RNS8_BACKEND_FAILURE:RNS8_SUCCESS;
+    if(s.fail && started && s.write_started_on_failure)*started=true; // simulated issue; no faulty device work
+    if(s.throw_after_issue)throw std::bad_alloc{};
+    return s.fail?RNS8_BACKEND_FAILURE:RNS8_SUCCESS;
   }
   static rns8_status drain(void* opaque) noexcept {
     auto& s=*static_cast<SynchronousDispatchFixture*>(opaque);++s.drains;
@@ -411,3 +412,5 @@ TEST_CASE("public prepack construction retains unpublished device and native sta
     REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
   }
 }
+
+#include "test_api_cache_dispatch_cases.inc"

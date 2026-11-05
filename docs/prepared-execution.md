@@ -496,6 +496,17 @@ staging before publishing the cache and adds no cleanup synchronization.
 Host retirement controls and optional actual-provider construction checkpoints
 are authored and syntax-checked; runtime validation remains deferred.
 
+Prepacked GEMM retains the packed buffer and accelerator workspace through the
+same lease as A and C. Incremental snapshot/restore retains the cache's typed
+snapshot buffer, including replacement before a new copy. A shared prewrite
+checkpoint stores its partial-issue flag in the lease itself, so exceptions
+cannot outlive a stack flag. Prewrite rejection preserves C; an issued restore
+or prepacked failure clears currentness. Snapshot failure cannot publish a new
+cache hit, and read-only snapshot failure does not invalidate the computed C.
+Authored controls cover initial snapshot, restore, region recompute and snapshot
+publication for bounded and finite incremental calls, plus prepacked dispatch;
+only CPU/HIP-enabled syntax checks have run for this slice.
+
 
 ## Prepared exact conversion variant
 

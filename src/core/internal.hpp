@@ -374,7 +374,7 @@ struct rns8_prepack_cache {
   rns8_prepack_cache* failed_cleanup_next=nullptr;
   bool failed_cleanup_retired=false;
   mutable uint64_t in_flight_readers=0;
-  rns8::detail::hip_direct_device_buffer data_owner;
+  mutable rns8::detail::hip_direct_device_buffer data_owner;
   rns8::detail::hip_direct_device_buffer native_upload_owner;
   std::vector<uint64_t> native_staging_words;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;

@@ -102,6 +102,12 @@ class SynchronousLease {
     if (status == RNS8_SUCCESS) written_ = true;
     return status;
   }
+  rns8_status checkpoint_before_write(const char* operation) {
+    // The flag belongs to the lease, including when a checkpoint throws before
+    // its caller can observe a simulated partial issue.
+    const auto status=synchronous_dispatch_checkpoint(*ctx_,operation,&written_);
+    return status==RNS8_SUCCESS?begin_write():status;
+  }
   void track_write(const bool& started) noexcept { write_started_ = &started; }
   rns8_status hold_buffer(hip_direct_device_buffer& buffer) noexcept {
     return ctx_?add_synchronous_buffer_hold(*ctx_,token_,buffer):RNS8_INVALID_ARGUMENT;
@@ -585,7 +591,7 @@ void invalidate_output_currentness(rns8_matrix& matrix);
 // Internal resident-cache state transitions; success is published by the
 // incremental dispatcher only after the snapshot and binding are complete.
 rns8_status free_result_cache_snapshot(rns8_result_cache& cache);
-rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C,bool already_reserved=false);
+rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C,SynchronousLease* reservation=nullptr);
 rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C,SynchronousLease* lease=nullptr);
 
 bool bounded_residue_semantics(rns8_semantics semantics);
