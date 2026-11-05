@@ -212,28 +212,45 @@ TEST_CASE("raw Gram enum values reject through real descriptors without changing
   REQUIRE(rns8_pack_i64(ctx, c, &old, 1, 0) == RNS8_SUCCESS);
   const auto residues = c->residues;
   const auto generation = c->content_generation;
-  for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), 4u}) {
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), 4u, 8u}) {
     rns8_gram_method method;
     std::memcpy(&method, &raw, sizeof(raw));
     CHECK(rns8_gram_residues(ctx, x, c, RNS8_GRAM_TRANSPOSE_TIMES_SELF, method, UINT64_MAX) ==
           RNS8_INVALID_ARGUMENT);
+    auto* owner = reinterpret_cast<rns8_prepared_gram*>(&old);
+    CHECK(rns8_prepare_gram_ex(ctx, x, c, RNS8_GRAM_TRANSPOSE_TIMES_SELF, method,
+                               RNS8_GRAM_RESIDENT_RESIDUES, 0, UINT64_MAX,
+                               &owner) == RNS8_INVALID_ARGUMENT);
+    CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
   }
   for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
     rns8_gram_orientation orientation;
     std::memcpy(&orientation, &raw, sizeof(raw));
     CHECK(rns8_gram_residues(ctx, x, c, orientation, RNS8_GRAM_SCALAR, UINT64_MAX) ==
           RNS8_INVALID_ARGUMENT);
+    auto* owner = reinterpret_cast<rns8_prepared_gram*>(&old);
+    CHECK(rns8_prepare_gram_ex(ctx, x, c, orientation, RNS8_GRAM_SCALAR,
+                               RNS8_GRAM_RESIDENT_RESIDUES, 0, UINT64_MAX,
+                               &owner) == RNS8_INVALID_ARGUMENT);
+    CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
   }
   for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), 3u}) {
     rns8_gram_input_policy policy;
     std::memcpy(&policy, &raw, sizeof(raw));
-    rns8_prepared_gram* owner = nullptr;
+    auto* owner = reinterpret_cast<rns8_prepared_gram*>(&old);
     CHECK(rns8_prepare_gram_ex(ctx, x, c, RNS8_GRAM_TRANSPOSE_TIMES_SELF, RNS8_GRAM_SCALAR, policy,
                                0, UINT64_MAX, &owner) == RNS8_INVALID_ARGUMENT);
-    CHECK(owner == nullptr);
+    CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
   }
   CHECK(c->residues == residues);
   CHECK(c->content_generation == generation);
+  CHECK(ctx->prepared_references == references);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
   REQUIRE(rns8_destroy_matrix(c) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_matrix(x) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);

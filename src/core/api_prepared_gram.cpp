@@ -99,7 +99,8 @@ rns8_status prepare_gram_impl(rns8_context* ctx, const rns8_matrix* x, rns8_matr
                               rns8_gram_orientation orientation, rns8_gram_method method,
                               rns8_gram_input_policy policy, uint32_t limbs, uint64_t budget,
                               rns8_prepared_gram** out) {
-  if (!out || uint32_t(policy) > 2 || limbs > 32)
+  if (!out || uint32_t(policy) > 2 || uint32_t(orientation) > 1 ||
+      !gram_method_valid(uint32_t(method)) || limbs > 32)
     return RNS8_INVALID_ARGUMENT;
   *out = nullptr;
   auto owner = std::make_unique<rns8_prepared_gram>();

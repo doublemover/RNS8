@@ -7,6 +7,78 @@ template <class T> T raw_ffi_enum(uint32_t bits) {
 }
 } // namespace
 
+TEST_CASE("raw streaming schedule values preserve public query output", "[api][abi][enum][host]") {
+  rns8_stream_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_BOUNDED_I64;
+  desc.m = desc.n = desc.k = desc.lda = desc.ldb = desc.ldc = 1;
+  desc.panel_m = desc.panel_n = desc.panel_k = 1;
+  desc.prefix = 1;
+  desc.max_abs_a = desc.max_abs_b = 1;
+  desc.device_budget_bytes = desc.host_budget_bytes = 1u << 20;
+  rns8_stream_gemm_resources info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  info.device_bytes = 71;
+  const auto before = info;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
+    desc.schedule = raw_ffi_enum<rns8_stream_gemm_schedule>(bits);
+    CHECK(rns8_query_stream_gemm(&desc, &info) == RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&info, &before, sizeof(info)) == 0);
+  }
+  for (auto schedule : {RNS8_STREAM_GEMM_SERIAL, RNS8_STREAM_GEMM_OVERLAPPED}) {
+    desc.schedule = schedule;
+    REQUIRE(rns8_query_stream_gemm(&desc, &info) == RNS8_SUCCESS);
+    CHECK(info.device_bytes > 0);
+    CHECK(info.output_tiles == 1);
+  }
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+}
+
+TEST_CASE("raw locality order values reject with live CPU context and plan",
+          "[api][abi][enum][host]") {
+  auto* ctx = create_cpu_context();
+  auto desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 1);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_locality_desc locality{};
+  locality.struct_size = sizeof(locality);
+  locality.abi_version = RNS8_ABI_VERSION;
+  locality.topology_version = locality.cache_domains = locality.concurrent_groups_per_domain = 1;
+  const auto references = ctx->prepared_references;
+  const auto plan_references = plan->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 4u}) {
+    locality.order = raw_ffi_enum<rns8_locality_order>(bits);
+    rns8_workspace* workspace = nullptr;
+    CHECK(rns8_create_locality_workspace(ctx, plan, &locality, &workspace) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(workspace == nullptr);
+    CHECK(ctx->prepared_references == references);
+    CHECK(plan->prepared_references == plan_references);
+  }
+  // Valid order tags reach backend qualification instead of malformed-input rejection.
+  for (auto order : {RNS8_LOCALITY_ORDINARY, RNS8_LOCALITY_OUTPUT_NEIGHBOR, RNS8_LOCALITY_MODULUS,
+                     RNS8_LOCALITY_SAME_OUTPUT}) {
+    locality.order = order;
+    rns8_workspace* workspace = nullptr;
+    CHECK(rns8_create_locality_workspace(ctx, plan, &locality, &workspace) ==
+          RNS8_UNSUPPORTED_BACKEND);
+    CHECK(workspace == nullptr);
+  }
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("raw backend values reject before context or plan acquisition",
           "[api][abi][enum][host]") {
   auto* ctx = create_cpu_context();

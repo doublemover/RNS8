@@ -70,6 +70,13 @@ cover all-bits, high-bit and adjacent invalid backend, semantics, bounds, layout
 and flag values through live CPU owners, alongside valid controls. This extends
 the behavioral corpus without claiming every external enum/flag is covered.
 
+Additional authored controls exercise raw streaming schedules through the public
+resource query and raw locality orders through a live CPU context/plan. Known
+locality modes still reach the distinct unsupported CPU-backend outcome.
+Malformed prepared-Gram method/orientation/policy tags reject before owner
+allocation and preserve the owner-output canary and matrix generation. These
+source additions remain unexecuted until the combined validation batch.
+
 ## Installed native checks
 
 Run once for each separately installed static and shared package. The checker
