@@ -387,11 +387,11 @@ std::string schedule_hash_string(const Args& args, const BenchmarkResult& result
   return out.str();
 }
 
-void print_nullable_std_string(const std::string& value) {
+void print_nullable_std_string(std::ostream& output, const std::string& value) {
   if (value.empty()) {
-    std::cout << "null";
+    output << "null";
   } else {
-    std::cout << "\"" << json_escape(value) << "\"";
+    output << "\"" << json_escape(value) << "\"";
   }
 }
 

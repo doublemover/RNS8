@@ -37,22 +37,13 @@ class FileBuffer final : public std::streambuf {
   std::FILE* file_;
   std::array<char, 8192> buffer_{};
 };
-class Redirect final {
- public:
-  explicit Redirect(std::streambuf* next) : previous_(std::cout.rdbuf(next)) {}
-  ~Redirect() { std::cout.rdbuf(previous_); }
-  Redirect(const Redirect&) = delete;
-  Redirect& operator=(const Redirect&) = delete;
- private:
-  std::streambuf* previous_;
-};
 struct Close {
   void operator()(std::FILE* file) const noexcept { if (file) std::fclose(file); }
 };
 }  // namespace json_output_detail
 
-// Reserve a fresh destination before work; redirect only during serialization
-// after all workload intervals. Profiler logs keep their original streams.
+// Reserve a fresh destination before work. Serialization owns its stream;
+// concurrent profiler logging never shares the native JSON destination.
 class JsonOutput {
  public:
   explicit JsonOutput(const std::filesystem::path& path) : to_file_(!path.empty()) {
@@ -72,13 +63,13 @@ class JsonOutput {
   void emit(Writer&& writer) {
     if (emitted_) throw std::runtime_error("native JSON output already consumed");
     emitted_ = true;
-    if (!to_file_) { std::forward<Writer>(writer)(); return; }
+    if (!to_file_) { std::forward<Writer>(writer)(std::cout); return; }
     json_output_detail::FileBuffer buffer(file_.get());
     {
-      json_output_detail::Redirect redirect(&buffer);
-      std::forward<Writer>(writer)();
-      std::cout.flush();
-      if (!std::cout) throw std::runtime_error("native JSON output write failed");
+      std::ostream output(&buffer);
+      std::forward<Writer>(writer)(output);
+      output.flush();
+      if (!output) throw std::runtime_error("native JSON output write failed");
     }
     if (std::fclose(file_.release()) != 0)
       throw std::runtime_error("native JSON output close failed");

@@ -263,27 +263,27 @@ std::string compiler_version() {
 #endif
 }
 
-void print_nullable_string(const char* value) {
+void print_nullable_string(std::ostream& output, const char* value) {
   if (value && value[0] != '\0') {
-    std::cout << "\"" << json_escape(value) << "\"";
+    output << "\"" << json_escape(value) << "\"";
   } else {
-    std::cout << "null";
+    output << "null";
   }
 }
 
-void print_json_string_or_null(const char* value) {
+void print_json_string_or_null(std::ostream& output, const char* value) {
   if (value && value[0] != '\0') {
-    std::cout << "\"" << json_escape(value) << "\"";
+    output << "\"" << json_escape(value) << "\"";
   } else {
-    std::cout << "null";
+    output << "null";
   }
 }
 
-void print_json_string_or_null(const std::string& value) {
+void print_json_string_or_null(std::ostream& output, const std::string& value) {
   if (!value.empty()) {
-    std::cout << "\"" << json_escape(value) << "\"";
+    output << "\"" << json_escape(value) << "\"";
   } else {
-    std::cout << "null";
+    output << "null";
   }
 }
 

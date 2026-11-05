@@ -428,34 +428,34 @@ std::vector<std::string> gpu_event_phase_order(
   return phases;
 }
 
-void print_timing_summary(const char* name, const std::vector<double>& values, bool trailing_comma) {
-  std::cout << "    \"" << name << "\": {\n";
-  std::cout << "      \"avg\": " << average(values) << ",\n";
-  std::cout << "      \"median\": " << percentile(values, 0.50) << ",\n";
-  std::cout << "      \"p95\": " << percentile(values, 0.95) << "\n";
-  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+void print_timing_summary(std::ostream& output, const char* name, const std::vector<double>& values, bool trailing_comma) {
+  output << "    \"" << name << "\": {\n";
+  output << "      \"avg\": " << average(values) << ",\n";
+  output << "      \"median\": " << percentile(values, 0.50) << ",\n";
+  output << "      \"p95\": " << percentile(values, 0.95) << "\n";
+  output << "    }" << (trailing_comma ? "," : "") << "\n";
 }
 
-void print_single_timing_summary(const char* name, double value, bool trailing_comma) {
-  std::cout << "    \"" << name << "\": {\n";
-  std::cout << "      \"avg\": " << static_cast<double>(value) << ",\n";
-  std::cout << "      \"median\": " << static_cast<double>(value) << ",\n";
-  std::cout << "      \"p95\": " << static_cast<double>(value) << "\n";
-  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+void print_single_timing_summary(std::ostream& output, const char* name, double value, bool trailing_comma) {
+  output << "    \"" << name << "\": {\n";
+  output << "      \"avg\": " << static_cast<double>(value) << ",\n";
+  output << "      \"median\": " << static_cast<double>(value) << ",\n";
+  output << "      \"p95\": " << static_cast<double>(value) << "\n";
+  output << "    }" << (trailing_comma ? "," : "") << "\n";
 }
 
-void print_gpu_event_summary(const char* name, const std::vector<double>& values, bool trailing_comma) {
-  std::cout << "    \"" << name << "\": {\n";
-  std::cout << "      \"avg\": " << average_double(values) << ",\n";
-  std::cout << "      \"median\": " << percentile_double(values, 0.50) << ",\n";
-  std::cout << "      \"p95\": " << percentile_double(values, 0.95) << "\n";
-  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+void print_gpu_event_summary(std::ostream& output, const char* name, const std::vector<double>& values, bool trailing_comma) {
+  output << "    \"" << name << "\": {\n";
+  output << "      \"avg\": " << average_double(values) << ",\n";
+  output << "      \"median\": " << percentile_double(values, 0.50) << ",\n";
+  output << "      \"p95\": " << percentile_double(values, 0.95) << "\n";
+  output << "    }" << (trailing_comma ? "," : "") << "\n";
 }
 
-void print_named_gpu_event_array(const char* name, const std::vector<double>& values, bool trailing_comma) {
-  std::cout << "    \"" << name << "\": ";
-  print_double_array(values);
-  std::cout << (trailing_comma ? "," : "") << "\n";
+void print_named_gpu_event_array(std::ostream& output, const char* name, const std::vector<double>& values, bool trailing_comma) {
+  output << "    \"" << name << "\": ";
+  print_double_array(output, values);
+  output << (trailing_comma ? "," : "") << "\n";
 }
 
 const std::vector<double>& gpu_event_values(const GpuEventSamples& events, const std::string& label) {
@@ -464,22 +464,20 @@ const std::vector<double>& gpu_event_values(const GpuEventSamples& events, const
   return it == events.timings_us.end() ? empty : it->second;
 }
 
-void print_gpu_event_timings(const std::vector<std::string>& phase_order, const GpuEventSamples& events) {
-  std::cout << "  \"gpu_event_timings_us\": {\n";
+void print_gpu_event_timings(std::ostream& output, const std::vector<std::string>& phase_order, const GpuEventSamples& events) {
+  output << "  \"gpu_event_timings_us\": {\n";
   for (std::size_t index = 0; index < phase_order.size(); ++index) {
-    print_named_gpu_event_array(
-        phase_order[index].c_str(), gpu_event_values(events, phase_order[index]), index + 1 != phase_order.size());
+    print_named_gpu_event_array(output, phase_order[index].c_str(), gpu_event_values(events, phase_order[index]), index + 1 != phase_order.size());
   }
-  std::cout << "  },\n";
+  output << "  },\n";
 }
 
-void print_gpu_event_timing_summary(const std::vector<std::string>& phase_order, const GpuEventSamples& events) {
-  std::cout << "  \"gpu_event_timing_summary_us\": {\n";
+void print_gpu_event_timing_summary(std::ostream& output, const std::vector<std::string>& phase_order, const GpuEventSamples& events) {
+  output << "  \"gpu_event_timing_summary_us\": {\n";
   for (std::size_t index = 0; index < phase_order.size(); ++index) {
-    print_gpu_event_summary(
-        phase_order[index].c_str(), gpu_event_values(events, phase_order[index]), index + 1 != phase_order.size());
+    print_gpu_event_summary(output, phase_order[index].c_str(), gpu_event_values(events, phase_order[index]), index + 1 != phase_order.size());
   }
-  std::cout << "  },\n";
+  output << "  },\n";
 }
 
 uint64_t checksum_i64(const std::vector<int64_t>& values) {

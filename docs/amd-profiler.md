@@ -115,6 +115,8 @@ exclusively reserves the destination after argument validation and before
 work, writes native JSON after all measurement intervals, and preserves
 stdout/stderr for tool logs. Existing files are never overwritten. Failures
 retain an empty/partial native artifact for diagnosis.
+JSON printers receive an explicit destination stream; they never redirect
+global stdout, including while profiler background threads are active.
 
 A profiled file-output relation additionally retains native_benchmark_output
 as an immutable raw-file reference. Validation requires the separately bound

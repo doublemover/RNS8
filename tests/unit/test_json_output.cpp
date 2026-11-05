@@ -34,18 +34,18 @@ std::string read(const std::filesystem::path& path) {
 }
 }
 
-TEST_CASE("native JSON file output preserves evidence and restores stdout", "[cpu][tools]") {
+TEST_CASE("native JSON file output preserves evidence without redirecting stdout", "[cpu][tools]") {
   OutputFiles files;
   auto* original = std::cout.rdbuf();
   const std::string payload = "{\"authored\":\"" + std::string(20000, 'a') + "\"}\n";
-  rns8::tools::emit_json_file_or_stdout(files.native, [&] { std::cout << payload; });
+  rns8::tools::emit_json_file_or_stdout(files.native, [&](std::ostream& output) { CHECK(std::cout.rdbuf() == original); output << payload; });
   CHECK(std::cout.rdbuf() == original);
   CHECK(read(files.native) == payload);
   CHECK_THROWS_AS(rns8::tools::emit_json_file_or_stdout(files.native,
-      [] { std::cout << "must not overwrite"; }), std::runtime_error);
+      [](std::ostream& output) { output << "must not overwrite"; }), std::runtime_error);
   CHECK(read(files.native) == payload);
-  CHECK_THROWS_AS(rns8::tools::emit_json_file_or_stdout(files.partial, [] {
-    std::cout << "{\"partial\":";
+  CHECK_THROWS_AS(rns8::tools::emit_json_file_or_stdout(files.partial, [](std::ostream& output) {
+    output << "{\"partial\":";
     throw std::runtime_error("authored writer failure");
   }), std::runtime_error);
   CHECK(std::cout.rdbuf() == original);

@@ -1,34 +1,34 @@
-void print_u64_array(const std::vector<uint64_t>& values) {
-  std::cout << "[";
+void print_u64_array(std::ostream& output, const std::vector<uint64_t>& values) {
+  output << "[";
   for (std::size_t i = 0; i < values.size(); ++i) {
     if (i > 0) {
-      std::cout << ", ";
+      output << ", ";
     }
-    std::cout << values[i];
+    output << values[i];
   }
-  std::cout << "]";
+  output << "]";
 }
 
-void print_double_array(const std::vector<double>& values) {
-  std::cout << "[";
+void print_double_array(std::ostream& output, const std::vector<double>& values) {
+  output << "[";
   for (std::size_t i = 0; i < values.size(); ++i) {
     if (i > 0) {
-      std::cout << ", ";
+      output << ", ";
     }
-    std::cout << values[i];
+    output << values[i];
   }
-  std::cout << "]";
+  output << "]";
 }
 
-void print_string_array(const std::vector<std::string>& values) {
-  std::cout << "[";
+void print_string_array(std::ostream& output, const std::vector<std::string>& values) {
+  output << "[";
   for (std::size_t i = 0; i < values.size(); ++i) {
     if (i > 0) {
-      std::cout << ", ";
+      output << ", ";
     }
-    std::cout << "\"" << json_escape(values[i]) << "\"";
+    output << "\"" << json_escape(values[i]) << "\"";
   }
-  std::cout << "]";
+  output << "]";
 }
 
 std::vector<std::string> required_speedup_baselines(const Args& args, const char* selected_backend) {
@@ -73,32 +73,32 @@ std::vector<std::string> required_speedup_baselines(const Args& args, const char
   return baselines;
 }
 
-void print_comparison_baseline(const Args& args, const rns8_device_info& info, const BenchmarkResult& result) {
+void print_comparison_baseline(std::ostream& output, const Args& args, const rns8_device_info& info, const BenchmarkResult& result) {
   const bool performance_validated = result.backend_info.performance_validated != 0;
   const char* selected = selected_backend_name(args, info, &result);
-  std::cout << "  \"comparison_baseline\": {\n";
-  std::cout << "    \"status\": \""
+  output << "  \"comparison_baseline\": {\n";
+  output << "    \"status\": \""
             << (performance_validated ? "reviewed_release_same_contract_baseline"
                                       : "required_not_recorded")
             << "\",\n";
-  std::cout << "    \"speedup_claimed\": false,\n";
-  std::cout << "    \"selected_reference\": null,\n";
-  std::cout << "    \"required_before_speedup_claim\": ";
-  print_string_array(required_speedup_baselines(args, selected));
-  std::cout << ",\n";
-  std::cout << "    \"reason\": \"";
+  output << "    \"speedup_claimed\": false,\n";
+  output << "    \"selected_reference\": null,\n";
+  output << "    \"required_before_speedup_claim\": ";
+  print_string_array(output, required_speedup_baselines(args, selected));
+  output << ",\n";
+  output << "    \"reason\": \"";
   if (performance_validated) {
-    std::cout << "performance_validated=true from an exact reviewed release autotune cache hit for this plan key";
+    output << "performance_validated=true from an exact reviewed release autotune cache hit for this plan key";
   } else {
-    std::cout << "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU "
+    output << "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU "
                  "baseline evidence";
   }
-  std::cout << "\"\n";
-  std::cout << "  },\n";
+  output << "\"\n";
+  output << "  },\n";
 }
 
-void print_single_timing_array(double value) {
-  std::cout << "[" << value << "]";
+void print_single_timing_array(std::ostream& output, double value) {
+  output << "[" << value << "]";
 }
 
 void capture_schedule_info(rns8_plan* plan, BenchmarkResult& result) {

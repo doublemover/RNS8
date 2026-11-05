@@ -214,4 +214,4 @@
     gpu_event_status = "not_requested_for_selected_chain_backend";
   }
 
-  std::cout << "{\n";
+  output << "{\n";

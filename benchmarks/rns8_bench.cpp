@@ -337,9 +337,9 @@ int main(int argc, char** argv) try {
     rns8_destroy_context(direct_ctx);
     rns8_destroy_context(vector_ctx);
     const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
-    json_output.emit([&] {
+    json_output.emit([&](std::ostream& output) {
       execution_environment.finish();
-      print_json(args, info, result, effective_bound, cmdline, device_identity, execution_environment);
+      print_json(output, args, info, result, effective_bound, cmdline, device_identity, execution_environment);
     });
     return 0;
   }
@@ -427,9 +427,9 @@ int main(int argc, char** argv) try {
               << " backend=" << selected_backend_name(args, info, &result)
               << " checksum=" << result.checksum << "\n";
   }
-  json_output.emit([&] {
+  json_output.emit([&](std::ostream& output) {
     execution_environment.finish();
-    print_json(args, info, result, effective_bound, cmdline, device_identity, execution_environment);
+    print_json(output, args, info, result, effective_bound, cmdline, device_identity, execution_environment);
   });
   return 0;
 } catch (const std::exception& error) {

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <iosfwd>
 
 #include "rns8/rns8.h"
 
@@ -53,11 +54,11 @@ std::string compiler_id();
 
 std::string compiler_version();
 
-void print_nullable_string(const char* value);
+void print_nullable_string(std::ostream& output, const char* value);
 
-void print_json_string_or_null(const char* value);
+void print_json_string_or_null(std::ostream& output, const char* value);
 
-void print_json_string_or_null(const std::string& value);
+void print_json_string_or_null(std::ostream& output, const std::string& value);
 
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label);
 
