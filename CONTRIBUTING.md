@@ -132,8 +132,12 @@ environment, observed first-party include footprint, native YAML, process logs,
 partial interrupted output and compact pass receipts. Per-process/session time,
 output, artifact and free-space budgets are bounded; unavailable peak-memory
 observations remain explicit. `python tools/quality.py analyze
---verify-receipt temp/analysis-session/results.json` checks retained hashes and
-coverage accounting without launching tools. External dependency trees are not
+--verify-receipt temp/analysis-session/results.json` reopens the current configured
+compiler inventory, exact per-pass databases/commands and native YAML, then
+reconstructs findings, include footprints, branch visibility, missing-header
+rejection and coverage counts. Re-sealing derived summaries cannot substitute
+for those native observations. This is retained-file custody, not cryptographic
+execution attestation, and it launches no analyzer or compiler. External dependency trees are not
 fully rehashed, and static analysis does not qualify GPU execution or performance.
 The orchestration and controls are authored; their deferred batch execution,
 real platform pilots, reviewed diagnostic dispositions and CI gate remain open

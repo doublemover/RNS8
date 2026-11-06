@@ -201,6 +201,21 @@ class StaticAnalysis(unittest.TestCase):
             result = execute(plan, runner=self.runner, environment={})
         return result, out
 
+    def verify_protocol_fixture(self, path):
+        # Only the explicitly synthetic JSON producer fixture replaces the YAML
+        # decoder. Native receipt verification always uses the locked decoder.
+        with (
+            patch("static_analysis.load_inputs", return_value=self.inputs),
+            patch("static_analysis.importlib.metadata.version", return_value="0.19.1"),
+            patch(
+                "static_analysis.read_diagnostics",
+                side_effect=lambda path, **kwargs: diagnostic_document(
+                    json.loads(path.read_text()), **kwargs
+                ),
+            ),
+        ):
+            return verify_receipt(path)
+
     def test_control_and_native_records_bind_one_complete_host_pass(self):
         result, out = self.run_authored()
         self.assertEqual(result["status"], "selected_static_contexts_clean")
@@ -214,7 +229,7 @@ class StaticAnalysis(unittest.TestCase):
         self.assertTrue(receipt["observed_first_party_headers"])
         self.assertTrue((out / "parse-error-control.stdout.log").exists())
         self.assertEqual(
-            verify_receipt(out / "results.json")["identity_sha256"],
+            self.verify_protocol_fixture(out / "results.json")["identity_sha256"],
             result["identity_sha256"],
         )
 
@@ -228,11 +243,76 @@ class StaticAnalysis(unittest.TestCase):
         )
         path.write_text(json.dumps(result))
         with self.assertRaisesRegex(ValueError, "coverage counts"):
-            verify_receipt(path)
+            self.verify_protocol_fixture(path)
         path.write_bytes(original)
         (out / "analyzer-version.stdout.log").write_text("changed authored output")
         with self.assertRaisesRegex(ValueError, "artifact.*changed"):
-            verify_receipt(path)
+            self.verify_protocol_fixture(path)
+
+    def test_resealed_derived_findings_commands_headers_and_controls_are_not_native_authority(self):
+        for mutation in (
+            "drop_finding",
+            "hide_header",
+            "change_command",
+            "miss_parse_control",
+            "omit_source",
+            "forge_projection",
+            "boolean_count",
+        ):
+            with self.subTest(mutation=mutation):
+                result, out = self.run_authored(mutation="finding")
+                summary = result["results"][0]
+                full_path = Path(summary["receipt"]["path"])
+                full = json.loads(full_path.read_text())
+
+                def save(path, value, result=result):
+                    path.write_text(json.dumps(value))
+                    result["retained_artifacts"][str(path)] = file_digest(path)
+
+                if mutation == "drop_finding":
+                    full["diagnostics"] = full["diagnostics"][:1]
+                    full["status"] = summary["status"] = "analyzed_clean"
+                    summary["program_diagnostic_count"] = 0
+                    result["status"] = "selected_static_contexts_clean"
+                elif mutation == "hide_header":
+                    full["observed_first_party_headers"] = []
+                elif mutation == "change_command":
+                    native_path = out / (summary["identity"] + ".process.json")
+                    native = json.loads(native_path.read_text())
+                    native["command"] = [
+                        arg for arg in native["command"] if arg != "--extra-arg=-H"
+                    ]
+                    save(native_path, native)
+                    full["process"] = native
+                elif mutation == "miss_parse_control":
+                    native_path = out / "parse-error-control.process.json"
+                    native = json.loads(native_path.read_text())
+                    native["returncode"] = 0
+                    save(native_path, native)
+                    result["preflight_controls"][0]["process"] = native
+                elif mutation == "omit_source":
+                    result["source_artifacts"].pop(str(self.source))
+                elif mutation == "forge_projection":
+                    plan_path = out / "plan.json"
+                    plan = json.loads(plan_path.read_text())
+                    plan["tasks"][0]["projected_native_record"]["arguments"] += [
+                        "-DUNREVIEWED_PROJECTION=1"
+                    ]
+                    plan["identity_sha256"] = canonical_digest(
+                        {key: value for key, value in plan.items() if key != "identity_sha256"}
+                    )
+                    save(plan_path, plan)
+                    result["plan_identity_sha256"] = plan["identity_sha256"]
+                else:
+                    summary["program_diagnostic_count"] = True
+                save(full_path, full)
+                summary["receipt"]["sha256"] = file_digest(full_path)
+                result["identity_sha256"] = canonical_digest(
+                    {key: value for key, value in result.items() if key != "identity_sha256"}
+                )
+                (out / "results.json").write_text(json.dumps(result))
+                with self.assertRaises(ValueError):
+                    self.verify_protocol_fixture(out / "results.json")
 
     def test_missing_control_findings_timeouts_interrupts_and_changed_source_have_distinct_outcomes(
         self,
@@ -277,7 +357,8 @@ class StaticAnalysis(unittest.TestCase):
             self.assertIn("--offload-device-only", args)
             self.assertIn("-include", args)
         self.inputs = replace(self.inputs, contexts=(context,))
-        result, _ = self.run_authored(lane="hip-analyzer")
+        result, out = self.run_authored(lane="hip-analyzer")
+        self.assertEqual(self.verify_protocol_fixture(out / "results.json")["analyzed_passes"], 3)
         self.assertEqual(result["analyzed_passes"], 3)
         self.assertEqual(result["selected_contexts"], 1)
         receipts = [
@@ -287,7 +368,10 @@ class StaticAnalysis(unittest.TestCase):
 
     def test_hip_syntax_never_becomes_analyzer_coverage(self):
         self.inputs = replace(self.inputs, contexts=(self.hip_context(),))
-        result, _ = self.run_authored(lane="hip-syntax")
+        result, out = self.run_authored(lane="hip-syntax")
+        self.assertEqual(
+            self.verify_protocol_fixture(out / "results.json")["syntax_checked_passes"], 1
+        )
         self.assertEqual(result["status"], "syntax_only_not_analyzer_coverage")
         self.assertEqual(result["analyzed_passes"], 0)
         self.assertEqual(result["syntax_checked_passes"], 1)

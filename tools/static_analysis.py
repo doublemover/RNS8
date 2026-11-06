@@ -103,6 +103,33 @@ def hip_projection(task: AnalysisTask) -> dict:
     return record
 
 
+def task_record(task: AnalysisTask) -> dict:
+    return dict(
+        identity=task.identity,
+        context=task.context.identity,
+        stage=task.stage,
+        target=task.target,
+        original_native_record=task.context.native_record(),
+        projected_native_record=hip_projection(task),
+        registered_targets=task.context.registered_targets,
+        generated_source=task.context.generated_source,
+        explicit_environment=dict(task.context.environment),
+        targets=task.context.targets,
+    )
+
+
+def verify_diagnostic_decoder() -> None:
+    decoder = next(
+        row for row in load_quality_lock(ROOT)["analysis"]["wheels"] if row["name"] == "ruamel.yaml"
+    )
+    try:
+        observed = importlib.metadata.version("ruamel.yaml")
+    except importlib.metadata.PackageNotFoundError as error:
+        raise ValueError("install the locked optional native diagnostic decoder") from error
+    if observed != decoder["version"]:
+        raise ValueError("native diagnostic decoder differs from the locked version")
+
+
 def control_header() -> tuple[Path, dict[str, int]]:
     path = ROOT / "tests/analysis/branch_control.hpp"
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -196,21 +223,7 @@ def build_plan(
         policy_sha256=file_digest(ROOT / "metadata/quality-tools.json"),
         selected_context_count=len({task.context.identity for task in tasks}),
         selected_pass_count=len(tasks),
-        tasks=[
-            dict(
-                identity=task.identity,
-                context=task.context.identity,
-                stage=task.stage,
-                target=task.target,
-                original_native_record=task.context.native_record(),
-                projected_native_record=hip_projection(task),
-                registered_targets=task.context.registered_targets,
-                generated_source=task.context.generated_source,
-                explicit_environment=dict(task.context.environment),
-                targets=task.context.targets,
-            )
-            for task in tasks
-        ],
+        tasks=[task_record(task) for task in tasks],
         excluded_records=inputs.excluded_records,
         missing_generated_inputs=missing,
         unconfigured_first_party_translation_units=[
@@ -271,6 +284,267 @@ def _forced_include(compiler: Path, path: Path) -> list[str]:
     return ["-include", str(path)]
 
 
+def analyzer_command(
+    plan: dict, directory: Path, source: Path, diagnostics: Path, injected: list[str]
+) -> list[str]:
+    return [
+        plan["analyzer"],
+        "-p",
+        str(directory),
+        str(source),
+        "--config-file=" + str(ROOT / ".clang-tidy"),
+        "--header-filter=" + _header_filter(),
+        "--export-fixes=" + str(diagnostics),
+        "--extra-arg=-H",
+        *("--extra-arg=" + argument for argument in injected),
+    ]
+
+
+def classify_diagnostics(
+    diagnostics: list[dict], process: dict, stage: str, control: Path, lines: dict[str, int]
+) -> tuple[str, str | None, list[dict]]:
+    if not capture_succeeded(process) or any(
+        row["parse_failure"] or row["level"] == "Error" for row in diagnostics
+    ):
+        return (
+            "parse_or_process_failure",
+            "native analyzer did not complete the configured program",
+            diagnostics,
+        )
+    branch = "device" if stage == "hip-device-analyzer" else "host"
+    controls = [
+        row
+        for row in diagnostics
+        if row["check"] == CONTROL_CHECK
+        and row["level"] == "Warning"
+        and row["message"]["location"]["path"] == str(control)
+        and row["message"]["location"]["line"] == lines[branch]
+    ]
+    if len(controls) != 1:
+        return (
+            "unsupported_toolchain",
+            "native analyzer did not observe exactly one expected branch/header control",
+            diagnostics,
+        )
+    tagged = [
+        dict(row, role="deliberate_branch_control" if row is controls[0] else "program_diagnostic")
+        for row in diagnostics
+    ]
+    return "analyzed_findings" if len(tagged) > 1 else "analyzed_clean", None, tagged
+
+
+def retained_process(root: Path, label: str, artifacts: dict) -> dict:
+    path = root / (label + ".process.json")
+    if str(path) not in artifacts:
+        raise ValueError("native analyzer process receipt not retained")
+    value = _read_record(path)
+    if (
+        type(value) is not dict
+        or type(value.get("process_id")) is not int
+        or value["process_id"] <= 0
+        or type(value.get("command")) is not list
+        or not value["command"]
+        or any(type(arg) is not str for arg in value["command"])
+    ):
+        raise ValueError("native analyzer process identity or command invalid")
+    result = dict(value)
+    if type(value.get("streams")) is not dict or set(value["streams"]) != {"stdout", "stderr"}:
+        raise ValueError("complete native analyzer streams required")
+    for stream in ("stdout", "stderr"):
+        expected = root / (label + "." + stream + ".log")
+        if (
+            value["streams"][stream]
+            != dict(path=str(expected), sha256=artifacts.get(str(expected)))
+            or str(expected) not in artifacts
+            or expected.stat().st_size > 16 * 1024**2
+        ):
+            raise ValueError("native analyzer stream custody or budget invalid")
+        result[stream] = expected.read_text(encoding="utf-8")
+    return result
+
+
+def parse_control_rejected(process: dict, diagnostics: list[dict], missing: Path) -> bool:
+    return (
+        type(process.get("returncode")) is int
+        and process["returncode"] > 0
+        and process.get("timed_out") is False
+        and process.get("interrupted") is False
+        and process.get("limit_exceeded") is None
+        and process.get("capture_error") is None
+        and any(
+            row["parse_failure"]
+            and row["level"] == "Error"
+            and missing.name in row["message"]["message"]
+            for row in diagnostics
+        )
+    )
+
+
+def verify_analyzer_controls(
+    result: dict, plan: dict, root: Path, artifacts: dict, compiler: Path
+) -> None:
+    if plan["tool_version"] != SUPPORTED_TOOL:
+        raise ValueError("retained analyzer version differs from supported native adapter")
+    for label, arguments in (
+        ("analyzer-version", ["--version"]),
+        ("verify-config", ["--config-file=" + str(ROOT / ".clang-tidy"), "--verify-config"]),
+        ("list-checks", ["--config-file=" + str(ROOT / ".clang-tidy"), "--list-checks"]),
+        ("dump-config", ["--config-file=" + str(ROOT / ".clang-tidy"), "--dump-config"]),
+    ):
+        process = retained_process(root, label, artifacts)
+        if (
+            process["command"] != [plan["analyzer"], *arguments]
+            or process.get("working_directory") != str(ROOT)
+            or not capture_succeeded(process)
+        ):
+            raise ValueError("retained native analyzer/configuration control did not succeed")
+        if (
+            label == "analyzer-version"
+            and re.search(
+                r"(?<![\w.])" + re.escape(SUPPORTED_TOOL) + r"(?![\w.+-])",
+                process["stdout"] + process["stderr"],
+            )
+            is None
+        ):
+            raise ValueError("retained native analyzer version not observed")
+        if label == "list-checks" and CONTROL_CHECK not in process["stdout"]:
+            raise ValueError("retained analyzer control check was not enabled")
+    controls = result.get("preflight_controls")
+    if (
+        type(controls) is not list
+        or len(controls) != 1
+        or type(controls[0]) is not dict
+        or controls[0].get("kind") != "missing_header_parse_error_rejected"
+    ):
+        raise ValueError("one retained native missing-header sensitivity control required")
+    item = controls[0]
+    directory = root / "parse-error-control"
+    diagnostic = directory / "diagnostics.yaml"
+    missing = directory / ("missing-header-" + result["run_id"] + ".hpp")
+    record = plan["tasks"][0]["projected_native_record"]
+    source = (Path(record["directory"]) / record["file"]).resolve()
+    process = retained_process(root, "parse-error-control", artifacts)
+    prefix = [
+        plan["analyzer"],
+        "-p",
+        str(directory),
+        str(source),
+        "--config-file=" + str(ROOT / ".clang-tidy"),
+        "--export-fixes=" + str(diagnostic),
+    ]
+    command = prefix + ["--extra-arg=" + part for part in _forced_include(compiler, missing)]
+    if (
+        missing.exists()
+        or item.get("missing_header") != str(missing)
+        or item.get("source") != str(source)
+        or _read_record(directory / "compile_commands.json") != [record]
+        or process["command"] != command
+        or process.get("working_directory") != str(ROOT)
+        or canonical_digest(item.get("process"))
+        != canonical_digest(
+            {key: value for key, value in process.items() if key not in {"stdout", "stderr"}}
+        )
+    ):
+        raise ValueError("native missing-header control command/context custody invalid")
+    if (
+        item.get("diagnostic_artifact")
+        != dict(path=str(diagnostic), sha256=artifacts.get(str(diagnostic)))
+        or str(diagnostic) not in artifacts
+    ):
+        raise ValueError("native parse-control diagnostics not retained")
+    diagnostics = read_diagnostics(
+        diagnostic,
+        source=source,
+        directory=Path(record["directory"]),
+        tool_version=plan["tool_version"],
+    )
+    if not parse_control_rejected(process, diagnostics, missing):
+        raise ValueError("native parse control did not detect the intended missing header")
+
+
+def verify_analyzed_pass(
+    detailed: dict,
+    task: dict,
+    plan: dict,
+    root: Path,
+    artifacts: dict,
+    known_headers: dict[Path, str],
+    compiler: Path,
+) -> tuple[str, int]:
+    process = retained_process(root, task["identity"], artifacts)
+    summary = {key: value for key, value in process.items() if key not in {"stdout", "stderr"}}
+    if canonical_digest(summary) != canonical_digest(detailed["process"]):
+        raise ValueError("analysis pass process differs from native receipt")
+    directory = root / task["identity"]
+    if _read_record(directory / "compile_commands.json") != [task["projected_native_record"]]:
+        raise ValueError("actual analyzer database differs from planned compiler context")
+    record = task["projected_native_record"]
+    if (
+        any(
+            canonical_digest(detailed.get(key)) != canonical_digest(task[key])
+            for key in ("original_native_record", "projected_native_record")
+        )
+        and task["stage"] != "hip-syntax-only"
+    ):
+        raise ValueError("declared compiler projection differs from retained native context")
+    source = (Path(record["directory"]) / record["file"]).resolve()
+    if detailed["source"] != str(source):
+        raise ValueError("native analyzer source differs from planned compilation")
+    if task["stage"] == "hip-syntax-only":
+        if (
+            process["command"] != record["arguments"]
+            or process.get("working_directory") != record["directory"]
+            or not capture_succeeded(process)
+            or detailed.get("analyzed") is not False
+            or detailed.get("device_kernel_control_observed") is not False
+        ):
+            raise ValueError("syntax-only claim differs from actual native invocation")
+        return "syntax_only", 0
+    control, lines = control_header()
+    injected = detailed.get("diagnostic_flags")
+    if (
+        injected != _forced_include(compiler, control)
+        or detailed.get("injected_diagnostic_header") != str(control)
+        or detailed.get("injected_header_sha256") != file_digest(control)
+    ):
+        raise ValueError("native analyzer branch/header injection invalid")
+    diagnostic = directory / "diagnostics.yaml"
+    if (
+        detailed.get("diagnostic_artifact")
+        != dict(path=str(diagnostic), sha256=artifacts.get(str(diagnostic)))
+        or str(diagnostic) not in artifacts
+    ):
+        raise ValueError("native analyzer diagnostics not retained by actual pass")
+    if process["command"] != analyzer_command(
+        plan, directory, source, diagnostic, injected
+    ) or process.get("working_directory") != str(ROOT):
+        raise ValueError("actual analyzer command differs from declared context/control")
+    raw = read_diagnostics(
+        diagnostic,
+        source=source,
+        directory=Path(record["directory"]),
+        tool_version=plan["tool_version"],
+    )
+    status, reason, tagged = classify_diagnostics(raw, process, task["stage"], control, lines)
+    if (
+        canonical_digest(tagged) != canonical_digest(detailed.get("diagnostics"))
+        or detailed.get("reason") != reason
+        or detailed.get("device_kernel_control_observed")
+        is not (status.startswith("analyzed_") and task["stage"] == "hip-device-analyzer")
+    ):
+        raise ValueError("derived analyzer findings differ from retained native diagnostics")
+    headers = included_headers(process["stderr"], Path(record["directory"]), known_headers)
+    if (
+        detailed.get("observed_first_party_headers") != headers
+        or detailed.get("header_coverage_scope")
+        != "observed_include_trace_not_all_potential_headers"
+    ):
+        raise ValueError("declared header coverage differs from native include trace")
+    return status, sum(row["role"] == "program_diagnostic" for row in tagged) if status.startswith(
+        "analyzed_"
+    ) else 0
+
+
 def _read_record(path: Path):
     if path.stat().st_size > 16 * 1024**2:
         raise ValueError("analysis receipt exceeds its read budget")
@@ -283,6 +557,21 @@ def verify_receipt(path: Path) -> dict:
     result = _read_record(path)
     if not isinstance(result, dict) or result.get("schema") != RESULT_SCHEMA:
         raise ValueError("unsupported analysis receipt")
+    if result.get("status") not in {
+        "in_progress",
+        "blocked_or_incomplete",
+        "incomplete_or_unsupported",
+        "findings_require_triage",
+        "syntax_only_not_analyzer_coverage",
+        "selected_static_contexts_clean",
+        "interrupted",
+    }:
+        raise ValueError("unknown static analysis receipt disposition")
+    try:
+        if str(uuid.UUID(result["run_id"])) != result["run_id"]:
+            raise ValueError("noncanonical native analysis run identity")
+    except (ValueError, TypeError, AttributeError) as error:
+        raise ValueError("canonical native analysis run identity required") from error
     payload = {key: value for key, value in result.items() if key != "identity_sha256"}
     if canonical_digest(payload) != result.get("identity_sha256"):
         raise ValueError("analysis receipt seal differs")
@@ -305,10 +594,57 @@ def verify_receipt(path: Path) -> dict:
         or plan.get("identity_sha256") != result.get("plan_identity_sha256")
     ):
         raise ValueError("analysis receipt and retained plan differ")
+    inputs = load_inputs(Path(plan["build_directory"]))
+    actual_tasks = selected_tasks(inputs.contexts, plan["lane"])
+    if (
+        type(plan.get("selected_context_count")) is not int
+        or plan["selected_context_count"] != len({task.context.identity for task in actual_tasks})
+        or type(plan.get("selected_pass_count")) is not int
+        or plan["selected_pass_count"] != len(actual_tasks)
+    ):
+        raise ValueError("planned analysis coverage differs from configured context denominator")
+    if (
+        canonical_digest([task_record(task) for task in actual_tasks])
+        != canonical_digest(plan.get("tasks"))
+        or dict(inputs.artifact_hashes) != plan["input_artifacts"]
+        or inputs.configuration != plan["configuration"]
+        or inputs.build != Path(plan["build_directory"]).resolve()
+    ):
+        raise ValueError("retained analysis plan differs from actual configured compiler inventory")
+    native_tasks = {task.identity: task for task in actual_tasks}
     for name, digest in result["source_artifacts"].items():
         if file_digest(name) != digest:
             raise ValueError("analysis source/tool input changed: " + name)
+    if plan.get("source_root") != str(ROOT) or any(
+        result["source_artifacts"].get(str(ROOT / name)) != plan.get(key)
+        for name, key in (
+            (".clang-tidy", "config_sha256"),
+            ("metadata/quality-tools.json", "policy_sha256"),
+        )
+    ):
+        raise ValueError("analysis policy/source root not bound to retained inputs")
+    if (
+        any(
+            result["source_artifacts"].get(name) != digest
+            for name, digest in plan["input_artifacts"].items()
+        )
+        or plan["analyzer"]
+        and result["source_artifacts"].get(plan["analyzer"]) != plan["analyzer_sha256"]
+    ):
+        raise ValueError("planned analyzer/configuration inputs not retained by actual session")
+    if plan["analyzer"] and str(control_header()[0]) not in result["source_artifacts"]:
+        raise ValueError("native branch control source absent from analysis input custody")
+    for task in plan["tasks"]:
+        record = task["projected_native_record"]
+        source = (Path(record["directory"]) / record["file"]).resolve()
+        if str(source) not in result["source_artifacts"]:
+            raise ValueError("analyzed program source missing from input custody")
+    known_headers = {
+        Path(name).resolve(): digest for name, digest in result["source_artifacts"].items()
+    }
     rows = result["results"]
+    if any(row.get("status") in {"analyzed_clean", "analyzed_findings"} for row in rows):
+        verify_diagnostic_decoder()
     identities = [row["identity"] for row in rows]
     planned = {task["identity"]: task for task in plan["tasks"]}
     if len(set(identities)) != len(identities) or not set(identities) <= planned.keys():
@@ -326,6 +662,39 @@ def verify_receipt(path: Path) -> dict:
         task = planned[row["identity"]]
         if any(row[key] != task[key] for key in ("identity", "context", "stage", "target")):
             raise ValueError("analysis pass differs from its planned context")
+        if row["status"] in {"analyzed_clean", "analyzed_findings", "syntax_only"}:
+            native_status, count = verify_analyzed_pass(
+                detailed,
+                task,
+                plan,
+                root,
+                artifacts,
+                known_headers,
+                inputs.compiler
+                if native_tasks[row["identity"]].context.kind == "host"
+                else Path(task["projected_native_record"]["arguments"][0]),
+            )
+            if (
+                row["status"] != native_status
+                or type(row.get("program_diagnostic_count")) is not int
+                or row["program_diagnostic_count"] != count
+            ):
+                raise ValueError("analysis coverage/findings differ from retained native pass")
+            if canonical_digest(row["process"]) != canonical_digest(
+                {key: detailed["process"].get(key) for key in row["process"]}
+            ):
+                raise ValueError("compact analyzer process differs from native observation")
+    if any(row["status"] in {"analyzed_clean", "analyzed_findings"} for row in rows):
+        first = actual_tasks[0]
+        verify_analyzer_controls(
+            result,
+            plan,
+            root,
+            artifacts,
+            inputs.compiler
+            if first.context.kind == "host"
+            else Path(first.context.native_record()["arguments"][0]),
+        )
     expected = dict(
         selected_contexts=plan["selected_context_count"],
         selected_passes=len(plan["tasks"]),
@@ -350,6 +719,21 @@ def verify_receipt(path: Path) -> dict:
         not rows or len(rows) != len(planned) or any(row["status"] != "syntax_only" for row in rows)
     ):
         raise ValueError("syntax verdict requires every planned syntax pass")
+    if result["status"] == "findings_require_triage" and (
+        len(rows) != len(planned)
+        or not any(row["status"] == "analyzed_findings" for row in rows)
+        or any(row["status"] not in {"analyzed_clean", "analyzed_findings"} for row in rows)
+    ):
+        raise ValueError("finding verdict requires complete observed analyzer coverage")
+    if result["status"] in {
+        "selected_static_contexts_clean",
+        "syntax_only_not_analyzer_coverage",
+        "findings_require_triage",
+    } and (
+        result.get("error") is not None
+        or result.get("retained_artifact_inventory_error") is not None
+    ):
+        raise ValueError("completed static coverage cannot erase a session/export failure")
     if (
         result.get("hardware_qualification") is not False
         or result.get("performance_promotion_allowed") is not False
@@ -577,13 +961,7 @@ def execute(
                 is None
             ):
                 raise ValueError("native analyzer release differs from the pinned adapter")
-            decoder = next(
-                row
-                for row in load_quality_lock(ROOT)["analysis"]["wheels"]
-                if row["name"] == "ruamel.yaml"
-            )
-            if importlib.metadata.version("ruamel.yaml") != decoder["version"]:
-                raise ValueError("native diagnostic decoder differs from the locked version")
+            verify_diagnostic_decoder()
             for name, flag in (
                 ("verify-config", "--verify-config"),
                 ("list-checks", "--list-checks"),
@@ -631,17 +1009,7 @@ def execute(
                 source=first.context.source,
                 directory=first.context.directory,
             )
-            if (
-                type(value.get("returncode")) is not int
-                or value["returncode"] == 0
-                or value.get("timed_out") is not False
-                or value.get("limit_exceeded") is not None
-                or value.get("capture_error") is not None
-                or not any(
-                    row["parse_failure"] and missing.name in row["message"]["message"]
-                    for row in diagnostics
-                )
-            ):
+            if not parse_control_rejected(value, diagnostics, missing):
                 raise ValueError(
                     "analyzer did not reject and retain the deliberate missing-header parse error"
                 )
@@ -717,17 +1085,9 @@ def execute(
                 inputs.compiler if task.context.kind == "host" else Path(projected["arguments"][0])
             )
             injected = _forced_include(compiler, control)
-            argv = [
-                plan["analyzer"],
-                "-p",
-                str(directory),
-                str(task.context.source),
-                "--config-file=" + str(ROOT / ".clang-tidy"),
-                "--header-filter=" + _header_filter(),
-                "--export-fixes=" + str(diagnostics_path),
-                "--extra-arg=-H",
-                *("--extra-arg=" + argument for argument in injected),
-            ]
+            argv = analyzer_command(
+                plan, directory, task.context.source, diagnostics_path, injected
+            )
             value = call(argv, task.identity, env=env, context_pass=True)
             diagnostics, headers, reason = [], [], None
             status = (
@@ -740,34 +1100,9 @@ def execute(
                     directory=task.context.directory,
                 )
                 headers = included_headers(value["stderr"], task.context.directory, known_headers)
-                branch = "device" if task.stage == "hip-device-analyzer" else "host"
-                controls = [
-                    row
-                    for row in diagnostics
-                    if row["check"] == CONTROL_CHECK
-                    and row["message"]["location"]["path"] == str(control)
-                    and row["message"]["location"]["line"] == lines[branch]
-                ]
-                if not capture_succeeded(value) or any(
-                    row["parse_failure"] or row["level"] == "Error" for row in diagnostics
-                ):
-                    status, reason = (
-                        "parse_or_process_failure",
-                        "native analyzer did not complete the configured program",
-                    )
-                elif len(controls) != 1:
-                    reason = (
-                        "native analyzer did not observe exactly one expected branch/header control"
-                    )
-                else:
-                    control_id = controls[0]["identity_sha256"]
-                    for row in diagnostics:
-                        row["role"] = (
-                            "deliberate_branch_control"
-                            if row["identity_sha256"] == control_id
-                            else "program_diagnostic"
-                        )
-                    status = "analyzed_findings" if len(diagnostics) > 1 else "analyzed_clean"
+                status, reason, diagnostics = classify_diagnostics(
+                    diagnostics, value, task.stage, control, lines
+                )
             except (OSError, ValueError) as error:
                 reason = str(error)
             retain_pass(
