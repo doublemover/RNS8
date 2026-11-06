@@ -439,6 +439,135 @@ TEST_CASE("cache and FP8 malformed options preserve handles before CPU provider 
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
+TEST_CASE("raw roles graph tags and arithmetic methods reject with live CPU owners",
+          "[api][abi][enum][host]") {
+  auto* ctx = create_cpu_context();
+  auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 1);
+  desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  const auto md = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+  rns8_matrix *a = nullptr, *b = nullptr, *c = nullptr, *imag = nullptr;
+  for (auto** out : {&a, &b, &c, &imag}) {
+    REQUIRE(rns8_create_matrix(ctx, &md, out) == RNS8_SUCCESS);
+    const int64_t one = 1;
+    REQUIRE(rns8_pack_i64(ctx, *out, &one, 1, 1) == RNS8_SUCCESS);
+  }
+  const auto generation = c->content_generation, imag_generation = imag->content_generation;
+  const auto c_residues = c->residues, imag_residues = imag->residues;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  rns8_prepack_cache_key_info key{};
+  key.struct_size = sizeof(key);
+  key.abi_version = RNS8_ABI_VERSION;
+  key.cache_key_valid = 71;
+  const auto key_before = key;
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 3u}) {
+    const auto role = raw_ffi_enum<rns8_operand_role>(bits);
+    CHECK(rns8_get_prepack_cache_key_info(plan, a, role, &key) == RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&key, &key_before, sizeof(key)) == 0);
+    for (bool poisoned : {false, true}) {
+      ctx->hip_failure_poisoned = poisoned;
+      auto* const canary = reinterpret_cast<rns8_prepack_cache*>(uintptr_t(1));
+      auto* cache = canary;
+      CHECK(rns8_create_prepack_cache(ctx, plan, a, role, &cache) == RNS8_INVALID_ARGUMENT);
+      CHECK(cache == canary);
+      ctx->hip_failure_poisoned = false;
+    }
+  }
+  rns8_resident_lifetime_info lifetime{};
+  lifetime.struct_size = sizeof(lifetime);
+  lifetime.abi_version = RNS8_ABI_VERSION;
+  lifetime.rows = 73;
+  const auto lifetime_before = lifetime;
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 4u}) {
+    CHECK(rns8_get_resident_lifetime_info(a, plan, workspace,
+                                          raw_ffi_enum<rns8_resident_matrix_role>(bits),
+                                          &lifetime) == RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&lifetime, &lifetime_before, sizeof(lifetime)) == 0);
+  }
+  rns8_resident_node node{};
+  node.struct_size = sizeof(node);
+  node.abi_version = RNS8_ABI_VERSION;
+  node.kind = RNS8_RESIDENT_MATMUL;
+  node.plan = plan;
+  node.a = a;
+  node.b = b;
+  node.c = c;
+  node.workspace = workspace;
+  for (unsigned field = 0; field < 2; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), field == 0 ? 6u : 2u}) {
+      rns8_resident_node nodes[]{node, node};
+      if (field == 0)
+        nodes[1].kind = raw_ffi_enum<rns8_resident_node_kind>(bits);
+      else
+        nodes[1].complex_method = raw_ffi_enum<rns8_complex_product_method>(bits);
+      auto* const canary = reinterpret_cast<rns8_resident_graph*>(uintptr_t(1));
+      auto* graph = canary;
+      CHECK(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_INVALID_ARGUMENT);
+      CHECK(graph == canary);
+    }
+  check_short_descriptor<rns8_resident_node>([&](const auto* input) {
+    auto* const canary = reinterpret_cast<rns8_resident_graph*>(uintptr_t(1));
+    auto* graph = canary;
+    const auto status = rns8_create_resident_graph(ctx, input, 1, &graph);
+    CHECK(graph == canary);
+    return status;
+  });
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 5u})
+    CHECK(rns8_gemm_narrow_exact(ctx, plan, a, b, c, raw_ffi_enum<rns8_narrow_product_method>(bits),
+                                 UINT64_MAX, workspace) == RNS8_INVALID_ARGUMENT);
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 3u}) {
+    const auto method = raw_ffi_enum<rns8_adaptive_bound_method>(bits);
+    CHECK(rns8_gemm_adaptive_exact(ctx, plan, a, b, c, method, 1, 1, 1, UINT64_MAX, workspace) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_adaptive_exact_cached(ctx, plan, a, b, c, method, 1, 1, 1, UINT64_MAX,
+                                          workspace) == RNS8_INVALID_ARGUMENT);
+  }
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 20u}) {
+    const auto method = raw_ffi_enum<rns8_bilinear_method>(bits);
+    double ratio = 79;
+    CHECK(rns8_prepare_bilinear_workspace(ctx, plan, method, UINT64_MAX, workspace) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_bilinear_exact(ctx, plan, a, b, c, method, UINT64_MAX, workspace, &ratio) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(ratio == 79);
+  }
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 2u})
+    CHECK(rns8_gemm_complex_exact_signed(ctx, plan, a, a, b, b, c, imag,
+                                         raw_ffi_enum<rns8_complex_product_method>(bits),
+                                         UINT64_MAX, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(c->content_generation == generation);
+  CHECK(imag->content_generation == imag_generation);
+  CHECK(c->residues == c_residues);
+  CHECK(imag->residues == imag_residues);
+  CHECK_FALSE(workspace->in_flight);
+  CHECK(ctx->prepared_references == references);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  for (auto role : {RNS8_OPERAND_A, RNS8_OPERAND_B})
+    CHECK(rns8_get_prepack_cache_key_info(plan, a, role, &key) == RNS8_SUCCESS);
+  for (auto role : {RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN, RNS8_RESIDENT_MATRIX_ROLE_A,
+                    RNS8_RESIDENT_MATRIX_ROLE_B, RNS8_RESIDENT_MATRIX_ROLE_C})
+    CHECK(rns8_get_resident_lifetime_info(a, plan, workspace, role, &lifetime) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_narrow_exact(ctx, plan, a, b, c, RNS8_NARROW_SCALAR_I64, UINT64_MAX, workspace) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_gemm_adaptive_exact(ctx, plan, a, b, c, RNS8_ADAPTIVE_TILE_MAX, 1, 1, 1, UINT64_MAX,
+                                 workspace) == RNS8_UNSUPPORTED_BACKEND);
+  rns8_resident_graph* graph = nullptr;
+  REQUIRE(rns8_create_resident_graph(ctx, &node, 1, &graph) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_resident_graph(graph) == RNS8_SUCCESS);
+  for (auto* matrix : {imag, c, b, a})
+    REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor validators",
           "[api][abi][enum][host]") {
   auto* ctx = create_cpu_context();

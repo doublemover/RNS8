@@ -88,6 +88,14 @@ CPU-provider rejection; FP8 preparation preserves handle slots on malformed
 header/method/flag/scale preflight. Their valid unsupported-provider outcomes
 remain distinct. The new real-entrypoint controls have not run yet.
 
+Resident graph construction admits every node header/kind/complex-method tag
+before allocating graph owners or preparing native inputs; malformed tags in a
+later node preserve the graph handle slot. Prepack construction similarly rejects
+unknown operand roles before context health and handle publication. Authored live
+CPU controls also exercise resident/operand role queries and narrow, adaptive,
+bilinear and complex arithmetic method rejection, checking output generations,
+residue bytes, ownership counters and device traffic. Execution remains deferred.
+
 Additional authored controls exercise raw streaming schedules through the public
 resource query and raw locality orders through a live CPU context/plan. Known
 locality modes still reach the distinct unsupported CPU-backend outcome.

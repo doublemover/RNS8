@@ -578,9 +578,32 @@ rns8_status rns8_create_resident_graph(rns8_context* ctx, const rns8_resident_no
   return guard_api([&]() -> rns8_status {
     if (!out)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
-    if (!ctx || !nodes || !count || count > 4096)
+    if (!ctx || !nodes || !count || count > 4096 ||
+        reinterpret_cast<uintptr_t>(nodes) % alignof(rns8_resident_node))
       return RNS8_INVALID_ARGUMENT;
+    // Admit all external tags before allocating owners or preparing native inputs.
+    for (uint32_t i = 0; i < count; ++i) {
+      const auto& node = nodes[i];
+      if (!rns8::detail::minimum_abi_header(&node))
+        return RNS8_INVALID_ARGUMENT;
+      switch (node.kind) {
+      case RNS8_RESIDENT_MATMUL:
+      case RNS8_RESIDENT_BASE_EXTEND:
+      case RNS8_RESIDENT_EXACT_AXPBY:
+      case RNS8_RESIDENT_EXPORT_LIMBS:
+      case RNS8_RESIDENT_COMPLEX_MATMUL:
+      case RNS8_RESIDENT_NATIVE_TO_RNS:
+        break;
+      default:
+        return RNS8_INVALID_ARGUMENT;
+      }
+      if ((node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS &&
+           node.complex_method != RNS8_COMPLEX_FOUR_REAL_PRODUCTS) ||
+          (node.kind != RNS8_RESIDENT_COMPLEX_MATMUL &&
+           node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS))
+        return RNS8_INVALID_ARGUMENT;
+    }
+    *out = nullptr;
     if (!resident_graph_backend_supported(ctx->backend))
       return RNS8_UNSUPPORTED_BACKEND;
     auto graph = std::make_unique<rns8_resident_graph>();
@@ -593,15 +616,13 @@ rns8_status rns8_create_resident_graph(rns8_context* ctx, const rns8_resident_no
     producers.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {
       const auto& node = nodes[i];
-      if (!rns8::detail::minimum_abi_header(&node) || !node.c)
+      if (!node.c)
         return RNS8_INVALID_ARGUMENT;
       if (ctx->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB &&
           (node.kind != RNS8_RESIDENT_MATMUL || !node.plan ||
            node.plan->desc.semantics != RNS8_WRAP_U64_MOD_2_64))
         return RNS8_UNSUPPORTED_BACKEND;
-      if (node.kind != RNS8_RESIDENT_COMPLEX_MATMUL &&
-          (node.a_imag || node.b_imag || node.c_imag ||
-           node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS))
+      if (node.kind != RNS8_RESIDENT_COMPLEX_MATMUL && (node.a_imag || node.b_imag || node.c_imag))
         return RNS8_INVALID_ARGUMENT;
       if (node.kind != RNS8_RESIDENT_NATIVE_TO_RNS &&
           (node.native_source || node.native_max_magnitude || node.verify_native_bound))
@@ -635,8 +656,6 @@ rns8_status rns8_create_resident_graph(rns8_context* ctx, const rns8_resident_no
         if (!node.plan || !node.a || !node.a_imag || !node.b || !node.b_imag || !node.c_imag ||
             !node.workspace || node.c == node.c_imag || node.target_prefix || node.d ||
             node.alpha || node.beta || node.plan->desc.semantics != RNS8_EXACT_WIDE_SIGNED ||
-            (node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS &&
-             node.complex_method != RNS8_COMPLEX_FOUR_REAL_PRODUCTS) ||
             !producers.emplace(node.c, i).second || !producers.emplace(node.c_imag, i).second)
           return RNS8_INVALID_ARGUMENT;
       } else if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {

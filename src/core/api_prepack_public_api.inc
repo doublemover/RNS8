@@ -120,12 +120,12 @@ rns8_status rns8_create_prepack_cache(rns8_context* ctx, const rns8_plan* plan,
     if (!ctx || !plan || !matrix || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    *out = nullptr;
-    if (ctx->hip_failure_poisoned)
-      return RNS8_BACKEND_FAILURE;
     if (!valid_prepack_operand_role(operand_role)) {
       return RNS8_INVALID_ARGUMENT;
     }
+    *out = nullptr;
+    if (ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (operand_role != RNS8_OPERAND_B || !rocwmma_b_prepack_cache_supported(*plan)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
