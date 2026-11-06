@@ -20,6 +20,7 @@ from device_observation import capture_observation, observation_relation
 from diagnostic_companion import common_identity
 from execution_environment_contract import relevant_environment_key
 from execution_observation import execution_observation
+from execution_inventory import bounded_read
 from gpu_qualification import ROOT, execute_plan, write_json
 from host_profile_native import PRODUCER_CONTRACT, SCHEMA as NATIVE_SCHEMA
 from json_evidence import parse_evidence_json, same_evidence_value
@@ -45,7 +46,127 @@ SOURCE_INPUTS = (
     "tools/diagnostic_companion.py",
     "tools/companion_contract.py",
     "tools/json_evidence.py",
+    "tools/execution_inventory.py",
 )
+
+PERMISSION_DIAGNOSTIC_SOURCES = (
+    "https://code.googlesource.com/linux/torvalds/linux/+/473f6c8f437b049f8ec015d57cd59bb983b1d85c/tools/perf/util/evsel.c",
+    "https://code.googlesource.com/linux/torvalds/linux/+/4edcdefd4083ae04b1a5656f4be6cd83ae919ef4/tools/perf/builtin-record.c",
+)
+
+
+def recording_failure(process: dict) -> dict:
+    """Classify complete perf stderr reports, never infer kernel errno/policy."""
+    if capture_succeeded(process):
+        return dict(
+            state="not_failed", reason="recording_process_exit_zero_not_profile_qualification"
+        )
+    if process.get("interrupted") is True:
+        return dict(state="failed", reason="recording_interrupted")
+    if process.get("interrupted") is not None and process.get("interrupted") is not False:
+        return dict(state="failed", reason="recording_process_outcome_incomplete")
+    if process.get("timed_out") is True:
+        return dict(state="failed", reason="recording_timeout")
+    if process.get("limit_exceeded") is not None or process.get("capture_error") is not None:
+        return dict(state="failed", reason="recording_capture_or_budget_failure")
+    code = process.get("returncode")
+    if code is None:
+        return dict(state="blocked", reason="recording_process_did_not_start")
+    if type(code) is not int or code == 0 or process.get("timed_out") is not False:
+        return dict(state="failed", reason="recording_process_outcome_incomplete")
+    if code < 0:
+        return dict(state="failed", reason="recording_process_signaled")
+    stderr = process.get("stderr")
+    if not isinstance(stderr, str):
+        return dict(state="failed", reason="recording_stderr_unavailable")
+    lines = {line.strip().casefold() for line in stderr.splitlines()}
+    # Generic "permission denied" can refer to output files or the workload.
+    # Only upstream perf-specific terminal diagnostics support these labels.
+    if "permission error mapping pages." in lines:
+        reason = "reported_perf_mapping_permission_denial"
+    elif (
+        "access to performance monitoring and observability operations is limited." in lines
+        or any(
+            line.startswith("no permission to enable ") and line.endswith(" event.")
+            for line in lines
+        )
+    ):
+        reason = "reported_perf_event_permission_denial"
+    else:
+        return dict(state="failed", reason="recording_failure_unclassified")
+    return dict(
+        state="blocked",
+        reason=reason,
+        diagnostic_sources=list(PERMISSION_DIAGNOSTIC_SOURCES),
+        attribution="perf_reported_stderr_not_observed_syscall_errno_or_policy_proof",
+    )
+
+
+def acquisition_failure(plan: dict, out: Path) -> dict:
+    """Retain the first failed checkpoint and all partial files; never retry."""
+    base = dict(
+        schema="rns8_host_perf_acquisition_failure_v1",
+        qualification="failed_acquisition",
+        state="failed",
+        plan_identity_sha256=plan["identity_sha256"],
+        raw_artifacts_preserved=True,
+        acquisition_verified=False,
+        production_latency=False,
+        promotion_allowed=False,
+    )
+    try:
+        manifest_text, manifest_ref = bounded_read(out / "manifest.json")
+        base["manifest"] = manifest_ref
+        if not same_evidence_value(parse_evidence_json(manifest_text), plan):
+            raise ValueError("acquisition manifest changed")
+        text, results_ref = bounded_read(out / "results.json")
+        base["session_results"] = results_ref
+        results = parse_evidence_json(text)
+        rows = results.get("results") if isinstance(results, dict) else None
+        if (
+            not isinstance(results, dict)
+            or results.get("schema") != "rns8_gpu_session_results_v2"
+            or results.get("manifest_identity_sha256") != plan["identity_sha256"]
+            or results.get("status") not in {"blocked", "failed", "interrupted"}
+            or not isinstance(results.get("run_id"), str)
+            or not results["run_id"]
+            or not isinstance(rows, list)
+            or not rows
+            or len(rows) > len(plan["commands"])
+        ):
+            raise ValueError("failed acquisition checkpoint does not bind the plan")
+        failed = None
+        for expected, row in zip(plan["commands"], rows):
+            if not isinstance(row, dict) or row.get("name") != expected["name"]:
+                raise ValueError("acquisition checkpoint order changed")
+            if row.get("command") != expected["argv"]:
+                raise ValueError("acquisition checkpoint command changed")
+            if failed is None and (not capture_succeeded(row) or row.get("validation_errors")):
+                failed = row
+        if failed is None:
+            raise ValueError("failed session has no failed checkpoint")
+        classification = (
+            recording_failure(failed)
+            if failed["name"] == "cpu-sampling"
+            else dict(state="failed", reason="pre_sampling_or_decode_stage_failed")
+        )
+        if classification["state"] == "not_failed":
+            classification = dict(state="failed", reason="acquisition_stage_validation_failed")
+        for ref in (manifest_ref, results_ref):
+            if file_digest(Path(ref["path"])) != ref["sha256"]:
+                raise ValueError("acquisition checkpoint changed during classification")
+        return dict(
+            base,
+            **classification,
+            stage=failed["name"],
+            process_returncode=failed.get("returncode"),
+        )
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        return dict(
+            base,
+            reason="acquisition_failure_evidence_unavailable_or_changed",
+            error=str(error)[:4096],
+        )
 
 
 def reference(path: Path) -> dict:
@@ -393,6 +514,7 @@ def execute_capture(plan: dict, *, environment=None, runner=None) -> int:
     options = {} if runner is None else dict(runner=runner)
     result = execute_plan(plan, out, child, **options)
     if result:
+        write_json(out / "host-profile.json", acquisition_failure(plan, out))
         return result
     try:
         receipt = finalize(out / "manifest.json")

@@ -22,6 +22,127 @@ def elf(machine=62):
     return b"\x7fELF\x02\x01" + bytes(12) + machine.to_bytes(2, "little")
 
 
+class RecordingFailure(unittest.TestCase):
+    @staticmethod
+    def process(stderr="", **changes):
+        return dict(
+            dict(
+                returncode=1,
+                timed_out=False,
+                interrupted=False,
+                limit_exceeded=None,
+                capture_error=None,
+                stdout="",
+                stderr=stderr,
+            ),
+            **changes,
+        )
+
+    def test_only_completed_perf_specific_denials_are_blocked_permissions(self):
+        for stderr, reason in (
+            (
+                "No permission to enable cpu-clock:u event.\n",
+                "reported_perf_event_permission_denial",
+            ),
+            (
+                "Access to performance monitoring and observability operations is limited.\n",
+                "reported_perf_event_permission_denial",
+            ),
+            ("Permission error mapping pages.\n", "reported_perf_mapping_permission_denial"),
+        ):
+            with self.subTest(reason=reason, stderr=stderr):
+                observed = session.recording_failure(self.process(stderr))
+                self.assertEqual(observed["state"], "blocked")
+                self.assertEqual(observed["reason"], reason)
+                self.assertIn("not_observed_syscall_errno", observed["attribution"])
+                for change, expected in (
+                    (dict(returncode=0), "recording_process_exit_zero_not_profile_qualification"),
+                    (dict(returncode=None), "recording_process_did_not_start"),
+                    (dict(returncode=-15), "recording_process_signaled"),
+                    (dict(timed_out=True), "recording_timeout"),
+                    (dict(interrupted=True), "recording_interrupted"),
+                    (dict(interrupted=1), "recording_process_outcome_incomplete"),
+                    (dict(limit_exceeded="output"), "recording_capture_or_budget_failure"),
+                    (dict(capture_error="reader failed"), "recording_capture_or_budget_failure"),
+                ):
+                    self.assertEqual(
+                        session.recording_failure(self.process(stderr, **change))["reason"],
+                        expected,
+                    )
+
+    def test_generic_permissions_and_policy_warnings_are_not_event_denials(self):
+        for stderr in (
+            "Permission denied opening perf.data",
+            "perf_event_paranoid is 4",
+            "workload: operation not permitted",
+            "unknown option --clockid",
+        ):
+            with self.subTest(stderr=stderr):
+                observed = session.recording_failure(self.process(stderr))
+                self.assertEqual(observed["state"], "failed")
+                self.assertEqual(observed["reason"], "recording_failure_unclassified")
+
+    def test_failed_checkpoint_binding_and_first_failure_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commands = [
+                dict(name="perf-version", argv=["/authored/perf", "--version"]),
+                dict(name="cpu-sampling", argv=["/authored/perf", "record"]),
+            ]
+            plan = dict(identity_sha256="a" * 64, commands=commands)
+            write(root / "manifest.json", plan)
+            rows = [
+                dict(
+                    self.process(returncode=0),
+                    name=commands[0]["name"],
+                    command=commands[0]["argv"],
+                ),
+                dict(
+                    self.process("No permission to enable cpu-clock:u event."),
+                    name=commands[1]["name"],
+                    command=commands[1]["argv"],
+                ),
+            ]
+            results = dict(
+                schema="rns8_gpu_session_results_v2",
+                status="blocked",
+                run_id="authored-run",
+                manifest_identity_sha256=plan["identity_sha256"],
+                results=rows,
+            )
+            write(root / "results.json", results)
+            observed = session.acquisition_failure(plan, root)
+            self.assertEqual(observed["stage"], "cpu-sampling")
+            self.assertEqual(observed["reason"], "reported_perf_event_permission_denial")
+            self.assertFalse(observed["acquisition_verified"])
+            self.assertFalse(observed["promotion_allowed"])
+            self.assertTrue(observed["raw_artifacts_preserved"])
+            self.assertIn("sha256", observed["session_results"])
+            read = session.bounded_read
+
+            def changed_after_read(path):
+                value = read(path)
+                if path.name == "results.json":
+                    path.write_text(path.read_text(encoding="utf-8") + " ", encoding="utf-8")
+                return value
+
+            with patch.object(session, "bounded_read", changed_after_read):
+                changed = session.acquisition_failure(plan, root)
+            self.assertEqual(
+                changed["reason"], "acquisition_failure_evidence_unavailable_or_changed"
+            )
+            self.assertFalse(changed["acquisition_verified"])
+            rows[0].update(returncode=2, stderr="earlier version failure")
+            write(root / "results.json", results)
+            self.assertEqual(session.acquisition_failure(plan, root)["stage"], "perf-version")
+            rows[0]["command"] = ["/another/perf", "--version"]
+            write(root / "results.json", results)
+            self.assertEqual(
+                session.acquisition_failure(plan, root)["reason"],
+                "acquisition_failure_evidence_unavailable_or_changed",
+            )
+
+
 class HostSession(unittest.TestCase):
     def setUp(self):
         root = session.ROOT / "temp/host-profile-session-controls"
@@ -152,6 +273,10 @@ class HostSession(unittest.TestCase):
             )
         self.assertTrue((self.out / "manifest.json").is_file())
         self.assertFalse((self.out / "profiled.json").exists())
+        failure = json.loads((self.out / "host-profile.json").read_text(encoding="utf-8"))
+        self.assertEqual(failure["qualification"], "failed_acquisition")
+        self.assertFalse(failure["acquisition_verified"])
+        self.assertFalse(failure["promotion_allowed"])
 
 
 class HostSessionBinding(unittest.TestCase):

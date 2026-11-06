@@ -16,6 +16,20 @@ interpreter's standalone native-module capability and compiled benchmark
 identity before process-scoped sampling. A permission/capability failure never
 lowers system security or enables an automatic fallback.
 
+Failed acquisition writes `host-profile.json` as a non-qualified failure record.
+It binds bounded manifest/result snapshots and preserves the first failed stage,
+return code and partial raw artifacts. Only a completed, nonzero recording with
+the specific upstream event-access or page-mapping diagnostics is classified as
+a reported permission block. These patterns come from upstream
+[event-open diagnostics](https://code.googlesource.com/linux/torvalds/linux/+/473f6c8f437b049f8ec015d57cd59bb983b1d85c/tools/perf/util/evsel.c)
+and [recording diagnostics](https://code.googlesource.com/linux/torvalds/linux/+/4edcdefd4083ae04b1a5656f4be6cd83ae919ef4/tools/perf/builtin-record.c).
+Generic permission text and policy warnings remain unclassified; interruptions,
+timeouts, capture/budget errors and failed startup have separate reasons.
+This is stderr attribution, not an observed syscall errno, proof of a particular
+sysctl setting, successful recording or profile qualification. No retry or system
+configuration change occurs. New denial/checkpoint controls are authored and
+remain unexecuted with the source batch.
+
 ```sh
 python tools/host_profile_session.py --production temp/production.json --out temp/host-profile/session
 ```
