@@ -29,6 +29,7 @@
 #include "core/api_internal.hpp"
 #include "../support/currentness_test_helpers.hpp"
 #include "../support/ragged_fixture.hpp"
+#include "../support/exact_wide_chain_fixture.hpp"
 #include "rns8/rns8.h"
 
 namespace {

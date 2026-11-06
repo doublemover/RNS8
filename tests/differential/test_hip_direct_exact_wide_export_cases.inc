@@ -640,3 +640,16 @@ TEST_CASE("direct HIP exact-wide unsigned RNS output matches CPU residues") {
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }
+
+TEST_CASE("HIP materialized chains retain wide intermediates before a narrow final export",
+          "[hip][exact-wide][materialization]") {
+  if (!hip_available())
+    SKIP("no HIP device for wide chain materialization");
+  for (bool sign : {false, true}) {
+    const auto expected =
+        rns8::test_support::check_materialized_exact_wide_chain(RNS8_BACKEND_CPU_REFERENCE, sign);
+    const auto actual =
+        rns8::test_support::check_materialized_exact_wide_chain(RNS8_BACKEND_HIP_DIRECT, sign);
+    CHECK(actual == expected);
+  }
+}

@@ -26,6 +26,18 @@ inline uint32_t magnitude_bits(const boost::multiprecision::cpp_int& value) {
   return absolute == 0 ? 0 : static_cast<uint32_t>(boost::multiprecision::msb(absolute) + 1);
 }
 
+inline uint32_t
+exact_wide_materialization_limb_count(const boost::multiprecision::cpp_int& basis_product) {
+  if (basis_product <= 1)
+    throw std::invalid_argument("exact-wide materialization requires a nontrivial CRT basis");
+  const uint32_t bits = magnitude_bits(basis_product - 1);
+  if (bits > 32u * 64u)
+    throw std::range_error("CRT representative exceeds supported limb materialization");
+  // This covers every canonical unsigned or centered signed representative;
+  // a caller's narrower final output does not constrain private intermediates.
+  return (bits + 63u) / 64u;
+}
+
 // exponent=0 preserves the historical seeded small-input distribution exactly.
 // Wide mixed fixtures have bounded nonconstant magnitudes and independently
 // signed operands; constants are separately retained as guaranteed wide outputs.

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "../support/currentness_test_helpers.hpp"
+#include "../support/exact_wide_chain_fixture.hpp"
 #include "core/exact_range.hpp"
 #include "core/internal.hpp"
 #include "rns8/rns8.h"

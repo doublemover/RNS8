@@ -134,6 +134,15 @@ def capture_summary(
         chain_mode=chain_mode(capture),
         median_end_to_end_us=phase_median(capture),
         setup_inclusive_median_per_repeat_us=policy.measurement(capture)["median_us"],
+        intermediate_materialization_observations=[
+            dict(
+                capture_path=raw.get("_path"),
+                metadata=raw.get("exact_wide_intermediate_materialization"),
+            )
+            for raw in cohorts.raw_observations(capture)
+            if is_independent_export_repack_chain(raw)
+            and raw.get("semantics") in {"exact_wide_signed", "exact_wide_unsigned"}
+        ],
         **cohorts.metadata(capture, policy),
     )
 

@@ -862,3 +862,19 @@ One-time prepack charges use each process's own observed setup and repeat count.
 Graph setup observations are also retained per process, while generic graph rows
 remain non-promoting; the dedicated graph report owns setup-qualified graph
 comparisons. This source cutover and its authored controls remain unexecuted.
+
+
+Independent exact-wide export/repack chains use a compact private limb window
+large enough for every representative of the selected CRT product. Intermediate
+width is independent of the caller's final width and padding: a signed
+cancellation or unsigned nilpotent chain may have a wider intermediate and a
+one-limb final result. The final export still enforces the requested width.
+Default/tree exports share the same explicit signed/unsigned view dispatcher.
+
+`exact_wide_intermediate_materialization` records the selected prefix/product,
+private width and host payload, intermediate export count and final width. Chain
+reports retain these records per process; the private allocation is included in
+matrix-allocation setup and the exports/repacking remain inside measured calls.
+This covers canonical CRT representatives. It does not replace the separate
+chained-magnitude admission certificate or the full final-output CPU reference.
+The new CPU/HIP controls are authored and frontend-checked, with execution deferred.

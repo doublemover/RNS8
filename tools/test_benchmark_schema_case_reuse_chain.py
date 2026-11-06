@@ -793,6 +793,42 @@ class ReuseChainCases(unittest.TestCase):
             bad_bounded_chain_bound_mode, "bounded residue chains must use bound_mode=global"
         )
 
+    def test_independent_wide_intermediate_materialization_metadata(self):
+        import math
+        from benchmark_sweep_lib.scenarios import DEFAULT_MODULI
+
+        capture = as_exact_wide_residue_chain_independent_final_export_capture(
+            expect_valid("v4_bounded_i64_ck.json")
+        )
+        product = math.prod(DEFAULT_MODULI[: capture["selected_prefix"]])
+        limbs = ((product - 1).bit_length() + 63) // 64
+        metadata = dict(
+            schema="rns8_exact_wide_intermediate_materialization_v1",
+            limb_count=limbs,
+            prefix=capture["selected_prefix"],
+            basis_product=str(product),
+            logical_ld=capture["n"],
+            host_payload_bytes=capture["m"] * capture["n"] * limbs * 8,
+            exports_per_repeat=capture["residue_chain_length"] - 1,
+            final_output_limb_count=capture["exact_wide_limb_count"],
+            scope="private_full_selected_crt_representative_not_final_output_width",
+        )
+        capture["exact_wide_intermediate_materialization"] = metadata
+        validate_capture(capture)
+        for key, value in (
+            ("limb_count", True),
+            ("limb_count", 1),
+            ("host_payload_bytes", metadata["host_payload_bytes"] + 8),
+            ("basis_product", "1"),
+            ("exports_per_repeat", metadata["exports_per_repeat"] + 1),
+            ("final_output_limb_count", 33),
+            ("prefix", 0),
+            ("scope", "final_width"),
+        ):
+            changed = copy.deepcopy(capture)
+            changed["exact_wide_intermediate_materialization"][key] = value
+            expect_invalid(changed, "exact_wide_intermediate_materialization")
+
 
 if __name__ == "__main__":
     unittest.main()

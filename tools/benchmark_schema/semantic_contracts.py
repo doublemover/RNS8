@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from evidence_scalars import text_choice
 
 from .core_shared import (
@@ -14,7 +16,62 @@ from .semantic_finite import validate_finite_u8_contract
 from .semantic_wrap64 import validate_wrap64_contract
 
 
+def _validate_intermediate_materialization(self) -> None:
+    value = self.data.get("exact_wide_intermediate_materialization")
+    if value is None:
+        return
+    label = "exact_wide_intermediate_materialization"
+    fields = {
+        "schema",
+        "limb_count",
+        "prefix",
+        "basis_product",
+        "logical_ld",
+        "host_payload_bytes",
+        "exports_per_repeat",
+        "final_output_limb_count",
+        "scope",
+    }
+    if not isinstance(value, dict) or set(value) != fields:
+        self._error(label + " must contain the native materialization fields")
+        return
+    if (
+        self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}
+        or self.data.get("residue_chain_independent_final_export") is not True
+        or self._residue_chain_length() <= 1
+    ):
+        self._error(label + " is only valid for independent exact-wide chains")
+    for key in fields - {"schema", "basis_product", "scope"}:
+        if not _is_int(value.get(key)) or value[key] < 1:
+            self._error(label + " requires positive native integer " + key)
+            return
+    product_text = value.get("basis_product")
+    if (
+        not isinstance(product_text, str)
+        or re.fullmatch(r"[1-9][0-9]{0,616}", product_text) is None
+    ):
+        self._error(label + " basis_product must be bounded positive decimal")
+        return
+    product = int(product_text)
+    limbs = ((product - 1).bit_length() + 63) // 64
+    if product <= 1 or limbs > 32 or value["limb_count"] != limbs:
+        self._error(label + " limb_count must cover the full declared CRT representative")
+    if (
+        value["schema"] != "rns8_exact_wide_intermediate_materialization_v1"
+        or value["scope"] != "private_full_selected_crt_representative_not_final_output_width"
+        or value["prefix"] != self.data.get("selected_prefix", self.data.get("prefix"))
+        or value["logical_ld"] != self.data.get("n")
+        or value["exports_per_repeat"] != self._residue_chain_length() - 1
+        or value["final_output_limb_count"] != self.data.get("exact_wide_limb_count")
+    ):
+        self._error(label + " has stale schema, width, prefix or chain geometry")
+    m, n = self.data.get("m"), self.data.get("n")
+    if _is_int(m) and _is_int(n) and value["host_payload_bytes"] != m * n * limbs * 8:
+        self._error(label + " host_payload_bytes must match the compact private limb window")
+
+
 def validate_semantic_contract(self) -> None:
+    _validate_intermediate_materialization(self)
     semantics = self.data.get("semantics")
     prefix = self.data.get("prefix")
     packed_layout = self.data.get("packed_layout_version")

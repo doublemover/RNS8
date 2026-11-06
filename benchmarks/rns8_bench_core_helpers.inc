@@ -11,6 +11,31 @@ rns8_status pack_exact_wide_limbs_as_rns(rns8_context* ctx, rns8_matrix* matrix,
                                                     signed_values, source_version);
 }
 
+rns8_status export_exact_wide_benchmark_view(rns8_context* ctx, rns8_plan* plan,
+                                             rns8_matrix* matrix, const Args& args,
+                                             rns8_backend_kind backend, bool signed_values,
+                                             uint64_t* destination, int64_t ld,
+                                             uint32_t limb_count) {
+  if (args.export_variant == "tree-crt-export-candidate" &&
+      args.reconstruction_variant == "tree_crt_candidate" && backend == RNS8_BACKEND_HIP_DIRECT) {
+    return signed_values
+               ? rns8::detail::hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
+                     matrix->hip_device_id, matrix->hip_residues, &matrix->hip_export_buffer,
+                     &matrix->hip_export_bytes, &matrix->hip_status_buffer,
+                     &matrix->hip_status_bytes, args.m, args.n, matrix->prefix, destination, ld,
+                     limb_count)
+               : rns8::detail::hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
+                     matrix->hip_device_id, matrix->hip_residues, &matrix->hip_export_buffer,
+                     &matrix->hip_export_bytes, &matrix->hip_status_buffer,
+                     &matrix->hip_status_bytes, args.m, args.n, matrix->prefix, destination, ld,
+                     limb_count);
+  }
+  return signed_values
+             ? rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, destination, ld, limb_count)
+             : rns8_export_exact_wide_unsigned_limbs(ctx, plan, matrix, destination, ld,
+                                                     limb_count);
+}
+
 const char* backend_name(rns8_backend_kind backend) {
   switch (backend) {
   case RNS8_BACKEND_AUTO:

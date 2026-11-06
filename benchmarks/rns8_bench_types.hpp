@@ -189,6 +189,10 @@ struct BenchmarkResult {
   std::vector<rns8_auto_decision> auto_decisions;
   bool auto_trace_available = false;
   ExactWideMagnitudeStats exact_wide_magnitude{};
+  uint32_t chain_intermediate_limb_count = 0;
+  uint32_t chain_intermediate_prefix = 0;
+  std::string chain_intermediate_basis_product;
+  std::size_t chain_intermediate_host_bytes = 0;
   std::vector<SustainedObservation> sustained_observations;
   double plan_us = 0;
   double schedule_query_us = 0;

@@ -145,6 +145,22 @@ for (std::size_t i = 0; i < result.sustained_observations.size(); ++i) {
 }
 output << "]},\n";
 output << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
+output << "  \"exact_wide_intermediate_materialization\": ";
+if (result.chain_intermediate_limb_count != 0) {
+  output << "{\"schema\": \"rns8_exact_wide_intermediate_materialization_v1\", \"limb_count\": "
+         << result.chain_intermediate_limb_count
+         << ", \"prefix\": " << result.chain_intermediate_prefix << ", \"basis_product\": \""
+         << result.chain_intermediate_basis_product << "\""
+         << ", \"logical_ld\": " << args.n
+         << ", \"host_payload_bytes\": " << result.chain_intermediate_host_bytes
+         << ", \"exports_per_repeat\": " << (args.residue_chain_length - 1)
+         << ", \"final_output_limb_count\": " << args.exact_wide_limb_count
+         << ", \"scope\": \"private_full_selected_crt_representative_not_final_output_width\"}";
+} else {
+  output << "null";
+}
+output << ",\n";
+
 output << "  \"residue_chain_final_export\": " << (chain_final_export ? "true" : "false") << ",\n";
 output << "  \"residue_chain_independent_final_export\": "
        << (chain_independent_final_export ? "true" : "false") << ",\n";

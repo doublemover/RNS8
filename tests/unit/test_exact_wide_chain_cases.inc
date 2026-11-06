@@ -1,45 +1,4 @@
-namespace {
-struct ExactChainFixture {
-  rns8_context* ctx = nullptr;
-  rns8_plan* plan = nullptr;
-  rns8_workspace* workspace = nullptr;
-  std::vector<rns8_matrix*> matrices;
-  explicit ExactChainFixture(rns8_semantics semantics, int64_t size = 1, uint32_t prefix = 20)
-      : ExactChainFixture(semantics, size, size, size, prefix) {}
-  ExactChainFixture(rns8_semantics semantics, int64_t m, int64_t n, int64_t k, uint32_t prefix,
-                    rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE) {
-    rns8_context_options options{};
-    options.struct_size = sizeof(options);
-    options.abi_version = RNS8_ABI_VERSION;
-    options.requested_backend = backend;
-    REQUIRE(rns8_create_context(backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : 0, &options, &ctx) ==
-            RNS8_SUCCESS);
-    auto desc = exact_desc(semantics, m, n, k);
-    desc.requested_backend = backend;
-    desc.max_prefix = prefix;
-    desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
-    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
-    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
-    const int64_t shapes[4][2] = {{m, k}, {k, n}, {m, n}, {m, n}};
-    for (unsigned i = 0; i < 4; ++i) {
-      auto md = exact_matrix_desc(shapes[i][0], shapes[i][1], semantics);
-      rns8_matrix* matrix = nullptr;
-      REQUIRE(rns8_create_matrix(ctx, &md, &matrix) == RNS8_SUCCESS);
-      matrices.push_back(matrix);
-    }
-  }
-  ~ExactChainFixture() {
-    for (auto* matrix : matrices)
-      rns8_destroy_matrix(matrix);
-    rns8_destroy_workspace(workspace);
-    rns8_destroy_plan(plan);
-    rns8_destroy_context(ctx);
-  }
-  rns8_status multiply(unsigned a, unsigned b, unsigned c) {
-    return rns8_gemm_rns(ctx, plan, matrices[a], matrices[b], matrices[c], workspace);
-  }
-};
-} // namespace
+using rns8::test_support::ExactChainFixture;
 
 TEST_CASE("exact-wide chains preserve safe signed and unsigned repeated products",
           "[exact-chain]") {
@@ -248,4 +207,20 @@ TEST_CASE("exact-wide sparse representatives carry range into a dense continuati
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
+}
+
+TEST_CASE("independent wide chains preserve intermediates wider than their final output",
+          "[exact-chain][materialization]") {
+  for (bool sign : {false, true})
+    rns8::test_support::check_materialized_exact_wide_chain(RNS8_BACKEND_CPU_REFERENCE, sign);
+}
+
+TEST_CASE("private wide materialization covers exact CRT bit boundaries", "[exact-chain]") {
+  using boost::multiprecision::cpp_int;
+  using rns8::bench::exact_wide_materialization_limb_count;
+  CHECK(exact_wide_materialization_limb_count((cpp_int(1) << 64) - 1) == 1);
+  CHECK(exact_wide_materialization_limb_count((cpp_int(1) << 64) + 1) == 2);
+  CHECK(exact_wide_materialization_limb_count(cpp_int(1) << 2048) == 32);
+  REQUIRE_THROWS(exact_wide_materialization_limb_count((cpp_int(1) << 2048) + 1));
+  REQUIRE_THROWS(exact_wide_materialization_limb_count(1));
 }

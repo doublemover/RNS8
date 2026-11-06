@@ -27,6 +27,7 @@
 #include "core/autotune_cache.hpp"
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
+#include "core/exact_range.hpp"
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 #include "core/plan_lowering.hpp"
