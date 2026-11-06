@@ -13,6 +13,9 @@
 #include "core/prepared_export_read.hpp"
 #include "rns8/rns8.hpp"
 #include "rns8/experimental_product.h"
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+#include "../support/host_runtime_witness.hpp"
+#endif
 
 namespace {
 using boost::multiprecision::cpp_int;
@@ -440,7 +443,7 @@ void prepared_product_topology_faults(bool profile_only) {
   desc.prefix_policy = RNS8_PRODUCT_FULL_PREFIX;
   desc.max_arena_and_lift_bytes = UINT64_MAX;
   const uint32_t last_id = 3;
-  const rns8_ragged_recipe_binding binding{0, nullptr, nullptr};
+  const rns8_ragged_recipe_binding ragged_binding{0, nullptr, nullptr};
   const auto refs_before = ctx.get()->prepared_references;
   MatrixSnapshot a_before(*a.get()), b_before(*b.get());
   for (unsigned mutation = 0; mutation < 7; ++mutation) {
@@ -483,19 +486,20 @@ void prepared_product_topology_faults(bool profile_only) {
         break;
       case 3:
         status = rns8_query_product_materialization_identity_ragged(
-            ctx.get(), rejected_desc, &binding, 1, &last_id, 1, UINT64_MAX, &info);
+            ctx.get(), rejected_desc, &ragged_binding, 1, &last_id, 1, UINT64_MAX, &info);
         break;
       case 4:
         status = rns8_create_materialized_product_recipe(ctx.get(), rejected_desc, &last_id, 1,
                                                          nullptr, &rejected);
         break;
       case 5:
-        status = rns8_create_materialized_product_recipe_ragged(
-            ctx.get(), rejected_desc, &binding, 1, &last_id, 1, UINT64_MAX, nullptr, &rejected);
+        status = rns8_create_materialized_product_recipe_ragged(ctx.get(), rejected_desc,
+                                                                &ragged_binding, 1, &last_id, 1,
+                                                                UINT64_MAX, nullptr, &rejected);
         break;
       case 6:
-        status = rns8_create_product_recipe_ragged(ctx.get(), rejected_desc, &binding, 1, &last_id,
-                                                   1, UINT64_MAX, &rejected);
+        status = rns8_create_product_recipe_ragged(ctx.get(), rejected_desc, &ragged_binding, 1,
+                                                   &last_id, 1, UINT64_MAX, &rejected);
         break;
       }
       const auto rejected_profile = fault::end();
@@ -523,7 +527,8 @@ void prepared_product_topology_faults(bool profile_only) {
   prices.node_costs_size = sizeof(admission_costs[0]);
   prices.identity.struct_size = sizeof(prices.identity);
   prices.identity.abi_version = RNS8_ABI_VERSION;
-  std::strcpy(prices.calibration_identity, "admission-only-control");
+  constexpr char calibration_label[] = "admission-only-control";
+  std::memcpy(prices.calibration_identity, calibration_label, sizeof(calibration_label));
   prices.nodes = admission_costs;
   prices.expected_replays = 1;
   for (unsigned mutation = 0; mutation < 26; ++mutation) {
@@ -614,8 +619,8 @@ void prepared_product_topology_faults(bool profile_only) {
       const auto live = fault::live_allocations();
       fault::begin(0);
       const auto status =
-          ragged ? rns8_create_materialized_product_recipe_ragged(ctx.get(), &desc, &binding, 1,
-                                                                  &last_id, 1, UINT64_MAX,
+          ragged ? rns8_create_materialized_product_recipe_ragged(ctx.get(), &desc, &ragged_binding,
+                                                                  1, &last_id, 1, UINT64_MAX,
                                                                   rejected_prices, &rejected)
                  : rns8_create_materialized_product_recipe(ctx.get(), &desc, &last_id, 1,
                                                            rejected_prices, &rejected);
@@ -853,6 +858,10 @@ int main(int argc, char** argv) {
         "noexcept constructors can terminate before the API guard. Use RelWithDebInfo/Release.\n");
     return 77;
   }
+#endif
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+  // Bookends live outside every fault interval and outlive all fixture owners.
+  rns8::test::HostRuntimeWitness witness(argc, argv);
 #endif
   allocator_self_check();
   reused_scratch_boundary_check();

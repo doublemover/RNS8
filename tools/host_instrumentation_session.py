@@ -37,6 +37,7 @@ PRESETS = {
     "cpu-tsan-release": ("Linux", "thread"),
     "windows-clang-asan-debug": ("Windows", "windows-address"),
 }
+HOST_APPLICATIONS = ("rns8_tests", "rns8_exact_cpu_allocation_faults")
 MANDATORY = (
     "independent CPU owners overlap with exact results and unique matrix identities",
     "shared CPU handles obey their external serialization contract across host threads",
@@ -389,7 +390,7 @@ def configured_inventory(session: Session, build: Path, lane: str, nm: Path) -> 
     if any(not path.is_relative_to(build.resolve()) for path, _ in targets.values()):
         raise ValueError("instrumented target artifact escaped its owned build")
     artifacts = {name: {**reference(path), "type": kind} for name, (path, kind) in targets.items()}
-    required = ["rns8_static", "rns8_tests"]
+    required = ["rns8_static", *HOST_APPLICATIONS]
     if lane != "coverage":
         required.append("rns8-host-sanitizer-control")
     for name in required:
@@ -397,7 +398,7 @@ def configured_inventory(session: Session, build: Path, lane: str, nm: Path) -> 
             raise ValueError("required instrumented target missing: " + name)
     # PE executables need not retain a COFF symbol table. Inspect the actual
     # static archive there; executable identity and runtime controls are separate.
-    for name in ("rns8_static",) if windows else ("rns8_static", "rns8_tests"):
+    for name in ("rns8_static",) if windows else ("rns8_static", *HOST_APPLICATIONS):
         result = session.run(
             "linked-symbols-" + name, [str(nm), "--format=posix", artifacts[name]["path"]]
         )
@@ -819,7 +820,7 @@ def execute(args, plan):
             required=MANDATORY,
             allowed=allowed,
             runtime_witness=dict(
-                executables=[binaries["rns8_tests"]["path"]],
+                executables=[binaries[name]["path"] for name in HOST_APPLICATIONS],
                 lane=plan["lane"],
                 runtimes=report["runtime_inventory"]["files"],
                 windows_asan=Path(report["windows_asan_dll"]["path"])

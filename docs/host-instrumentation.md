@@ -158,6 +158,15 @@ truncated, duplicated or contradictory bookends block the lane. A skip can
 retain observed bookends but receives no passing loader credit. Other CTest
 commands retain their inventory dispositions and are explicitly outside this
 native witness denominator. The launcher PID is never substituted for a child.
+The host session's explicit native application inventory includes both
+`rns8_tests` and `rns8_exact_cpu_allocation_faults`. The dedicated allocation
+main emits entry before fixture creation and exit after all fixture owners
+retire, outside injection intervals; observation allocations do not enter the profiles.
+Both binaries must be present in native CTest discovery and the configured
+artifact inventory. Approved Debug-STL allocation-sweep skips keep their
+existing skip disposition and gain no passing loader credit. Executed cases
+require their own command/PID/bookends; the main Catch process cannot supply
+observations for the separate allocation executable.
 
 Witnesses compile only into the selected sanitizer test configuration.
 Installed consumers opt in with

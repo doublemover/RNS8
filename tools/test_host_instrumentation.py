@@ -211,6 +211,55 @@ class ApplicationLoaderControls(unittest.TestCase):
                     ET.tostring(xml, encoding="unicode"), selected, capture(), **kwargs
                 )
 
+    def test_distinct_application_commands_require_their_own_native_bookends(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            names = ("api-case", "exact_cpu_allocation_faults")
+            selected = inventory(*names)
+            xml = ET.fromstring(report(*((name, "run", "") for name in names)))
+            executables = []
+            for index, (test, element) in enumerate(
+                zip(selected["tests"], xml.findall("testcase"))
+            ):
+                executable = root / ("api" if index == 0 else "allocation-faults")
+                executable.write_bytes(b"synthetic application " + bytes([index]))
+                executables.append(executable)
+                test["command"] = [str(executable)]  # Dedicated allocation main has no arguments.
+                docs = application_documents(executable, test["name"])
+                for document in docs:
+                    document["arguments"] = []
+                    document["process_id"] += index
+                    document["loaded_modules"]["process_id"] += index
+                element.find("system-out").text = "\n".join(
+                    WITNESS_PREFIX + json.dumps(value) for value in docs
+                )
+            kwargs = dict(
+                token="a" * 64, executables=executables, lane="address-undefined", runtimes=[]
+            )
+            result = application_witnesses(
+                ET.tostring(xml, encoding="unicode"), selected, capture(), **kwargs
+            )
+            self.assertEqual({row["test"] for row in result["cases"]}, set(names))
+            self.assertEqual(len(result["files"]), 2)
+            self.assertEqual(result["excluded_cases"], [])
+            # A parent/API-process snapshot cannot stand in for the second main.
+            second = xml.findall("testcase")[1].find("system-out")
+            original = second.text
+            for replacement in ("", xml.findall("testcase")[0].find("system-out").text):
+                second.text = replacement
+                with self.assertRaises(ValueError):
+                    application_witnesses(
+                        ET.tostring(xml, encoding="unicode"), selected, capture(), **kwargs
+                    )
+            second.text = original
+            selected["tests"].pop()
+            xml.remove(xml.findall("testcase")[1])
+            xml.set("tests", "1")
+            with self.assertRaises(ValueError):
+                application_witnesses(
+                    ET.tostring(xml, encoding="unicode"), selected, capture(), **kwargs
+                )
+
     def test_owned_ctest_sets_fresh_token_only_for_execution_and_retains_module_bookends(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory).resolve()
