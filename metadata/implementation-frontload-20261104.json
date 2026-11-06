@@ -235,9 +235,12 @@
       "implementation_status": "in_progress",
       "completed_slices": [
         "Shared exact-form predicate in additive/joint optimizer, typed recipe admission and direct analytical predictor, with integer/floating positive and insufficient-precision negative fixtures",
-        "Shared modulus-search schema-v3 strict-product validator for producer/writer/reader and direct report consumer; legacy files explicitly nonqualifying; on-disk roundtrip/corruption fixtures authored"
+        "Shared modulus-search schema-v3 strict-product validator for producer/writer/reader and direct report consumer; legacy files explicitly nonqualifying; on-disk roundtrip/corruption fixtures authored",
+        "Reconcile all three current32 comments and preserve per-form exact arithmetic proof identities/checker versions/separate verdicts/failed obligations in both additive and joint optimizers. Strictly reject the whole domain through a structured ValueError subtype; the actual file CLI emits the rejected report and nonzero exit instead of discarding obligations behind a generic exception. Share one admission pass, reuse verified certificate identities, eliminate the joint search dummy optimization, and precompute suffix modulus products once instead of multiplying suffixes at every search node. Author freshly rebound precision/destination/scale and stale-proof controls against both optimizers with a cheaper invalid form plus valid alternative, and ordinary additive/joint file-CLI roundtrip rejection controls. Source AST/pinned Ruff/format only; no optimizer, mathematical/property fixture, file consumer, build or benchmark executed. No measured performance or hardware qualification claim."
       ],
-      "remaining_source_items": []
+      "remaining_source_items": [
+        "Reconcile remaining original32 objective details against the existing offline and explicit runtime-basis providers, including Pareto candidate/report and staged-loss disposition; measured hardware-weighted full-pipeline acceptance remains qualification work."
+      ]
     },
     {
       "issue": 34,

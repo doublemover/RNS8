@@ -3,7 +3,10 @@
 from dataclasses import asdict, replace
 from fractions import Fraction
 import json
+from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 from arithmetic_certificate import (
     ArithmeticCertificate,
     InstructionContract,
@@ -58,6 +61,147 @@ def fixture(format_name="ocp_e2m1", count=32):
 
 
 class FloatingContracts(unittest.TestCase):
+    def test_actual_scheme_file_cli_emits_strict_proof_rejection_for_both_objectives(self):
+        import modulus_scheme_optimizer as optimizer
+
+        certificate = fixture()
+        certificate = bind_artifacts(
+            replace(
+                certificate,
+                instruction=replace(
+                    certificate.instruction,
+                    floating=replace(certificate.instruction.floating, accumulator_precision=3),
+                ),
+            )
+        )
+        request = dict(
+            bound=1,
+            signed=False,
+            k=32,
+            forms=[
+                dict(
+                    certificate=asdict(certificate),
+                    costs=dict(
+                        conversion_ps=0,
+                        slab_ps=0,
+                        epilogue_ps=0,
+                        reconstruction_ps=0,
+                        cost_cohort="invalid-synthetic-fixture",
+                    ),
+                )
+            ],
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for joint in (False, True):
+                if joint:
+                    request["joint_schedule"] = dict(
+                        slabs=[32],
+                        max_group_planes=1,
+                        register_budget=1,
+                        lds_budget=0,
+                        group_launch_ps=1,
+                        prefix_bit_ps=0,
+                    )
+                    request["forms"][0]["resources"] = dict(
+                        layout="fixture", registers=1, lds_bytes=0
+                    )
+                source = root / (str(joint) + ".input.json")
+                output = root / (str(joint) + ".output.json")
+                source.write_text(json.dumps(request), encoding="utf-8")
+                with patch(
+                    "sys.argv",
+                    ["modulus_scheme_optimizer.py", str(source), "--output", str(output)],
+                ):
+                    self.assertEqual(optimizer.main(), 1)
+                result = json.loads(output.read_text(encoding="utf-8"))
+                self.assertEqual(result["schema"], "rns8_scheme_form_admission_v1")
+                self.assertFalse(result["accepted"])
+                self.assertFalse(result["promotion_eligible"])
+                self.assertEqual(
+                    result["forms"][0]["certificate_sha256"], certificate_hash(certificate)
+                )
+                self.assertIn("product_or_partial_not_exact", result["forms"][0]["proof_failures"])
+
+    def test_both_optimizers_preserve_rejected_form_identity_and_all_proof_verdicts(self):
+        from arithmetic_certificate import centered_int8
+        from modulus_scheme_optimizer import Form, FormAdmissionError, optimize
+        from joint_scheme_optimizer import ScheduledForm, joint_optimize
+
+        valid = fixture()
+        floating = valid.instruction.floating
+        candidates = [
+            bind_artifacts(
+                replace(
+                    valid,
+                    instruction=replace(
+                        valid.instruction, floating=replace(floating, accumulator_precision=3)
+                    ),
+                )
+            ),
+            bind_artifacts(
+                replace(
+                    valid,
+                    instruction=replace(
+                        valid.instruction, floating=replace(floating, destination_bits=8)
+                    ),
+                )
+            ),
+            bind_artifacts(
+                replace(
+                    valid,
+                    instruction=replace(
+                        valid.instruction,
+                        floating=replace(floating, blocks=(FloatingBlock(32, 126, 127, 0),)),
+                    ),
+                )
+            ),
+            replace(
+                valid,
+                instruction=replace(
+                    valid.instruction, floating=replace(floating, proof_artifact_sha256="f" * 64)
+                ),
+            ),
+        ]
+        good = Form(centered_int8(5, 32), 100, 100, 100, 100, "synthetic-proof-only")
+        for bad in candidates:
+            proof = verify(bad)
+            self.assertNotEqual(proof["verdicts"]["finite_exact_recoverability"], "proven")
+            forms = [Form(bad, 0, 0, 0, 0, good.cost_cohort), good]
+            calls = (
+                lambda forms=forms: optimize(forms, 1, False, 32),
+                lambda forms=forms: joint_optimize(
+                    [ScheduledForm(form, "fixture", 1, 0) for form in forms],
+                    1,
+                    False,
+                    32,
+                    slabs=(32,),
+                    max_group_planes=2,
+                    register_budget=2,
+                    lds_budget=0,
+                    group_launch_ps=1,
+                    prefix_bit_ps=0,
+                ),
+            )
+            for call in calls:
+                with self.assertRaises(FormAdmissionError) as caught:
+                    call()
+                report = caught.exception.report
+                self.assertFalse(report["accepted"])
+                self.assertEqual(report["policy"], "strict_reject_entire_domain")
+                self.assertFalse(report["promotion_eligible"])
+                self.assertEqual(report["forms"][0]["certificate_sha256"], certificate_hash(bad))
+                self.assertEqual(report["forms"][0]["proof_failures"], proof["proof_failures"])
+                self.assertEqual(report["forms"][0]["checker_version"], proof["checker_version"])
+                self.assertEqual(report["forms"][0]["verdicts"], proof["verdicts"])
+                self.assertTrue(report["forms"][1]["admitted"])
+        accepted = optimize([good], 1, False, 32)
+        self.assertTrue(accepted["arithmetic_admission"]["accepted"])
+        self.assertEqual(
+            accepted["domain_hashes"],
+            [row["certificate_sha256"] for row in accepted["arithmetic_admission"]["forms"]],
+        )
+
     def test_exact_form_admission_reaches_all_search_and_planning_consumers(self):
         from analytical_planner import Stage, Rate, predict
         from arithmetic_certificate import centered_int8, exact_form_admissible

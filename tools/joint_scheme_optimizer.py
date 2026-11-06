@@ -9,8 +9,7 @@ from dataclasses import dataclass
 from itertools import combinations, permutations, product
 import math
 
-from arithmetic_certificate import certificate_hash
-from modulus_scheme_optimizer import Form, optimize
+from modulus_scheme_optimizer import Form, admit_forms, validate_problem
 
 
 @dataclass(frozen=True)
@@ -120,7 +119,8 @@ def joint_optimize(
     """
     if not 1 <= len(forms) <= 8:
         raise ValueError("joint oracle is bounded to 1..8 supplied forms")
-    optimize([x.form for x in forms], bound, signed, k, max_nodes=1)
+    validate_problem(bound, signed, k, max_nodes)
+    admission = admit_forms([x.form for x in forms])
     integers = (
         max_group_planes,
         register_budget,
@@ -151,7 +151,7 @@ def joint_optimize(
     ):
         raise ValueError("invalid staged shortlist")
     limits = [arithmetic_limits(f.form.certificate) for f in forms]
-    hashes = [certificate_hash(f.form.certificate) for f in forms]
+    hashes = [row["certificate_sha256"] for row in admission["forms"]]
     threshold = bound * (2 if signed else 1)
     best = None
     visited = 0
@@ -259,6 +259,7 @@ def joint_optimize(
         "best": best,
         "objective": "serial_groups_shared_launch_ordered_prefix_bits",
         "cost_cohort": forms[0].form.cost_cohort,
+        "arithmetic_admission": admission,
         "domain_hashes": hashes,
         "model": {
             "max_group_planes": max_group_planes,

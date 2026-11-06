@@ -6,6 +6,14 @@ logical basis permutations, physical channel partitions, and explicitly supplied
 K slabs. It never changes the runtime basis or authorizes a hardware instruction.
 
 Each form retains its arithmetic certificate and calibration-cohort identity.
+Both optimizers share a strict whole-domain admission pass. Reports retain each
+form's certificate digest, checker version, complete separate proof verdicts and
+failed obligations. `FormAdmissionError`, a `ValueError`, carries that structured
+report when any form is inadmissible; the ordinary file CLI writes the rejection
+report and exits nonzero. A cheaper invalid form is never silently selected or
+filtered out of the declared domain. Mathematical proof is checked once per
+form, and the resulting identities are reused in the search report. This does
+not cache proofs across changed inputs or manufacture target qualification.
 Separate interval calculations report the dot-accumulation cap and the ordered
 weighted-epilogue cap. The allowed slab is also bounded by the certificate's
 declared safe K. Each group uses the minimum cap of all members. Final CRT
@@ -45,5 +53,7 @@ the optimizer's partition generator. Runtime execution of these tests remains
 pending in the consolidated validation batch.
 
 This finishes a concrete offline oracle slice of #32. It does not establish a
-globally optimal hardware pipeline, measured Pareto frontier, experimental
-runtime basis, or production qualification.
+globally optimal hardware pipeline, measured Pareto frontier or production
+qualification. The separate experimental runtime basis has its own
+[explicit ABI and ownership](../include/rns8/experimental_basis.h); neither
+offline search selects it implicitly nor its existence qualifies these costs.
