@@ -42,6 +42,17 @@ def cohort(records):
 
 
 class ReferenceVerdictTest(unittest.TestCase):
+    def test_wrap64_byte_limb_cpu_anchor_is_indexed(self):
+        from reference_verdict import CPUReferenceIndex
+
+        candidate = capture()
+        candidate["semantics"] = "wrap_u64_mod_2_64"
+        reference = copy.deepcopy(candidate)
+        reference["backend_selected"] = "wrap64-byte-limb"
+        verdict = CPUReferenceIndex([reference]).verdict(candidate)
+        self.assertTrue(verdict.passed, verdict.blockers)
+        self.assertEqual(verdict.checksum_comparison, "matched")
+
     def test_evidence_json_rejects_duplicate_keys_nonfinite_constants_and_exponent_overflow(self):
         for text in (
             '{"checksum_u64":1,"checksum_u64":2}',

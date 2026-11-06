@@ -101,6 +101,134 @@ def _write_review_report(path: Path, capture_path: Path, *, promotable: bool) ->
     )
 
 
+def receipt_round_trip_controls():
+    from benchmark_sweep_lib.review import review_captures
+    from diagnostic_companion import build_binding
+    from report_inputs import load_validated_capture
+    from test_benchmark_sweep_support import finite_capture, set_phase
+    from test_benchmark_schema_support_metadata import add_target_variant_fields
+    from test_diagnostic_companion import authored_capture_pair
+    from test_review_reference_support import add_synthetic_full_reference
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        captures, bindings = [], {}
+        for backend, duration in (("cpu-reference", 5000), ("hip-direct", 1000), ("ck", 800)):
+            for run in range(2):
+                lane = root / f"{backend}-{run}"
+                lane.mkdir()
+                fixture = add_synthetic_full_reference(finite_capture(backend, duration))
+                _, _, paths = authored_capture_pair(lane, fixture)
+                captures.append(load_validated_capture(paths[0]))
+                if backend != "cpu-reference":
+                    bindings[str(paths[0].resolve())] = build_binding(*paths)
+        report = review_captures(captures, review_mode="release", diagnostic_bindings=bindings)
+        review_path = root / "review_report.json"
+        review_path.write_text(json.dumps(report), encoding="utf-8")
+        index = pending_validation.load_review_index([review_path])
+        candidate = captures[-1]
+        path = Path(candidate["_path"])
+
+        def decision(current_path=path, current_index=index):
+            return pending_validation.decision_for_capture(
+                gfx1100_pending_validation.CONFIG, current_path, review_index=current_index
+            )
+
+        # This is the actual generic producer, including its existing duplicate-
+        # backend disposition. A valid receipt does not override that decision.
+        row = decision()
+        assert row["review_receipt"]["bound"], row["blockers"]
+        assert row["review_receipt"]["qualified"], row["blockers"]
+        assert row["review_receipt"]["measurement_cohort"]["independent_runs"] == 2
+        assert row["disposition"] == "keep experimental"
+        original = path.read_text(encoding="utf-8")
+        for mutation in ("checksum", "timing", "seed", "build", "device"):
+            changed = json.loads(original)
+            if mutation == "checksum":
+                changed["checksum_u64"] += 1
+            elif mutation == "timing":
+                set_phase(changed, 850)
+            elif mutation == "seed":
+                changed["seed"] += 1
+            elif mutation == "build":
+                changed["build_manifest"]["source_digest"] = "d" * 64
+            else:
+                changed["device"]["name"] = "Different physical GPU"
+                add_target_variant_fields(changed)
+            path.write_text(json.dumps(changed), encoding="utf-8")
+            load_validated_capture(path)
+            row = decision()
+            assert not row["review_receipt"]["bound"], mutation
+            assert "review_capture_content_mismatch" in row["blockers"]
+            assert not row["review_report_promotable"]
+            assert row["review_speedup_vs_direct_hip"] is None
+            path.write_text(original, encoding="utf-8")
+        renamed = root / "unchanged-new-name.json"
+        renamed.write_text(original, encoding="utf-8")
+        row = decision(renamed)
+        assert row["review_receipt"]["bound"]
+        assert row["review_receipt"]["qualified"]
+        assert row["review_receipt"]["measurement_cohort"]["independent_runs"] == 2
+
+        conflicting = copy.deepcopy(report)
+        for group in conflicting["groups"]:
+            for item in group["candidates"]:
+                if item["capture_sha256"] == pending_validation.capture_identity(candidate):
+                    item["promotable"] = not item["promotable"]
+        sidecar_dir = root / "conflicting"
+        sidecar_dir.mkdir()
+        sidecar = sidecar_dir / "review_report.json"
+        sidecar.write_text(json.dumps(conflicting), encoding="utf-8")
+        for reports in ([review_path, sidecar], [sidecar, review_path]):
+            conflicts = pending_validation.load_review_index(reports)
+            row = decision(current_index=conflicts)
+            assert "conflicting_review_receipts" in row["blockers"]
+            assert not row["review_receipt"]["bound"]
+        reviewed_bytes = review_path.read_text(encoding="utf-8")
+        review_path.write_text(json.dumps(conflicting), encoding="utf-8")
+        assert "review_report_content_changed" in decision()["blockers"]
+        review_path.write_text(reviewed_bytes, encoding="utf-8")
+
+        baseline_path = Path(captures[2]["_path"])
+        baseline_original = baseline_path.read_text(encoding="utf-8")
+        changed = json.loads(baseline_original)
+        changed["checksum_u64"] += 1
+        baseline_path.write_text(json.dumps(changed), encoding="utf-8")
+        assert "review_input_content_missing_or_changed" in decision()["blockers"]
+        baseline_path.write_text(baseline_original, encoding="utf-8")
+        diagnostic_path = Path(bindings[str(path.resolve())]["diagnostic_capture"])
+        diagnostic_original = diagnostic_path.read_text(encoding="utf-8")
+        changed = json.loads(diagnostic_original)
+        changed["checksum_u64"] += 1
+        diagnostic_path.write_text(json.dumps(changed), encoding="utf-8")
+        row = decision()
+        assert not row["review_receipt"]["bound"]
+        assert "review_diagnostic_binding_unavailable_or_changed" in row["blockers"]
+        diagnostic_path.write_text(diagnostic_original, encoding="utf-8")
+
+        singleton = review_captures(
+            captures[::2], review_mode="release", diagnostic_bindings=bindings
+        )
+        singleton_path = root / "singleton-review.json"
+        singleton_path.write_text(json.dumps(singleton), encoding="utf-8")
+        singleton_index = pending_validation.load_review_index([singleton_path])
+        row = decision(Path(captures[4]["_path"]), singleton_index)
+        assert row["review_receipt"]["bound"]
+        assert not row["review_receipt"]["qualified"]
+        assert row["review_receipt"]["measurement_cohort"]["independent_runs"] == 1
+        assert row["disposition"] == "keep experimental"
+        # Self-reported historical review flags never replace a current receipt.
+        history = json.loads(original)
+        history["backend_metadata"]["performance_validated"] = True
+        history["comparison_baseline"]["status"] = "reviewed_release_same_contract_baseline"
+        historical_path = root / "historical-only.json"
+        historical_path.write_text(json.dumps(history), encoding="utf-8")
+        load_validated_capture(historical_path)
+        row = decision(historical_path, {})
+        assert "release_review_not_found" in row["blockers"]
+        assert row["disposition"] == "keep experimental"
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -210,7 +338,8 @@ def main() -> int:
         row = payload["decision_rows"][0]
         assert payload["schema"] == "fixture_summary_v1"
         assert payload["target"] == "cdna-smoke"
-        assert row["review_report_promotable"] is True
+        assert row["review_report_promotable"] is False
+        assert row["review_report_declared_promotable"] is True
         assert row["disposition"] == "keep experimental"
         assert "not_cdna-smoke" in row["blockers"]
 
@@ -231,12 +360,14 @@ def main() -> int:
         payload = json.loads(Path(outputs["json"]).read_text(encoding="utf-8"))
         row = payload["decision_rows"][0]
         assert payload["review_report_count"] == 1
-        assert row["review_report_promotable"] is True
+        assert row["review_report_promotable"] is False
+        assert row["review_report_declared_promotable"] is True
         assert row["review_cache_write_status"] == "eligible_after_review"
         assert row["review_promotion_reason"] == "beats_required_same_contract_gpu_baselines"
-        assert row["review_speedup_vs_direct_hip"] == 1.2
-        assert row["disposition"] == "promote locally"
-        assert row["blockers"] == []
+        assert row["review_speedup_vs_direct_hip"] is None
+        assert row["review_report_declared_speedup_vs_direct_hip"] == 1.2
+        assert row["disposition"] == "keep experimental"
+        assert "unsupported_review_schema" in row["blockers"]
 
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -279,6 +410,7 @@ def main() -> int:
         [{"name": "unknown", "returncode": None, "passed": True}],
     )
 
+    receipt_round_trip_controls()
     print("gfx1100 pending validation planner self-test: PASS")
     return 0
 

@@ -318,6 +318,19 @@ ratio. Dirty-region composition and cache policy remain distinct implementation
 identities. Supply `incremental_result_cache_report.py --diagnostic-binding`
 receipts. New parser controls remain unexecuted.
 
+Pending-validation summaries now consume versioned generic-review receipts
+bound to the complete capture, work/environment identity, required baseline
+files and production companions. They reconstruct independent cohorts and full
+numerical coverage before a local recommendation. Path reuse, changed input or
+review content, conflicting sidecars and unsupported receipts cannot authorize
+a refreshed observation. Unchanged content can be located under a new filename;
+copied files do not add independent runs. Historical reviewed flags and declared
+review ratios remain descriptive. This local disposition does not install an
+AUTO cache entry. The generic review producer's existing duplicate-backend
+policy remains separate from receipt qualification; reconciling that producer
+with the complete report migration is still implementation work. New producer
+round-trip and stale-evidence controls are authored but unexecuted.
+
 ## Promotion boundaries
 
 - CPU success and static/host arithmetic tests do not qualify GPU code.

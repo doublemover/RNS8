@@ -17,6 +17,7 @@ from timing_eligibility import (
     bound_comparison_blockers,
 )
 from diagnostic_companion import production_evidence, binding_for_capture
+from review_receipt import make_review_receipt
 from review_contract import REVIEW_MODES, release_capture_satisfied
 from first_call_setup import review_first_call
 from graph_caller_contract import (
@@ -2474,6 +2475,9 @@ def review_captures(
                 "selected_kernel": selected_kernel(item),
                 "capture": item.get("_path"),
                 "capture_sha256": capture_identity(item),
+                "review_capture_receipt": make_review_receipt(
+                    item, items, required, diagnostic_bindings
+                ),
                 "numerical_reference": numerical,
                 "production_timing_evidence": companion,
                 "baseline_production_timing_evidence": baseline_evidence,

@@ -13,6 +13,8 @@ from typing import Any, Mapping
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
 import result_compare
+from review_receipt import ReviewReceiptReader, digest, read_review_report
+from timing_eligibility import capture_identity
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -242,12 +244,30 @@ def load_review_index(
     repo_root: Path = REPO_ROOT,
 ) -> dict[str, dict[str, Any]]:
     reviewed: dict[str, dict[str, Any]] = {}
-    for report_path in review_reports:
+    fingerprints = {}
+
+    def add_entry(key: str, entry: dict) -> None:
+        fingerprint = digest(
+            {
+                name: value
+                for name, value in entry.items()
+                if name
+                not in {"review_report", "review_report_sha256", "review_report_group_index"}
+            }
+        )
+        if key in reviewed:
+            if fingerprints[key] != fingerprint:
+                reviewed[key]["review_receipt_conflict"] = True
+            return
+        reviewed[key] = dict(entry)
+        fingerprints[key] = fingerprint
+
+    for report_path in sorted(review_reports, key=str):
         try:
-            data = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            data, report_sha256 = read_review_report(report_path)
+        except (OSError, ValueError):
             continue
-        if not isinstance(data, dict):
+        if not isinstance(data.get("groups"), list):
             continue
         for group_index, group in enumerate(data.get("groups", [])):
             if not isinstance(group, dict):
@@ -257,6 +277,8 @@ def load_review_index(
             fastest_kernel = fastest.get("selected_kernel") if isinstance(fastest, dict) else None
             group_review = {
                 "review_report": str(report_path),
+                "review_report_sha256": report_sha256,
+                "review_schema_version": data.get("schema_version"),
                 "review_report_group_index": group_index,
                 "review_mode": group.get("review_mode") or data.get("review_mode"),
                 "release_review_satisfied": group.get("release_review_satisfied"),
@@ -267,7 +289,9 @@ def load_review_index(
                 "fastest_promotable_backend": fastest_backend,
                 "fastest_promotable_kernel": fastest_kernel,
             }
-            for candidate in group.get("candidates", []):
+            if not isinstance(group.get("candidates"), list):
+                continue
+            for candidate in group["candidates"]:
                 if not isinstance(candidate, dict):
                     continue
                 capture_path = candidate.get("capture")
@@ -285,7 +309,18 @@ def load_review_index(
                     "review_median_end_to_end_us": candidate.get("median_end_to_end_us"),
                 }
                 for key in _review_capture_keys(repo_root, capture_path, report_path):
-                    reviewed[key] = entry
+                    add_entry(key, entry)
+                identity = candidate.get("capture_sha256")
+                if (
+                    isinstance(identity, str)
+                    and len(identity) == 64
+                    and all(c in "0123456789abcdef" for c in identity)
+                ):
+                    add_entry("capture_sha256:" + identity, entry)
+    for entry in reviewed.values():
+        identity = (entry.get("candidate") or {}).get("capture_sha256")
+        if (reviewed.get("capture_sha256:" + str(identity)) or {}).get("review_receipt_conflict"):
+            entry["review_receipt_conflict"] = True
     return reviewed
 
 
@@ -384,6 +419,15 @@ def _review_blockers(
 ) -> list[str]:
     if review_entry is None:
         return [f"{config.review_mode}_review_not_found"]
+    if any(
+        not isinstance(review_entry.get(name), list)
+        for name in (
+            "missing_required_baselines",
+            "duplicate_backends",
+            "review_promotion_blockers",
+        )
+    ):
+        return ["review_metadata_lists_invalid"]
     blockers: list[str] = []
     if review_entry.get("review_mode") != config.review_mode:
         blockers.append(f"review_mode_not_{config.review_mode}")
@@ -434,6 +478,9 @@ def decision_for_capture(
     config: PendingValidationConfig,
     path: Path,
     review_entry: dict[str, Any] | None = None,
+    *,
+    review_index: dict | None = None,
+    receipt_reader: ReviewReceiptReader | None = None,
 ) -> dict[str, Any]:
     try:
         capture = load_capture(path)
@@ -444,17 +491,26 @@ def decision_for_capture(
         capture = {}
         schema_status = "fail"
         schema_error = str(exc)
+    if capture and review_entry is None and review_index is not None:
+        review_entry = review_index.get(_path_key(config.repo_root, path)) or review_index.get(
+            "capture_sha256:" + capture_identity(capture)
+        )
+    receipt = (
+        (receipt_reader or ReviewReceiptReader()).validate(capture, review_entry)
+        if capture and review_entry is not None
+        else None
+    )
     blockers: list[str] = []
     if schema_status != "pass":
         blockers.append("schema_failed")
-    if capture and review_entry is None and not _raw_capture_promoted(capture):
+    if capture and review_entry is None:
         blockers.append(f"{config.review_mode}_review_not_found")
     elif review_entry is not None:
         blockers.extend(_review_blockers(config, review_entry))
+        if receipt is not None:
+            blockers.extend(receipt.blockers)
     if capture.get("correctness") not in {None, "ok"}:
         blockers.append("correctness_not_ok")
-    if capture and not _is_reference_backend(capture) and not _gpu_events_complete(capture):
-        blockers.append("gpu_events_missing_or_incomplete")
     if capture and not _target_matches(config, capture):
         blockers.append(f"not_{config.target}")
     disposition = "promote locally" if not blockers else "keep experimental"
@@ -474,10 +530,23 @@ def decision_for_capture(
         "gpu_events_complete": _gpu_events_complete(capture) if capture else False,
         "disposition": disposition,
         "blockers": sorted(set(blockers)),
-        "review_report": review_entry.get("review_report") if review_entry else None,
-        "review_report_promotable": review_entry.get("review_report_promotable")
+        "review_receipt": receipt.to_json() if receipt is not None else None,
+        "review_report_declared_promotable": review_entry.get("review_report_promotable")
         if review_entry
-        else _raw_capture_promoted(capture),
+        else None,
+        "review_report_declared_speedup_vs_direct_hip": review_entry.get(
+            "review_speedup_vs_direct_hip"
+        )
+        if review_entry
+        else None,
+        "capture_historical_reviewed_flag": _raw_capture_promoted(capture),
+        "review_report": review_entry.get("review_report") if review_entry else None,
+        "review_report_promotable": bool(
+            review_entry
+            and review_entry.get("review_report_promotable") is True
+            and receipt is not None
+            and receipt.qualified
+        ),
         "review_cache_write_status": review_entry.get("review_cache_write_status")
         if review_entry
         else None,
@@ -495,9 +564,15 @@ def decision_for_capture(
         else [],
         "review_speedup_vs_direct_hip": review_entry.get("review_speedup_vs_direct_hip")
         if review_entry
+        and receipt is not None
+        and receipt.qualified
+        and review_entry.get("review_report_promotable") is True
         else None,
         "review_speedup_vs_vector_alu": review_entry.get("review_speedup_vs_vector_alu")
         if review_entry
+        and receipt is not None
+        and receipt.qualified
+        and review_entry.get("review_report_promotable") is True
         else None,
         "fastest_promotable_backend": review_entry.get("fastest_promotable_backend")
         if review_entry
@@ -757,8 +832,9 @@ def write_summary(
 ) -> dict[str, str]:
     review_reports = discover_review_reports(out_dir)
     review_index = load_review_index(review_reports, repo_root=config.repo_root)
+    receipt_reader = ReviewReceiptReader()
     rows = [
-        decision_for_capture(config, path, review_index.get(_path_key(config.repo_root, path)))
+        decision_for_capture(config, path, review_index=review_index, receipt_reader=receipt_reader)
         for path in captures
     ]
     payload = {

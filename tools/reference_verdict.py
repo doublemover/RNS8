@@ -240,7 +240,7 @@ class CPUReferenceIndex:
         self._references: dict[str, list[dict]] = {}
         for capture in captures:
             backend = capture.get("backend_selected") or capture.get("backend_requested")
-            if backend not in ("cpu", "cpu-reference"):
+            if backend not in ("cpu", "cpu-reference", "wrap64-byte-limb"):
                 continue
             try:
                 key = numerical_contract(capture)
