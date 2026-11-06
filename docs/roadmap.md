@@ -21,12 +21,13 @@ and [branch code audit](branch-code-audit-20261027.md) retain their dated source
 and validation credit. Their earlier empty implementation backlog is superseded
 by the November inventory, not a statement about the newly filed work.
 
-The following table records the prior completed implementation envelopes:
+The following table distinguishes implemented source envelopes from remaining
+qualification:
 
 | Issue | Implemented extension | Remaining qualification |
 |---|---|---|
-| #32 | Ordered-basis transfers/lift, library and distributed providers, opt-in costed basis selection | Broader targets, measured complete-pipeline basis/form selection |
-| #43 | Provider streams, finite/wrap token pipelines, multi-body caller graphs and bounded in-flight pools | Native Linux/CDNA, real fault recovery, physical overlap and payoff |
+| #32 | Certified additive/joint search, bounded model Pareto and staged-loss reports; ordered-basis transfers/lift, library/distributed providers and opt-in costed basis selection | Authored search/report controls, broader targets, measured complete-pipeline basis/form selection |
+| #43 | Provider streams, finite/wrap token pipelines, multi-body caller graphs, bounded in-flight pools and shared failed-work/allocation/DMA custody | Authored ownership/public-dispatch controls, native Linux/CDNA, real fault recovery, physical overlap and payoff |
 | #45 | Exact caller-owned native radix128 split/merge, gfx942/gfx1201 FP8 and gfx950 FP4/FP6/FP8 fixed/dynamic/mixed recipes | Actual target lane/accumulator behavior, exact execution and complete-route timing |
 | #48 | Coefficient control plus canonical 200-addition/four-halving rank48 SLP, retained/recomputed matrix/direct forms | Large-shape strongest-control performance/memory gates |
 | #50 | All partition axes plus explicit MPI/RCCL/rocSHMEM process transports and exact membership epochs | Actual multi-GPU transport/failure/scaling qualification |
@@ -34,8 +35,8 @@ The following table records the prior completed implementation envelopes:
 | #63 | Prime-channel five-product Gram with composite-channel preservation | Broader targets and measured preparation/reuse/export benefit |
 | #67 | Optional installed DLPack1.2 adapter and standalone HIP consumer | Native Linux, real failed drains and matched interoperability timing |
 
-These checks qualify applicable CPU/gfx1100 paths. Actual unavailable-target
-instructions and linked cluster execution remain open.
+Current source work does not extend the dated CPU/gfx1100 execution receipts.
+Actual unavailable-target instructions and linked cluster execution remain open.
 
 The [replay extension receipt](../metadata/replay-extension-validation-20261027.json)
 separately records lifetime cost models, external packed-B reuse, bound recipes,
