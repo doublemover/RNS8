@@ -23,6 +23,22 @@ from review_contract import release_capture_satisfied
 from timing_eligibility import capture_identity
 
 
+PHYSICAL_TILE_WORK_EXCLUSIONS = (
+    "tile_m",
+    "tile_n",
+    "k_block_size",
+    "tile_shape_variant.name",
+    "tile_shape_variant.tile_m",
+    "tile_shape_variant.tile_n",
+    "tile_shape_variant.tile_k",
+    "tile_shape_variant.k_block_policy",
+    "schedule_metadata.tile_rows",
+    "schedule_metadata.tile_cols",
+    "schedule_metadata.tile_count",
+    "export_variant.selector_key",
+)
+
+
 @dataclass(frozen=True)
 class ComparisonPolicy:
     name: str

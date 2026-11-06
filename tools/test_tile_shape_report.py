@@ -335,7 +335,7 @@ def production_controls() -> None:
         )
 
         def resources():
-            return tile_shape_report.load_resource_manifest(manifest_path)
+            return tile_shape_report.load_static_resource_manifest(manifest_path)
 
         def build(values, receipts=bindings, resource_inputs=None):
             return tile_shape_report.build_report_from_captures(
@@ -387,7 +387,8 @@ def production_controls() -> None:
         wrong_manifest = root / "wrong-manifest.json"
         wrong_manifest.write_text(json.dumps(dict(captures=[dict(isa_summary=str(wrong_path))])))
         wrong = build(
-            captures, resource_inputs=tile_shape_report.load_resource_manifest(wrong_manifest)
+            captures,
+            resource_inputs=tile_shape_report.load_static_resource_manifest(wrong_manifest),
         )["rows"][0]
         assert wrong["promotion_eligible"] is False
         assert "missing_selected_static_isa_resource_evidence" in wrong["promotion_blockers"]
@@ -406,7 +407,7 @@ def production_controls() -> None:
             )
         )
         inline = build(
-            captures, resource_inputs=tile_shape_report.load_resource_manifest(inline_path)
+            captures, resource_inputs=tile_shape_report.load_static_resource_manifest(inline_path)
         )
         assert inline["rows"][0]["promotion_eligible"] is False
         assert inline["resource_inventory"]
@@ -486,7 +487,7 @@ def main() -> int:
 
         report = tile_shape_report.build_report(
             [cpu_path, default_path, candidate_path, kblock_path],
-            tile_shape_report.load_resource_manifest(manifest_path),
+            tile_shape_report.load_static_resource_manifest(manifest_path),
         )
         assert report["schema"] == "rns8_tile_shape_report_v3"
         assert report["candidate_count"] == 2
@@ -544,7 +545,7 @@ def main() -> int:
         write_capture(stale_path, stale_identity)
         stale_report = tile_shape_report.build_report(
             [cpu_path, default_path, stale_path],
-            tile_shape_report.load_resource_manifest(manifest_path),
+            tile_shape_report.load_static_resource_manifest(manifest_path),
         )
         stale_row = stale_report["rows"][0]
         assert stale_row["decision"] == "keep experimental"

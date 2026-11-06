@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import copy
+import tempfile
+from pathlib import Path
 
 import direct_hip_prefix_fusion_report as report
 
@@ -90,6 +92,74 @@ def export_selector_report() -> dict:
     }
 
 
+def production_controls() -> None:
+    from test_direct_hip_report_support import collect_resident_processes
+    from benchmark_schema import validate_capture
+    from test_review_reference_support import add_synthetic_full_reference
+    from diagnostic_companion import build_binding
+    import json
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        captures, paths, bindings = collect_resident_processes(
+            root,
+            "matched",
+            dict(
+                default=(report.RESIDENT_DEFAULT_KERNEL, 100),
+                candidate=(report.RESIDENT_COLPAIR_KERNEL, 80),
+            ),
+        )
+        for fixture in captures:
+            validate_capture(fixture)
+
+        def build(values, receipts=bindings):
+            return report.build_direct_hip_prefix_fusion_report(
+                values, diagnostic_bindings=receipts
+            )
+
+        row = build(captures)["comparisons"][0]
+        assert row["decision"] == "candidate_resident_win", row["blockers"]
+        assert row["speedup_vs_resident_default"] == 1.25
+        assert row["promotion_eligible"] is False
+        assert len(row["comparison"]["candidate_production_observations"]) == 2
+        for order in (list(reversed(captures)), captures[2:] + captures[:2]):
+            assert build(order)["comparisons"][0]["speedup_vs_resident_default"] == 1.25
+        copied = build(captures[:5] + [copy.deepcopy(captures[4])])["comparisons"][0]
+        assert copied["speedup_vs_resident_default"] is None
+        incomplete = dict(bindings)
+        incomplete.pop(str(paths[-1].resolve()))
+        assert build(captures, incomplete)["comparisons"][0]["speedup_vs_resident_default"] is None
+        changed = copy.deepcopy(captures)
+        for fixture in changed[-2:]:
+            fixture["seed"] += 1
+            add_synthetic_full_reference(fixture)
+        assert build(changed)["comparisons"][0]["speedup_vs_resident_default"] is None
+        changed = copy.deepcopy(captures)
+        for fixture in changed[-2:]:
+            fixture["build_manifest"]["source_digest"] = "9" * 64
+        assert build(changed)["comparisons"][0]["speedup_vs_resident_default"] is None
+
+        # Rename a baseline to "after" and a candidate to "before"; file labels
+        # cannot supply experiment arms or change strongest baseline selection.
+        renamed, receipts = [], {}
+        for i, source in enumerate(paths):
+            target = source.parent / ("before-candidate.json" if i >= 4 else "after-anchor.json")
+            target.write_bytes(source.read_bytes())
+            raw = json.loads(target.read_text())
+            raw["_path"] = str(target)
+            renamed.append(raw)
+            if i >= 2:
+                receipts[str(target.resolve())] = build_binding(
+                    target, source.parent / "instrumented.json"
+                )
+        renamed_report = build(renamed, receipts)
+        assert renamed_report["comparisons"][0]["speedup_vs_resident_default"] == 1.25
+        loaded = report.build_report(
+            [Path(raw["_path"]) for raw in renamed], diagnostic_bindings=receipts
+        )
+        assert loaded["comparisons"][0]["decision"] == "candidate_resident_win"
+
+
 def main() -> int:
     baseline = capture(
         kernel=report.ONESHOT_V1_KERNEL,
@@ -126,41 +196,14 @@ def main() -> int:
         [export_selector_report()],
     )
     summary = result["summary"]
-    assert summary["one_shot_colpair_comparisons"] == 1
-    assert summary["resident_colpair_comparisons"] == 1
-    assert summary["prefix20_export_selector_rows"] == 1
-    assert summary["candidate_one_shot_wins"] == 1
+    # Historical minimal records and private "valid" labels cannot grant credit.
+    assert summary["legacy_capture_count"] == 5
+    assert summary["candidate_one_shot_wins"] == 0
     assert summary["candidate_resident_wins"] == 0
-    assert summary["deprioritized"] == 1
-    assert summary["experimental"] == 1
-    assert summary["legacy_before_captures"] == 1
-
-    one_shot = next(
-        item for item in result["comparisons"] if item["kind"] == "prefix9_public_one_shot_colpair"
-    )
-    assert one_shot["decision"] == "candidate_one_shot_win"
-    assert one_shot["speedup_vs_legacy_v1"] == 3.0
-    assert one_shot["resident_reference_faster"] is True
-    assert "baseline_legacy_schema" in one_shot["blockers"]
-
-    resident_row = next(
-        item
-        for item in result["comparisons"]
-        if item["kind"] == "prefix9_resident_selected_prefix_colpair"
-    )
-    assert resident_row["decision"] == "deprioritize"
-    assert resident_row["speedup_vs_resident_default"] == 0.75
-
-    missing = report.build_direct_hip_prefix_fusion_report([candidate], [])
-    assert missing["summary"]["experimental"] == 1
-    assert missing["comparisons"][0]["decision"] == "keep_experimental"
-    assert "missing_legacy_v1_one_shot_baseline" in missing["comparisons"][0]["blockers"]
-
-    mismatch = copy.deepcopy(candidate)
-    mismatch["checksum_u64"] = 999
-    mismatch_report = report.build_direct_hip_prefix_fusion_report([baseline, mismatch], [])
-    assert mismatch_report["comparisons"][0]["decision"] == "keep_experimental"
-    assert "checksum_mismatch_with_v1_baseline" in mismatch_report["comparisons"][0]["blockers"]
+    assert result["comparisons"] == []
+    assert len(result["legacy_inventory"]) == 5
+    assert result["prefix20_export_selector_rows"][0]["selector_promotion_eligible"] is False
+    production_controls()
 
     print("direct-HIP prefix fusion report self-test: PASS")
     return 0

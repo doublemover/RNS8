@@ -816,3 +816,13 @@ mentions, flat counter labels and inline resource summaries remain inventory.
 Static occupancy metadata is not measured wave occupancy or dynamic launch proof.
 Resource inputs are held as one parsed snapshot and rehashed before publication;
 changed or ambiguous input files cannot produce a current report.
+
+
+Prefix-fusion review follows the same independent process/reference/companion
+policy as tile review. It never selects a baseline from a `before` filename,
+compares a different requested prefix or output contract implicitly, or awards a
+speedup to a legacy-invalid record. One-shot and resident timing boundaries stay
+separate. Legacy records and external derived export-selector rows are inventory;
+the report recomputes schema validity and shared qualification from raw captures.
+Comparisons between source builds still require a separately bound paired
+experiment, rather than ignoring source identity. No such campaign is restarted.

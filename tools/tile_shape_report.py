@@ -5,18 +5,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 from collections import defaultdict
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from report_capture_inputs import load_report_captures
 from diagnostic_companion import load_bindings
-from evidence_database_lib.isa import isa_index_from_reports, lookup_isa_resources
 from observation_cohorts import phase_median
-from report_comparison import ComparisonPolicy, ReportCohorts
-from target_qualification import EvidenceStore, file_digest
+from report_comparison import ComparisonPolicy, ReportCohorts, PHYSICAL_TILE_WORK_EXCLUSIONS
+from selected_kernel_resources import (
+    SelectedStaticResources,
+    load_static_resource_manifest,
+    selected_resource_status,
+)
 
 
 DEFAULT_OUT_DIR = Path("temp") / "tile-shape-reports"
@@ -24,26 +25,9 @@ DEFAULT_TILE_M = 128
 DEFAULT_TILE_N = 128
 TILE_POLICY = ComparisonPolicy(
     "physical_tile_and_k_block_completed_output",
-    work_exclusions=(
-        "tile_m",
-        "tile_n",
-        "k_block_size",
-        "tile_shape_variant.name",
-        "tile_shape_variant.tile_m",
-        "tile_shape_variant.tile_n",
-        "tile_shape_variant.tile_k",
-        "tile_shape_variant.k_block_policy",
-        "schedule_metadata.tile_rows",
-        "schedule_metadata.tile_cols",
-        "schedule_metadata.tile_count",
-        "export_variant.selector_key",
-    ),
+    work_exclusions=PHYSICAL_TILE_WORK_EXCLUSIONS,
     amortize_prepack_setup=True,
 )
-
-
-def _number(value: Any) -> float | None:
-    return float(value) if type(value) in (int, float) and math.isfinite(value) else None
 
 
 def _median(capture: dict[str, Any] | None, phase: str) -> float | None:
@@ -145,134 +129,24 @@ def _selected_kernel_has_tile_report_identity(capture: dict[str, Any]) -> bool:
     )
 
 
-@dataclass
-class TileResources:
-    """Own resource inputs once; capture filenames are never qualification keys."""
-
-    store: EvidenceStore = field(default_factory=EvidenceStore)
-    reports: list[tuple[Path, dict]] = field(default_factory=list)
-    inventory: list[dict] = field(default_factory=list)
-    index: dict = field(default_factory=dict)
-
-    def document(self, reference: str | dict, parent: Path) -> tuple[Path, dict]:
-        if isinstance(reference, str):
-            path = (parent / reference).resolve(strict=True)
-            reference = dict(path=str(path), sha256=file_digest(path))
-        return self.store.json(reference, parent)
-
-
-def load_resource_manifest(path: Path | None) -> TileResources:
-    resources = TileResources()
-    if path is None:
-        return resources
-    manifest_path, data = resources.document(str(path.resolve()), path.parent)
-    if isinstance(data.get("captures"), list):
-        entries = data["captures"]
-    else:
-        entries = list(data.values())
-    for entry in entries:
-        if not isinstance(entry, dict):
-            raise ValueError("tile resource entries must be objects")
-        if isinstance(entry.get("resource_summary"), dict):
-            resources.inventory.append(dict(source="unbound_inline_inventory", record=entry))
-        for key in ("gpu_counter_report", "counter_report", "isa_summary", "resource_report"):
-            reference = entry.get(key)
-            if reference is None:
-                continue
-            report_path, report = resources.document(reference, manifest_path.parent)
-            resources.inventory.append(
-                dict(
-                    path=str(report_path),
-                    sha256=resources.store.hashes[report_path],
-                    resource_summary=report.get("resource_summary"),
-                )
-            )
-            if isinstance(report.get("symbols"), list):
-                resources.reports.append((report_path, report))
-            # Counter reports may point at original immutable ISA inputs. Their
-            # flattened resource summaries and precomputed association verdicts
-            # never substitute for rechecking the selected-symbol binding.
-            for summary in report.get("isa_summaries") or []:
-                if not isinstance(summary, dict):
-                    raise ValueError("ISA input summaries must be objects")
-                isa_path, isa_report = resources.document(
-                    dict(path=summary.get("path"), sha256=summary.get("sha256")),
-                    report_path.parent,
-                )
-                resources.reports.append((isa_path, isa_report))
-    resources.index = isa_index_from_reports(resources.reports)
-    return resources
-
-
-def _resource_for_capture(capture: dict, resources: TileResources) -> dict:
-    association = lookup_isa_resources(
-        resources.index, _backend(capture), _target_id(capture), capture
-    )
-    selected = association["isa_resource_reports"]
-    fields = {
-        "vgpr": "isa_vgpr_count",
-        "sgpr": "isa_sgpr_count",
-        "lds_bytes": "isa_lds_bytes",
-        "scratch_bytes": "isa_scratch_bytes",
-        "occupancy": "isa_occupancy",
-    }
-    summary = {}
-    for destination, source in fields.items():
-        values = [_number(report.get(source)) for report in selected]
-        # One missing symbol cannot borrow another symbol's resource metadata.
-        if values and all(value is not None and value >= 0 for value in values):
-            summary[destination] = min(values) if destination == "occupancy" else max(values)
-        else:
-            summary[destination] = None
-    return dict(
-        resource_summary=summary,
-        selected_isa=association,
-        evidence_status=dict(
-            isa_resource_status="selected_static_binding"
-            if association["isa_association"]["qualified"]
-            else "unqualified",
-            profiler_counter_status="not_used_as_static_resource_proof",
-            occupancy_scope="static_reported_value_not_measured_wave_occupancy",
-        ),
-    )
-
-
-def _resource_status(resource: dict) -> dict:
-    summary = resource.get("resource_summary") or {}
-    selected = resource.get("selected_isa") or {}
-    association = selected.get("isa_association") or {}
-    present = association.get("qualified") is True
-    registers = all(
-        _number(summary.get(key)) is not None and summary[key] > 0 for key in ("vgpr", "sgpr")
-    )
-    lds = _number(summary.get("lds_bytes")) is not None and summary["lds_bytes"] >= 0
-    occupancy = _number(summary.get("occupancy")) is not None and summary["occupancy"] > 0
-    return dict(
-        resource_summary=summary,
-        evidence_status=resource.get("evidence_status", {}),
-        selected_isa=selected,
-        resource_evidence_present=present,
-        register_pressure_present=registers,
-        lds_signal_present=lds,
-        occupancy_present=occupancy,
-        complete_for_promotion=present and registers and lds and occupancy,
-    )
-
-
 def row_for_candidate(
-    candidate: dict, direct: dict | None, resources: TileResources, cohorts: ReportCohorts
+    candidate: dict, direct: dict | None, resources: SelectedStaticResources, cohorts: ReportCohorts
 ) -> dict:
     variant = _tile_variant(candidate)
     raw_observations = cohorts.raw_observations(candidate)
     resource_observations = [
         dict(
             capture_path=raw.get("_path"),
-            status=_resource_status(_resource_for_capture(raw, resources)),
+            status=selected_resource_status(
+                raw, resources, backend=_backend(raw), target=_target_id(raw)
+            ),
         )
         for raw in raw_observations
     ]
     resource_status = (
-        dict(resource_observations[0]["status"]) if resource_observations else _resource_status({})
+        dict(resource_observations[0]["status"])
+        if resource_observations
+        else dict(resource_summary={}, evidence_status={})
     )
     comparison = cohorts.compare(candidate, direct, TILE_POLICY)
     numerical = cohorts.numerical(candidate)
@@ -378,7 +252,7 @@ def row_for_candidate(
 
 def build_report(
     paths: list[Path],
-    resource_manifest: TileResources | None = None,
+    resource_manifest: SelectedStaticResources | None = None,
     *,
     diagnostic_bindings: dict | None = None,
 ) -> dict:
@@ -389,11 +263,11 @@ def build_report(
 
 def build_report_from_captures(
     captures: list[dict],
-    resource_manifest: TileResources | None = None,
+    resource_manifest: SelectedStaticResources | None = None,
     *,
     diagnostic_bindings: dict | None = None,
 ) -> dict:
-    resources = resource_manifest or TileResources()
+    resources = resource_manifest or SelectedStaticResources()
     cohorts = ReportCohorts(captures, diagnostic_bindings)
     candidates = [view for view in cohorts.observations if _is_tile_candidate(view)]
     anchors = [view for view in cohorts.observations if _is_default_tile_anchor(view)]
@@ -492,7 +366,7 @@ def main() -> int:
     args = parser.parse_args()
     report = build_report(
         args.captures,
-        load_resource_manifest(args.resource_manifest),
+        load_static_resource_manifest(args.resource_manifest),
         diagnostic_bindings=load_bindings(args.diagnostic_binding),
     )
     if args.json:

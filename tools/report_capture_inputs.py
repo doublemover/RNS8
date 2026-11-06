@@ -49,6 +49,40 @@ def load_report_captures(paths: list[Path]) -> list[dict[str, Any]]:
     return captures
 
 
+def load_report_inventory(paths: list[Path]) -> list[dict[str, Any]]:
+    """Read legacy records for description; partition before any qualification."""
+    captures = []
+    for path, from_directory in expand_report_inputs(paths):
+        try:
+            capture = load_capture(path)
+        except BenchmarkSchemaError:
+            if from_directory:
+                continue
+            raise
+        if from_directory and not isinstance(capture.get("benchmark"), str):
+            continue
+        capture = {key: value for key, value in capture.items() if not key.startswith("_")}
+        captures.append({**capture, "_path": str(path)})
+    return captures
+
+
+def partition_report_inventory(captures: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Recompute schema status; caller-supplied private verdicts grant no credit."""
+    valid, legacy = [], []
+    for raw in captures:
+        capture = {key: value for key, value in raw.items() if not key.startswith("_")}
+        path = Path(str(raw.get("_path") or "unbound-capture.json"))
+        try:
+            validate_capture(capture, path)
+        except BenchmarkSchemaError as error:
+            legacy.append(
+                dict(capture_path=str(path), schema_errors=str(error).splitlines(), record=capture)
+            )
+        else:
+            valid.append({**capture, "_path": str(path), "_schema_status": "valid"})
+    return valid, legacy
+
+
 def load_report_capture_paths(paths: list[Path]) -> list[Path]:
     capture_paths: list[Path] = []
     for path, from_directory in expand_report_inputs(paths):
