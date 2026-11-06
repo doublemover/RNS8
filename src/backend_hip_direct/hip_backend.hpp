@@ -594,6 +594,9 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
 // A failed copy retains that owner in the existing device-drain retry queue.
 rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<void> destination,
                                                  const void* source, std::size_t bytes);
+// Source aliases immutable shared bytes until the synchronous upload completes.
+rns8_status hip_direct_copy_owned_host_to_device(int device_id, void* destination,
+                                                 std::shared_ptr<void> source, std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src,
                                            std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device_labeled(int device_id, const char* timing_label,
@@ -913,12 +916,14 @@ rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_device(
 rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_matrix(
     int device_id, const void* device_a_native, const rns8_matrix* B, rns8_matrix* C, int64_t m,
     int64_t n, int64_t k, int64_t lda, uint16_t modulus, uint64_t source_version);
-rns8_status hip_direct_export_i64_device(int device_id, const void* device_residues,
-                                         void** export_buffer, std::size_t* export_bytes,
-                                         void** status_buffer, std::size_t* status_bytes,
-                                         int64_t rows, int64_t cols, uint32_t prefix,
-                                         uint64_t bound, int64_t* dst, int64_t ld,
-                                         bool allow_pinned_staging = true);
+// A retained destination belongs to an owner that quarantines it through any
+// uncertain completion; borrowed caller storage instead requires owned staging.
+enum class HostExportDestination { borrowed, retained_owner };
+rns8_status hip_direct_export_i64_device(
+    int device_id, const void* device_residues, void** export_buffer, std::size_t* export_bytes,
+    void** status_buffer, std::size_t* status_bytes, int64_t rows, int64_t cols, uint32_t prefix,
+    uint64_t bound, int64_t* dst, int64_t ld,
+    HostExportDestination destination_kind = HostExportDestination::borrowed);
 rns8_status hip_direct_export_i64_grouped_matrices_to_device(
     rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
     void* device_dst, void* device_status, int64_t rows, int64_t cols, uint64_t bound);
@@ -928,12 +933,11 @@ rns8_status hip_direct_export_i64_tiled_device(
     const void* device_entries, const void* device_bounds, const void* zero_a_rows,
     const void* zero_b_cols, uint64_t entry_count, uint64_t max_tile_elements,
     bool all_zero_output_tiles, int64_t* dst, int64_t ld);
-rns8_status hip_direct_export_u64_device(int device_id, const void* device_residues,
-                                         void** export_buffer, std::size_t* export_bytes,
-                                         void** status_buffer, std::size_t* status_bytes,
-                                         int64_t rows, int64_t cols, uint32_t prefix,
-                                         uint64_t bound, uint64_t* dst, int64_t ld,
-                                         bool allow_pinned_staging = true);
+rns8_status hip_direct_export_u64_device(
+    int device_id, const void* device_residues, void** export_buffer, std::size_t* export_bytes,
+    void** status_buffer, std::size_t* status_bytes, int64_t rows, int64_t cols, uint32_t prefix,
+    uint64_t bound, uint64_t* dst, int64_t ld,
+    HostExportDestination destination_kind = HostExportDestination::borrowed);
 rns8_status hip_direct_export_u64_grouped_matrices_to_device(
     rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
     void* device_dst, void* device_status, int64_t rows, int64_t cols, uint64_t bound);

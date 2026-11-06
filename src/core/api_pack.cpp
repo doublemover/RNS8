@@ -384,12 +384,12 @@ rns8_status rns8::detail::api::import_exact_wide_limbs(rns8_context& ctx, rns8_m
     if (!rns8::detail::exact_range_fits(expected, bound,
                                         rns8::detail::modulus_product(matrix.prefix)))
       return RNS8_RANGE_ERROR;
-    // Arbitrary-width imports are explicitly host-converted. Keep that staging
-    // local to the call instead of retaining a full mirror on a device matrix.
-    std::vector<int8_t> staging;
+    // Arbitrary-width imports are host-converted. The private staging survives
+    // an uncertain upload through its retry record, not a full matrix mirror.
+    std::shared_ptr<std::vector<int8_t>> staging;
     if (matrix.hip_residues)
-      staging.resize(matrix.hip_residue_bytes);
-    auto* destination = matrix.hip_residues ? staging.data() : matrix.residues.data();
+      staging = std::make_shared<std::vector<int8_t>>(matrix.hip_residue_bytes);
+    auto* destination = matrix.hip_residues ? staging->data() : matrix.residues.data();
     MatrixWriteGuard write(matrix, ctx);
     for (uint32_t p = 0; p < matrix.prefix; ++p)
       for (std::size_t cell = 0; cell < cells; ++cell)
@@ -397,8 +397,9 @@ rns8_status rns8::detail::api::import_exact_wide_limbs(rns8_context& ctx, rns8_m
             rns8::detail::centered_residue(values[cell], rns8::detail::kDefaultModuli[p]);
     if (matrix.hip_residues) {
       const auto status = run_timed_api_status("pack_h2d", [&]() {
-        return rns8::detail::hip_direct_copy_host_to_device(ctx.device_id, matrix.hip_residues,
-                                                            destination, matrix.hip_residue_bytes);
+        return rns8::detail::hip_direct_copy_owned_host_to_device(
+            ctx.device_id, matrix.hip_residues, std::shared_ptr<void>(staging, destination),
+            matrix.hip_residue_bytes);
       });
       if (status != RNS8_SUCCESS)
         return status;

@@ -276,16 +276,19 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan, const void* a,
         void* export_buffer = pointer(stream_export);
         void* status_buffer = pointer(stream_status);
         std::size_t export_bytes = r.bytes[stream_export], status_bytes = r.bytes[stream_status];
+        // host_c is budgeted by this plan and retained while quarantined.
+        // It needs no second pinned/pageable allocation inside the exporter.
         if (signed_values)
-          status = hip_direct_export_i64_device(
-              plan->ctx->device_id, current, &export_buffer, &export_bytes, &status_buffer,
-              &status_bytes, step.rows, step.cols, d.prefix, plan->bound,
-              reinterpret_cast<int64_t*>(plan->host_c.data()), step.cols, false);
-        else
-          status = hip_direct_export_u64_device(plan->ctx->device_id, current, &export_buffer,
+          status = hip_direct_export_i64_device(plan->ctx->device_id, current, &export_buffer,
                                                 &export_bytes, &status_buffer, &status_bytes,
                                                 step.rows, step.cols, d.prefix, plan->bound,
-                                                plan->host_c.data(), step.cols, false);
+                                                reinterpret_cast<int64_t*>(plan->host_c.data()),
+                                                step.cols, HostExportDestination::retained_owner);
+        else
+          status = hip_direct_export_u64_device(
+              plan->ctx->device_id, current, &export_buffer, &export_bytes, &status_buffer,
+              &status_bytes, step.rows, step.cols, d.prefix, plan->bound, plan->host_c.data(),
+              step.cols, HostExportDestination::retained_owner);
         if (status != RNS8_SUCCESS)
           return fail(status);
         result.output_started = 1;

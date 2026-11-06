@@ -153,25 +153,50 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
 #endif
 }
 
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+namespace {
+template <typename Transfer>
+rns8_status copy_owned_host_payload(int device_id, std::shared_ptr<void> payload, std::size_t bytes,
+                                    const char* label, Transfer&& transfer) {
+  const auto selected = set_hip_device(device_id);
+  if (selected != RNS8_SUCCESS)
+    return selected;
+  HostTransferPayload retained(hip_direct_defer_buffer_cleanup);
+  const auto admitted = retained.begin(device_id, std::move(payload), bytes);
+  if (admitted != RNS8_SUCCESS)
+    return admitted;
+  const auto copied = timed_hip_operation(label, [&]() { return transfer(retained.data()); });
+  if (copied != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  retained.complete();
+  return RNS8_SUCCESS;
+}
+} // namespace
+#endif
+
 rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<void> destination,
                                                  const void* source, std::size_t bytes) {
   if (!destination || !source || !bytes)
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  const auto selected = set_hip_device(device_id);
-  if (selected != RNS8_SUCCESS)
-    return selected;
-  HostTransferPayload retained(hip_direct_defer_buffer_cleanup);
-  const auto admitted = retained.begin(device_id, std::move(destination), bytes);
-  if (admitted != RNS8_SUCCESS)
-    return admitted;
-  const auto copied = timed_hip_operation("residue_d2h_sync", [&]() {
-    return tracked_sync_copy(retained.data(), source, bytes, hipMemcpyDeviceToHost);
-  });
-  if (copied != hipSuccess)
-    return RNS8_BACKEND_FAILURE;
-  retained.complete();
-  return RNS8_SUCCESS;
+  return copy_owned_host_payload(
+      device_id, std::move(destination), bytes, "residue_d2h_sync",
+      [&](void* host) { return tracked_sync_copy(host, source, bytes, hipMemcpyDeviceToHost); });
+#else
+  (void)device_id;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_copy_owned_host_to_device(int device_id, void* destination,
+                                                 std::shared_ptr<void> source, std::size_t bytes) {
+  if (!destination || !source || !bytes)
+    return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  return copy_owned_host_payload(
+      device_id, std::move(source), bytes, "residue_h2d_sync", [&](void* host) {
+        return tracked_sync_copy(destination, host, bytes, hipMemcpyHostToDevice);
+      });
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;

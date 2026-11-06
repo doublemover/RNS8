@@ -191,19 +191,31 @@ void record_export_host_staging_copy_sample(const std::chrono::steady_clock::tim
   }
 }
 
-hipError_t copy_compact_matrix_device_to_host(int device_id, const char* label, void* dst,
-                                              int64_t dst_ld, const void* src, int64_t rows,
-                                              int64_t cols, std::size_t cell_bytes,
-                                              bool default_padded_staging = true,
-                                              bool allow_pinned_staging = true) {
+hipError_t copy_compact_matrix_device_to_host(
+    int device_id, const char* label, void* dst, int64_t dst_ld, const void* src, int64_t rows,
+    int64_t cols, std::size_t cell_bytes, bool default_padded_staging = true,
+    bool allow_pinned_staging = true,
+    HostExportDestination destination_kind = HostExportDestination::borrowed) {
   AddressDomain destination;
   if (!dst || !src || rows <= 0 || cols <= 0 || dst_ld < cols ||
       !checked_output_bytes(rows, cols, cell_bytes) ||
       !checked_host_plane_address(rows, cols, dst_ld, 1, cell_bytes, destination)) {
     return hipErrorInvalidValue;
   }
+  if (destination_kind != HostExportDestination::borrowed &&
+      destination_kind != HostExportDestination::retained_owner)
+    return hipErrorInvalidValue;
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
   const std::size_t compact_bytes = static_cast<std::size_t>(rows) * compact_row_bytes;
+  if (destination_kind == HostExportDestination::retained_owner) {
+    return timed_hip_operation(label, [&]() {
+      return rows == 1 || dst_ld == cols
+                 ? tracked_sync_copy(dst, src, compact_bytes, hipMemcpyDeviceToHost)
+                 : tracked_sync_copy_2d(dst, static_cast<size_t>(dst_ld) * cell_bytes, src,
+                                        compact_row_bytes, compact_row_bytes,
+                                        static_cast<size_t>(rows), hipMemcpyDeviceToHost);
+    });
+  }
   if (allow_pinned_staging &&
       pinned_export_staging_enabled(compact_bytes, dst_ld != cols, default_padded_staging)) {
     void* pinned = ensure_pinned_export_staging(device_id, compact_bytes);

@@ -48,7 +48,7 @@ private:
   size_t capacity_ = 0;
 };
 
-// A DMA destination already has shared storage. Reserve its retry node before
+// A DMA payload already has shared storage. Reserve its retry node before
 // submission; uncertain return/exception transfers that owner without copying.
 class HostTransferPayload {
 public:

@@ -391,6 +391,39 @@ TEST_CASE("large owned readbacks retain their actual destination through failure
   CHECK(Ops::deferred_count == 0);
 }
 
+TEST_CASE("private converted upload sources survive the original call scope",
+          "[api][lifetime][import]") {
+  using Ops = MockDeviceBufferOperations;
+  Ops::deferred_count = 0;
+  std::weak_ptr<std::vector<int8_t>> retained;
+  {
+    rns8::detail::HostTransferPayload transfer(Ops::defer);
+    auto converted = std::make_shared<std::vector<int8_t>>(4096, int8_t(-17));
+    retained = converted;
+    REQUIRE(transfer.begin(3, std::shared_ptr<void>(converted, converted->data()),
+                           converted->size()) == RNS8_SUCCESS);
+    converted.reset();
+    // An uncertain upload returns without successful observation.
+  }
+  REQUIRE(Ops::deferred_count == 1);
+  auto* record = Ops::deferred[0];
+  {
+    const auto converted = retained.lock();
+    REQUIRE(converted);
+    REQUIRE(record->pointer == converted->data());
+    int64_t sum = 0;
+    const auto* bytes = static_cast<const int8_t*>(record->pointer);
+    for (size_t i = 0; i < converted->size(); ++i)
+      sum += bytes[i]; // Model the DMA's remaining source reads after stack exit.
+    CHECK(sum == -69632);
+    CHECK(record->device_id == 3);
+  }
+  delete record; // A later completion observation can release the source.
+  Ops::deferred[0] = nullptr;
+  Ops::deferred_count = 0;
+  CHECK(retained.expired());
+}
+
 TEST_CASE("pageable readback cache reuses complete storage and isolates failed destinations",
           "[api][lifetime][export]") {
   using Ops = MockDeviceBufferOperations;

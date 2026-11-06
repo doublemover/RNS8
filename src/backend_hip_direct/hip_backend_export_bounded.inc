@@ -3,7 +3,7 @@ rns8_status hip_direct_export_i64_device(int device_id, const void* device_resid
                                          void** status_buffer, std::size_t* status_bytes,
                                          int64_t rows, int64_t cols, uint32_t prefix,
                                          uint64_t bound, int64_t* dst, int64_t ld,
-                                         bool allow_pinned_staging) {
+                                         HostExportDestination destination_kind) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes ||
       !dst || ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 ||
@@ -54,8 +54,9 @@ rns8_status hip_direct_export_i64_device(int device_id, const void* device_resid
   if (host_status != static_cast<int>(RNS8_SUCCESS)) {
     return static_cast<rns8_status>(host_status);
   }
-  err = copy_compact_matrix_device_to_host(device_id, "crt_export_d2h", dst, ld, *export_buffer,
-                                           rows, cols, sizeof(int64_t), true, allow_pinned_staging);
+  err =
+      copy_compact_matrix_device_to_host(device_id, "crt_export_d2h", dst, ld, *export_buffer, rows,
+                                         cols, sizeof(int64_t), true, true, destination_kind);
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -70,7 +71,7 @@ rns8_status hip_direct_export_i64_device(int device_id, const void* device_resid
   (void)bound;
   (void)dst;
   (void)ld;
-  (void)allow_pinned_staging;
+  (void)destination_kind;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
@@ -253,7 +254,7 @@ rns8_status hip_direct_export_u64_device(int device_id, const void* device_resid
                                          void** status_buffer, std::size_t* status_bytes,
                                          int64_t rows, int64_t cols, uint32_t prefix,
                                          uint64_t bound, uint64_t* dst, int64_t ld,
-                                         bool allow_pinned_staging) {
+                                         HostExportDestination destination_kind) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residues || !export_buffer || !export_bytes || !dst || ld < cols ||
       !checked_matrix_elements_i32(rows, cols) || prefix == 0 ||
@@ -309,7 +310,7 @@ rns8_status hip_direct_export_u64_device(int device_id, const void* device_resid
   }
   err =
       copy_compact_matrix_device_to_host(device_id, "crt_export_d2h", dst, ld, *export_buffer, rows,
-                                         cols, sizeof(uint64_t), true, allow_pinned_staging);
+                                         cols, sizeof(uint64_t), true, true, destination_kind);
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -324,7 +325,7 @@ rns8_status hip_direct_export_u64_device(int device_id, const void* device_resid
   (void)bound;
   (void)dst;
   (void)ld;
-  (void)allow_pinned_staging;
+  (void)destination_kind;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

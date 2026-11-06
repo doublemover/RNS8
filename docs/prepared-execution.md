@@ -517,6 +517,17 @@ cache reuse. `RNS8_HIP_PINNED_EXPORT_STAGING=0` still disables pinned staging;
 the retained pageable fallback now supplies lifetime protection in that mode.
 Host scatter timing is recorded for either storage choice when timing is enabled.
 These source controls have no execution or performance qualification yet.
+Serial panel streaming instead passes an explicit retained-owner destination:
+its existing `host_c` panel is already budgeted and quarantined with the plan.
+That route needs no nested staging allocation or extra host scatter. Destination
+custody is a typed internal contract, independent of the pinned-staging choice.
+
+Host-converted arbitrary-width limb imports attach their private residue staging
+to the same typed retry mechanism before H2D. Failure retains that exact source
+allocation through the later drain; successful synchronous completion releases
+it. Upload and readback adapters share admission/retirement while preserving
+their actual direction and phase label. No full host mirror is added to the
+resident matrix. The late-read source control is authored and unexecuted.
 
 ### Cleanup and retry ownership
 

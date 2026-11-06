@@ -1,3 +1,70 @@
+TEST_CASE("HIP converted limb uploads match full exact padded signed and unsigned values",
+          "[hip][exact-wide][import][lifetime]") {
+  if (!hip_available())
+    SKIP("no HIP device for converted limb upload");
+  using boost::multiprecision::cpp_int;
+  auto* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  auto* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (bool sign : {false, true}) {
+    const auto semantics = sign ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
+    auto cpu_desc = sign ? exact_signed_desc(2, 2, 1, RNS8_BACKEND_CPU_REFERENCE)
+                         : exact_unsigned_desc(2, 2, 1, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = sign ? exact_signed_desc(2, 2, 1, RNS8_BACKEND_HIP_DIRECT)
+                         : exact_unsigned_desc(2, 2, 1, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan *cpu_plan = nullptr, *hip_plan = nullptr;
+    rns8_matrix *cpu_matrix = nullptr, *hip_matrix = nullptr;
+    REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+    auto desc = matrix_desc(2, 2, semantics, RNS8_BOUND_NONE);
+    REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    for (unsigned round = 0; round < 3; ++round) {
+      std::vector<uint64_t> source(12, 0xabab); // Padded LD3, two input limbs.
+      std::array<cpp_int, 4> values;
+      for (unsigned cell = 0; cell < 4; ++cell) {
+        cpp_int value = (cpp_int(1) << (80 + round)) + cell * 37 + round;
+        if (sign && cell % 2)
+          value = -value;
+        values[cell] = value;
+        const cpp_int bits = value < 0 ? value + (cpp_int(1) << 128) : value;
+        const auto first = ((cell / 2) * 3 + cell % 2) * 2;
+        source[first] = static_cast<uint64_t>(bits & ((cpp_int(1) << 64) - 1));
+        source[first + 1] = static_cast<uint64_t>(bits >> 64);
+      }
+      for (auto pair : {std::pair{cpu, cpu_matrix}, std::pair{hip, hip_matrix}})
+        REQUIRE(rns8::detail::api::import_exact_wide_limbs(*pair.first, *pair.second, source.data(),
+                                                           3, 2, sign, round + 1) == RNS8_SUCCESS);
+      std::vector<uint64_t> expected(18, 0x7777), actual(18, 0x7777);
+      const auto exported = [&](rns8_context* ctx, rns8_plan* plan, rns8_matrix* matrix,
+                                std::vector<uint64_t>& output) {
+        return sign ? rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, output.data(), 3, 3)
+                    : rns8_export_exact_wide_unsigned_limbs(ctx, plan, matrix, output.data(), 3, 3);
+      };
+      REQUIRE(exported(cpu, cpu_plan, cpu_matrix, expected) == RNS8_SUCCESS);
+      REQUIRE(exported(hip, hip_plan, hip_matrix, actual) == RNS8_SUCCESS);
+      CHECK(actual == expected);
+      for (unsigned cell = 0; cell < 4; ++cell) {
+        const auto first = ((cell / 2) * 3 + cell % 2) * 3;
+        cpp_int value = actual[first + 2];
+        value = (value << 64) + actual[first + 1];
+        value = (value << 64) + actual[first];
+        if (sign && (actual[first + 2] >> 63))
+          value -= cpp_int(1) << 192;
+        CHECK(value == values[cell]);
+      }
+      for (unsigned row = 0; row < 2; ++row)
+        for (unsigned limb = 0; limb < 3; ++limb)
+          CHECK(actual[(row * 3 + 2) * 3 + limb] == 0x7777);
+    }
+    REQUIRE(rns8_destroy_matrix(hip_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_matrix(cpu_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(hip_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(cpu_plan) == RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(hip) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(cpu) == RNS8_SUCCESS);
+}
+
 TEST_CASE("direct HIP exact-wide large padded export staging preserves ABI and elides status") {
   if (!hip_available()) {
     SKIP("no HIP device available for exact-wide large padded export staging smoke");
@@ -57,7 +124,8 @@ TEST_CASE("direct HIP exact-wide large padded export staging preserves ABI and e
 
     CHECK(has_timing_label(export_events, "exact_wide_export_kernel"));
     CHECK(has_timing_label(export_events, "exact_wide_export_d2h"));
-    CHECK_FALSE(has_timing_label(export_events, "export_host_staging_copy"));
+    // Disabling pinning still retains a pageable destination before publishing.
+    CHECK(has_timing_label(export_events, "export_host_staging_copy"));
     CHECK_FALSE(has_timing_label(export_events, "exact_wide_export_status_memset"));
     CHECK_FALSE(has_timing_label(export_events, "exact_wide_export_status_d2h"));
     CHECK(hip_limbs == cpu_limbs);
