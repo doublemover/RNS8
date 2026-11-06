@@ -155,6 +155,15 @@ bounded job runner. See the [process transport contract](../docs/distributed-pro
 for build flags, arena leases, unknown opaque headroom and the authored runner.
 Native Windows rejects RCCL/rocSHMEM enablement; source checks against upstream
 headers are not installed-library or native Linux GPU qualification.
+## Optional scalar proofs
+
+The optional [scalar arithmetic proof pilot](../docs/scalar-arithmetic-proofs.md)
+pins CBMC 6.8.0 at `cdee49cb1a32c6d6703cebf6ae67161977264ad4`. It is never
+required by normal builds, installed consumers or runtime certificate checking.
+Its real C++17 header/frontend capability remains unqualified; ordinary replay
+uses the existing selected C++17 compiler and Boost dependency. No verifier
+installation or acquisition is performed by the default planning command.
+
 ## Optional Python coverage tooling
 
 The isolated developer-tool bootstrap also installs hash-locked Coverage.py

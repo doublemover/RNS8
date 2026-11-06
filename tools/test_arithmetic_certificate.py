@@ -41,6 +41,7 @@ def main() -> int:
         proof = verify(witness)
         assert "initial_instruction_accumulator_out_of_range" in proof["proof_failures"]
         assert proof["verdicts"]["algebraic_value_equality"] == "proven"
+        assert proof["verdicts"]["fixed_width_implementation"] == "not_run"
         assert proof["verdicts"]["finite_exact_recoverability"] != "proven"
         valid_prior = -(1 << 31) if sign == 1 else (1 << 31) - 1
         valid = replace(witness, prior_min=valid_prior, prior_max=valid_prior)

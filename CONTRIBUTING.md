@@ -192,6 +192,15 @@ See [documentation maintenance](docs/documentation-maintenance.md) for scope,
 command evidence and migration rules. Documentation-only changes do not need an
 unrelated CMake build or GPU campaign.
 
+## Optional scalar proofs
+
+The optional [scalar arithmetic proof pilot](docs/scalar-arithmetic-proofs.md)
+keeps source-bound CBMC properties and independent native counterexample replay
+separate from ordinary correctness and sanitizer tests. Its contract controls
+are registered as `scalar_proof_contract_self_test`; they do not run a solver.
+Real proof acquisition requires explicit `--execute` and compatible selected
+tools. The current source workflow has not been executed.
+
 ## Sanitizers
 
 The native Linux Clang CPU hardening preset uses:

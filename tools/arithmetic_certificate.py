@@ -292,6 +292,7 @@ def _result(
             "floating_rewrite_equivalence": "unsupported",
             "finite_exact_recoverability": "proven" if not failures else "unknown",
             "physical_layout_correctness": "not_run",
+            "fixed_width_implementation": "not_run",
             "target_execution": "not_run",
         },
         "verdict_scope": "declared-integer-model-and-bound-input-contract",
