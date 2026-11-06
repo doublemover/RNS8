@@ -75,6 +75,22 @@ the session. Source/interpreter/fixture hashes and compact case verdicts remain
 in ignored output. Reaching a case limit reports bounded completion, not full
 mutation coverage. No GPU or performance credit follows from this result.
 
+`tools/fuzz_shrink.py` provides deterministic semantic minimization to an
+explicit replay adapter. It reproduces the original failure first, then removes
+operation bits, matching logical matrix/K coordinates and value intervals before
+reducing individual value alphabets. Every retained candidate is wire-valid,
+independently range-admitted and reproduces the same bounded failure signature.
+Changed failure categories, unsupported/rejected cases and adapter exceptions
+cannot become reductions. Semantic domain, prefix, modulus and padding stay
+fixed. The original and minimized bytes can be reproduced with the existing
+codec; the summary retains their hashes and every actual callback verdict.
+Replay count and wall deadline are bounded; the callback must separately bound
+its own native process. Exhaustion retains the best reproducer and does not
+claim minimality. A completed pass is a local fixed point, not a global minimum.
+This component launches nothing and does not attest native execution; wiring
+and qualifying the artifact-bound explicit-backend replay adapter remain open.
+Authored minimizer controls use synthetic callbacks only and remain unexecuted.
+
 Implementation is in progress under #101. These new controls and harness have
 not run in the deferred validation batch. Production-library instrumentation
 inspection, bounded discovery/replay CI, structured failure reports/shrinking,
