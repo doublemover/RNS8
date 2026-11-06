@@ -793,3 +793,26 @@ member's production companion. It aggregates setup-inclusive observations per
 process and applies the shared spread/run-count gates; duplicated records cannot
 supply independent runs. Unqualified rows retain observed ratios for diagnosis
 while classified speedups and break-even conclusions remain unavailable.
+
+
+Tile and K-block reports use complete independent process cohorts, including
+hooks-disabled production timings and a validated diagnostic companion for each
+GPU process. Default-tile comparisons preserve input seed/profile, exact range
+and proof contracts, complete CPU output references, source/build identity and
+observed native device identity. Only physical tile/grid and derived selector
+fields are excluded from the work comparison. Per-tile bound proofs remain part
+of that contract. Setup is charged from each process's own measured setup and
+repeat count; speedups require the shared observed-noise margin.
+
+`tools/tile_shape_report.py --diagnostic-binding receipt.json` accepts repeatable
+companion receipts. Its `--resource-manifest` accepts ISA paths or content-bound
+`{"path": "selected-isa.json", "sha256": "<64 lowercase hex characters>"}`
+references in capture entries. Capture filenames are inventory labels; they do
+not establish a resource association. The report rechecks artifact, code object,
+build, target, selected symbols and physical tile/K-block configuration for every
+process. It requires both register counts, LDS allocation bytes (zero is valid)
+and positive static occupancy metadata for local promotion. ISA instruction
+mentions, flat counter labels and inline resource summaries remain inventory.
+Static occupancy metadata is not measured wave occupancy or dynamic launch proof.
+Resource inputs are held as one parsed snapshot and rehashed before publication;
+changed or ambiguous input files cannot produce a current report.

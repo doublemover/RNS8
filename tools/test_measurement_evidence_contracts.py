@@ -159,6 +159,33 @@ class StaticAssociation(unittest.TestCase):
                         result["isa_association"]["reasons"],
                     )
 
+    def test_physical_variant_binding_and_output_paths_are_distinct(self):
+        capture, _ = self.fixture()
+        capture.update(tile_m=64, tile_n=64, k_block_size=65536)
+        report = synthetic_static_isa_report(capture, {"vgpr_count": 40})
+        with tempfile.TemporaryDirectory() as directory:
+            index = self.load(directory, [report])
+            self.assertTrue(
+                lookup_isa_resources(index, "ck", "gfx1100", capture)["isa_association"][
+                    "qualified"
+                ]
+            )
+            first_path = gpu_isa_report.write_report(report, Path(directory))
+            for key in ("tile_m", "tile_n", "k_block_size"):
+                changed = deepcopy(capture)
+                changed[key] *= 2
+                self.assertFalse(
+                    lookup_isa_resources(index, "ck", "gfx1100", changed)["isa_association"][
+                        "qualified"
+                    ]
+                )
+            changed = deepcopy(capture)
+            changed["tile_m"] = 128
+            second = synthetic_static_isa_report(changed, {"vgpr_count": 40})
+            second_path = gpu_isa_report.write_report(second, Path(directory))
+            self.assertNotEqual(first_path, second_path)
+            self.assertEqual(json.loads(first_path.read_text()), report)
+
     def test_selected_symbol_records_are_typed_and_inventory_is_not_selected(self):
         capture, report = self.fixture()
         report["symbols"].extend(

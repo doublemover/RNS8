@@ -133,6 +133,7 @@ def synthetic_static_isa_report(capture: dict, counts: dict) -> dict:
     """Authored static association only; never evidence from a real code object."""
     import hashlib
     import json
+    from evidence_database_lib.isa import physical_kernel_configuration
 
     if "artifact_capture" not in capture or "build_manifest" not in capture:
         synthetic_identity(capture)
@@ -161,6 +162,7 @@ def synthetic_static_isa_report(capture: dict, counts: dict) -> dict:
             ).hexdigest(),
             "target": capture["device"]["gcn_arch"],
             "selected_kernel": capture["selected_kernel"],
+            "physical_kernel_configuration": physical_kernel_configuration(capture),
             "symbols": ["synthetic_selected_symbol"],
             "selection_evidence": "explicit_static_symbol_mapping",
             "artifact_membership_verified": True,

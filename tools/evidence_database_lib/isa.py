@@ -188,6 +188,17 @@ def _sha(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
+def physical_kernel_configuration(capture: dict[str, Any]) -> dict[str, Any] | None:
+    if not any(key in capture for key in ("tile_m", "tile_n", "k_block_size")):
+        return None
+    variant = capture.get("tile_shape_variant")
+    variant = variant if isinstance(variant, dict) else {}
+    return {
+        **{key: capture.get(key) for key in ("tile_m", "tile_n", "k_block_size")},
+        "k_block_policy": variant.get("k_block_policy", "auto"),
+    }
+
+
 def _unqualified_resources(inventory: dict[str, Any], reason: str) -> dict[str, Any]:
     return {
         **aggregate_isa_resources([]),
@@ -240,6 +251,8 @@ def lookup_isa_resources(
             or normalized_target(binding.get("target")) != concrete
             or not (capture or {}).get("selected_kernel")
             or binding.get("selected_kernel") != (capture or {}).get("selected_kernel")
+            or binding.get("physical_kernel_configuration")
+            != physical_kernel_configuration(capture or {})
         ):
             reasons.add("artifact_build_target_or_kernel_binding_mismatch")
             continue

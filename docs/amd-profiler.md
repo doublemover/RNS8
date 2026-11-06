@@ -237,3 +237,12 @@ source implementation is ready.
 The new preflight/database/report fixtures are authored protocol controls, not
 collected GPU evidence. Their execution and all new hardware checks are deferred
 until the development pass is complete.
+
+
+Selected static ISA bindings include the physical tile M/N, K-block size and
+K-block policy when present in a benchmark capture. A generic kernel name cannot
+reuse another tile configuration's binding. Bound sidecar filenames include the
+binding digest so different explicit mappings for one artifact do not overwrite
+each other. Identical selected symbol records deduplicate; contradictory selected
+records within or across reports invalidate the selected association. Unselected
+inventory metadata never supplies missing selected-symbol resources.

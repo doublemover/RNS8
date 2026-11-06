@@ -236,6 +236,10 @@ def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
         "backend_selected": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "artifact_capture": capture.get("artifact_capture"),
+        **{
+            key: capture.get(key)
+            for key in ("tile_m", "tile_n", "k_block_size", "tile_shape_variant")
+        },
         "build_manifest_sha256": hashlib.sha256(
             json.dumps(
                 capture.get("build_manifest"), sort_keys=True, separators=(",", ":")
@@ -739,7 +743,11 @@ def bind_selected_symbols(
     config: IsaToolConfig,
 ) -> None:
     """Prove artifact membership, not dynamic execution, for an explicit mapping."""
-    from evidence_database_lib.isa import normalized_target, normalized_backend
+    from evidence_database_lib.isa import (
+        normalized_target,
+        normalized_backend,
+        physical_kernel_configuration,
+    )
 
     if not symbols or len(set(symbols)) != len(symbols):
         raise RuntimeError("selected static symbol mapping must be nonempty and unique")
@@ -793,6 +801,7 @@ def bind_selected_symbols(
         "build_manifest_sha256": capture.get("build_manifest_sha256"),
         "target": target,
         "selected_kernel": capture["selected_kernel"],
+        "physical_kernel_configuration": physical_kernel_configuration(capture),
         "symbols": sorted(symbols),
         "selection_evidence": "explicit_static_symbol_mapping",
         "artifact_membership_verified": True,
@@ -806,9 +815,18 @@ def write_report(report: dict[str, Any], out_dir: Path) -> Path:
     safe_backend = str(report.get("backend") or "unknown").replace("/", "_")
     stem = Path(str(report["object"])).stem
     target = str(report.get("target") or "unknown")
+    binding = report.get("capture_binding")
+    binding_suffix = (
+        "-"
+        + hashlib.sha256(
+            json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()[:16]
+        if isinstance(binding, dict)
+        else ""
+    )
     out_path = (
         out_dir
-        / f"{stem}-{str(report.get('object_sha256') or 'unbound')[:16]}-{target}-{safe_backend}-isa-summary.json"
+        / f"{stem}-{str(report.get('object_sha256') or 'unbound')[:16]}-{target}-{safe_backend}{binding_suffix}-isa-summary.json"
     )
     out_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return out_path
