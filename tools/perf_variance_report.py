@@ -16,6 +16,7 @@ from typing import Any
 from benchmark_schema import load_capture, validate_capture
 from build_manifest import manifest_provenance_complete
 from benchmark_request import request_environment_identity
+from execution_host_identity import hardware_cohort_identity
 from timing_eligibility import phase_blockers
 from measurement_contract import (
     exact_proof_policy,
@@ -112,6 +113,7 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
     ):
         return None
     identity["captured_environment_identity"] = environment
+    identity["observed_hardware"] = hardware_cohort_identity(capture)
     identity["host_instrumentation_state"] = host_instrumentation(capture)
     identity["host_observation_contract"] = host_observation_contract(capture)
     identity["streaming_schedule"] = (

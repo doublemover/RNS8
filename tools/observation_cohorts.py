@@ -30,6 +30,7 @@ from result_compare import CONTRACT_KEYS, contract_value
 from timing_eligibility import capture_identity, phase_blockers
 from reference_verdict import numerical_observation
 from benchmark_request import request_environment_identity
+from execution_host_identity import hardware_cohort_identity
 
 
 def canonical_work(capture: dict, *, exclude: Iterable[str] = ()) -> str:
@@ -49,6 +50,7 @@ def comparison_environment(
 ) -> str:
     manifest = capture.get("build_manifest") or {}
     identity = {
+        "observed_hardware": hardware_cohort_identity(capture, cpu_anchor=cpu_anchor),
         "source_commit": manifest.get("source_commit"),
         "source_digest": manifest.get("source_digest"),
         "environment_identity": request_environment_identity(capture.get("request_identity"))[0],

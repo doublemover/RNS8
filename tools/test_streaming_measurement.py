@@ -14,6 +14,7 @@ from collect_public_calibration import commands
 from measurement_contract import host_observation_contract, host_observation_count
 from perf_variance_report import _timing_sample_count, _within_capture_rel_spread
 from timing_eligibility import phase_blockers, pair_blockers
+from test_capture_identity_support import synthetic_execution_host_identity
 
 
 def fixture():
@@ -30,6 +31,7 @@ def fixture():
     ]
     return dict(
         synthetic_fixture_only=True,
+        execution_host_identity=synthetic_execution_host_identity(),
         repeats=9,
         warmups=3,
         streaming_overlap=dict(

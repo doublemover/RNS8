@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <fstream>
+#include <initializer_list>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -54,7 +55,7 @@ struct ExecutionHostSnapshot {
       nonzero = nonzero || c != '0';
       canonical.push_back(c);
     }
-    if (!nonzero || canonical.size() != 32 || canonical.find_first_not_of('f') == std::string::npos)
+    if (!nonzero || canonical.size() != 32)
       return value;
     value.os_instance_sha256 = detail::hmac_sha256("RNS8 benchmark observed OS instance v1",
                                                    value.platform + "\n" + canonical);
@@ -105,6 +106,7 @@ struct ExecutionHostSnapshot {
         value.native_status = static_cast<uint32_t>(errno);
         continue;
       }
+      value.native_status = 0;
       std::array<char, 128> bytes{};
       input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
       value.source = path;

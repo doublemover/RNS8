@@ -24,16 +24,9 @@ from json_evidence import load_evidence_json, same_evidence_value
 from graph_caller_contract import graph_phase_diagnostic, caller_transaction_blockers
 from measurement_contract import profile_ranges_instrumented
 from execution_observation import execution_observation_blockers
+from execution_host_identity import hardware_identity_blockers, is_gpu_capture
 
 SCHEMA = "rns8_production_diagnostic_binding_v2"
-GPU_BACKENDS = {
-    "hip-direct",
-    "hipblaslt",
-    "ck",
-    "rocwmma",
-    "amdgpu-builtins",
-    "hip-vector-alu-int64",
-}
 
 
 def digest(value):
@@ -130,7 +123,7 @@ def _pair_contract(production, diagnostic):
         raise ValueError("complete explicit HIP-event diagnostic required")
     if graph_diagnostic and caller_transaction_blockers(production):
         raise ValueError("production graph caller boundary is incomplete")
-    if production.get("backend_selected") not in GPU_BACKENDS:
+    if not is_gpu_capture(production):
         raise ValueError("companion is only needed for a supported GPU backend")
     for capture in (production, diagnostic):
         if not manifest_provenance_complete(capture.get("build_manifest")):
@@ -234,7 +227,7 @@ def binding_for_capture(capture, bindings):
 
 
 def production_evidence(capture, binding=None):
-    blockers = execution_observation_blockers(capture)
+    blockers = execution_observation_blockers(capture) + hardware_identity_blockers(capture)
     if profile_ranges_instrumented(capture):
         blockers.append("profile_range_instrumentation_not_production_evidence")
     if capture.get("external_instrumentation") is not None:
@@ -245,7 +238,7 @@ def production_evidence(capture, binding=None):
         or timing.get("gpu_event_timing") is True
     ):
         blockers.append("diagnostic_instrumented_host_time_not_production_evidence")
-    if capture.get("backend_selected") in GPU_BACKENDS:
+    if is_gpu_capture(capture):
         if binding is None:
             blockers.append("matched_diagnostic_companion_missing")
         else:

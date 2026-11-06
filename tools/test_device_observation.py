@@ -17,19 +17,7 @@ from device_observation import (
     distinct_execution_devices,
 )
 import gpu_qualification
-
-
-def identity(ordinal=0, *, device=4, uuid=True, pci=True):
-    return dict(
-        schema="rns8_runtime_device_identity_v1",
-        runtime_ordinal=ordinal,
-        query_status_code=0,
-        valid_fields=(1 if pci else 0) | (2 if uuid else 0),
-        pci_bdf=f"0000:{device:02x}:00.0" if pci else None,
-        uuid=f"{device + 1:032x}" if uuid else None,
-        native_pci_status=0 if pci else 801,
-        native_uuid_status=0 if uuid else 801,
-    )
+from test_capture_identity_support import synthetic_runtime_device_identity as identity
 
 
 def inspection(ordinal=0, *, device=4):

@@ -16,6 +16,7 @@ from measurement_contract import (
 from measurement_contract import profile_ranges_instrumented
 from execution_observation import execution_observation_blockers
 from build_instrumentation import instrumentation_reasons
+from execution_host_identity import hardware_identity_blockers, hardware_pair_blockers
 
 
 def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
@@ -31,7 +32,7 @@ def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
     timing = capture.get("timing_metadata") or {}
     if timing.get("host_timing_contract_version") != 2:
         return ["legacy_host_timing_unqualified"]
-    blockers = []
+    blockers = hardware_identity_blockers(capture)
     observation = host_observation_contract(capture)
     if observation["unit"] == "legacy_single_pipeline_batch_repeated_quotient":
         blockers.append("legacy_repeated_batch_quotients_not_repeat_observations")
@@ -74,6 +75,7 @@ def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
 def pair_blockers(baseline: dict, candidate: dict, phase: str = "end_to_end") -> list[str]:
     blockers = [f"baseline:{x}" for x in phase_blockers(baseline, phase)]
     blockers += [f"candidate:{x}" for x in phase_blockers(candidate, phase)]
+    blockers.extend(hardware_pair_blockers(baseline, candidate))
     if (baseline.get("timing_metadata") or {}).get("host_result_kind") != (
         candidate.get("timing_metadata") or {}
     ).get("host_result_kind"):

@@ -4,9 +4,55 @@ import uuid
 import hashlib
 import json
 from benchmark_request import REQUEST_SCHEMA
+from execution_host_identity import is_gpu_capture
+
+
+def synthetic_execution_host_identity(identity="a" * 64, *, platform="windows"):
+    return dict(
+        schema="rns8_execution_host_identity_v1",
+        scope="observed_os_instance",
+        status="observed",
+        platform=platform,
+        source="native_registry_machine_guid_64_view"
+        if platform == "windows"
+        else "/etc/machine-id",
+        native_status=0,
+        os_instance_sha256=identity,
+    )
+
+
+def synthetic_runtime_device_identity(ordinal=0, *, device=4, uuid=True, pci=True):
+    return dict(
+        schema="rns8_runtime_device_identity_v1",
+        runtime_ordinal=ordinal,
+        query_status_code=0,
+        valid_fields=(1 if pci else 0) | (2 if uuid else 0),
+        pci_bdf=f"0000:{device:02x}:00.0" if pci else None,
+        uuid=f"{device + 1:032x}" if uuid else None,
+        native_pci_status=0 if pci else 801,
+        native_uuid_status=0 if uuid else 801,
+    )
 
 
 def synthetic_identity(capture: dict, *, commit: str = "c" * 40) -> None:
+    capture.setdefault("execution_host_identity", synthetic_execution_host_identity())
+    device = capture.get("device") or {}
+    if (
+        is_gpu_capture(capture)
+        and type(device.get("device_id")) is int
+        and device["device_id"] >= 0
+        and device.get("hip_available") in (True, 1)
+    ):
+        identity = synthetic_runtime_device_identity(device["device_id"])
+        capture.setdefault(
+            "device_identity_witness",
+            dict(
+                schema="rns8_device_identity_witness_v1",
+                binding_state="stable",
+                before=identity,
+                after=dict(identity),
+            ),
+        )
     capture["git_commit"] = commit
     capture["execution_id"] = str(uuid.uuid4())
     capture["build_manifest"] = {

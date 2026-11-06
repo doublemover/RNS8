@@ -23,13 +23,16 @@ TEST_CASE("host OS identities normalize material and publish only scoped derived
       "windows", "native_registry_machine_guid_64_view", "{01234567-89ab-cdef-0123-456789abcdef}");
   const auto other = ExecutionHostSnapshot::from_material(
       "windows", "native_registry_machine_guid_64_view", "1123456789abcdef0123456789abcdef");
-  const auto linux = ExecutionHostSnapshot::from_material("linux", "/etc/machine-id",
-                                                          "0123456789abcdef0123456789abcdef\n");
+  const auto linux_identity = ExecutionHostSnapshot::from_material(
+      "linux", "/etc/machine-id", "0123456789abcdef0123456789abcdef\n");
   CHECK(std::string(first.status) == "observed");
   CHECK(first.os_instance_sha256.size() == 64);
   CHECK(first.os_instance_sha256 == same.os_instance_sha256);
   CHECK(first.os_instance_sha256 != other.os_instance_sha256);
-  CHECK(first.os_instance_sha256 != linux.os_instance_sha256);
+  CHECK(first.os_instance_sha256 != linux_identity.os_instance_sha256);
+  CHECK(std::string(
+            ExecutionHostSnapshot::from_material("linux", "/etc/machine-id", std::string(32, 'f'))
+                .status) == "observed");
   std::ostringstream output;
   first.print(output);
   const auto value = nlohmann::json::parse(output.str());
@@ -38,7 +41,7 @@ TEST_CASE("host OS identities normalize material and publish only scoped derived
   CHECK(output.str().find("01234567-89AB-CDEF-0123-456789ABCDEF") == std::string::npos);
   CHECK(output.str().find("0123456789abcdef0123456789abcdef") == std::string::npos);
   for (const auto material :
-       {"", "uninitialized", "00000000000000000000000000000000", "ffffffffffffffffffffffffffffffff",
+       {"", "uninitialized", "00000000000000000000000000000000",
         "01234567-89ab-cdef-0123-456789abcdeg", "0123456789abcdef0123456789abcdefextra"}) {
     const auto missing = ExecutionHostSnapshot::from_material("linux", "/etc/machine-id", material);
     CHECK(std::string(missing.status) == "unavailable");

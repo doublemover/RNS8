@@ -227,8 +227,17 @@ This records an observed OS instance, without claiming hardware attestation.
 The source follows the [Windows registry API](https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-reggetvaluew)
 and [machine-id application-identity guidance](https://www.freedesktop.org/software/systemd/man/latest/machine-id.html).
 RFC 4231 digest vectors and identity normalization/output controls are authored;
-unit and HIP-enabled benchmark frontend compilation passes. Native acquisition,
-link/runtime checks and integration into report qualification remain pending.
+unit and HIP-enabled benchmark frontend compilation passes. Native acquisition
+and link/runtime checks remain pending.
+
+Shared variance/cohort, timing-pair and production-companion readers now require
+the observed OS identity and stable native runtime-device witness. CPU anchors
+join only the same observed OS instance; GPU comparisons also retain the native
+UUID/PCI observation and runtime properties. Missing, changed or malformed
+identities leave captures descriptive and unqualified. OS scope does not prove
+a physical-board count. Protocol controls distinguish host changes, identical
+GPU names with different identifiers, CPU anchors, failed witnesses and legacy
+captures; these controls are unexecuted.
 
 ## Commands
 
