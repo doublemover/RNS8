@@ -137,9 +137,13 @@ def sibling_tool(hipcc: Path | None, name: str) -> str:
 
 
 def bundle_target_for(targets: list[str], amdgpu_target: str) -> str:
-    for target in targets:
-        if target.startswith("hip") and target.endswith(f"--{amdgpu_target}"):
-            return target
+    matches = [
+        target
+        for target in targets
+        if target.startswith("hip") and target.endswith(f"--{amdgpu_target}")
+    ]
+    if len(matches) == 1 and len(targets) == len(set(targets)):
+        return matches[0]
     raise RuntimeError(
         f"fatbin does not contain HIP bundle for {amdgpu_target}; found: {', '.join(targets) or '<none>'}"
     )
@@ -152,16 +156,23 @@ def extract_code_object(
     amdgpu_target: str,
     scratch: Path,
     fatbin_name: str,
+    *,
+    run=None,
 ) -> Path:
+    invoke = run or run_command
     fatbin = scratch / fatbin_name
     # Without an output operand LLVM objcopy rewrites its input, including COFF
     # headers. Inspection must never modify an artifact whose hash is evidence.
     host_copy = scratch / "extracted-host-copy.obj"
     if host_copy.resolve() == host_object.resolve():
         raise ValueError("ISA extraction output aliases the inspected object")
-    run_command([objcopy, f"--dump-section=.hip_fatbin={fatbin}", str(host_object), str(host_copy)])
-    listed = run_command([bundler, "--list", "--type=o", f"--input={fatbin}"])
+    invoke([objcopy, f"--dump-section=.hip_fatbin={fatbin}", str(host_object), str(host_copy)])
+    listed = invoke([bundler, "--list", "--type=o", f"--input={fatbin}"])
     targets = [line.strip() for line in listed.splitlines() if line.strip()]
+    if not 1 <= len(targets) <= 64 or any(
+        len(target) > 1024 or "," in target for target in targets
+    ):
+        raise ValueError("bounded unique native HIP bundle inventory required")
     device_target = bundle_target_for(targets, amdgpu_target)
 
     outputs: list[Path] = []
@@ -177,7 +188,7 @@ def extract_code_object(
     ]
     for output in outputs:
         command.append(f"--output={output}")
-    run_command(command)
+    invoke(command)
     return outputs[targets.index(device_target)]
 
 

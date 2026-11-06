@@ -100,7 +100,7 @@ function(rns8_compile_hip_source out_var source)
     endif()
   endforeach()
 
-  set(_source_compile_options)
+  set(_source_compile_options ${RNS8_DEVICE_ASAN_COMPILE_FLAGS})
   if(RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS)
     list(APPEND _source_compile_options "-DRNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS=1")
   endif()

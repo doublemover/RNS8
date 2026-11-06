@@ -1,11 +1,11 @@
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rns8_distributed_transports.cmake)
 
 function(rns8_configure_library target_name)
-  if(RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS)
+  if(RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS OR RNS8_DEVICE_ASAN_COMPILE_FLAGS)
     # The build directory already instruments all first-party objects. Carry
     # the matching detector/runtime into installed consumer source and links.
-    target_compile_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS})
-    target_link_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_LINK_FLAGS})
+    target_compile_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS} ${RNS8_DEVICE_ASAN_COMPILE_FLAGS})
+    target_link_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_LINK_FLAGS} ${RNS8_DEVICE_ASAN_LINK_FLAGS})
   endif()
   if(RNS8_ENABLE_ROCTX)
     target_include_directories(${target_name} PRIVATE "${RNS8_ROCTX_INCLUDE_DIR}")

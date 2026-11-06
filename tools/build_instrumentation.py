@@ -27,7 +27,7 @@ def instrumentation_reasons(manifest: object) -> list[str]:
         key, value = key.strip().lower(), value.strip()
         if key == "host_sanitizer" and value.lower() != "none":
             reasons.add("host_sanitizer_build")
-        if key in {"host_coverage", "windows_clang_asan"} and value.lower() not in {
+        if key in {"host_coverage", "windows_clang_asan", "device_asan"} and value.lower() not in {
             "off",
             "false",
             "0",

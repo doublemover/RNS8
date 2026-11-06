@@ -18,6 +18,8 @@ class InstrumentationAdmission(unittest.TestCase):
             "host_sanitizer=unrecognized",
             "host_coverage=ON",
             "windows_clang_asan=ON",
+            "device_asan=ON",
+            "device_asan=unknown",
             "host_coverage=unknown",
             "flags=-O1 -fsanitize=address,undefined -g",
             "flags='/fsanitize=address' /O1",
@@ -45,6 +47,7 @@ class InstrumentationAdmission(unittest.TestCase):
             "synthetic fixture",
             "dependency_file.ASAN=/libraries/compiler-rt/asan.so",
             "dependency_tree.COVERAGE=/inputs/coverage/project",
+            "device_asan=OFF",
         ):
             self.assertEqual(instrumentation_reasons(dict(configuration=configuration)), [])
         self.assertEqual(instrumentation_reasons(None), [])

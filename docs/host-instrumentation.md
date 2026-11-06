@@ -5,8 +5,9 @@ production performance nor HIP device instrumentation. The current source
 frontload adds build selection and sensitivity/concurrency controls under
 [#102](https://github.com/doublemover/RNS8/issues/102) and coverage instrumentation
 under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
-session and native LLVM coverage drivers are authored; device-ASan preflight,
-complete application-process loader observation and continuous CI reporting remain
+session, native LLVM coverage and separate device-ASan preflight drivers are
+authored; complete application-process loader observation, device correctness
+session integration and continuous CI reporting remain
 implementation work. Python branch/subprocess collection source is authored.
 
 | Configure preset | Instrumentation | Initial scope |
@@ -146,5 +147,7 @@ objects were instrumented, detectors worked or GPU memory was checked.
 
 Windows gfx1100 device ASan remains unsupported/unqualified. Native Linux
 ROCm device ASan needs its own release/target/HMM/XNACK/runtime and actual
-device-object instrumentation proof. Host compiler flags and canary tests
+device-object instrumentation proof. The separate authored
+[native ROCm preflight](device-asan.md) can inspect prerequisites and build real
+first-party HIP objects without launching workloads or faults. Host compiler flags and canary tests
 cannot supply it. Existing stopped hardware fault campaigns remain stopped.

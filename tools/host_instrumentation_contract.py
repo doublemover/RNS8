@@ -9,7 +9,7 @@ import shlex
 
 from process_progress import capture_succeeded
 
-LANES = {"address-undefined", "thread", "windows-address", "coverage"}
+LANES = {"address-undefined", "thread", "windows-address", "device-address", "coverage"}
 EXIT_CODES = {"heap-overread": 86, "signed-overflow": 87, "race": 88, "openmp-race": 88}
 DIAGNOSTIC = {
     "heap-overread": r"ERROR: AddressSanitizer: heap-buffer-overflow",
@@ -92,7 +92,12 @@ def selected_flags(argv: list[str], lane: str) -> dict:
         raise ValueError("unknown host instrumentation lane")
     lower = [arg.lower() for arg in argv]
     if any(
-        arg != "-fno-sanitize-recover=all"
+        arg
+        not in (
+            {"-fno-sanitize-recover=all", "-fno-sanitize-recover=address"}
+            if lane == "device-address"
+            else {"-fno-sanitize-recover=all"}
+        )
         and arg.startswith(
             (
                 "-fno-sanitize",
@@ -118,6 +123,7 @@ def selected_flags(argv: list[str], lane: str) -> dict:
         "address-undefined": {"address", "undefined"},
         "thread": {"thread"},
         "windows-address": {"address"},
+        "device-address": {"address"},
         "coverage": set(),
     }[lane]
     if selected != expected:
@@ -132,13 +138,27 @@ def selected_flags(argv: list[str], lane: str) -> dict:
         raise ValueError("sanitizer and coverage commands may not share objects")
     if lane == "address-undefined" and "-fno-sanitize-recover=all" not in lower:
         raise ValueError("required UB checks must be nonrecovering")
+    if lane == "device-address" and not {
+        "-shared-libsan",
+        "-fno-sanitize-recover=address",
+        "-g",
+    }.issubset(lower):
+        raise ValueError(
+            "device-ASan requires shared runtime, debug information and nonrecovering checks"
+        )
     return dict(lane=lane, sanitizer_classes=sorted(selected), configured_flags_verified=True)
 
 
 def symbol_classes(source: str, lane: str) -> list[str]:
     if lane not in LANES:
         raise ValueError("unknown host instrumentation lane")
-    return sorted(name for name, pattern in SYMBOLS[lane].items() if re.search(pattern, source))
+    return sorted(
+        name
+        for name, pattern in SYMBOLS[
+            "windows-address" if lane == "device-address" else lane
+        ].items()
+        if re.search(pattern, source)
+    )
 
 
 def detector_sites(path: Path) -> dict[str, int]:
