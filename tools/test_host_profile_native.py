@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import host_profile_native as native
 from test_execution_observation import capture as execution_capture
+from test_perf_recording_contract import recording_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -47,11 +48,31 @@ class NativePerf(unittest.TestCase):
         self.addCleanup(scratch.cleanup)
         self.root = Path(scratch.name)
         self.data = self.root / "perf.data"
-        self.data.write_bytes(b"synthetic native data fixture")
         self.module = self.root / "perf.synthetic.so"
         self.module.write_bytes(b"synthetic native module fixture")
         self.rows = [sample(), sample(99)]
         self.sessions = 0
+        self.write_recording()
+
+    def write_recording(self):
+        rows = []
+        for sample in self.rows:
+            row = {}
+            for name, attr, default, bits in (
+                ("pid", "sample_pid", 41, 32),
+                ("tid", "sample_tid", 42, 32),
+                ("time_ns", "sample_time", 123456789, 64),
+                ("period", "sample_period", 1000000, 64),
+                ("ip", "sample_ip", 4099, 64),
+                ("cpu", "sample_cpu", 3, 32),
+            ):
+                value = getattr(sample, attr)
+                valid = type(value) is int and 0 <= value < 1 << bits
+                if name in {"pid", "tid", "period"} and not value:
+                    valid = False
+                row[name] = value if valid else default
+            rows.append(row)
+        self.data.write_bytes(recording_bytes(samples=rows))
 
     def binding(self):
         def session(data, *, sample):
@@ -66,9 +87,10 @@ class NativePerf(unittest.TestCase):
         return SimpleNamespace(__file__=str(self.module), data=lambda path: path, session=session)
 
     def decode(self, **kwargs):
+        self.write_recording()
         return native.decode(self.data, 41, perf_module=self.binding(), **kwargs)
 
-    def test_process_symbols_period_and_unknown_loss_remain_separate(self):
+    def test_process_symbols_period_and_recorded_loss_remain_separate(self):
         report = self.decode()
         self.assertEqual(report["observed_samples"], 2)
         self.assertEqual(report["excluded_other_process_samples"], 1)
@@ -82,7 +104,27 @@ class NativePerf(unittest.TestCase):
         self.assertFalse(report["production_latency"])
         self.assertFalse(report["acquisition_verified"])
         self.assertFalse(report["promotion_allowed"])
-        self.assertTrue(report["loss_status"].startswith("unknown_"))
+        self.assertEqual(report["loss_status"], "no_known_loss_observed_complete_record_walk")
+        self.assertFalse(
+            report["recording_contract"]["loss"]["complete_loss_free_acquisition_proven"]
+        )
+        self.assertEqual(report["clock"]["attribute_clock_id"], 1)
+
+    def test_valid_looking_decoded_fields_cannot_disagree_with_raw_samples(self):
+        original = copy.deepcopy(self.rows)
+        for field in (
+            "sample_pid",
+            "sample_tid",
+            "sample_ip",
+            "sample_time",
+            "sample_period",
+            "sample_cpu",
+        ):
+            self.rows = copy.deepcopy(original)
+            setattr(self.rows[0], field, getattr(self.rows[0], field) + 1)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                native.decode(self.data, 41, perf_module=self.binding())
+        self.rows = original
 
     def test_unresolved_symbols_are_missing_without_invented_attribution(self):
         row = self.rows[0]

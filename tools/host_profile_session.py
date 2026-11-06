@@ -24,6 +24,7 @@ from execution_observation import execution_observation
 from execution_inventory import bounded_read
 from gpu_qualification import ROOT, execute_plan, write_json
 from host_profile_native import PRODUCER_CONTRACT, SCHEMA as NATIVE_SCHEMA
+from perf_recording_contract import read_recording, validate_decoded_samples
 from json_evidence import parse_evidence_json, same_evidence_value
 from profiler_contract import production_profile_input
 from process_progress import capture_succeeded
@@ -48,6 +49,7 @@ SOURCE_INPUTS = (
     "tools/companion_contract.py",
     "tools/json_evidence.py",
     "tools/execution_inventory.py",
+    "tools/perf_recording_contract.py",
 )
 
 PERMISSION_DIAGNOSTIC_SOURCES = (
@@ -278,6 +280,9 @@ def plan_capture(
             "cpu-clock:u",
             "--freq",
             "99",
+            "--sample-cpu",
+            "--timestamp",
+            "--period",
             "--call-graph",
             "dwarf,8192",
             "--clockid",
@@ -430,6 +435,7 @@ def finalize(manifest_path: Path) -> dict:
         dict(path=str(samples_path), sha256=decode_row["artifacts"][str(samples_path)]), ROOT
     )
     data_path = out / "native/perf.data"
+    recording = read_recording(data_path)
     if samples.get("identity_sha256") != canonical_digest(
         {key: value for key, value in samples.items() if key != "identity_sha256"}
     ):
@@ -451,13 +457,29 @@ def finalize(manifest_path: Path) -> dict:
         or samples.get("is_64_bit") is not True
         or samples.get("acquisition_verified") is not False
         or samples.get("scope") != "selected_process_total_not_selected_operation"
-        or samples.get("loss_status") != "unknown_native_session_api_does_not_expose_loss_counts"
+        or not same_evidence_value(samples.get("recording_contract"), recording)
+        or samples.get("recording_contract_source_sha256")
+        != file_digest(ROOT / "tools/perf_recording_contract.py")
+        or not same_evidence_value(samples.get("clock"), recording["clock"])
+        or recording["clock"]["attribute_clock_id"] != 1
+        or samples.get("loss_status") != recording["loss"]["status"]
         or samples.get("production_latency") is not False
         or samples.get("promotion_allowed") is not False
     ):
         raise ValueError(
             "native CPU samples do not bind the actual benchmark PID/data/module/capture"
         )
+    validate_decoded_samples(
+        recording,
+        samples.get("samples"),
+        pid=raw["process_id"],
+        observed=samples.get("observed_samples"),
+        excluded=samples.get("excluded_other_process_samples"),
+    )
+    if type(samples.get("selected_process_samples")) is not int or samples[
+        "selected_process_samples"
+    ] != len(samples["samples"]):
+        raise ValueError("native selected sample count differs from its rows")
     # perf forks the benchmark. The launched profiler's PID is intentionally not
     # substituted for the native application PID or used as a sample selector.
     request = request_identity(workload, environ=observed.environment)
@@ -491,11 +513,9 @@ def finalize(manifest_path: Path) -> dict:
         native_data=reference(data_path),
         benchmark_pid=raw["process_id"],
         profiler_launcher_pid=row["process_id"],
-        clock=dict(
-            requested=plan["record_clock"],
-            observed_header="unavailable_native_session_api",
-            cross_clock_join="unbound",
-        ),
+        clock=dict(recording["clock"], requested=plan["record_clock"]),
+        recording_contract=recording,
+        sampling_integrity="partial" if recording["blockers"] else "complete_known_record_walk",
         scope=samples["scope"],
         loss_status=samples["loss_status"],
         selected_operation_range="unbound",

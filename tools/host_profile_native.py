@@ -15,8 +15,13 @@ from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest
 from execution_observation import execution_observation
 from json_evidence import load_evidence_json
+from perf_recording_contract import (
+    SCHEMA as RECORDING_CONTRACT_SCHEMA,
+    read_recording,
+    validate_decoded_samples,
+)
 
-SCHEMA = "rns8_perf_native_samples_v1"
+SCHEMA = "rns8_perf_native_samples_v2"
 PRODUCER_CONTRACT = "linux_perf_standalone_session_sample_api_v1"
 PRODUCER_SOURCE = (
     "https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-script-python.txt"
@@ -39,6 +44,9 @@ def capabilities() -> dict:
         workload_executed=False,
         sample_contract_qualified=False,
         loss_counts_exposed=False,
+        loss_counts_scope="native_session_api_only",
+        recording_file_audit_contract=RECORDING_CONTRACT_SCHEMA,
+        recording_file_audit_qualified=False,
     )
     if result["system"] != "Linux":
         return dict(result, state="unsupported", reason="native Linux perf module required")
@@ -158,6 +166,8 @@ def decode(
     max_input_bytes: int = 256 * 1024**2,
 ) -> dict:
     integer(pid, "selected PID", 1)
+    if pid >= 1 << 32:
+        raise ValueError("selected PID exceeds the perf 32-bit process ABI")
     if (
         type(max_samples) is not int
         or not 1 <= max_samples <= MAX_SAMPLES
@@ -171,6 +181,7 @@ def decode(
     if not data.is_file() or not 1 <= data.stat().st_size <= max_input_bytes:
         raise ValueError("native perf data is empty, nonregular or outside input budget")
     digest = file_digest(data)
+    recording = read_recording(data, max_input_bytes=max_input_bytes, max_samples=max_samples)
     if perf_module is None:
         perf_module = importlib.import_module("perf")
     if not callable(getattr(perf_module, "session", None)) or not callable(
@@ -213,6 +224,9 @@ def decode(
         raise ValueError("native perf data or decoder module changed during decoding")
     if not rows:
         raise ValueError("native perf trace contains no selected-process CPU samples")
+    validate_decoded_samples(recording, rows, pid=pid, observed=observed, excluded=excluded)
+    if recording["recorded_machine"] is not None and recording["recorded_machine"] != machine:
+        raise ValueError("native perf machine differs from the recorded header")
     result = dict(
         schema=SCHEMA,
         producer_contract=PRODUCER_CONTRACT,
@@ -224,7 +238,11 @@ def decode(
         pid=pid,
         machine=machine,
         is_64_bit=is_64_bit,
-        clock="recorded_perf_clock_requires_acquisition_clockid_receipt",
+        clock=recording["clock"],
+        recording_contract=recording,
+        recording_contract_source_sha256=file_digest(
+            Path(__file__).with_name("perf_recording_contract.py")
+        ),
         observed_samples=observed,
         excluded_other_process_samples=excluded,
         selected_process_samples=len(rows),
@@ -237,7 +255,7 @@ def decode(
         ),
         samples=rows,
         scope="selected_process_total_not_selected_operation",
-        loss_status="unknown_native_session_api_does_not_expose_loss_counts",
+        loss_status=recording["loss"]["status"],
         symbolized_samples=sum(bool(row["symbol"]) for row in rows),
         source_attributed_samples=sum(
             row["source"] is not None and bool(row["source"]["path"]) and row["source"]["line"] > 0

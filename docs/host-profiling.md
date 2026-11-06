@@ -51,8 +51,9 @@ decode; it does not create or overlay a second recording. Finalization binds
 the benchmark's observed PID separately from perf's launcher PID, verifies
 numerical output, artifact/module identities, physical GPU and matching
 work/proof/output/reuse contract, and labels the bound capture externally
-instrumented. Its clock is an explicit acquisition request, with header/cross-clock
-and selected-operation joins still unbound. These source controls are authored
+instrumented. The file audit independently observes its event clock and optional
+resolution/wall-clock anchor. Cross-clock and selected-operation joins remain
+unbound; a single anchor does not establish calibration or an error bound. These source controls are authored
 and unexecuted; no new acquisition or attribution result is claimed.
 
 The explicit decoder consumes an existing `perf.data` through Linux perf's
@@ -79,11 +80,28 @@ overwritten. `recording_sha256` identifies the same raw recording across file
 copies/renames; the decoder receipt itself does not authenticate acquisition or
 create an independent execution.
 
-The current native session interface does not expose loss counts. The decoder
-therefore records unknown loss and process-total scope, with no claim of
-complete operation coverage, production latency or performance eligibility.
-Acquisition/clock/range binding and a separate native loss assessment remain
-required for stronger attribution. Offline synthetic controls are authored and
+The native session interface supplies symbols and DWARF; a bounded
+`PERFILE2` audit now supplies recorded event/clock, loss and sample custody.
+The v2 decoder and finalizer share that audit. The narrow initial contract is
+one user-only software CPU-clock event in a little-endian regular file.
+Compressed/AUX/stat/directory streams, unknown record types and incompatible
+event dialects are rejected explicitly. Every section/record extent and the
+sample fixed prefix is bounded before native decoding. Per-thread sample
+multisets bind PID/TID, timestamps, periods, IP and CPU directly to file bytes
+while allowing the native decoder to time-sort buffers. Finalization reconstructs
+these facts instead of trusting a resealed sample summary.
+
+Ring-loss events, lost-sample events and cumulative read-counter maxima remain
+separate; summing them would double-count overlapping observations. Reported
+loss or throttling marks sampling partial. A complete supported record walk
+with no known loss is not proof of a completely loss-free acquisition.
+The collector explicitly requests CPU, timestamp and period fields. Event clock
+IDs are read from `perf_event_attr`; the header's `CLOCKID` feature supplies
+resolution, and optional versioned `CLOCK_DATA` supplies one clock/wall anchor.
+The ABI owners are the pinned Linux sources recorded in
+`tools/perf_recording_contract.py`. Process totals still do not establish
+complete operation coverage, cross-clock attribution, production latency or
+performance eligibility. Offline synthetic file/API controls are authored and
 registered but have not run; native Linux decoding remains unexecuted locally.
 
 ## Windows acquisition boundary

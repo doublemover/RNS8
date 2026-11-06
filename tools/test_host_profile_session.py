@@ -15,6 +15,7 @@ import host_profile_session as session
 import host_profile_native as native
 from test_device_observation import capture as device_capture
 from test_host_profile_native import sample as native_sample
+from test_perf_recording_contract import recording_bytes
 from test_target_qualification_support import QualificationFixture, write
 
 
@@ -202,6 +203,8 @@ class HostSession(unittest.TestCase):
         command = record["argv"]
         self.assertEqual(command[command.index("--event") + 1], "cpu-clock:u")
         self.assertEqual(command[command.index("--clockid") + 1], "CLOCK_MONOTONIC")
+        for option in ("--sample-cpu", "--timestamp", "--period"):
+            self.assertIn(option, command)
         self.assertEqual(command[command.index("--max-size") + 1], "64M")
         self.assertIn("--no-buildid-cache", command)
         self.assertNotIn("-a", command)
@@ -351,7 +354,7 @@ class HostSessionBinding(unittest.TestCase):
                 ),
             )
             write(self.out / "native/benchmark.json", value)
-            (self.out / "native/perf.data").write_bytes(b"authored recording never acquired")
+            (self.out / "native/perf.data").write_bytes(recording_bytes(samples=[dict(pid=222)]))
             value = None
         elif name == "native-decode":
 
