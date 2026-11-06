@@ -14,6 +14,7 @@ from typing import Any
 from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest
 from execution_observation import execution_observation
+from elf_module_identity import module_inventory
 from json_evidence import load_evidence_json
 from perf_recording_contract import (
     SCHEMA as RECORDING_CONTRACT_SCHEMA,
@@ -227,6 +228,9 @@ def decode(
     validate_decoded_samples(recording, rows, pid=pid, observed=observed, excluded=excluded)
     if recording["recorded_machine"] is not None and recording["recorded_machine"] != machine:
         raise ValueError("native perf machine differs from the recorded header")
+    modules = module_inventory(rows, machine=machine)
+    if file_digest(data) != digest or file_digest(module_path) != module_digest:
+        raise ValueError("native perf data or decoder module changed during module inspection")
     result = dict(
         schema=SCHEMA,
         producer_contract=PRODUCER_CONTRACT,
@@ -242,6 +246,10 @@ def decode(
         recording_contract=recording,
         recording_contract_source_sha256=file_digest(
             Path(__file__).with_name("perf_recording_contract.py")
+        ),
+        leaf_module_custody=modules,
+        leaf_module_custody_source_sha256=file_digest(
+            Path(__file__).with_name("elf_module_identity.py")
         ),
         observed_samples=observed,
         excluded_other_process_samples=excluded,

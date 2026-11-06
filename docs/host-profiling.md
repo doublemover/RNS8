@@ -74,6 +74,28 @@ symbol/source information and bounded callchains. CPU-clock periods describe
 sampled CPU exposure, not wall latency. Unresolved symbols/source locations stay
 missing; callchain paths alone do not establish module build identities.
 
+Leaf module custody is checked separately with a bounded ELF reader over the
+actual current file, using the [Linux ELF ABI](https://github.com/torvalds/linux/blob/47f05f71ad988c3180bdba807151e6e86ed75aa3/include/uapi/linux/elf.h).
+The reader accepts native little-endian x86-64/AArch64 executable/shared files,
+walks program/section notes (including extended section counts), rejects
+contradictory GNU build IDs and hashes complete file contents. Limits are128
+module identities, 512MiB per file, 2GiB aggregate module-file bytes and bounded
+header/note extents. Files that fail format inspection consume the byte budget
+and are not repeatedly decoded. Earlier files and native path aliases are
+rechecked before publishing the inventory; the acquisition finalizer repeats
+the same binding and retains file references through its ordinary bookend.
+
+The report distinguishes matched, mismatched and unresolved leaf DSO identities,
+and counts symbolized/source-location samples within matched files separately
+from raw native location counts. Empty/missing IDs, deleted files and special
+DSOs stay unresolved. A [GNU build ID is not a content checksum](https://sourceware.org/binutils/docs/ld/Options.html#index-_002d_002dbuild_002did),
+so it is retained alongside SHA256. Matching the native ID to a current file does
+not establish transient loaded-image history or verify the contents of a source
+file named by debug information. Callchain modules still have native-path-only
+identity. These boundaries remain explicit even when every leaf ID matches.
+The ELF/native integration controls are source-authored and unexecuted; no
+native profile, source-attributed bottleneck or performance benefit is claimed.
+
 Input, sample, frame and decoded-document limits apply. Changes to the input or
 native module during decode reject the receipt. Existing outputs are not
 overwritten. `recording_sha256` identifies the same raw recording across file

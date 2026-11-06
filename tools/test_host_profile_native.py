@@ -14,6 +14,7 @@ from unittest.mock import patch
 import host_profile_native as native
 from test_execution_observation import capture as execution_capture
 from test_perf_recording_contract import recording_bytes
+from test_elf_module_identity import image as elf_image
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,6 +42,24 @@ def sample(pid=41):
 
 
 class NativePerf(unittest.TestCase):
+    def test_native_leaf_build_id_binds_actual_ELF_without_claiming_source_contents(self):
+        library = self.root / "library.so"
+        library.write_bytes(elf_image())
+        self.rows = [sample()]
+        self.rows[0].dso_long_name = str(library)
+        self.rows[0].dso_bid = "0123abcd"
+        report = self.decode()
+        custody = report["leaf_module_custody"]
+        self.assertTrue(custody["complete"])
+        self.assertEqual(custody["matched_leaf_source_location_samples"], 1)
+        self.assertFalse(custody["loaded_image_history_verified"])
+        self.assertEqual(custody["modules"][0]["file"]["path"], str(library.resolve()))
+        self.rows[0].dso_bid = "different"
+        with self.assertRaises(ValueError):
+            self.decode()
+        self.rows[0].dso_bid = ""
+        self.assertFalse(self.decode()["leaf_module_custody"]["complete"])
+
     def setUp(self):
         root = ROOT / "temp/host-profile-native-controls"
         root.mkdir(parents=True, exist_ok=True)
@@ -93,6 +112,8 @@ class NativePerf(unittest.TestCase):
     def test_process_symbols_period_and_recorded_loss_remain_separate(self):
         report = self.decode()
         self.assertEqual(report["observed_samples"], 2)
+        self.assertFalse(report["leaf_module_custody"]["complete"])
+        self.assertEqual(report["leaf_module_custody"]["matched_build_id_samples"], 0)
         self.assertEqual(report["excluded_other_process_samples"], 1)
         self.assertEqual(report["selected_process_samples"], 1)
         row = report["samples"][0]

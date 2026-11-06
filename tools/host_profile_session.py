@@ -22,6 +22,7 @@ from diagnostic_companion import common_identity
 from execution_environment_contract import relevant_environment_key
 from execution_observation import execution_observation
 from execution_inventory import bounded_read
+from elf_module_identity import module_inventory
 from gpu_qualification import ROOT, execute_plan, write_json
 from host_profile_native import PRODUCER_CONTRACT, SCHEMA as NATIVE_SCHEMA
 from perf_recording_contract import read_recording, validate_decoded_samples
@@ -50,6 +51,7 @@ SOURCE_INPUTS = (
     "tools/json_evidence.py",
     "tools/execution_inventory.py",
     "tools/perf_recording_contract.py",
+    "tools/elf_module_identity.py",
 )
 
 PERMISSION_DIAGNOSTIC_SOURCES = (
@@ -464,6 +466,8 @@ def finalize(manifest_path: Path) -> dict:
         or not same_evidence_value(samples.get("clock"), recording["clock"])
         or recording["clock"]["attribute_clock_id"] != 1
         or samples.get("loss_status") != recording["loss"]["status"]
+        or samples.get("leaf_module_custody_source_sha256")
+        != file_digest(ROOT / "tools/elf_module_identity.py")
         or samples.get("production_latency") is not False
         or samples.get("promotion_allowed") is not False
     ):
@@ -477,6 +481,12 @@ def finalize(manifest_path: Path) -> dict:
         observed=samples.get("observed_samples"),
         excluded=samples.get("excluded_other_process_samples"),
     )
+    modules = module_inventory(samples["samples"], machine=samples["machine"])
+    if not same_evidence_value(samples.get("leaf_module_custody"), modules):
+        raise ValueError("native leaf module identities changed or contradict the sample receipt")
+    for module in modules["modules"]:
+        if module["file"] is not None:
+            store.reference(module["file"], ROOT)
     if type(samples.get("selected_process_samples")) is not int or samples[
         "selected_process_samples"
     ] != len(samples["samples"]):
@@ -519,6 +529,7 @@ def finalize(manifest_path: Path) -> dict:
         sampling_integrity="partial" if recording["blockers"] else "complete_known_record_walk",
         scope=samples["scope"],
         loss_status=samples["loss_status"],
+        leaf_module_custody=modules,
         selected_operation_range="unbound",
         production_latency=False,
         promotion_allowed=False,

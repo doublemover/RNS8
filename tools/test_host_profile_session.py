@@ -394,6 +394,7 @@ class HostSessionBinding(unittest.TestCase):
         receipt = json.loads((self.out / "host-profile.json").read_text())
         self.assertEqual((receipt["benchmark_pid"], receipt["profiler_launcher_pid"]), (222, 444))
         self.assertEqual(receipt["selected_operation_range"], "unbound")
+        self.assertFalse(receipt["leaf_module_custody"]["complete"])
         self.assertFalse(receipt["production_latency"])
         raw = json.loads((self.out / "native/benchmark.json").read_text())
         bound = json.loads((self.out / "profiled.json").read_text())
@@ -409,6 +410,18 @@ class HostSessionBinding(unittest.TestCase):
         receipt = json.loads((self.out / "host-profile.json").read_text())
         self.assertEqual(receipt["qualification"], "binding_failed")
         self.assertTrue((self.out / "native/perf.data").is_file())
+        self.assertFalse((self.out / "profiled.json").exists())
+
+    def test_resealed_module_match_cannot_replace_actual_native_file_binding(self):
+        def change(value):
+            value["leaf_module_custody"]["complete"] = True
+            value["leaf_module_custody"]["matched_build_id_samples"] = 1
+            value["leaf_module_custody"]["modules"][0]["state"] = "matched"
+
+        self.sample_change = change
+        self.assertEqual(self.execute(), 1)
+        receipt = json.loads((self.out / "host-profile.json").read_text())
+        self.assertEqual(receipt["qualification"], "binding_failed")
         self.assertFalse((self.out / "profiled.json").exists())
 
 
