@@ -281,6 +281,7 @@ def plan_capture(
             "--freq",
             "99",
             "--sample-cpu",
+            "--sample-identifier",
             "--timestamp",
             "--period",
             "--call-graph",

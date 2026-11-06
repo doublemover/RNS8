@@ -83,7 +83,13 @@ create an independent execution.
 The native session interface supplies symbols and DWARF; a bounded
 `PERFILE2` audit now supplies recorded event/clock, loss and sample custody.
 The v2 decoder and finalizer share that audit. The narrow initial contract is
-one user-only software CPU-clock event in a little-endian regular file.
+one user-only software CPU-clock sampling event, optionally accompanied by
+explicit software-dummy metadata tracking attributes, in a little-endian regular
+file. Attribute order does not select the sampling authority. Mixed attributes
+require sample identifiers; loss/read records use their owning event's ID,
+trailer layout and counter format. Shared IDs, foreign sampling events and
+ambiguous trailers are rejected. Tracking clocks that are missing or differ from
+the sampling clock remain an explicit partial-scope blocker.
 Compressed/AUX/stat/directory streams, unknown record types and incompatible
 event dialects are rejected explicitly. Every section/record extent and the
 sample fixed prefix is bounded before native decoding. Per-thread sample
@@ -95,7 +101,7 @@ Ring-loss events, lost-sample events and cumulative read-counter maxima remain
 separate; summing them would double-count overlapping observations. Reported
 loss or throttling marks sampling partial. A complete supported record walk
 with no known loss is not proof of a completely loss-free acquisition.
-The collector explicitly requests CPU, timestamp and period fields. Event clock
+The collector explicitly requests CPU, timestamp, period and identifier fields. Event clock
 IDs are read from `perf_event_attr`; the header's `CLOCKID` feature supplies
 resolution, and optional versioned `CLOCK_DATA` supplies one clock/wall anchor.
 The ABI owners are the pinned Linux sources recorded in

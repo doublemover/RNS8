@@ -65,6 +65,8 @@ def recording_bytes(
     flags=None,
     features=None,
     ids=(1,),
+    tracking=None,
+    tracking_first=False,
 ):
     """Real header/attribute/fixed-prefix encoding; this is not a measured file."""
     if records is None:
@@ -73,16 +75,55 @@ def recording_bytes(
             for row in (samples if samples is not None else [{}])
         ]
     data = b"".join(records)
-    attr = bytearray(128)
     if flags is None:
         flags = (1 << 25) | (1 << 5) | (1 << 10)
-    struct.pack_into("<II5Q", attr, 0, 1, 128, 0, 99, sample_type, read_format, flags)
-    struct.pack_into("<i", attr, 92, clock_id)
-    attr_size = len(attr) + 16
-    ids_bytes = struct.pack("<" + "Q" * len(ids), *ids)
-    ids_offset = 104 + attr_size
-    attr += struct.pack("<QQ", ids_offset, len(ids_bytes))
-    data_offset = ids_offset + len(ids_bytes)
+    primary = dict(
+        config=0,
+        setting=99,
+        sample_type=sample_type,
+        read_format=read_format,
+        flags=flags,
+        clock_id=clock_id,
+        ids=ids,
+    )
+    specs = [primary]
+    if tracking is not None:
+        dummy = (
+            dict(
+                config=9,
+                setting=1,
+                sample_type=2 | 4 | SAMPLE_IDENTIFIER,
+                read_format=20,
+                flags=(1 << 25) | (1 << 18),
+                clock_id=1,
+                ids=(2,),
+            )
+            | tracking
+        )
+        specs = [dummy, primary] if tracking_first else [primary, dummy]
+    attr_size = 144
+    ids_offset = 104 + attr_size * len(specs)
+    attrs, id_payloads = [], []
+    for spec in specs:
+        attr = bytearray(128)
+        struct.pack_into(
+            "<II5Q",
+            attr,
+            0,
+            1,
+            128,
+            spec["config"],
+            spec["setting"],
+            spec["sample_type"],
+            spec["read_format"],
+            spec["flags"],
+        )
+        struct.pack_into("<i", attr, 92, spec["clock_id"])
+        payload = struct.pack("<" + "Q" * len(spec["ids"]), *spec["ids"])
+        attrs.append(attr + struct.pack("<QQ", ids_offset, len(payload)))
+        id_payloads.append(payload)
+        ids_offset += len(payload)
+    data_offset = ids_offset
     features = dict(sorted((features or {}).items()))
     position = data_offset + len(data) + 16 * len(features)
     sections, payloads = [], []
@@ -97,14 +138,21 @@ def recording_bytes(
         104,
         attr_size,
         104,
-        attr_size,
+        attr_size * len(specs),
         data_offset,
         len(data),
         0,
         0,
         *(feature_bits >> (64 * index) & ((1 << 64) - 1) for index in range(4)),
     )
-    return header + attr + ids_bytes + data + b"".join(sections) + b"".join(payloads)
+    return (
+        header
+        + b"".join(attrs)
+        + b"".join(id_payloads)
+        + data
+        + b"".join(sections)
+        + b"".join(payloads)
+    )
 
 
 class PerfRecordingContract(unittest.TestCase):
@@ -115,6 +163,114 @@ class PerfRecordingContract(unittest.TestCase):
     def read(self, data=None, **limits):
         self.path.write_bytes(recording_bytes() if data is None else data)
         return read_recording(self.path, **limits)
+
+    def test_tracking_attributes_are_not_sampling_authority(self):
+        sample_type = REQUIRED_SAMPLE_FIELDS | SAMPLE_IDENTIFIER
+        for first in (False, True):
+            value = self.read(
+                recording_bytes(sample_type=sample_type, tracking={}, tracking_first=first)
+            )
+            self.assertEqual(value["event"]["attribute_index"], int(first))
+            self.assertEqual(value["event"]["config"], 0)
+            self.assertEqual(value["event"]["sample_setting"], 99)
+            self.assertEqual(value["sample_records"], 1)
+            self.assertEqual(value["clock"]["attribute_clock_id"], 1)
+            self.assertEqual(value["blockers"], [])
+            self.assertEqual(value["event_attributes"][int(not first)]["role"], "metadata_tracking")
+            self.assertEqual(value["sample_witness"], self.read()["sample_witness"])
+
+    def test_mixed_record_trailers_and_read_formats_follow_event_ids(self):
+        sample_type = REQUIRED_SAMPLE_FIELDS | SAMPLE_IDENTIFIER
+        trailer = struct.pack("<IIQQ", 41, 42, 123456789, 2)
+        records = [
+            sample_record(sample_type=sample_type),
+            record(2, struct.pack("<QQ", 2, 7) + trailer),
+            record(13, struct.pack("<Q", 3) + trailer),
+        ]
+        for lost in (4, 9, 2):
+            records.append(
+                record(8, struct.pack("<II", 41, 42) + read_value(lost, identity=2) + trailer)
+            )
+        for first in (False, True):
+            value = self.read(
+                recording_bytes(
+                    records=records, sample_type=sample_type, tracking={}, tracking_first=first
+                )
+            )
+            self.assertEqual(value["loss"]["ring_lost_events"], 7)
+            self.assertEqual(value["loss"]["lost_sample_events"], 3)
+            self.assertEqual(
+                value["loss"]["cumulative_read_maxima"],
+                [dict(event_attribute_index=int(not first), pid=41, tid=42, event_id=2, maximum=9)],
+            )
+            self.assertFalse(value["loss"]["counts_are_additive"])
+        for bad_trailer in (
+            trailer[:-1],
+            trailer[:-8] + struct.pack("<Q", 999),
+            trailer[:-8] + struct.pack("<Q", 1),
+        ):
+            with self.assertRaises(ValueError):
+                self.read(
+                    recording_bytes(
+                        records=[record(2, struct.pack("<QQ", 2, 7) + bad_trailer)],
+                        sample_type=sample_type,
+                        tracking={},
+                    )
+                )
+        with self.assertRaises(ValueError):
+            self.read(
+                recording_bytes(
+                    records=[
+                        record(8, struct.pack("<II", 41, 42) + read_value(1, identity=1) + trailer)
+                    ],
+                    sample_type=sample_type,
+                    tracking={},
+                )
+            )
+
+    def test_mixed_attribute_ambiguity_and_foreign_sampling_are_rejected(self):
+        sample_type = REQUIRED_SAMPLE_FIELDS | SAMPLE_IDENTIFIER
+        for tracking in (
+            dict(ids=(1,)),
+            dict(ids=(2, 2)),
+            dict(ids=(0,)),
+            dict(config=0),
+            dict(config=7),
+        ):
+            with self.assertRaises(ValueError):
+                self.read(recording_bytes(sample_type=sample_type, tracking=tracking))
+        with self.assertRaises(ValueError):
+            self.read(recording_bytes(tracking={}))
+        with self.assertRaises(ValueError):
+            self.read(
+                recording_bytes(samples=[dict(identifier=2)], sample_type=sample_type, tracking={})
+            )
+        trailer = struct.pack("<IIQQ", 41, 42, 123456789, 2)
+        for tracking in (dict(flags=1 << 25), dict(sample_type=2 | 4)):
+            with self.assertRaises(ValueError):
+                self.read(
+                    recording_bytes(
+                        records=[record(13, struct.pack("<Q", 1) + trailer)],
+                        sample_type=sample_type,
+                        tracking=tracking,
+                    )
+                )
+        data = bytearray(recording_bytes(sample_type=sample_type, tracking={}))
+        struct.pack_into("<Q", data, 104 + 8, 9)  # No CPU-clock event remains.
+        with self.assertRaises(ValueError):
+            self.read(bytes(data))
+
+    def test_tracking_clock_domain_is_never_inferred_from_primary(self):
+        for tracking in (dict(clock_id=4), dict(flags=1 << 18)):
+            value = self.read(
+                recording_bytes(
+                    sample_type=REQUIRED_SAMPLE_FIELDS | SAMPLE_IDENTIFIER, tracking=tracking
+                )
+            )
+            self.assertEqual(value["clock"]["attribute_clock_id"], 1)
+            self.assertIn("tracking_event_clock_unbound", value["blockers"])
+            self.assertEqual(value["loss"]["status"], "tracking_metadata_clock_scope_incomplete")
+            self.assertFalse(value["promotion_allowed"])
 
     def test_clock_features_are_observations_and_one_anchor_is_not_a_join(self):
         value = self.read(

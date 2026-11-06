@@ -203,7 +203,7 @@ class HostSession(unittest.TestCase):
         command = record["argv"]
         self.assertEqual(command[command.index("--event") + 1], "cpu-clock:u")
         self.assertEqual(command[command.index("--clockid") + 1], "CLOCK_MONOTONIC")
-        for option in ("--sample-cpu", "--timestamp", "--period"):
+        for option in ("--sample-cpu", "--sample-identifier", "--timestamp", "--period"):
             self.assertIn(option, command)
         self.assertEqual(command[command.index("--max-size") + 1], "64M")
         self.assertIn("--no-buildid-cache", command)
