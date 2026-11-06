@@ -70,7 +70,8 @@ bool sparse_semantic_identity_valid(const rns8_sparse_matrix_desc& desc, uint32_
 
 bool sparse_contract_valid(const rns8_sparse_matrix_desc& desc, sparse_layout_counts& counts) {
   uint32_t plane_count = 0;
-  if (!rns8::detail::minimum_abi_header(&desc) || desc.flags != 0 || desc.reserved0 != 0 ||
+  if (!rns8::detail::minimum_abi_header(&desc) ||
+      !rns8::detail::known_bound_kind(desc.bound_kind) || desc.flags != 0 || desc.reserved0 != 0 ||
       desc.contract != RNS8_SPARSE_A_4_TO_2_STRUCTURED_K ||
       desc.sparse_operand != RNS8_SPARSE_OPERAND_A ||
       desc.index_layout != RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1 ||
@@ -531,16 +532,16 @@ rns8_status rns8_expand_sparse_a_4_to_2_u8(const rns8_sparse_matrix_desc* desc,
 rns8_status rns8_create_sparse_matrix(rns8_context* ctx, const rns8_sparse_matrix_desc* desc,
                                       rns8_sparse_matrix** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (ctx && ctx->hip_failure_poisoned)
-      return RNS8_BACKEND_FAILURE;
     if (!ctx || !desc || !out || !rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    *out = nullptr;
     sparse_layout_counts counts{};
     if (!sparse_contract_valid(*desc, counts)) {
       return RNS8_INVALID_ARGUMENT;
     }
+    *out = nullptr;
+    if (ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (!rns8::detail::api::backend_supports_semantics(ctx->backend, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }

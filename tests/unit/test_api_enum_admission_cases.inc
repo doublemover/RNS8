@@ -295,6 +295,150 @@ TEST_CASE("ordered basis descriptor admission preserves public outputs before ro
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
+TEST_CASE("raw sparse descriptor fields reject before storage or packed output writes",
+          "[api][abi][enum][host]") {
+  auto* ctx = create_cpu_context();
+  rns8_sparse_matrix_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_BOUNDED_I64;
+  desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+  desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+  desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+  desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+  desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+  desc.rows = 1;
+  desc.expanded_k = desc.group_size = 4;
+  desc.nonzeros_per_group = 2;
+  desc.max_prefix = 1;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  const uint8_t dense[]{1, 0, 2, 0};
+  for (unsigned field = 0; field < 8; ++field) {
+    const uint32_t adjacent = field == 0   ? 8u
+                              : field == 1 ? 6u
+                              : field < 5  ? 2u
+                              : field == 5 ? 3u
+                                           : 1u;
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), adjacent}) {
+      auto bad = desc;
+      if (field == 0)
+        bad.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      if (field == 1)
+        bad.bound_kind = raw_ffi_enum<rns8_bound_kind>(bits);
+      if (field == 2)
+        bad.contract = raw_ffi_enum<rns8_sparse_contract>(bits);
+      if (field == 3)
+        bad.sparse_operand = raw_ffi_enum<rns8_sparse_operand>(bits);
+      if (field == 4)
+        bad.index_layout = raw_ffi_enum<rns8_sparse_index_layout>(bits);
+      if (field == 5)
+        bad.value_signedness = raw_ffi_enum<rns8_sparse_value_signedness>(bits);
+      if (field == 6)
+        bad.flags = bits;
+      if (field == 7)
+        bad.reserved0 = bits;
+      uint64_t groups = 71, count = 73;
+      CHECK(rns8_sparse_a_4_to_2_layout_counts(&bad, &groups, &count) == RNS8_INVALID_ARGUMENT);
+      CHECK(groups == 71);
+      CHECK(count == 73);
+      uint8_t values[]{79, 83}, indices[]{89}, expanded[]{97, 101, 103, 107};
+      CHECK(rns8_pack_sparse_a_4_to_2_u8(&bad, dense, 4, values, indices) == RNS8_INVALID_ARGUMENT);
+      CHECK(values[0] == 79);
+      CHECK(values[1] == 83);
+      CHECK(indices[0] == 89);
+      CHECK(rns8_expand_sparse_a_4_to_2_u8(&bad, values, indices, expanded, 4) ==
+            RNS8_INVALID_ARGUMENT);
+      const uint8_t expected[]{97, 101, 103, 107};
+      CHECK(std::memcmp(expanded, expected, sizeof(expanded)) == 0);
+      for (bool poisoned : {false, true}) {
+        ctx->hip_failure_poisoned = poisoned; // CPU admission only; no device fault.
+        auto* const canary = reinterpret_cast<rns8_sparse_matrix*>(uintptr_t(1));
+        auto* out = canary;
+        CHECK(rns8_create_sparse_matrix(ctx, &bad, &out) == RNS8_INVALID_ARGUMENT);
+        CHECK(out == canary);
+        ctx->hip_failure_poisoned = false;
+      }
+    }
+  }
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  uint64_t groups = 0, count = 0;
+  REQUIRE(rns8_sparse_a_4_to_2_layout_counts(&desc, &groups, &count) == RNS8_SUCCESS);
+  CHECK(groups == 1);
+  CHECK(count == 2);
+  rns8_sparse_matrix* matrix = nullptr;
+  REQUIRE(rns8_create_sparse_matrix(ctx, &desc, &matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_sparse_matrix(matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
+TEST_CASE("cache and FP8 malformed options preserve handles before CPU provider rejection",
+          "[api][abi][enum][host]") {
+  auto* ctx = create_cpu_context();
+  const auto desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 1);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_result_cache_desc cache_desc{};
+  cache_desc.struct_size = sizeof(cache_desc);
+  cache_desc.abi_version = RNS8_ABI_VERSION;
+  rns8_fp8_desc fp8{};
+  fp8.struct_size = sizeof(fp8);
+  fp8.abi_version = RNS8_ABI_VERSION;
+  fp8.format = 1;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (unsigned field = 0; field < 4; ++field) {
+    auto bad_cache = cache_desc;
+    auto bad_fp8 = fp8;
+    if (field == 0)
+      bad_cache.flags = bad_fp8.flags = UINT32_C(0x80000000);
+    if (field == 1) {
+      bad_cache.reserved0 = UINT32_MAX;
+      bad_fp8.method = 4;
+    }
+    if (field == 2) {
+      bad_cache.struct_size = sizeof(cache_desc) - 1;
+      bad_fp8.struct_size = sizeof(fp8) - 1;
+    }
+    if (field == 3)
+      bad_cache.abi_version = bad_fp8.abi_version = RNS8_ABI_VERSION + 1;
+    auto* const cache_canary = reinterpret_cast<rns8_result_cache*>(uintptr_t(1));
+    auto* cache = cache_canary;
+    CHECK(rns8_create_result_cache(ctx, plan, &bad_cache, &cache) == RNS8_INVALID_ARGUMENT);
+    CHECK(cache == cache_canary);
+    auto* const fp8_canary = reinterpret_cast<rns8_fp8_recipe*>(uintptr_t(1));
+    auto* recipe = fp8_canary;
+    CHECK(rns8_prepare_fp8_recipe(ctx, plan, &bad_fp8, &recipe) == RNS8_INVALID_ARGUMENT);
+    CHECK(recipe == fp8_canary);
+  }
+  // Each partial set is known but fails the explicit complete-cache contract.
+  for (uint32_t flag :
+       {RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES, RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY,
+        RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE, RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN}) {
+    auto bad_cache = cache_desc;
+    bad_cache.flags = flag;
+    auto* const canary = reinterpret_cast<rns8_result_cache*>(uintptr_t(1));
+    auto* cache = canary;
+    CHECK(rns8_create_result_cache(ctx, plan, &bad_cache, &cache) == RNS8_INVALID_ARGUMENT);
+    CHECK(cache == canary);
+  }
+  rns8_result_cache* cache = nullptr;
+  CHECK(rns8_create_result_cache(ctx, plan, &cache_desc, &cache) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(cache == nullptr);
+  rns8_fp8_recipe* recipe = nullptr;
+  CHECK(rns8_prepare_fp8_recipe(ctx, plan, &fp8, &recipe) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(recipe == nullptr);
+  CHECK(ctx->prepared_references == references);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor validators",
           "[api][abi][enum][host]") {
   auto* ctx = create_cpu_context();

@@ -79,6 +79,15 @@ semantic and bound tags are admitted before flag-specific backend routing, so an
 unsupported accelerator flag cannot mask an unknown tag. Authored canary,
 short-size, wrong-version and poisoned-context controls await the final batch.
 
+Sparse-A descriptor admission also validates bound tags explicitly, including
+bounded semantics where a nonzero unknown tag previously passed the sparse
+layout query. Malformed sparse descriptors preserve count/packed/dense outputs
+and constructor handle slots before context health checks. Result-cache
+construction admits reserved bits and the complete explicit flag contract before
+CPU-provider rejection; FP8 preparation preserves handle slots on malformed
+header/method/flag/scale preflight. Their valid unsupported-provider outcomes
+remain distinct. The new real-entrypoint controls have not run yet.
+
 Additional authored controls exercise raw streaming schedules through the public
 resource query and raw locality orders through a live CPU context/plan. Known
 locality modes still reach the distinct unsupported CPU-backend outcome.

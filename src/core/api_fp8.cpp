@@ -42,12 +42,13 @@ rns8_status rns8_prepare_fp8_recipe(rns8_context* ctx, const rns8_plan* plan,
   return guard_api([&]() -> rns8_status {
     if (!out)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     if (!ctx || !plan || !desc || !minimum_abi_header(desc) || desc->method > 3 ||
         (desc->flags & ~RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL))
       return RNS8_INVALID_ARGUMENT;
-    if (desc->format < 1 || desc->format > 10)
+    if (desc->format < 1 || desc->format > 10) {
+      *out = nullptr;
       return RNS8_UNSUPPORTED_BACKEND;
+    }
     const bool mx = desc->format >= 3;
     if ((mx && desc->method > 1) ||
         (!mx && (desc->scale_count || desc->a_scale_exponents || desc->b_scale_exponents)))
@@ -57,6 +58,7 @@ rns8_status rns8_prepare_fp8_recipe(rns8_context* ctx, const rns8_plan* plan,
                                       !desc->b_scale_exponents)) ||
                (!desc->scale_count && (desc->a_scale_exponents || desc->b_scale_exponents))))
       return RNS8_INVALID_ARGUMENT;
+    *out = nullptr;
     if (!(desc->flags & RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL))
       return RNS8_UNSUPPORTED_BACKEND;
     if (ctx->hip_failure_poisoned)

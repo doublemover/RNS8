@@ -768,17 +768,9 @@ rns8_status rns8_create_result_cache(rns8_context* ctx, const rns8_plan* plan,
     if (!ctx || !plan || !desc || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    *out = nullptr;
     if (!rns8::detail::minimum_abi_header(desc) ||
         !result_cache_contract_flags_valid(desc->flags) || desc->reserved0 != 0) {
       return RNS8_INVALID_ARGUMENT;
-    }
-    if (plan->backend != RNS8_BACKEND_HIP_DIRECT || !direct_hip_compiled() ||
-        !context_accepts_backend(*ctx, plan->backend)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if (!uses_rns_storage(plan->desc.semantics) && !uses_finite_storage(plan->desc.semantics)) {
-      return RNS8_UNSUPPORTED_BACKEND;
     }
     const uint32_t flags = result_cache_default_flags(desc->flags);
     constexpr uint32_t kRequiredFlags =
@@ -786,6 +778,14 @@ rns8_status rns8_create_result_cache(rns8_context* ctx, const rns8_plan* plan,
         RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE | RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
     if ((flags & kRequiredFlags) != kRequiredFlags) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    *out = nullptr;
+    if (plan->backend != RNS8_BACKEND_HIP_DIRECT || !direct_hip_compiled() ||
+        !context_accepts_backend(*ctx, plan->backend)) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (!uses_rns_storage(plan->desc.semantics) && !uses_finite_storage(plan->desc.semantics)) {
+      return RNS8_UNSUPPORTED_BACKEND;
     }
     auto cache = std::unique_ptr<rns8_result_cache>(new (std::nothrow) rns8_result_cache());
     if (!cache) {
