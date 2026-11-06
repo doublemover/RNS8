@@ -41,9 +41,9 @@ Raw process logs, source/module overlays, native case inventories, trace
 observations, budgets and final digests remain available for reproduction.
 
 The lane measures these Python production gates only. It does not qualify
-native C++ arithmetic/publication/ownership mutations, optional Mull, generated
+execution of the separate authored [native C++ mutation lane](native-production-mutations.md), optional Mull, generated
 device proof mutations or GPU faults. Those owners and native invariant/CI
-integration remain implementation work under
+integration remain separately tracked work under
 [#103](https://github.com/doublemover/RNS8/issues/103). Existing generated-WMMA
 `unknown`/`qualified=false` policy is unchanged. Reviewed baseline coverage and
 mutation detection remain complementary to exact differential and sanitizer

@@ -11,7 +11,7 @@ import re
 import shutil
 import sys
 
-from analysis_inputs import cache_values, load_inputs
+from analysis_inputs import cache_values, load_inputs, target_artifacts
 from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest, validate_document
 from compiler_context import compiler_environment
@@ -186,10 +186,11 @@ class Session:
                 process_id=result.get("process_id"),
                 returncode=result.get("returncode"),
                 succeeded=capture_succeeded(result),
+                interrupted=result.get("interrupted"),
             )
         )
         if result.get("interrupted"):
-            raise ValueError("host session interrupted; no automatic retry")
+            raise InterruptedError("host session interrupted; no automatic retry")
         if required and not capture_succeeded(result):
             raise ValueError("required stage failed: " + name)
         return result
@@ -223,6 +224,10 @@ class Session:
         _, selected = self.json(name + "-selection", [*command, "--show-only=json-v1"])
         discovery(full)
         discovery(selected)
+        if selection_names is not None and set(discovery(selected)) != set(selection_names):
+            raise ValueError(
+                "native discovery selection differs from requested names; refusing execution"
+            )
         full_ref = write_json(self.output / (name + "-discovered.json"), full)
         selected_ref = write_json(self.output / (name + "-selected.json"), selected)
         executable_refs = [
@@ -250,12 +255,20 @@ class Session:
         if selection_ref:
             check_bookends(selection_ref)
             value["inputs"]["selection_names"] = selection_ref
-            if set(discovery(selected)) != set(selection_names):
-                value["blockers"].append("native_selection_differs_from_requested_names")
-                value["status"] = "failed"
         check_bookends(executable_refs)
         value["executables"] = executable_refs
         value["ctest_process_succeeded"] = capture_succeeded(result)
+        value["process"] = {
+            key: result.get(key)
+            for key in (
+                "process_id",
+                "returncode",
+                "timed_out",
+                "interrupted",
+                "limit_exceeded",
+                "capture_error",
+            )
+        }
         if not capture_succeeded(result):
             value["status"] = "failed"
             value["blockers"].append("ctest_process_did_not_complete_successfully")
@@ -302,12 +315,12 @@ def configured_inventory(session: Session, build: Path, lane: str, nm: Path) -> 
     if not objects:
         raise ValueError("empty instrumented object inventory")
     target_path = build / ("rns8-analysis-targets-" + inputs.configuration + ".json")
-    targets = parse_evidence_json(bounded_read(target_path)[0])["targets"]
-    artifacts = {
-        target["name"]: {**reference(Path(target["artifact"])), "type": target["type"]}
-        for target in targets
-        if "artifact" in target
-    }
+    targets = target_artifacts(
+        parse_evidence_json(bounded_read(target_path)[0]), inputs.configuration
+    )
+    if any(not path.is_relative_to(build.resolve()) for path, _ in targets.values()):
+        raise ValueError("instrumented target artifact escaped its owned build")
+    artifacts = {name: {**reference(path), "type": kind} for name, (path, kind) in targets.items()}
     required = ["rns8_static", "rns8_tests"]
     if lane != "coverage":
         required.append("rns8-host-sanitizer-control")

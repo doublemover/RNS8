@@ -1,0 +1,77 @@
+{
+  "schema": "rns8_native_production_mutations_v1",
+  "owner_issue": 103,
+  "qualification": "source_authored_no_compiler_baseline_mutant_or_test_executed",
+  "scope": "CPU exact arithmetic/publication and actual templated host ownership with fake operations; no device faults",
+  "seeds": [
+    {
+      "id": "omit-checked-add-overflow-rejection",
+      "source": "src/backend_common/checked_arithmetic.hpp",
+      "anchor": "constexpr bool add(uint64_t a, uint64_t b, uint64_t& output) noexcept {",
+      "before": "if (a > UINT64_MAX - b)",
+      "after": "if (a > UINT64_MAX - b && a < b)",
+      "tests": [
+        {
+          "name": "shared checked arithmetic preserves output on overflow and handles aliased results",
+          "source": "tests/unit/test_hip_handle_owner.cpp",
+          "assertion_marker": "result == 17"
+        }
+      ],
+      "source_sha256": "68d402c1c2fa214d63d0db5ea5935fea6cb743f2a36cab1206e3c5e349fbd833",
+      "mandatory": true
+    },
+    {
+      "id": "omit-signed-crt-centering",
+      "source": "src/reconstruct/crt.cpp",
+      "anchor": "rns8_status reconstruct_strided(",
+      "before": "value -= contract.products[contract.prefix];",
+      "after": "value += cpp_int(0);",
+      "tests": [
+        {
+          "name": "CRT reconstruction recovers signed and unsigned bounded values",
+          "source": "tests/unit/test_crt.cpp",
+          "assertion_marker": "reconstruct_signed"
+        }
+      ],
+      "source_sha256": "5affd0f217bea9909b84ff5f0bb24c267af732b232192b5c454e54805b07aae3",
+      "mandatory": true
+    },
+    {
+      "id": "omit-published-value-generation",
+      "source": "src/core/api_matrix_currentness_storage.inc",
+      "anchor": "void publish_matrix_value(",
+      "before": "++matrix.content_generation;",
+      "after": "matrix.content_generation += 0;",
+      "tests": [
+        {
+          "name": "reserved CPU publication preserves exclusivity metadata and one generation advance",
+          "source": "tests/unit/test_api.cpp",
+          "assertion_marker": "c.content_generation == generation + 1"
+        },
+        {
+          "name": "independent CPU owners overlap with exact results and unique matrix identities",
+          "source": "tests/unit/test_host_concurrency.cpp",
+          "assertion_marker": "errors[i].empty()"
+        }
+      ],
+      "source_sha256": "932e9db753f36604eee4ea8d39690f3fb796aba5b9de1d2091576ade7a559d9a",
+      "mandatory": true
+    },
+    {
+      "id": "discard-failed-handle-close-owner",
+      "source": "src/core/hip_handle_owner.hpp",
+      "anchor": "status_type reset() noexcept {",
+      "before": "if (status != Operations::success)\n        return status;",
+      "after": "if (status == Operations::success)\n        return status;",
+      "tests": [
+        {
+          "name": "runtime handle replacement preserves failed destruction and original device",
+          "source": "tests/unit/test_hip_handle_owner.cpp",
+          "assertion_marker": "first.reset()"
+        }
+      ],
+      "source_sha256": "9318ec711092619c0937820d36d1ad65195bc834737a60e07ea3587bf291474d",
+      "mandatory": true
+    }
+  ]
+}

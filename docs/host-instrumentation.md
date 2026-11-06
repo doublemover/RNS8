@@ -6,7 +6,7 @@ frontload adds build selection and sensitivity/concurrency controls under
 [#102](https://github.com/doublemover/RNS8/issues/102) and coverage instrumentation
 under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
 session and native LLVM coverage drivers are authored; CI, OpenMP runtime
-qualification, device-ASan preflight and native mutation/CI reporting remain
+qualification, device-ASan preflight and continuous CI reporting remain
 implementation work. Python branch/subprocess collection source is authored.
 
 | Configure preset | Instrumentation | Initial scope |
@@ -56,8 +56,10 @@ profiles and source denominator. The separate authored
 [Python branch collector](python-source-coverage.md) observes selected production
 modules and real test contexts. The authored
 [Python production mutation lane](production-mutations.md) retains separate
-baselines and intended native assertion/source-line observations; native C++
-mutation integration remains implementation work.
+baselines and intended native assertion/source-line observations. The authored
+[native C++ mutation lane](native-production-mutations.md) builds separate CPU
+production variants with ordinary assertion controls. All new lane execution,
+compatible optional Mull and continuous CI remain pending.
 
 `tools/host_instrumentation_session.py` prints a plan by default. Adding
 `--execute` configures a fresh build, builds its complete first-party targets,

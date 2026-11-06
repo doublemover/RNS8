@@ -179,6 +179,35 @@ class ObjectContracts(unittest.TestCase):
 
 
 class SessionControls(unittest.TestCase):
+    def test_interrupted_stage_preserves_capture_and_stops_before_following_work(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve()
+            owned = session.Session(output, {}, 60, 1024**2)
+            result = {**capture(), "interrupted": True, "returncode": -1}
+            with mock.patch.object(session, "run_capture", return_value=result) as run:
+                with self.assertRaises(InterruptedError):
+                    owned.run("interrupted", ["never executed fixture"])
+                self.assertEqual(run.call_count, 1)
+            self.assertTrue(owned.stages[0]["interrupted"])
+
+    def test_ignored_native_filter_cannot_execute_unselected_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve()
+            native = inventory("mandatory", "unexpected")
+            owned = session.Session(output, {}, 60, 1024**2)
+            with mock.patch.object(
+                session, "run_capture", return_value=capture(json.dumps(native))
+            ) as run:
+                with self.assertRaisesRegex(ValueError, "refusing execution"):
+                    owned.tests(
+                        "scope",
+                        output,
+                        Path("/ctest"),
+                        required=["mandatory"],
+                        selection_names=["mandatory"],
+                    )
+                self.assertEqual(run.call_count, 2)
+
     def test_environment_cannot_disable_checks_or_inject_runtime(self):
         env = session.child_environment(
             {

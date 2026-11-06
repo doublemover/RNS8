@@ -361,6 +361,27 @@ def manifest_dependencies_compatible(manifests):
     return True
 
 
+def source_content_digest(source: Path) -> str:
+    digest = hashlib.sha256()
+    # Include untracked implementation inputs as well as tracked files.
+    paths = [source / "CMakeLists.txt"]
+    for folder in ("src", "include", "cmake", "benchmarks", "tools"):
+        paths.extend(
+            p
+            for p in (source / folder).rglob("*")
+            if p.is_file()
+            and "__pycache__" not in p.relative_to(source).parts
+            and p.suffix != ".pyc"
+        )
+    for path in sorted(paths):
+        digest.update(path.relative_to(source).as_posix().encode() + b"\0")
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024**2), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def generate(source, config):
     source = Path(source).resolve(strict=True)
     # Copied/subdirectory sources must not borrow the containing checkout's
@@ -387,19 +408,7 @@ def generate(source, config):
             commit, dirty = "unknown", True
     except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         commit, dirty = "unknown", True
-    digest = hashlib.sha256()
-    # Include untracked implementation inputs as well as tracked files.
-    paths = [source / "CMakeLists.txt"]
-    for folder in ("src", "include", "cmake", "benchmarks", "tools"):
-        paths.extend(
-            p
-            for p in (source / folder).rglob("*")
-            if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
-        )
-    for path in sorted(paths):
-        digest.update(path.relative_to(source).as_posix().encode() + b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
+    content_digest = source_content_digest(source)
     configuration = config.read_text(encoding="utf-8")
     options = configuration_options(configuration, strict=True)
     groups = {}
@@ -425,7 +434,7 @@ def generate(source, config):
         version=3,
         source_commit=commit,
         source_dirty=dirty,
-        source_digest=digest.hexdigest(),
+        source_digest=content_digest,
         configuration=configuration,
         dependency_digest=dependency_content_digest(identity),
         dependency_identity=identity,

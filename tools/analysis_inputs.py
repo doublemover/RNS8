@@ -72,6 +72,35 @@ def _strings(value: object) -> tuple[str, ...]:
     return tuple(value)
 
 
+def target_artifacts(document: object, configuration: str) -> dict[str, tuple[Path, str]]:
+    if (
+        not isinstance(document, dict)
+        or document.get("schema") != "rns8_first_party_analysis_targets_v1"
+    ):
+        raise ValueError("configured first-party target artifact inventory required")
+    rows = document.get("targets")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("nonempty configured target artifact inventory required")
+    result = {}
+    seen = set()
+    kinds = {"STATIC_LIBRARY", "SHARED_LIBRARY", "MODULE_LIBRARY", "OBJECT_LIBRARY", "EXECUTABLE"}
+    for row in rows:
+        if (
+            not isinstance(row, dict)
+            or type(row.get("name")) is not str
+            or not row["name"]
+            or row["name"] in seen
+            or row.get("configuration") != configuration
+            or type(row.get("type")) is not str
+            or row.get("type") not in kinds
+        ):
+            raise ValueError("duplicate/malformed configured target artifact identity")
+        seen.add(row["name"])
+        if row["type"] != "OBJECT_LIBRARY":
+            result[row["name"]] = (_absolute(row.get("artifact")), row["type"])
+    return result
+
+
 def load_inputs(build: Path, *, root: Path = ROOT) -> AnalysisInputs:
     build, root = build.resolve(strict=True), root.resolve(strict=True)
     cache_path = build / "CMakeCache.txt"
