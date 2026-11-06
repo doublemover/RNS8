@@ -10,13 +10,19 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
-from timing_eligibility import phase_blockers, bound_comparison_blockers
+from timing_eligibility import phase_blockers, bound_comparison_blockers, capture_identity
 from measurement_contract import host_instrumentation
 from diagnostic_companion import load_bindings, production_evidence
 import target_validation_report
 from target_qualification import candidate_verdict, candidate_binding, VERDICT_SCHEMA
 from json_evidence import load_evidence_json, same_evidence_value
 from benchmark_request import file_digest
+from cache_promotion import (
+    entry_digest,
+    evidence_references,
+    receipt_from_references,
+    unique_entries,
+)
 
 
 DEFAULT_OUT_DIR = Path("temp") / "promotion-ledgers"
@@ -42,13 +48,13 @@ def path_key(path: str | Path) -> str:
 def load_cache_entries(path: Path | None) -> list[dict[str, Any]]:
     if path is None or not path.exists():
         return []
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        return []
+    data = load_evidence_json(path)
+    if not isinstance(data, dict) or data.get("schema_version") != 1:
+        raise ValueError("candidate cache schema required")
     entries = data.get("entries")
-    if isinstance(entries, list):
-        return [entry for entry in entries if isinstance(entry, dict)]
-    return []
+    if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
+        raise ValueError("candidate cache entry array required")
+    return list(unique_entries(entries).values())
 
 
 def load_review_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
@@ -457,6 +463,7 @@ def capture_entry(
     )
     return {
         "path": str(path),
+        "capture_sha256": capture_identity(capture),
         "production_timing_evidence": companion,
         "autotune_key": key,
         "backend_class": "production"
@@ -636,17 +643,81 @@ def build_ledger(
         for path in captures
     ]
     cache_entries = load_cache_entries(cache_path)
-    cache_keys = {entry.get("key") for entry in cache_entries if isinstance(entry.get("key"), str)}
+    cache_by_key = unique_entries(cache_entries)
+    cache_keys = set(cache_by_key)
+    # Hash shared report/capture inputs once for the whole ledger, not per row.
+    references = []
+    if cache_entries and review_reports and variance_reports:
+        inputs = [("observation", path) for path in captures]
+        for role, paths in (
+            ("review", review_reports),
+            ("variance", variance_reports),
+            ("target", target_validation_reports),
+            ("shape", shape_family_shadow_reports),
+            ("counter", counter_reports),
+            ("diagnostic", diagnostic_binding_paths),
+        ):
+            inputs.extend((role, path) for path in (paths or []))
+        for row in variance.values():
+            if isinstance(row.get("capture"), str):
+                inputs.append(("observation", Path(row["capture"])))
+        referenced_bindings = list(diagnostic_bindings.values())
+        for row in reviewed.values():
+            comparison = row.get("timing_comparison") or {}
+            if isinstance(comparison.get("baseline_capture"), str):
+                inputs.append(("baseline", Path(comparison["baseline_capture"])))
+            for extra in row.get("additional_baseline_evidence", []):
+                inputs.append(("baseline", Path(extra["capture"])))
+                if isinstance(extra.get("diagnostic_companion"), dict):
+                    referenced_bindings.append(extra["diagnostic_companion"])
+            for name in ("production_timing_evidence", "baseline_production_timing_evidence"):
+                binding = (row.get(name) or {}).get("binding")
+                if isinstance(binding, dict):
+                    referenced_bindings.append(binding)
+        for binding in referenced_bindings:
+            inputs.extend(
+                ("diagnostic", Path(binding[key]))
+                for key in ("production_capture", "diagnostic_capture")
+            )
+        references = evidence_references(inputs)
     for entry in entries:
         key = entry.get("autotune_key")
         entry["installed_cache_entry"] = bool(key and key in cache_keys)
         if key and key not in cache_keys:
             entry["promotion_blockers"].append("missing_installed_cache_entry")
-        entry["stale_invalidation_reasons"] = stale_invalidation_reasons(entry)
-        counter_entry = counter.get(path_key(path))
+        counter_entry = counter.get(path_key(entry["path"]))
         entry["counter_resource_summary"] = counter_resource_summary(counter_entry)
         if counter_entry is None and counter_reports:
             entry.setdefault("promotion_blockers", []).append("missing_counter_evidence")
+        entry["cache_promotion_receipt"] = None
+        if key in cache_by_key:
+            from benchmark_sweep_lib.review import (
+                cache_entry_from_capture,
+                reviewed_release_status_for_target,
+            )
+
+            current = load_capture(Path(entry["path"]))
+            expected = cache_entry_from_capture(
+                current, reviewed_release_status_for_target(entry["target_id"])
+            )
+            if capture_identity(current) != entry["capture_sha256"] or entry_digest(
+                expected
+            ) != entry_digest(cache_by_key[key]):
+                entry["promotion_blockers"].append("cache_payload_differs_from_reviewed_capture")
+            if not entry["promotion_blockers"]:
+                if not references or entry["variance_gate_ready"] is not True:
+                    entry["promotion_blockers"].append("content_bound_promotion_evidence_missing")
+                else:
+                    candidate = next(
+                        ref
+                        for ref in references
+                        if ref["role"] == "observation"
+                        and ref["path"] == str(Path(entry["path"]).resolve())
+                    )
+                    entry["cache_promotion_receipt"] = receipt_from_references(
+                        cache_by_key[key], [*references, {**candidate, "role": "candidate"}]
+                    )
+        entry["stale_invalidation_reasons"] = stale_invalidation_reasons(entry)
     return {
         "schema_version": 1,
         "policy": "reviewed_release_evidence_required_for_autotune_promotion",

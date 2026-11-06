@@ -33,7 +33,11 @@ FIXTURES = Path(__file__).parents[1] / "tests/fixtures/benchmark_schema"
 
 
 def authored_pair(root, name="v4_bounded_i64_rocwmma.json"):
-    diagnostic = load_capture(FIXTURES / name)
+    return authored_capture_pair(root, load_capture(FIXTURES / name))
+
+
+def authored_capture_pair(root, diagnostic):
+    diagnostic = copy.deepcopy(diagnostic)
     synthetic_identity(diagnostic)
     synthetic_host_measurements(diagnostic)
     diagnostic["timing_metadata"]["host_instrumentation_state"] = "diagnostic_gpu_events"

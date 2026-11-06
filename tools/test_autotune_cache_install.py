@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 import install_autotune_cache
+from cache_promotion import make_receipt
 
 
 def case_key_suffix(key_suffix: str) -> str:
@@ -193,6 +194,13 @@ def write_ledger(
     target_gate: bool = False,
     target_ready: bool = True,
 ) -> None:
+    # These files model immutable parser/merger evidence only. End-to-end
+    # capture derivation is covered by the real ledger integration controls.
+    inputs = []
+    for role in ("candidate", "review", "variance"):
+        evidence = path.with_name(path.stem + "-" + role + ".json")
+        evidence.write_text(json.dumps(dict(fixture_role=role, entries=entries)), encoding="utf-8")
+        inputs.append((role, evidence))
     path.write_text(
         json.dumps(
             {
@@ -202,6 +210,7 @@ def write_ledger(
                     {
                         "autotune_key": item["key"],
                         "performance_validated": True,
+                        "cache_promotion_receipt": make_receipt(item, inputs),
                         "promotion_blockers": list(blockers or []),
                         "variance_gate_available": variance,
                         "variance_gate_ready": variance_ready if variance else None,

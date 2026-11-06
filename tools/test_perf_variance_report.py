@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 
 from benchmark_schema import load_capture, validate_capture
+from benchmark_sweep_lib.review import cache_entry_from_capture, reviewed_release_status_for_target
 from benchmark_schema.core_shared import REPEATED_TIMING_PHASES, _average, _percentile
 
 import perf_variance_report
@@ -233,10 +234,19 @@ def main() -> int:
 
         variance_path = tmp / "variance-report.json"
         variance_path.write_text(json.dumps(report), encoding="utf-8")
-        cache_key = capture_with_timings([100.0, 101.0, 99.0])["backend_metadata"]["autotune_key"]
         cache_path = tmp / "cache.json"
         cache_path.write_text(
-            json.dumps({"schema_version": 1, "entries": [{"key": cache_key}]}), encoding="utf-8"
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "entries": [
+                        cache_entry_from_capture(
+                            load_capture(stable_a), reviewed_release_status_for_target("gfx1100")
+                        )
+                    ],
+                }
+            ),
+            encoding="utf-8",
         )
 
         narrow_review = write_review_report(tmp / "narrow-review.json", stable_a, 1.02)

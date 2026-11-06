@@ -136,9 +136,17 @@
       "url": "https://github.com/doublemover/RNS8/issues/27",
       "requirements_sha256": "e0af0198983bc6180b872ca8251a63287d9b028f8839ca0ce9b80ff03179e0ee",
       "comments_reviewed": 14,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Reconcile the stale same-key installer acceptance comment with current source. Add one shared canonical full cache-entry digest excluding only publication timestamp, bounded content-addressed versioned promotion receipts, per-ledger hash reuse and unchanged-evidence validation before installation. Ledger authoring derives the exact expected runtime payload from the current reviewed capture rather than testing key membership; bind supplied reports, independent capture files, baseline references and embedded/explicit diagnostic source files. Reject conflicting source/destination payloads, preserve identical/timestamp-only entry idempotency, and keep ready legacy ledgers non-authorizing. Repair the adjacent last-capture counter attachment bug by indexing each ledger row by its own path. Author payload/receipt/evidence drift, file-hash reuse, no-replacement, legacy/conflict, actual synthetic review-to-variance-to-ledger-to-installer and multi-entry counter controls; register the new CTest. Necessary seven-module Python AST/pinned Ruff/format/diff checks only. No fixture, report producer, installer, CMake or runtime test executed. Generic writer and complete fourteen-comment consumer reconciliation remain open."
+      ],
+      "remaining_source_items": [
+        "Close the generic sweep writer independent-run, environment, baseline and shared publication admission gap; integrate the same receipt/atomic installation boundary rather than keeping a bypass.",
+        "Reconcile the complete issue body and all fourteen comments, including specialized wrap/host-batch/CPU-selector/report consumers and pending-validation capture binding. Empty older source rows were not completion evidence."
+      ],
+      "remaining_validation_items": [
+        "Execute all new receipt/publication and real-producer integration controls with the deferred Python batch; qualify generic/specialized writer regressions together once their implementation pass is complete. Synthetic timings are parser controls, not performance measurements."
+      ]
     },
     {
       "issue": 29,

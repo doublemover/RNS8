@@ -16,6 +16,7 @@ from typing import Any
 from check_dependencies_lib.config import LINUX_CDNA_TARGETS
 from metadata_registry_constants import BOUNDED_SEMANTICS, EXACT_WIDE_SEMANTICS, FINITE_U8_SEMANTICS
 from json_evidence import load_evidence_json, same_evidence_value
+from cache_promotion import entry_digest, unique_entries, validate_receipt
 
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
@@ -462,6 +463,12 @@ def validate_promotion_ledger_gate(
                 raise AutotuneCacheInstallError(f"promotion_ledger_missing_variance_gate:{key}")
             if ledger_entry.get("variance_gate_ready") is not True:
                 raise AutotuneCacheInstallError(f"promotion_ledger_variance_gate_not_ready:{key}")
+        try:
+            validate_receipt(entry, ledger_entry.get("cache_promotion_receipt"))
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            raise AutotuneCacheInstallError(
+                f"promotion_ledger_payload_or_evidence_changed:{key}:{error}"
+            ) from error
         target_id = str(entry.get("target_id") or "").lower()
         target_gate_required = require_target_validation_gate or target_id in LINUX_CDNA_TARGETS
         if target_gate_required:
@@ -578,7 +585,10 @@ def install_cache(
                 f"{destination}: existing cache failed reviewed-cache validation; "
                 f"rerun with --replace-existing to discard existing entries: {exc}"
             ) from exc
-    existing_by_key = {entry["key"]: entry for entry in existing_entries}
+    try:
+        existing_by_key = unique_entries(existing_entries)
+    except (ValueError, TypeError) as error:
+        raise AutotuneCacheInstallError(str(error)) from error
     merged = dict(existing_by_key)
     initial_keys = set(merged)
     source_entries = 0
@@ -590,6 +600,10 @@ def install_cache(
         reviewed_source_entries.extend(entries)
         for entry in entries:
             source_by_key[entry["key"]] = str(source)
+    try:
+        reviewed_source_entries = list(unique_entries(reviewed_source_entries).values())
+    except (ValueError, TypeError) as error:
+        raise AutotuneCacheInstallError(str(error)) from error
     if not allow_selector_review_cache:
         for entry in reviewed_source_entries:
             if entry.get("cache_scope", "runtime_exact_autotune") != "runtime_exact_autotune":
@@ -618,6 +632,8 @@ def install_cache(
     replacement_history: list[dict[str, Any]] = []
     for entry in reviewed_source_entries:
         old_entry = merged.get(entry["key"])
+        if old_entry is not None and entry_digest(old_entry) == entry_digest(entry):
+            continue
         if old_entry != entry:
             replacement_history.append(
                 {

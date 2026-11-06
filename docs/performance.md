@@ -238,6 +238,18 @@ grouped, sparse, result-cache, and chain workloads require matching lifetime and
 output contracts; their measurements cannot be substituted for ordinary one-shot
 latency.
 
+Cache installation requires a current `rns8_cache_promotion_receipt_v1` in each
+ready ledger row. The ledger derives the exact runtime payload from the reviewed
+capture and binds every payload field except publication-only `updated_utc`.
+It retains content-addressed candidate, independent-observation, baseline,
+review, variance and supplied diagnostic/target/shape/counter inputs. Installation
+rechecks their bytes and the payload digest before changing the destination.
+Same-key conflicting source payloads reject; timestamp-only regeneration is
+idempotent. A legacy ready ledger remains diagnostic input and cannot authorize
+a new write. The new publication and real producer-chain controls are authored;
+their runtime execution remains deferred. The generic sweep writer's remaining
+independent-run/publication reconciliation is tracked separately in issue27.
+
 ## Promotion boundaries
 
 - CPU success and static/host arithmetic tests do not qualify GPU code.
