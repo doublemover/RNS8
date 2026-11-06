@@ -24,8 +24,13 @@ and value publication use the existing GEMM write guard and generation owner;
 there is no second matrix-validity state. A preflight range failure can preserve
 an old value while the new operation's completion still reports failure.
 
-Synchronous specialized writers retain their input/output/workspace authority
-through range and currentness publication. Workspace buffers registered with a
+Ordinary RNS/finite/wrap and specialized synchronous writers retain their actual
+input/output/workspace authority through range and currentness publication.
+The finite product verifier retains three readers and trial scratch without
+inventing an output writer. A failed completion and failed cleanup drain keep
+those owners reserved and poison the context; a later successful explicit drain
+releases them once. This source contract does not demonstrate real device-error
+recovery. Workspace buffers registered with a
 lease remain pending after an uncertain drain; the context's retained record
 clears that pending state only after a later successful drain. Narrow bound-scan
 and intermediate product buffers likewise defer reclamation after uncertain
@@ -69,6 +74,20 @@ Ordinary synchronous device copies explicitly wait for the default stream before
 returning success, including same-device copies that HIP may enqueue without
 blocking the host. Completed-copy counters advance after that wait succeeds.
 Borrowed-stream and graph entrypoints retain their explicit asynchronous contract.
+
+Allocation and DMA custody share the existing typed owners. Physical device
+allocation/free is centralized in the direct-HIP resource helpers; pinned host
+allocation and deferred release retain their device-affine cleanup record.
+Failed frees keep allocation identity/accounting until successful retry or
+transfer to the existing retirement owner. Grouped tables/slabs, temporary
+status/readback slots, immutable upload packets, conversion staging and queue
+metadata retain the actual DMA source or destination. Prepared transfers,
+overlapped panels, distributed sessions and product recipes retain their whole
+owner until completion. Device-to-device aliases remain protected independently
+of host snapshots by public leases or their enclosing owner. Successful ordinary
+copies observe their existing completion boundary; this audit adds no new
+success-path global fence or performance claim. Host/mock ownership controls and
+real device/OS qualification remain separate deferred validation gates.
 
 Each token contains a unique prepared-instance identity and a nonwrapping epoch.
 `rns8_get_prepared_completion` accepts only the latest epoch of that instance.
