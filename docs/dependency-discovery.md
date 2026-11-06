@@ -404,6 +404,27 @@ not offered: compiler/CRT/thread/BLAS options and platform packaging require an
 operator-selected supported build. Manual setup is an explicit supported policy
 choice here, not an implicit install or an unobserved platform pass.
 
+The manual [dependency-contract candidate workflow](../.github/workflows/dependency-contract-candidate.yml)
+defines native Windows2025 and Ubuntu24.04 fixture lanes using exact selected
+Python and hash-locked CMake/Ninja. Its compiler-free CMake project and the
+ordinary test build call the same registration helper for all 14 dependency
+contracts. The full batch includes discovery/root/ABI-policy rejection,
+CK/rocWMMA/builtin target and wrapped-environment controls, reference probe
+receipts, installed package policy, archive/bootstrap planning and interrupted
+installation controls. CTest keeps the named denominator, per-case failures and
+JUnit/log artifacts. It requires no SDK, GPU, privileged package installation or
+first-party library build. The workflow is authored and linted, not dispatched;
+required CI activation awaits the deferred validation batch. Filesystem mocks
+and command recorders never qualify native dependency binaries.
+
+| Lane | Source readiness | Observed acceptance for these new changes |
+|---|---|---|
+| Native Windows host contracts | Authored, manual workflow | Not run |
+| Native Linux host contracts | Authored, manual workflow | Not run |
+| Windows SDK/reference packages and fresh custom prefixes | Discovery/probe/build entrypoints authored | Pending native compiler/link/runtime and disposable install runs |
+| Linux ROCm/reference packages and fresh custom prefixes | Native entrypoints and explicit manual setup policy authored | Pending native compiler/link/runtime and disposable install runs |
+| WSL | Separate Linux/native-artifact policy | No transferred native-Linux or Windows qualification |
+
 The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`.
 Install declared packages explicitly using the existing
 [dependency guide](../third_party/README.md) command. An old cache or deliberately

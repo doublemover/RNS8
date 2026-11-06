@@ -11,6 +11,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${CMAKE_CURRENT_BINARY_DIR}/rns8-test-sdk.cmake")
   endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RNS8DependencyFixtures.cmake")
+  rns8_add_dependency_contract_tests("${CMAKE_CURRENT_SOURCE_DIR}" "${Python3_EXECUTABLE}")
   set(RNS8_BENCHMARK_CASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/benchmark-cases")
   file(GLOB_RECURSE _rns8_case_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.json")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -21,10 +23,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   if(NOT _rns8_cases_status EQUAL 0)
     message(FATAL_ERROR "Benchmark case expansion failed: ${_rns8_cases_error}")
   endif()
-  add_test(NAME matrix_target_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_matrix_targets.py")
   add_test(NAME ck_physical_kernel_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ck_kernel_contract.py")
   set_tests_properties(ck_physical_kernel_contracts PROPERTIES LABELS "tools;admission;certificate" TIMEOUT 60)
-  set_tests_properties(matrix_target_contracts PROPERTIES LABELS "tools;admission" TIMEOUT 60)
   add_test(NAME benchmark_catalog_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_cases.py")
   add_test(NAME research_evidence_archive_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_research_evidence.py")
   add_test(NAME rank48_mathematical_certificate COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank48_certificate.py")
@@ -88,18 +88,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME rns_chain_report_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rns_chain_report.py")
   add_test(NAME measurement_evidence_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_measurement_evidence_contracts.py")
   add_test(NAME tooling_contract_regressions COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_tooling_contracts.py")
-  add_test(NAME dependency_policy_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_policy.py")
   add_test(NAME documentation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_documentation.py")
   add_test(NAME documentation_links COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_documentation.py")
-  add_test(NAME dependency_resolution_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_resolution.py")
-  add_test(NAME rocm_sdk_init_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rocm_sdk.py")
-  add_test(NAME native_build_tools_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_init_build_tools.py")
-  set_tests_properties(native_build_tools_self_test PROPERTIES LABELS "tools;dependencies;bootstrap")
-  add_test(NAME sdk_package_policy_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_sdk_package.py")
-  set_tests_properties(sdk_package_policy_self_test PROPERTIES LABELS "tools;dependencies;packaging")
   add_test(NAME runtime_staging_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_runtime_staging.py")
-  add_test(NAME ck_input_contract_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ck_input_contract.py")
-  set_tests_properties(rocm_sdk_init_self_test PROPERTIES LABELS "tools;dependencies;sdk")
   add_test(NAME locality_schedule_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_locality_schedule.py")
   add_test(NAME calibration_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_calibration_manifest.py")
   add_test(NAME build_instrumentation_admission_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_build_instrumentation.py")
@@ -485,7 +476,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME analysis_dispositions_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analysis_dispositions.py")
   add_test(NAME fuzz_library_instrumentation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_cmake.py")
   add_test(NAME fuzz_case_codec_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_cases.py")
-  add_test(NAME host_llvm_bootstrap_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_init_host_llvm.py")
   add_test(NAME fuzz_semantic_shrink_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_shrink.py")
   add_test(NAME metadata_property_driver_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fuzz_metadata.py")
   add_test(NAME matrix_symbol_attribution_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_matrix_symbol_attribution.py")
@@ -791,37 +781,11 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   endif()
 
   add_test(
-    NAME dependency_checker_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_dependencies.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(dependency_checker_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
-  add_test(NAME reference_probe_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_reference_probes.py")
-  set_tests_properties(reference_probe_self_test PROPERTIES LABELS "tools;dependencies;reference")
-  add_test(NAME ck_target_probe_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ck_target_probes.py")
-  set_tests_properties(ck_target_probe_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
-  add_test(NAME accelerator_target_probe_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_accelerator_target_probes.py")
-  set_tests_properties(accelerator_target_probe_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
-  add_test(NAME bootstrap_native_contract_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bootstrap_native_contract.py")
-  set_tests_properties(bootstrap_native_contract_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
-
-  add_test(
     NAME release_tree_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_release_tree.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(release_tree_self_test PROPERTIES LABELS "tools;release")
-
-  add_test(
-    NAME bootstrap_rocm_accelerators_dry_run_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bootstrap_rocm_accelerators.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(bootstrap_rocm_accelerators_dry_run_self_test PROPERTIES LABELS "tools;accelerator")
 
   add_test(
     NAME release_tree_current_check
