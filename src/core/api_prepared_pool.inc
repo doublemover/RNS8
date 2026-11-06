@@ -37,39 +37,49 @@ rns8_status rns8_create_prepared_pool(rns8_prepared_execution* const* executions
       return RNS8_INVALID_ARGUMENT;
     if (!executions || !count || count > 64 || use_owned_graph > 1)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
-    auto pool = std::make_unique<rns8_prepared_pool>();
-    pool->slots.reserve(count);
-    pool->graph = use_owned_graph != 0;
-    std::unordered_set<const rns8_workspace*> workspaces;
+    std::array<rns8_prepared_execution*, 64> members{};
+    std::copy_n(executions, count, members.begin());
+    // Inspect the entire bounded member set before routing or allocating. A
+    // rejected first provider must not hide a malformed later member.
     for (uint32_t i = 0; i < count; ++i) {
-      auto* e = executions[i];
-      if (!e)
+      auto* e = members[i];
+      if (!e || e->closing)
         return RNS8_INVALID_ARGUMENT;
       if (e->running || e->pool_owned || e->caller_graph_references || e->group_references ||
           e->producer_count || e->dependent_references)
         return RNS8_BUSY;
-      if (e->ctx != executions[0]->ctx)
+      if (e->ctx != members[0]->ctx)
         return RNS8_INVALID_ARGUMENT;
-      if (e->workspace && !workspaces.insert(e->workspace).second)
-        return RNS8_INVALID_ARGUMENT;
+      for (uint32_t previous = 0; previous < i; ++previous)
+        if (e == members[previous] ||
+            (e->workspace && e->workspace == members[previous]->workspace))
+          return RNS8_INVALID_ARGUMENT;
+    }
+    *out = nullptr;
+    const bool graph = use_owned_graph != 0;
+    for (uint32_t i = 0; i < count; ++i) {
+      auto* e = members[i];
       if (!e->hip_submission_prepared)
         return RNS8_UNSUPPORTED_BACKEND;
       const auto status = prepared_hip_support_status(*e);
       if (status != RNS8_SUCCESS)
         return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-      if (pool->graph && (!e->graph_executable || e->graph_a != prepared_device_storage(*e->a) ||
-                          e->graph_b != prepared_device_storage(*e->b) ||
-                          e->graph_c != prepared_device_storage(*e->c) ||
-                          (e->d && e->graph_d != prepared_device_storage(*e->d))))
+      if (graph && (!e->graph_executable || e->graph_a != prepared_device_storage(*e->a) ||
+                    e->graph_b != prepared_device_storage(*e->b) ||
+                    e->graph_c != prepared_device_storage(*e->c) ||
+                    (e->d && e->graph_d != prepared_device_storage(*e->d))))
         return RNS8_INVALID_ARGUMENT;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
-      pool->slots.push_back({e, {}, false});
     }
-    const auto status = rns8_create_prepared_group(executions, count, &pool->group);
+    auto pool = std::make_unique<rns8_prepared_pool>();
+    pool->slots.reserve(count);
+    pool->graph = graph;
+    for (uint32_t i = 0; i < count; ++i)
+      pool->slots.push_back({members[i], {}, false});
+    const auto status = rns8_create_prepared_group(members.data(), count, &pool->group);
     if (status != RNS8_SUCCESS)
       return status;
     for (auto& slot : pool->slots)

@@ -830,6 +830,13 @@ already captured owned graph. Host access to shared handles remains serialized.
 The pool does not create a second completion system or reuse one output/event
 for simultaneous epochs. The caller supplies every payload allocation; pool
 metadata is bounded by slot count, with ordinary range-proof work at admission.
+Creation snapshots the bounded member array once. Null, closing or duplicate
+owners, mixed contexts and shared workspaces reject before provider routing or
+pool allocation; malformed or BUSY member preflight preserves the caller's pool
+handle. Structurally admitted unsupported providers still clear the output
+handle. This ordering prevents an unsupported first member from hiding an
+invalid later member. The bounded uniqueness check requires no temporary hash
+table; no measured setup or end-to-end performance gain is claimed.
 
 `rns8_submit_prepared_pool_hip` selects an available slot in round-robin order.
 A full pool returns BUSY without changing the output token, slot index, values

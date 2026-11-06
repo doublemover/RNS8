@@ -498,6 +498,8 @@ RNS8_API rns8_status rns8_submit_prepared_group_hip_graph(rns8_prepared_group* g
  * host access; ordinary execution/refresh on pool-owned handles returns BUSY.
  * use_owned_graph is 0 (stream) or 1 (already captured owned graph).
  * Invalid count/array/graph-selector arguments preserve the caller's pool handle.
+ * Null/closing/duplicate members, mixed contexts and shared workspaces reject
+ * before provider routing; malformed or BUSY member preflight preserves *out.
  * BUSY admission preserves token and slot outputs. Any accepted epoch, including
  * enqueue failure, leases its returned slot until terminal observation/release. */
 typedef struct rns8_prepared_pool rns8_prepared_pool;

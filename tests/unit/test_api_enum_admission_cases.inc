@@ -768,6 +768,21 @@ TEST_CASE("raw INT4 pool integrity and lift selectors preserve admitted CPU owne
         CHECK(owner == canary);
       }
     }
+    for (uint32_t graph : {0u, 1u}) {
+      rns8_prepared_execution* invalid_members[][2] = {
+          {nullptr, execution}, {execution, nullptr}, {execution, execution}};
+      auto* const pool_canary = reinterpret_cast<rns8_prepared_pool*>(uintptr_t(1));
+      for (auto& invalid : invalid_members) {
+        auto* pool = pool_canary;
+        CHECK(rns8_create_prepared_pool(invalid, 2, graph, &pool) == RNS8_INVALID_ARGUMENT);
+        CHECK(pool == pool_canary);
+      }
+      for (uint32_t count : {0u, 65u, UINT32_MAX, UINT32_C(0x80000000)}) {
+        auto* pool = pool_canary;
+        CHECK(rns8_create_prepared_pool(members, count, graph, &pool) == RNS8_INVALID_ARGUMENT);
+        CHECK(pool == pool_canary);
+      }
+    }
     alignas(rns8_int4_desc) uint64_t short_desc = sizeof(uint64_t);
     auto* const canary = reinterpret_cast<rns8_int4_recipe*>(uintptr_t(1));
     auto* owner = canary;
