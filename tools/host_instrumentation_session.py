@@ -63,6 +63,16 @@ def reference(path: Path) -> dict:
     return dict(path=str(path), sha256=file_digest(path), bytes=path.stat().st_size)
 
 
+def invocation_path(path: Path) -> Path:
+    # argv[0] selects clang++ driver behavior and Python virtualenv discovery.
+    # Resolve artifact references for hashing, but preserve this invocation name.
+    path = Path(os.path.abspath(path))
+    if not path.is_file():
+        raise ValueError("regular tool/input invocation required")
+    path.resolve(strict=True)
+    return path
+
+
 def child_environment(environment: dict[str, str], symbolizer: Path, lane: str) -> dict[str, str]:
     if any(
         environment.get(key)
@@ -419,7 +429,7 @@ def execute(args, plan):
             "RNS8_ENABLE_CPU_PARALLEL", ""
         ).upper() not in {"OFF", "FALSE", "NO", "0"}:
             raise ValueError("initial host lane requires CPU-only OpenMP-OFF configuration")
-        compiler = Path(cache["CMAKE_CXX_COMPILER"]).resolve(strict=True)
+        compiler = invocation_path(Path(cache["CMAKE_CXX_COMPILER"]))
         report["compiler"] = reference(compiler)
         versions["compiler"] = session.run("compiler-version", [str(compiler), "--version"])[
             "stdout"
@@ -643,9 +653,7 @@ def main(argv=None):
         ):
             path = getattr(args, name)
             if path is not None:
-                path = path.resolve(strict=True)
-                if not path.is_file():
-                    raise ValueError("regular tool/input required")
+                path = invocation_path(path)
                 setattr(args, name, path)
         build = output / "build"
         command = [

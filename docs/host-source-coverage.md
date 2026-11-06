@@ -54,7 +54,7 @@ completed, with real production branches and required core modules observed.
 It does not establish a reviewed coverage baseline or assertion strength.
 No arbitrary percentage threshold, current measured percentage or mutation
 success is invented. Per-invariant entrypoint/test/branch mapping, Python
-branch/subprocess collection, curated production mutations and CI policy
+broader branch/subprocess qualification, curated production mutations and CI policy
 remain separately tracked work under
 [#103](https://github.com/doublemover/RNS8/issues/103).
 
@@ -65,5 +65,6 @@ records individual cases rather than a module-level exit alone, and preserves
 subtest/class-fixture failures, skipped/expected-failure/unexpected-success
 states and unexecuted cases. These controls do not count as ordinary passes.
 `--discover-only` records discovery without running cases. This wrapper and the
-bounded parent/child tracing control are source-authored; the integrated Python
-branch collector remains implementation work.
+bounded parent/child tracing control are source-authored. The separate
+[Python branch collector](python-source-coverage.md) binds them to the selected
+tool package, actual process profiles and source/test contexts; it is unexecuted.

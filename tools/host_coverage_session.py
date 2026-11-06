@@ -19,6 +19,7 @@ from host_instrumentation_session import (
     Session,
     check_bookends,
     configured_inventory,
+    invocation_path,
     reference,
     source_inventory,
     version_number,
@@ -326,9 +327,7 @@ def main(argv=None):
         ):
             path = getattr(args, name)
             if path is not None:
-                path = path.resolve(strict=True)
-                if not path.is_file():
-                    raise ValueError("regular native coverage tool/input required")
+                path = invocation_path(path)
                 setattr(args, name, path)
         build = output / "build"
         command = [

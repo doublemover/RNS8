@@ -1,0 +1,51 @@
+{
+  "schema": "rns8_python_branch_coverage_policy_v1",
+  "owner_issue": 103,
+  "production_modules": [
+    "tools/benchmark_request.py",
+    "tools/build_instrumentation.py",
+    "tools/compiled_binary_identity.py",
+    "tools/coverage_contract.py",
+    "tools/execution_environment_contract.py",
+    "tools/execution_inventory.py",
+    "tools/json_evidence.py",
+    "tools/observation_cohorts.py",
+    "tools/perf_variance_report.py"
+  ],
+  "test_modules": [
+    "test_build_instrumentation",
+    "test_compiled_binary_identity",
+    "test_execution_environment_identity",
+    "test_execution_inventory",
+    "test_host_coverage"
+  ],
+  "all_selected_cases_must_pass": true,
+  "required_test_ids": [
+    "test_compiled_binary_identity.CompiledBinaryIdentity.test_manifests_must_be_real_complete_and_equal",
+    "test_execution_environment_identity.EnvironmentIdentity.test_tampering_and_unbound_claimed_digest_cannot_override_actual_object",
+    "test_execution_inventory.NativeInventory.test_missing_extra_failed_disabled_and_mandatory_are_blockers"
+  ],
+  "invariants": [
+    {
+      "name": "executable-library-manifest-admission",
+      "source": "tools/compiled_binary_identity.py",
+      "function": "validate_document",
+      "test_id": "test_compiled_binary_identity.CompiledBinaryIdentity.test_manifests_must_be_real_complete_and_equal"
+    },
+    {
+      "name": "bound-runtime-environment-admission",
+      "source": "tools/benchmark_request.py",
+      "function": "request_environment_identity",
+      "test_id": "test_execution_environment_identity.EnvironmentIdentity.test_tampering_and_unbound_claimed_digest_cannot_override_actual_object"
+    },
+    {
+      "name": "complete-mandatory-native-test-execution",
+      "source": "tools/execution_inventory.py",
+      "function": "reconcile",
+      "test_id": "test_execution_inventory.NativeInventory.test_missing_extra_failed_disabled_and_mandatory_are_blockers"
+    }
+  ],
+  "percentage_threshold": null,
+  "threshold_status": "reviewed_measured_baseline_required",
+  "qualification": "source_authored_no_test_or_profile_execution"
+}
