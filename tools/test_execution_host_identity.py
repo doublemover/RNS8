@@ -22,6 +22,32 @@ from timing_eligibility import pair_blockers, phase_blockers
 
 
 class ExecutionHostIdentities(unittest.TestCase):
+    def test_explicit_cpu_gpu_policy_preserves_host_build_clock_and_processor_scope(self):
+        from report_comparison import ComparisonPolicy
+
+        cpu, gpu = bounded_capture("cpu-reference", 100), bounded_capture("hip-direct", 100)
+        policy = ComparisonPolicy("explicit_same_host_cpu_gpu", cpu_gpu_comparison=True)
+        ordinary = ComparisonPolicy("ordinary")
+        self.assertTrue(policy.processor_pair(gpu, cpu))
+        self.assertFalse(policy.processor_pair(gpu, gpu))
+        self.assertFalse(policy.processor_pair(cpu, cpu))
+        self.assertFalse(ordinary.processor_pair(gpu, cpu))
+        self.assertEqual(policy.environment(cpu), policy.environment(gpu))
+        self.assertNotEqual(ordinary.environment(cpu), ordinary.environment(gpu))
+        for change in ("host", "build", "clock", "thread_policy", "compiler"):
+            changed = deepcopy(cpu)
+            if change == "host":
+                changed["execution_host_identity"]["os_instance_sha256"] = "b" * 64
+            elif change == "build":
+                changed["build_manifest"]["source_digest"] = "b" * 64
+            elif change == "clock":
+                changed["timing_metadata"]["clock_period_denominator"] = 1000000
+            elif change == "thread_policy":
+                changed["cpu_parallel"] = {"requested_threads": 999}
+            else:
+                changed["compiler"] = {"name": "other"}
+            self.assertNotEqual(policy.environment(changed), policy.environment(gpu), change)
+
     def test_native_envelope_and_observed_scope(self):
         capture = bounded_capture("hip-direct", 100)
         self.assertEqual(hardware_identity_blockers(capture), [])

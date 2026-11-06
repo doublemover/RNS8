@@ -9,34 +9,34 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from report_inputs import load_validated_capture
+from diagnostic_companion import load_bindings
+from observation_cohorts import phase_median
+from report_capture_inputs import load_report_captures
+from report_comparison import ComparisonPolicy, ReportCohorts
+
+# This is a boundary-cost diagnostic, never a same-output host speedup.
+BOUNDARY_POLICY = ComparisonPolicy(
+    "same_exact_chain_resident_vs_final_export_boundary_diagnostic_v1",
+    work_exclusions=(
+        "requested_next_op.resolved",
+        "residue_output_mode",
+        "exact_output_contract.requested_final_output",
+        "export_variant.final_output_mode",
+        "export_variant.selector_key",
+    ),
+    require_cpu_anchor=False,
+)
+CPU_POLICY = ComparisonPolicy(
+    "same_completed_exact_chain_same_host_build_cpu_vs_gpu_v1",
+    work_exclusions=("export_variant.selector_key",),
+    require_cpu_anchor=False,
+    cpu_gpu_comparison=True,
+)
 
 
 DEFAULT_OUT_DIR = Path("temp") / "exact-wide-chain-reports"
-RELEASE_MIN_WARMUPS = 3
-RELEASE_MIN_REPEATS = 9
 REFERENCE_BACKENDS = {"cpu-reference"}
-REPORT_OUTPUT_NAMES = {
-    "exact-wide-chain-report.json",
-    "rns-chain-report.json",
-    "review_report.json",
-    "scenario_manifest.json",
-}
 EXACT_WIDE_SEMANTICS = {"exact_wide_signed", "exact_wide_unsigned"}
-
-
-def expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(
-                candidate
-                for candidate in sorted(path.rglob("*.json"))
-                if candidate.name not in REPORT_OUTPUT_NAMES
-            )
-        else:
-            expanded.append(path)
-    return expanded
 
 
 def backend_id(capture: dict[str, Any] | None) -> str:
@@ -58,7 +58,7 @@ def execution_mode(capture: dict[str, Any]) -> str:
 def is_exact_wide_chain(capture: dict[str, Any]) -> bool:
     return (
         capture.get("semantics") in EXACT_WIDE_SEMANTICS
-        and isinstance(capture.get("residue_chain_length"), int)
+        and type(capture.get("residue_chain_length")) is int
         and capture["residue_chain_length"] > 1
     )
 
@@ -78,90 +78,18 @@ def chain_output_mode(capture: dict[str, Any]) -> str | None:
     return None
 
 
-def release_satisfied(capture: dict[str, Any] | None) -> bool:
-    return (
-        capture is not None
-        and isinstance(capture.get("warmups"), int)
-        and isinstance(capture.get("repeats"), int)
-        and capture["warmups"] >= RELEASE_MIN_WARMUPS
-        and capture["repeats"] >= RELEASE_MIN_REPEATS
-    )
-
-
-def gpu_backend(capture: dict[str, Any] | None) -> bool:
-    return capture is not None and backend_id(capture) not in REFERENCE_BACKENDS
-
-
-def gpu_events_available(capture: dict[str, Any] | None) -> bool | None:
-    if capture is None or not gpu_backend(capture):
-        return None
-    metadata = capture.get("timing_metadata")
-    if not isinstance(metadata, dict):
-        return False
-    return (
-        metadata.get("gpu_event_timing") is True
-        and metadata.get("gpu_event_timing_status") == "available"
-        and isinstance(metadata.get("gpu_event_phase_order"), list)
-        and bool(metadata.get("gpu_event_timing_source"))
-    )
-
-
-def timing_summary_value(
-    capture: dict[str, Any] | None, phase: str, statistic: str
-) -> float | None:
+def capture_summary(
+    capture: dict | None, cohorts: ReportCohorts, policy: ComparisonPolicy
+) -> dict | None:
     if capture is None:
         return None
-    summary = capture.get("timing_summary_us")
-    if not isinstance(summary, dict):
-        return None
-    phase_summary = summary.get(phase)
-    if not isinstance(phase_summary, dict):
-        return None
-    value = phase_summary.get(statistic)
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
-
-
-def median_end_to_end_us(capture: dict[str, Any] | None) -> float | None:
-    return timing_summary_value(capture, "end_to_end", "median")
-
-
-def speedup(numerator: dict[str, Any] | None, denominator: dict[str, Any] | None) -> float | None:
-    numerator_us = median_end_to_end_us(numerator)
-    denominator_us = median_end_to_end_us(denominator)
-    if numerator_us is None or denominator_us in (None, 0.0):
-        return None
-    return numerator_us / denominator_us
-
-
-def contract_key(capture: dict[str, Any]) -> str:
-    fields = [
-        "semantics",
-        "m",
-        "n",
-        "k",
-        "residue_chain_length",
-        "exact_wide_limb_count",
-        "prefix",
-        "selected_prefix",
-        "requested_max_prefix",
-        "contract_prefix_policy",
-        "seed",
-        "input_distribution",
-    ]
-    return ";".join(f"{field}={capture.get(field)}" for field in fields)
-
-
-def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
-    if capture is None:
-        return None
-    return {
-        "path": capture.get("_path"),
-        "backend": backend_id(capture),
-        "mode": chain_output_mode(capture),
-        "median_end_to_end_us": median_end_to_end_us(capture),
-        "release_review": release_satisfied(capture),
-        "gpu_events_available": gpu_events_available(capture),
-    }
+    return dict(
+        path=capture.get("_path"),
+        backend=backend_id(capture),
+        mode=chain_output_mode(capture),
+        median_end_to_end_us=phase_median(capture),
+        **cohorts.metadata(capture, policy),
+    )
 
 
 def residue_lifetime_metadata(capture: dict[str, Any] | None) -> dict[str, Any]:
@@ -194,148 +122,135 @@ def residue_lifetime_metadata(capture: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def decision_for(
-    residue_current: dict[str, Any] | None,
-    final_output: dict[str, Any] | None,
-    cpu_final_output: dict[str, Any] | None,
-) -> tuple[str, list[str]]:
-    blockers: list[str] = []
-    if residue_current is None:
-        blockers.append("missing_residue_current_capture")
-    if final_output is None:
-        blockers.append("missing_same_backend_final_output_capture")
-    if cpu_final_output is None:
-        blockers.append("missing_cpu_final_output_baseline")
-    for label, capture in [
-        ("residue_current", residue_current),
-        ("final_output", final_output),
-        ("cpu_final_output", cpu_final_output),
-    ]:
-        if capture is not None and not release_satisfied(capture):
-            blockers.append(f"{label}_not_release_review")
-    for label, capture in [("residue_current", residue_current), ("final_output", final_output)]:
-        if gpu_events_available(capture) is False:
-            blockers.append(f"missing_{label}_gpu_events")
-    lifetime = residue_lifetime_metadata(residue_current)
-    if lifetime.get("available") is False:
-        blockers.append(str(lifetime.get("reason") or "missing_residue_lifetime_metadata"))
-    if speedup(final_output, residue_current) is None:
-        blockers.append("missing_final_vs_residue_timing")
-    if speedup(cpu_final_output, final_output) is None:
-        blockers.append("missing_cpu_vs_final_output_timing")
-    if blockers:
-        return "keep_experimental", blockers
-    return "paired_residue_current_chain_ready", []
-
-
-def row_for_backend(key: str, captures: list[dict[str, Any]], backend: str) -> dict[str, Any]:
-    final_outputs = [
-        capture for capture in captures if chain_output_mode(capture) == "final_output"
-    ]
-    residue_current = next(
-        (
-            capture
-            for capture in captures
-            if chain_output_mode(capture) == "residue_current" and backend_id(capture) == backend
-        ),
-        None,
-    )
-    final_output = next(
-        (capture for capture in final_outputs if backend_id(capture) == backend),
-        None,
-    )
-    cpu_final_output = next(
-        (capture for capture in final_outputs if backend_id(capture) in REFERENCE_BACKENDS), None
-    )
-    decision, blockers = decision_for(residue_current, final_output, cpu_final_output)
-    representative = residue_current or final_output or cpu_final_output or {}
-    return {
-        "contract_key": key,
-        "backend": backend,
-        "semantics": representative.get("semantics"),
-        "shape": {
-            "m": representative.get("m"),
-            "n": representative.get("n"),
-            "k": representative.get("k"),
-        },
-        "chain_length": representative.get("residue_chain_length"),
-        "limb_count": representative.get("exact_wide_limb_count"),
-        "residue_current": capture_summary(residue_current),
-        "final_output": capture_summary(final_output),
-        "cpu_final_output": capture_summary(cpu_final_output),
-        "final_output_vs_residue_current_ratio": speedup(final_output, residue_current),
-        "cpu_vs_final_output_speedup": speedup(cpu_final_output, final_output),
-        "residue_lifetime": residue_lifetime_metadata(residue_current),
-        "decision": decision,
-        "blockers": blockers,
-    }
-
-
-def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
-    chain_captures = [
+def row_for_backend(key: str, captures: list[dict], backend: str, cohorts: ReportCohorts) -> dict:
+    gpu = [capture for capture in captures if backend_id(capture) == backend]
+    current = [capture for capture in gpu if chain_output_mode(capture) == "residue_current"]
+    finals = [capture for capture in gpu if chain_output_mode(capture) == "final_output"]
+    anchor = next(iter(current or finals))
+    residue = cohorts.best(current, anchor, BOUNDARY_POLICY) or next(iter(current), None)
+    final = cohorts.best(finals, anchor, BOUNDARY_POLICY) or next(iter(finals), None)
+    cpu_finals = [
         capture
         for capture in captures
-        if is_exact_wide_chain(capture) and chain_output_mode(capture) is not None
+        if backend_id(capture) in REFERENCE_BACKENDS
+        and chain_output_mode(capture) == "final_output"
     ]
-    by_contract: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for capture in chain_captures:
-        by_contract[contract_key(capture)].append(capture)
+    cpu = cohorts.best(cpu_finals, final or anchor, CPU_POLICY)
+    # Preserve rejected observations without selecting a fastest raw file.
+    cpu = cpu or next(iter(cpu_finals), None)
+    boundary = cohorts.compare(residue or anchor, final, BOUNDARY_POLICY)
+    completed = cohorts.compare(final or anchor, cpu, CPU_POLICY)
+    lifetime = residue_lifetime_metadata(residue)
+    blockers = list(boundary["blockers"]) + ["cpu:" + item for item in completed["blockers"]]
+    if residue is None:
+        blockers.append("missing_residue_current_capture")
+    if final is None:
+        blockers.append("missing_same_backend_final_output_capture")
+    if cpu is None:
+        blockers.append("missing_cpu_final_output_baseline")
+    if not lifetime["available"]:
+        blockers.append(lifetime["reason"])
+    blockers = sorted(set(blockers))
+    return dict(
+        contract_key=key,
+        backend=backend,
+        semantics=anchor.get("semantics"),
+        shape={field: anchor.get(field) for field in ("m", "n", "k")},
+        chain_length=anchor.get("residue_chain_length"),
+        limb_count=anchor.get("exact_wide_limb_count"),
+        residue_current=capture_summary(residue, cohorts, BOUNDARY_POLICY),
+        final_output=capture_summary(final, cohorts, BOUNDARY_POLICY),
+        cpu_final_output=capture_summary(cpu, cohorts, CPU_POLICY),
+        final_output_vs_residue_current_ratio=boundary["speedup"] if residue is not None else None,
+        boundary_ratio_kind="different_completion_boundaries_not_host_output_speedup",
+        cpu_vs_final_output_speedup=completed["speedup"] if final is not None else None,
+        boundary_comparison=boundary,
+        cpu_comparison=completed,
+        residue_lifetime=lifetime,
+        observations=[cohorts.metadata(view, BOUNDARY_POLICY) for view in gpu],
+        cpu_observations=[cohorts.metadata(view, CPU_POLICY) for view in cpu_finals],
+        decision="keep_experimental" if blockers else "paired_residue_current_chain_ready",
+        blockers=blockers,
+        promotion_eligible=False,
+    )
 
-    groups: list[dict[str, Any]] = []
-    for key, items in sorted(by_contract.items(), key=lambda item: item[0]):
-        backends = sorted(
+
+def build_report_from_captures(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
+    cohorts = ReportCohorts(captures, diagnostic_bindings)
+    selected = [
+        view
+        for view in cohorts.observations
+        if is_exact_wide_chain(view) and chain_output_mode(view) is not None
+    ]
+    by_contract = defaultdict(list)
+    for view in selected:
+        by_contract[(BOUNDARY_POLICY.work(view), CPU_POLICY.environment(view))].append(view)
+    groups = []
+    for (work, environment), items in sorted(by_contract.items()):
+        lanes = sorted(
             {
-                backend_id(capture)
-                for capture in items
-                if backend_id(capture) not in REFERENCE_BACKENDS
-                and chain_output_mode(capture) == "residue_current"
-            }
-            | {
-                backend_id(capture)
-                for capture in items
-                if backend_id(capture) not in REFERENCE_BACKENDS
-                and chain_output_mode(capture) == "final_output"
+                (backend_id(view), BOUNDARY_POLICY.environment(view))
+                for view in items
+                if backend_id(view) not in REFERENCE_BACKENDS
             }
         )
-        rows = [row_for_backend(key, items, backend) for backend in backends]
+        rows = []
+        for backend, device_environment in lanes:
+            lane = [
+                view
+                for view in items
+                if backend_id(view) in REFERENCE_BACKENDS
+                or (
+                    backend_id(view) == backend
+                    and BOUNDARY_POLICY.environment(view) == device_environment
+                )
+            ]
+            rows.append(row_for_backend(work, lane, backend, cohorts))
         groups.append(
-            {
-                "contract_key": key,
-                "capture_count": len(items),
-                "rows": rows,
-            }
+            dict(
+                contract_key=work,
+                comparison_environment=environment,
+                capture_count=sum(
+                    len(view["_observation_aggregate"]["submitted_observations"]) for view in items
+                ),
+                rows=rows,
+            )
         )
-
     rows = [row for group in groups for row in group["rows"]]
-    return {
-        "schema_version": 1,
-        "policy": "exact_wide_residue_current_chain_pairs_are_benchmark_evidence_only",
-        "capture_count": len(captures),
-        "exact_wide_chain_capture_count": len(chain_captures),
-        "summary": {
-            "groups": len(groups),
-            "paired_rows": len(rows),
-            "ready_pairs": sum(
-                1 for row in rows if row["decision"] == "paired_residue_current_chain_ready"
+    return dict(
+        schema_version=2,
+        policy="exact_wide_chain_independent_production_cohorts_and_complete_cpu_oracles_v2",
+        boundary_ratio_scope="resident_vs_final_export_diagnostic_not_same_output_speedup",
+        capture_count=len(captures),
+        exact_wide_chain_capture_count=sum(is_exact_wide_chain(view) for view in captures),
+        summary=dict(
+            groups=len(groups),
+            paired_rows=len(rows),
+            ready_pairs=sum(
+                row["decision"] == "paired_residue_current_chain_ready" for row in rows
             ),
-            "experimental": sum(1 for row in rows if row["decision"] == "keep_experimental"),
-            "missing_residue_current": sum(
-                1 for row in rows if "missing_residue_current_capture" in row["blockers"]
+            experimental=sum(row["decision"] == "keep_experimental" for row in rows),
+            missing_residue_current=sum(
+                "missing_residue_current_capture" in row["blockers"] for row in rows
             ),
-            "missing_final_output": sum(
-                1 for row in rows if "missing_same_backend_final_output_capture" in row["blockers"]
+            missing_final_output=sum(
+                "missing_same_backend_final_output_capture" in row["blockers"] for row in rows
             ),
-            "missing_cpu_baseline": sum(
-                1 for row in rows if "missing_cpu_final_output_baseline" in row["blockers"]
+            missing_cpu_baseline=sum(
+                "missing_cpu_final_output_baseline" in row["blockers"] for row in rows
             ),
-        },
-        "groups": groups,
-    }
+        ),
+        groups=groups,
+        promotion_eligible=False,
+    )
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = [load_validated_capture(path) for path in expand_inputs(paths)]
-    return build_report_from_captures(captures)
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
+    return build_report_from_captures(
+        load_report_captures(paths), diagnostic_bindings=diagnostic_bindings
+    )
 
 
 def fmt(value: Any) -> str:
@@ -358,7 +273,7 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     lines.extend(
         [
             "",
-            "| backend | semantics | shape | chain | limb | residue-current us | final-output us | final/residue ratio | CPU/final speedup | decision | blockers |",
+            "| backend | semantics | shape | chain | limb | residue-current us | final-output us | final/resident boundary ratio | CPU/final host speedup | decision | blockers |",
             "|---|---|---|---:|---:|---:|---:|---:|---:|---|---|",
         ]
     )
@@ -402,6 +317,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("captures", type=Path, nargs="*")
     parser.add_argument("--capture", type=Path, action="append", default=[])
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
 
@@ -411,7 +327,7 @@ def main() -> int:
     paths = [*args.captures, *args.capture]
     if not paths:
         raise SystemExit("at least one capture file or directory is required")
-    report = build_report(paths)
+    report = build_report(paths, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

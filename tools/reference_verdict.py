@@ -31,7 +31,6 @@ NUMERICAL_KEYS = (
     "input_profile",
     "residue_chain_length",
     "exact_wide_limb_count",
-    "requested_next_op.resolved",
     "host_api_batch.work_contract",
     "grouped_dispatch.task_descriptor_contract",
 )
@@ -69,8 +68,8 @@ def numerical_contract(capture: dict) -> str:
         and _hex256(reference.get("cache_key"))
         else None
     )
-    # Physical tiling, padding, instrumentation and preparation do not change
-    # the mathematical result. Their independent timing contracts still apply.
+    # Continuation/output boundaries do not change the completely exported
+    # mathematical result. They remain distinct in the timing/work contract.
     return json.dumps(work, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 

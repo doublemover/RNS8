@@ -42,6 +42,20 @@ def cohort(records):
 
 
 class ReferenceVerdictTest(unittest.TestCase):
+    def test_complete_final_oracle_is_shared_across_distinct_continuation_timing_boundaries(self):
+        from observation_cohorts import canonical_work
+
+        resident = capture()
+        resident["requested_next_op"] = {"resolved": "rns-gemm"}
+        exported = copy.deepcopy(resident)
+        exported["requested_next_op"]["resolved"] = "final-export"
+        self.assertTrue(reference_verdict(resident, [exported]).passed)
+        self.assertNotEqual(canonical_work(resident), canonical_work(exported))
+        exported["checksum_u64"] += 1
+        self.assertIn(
+            "checksum_mismatch_vs_reference", reference_verdict(resident, [exported]).blockers
+        )
+
     def test_embedded_cpu_oracle_policy_still_requires_complete_reference_and_retains_cpu_conflicts(
         self,
     ):

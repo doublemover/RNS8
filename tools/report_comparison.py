@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+
+from execution_host_identity import hardware_cohort_identity
 
 from observation_cohorts import (
     ProductionCohortIndex,
@@ -24,9 +27,27 @@ class ComparisonPolicy:
     name: str
     work_exclusions: tuple[str, ...] = ()
     require_cpu_anchor: bool = True
+    cpu_gpu_comparison: bool = False
 
     def work(self, capture: dict) -> str:
         return canonical_work(capture, exclude=self.work_exclusions)
+
+    def environment(self, capture: dict) -> str:
+        if not self.cpu_gpu_comparison:
+            return comparison_environment(capture)
+        identity = json.loads(comparison_environment(capture))
+        # CPU/GPU timings can join only an observed OS instance and otherwise
+        # identical source/build/host clock policy. Device data is GPU-only.
+        identity["observed_hardware"] = hardware_cohort_identity(capture, cpu_anchor=True)
+        identity.pop("device", None)
+        return json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+    def processor_pair(self, candidate: dict, baseline: dict) -> bool:
+        cpu = ("cpu", "cpu-reference", "wrap64-byte-limb")
+        opposite = (candidate.get("backend_selected") in cpu) != (
+            baseline.get("backend_selected") in cpu
+        )
+        return opposite if self.cpu_gpu_comparison else not opposite
 
 
 class ReportCohorts:
@@ -69,6 +90,8 @@ class ReportCohorts:
             capture_sha256=capture_identity(capture),
             comparison_scope=policy.name,
             intentional_work_differences=list(policy.work_exclusions),
+            cpu_gpu_comparison=policy.cpu_gpu_comparison,
+            comparison_environment_contract=policy.environment(capture),
             reference_requirement="separate_cpu_anchor_and_full_output"
             if policy.require_cpu_anchor
             else "embedded_full_cpu_output_reference",
@@ -81,18 +104,12 @@ class ReportCohorts:
 
     def best(self, captures: list[dict], candidate: dict, policy: ComparisonPolicy) -> dict | None:
         valid = []
-        work, environment = policy.work(candidate), comparison_environment(candidate)
-        cpu = candidate.get("backend_selected") in ("cpu", "cpu-reference", "wrap64-byte-limb")
+        work, environment = policy.work(candidate), policy.environment(candidate)
         for capture in captures:
-            other_cpu = capture.get("backend_selected") in (
-                "cpu",
-                "cpu-reference",
-                "wrap64-byte-limb",
-            )
             if (
-                other_cpu != cpu
+                not policy.processor_pair(candidate, capture)
                 or policy.work(capture) != work
-                or comparison_environment(capture) != environment
+                or policy.environment(capture) != environment
                 or self.admission(capture, policy)
             ):
                 continue
@@ -108,9 +125,9 @@ class ReportCohorts:
     def compare(self, candidate: dict, baseline: dict | None, policy: ComparisonPolicy) -> dict:
         blockers = self.admission(candidate, policy)
         work_match = baseline is not None and policy.work(candidate) == policy.work(baseline)
-        environment_match = baseline is not None and comparison_environment(
+        environment_match = baseline is not None and policy.environment(
             candidate
-        ) == comparison_environment(baseline)
+        ) == policy.environment(baseline)
         if baseline is None:
             blockers.append("qualified_baseline_missing")
         else:
@@ -119,10 +136,7 @@ class ReportCohorts:
                 blockers.append("comparison_work_contract_mismatch")
             if not environment_match:
                 blockers.append("comparison_environment_mismatch")
-            cpu_backends = ("cpu", "cpu-reference", "wrap64-byte-limb")
-            if (candidate.get("backend_selected") in cpu_backends) != (
-                baseline.get("backend_selected") in cpu_backends
-            ):
+            if not policy.processor_pair(candidate, baseline):
                 blockers.append("comparison_processor_class_mismatch")
             # Embedded CPU oracles still need the same mathematical input key
             # and output checksum across the two physical implementations.
@@ -143,6 +157,7 @@ class ReportCohorts:
         return dict(
             comparison_scope=policy.name,
             intentional_work_differences=list(policy.work_exclusions),
+            cpu_gpu_comparison=policy.cpu_gpu_comparison,
             matching_work=work_match,
             matching_environment=environment_match,
             candidate_measurement_cohort=evidence(candidate),

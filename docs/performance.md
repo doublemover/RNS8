@@ -261,6 +261,20 @@ admission certificates. Cache hits compare the entire output without recomputing
 the chain. New cancellation, boundary, input/key, corruption, padded-output and
 real-parser/collector controls are authored; execution and timing remain pending.
 
+The exact-wide chain report now aggregates independent production processes and
+revalidates every GPU process's diagnostic companion and complete CPU oracle.
+It retains all implementation views and partitions source, observed host and
+runtime device identities before choosing a qualified comparison. Copied files,
+singletons and missing companions cannot create ratios. Final-export versus
+resident-chain time is explicitly a comparison of different completion
+boundaries, with no host-output speedup or promotion implication. CPU/GPU
+host-output ratios use a separate explicit policy requiring the same observed
+OS instance, source/build, host clock and threading policy. GPU-only device
+fields differ in that policy; it cannot compare two GPU devices or two CPU
+implementations. Complete final mathematical references can cross continuation
+boundaries, while timing contracts retain those boundaries. Source controls are
+authored and await the consolidated validation batch.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).
