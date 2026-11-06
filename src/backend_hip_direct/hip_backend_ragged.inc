@@ -92,8 +92,11 @@ extern "C" int rns8_hip_compact_ragged(const int8_t*, int, int, const RaggedResi
 // Scratch is caller-owned so failed drains never destroy live kernel resources.
 rns8_status hip_direct_discover_ragged_bounds(int device_id, const void* source, uint32_t prefix,
                                               const uint64_t bound[3], RaggedResidueLayout& layout,
-                                              void* device_directory, void* device_status) {
-  if (!source || !bound || !device_directory || !device_status || !layout.rows || !layout.cols ||
+                                              void* device_directory, void* device_status,
+                                              HostExportDestination destination_kind) {
+  if ((destination_kind != HostExportDestination::borrowed &&
+       destination_kind != HostExportDestination::retained_owner) ||
+      !source || !bound || !device_directory || !device_status || !layout.rows || !layout.cols ||
       !layout.tile_rows || !layout.tile_cols || layout.tile_rows > 128 || layout.tile_cols > 128 ||
       layout.grid_rows != 1 + (layout.rows - 1) / layout.tile_rows ||
       layout.grid_cols != 1 + (layout.cols - 1) / layout.tile_cols ||
@@ -132,9 +135,11 @@ rns8_status hip_direct_discover_ragged_bounds(int device_id, const void* source,
   if (failure)
     return failure == 2 ? RNS8_RANGE_ERROR : RNS8_INVALID_ARGUMENT;
   return hip_direct_copy_device_to_host(device_id, layout.tiles.data(), device_directory,
-                                        layout.tiles.size() * sizeof(RaggedResidueTile));
+                                        layout.tiles.size() * sizeof(RaggedResidueTile),
+                                        destination_kind);
 #else
   (void)device_id;
+  (void)destination_kind;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

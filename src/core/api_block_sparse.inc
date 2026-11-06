@@ -107,7 +107,8 @@ rns8_status rns8_prepare_block_sparse_operand(rns8_context* ctx, const rns8_matr
       if (status != RNS8_SUCCESS)
         return status;
       status = hip_direct_copy_device_to_host(ctx->device_id, host.data(), native,
-                                              static_cast<size_t>(address.byte_extent));
+                                              static_cast<size_t>(address.byte_extent),
+                                              HostExportDestination::retained_owner);
       if (status != RNS8_SUCCESS)
         return status;
       if constexpr (std::is_signed_v<T>)

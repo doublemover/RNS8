@@ -878,3 +878,15 @@ matrix-allocation setup and the exports/repacking remain inside measured calls.
 This covers canonical CRT representatives. It does not replace the separate
 chained-magnitude admission certificate or the full final-output CPU reference.
 The new CPU/HIP controls are authored and frontend-checked, with execution deferred.
+
+
+Generic HIP readback applies the existing private staging transaction above the
+small status slot as well as to public matrix exports. Borrowed destinations are
+published only after a successful copy; uncertain DMA retains its private payload
+through the existing drain queue. Audited block-sparse/ragged/CRT/Gram destinations
+use an explicit retained-owner policy because their leases or pending handles
+already quarantine the actual storage. This preserves their preparation payload
+budgets without adding a second copy. Queue completion telemetry likewise retains
+its device source across readback, even after the kernel has completed. Staging
+publication takes diagnostic clock samples only when timing hooks are enabled.
+The new size-boundary GPU controls are authored/frontend-checked and unexecuted.

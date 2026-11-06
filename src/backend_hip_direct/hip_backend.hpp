@@ -33,6 +33,9 @@
 #include "core/hip_device_buffer.hpp"
 
 namespace rns8::detail {
+// Retained storage must remain owned through uncertain completion; borrowed
+// caller destinations require private staging until the copy succeeds.
+enum class HostExportDestination { borrowed, retained_owner };
 rns8_status hip_direct_gram_five_product(int, const void*, void*, const GramFiveResources&, void*,
                                          uint64_t, bool, bool&, const GramTile*, bool&, void*,
                                          uint32_t, bool&, bool&);
@@ -169,9 +172,10 @@ rns8_status hip_direct_gemm_block_sparse_device(
 // Private exact ragged-to-uniform materialization. Caller owns generation/proof
 // binding and must invalidate destination on any failure after commit_started.
 // Borrowed scratch must remain alive until a successful drain, including failures.
-rns8_status hip_direct_discover_ragged_bounds(int device_id, const void* source, uint32_t prefix,
-                                              const uint64_t bound[3], RaggedResidueLayout& layout,
-                                              void* device_directory, void* device_status);
+rns8_status hip_direct_discover_ragged_bounds(
+    int device_id, const void* source, uint32_t prefix, const uint64_t bound[3],
+    RaggedResidueLayout& layout, void* device_directory, void* device_status,
+    HostExportDestination destination_kind = HostExportDestination::borrowed);
 rns8_status hip_direct_compact_ragged_residues(int device_id, const void* source, uint32_t prefix,
                                                const RaggedResidueLayout& layout, void* destination,
                                                void* device_directory);
@@ -588,8 +592,9 @@ rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out);
 rns8_status hip_direct_free(int device_id, void* ptr);
 // Completes the zero-fill before returning, including for cross-stream reuse.
 rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes);
-rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src,
-                                           std::size_t bytes);
+rns8_status hip_direct_copy_device_to_host(
+    int device_id, void* dst, const void* src, std::size_t bytes,
+    HostExportDestination destination_kind = HostExportDestination::borrowed);
 // Destination aliases shared storage spanning bytes; no extra payload copy.
 // A failed copy retains that owner in the existing device-drain retry queue.
 rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<void> destination,
@@ -918,9 +923,6 @@ rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_device(
 rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_matrix(
     int device_id, const void* device_a_native, const rns8_matrix* B, rns8_matrix* C, int64_t m,
     int64_t n, int64_t k, int64_t lda, uint16_t modulus, uint64_t source_version);
-// A retained destination belongs to an owner that quarantines it through any
-// uncertain completion; borrowed caller storage instead requires owned staging.
-enum class HostExportDestination { borrowed, retained_owner };
 rns8_status hip_direct_export_i64_device(
     int device_id, const void* device_residues, void** export_buffer, std::size_t* export_bytes,
     void** status_buffer, std::size_t* status_bytes, int64_t rows, int64_t cols, uint32_t prefix,

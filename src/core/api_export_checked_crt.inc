@@ -303,7 +303,8 @@ rns8_status rns8_export_crt_limbs(rns8_crt_export* owner, uint64_t* dst, int64_t
         status = hip_direct_copy_device_to_host(owner->ctx->device_id, &result, status_word, 4);
       if (status == RNS8_SUCCESS && !result)
         status = hip_direct_copy_device_to_host(owner->ctx->device_id, owner->staged.get(), output,
-                                                owner->resources.output_bytes);
+                                                owner->resources.output_bytes,
+                                                HostExportDestination::retained_owner);
       const auto drained = hip_direct_synchronize(owner->ctx->device_id);
       if (drained != RNS8_SUCCESS) {
         owner->ctx->hip_failure_poisoned = true;

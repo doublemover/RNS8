@@ -323,6 +323,8 @@ rns8_status NativeWmmaPreparedQueue::execute_completion(NativeWmmaCompletionTele
     poisoned_ = true;
     return RNS8_BACKEND_FAILURE;
   }
+  // Kernel completion does not cover a later readback that returns uncertain.
+  telemetry.mark_pending();
   status = hip_direct_copy_device_to_host(device_id_, receipt.completed_work.data(), completed,
                                           header_.task_count * sizeof(uint32_t));
   if (status == RNS8_SUCCESS)
@@ -332,6 +334,7 @@ rns8_status NativeWmmaPreparedQueue::execute_completion(NativeWmmaCompletionTele
     poisoned_ = true;
     return status;
   }
+  telemetry.mark_completed();
   for (uint32_t i = 0; i < header_.task_count; ++i) {
     const auto& task = host_tasks_[i];
     const uint64_t required = uint64_t((task.m + 15) / 16) * ((task.n + 15) / 16) *

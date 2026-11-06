@@ -101,3 +101,45 @@ TEST_CASE("synchronous device copies finish before nonblocking stream consumptio
   CHECK(std::equal(expected.begin(), expected.end(), static_cast<const uint8_t*>(readback.get())));
 }
 #endif
+
+TEST_CASE("HIP readbacks preserve borrowed and retained destinations across staging sizes",
+          "[hip][ownership][readback]") {
+  using namespace rns8::detail;
+  if (!hip_available())
+    SKIP("no HIP device for owned readback staging");
+  for (size_t bytes :
+       {size_t(1), size_t(32), size_t(33), size_t(257), size_t(65536), size_t(1048577)}) {
+    INFO("bytes=" << bytes);
+    std::vector<uint8_t> input(bytes);
+    auto output = std::make_shared<std::vector<uint8_t>>(bytes + 2, 0xa5);
+    for (size_t index = 0; index < bytes; ++index)
+      input[index] = uint8_t(index * 37 + bytes);
+    hip_direct_device_buffer device;
+    REQUIRE(device.allocate(0, bytes) == RNS8_SUCCESS);
+    device.mark_pending();
+    REQUIRE(hip_direct_copy_host_to_device(0, device.get(), input.data(), bytes) == RNS8_SUCCESS);
+    device.mark_completed();
+    const auto before = hip_direct_allocation_counters_snapshot();
+    CHECK(hip_direct_copy_device_to_host(0, output->data() + 1, device.get(), bytes,
+                                         static_cast<HostExportDestination>(2)) ==
+          RNS8_INVALID_ARGUMENT);
+    const auto after = hip_direct_allocation_counters_snapshot();
+    CHECK(after.d2h_calls == before.d2h_calls);
+    CHECK(*output == std::vector<uint8_t>(bytes + 2, 0xa5));
+    for (auto kind : {HostExportDestination::borrowed, HostExportDestination::retained_owner}) {
+      std::fill(output->begin(), output->end(), 0xa5);
+      HostTransferPayload retained(hip_direct_defer_buffer_cleanup);
+      if (kind == HostExportDestination::retained_owner)
+        REQUIRE(retained.begin(0, std::shared_ptr<void>(output, output->data() + 1), bytes) ==
+                RNS8_SUCCESS);
+      device.mark_pending();
+      REQUIRE(hip_direct_copy_device_to_host(0, output->data() + 1, device.get(), bytes, kind) ==
+              RNS8_SUCCESS);
+      device.mark_completed();
+      retained.complete();
+      CHECK(output->front() == 0xa5);
+      CHECK(output->back() == 0xa5);
+      CHECK(std::equal(input.begin(), input.end(), output->begin() + 1));
+    }
+  }
+}

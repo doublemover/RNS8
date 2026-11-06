@@ -132,7 +132,8 @@ rns8_status rns8_export_quarter_crt_limbs(rns8_quarter_crt_export* owner, uint64
                                                          c.digits, c.limbs, c.mode);
       if (status == RNS8_SUCCESS)
         status = hip_direct_copy_device_to_host(owner->ctx->device_id, owner->staged.data(),
-                                                owner->device.get(), owner->staged.size() * 8);
+                                                owner->device.get(), owner->staged.size() * 8,
+                                                HostExportDestination::retained_owner);
       if (status != RNS8_SUCCESS) {
         if (hip_direct_synchronize(owner->ctx->device_id) != RNS8_SUCCESS) {
           owner->ctx->hip_failure_poisoned = true;

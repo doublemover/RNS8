@@ -24,6 +24,7 @@
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
+#include "core/host_transfer_payload.hpp"
 #include "core/internal.hpp"
 #include "../support/experimental_basis_fixture.hpp"
 #include "core/api_internal.hpp"

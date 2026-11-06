@@ -191,6 +191,17 @@ void record_host_staging_copy_sample(const char* label,
   }
 }
 
+void publish_staged_host_matrix(void* destination, int64_t ld, const void* source, int64_t rows,
+                                int64_t cols, size_t cell_bytes) {
+  const bool record = hip_direct_timing_enabled();
+  const auto start =
+      record ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  scatter_compact_host_matrix(destination, ld, source, rows, cols, cell_bytes);
+  if (record)
+    record_host_staging_copy_sample("export_host_staging_copy", start,
+                                    std::chrono::steady_clock::now());
+}
+
 hipError_t copy_compact_matrix_device_to_host(
     int device_id, const char* label, void* dst, int64_t dst_ld, const void* src, int64_t rows,
     int64_t cols, std::size_t cell_bytes, bool default_padded_staging = true,
@@ -237,10 +248,7 @@ hipError_t copy_compact_matrix_device_to_host(
         return err;
       }
       g_pinned_export_staging.mark_completed();
-      const auto start = std::chrono::steady_clock::now();
-      scatter_compact_host_matrix(dst, dst_ld, pinned, rows, cols, cell_bytes);
-      const auto stop = std::chrono::steady_clock::now();
-      record_host_staging_copy_sample("export_host_staging_copy", start, stop);
+      publish_staged_host_matrix(dst, dst_ld, pinned, rows, cols, cell_bytes);
       return hipSuccess;
     }
   }
@@ -267,12 +275,8 @@ hipError_t copy_compact_matrix_device_to_host(
     return error;
   }
   retained.complete();
-  const auto start = std::chrono::steady_clock::now();
-  scatter_compact_host_matrix(dst, dst_ld, g_pageable_export_staging.data(), rows, cols,
-                              cell_bytes);
-  const auto stop = std::chrono::steady_clock::now();
+  publish_staged_host_matrix(dst, dst_ld, g_pageable_export_staging.data(), rows, cols, cell_bytes);
   g_pageable_export_staging.trim(kPageableTransferStagingMaxCachedBytes);
-  record_host_staging_copy_sample("export_host_staging_copy", start, stop);
   return hipSuccess;
 }
 

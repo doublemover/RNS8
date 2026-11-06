@@ -138,9 +138,9 @@ rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx, const rns8_ma
         for (unsigned limb = 0; limb < 3; ++limb)
           bound[limb] =
               ((source->exact_max_magnitude >> (64 * limb)) & mask).convert_to<uint64_t>();
-        status = hip_direct_discover_ragged_bounds(ctx->device_id, source->hip_residues,
-                                                   source->prefix, bound, layout,
-                                                   owner->device_directory, owner->device_status);
+        status = hip_direct_discover_ragged_bounds(
+            ctx->device_id, source->hip_residues, source->prefix, bound, layout,
+            owner->device_directory, owner->device_status, HostExportDestination::retained_owner);
         if (status != RNS8_SUCCESS)
           return status;
       }

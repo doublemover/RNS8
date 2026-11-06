@@ -495,7 +495,8 @@ rns8_status rns8_export_prepared_gram_limbs(rns8_prepared_gram* owner, uint64_t*
       if (owner->export_status)
         return RNS8_RANGE_ERROR;
       status = hip_direct_copy_device_to_host(owner->ctx->device_id, owner->host_export.data(),
-                                              owner->device_export, owner->export_bytes);
+                                              owner->device_export, owner->export_bytes,
+                                              HostExportDestination::retained_owner);
       if (status != RNS8_SUCCESS)
         return status;
     } else

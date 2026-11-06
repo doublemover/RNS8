@@ -129,26 +129,35 @@ rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes) {
 }
 
 rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src,
-                                           std::size_t bytes) {
+                                           std::size_t bytes,
+                                           HostExportDestination destination_kind) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!dst || !src || bytes == 0) {
+  if (!dst || !src || bytes == 0 ||
+      (destination_kind != HostExportDestination::borrowed &&
+       destination_kind != HostExportDestination::retained_owner))
     return RNS8_INVALID_ARGUMENT;
-  }
+  if (destination_kind == HostExportDestination::borrowed && bytes > static_cast<size_t>(INT64_MAX))
+    return RNS8_RANGE_ERROR;
   const rns8_status device_status = set_hip_device(device_id);
-  if (device_status != RNS8_SUCCESS) {
+  if (device_status != RNS8_SUCCESS)
     return device_status;
-  }
-  const hipError_t err = timed_hip_operation("residue_d2h_sync", [&]() {
-    if (bytes <= HostReadbackSlot::capacity)
-      return tracked_status_copy(device_id, dst, src, bytes);
-    return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToHost);
-  });
+  const hipError_t err =
+      destination_kind == HostExportDestination::borrowed && bytes > HostReadbackSlot::capacity
+          ? copy_compact_matrix_device_to_host(device_id, "residue_d2h_sync", dst,
+                                               static_cast<int64_t>(bytes), src, 1,
+                                               static_cast<int64_t>(bytes), 1, false, false)
+          : timed_hip_operation("residue_d2h_sync", [&]() {
+              return destination_kind == HostExportDestination::retained_owner
+                         ? tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToHost)
+                         : tracked_status_copy(device_id, dst, src, bytes);
+            });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   (void)dst;
   (void)src;
   (void)bytes;
+  (void)destination_kind;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
