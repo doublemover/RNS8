@@ -22,8 +22,16 @@ from evidence_scalars import demand, integer, positive
 from json_evidence import parse_evidence_json as strict_json, same_evidence_value as same
 from verification_contract import BUDGET, MASK, validate_provenance
 
+DENSE_BACKENDS = {
+    "dense": "hip-direct",
+    "dense_builtins": "amdgpu-builtins",
+    "dense_ck": "ck",
+    "dense_rocwmma": "rocwmma",
+    "dense_hipblaslt": "hipblaslt",
+}
+DENSE_MODES = tuple(DENSE_BACKENDS)
 MODES = (
-    "dense",
+    *DENSE_MODES,
     "sparse_scalar",
     "sparse_wmma",
     "sparse_hybrid",
@@ -161,11 +169,15 @@ def checksum(data):
 def contract(case, run_id, repeats, warmups):
     cold = case["mode"].endswith("_cold")
     return {
-        "schema": "rns8_block_sparse_microcase_v2",
+        "schema": "rns8_block_sparse_microcase_v3",
         "promotion_eligible": False,
         "run_id": run_id,
-        "backend_requested": "hip-direct",
-        "backend_actual": "hip-direct",
+        "backend_requested": "amdgpu-builtins"
+        if case["mode"] == "dense_builtins"
+        else "hip-direct",
+        "backend_actual": DENSE_BACKENDS.get(case["mode"], "hip-direct"),
+        "selected_dense_compiled": True,
+        "selected_dense_matrix_engine": case["mode"] in DENSE_MODES and case["mode"] != "dense",
         "device_requested": case["device"],
         "device_actual": case["device"],
         **{
@@ -180,13 +192,13 @@ def contract(case, run_id, repeats, warmups):
         "dataset_seed": 3135,
         "source_versions": [1, 1],
         "content_generation_visibility": "opaque_handle_checked_by_public_owner_api"
-        if case["mode"] == "dense"
+        if case["mode"] in DENSE_MODES
         else "sparse_owner_snapshot_validated_at_execution",
         "reference_method": "boost_int256_full_product_with_cpp_int_row_edge_audits",
         "reference_buffers_released_before_setup": True,
         "setup_scope": "context_plan_workspace_matrices_native_and_RNS_pack_then_optional_warm_prepare",
         "timed_scope": "reuse_public_dense_GEMMs"
-        if case["mode"] == "dense"
+        if case["mode"] in DENSE_MODES
         else "prepare_both_reuse_public_sparse_GEMMs_checked_destroy_both"
         if cold
         else "reuse_public_prepared_sparse_GEMMs",
@@ -247,7 +259,7 @@ def validate_allocations(values, case, envelope):
 
 def validate_sparse_storage(capture, case, counts):
     values = capture.get("sparse_storage")
-    dense = case["mode"] == "dense"
+    dense = case["mode"] in DENSE_MODES
     demand(
         type(values) is list and len(values) == (0 if dense else 2), "missing sparse owner queries"
     )
@@ -385,7 +397,7 @@ def validate_separate_observation(capture, case, counts):
         and same(value["capability_probe_events"], labels.get("native_wmma_prepare_capability", 0)),
         "contradictory native event counters",
     )
-    if case["mode"] == "dense":
+    if case["mode"] in DENSE_MODES:
         return
     demand(
         value["sparse_gemm_events"] == case["reuse_count"]
@@ -450,7 +462,7 @@ def validate_capture(capture, case, run_id, repeats, warmups):
     ):
         demand(integer(capture.get(key), 1, (1 << 63) - 1), f"invalid timing: {key}")
     demand(capture["setup_ns"] >= capture["native_setup_ns"], "incoherent setup timing")
-    warm = case["mode"] != "dense" and not case["mode"].endswith("_cold")
+    warm = case["mode"] not in DENSE_MODES and not case["mode"].endswith("_cold")
     demand(
         positive(capture.get("warm_prepare_ns"))
         if warm
@@ -597,7 +609,7 @@ def summarize(observations):
             {
                 (row["case"]["mode"].removesuffix("_cold"), row["case"]["hybrid_threshold"])
                 for row in rows
-                if row["case"]["mode"] != "dense"
+                if row["case"]["mode"] not in DENSE_MODES
             }
         )
         for mode, threshold in candidates:
@@ -610,9 +622,9 @@ def summarize(observations):
                         for row in rows
                         if row["case"]["mode"] == name
                         and row["case"]["reuse_count"] == reuse
-                        and (name == "dense" or row["case"]["hybrid_threshold"] == threshold)
+                        and (name in DENSE_MODES or row["case"]["hybrid_threshold"] == threshold)
                     ]
-                    for name in ("dense", mode, mode + "_cold")
+                    for name in (*DENSE_MODES, mode, mode + "_cold")
                 }
                 indices = [{row["independent_run"] for row in values} for values in modes.values()]
                 complete = (
@@ -636,17 +648,21 @@ def summarize(observations):
                         for name, values in modes.items()
                     }
                     point["observed_process_statistics"] = stats
+                    control = min(DENSE_MODES, key=lambda name: stats[name]["median_batch_ns"])
+                    point["selected_dense_control"] = control
+                    point["dense_control_policy"] = (
+                        "fastest_observed_matched_dense_route_by_median_batch"
+                    )
+
                     point["median_dense_over_warm"] = (
-                        stats["dense"]["median_batch_ns"] / stats[mode]["median_batch_ns"]
+                        stats[control]["median_batch_ns"] / stats[mode]["median_batch_ns"]
                     )
                     point["median_dense_over_cold"] = (
-                        stats["dense"]["median_batch_ns"] / stats[mode + "_cold"]["median_batch_ns"]
+                        stats[control]["median_batch_ns"] / stats[mode + "_cold"]["median_batch_ns"]
                     )
-                    separated = (
-                        len(indices[0]) >= 5
-                        and stats[mode + "_cold"]["maximum_batch_ns"]
-                        < stats["dense"]["minimum_batch_ns"]
-                    )
+                    separated = len(indices[0]) >= 5 and stats[mode + "_cold"][
+                        "maximum_batch_ns"
+                    ] < min(stats[name]["minimum_batch_ns"] for name in DENSE_MODES)
                     point["at_least_five_processes_and_cold_range_below_dense"] = separated
                     if separated and first is None:
                         first = reuse
@@ -658,6 +674,7 @@ def summarize(observations):
                     hybrid_threshold=threshold,
                     first_observed_range_separated_cold_win_reuse=first,
                     tested_points=points,
+                    required_dense_controls=list(DENSE_MODES),
                     interpretation="independent process sustained batch observations; descriptive ranges, no extrapolation or confidence claim",
                 )
             )
@@ -754,7 +771,7 @@ def collect(args):
         ]
         prefix = output / run_id
         record = dict(
-            schema="rns8_block_sparse_collection_v1",
+            schema="rns8_block_sparse_collection_v2",
             campaign_id=campaign,
             run_id=run_id,
             case=case,
@@ -848,7 +865,7 @@ def collect(args):
             raise
         save()
     summary = dict(
-        schema="rns8_block_sparse_reuse_comparison_v1",
+        schema="rns8_block_sparse_reuse_comparison_v2",
         campaign_id=campaign,
         artifact_sha256=artifact,
         build_manifest=build,

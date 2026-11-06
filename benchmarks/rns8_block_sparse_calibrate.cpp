@@ -84,7 +84,33 @@ struct Case {
   uint32_t reuse, threshold, repeats, warmups;
 };
 bool dense(const Case& c) {
-  return c.mode == "dense";
+  return c.mode == "dense" || c.mode == "dense_builtins" || c.mode == "dense_ck" ||
+         c.mode == "dense_rocwmma" || c.mode == "dense_hipblaslt";
+}
+rns8_backend_kind backend(const Case& c) {
+  if (c.mode == "dense_builtins")
+    return RNS8_BACKEND_AMDGPU_BUILTINS;
+  if (c.mode == "dense_ck")
+    return RNS8_BACKEND_CK;
+  if (c.mode == "dense_rocwmma")
+    return RNS8_BACKEND_ROCWMMA;
+  if (c.mode == "dense_hipblaslt")
+    return RNS8_BACKEND_HIPBLASLT;
+  return RNS8_BACKEND_HIP_DIRECT;
+}
+const char* backend_name(const Case& c) {
+  switch (backend(c)) {
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+    return "amdgpu-builtins";
+  case RNS8_BACKEND_CK:
+    return "ck";
+  case RNS8_BACKEND_ROCWMMA:
+    return "rocwmma";
+  case RNS8_BACKEND_HIPBLASLT:
+    return "hipblaslt";
+  default:
+    return "hip-direct";
+  }
 }
 bool cold(const Case& c) {
   return c.mode.find("_cold") != std::string::npos;
@@ -95,7 +121,7 @@ bool hybrid(const Case& c) {
 void help() {
   std::cout
       << "rns8-block-sparse-calibrate DEVICE MODE M N K PATTERN REUSE_COUNT HYBRID_THRESHOLD REPEATS WARMUPS RUN_ID\n"
-         "Explicit direct-HIP DEVICE 0..63; no CPU fallback. MODE dense | sparse_scalar | sparse_wmma | sparse_hybrid | sparse_scalar_cold | sparse_wmma_cold | sparse_hybrid_cold.\n"
+         "Explicit HIP DEVICE 0..63; no CPU fallback. MODE dense | dense_builtins | dense_ck | dense_rocwmma | dense_hipblaslt | sparse_scalar | sparse_wmma | sparse_hybrid | sparse_scalar_cold | sparse_wmma_cold | sparse_hybrid_cold.\n"
          "M,N 1..512; K 1..65537; M*N*K<=134217728. PATTERN dense|mixed|disjoint|half|diagonal|banded|skewed|clustered.\n"
          "REUSE_COUNT 1..256 GEMMs per wall interval; threshold uint32 only for hybrid, otherwise zero. REPEATS/WARMUPS 1..1000.\n"
          "Run ID 1..128 ASCII alnum/_/-. Signed exact-wide prefix20, full Boost reference outside timing, 256MiB logical live-payload cap.\n"
@@ -108,9 +134,10 @@ Case parse(int argc, char** argv) {
   c.mode = argv[2];
   c.pattern = argv[6];
   c.run = argv[11];
-  const std::array<std::string, 7> modes{{"dense", "sparse_scalar", "sparse_wmma", "sparse_hybrid",
-                                          "sparse_scalar_cold", "sparse_wmma_cold",
-                                          "sparse_hybrid_cold"}};
+  const std::array<std::string, 11> modes{{"dense", "dense_builtins", "dense_ck", "dense_rocwmma",
+                                           "dense_hipblaslt", "sparse_scalar", "sparse_wmma",
+                                           "sparse_hybrid", "sparse_scalar_cold",
+                                           "sparse_wmma_cold", "sparse_hybrid_cold"}};
   require(std::find(modes.begin(), modes.end(), c.mode) != modes.end(), "invalid explicit mode");
   c.m = size_t(number(argv[3], 1, 512));
   c.n = size_t(number(argv[4], 1, 512));
@@ -176,7 +203,7 @@ Plan plan(rns8_context* ctx, const Case& c) {
   d.abi_version = RNS8_ABI_VERSION;
   d.semantics = RNS8_EXACT_WIDE_SIGNED;
   d.bound_kind = RNS8_BOUND_NONE;
-  d.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+  d.requested_backend = backend(c);
   d.m = int64_t(c.m);
   d.n = int64_t(c.n);
   d.k = int64_t(c.k);
@@ -343,7 +370,7 @@ json run(const Case& c) {
   rns8_context_options opt{};
   opt.struct_size = sizeof(opt);
   opt.abi_version = RNS8_ABI_VERSION;
-  opt.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+  opt.requested_backend = backend(c);
   rns8_context* raw = nullptr;
   const auto cs = rns8_create_context(c.device, &opt, &raw);
   if (cs == RNS8_UNSUPPORTED_ARCH || cs == RNS8_UNSUPPORTED_BACKEND || cs == RNS8_UNSUPPORTED_OS)
@@ -354,21 +381,24 @@ json run(const Case& c) {
   device.struct_size = sizeof(device);
   device.abi_version = RNS8_ABI_VERSION;
   check(rns8_get_device_info(ctx.get(), &device));
-  require(device.backend == RNS8_BACKEND_HIP_DIRECT && device.device_id == c.device &&
-              device.gcn_arch[0],
+  require(device.backend == backend(c) && device.device_id == c.device && device.gcn_arch[0],
           "selected HIP identity unavailable");
   auto selected = plan(ctx.get(), c);
   rns8_plan_backend_info pi{};
   pi.struct_size = sizeof(pi);
   pi.abi_version = RNS8_ABI_VERSION;
   check(rns8_get_plan_backend_info(selected.get(), &pi));
-  require(pi.backend == RNS8_BACKEND_HIP_DIRECT, "plan backend changed");
+  require(pi.backend == backend(c), "plan backend changed");
+  require(pi.compiled_kernel_available &&
+              (backend(c) == RNS8_BACKEND_HIP_DIRECT || pi.is_matrix_engine_backend),
+          "explicit dense control is not its compiled matrix-engine provider");
   require(pi.workspace_required_bytes <= budget - modeled,
           "workspace exceeds aggregate payload cap");
   rns8_workspace* wr = nullptr;
   check(rns8_create_workspace(ctx.get(), selected.get(), &wr));
   Workspace work(wr);
-  auto A = matrix(ctx.get(), c.m, c.k, true), B = matrix(ctx.get(), c.k, c.n, true),
+  auto A = matrix(ctx.get(), c.m, c.k, backend(c) == RNS8_BACKEND_HIP_DIRECT),
+       B = matrix(ctx.get(), c.k, c.n, backend(c) == RNS8_BACKEND_HIP_DIRECT),
        C = matrix(ctx.get(), c.m, c.n, false);
   check(rns8_pack_i64(ctx.get(), A.get(), av.data(), int64_t(c.k), 1));
   check(rns8_pack_i64(ctx.get(), B.get(), bv.data(), int64_t(c.n), 1));
@@ -491,11 +521,13 @@ json run(const Case& c) {
                             "device_directory_bytes", "retained_metadata_object_bytes"})
       sparse_retained += owner.at(key).get<uint64_t>();
   return {
-      {"schema", "rns8_block_sparse_microcase_v2"},
+      {"schema", "rns8_block_sparse_microcase_v3"},
       {"promotion_eligible", false},
       {"run_id", c.run},
-      {"backend_requested", "hip-direct"},
-      {"backend_actual", "hip-direct"},
+      {"backend_requested", backend_name(c)},
+      {"backend_actual", backend_name(c)},
+      {"selected_dense_compiled", pi.compiled_kernel_available != 0},
+      {"selected_dense_matrix_engine", pi.is_matrix_engine_backend != 0},
       {"device_requested", c.device},
       {"device_actual", device.device_id},
       {"device_name", device.name},

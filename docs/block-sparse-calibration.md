@@ -20,6 +20,30 @@ the collector retains it as a diagnostic failure, never a passing observation.
 | `sparse_scalar`, `sparse_wmma`, `sparse_hybrid` | R public sparse calls using the two owners prepared once during setup |
 | Corresponding `_cold` mode | Prepare both owners, execute R calls, then explicitly destroy both owners with checked status |
 
+Version3 adds explicit dense controls `dense_builtins`, `dense_ck`,
+`dense_rocwmma` and `dense_hipblaslt`. Each requires its named compiled context
+and plan backend, a reported matrix-engine provider, identical native data,
+ordered prefix20 and three-limb output. No AUTO/CPU fallback is accepted.
+Accelerator controls retain their reusable resident RNS inputs; the direct-HIP
+sparse route additionally retains native input storage required for explicit
+zero discovery. Actual requested capacities and cold setup expose that physical
+storage difference instead of charging identical invented bytes.
+
+The collector requires complete independent-process index populations for all
+five named dense controls and the sparse warm/cold pair. It reports the fastest
+observed dense route by median batch latency, with an explicit selection policy;
+a separated cold win must lie below the minimum observed range of every dense
+control. Missing/uncompiled/unsupported controls cannot silently become a
+strong-baseline crossover. These are descriptive observations over the named
+routes, not an exhaustive kernel-variant search or promotion evidence.
+
+Four new `dense-controls-*` catalogues cover bounded tail/natural patterns and
+512-cubed dense/mixed reuse1/8/32, with at most44 cases per file. They are authored
+plans only; no stopped campaign is restarted. Older seven-route catalogues remain
+available, but omit the additional dense controls and cannot complete the new
+crossover denominator. Microcase schema3 and collection/comparison schema2 make
+the changed backend/selection contract explicit.
+
 The cold observation is measured, not constructed by adding setup and warm
 medians. Every cold sample also reports its measured preparation and destruction
 subintervals. Warm preparation is a separate setup duration, and total setup
@@ -27,7 +51,7 @@ includes context/plan/workspace/matrix creation and input packing. Native/RNS
 setup before warm preparation has its own duration. Each sparse public call
 includes proof admission, execution, synchronization and publication. Directory
 allocation/upload and the context's first compiled capability probe now belong
-to preparation, inside warm setup or a cold batch as applicable. Version 2 reports
+to preparation, inside warm setup or a cold batch as applicable. Version 3 reports
 include the public storage query and a separate diagnostic batch that observes
 allocation, completed copies and native event counts. Dense RNS computation is the ordinary public control;
 no optimized CPU comparator or matrix-engine dense route is implied by its name.

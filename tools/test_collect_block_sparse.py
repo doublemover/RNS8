@@ -13,6 +13,7 @@ from unittest.mock import patch
 from collect_block_sparse import (
     BUDGET,
     MODES,
+    DENSE_MODES,
     PATTERNS,
     active,
     checksum,
@@ -48,7 +49,7 @@ def case_for(mode="sparse_scalar", **changes):
 
 def sparse_observations(case, counts):
     """Synthetic requested storage and counter receipts, never hardware evidence."""
-    dense = case["mode"] == "dense"
+    dense = case["mode"] in DENSE_MODES
     cold = case["mode"].endswith("_cold")
     owners = []
     if not dense:
@@ -139,7 +140,7 @@ def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
         + 4
     )
     cold = case["mode"].endswith("_cold")
-    warm = case["mode"] != "dense" and not cold
+    warm = case["mode"] not in DENSE_MODES and not cold
     allocations = []
     for index, cells in enumerate((len(av), len(bv), mn)):
         payload = (28 if index < 2 else 20) * cells
@@ -222,6 +223,21 @@ class Captures(unittest.TestCase):
         for k in (1, 65535, 65536, 65537):
             case = case_for(m=1, n=1, k=k)
             validate_capture(fixture(case), case, "fixture-run", 2, 1)
+
+    def test_explicit_dense_controls_reject_backend_or_compiled_role_substitution(self):
+        for mode in DENSE_MODES[1:]:
+            case = case_for(mode)
+            validate_capture(fixture(case), case, "fixture-run", 2, 1)
+            for changed in (
+                {"backend_requested": "hip-direct"},
+                {"backend_actual": "cpu-reference"},
+                {"selected_dense_compiled": False},
+                {"selected_dense_matrix_engine": False},
+            ):
+                capture = fixture(case)
+                capture.update(changed)
+                with self.subTest(mode=mode, changed=changed), self.assertRaises(ValueError):
+                    validate_capture(capture, case, "fixture-run", 2, 1)
 
     def test_exact_block_recipe_structure_and_full_width_values(self):
         case = case_for("sparse_hybrid", m=17, n=19, k=129)
@@ -469,6 +485,10 @@ class Captures(unittest.TestCase):
             ("tail-reuse.json", 63),
             ("512-reuse.json", 42),
             ("patterns-smoke.json", 35),
+            ("dense-controls-smoke.json", 44),
+            ("dense-controls-patterns.json", 44),
+            ("dense-controls-512-reuse.json", 33),
+            ("dense-controls-512-mixed-reuse.json", 33),
         ):
             cases = load_cases(root / name)
             self.assertEqual(len(cases), count)
@@ -479,7 +499,9 @@ class Captures(unittest.TestCase):
                         for case in cases
                         if (case["pattern"], case["reuse_count"]) == shape
                     },
-                    set(MODES),
+                    set(MODES)
+                    if name.startswith("dense-controls-")
+                    else set(MODES) - (set(DENSE_MODES) - {"dense"}),
                 )
 
 
@@ -512,11 +534,11 @@ class ObservedReuse(unittest.TestCase):
     def observations(self):
         result = []
         for reuse in (1, 8, 32):
-            for mode in ("dense", "sparse_scalar", "sparse_scalar_cold"):
+            for mode in (*DENSE_MODES, "sparse_scalar", "sparse_scalar_cold"):
                 for independent in range(5):
                     time = (
                         1000 * reuse
-                        if mode == "dense"
+                        if mode in DENSE_MODES
                         else 500 * reuse + (3000 if mode.endswith("_cold") else 0)
                     )
                     result.append(
@@ -527,6 +549,47 @@ class ObservedReuse(unittest.TestCase):
                         )
                     )
         return result
+
+    def test_fastest_dense_route_and_missing_matrix_control_are_explicit(self):
+        observations = self.observations()
+        for row in observations:
+            if row["case"]["mode"] == "dense_builtins":
+                row["mean_batch_ns"] *= 0.6
+        summary = summarize(observations)[0]
+        self.assertEqual(summary["required_dense_controls"], list(DENSE_MODES))
+        self.assertTrue(
+            all(
+                point["selected_dense_control"] == "dense_builtins"
+                for point in summary["tested_points"]
+            )
+        )
+        # The scalar-only apparent win at reuse8 disappears against the stronger control.
+        self.assertEqual(summary["first_observed_range_separated_cold_win_reuse"], 32)
+        missing = [row for row in observations if row["case"]["mode"] != "dense_builtins"]
+        self.assertTrue(
+            all(
+                not point["complete_matched_cohort"]
+                for point in summarize(missing)[0]["tested_points"]
+            )
+        )
+
+    def test_every_declared_dense_control_is_required_and_must_beat_the_sparse_candidate(self):
+        original = self.observations()
+        for control in DENSE_MODES:
+            missing = [row for row in original if row["case"]["mode"] != control]
+            self.assertTrue(
+                all(
+                    not point["complete_matched_cohort"]
+                    for point in summarize(missing)[0]["tested_points"]
+                )
+            )
+            stronger = deepcopy(original)
+            for row in stronger:
+                if row["case"]["mode"] == control:
+                    row["mean_batch_ns"] *= 0.1
+            self.assertIsNone(
+                summarize(stronger)[0]["first_observed_range_separated_cold_win_reuse"]
+            )
 
     def test_observed_reuse_counts_without_extrapolation(self):
         summary = summarize(self.observations())[0]
