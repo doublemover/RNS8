@@ -48,6 +48,17 @@ admission intact and costs unknown. Synthetic profile fixtures validate model
 ordering without becoming evidence. A shortlist never changes AUTO routing,
 installs a reviewed record or establishes measured benefit.
 
+Descriptor tag admission is shared by query, construction and shortlist
+planning. Unknown semantics/schedule values and nonzero reserved bits reject
+before context health or backend routing; construction validates the complete
+resource/range descriptor before allocating its owner. Malformed calibration
+semantics, schedule masks and backend tags also reject before backend routing,
+preserving caller handles/counts/candidates. Short profiles are rejected from
+their size prefix before accessing nested rates. Valid but mismatched calibration
+continues to mean unknown cost. Invalid panel choices remain explicit rejected
+candidate rows, preserving their original choice index. Raw CPU controls and
+synthetic inventory controls are authored for the deferred validation batch.
+
 `StreamPanelProblem` is an internal versioned contract for one host-backed
 bounded i64/u64 product, with explicit M/N/K panels and one uniform prefix.
 `plan_stream_panels` checks the complete padded host spans before admitting

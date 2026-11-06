@@ -167,6 +167,16 @@ TEST_CASE("stream panel shortlist uses runtime admission and identity-bound comp
           RNS8_SUCCESS);
   CHECK(warm.cost_known == 0);
   CHECK(warm.status == RNS8_SUCCESS);
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
+    auto invalid = choices[0];
+    invalid.schedule = raw_ffi_enum<rns8_stream_gemm_schedule>(bits);
+    REQUIRE(rns8_plan_stream_gemm(&ctx, &base, &invalid, 1, nullptr, &warm, 1, &required) ==
+            RNS8_SUCCESS);
+    CHECK(required == 1);
+    CHECK(warm.status == RNS8_INVALID_ARGUMENT);
+    CHECK(warm.choice_index == 0);
+    CHECK_FALSE(warm.cost_known);
+  }
 }
 TEST_CASE("overlapped panel storage reserves both rings and hard-budgeted pinned controls") {
   using namespace rns8::detail;

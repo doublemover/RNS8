@@ -23,9 +23,13 @@ struct rns8_stream_gemm_plan {
 };
 #include "api_stream_gemm_overlap.inc"
 namespace {
+bool stream_descriptor_tags_valid(const rns8_stream_gemm_desc* d) {
+  return minimum_abi_header(d) && !d->reserved && known_semantics(d->semantics) &&
+         (d->schedule == RNS8_STREAM_GEMM_SERIAL || d->schedule == RNS8_STREAM_GEMM_OVERLAPPED);
+}
 rns8_status stream_description(const rns8_stream_gemm_desc* d, StreamPanelProblem& p,
                                StreamPanelResources& r, uint64_t& bound) {
-  if (!d || !minimum_abi_header(d) || d->reserved)
+  if (!stream_descriptor_tags_valid(d))
     return RNS8_INVALID_ARGUMENT;
   p = {1,
        d->semantics,
@@ -117,14 +121,20 @@ rns8_status rns8_create_stream_gemm(rns8_context* ctx, const rns8_stream_gemm_de
   return guard_api([&]() -> rns8_status {
     if (!ctx || !out)
       return RNS8_INVALID_ARGUMENT;
+    StreamPanelProblem problem;
+    StreamPanelResources resources;
+    uint64_t bound = 0;
+    auto status = stream_description(desc, problem, resources, bound);
+    if (status != RNS8_SUCCESS)
+      return status;
     if (ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;
     if (ctx->backend != RNS8_BACKEND_HIP_DIRECT || !hip_direct_compiled())
       return RNS8_UNSUPPORTED_BACKEND;
     auto plan = std::make_unique<rns8_stream_gemm_plan>();
-    auto status = stream_description(desc, plan->problem, plan->resources, plan->bound);
-    if (status != RNS8_SUCCESS)
-      return status;
+    plan->problem = problem;
+    plan->resources = resources;
+    plan->bound = bound;
     if (ctx->prepared_references == UINT64_MAX)
       return RNS8_RANGE_ERROR;
     plan->ctx = ctx;

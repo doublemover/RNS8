@@ -896,3 +896,109 @@ TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor 
   REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
+TEST_CASE("stream descriptor and calibration tags reject before CPU routing or acquisition",
+          "[api][abi][enum][host][stream]") {
+  auto* ctx = create_cpu_context();
+  rns8_stream_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_BOUNDED_I64;
+  desc.m = desc.n = desc.k = desc.lda = desc.ldb = desc.ldc = 1;
+  desc.panel_m = desc.panel_n = desc.panel_k = desc.prefix = 1;
+  desc.max_abs_a = desc.max_abs_b = 1;
+  desc.device_budget_bytes = desc.host_budget_bytes = 1u << 20;
+  rns8_stream_gemm_panel_choice choice{1, 1, 1, RNS8_STREAM_GEMM_SERIAL, 0};
+  rns8_stream_gemm_candidate candidate{};
+  candidate.choice_index = 71;
+  const auto saved = candidate;
+  rns8_stream_gemm_resources info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  info.device_bytes = 73;
+  const auto saved_info = info;
+  auto* const canary = reinterpret_cast<rns8_stream_gemm_plan*>(uintptr_t(1));
+  auto* owner = canary;
+  const auto refs = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (bool poisoned : {false, true}) {
+    ctx->hip_failure_poisoned = poisoned;
+    for (unsigned field = 0; field < 3; ++field)
+      for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                            field == 0   ? 8u
+                            : field == 1 ? 2u
+                                         : 1u}) {
+        CAPTURE(poisoned, field, bits);
+        auto invalid = desc;
+        if (field == 0)
+          invalid.semantics = raw_ffi_enum<rns8_semantics>(bits);
+        if (field == 1)
+          invalid.schedule = raw_ffi_enum<rns8_stream_gemm_schedule>(bits);
+        if (field == 2)
+          invalid.reserved = bits;
+        CHECK(rns8_create_stream_gemm(ctx, &invalid, &owner) == RNS8_INVALID_ARGUMENT);
+        CHECK(owner == canary);
+        CHECK(rns8_query_stream_gemm(&invalid, &info) == RNS8_INVALID_ARGUMENT);
+        CHECK(std::memcmp(&info, &saved_info, sizeof(info)) == 0);
+        uint32_t required = 79;
+        CHECK(rns8_plan_stream_gemm(ctx, &invalid, &choice, 1, nullptr, &candidate, 1, &required) ==
+              RNS8_INVALID_ARGUMENT);
+        CHECK(required == 79);
+        CHECK(std::memcmp(&candidate, &saved, sizeof(candidate)) == 0);
+      }
+    check_short_descriptor<rns8_stream_gemm_desc>([&](const auto* short_desc) {
+      CHECK(rns8_query_stream_gemm(short_desc, &info) == RNS8_INVALID_ARGUMENT);
+      CHECK(std::memcmp(&info, &saved_info, sizeof(info)) == 0);
+      return rns8_create_stream_gemm(ctx, short_desc, &owner);
+    });
+    CHECK(owner == canary);
+    ctx->hip_failure_poisoned = false;
+  }
+  rns8_stream_gemm_cost_profile costs{};
+  costs.struct_size = sizeof(costs);
+  costs.abi_version = RNS8_ABI_VERSION;
+  costs.semantics = RNS8_BOUNDED_I64;
+  costs.prefix = costs.schedule_mask = costs.max_modeled_panels = costs.reuse_count = 1;
+  costs.stages.struct_size = sizeof(costs.stages);
+  costs.stages.abi_version = RNS8_ABI_VERSION;
+  costs.stages.backend = RNS8_BACKEND_HIP_DIRECT;
+  for (unsigned field = 0; field < 3; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                          field == 0   ? 8u
+                          : field == 1 ? 10u
+                                       : 4u}) {
+      auto invalid = costs;
+      if (field == 0)
+        invalid.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      if (field == 1)
+        invalid.stages.backend = bits;
+      if (field == 2)
+        invalid.schedule_mask = bits;
+      uint32_t required = 83;
+      CHECK(rns8_plan_stream_gemm(ctx, &desc, &choice, 1, &invalid, &candidate, 1, &required) ==
+            RNS8_INVALID_ARGUMENT);
+      CHECK(required == 83);
+      CHECK(std::memcmp(&candidate, &saved, sizeof(candidate)) == 0);
+    }
+  check_short_descriptor<rns8_stream_gemm_cost_profile>([&](const auto* short_profile) {
+    uint32_t required = 89;
+    const auto status =
+        rns8_plan_stream_gemm(ctx, &desc, &choice, 1, short_profile, &candidate, 1, &required);
+    CHECK(required == 89);
+    return status;
+  });
+  uint32_t required = 97;
+  CHECK(rns8_plan_stream_gemm(ctx, &desc, &choice, 1, &costs, &candidate, 1, &required) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  CHECK(required == 97);
+  CHECK(rns8_create_stream_gemm(ctx, &desc, &owner) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(owner == canary);
+  REQUIRE(rns8_query_stream_gemm(&desc, &info) == RNS8_SUCCESS);
+  CHECK(info.device_bytes > 0);
+  CHECK(ctx->prepared_references == refs);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.free_calls == allocations.free_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}

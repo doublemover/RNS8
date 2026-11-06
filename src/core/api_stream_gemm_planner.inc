@@ -9,12 +9,14 @@ bool stream_cost_pair(double low, double high, double minimum = 0) {
 rns8_status validate_stream_cost_profile(const rns8_stream_gemm_cost_profile* p) {
   if (!p)
     return RNS8_SUCCESS;
+  if (!minimum_abi_header(p))
+    return RNS8_INVALID_ARGUMENT;
   const auto& rates = p->stages;
-  if (!minimum_abi_header(p) || !p->reuse_count || !p->max_modeled_panels ||
-      p->max_modeled_panels > 65536 ||
+  if (!p->reuse_count || !p->max_modeled_panels || p->max_modeled_panels > 65536 ||
       (p->semantics != RNS8_BOUNDED_I64 && p->semantics != RNS8_BOUNDED_U64) || !p->prefix ||
       p->prefix > 20 || !p->schedule_mask || p->schedule_mask > 3 || !minimum_abi_header(&rates) ||
-      rates.known_mask > 63 || !stream_profile_text(rates.target_id, sizeof(rates.target_id)) ||
+      !known_backend_kind(static_cast<rns8_backend_kind>(rates.backend)) || rates.known_mask > 63 ||
+      !stream_profile_text(rates.target_id, sizeof(rates.target_id)) ||
       !stream_profile_text(rates.build_identity_sha256, sizeof(rates.build_identity_sha256)) ||
       !stream_profile_text(rates.calibration_identity, sizeof(rates.calibration_identity)) ||
       !stream_cost_pair(p->lower_host_copy_ns_per_byte, p->upper_host_copy_ns_per_byte) ||
@@ -38,13 +40,13 @@ rns8_status rns8_plan_stream_gemm(const rns8_context* ctx, const rns8_stream_gem
                                   uint32_t* required) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !base || !choices || !count || count > 64 || !required || (capacity && !output) ||
-        !minimum_abi_header(base))
+        !stream_descriptor_tags_valid(base))
       return RNS8_INVALID_ARGUMENT;
-    if (ctx->backend != RNS8_BACKEND_HIP_DIRECT)
-      return RNS8_UNSUPPORTED_BACKEND;
     const auto valid = validate_stream_cost_profile(profile);
     if (valid != RNS8_SUCCESS)
       return valid;
+    if (ctx->backend != RNS8_BACKEND_HIP_DIRECT)
+      return RNS8_UNSUPPORTED_BACKEND;
     *required = count;
     if (capacity < count)
       return RNS8_WORKSPACE_TOO_SMALL;
