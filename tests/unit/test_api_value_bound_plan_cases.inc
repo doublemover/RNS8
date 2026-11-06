@@ -74,10 +74,16 @@ TEST_CASE(
         REQUIRE(pack(d, dv) == RNS8_SUCCESS);
         REQUIRE(pack(c, dv) == RNS8_SUCCESS);
         rns8_prepared_execution* execution = nullptr;
-        REQUIRE((epilogue
-                     ? rns8_prepare_exact_axpby(ctx, plan, a, b, d, c, 2, 1, workspace, &execution)
-                     : rns8_prepare_gemm(ctx, plan, a, b, c, workspace, &execution)) ==
-                RNS8_SUCCESS);
+        HostControlObservations cold_proof;
+        {
+          HostControlObservationScope observation(cold_proof);
+          REQUIRE(
+              (epilogue
+                   ? rns8_prepare_exact_axpby(ctx, plan, a, b, d, c, 2, 1, workspace, &execution)
+                   : rns8_prepare_gemm(ctx, plan, a, b, c, workspace, &execution)) == RNS8_SUCCESS);
+        }
+        CHECK(cold_proof.range_proof_calls == (host_control_diagnostics_compiled() ? 1 : 0));
+        CHECK(cold_proof.proof_builds == (host_control_diagnostics_compiled() ? 1 : 0));
         CHECK(api::prepared_proof_observations(execution).builds == 1);
         std::shared_ptr<const ExactOperationProof> original_proof;
         REQUIRE(ExactOperationProof::create(*plan, *a, *b, epilogue ? d : nullptr, epilogue ? 2 : 0,
@@ -101,10 +107,17 @@ TEST_CASE(
             }
         };
         rns8_completion_token token{};
+        HostControlObservations warm_proof;
         for (int repeat = 0; repeat < 3; ++repeat) {
-          REQUIRE(rns8_execute_prepared(execution, &token) == RNS8_SUCCESS);
+          {
+            HostControlObservationScope observation(warm_proof);
+            REQUIRE(rns8_execute_prepared(execution, &token) == RNS8_SUCCESS);
+          }
           verify();
         }
+        CHECK(warm_proof.range_proof_calls == 0);
+        CHECK(warm_proof.proof_builds == 0);
+        CHECK(warm_proof.range_proof_host_ns == 0);
         auto observed = api::prepared_proof_observations(execution);
         CHECK(observed.builds == 1);
         CHECK(observed.reuses >= 3);

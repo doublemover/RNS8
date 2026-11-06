@@ -41,6 +41,7 @@ public:
   }
   bool matches(const rns8_plan& plan, const rns8_matrix& a, const rns8_matrix& b,
                const rns8_matrix* d = nullptr, int64_t alpha = 0, int64_t beta = 0) const {
+    [[maybe_unused]] HostControlPhaseScope phase(&HostControlObservations::proof_identity_host_ns);
     const auto& x = plan.desc;
     return plan_ == &plan && contract_ == plan.validated_contract && prefix_ == plan.prefix &&
            product_ == plan.modulus_product && desc_.m == x.m && desc_.n == x.n && desc_.k == x.k &&
@@ -52,6 +53,7 @@ public:
            (d ? inputs_[2].matches(*d) : !inputs_[2].matrix);
   }
   void stage(cpp_int& bound, rns8_exact_matrix_ranges* ranges = nullptr) const {
+    [[maybe_unused]] HostControlPhaseScope phase(&HostControlObservations::proof_metadata_host_ns);
     bound = bound_view_ ? *bound_view_ : bound_;
     if (ranges)
       *ranges = ranges_view_ ? *ranges_view_ : ranges_;

@@ -7,6 +7,7 @@
 #include <type_traits>
 
 #include "core/internal.hpp"
+#include "core/host_control_observations.hpp"
 
 namespace rns8::detail {
 
@@ -326,6 +327,8 @@ inline rns8_status exact_gemm_range(const rns8_plan& plan, const Left& A, const 
                                     rns8_exact_matrix_ranges* output_ranges = nullptr) {
   if (!exact_wide_semantics(plan.desc.semantics))
     return RNS8_SUCCESS;
+  record_host_control(&HostControlObservations::range_proof_calls);
+  [[maybe_unused]] HostControlPhaseScope phase(&HostControlObservations::range_proof_host_ns);
   if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix)
     return RNS8_RANGE_ERROR;
   if ((plan.desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0) {
@@ -351,6 +354,8 @@ inline rns8_status exact_axpby_range(const rns8_plan& plan, const Left& A, const
   if (!exact_wide_semantics(plan.desc.semantics) ||
       (plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED && (alpha < 0 || beta < 0)))
     return RNS8_INVALID_ARGUMENT;
+  record_host_control(&HostControlObservations::range_proof_calls);
+  [[maybe_unused]] HostControlPhaseScope phase(&HostControlObservations::range_proof_host_ns);
   if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix ||
       D.exact_range_prefix < plan.prefix)
     return RNS8_RANGE_ERROR;
@@ -371,6 +376,7 @@ inline rns8_status exact_axpby_range(const rns8_plan& plan, const Left& A, const
 inline void commit_exact_range(rns8_matrix& matrix, const rns8_plan& plan, cpp_int& bound,
                                rns8_exact_matrix_ranges* ranges = nullptr) {
   if (exact_wide_semantics(plan.desc.semantics)) {
+    [[maybe_unused]] HostControlPhaseScope phase(&HostControlObservations::proof_metadata_host_ns);
     matrix.exact_max_magnitude.swap(bound);
     matrix.exact_axis_ranges.rows.clear();
     matrix.exact_axis_ranges.cols.clear();

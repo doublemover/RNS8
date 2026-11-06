@@ -8,7 +8,7 @@ option(RNS8_CAPTURE_HIP_COMPILE_COST "Record bounded explicit HIP compiler proce
 if(RNS8_CAPTURE_HIP_COMPILE_COST AND NOT RNS8_ENABLE_HIP)
   message(FATAL_ERROR "HIP compile receipts require explicit HIP integration")
 endif()
-option(RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS "Compile opt-in thread-local host-control attempt counters; separate diagnostic builds only" OFF)
+option(RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS "Compile opt-in thread-local host-control counters and proof-phase clocks; separate diagnostic builds only" OFF)
 option(RNS8_ENABLE_ROCTX "Compile optional Linux ROCprofiler-SDK ROCTx host ranges; runtime opt-in required" OFF)
 if(RNS8_ENABLE_ROCTX)
   if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")

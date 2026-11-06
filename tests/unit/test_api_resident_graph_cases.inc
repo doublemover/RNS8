@@ -120,7 +120,14 @@ TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings befo
       };
       rns8_resident_node nodes[] = {node(a, b, c), node(c, a, d), node(c, b, e)};
       rns8_resident_graph* graph = nullptr;
-      REQUIRE(rns8_create_resident_graph(ctx, nodes, 3, &graph) == RNS8_SUCCESS);
+      rns8::detail::HostControlObservations cold_proof;
+      {
+        rns8::detail::HostControlObservationScope observation(cold_proof);
+        REQUIRE(rns8_create_resident_graph(ctx, nodes, 3, &graph) == RNS8_SUCCESS);
+      }
+      CHECK(cold_proof.range_proof_calls ==
+            (rns8::detail::host_control_diagnostics_compiled() ? 3 : 0));
+      CHECK(cold_proof.proof_builds == (rns8::detail::host_control_diagnostics_compiled() ? 1 : 0));
       CHECK(rns8::detail::api::resident_graph_proof_observations(graph).builds == 1);
       REQUIRE(rns8_destroy_matrix(c) == RNS8_BUSY);
       REQUIRE(rns8_destroy_plan(plan) == RNS8_BUSY);
@@ -155,7 +162,16 @@ TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings befo
         }
         for (int reuse = 0; reuse < 2; ++reuse) {
           const auto before = rns8::detail::api::resident_graph_proof_observations(graph);
-          REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+          rns8::detail::HostControlObservations warm_proof;
+          {
+            rns8::detail::HostControlObservationScope observation(warm_proof);
+            REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+          }
+          CHECK(warm_proof.range_proof_calls == 0);
+          CHECK(warm_proof.proof_builds == 0);
+          CHECK(warm_proof.range_proof_host_ns == 0);
+          CHECK(warm_proof.proof_reuses ==
+                (rns8::detail::host_control_diagnostics_compiled() ? 1 : 0));
           const auto after = rns8::detail::api::resident_graph_proof_observations(graph);
           CHECK(after.builds == uint64_t(round + 1));
           CHECK(after.builds == before.builds);

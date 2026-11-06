@@ -152,6 +152,8 @@ struct GraphMathStaging {
   ~GraphMathStaging() { graph.staged_math_proof.reset(); }
 };
 bool graph_math_proof_matches(const rns8_resident_graph& graph) {
+  [[maybe_unused]] rns8::detail::HostControlPhaseScope phase(
+      &rns8::detail::HostControlObservations::proof_identity_host_ns);
   const auto& proof = graph.math_proof;
   if (!proof || proof->inputs.size() != graph.inputs.size() ||
       proof->plans.size() != graph.nodes.size() || proof->outputs.size() != graph.nodes.size())
@@ -175,6 +177,8 @@ bool graph_math_proof_matches(const rns8_resident_graph& graph) {
 }
 void stage_graph_math_proof(const rns8_resident_graph& graph,
                             const std::vector<rns8_resident_graph::OutputProof>& outputs) {
+  [[maybe_unused]] rns8::detail::HostControlPhaseScope phase(
+      &rns8::detail::HostControlObservations::proof_metadata_host_ns);
   auto proof = std::make_shared<rns8_resident_graph::MathProofPlan>();
   proof->inputs.reserve(graph.inputs.size());
   proof->plans.reserve(graph.nodes.size());
@@ -196,13 +200,19 @@ void stage_graph_math_proof(const rns8_resident_graph& graph,
   graph.staged_math_proof = std::move(proof);
 }
 void commit_graph_math_proof(rns8_resident_graph& graph) noexcept {
+  [[maybe_unused]] rns8::detail::HostControlPhaseScope phase(
+      &rns8::detail::HostControlObservations::proof_metadata_host_ns);
   if (graph.staged_math_proof) {
     graph.math_proof.swap(graph.staged_math_proof);
     graph.staged_math_proof.reset();
     if (graph.math_proof_builds != UINT64_MAX)
       ++graph.math_proof_builds;
-  } else if (graph.math_proof_reuses != UINT64_MAX)
-    ++graph.math_proof_reuses;
+    rns8::detail::record_host_control(&rns8::detail::HostControlObservations::proof_builds);
+  } else {
+    if (graph.math_proof_reuses != UINT64_MAX)
+      ++graph.math_proof_reuses;
+    rns8::detail::record_host_control(&rns8::detail::HostControlObservations::proof_reuses);
+  }
 }
 rns8_status
 validate_resident_transfer_envelopes(const rns8_resident_graph& graph,
@@ -336,6 +346,8 @@ rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& n
 rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
                         bool check_bindings,
                         std::vector<rns8_resident_graph::OutputProof>* pending = nullptr) {
+  [[maybe_unused]] rns8::detail::HostControlPhaseScope phase(
+      &rns8::detail::HostControlObservations::graph_preflight_host_ns);
   if (graph.retiring)
     return RNS8_BUSY;
   graph.staged_math_proof.reset();

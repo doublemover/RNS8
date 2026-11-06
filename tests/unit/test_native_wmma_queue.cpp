@@ -43,6 +43,11 @@ TEST_CASE(
   CHECK(current_host_control_observer() == nullptr);
   CHECK(outer.submission_proofs == (host_control_diagnostics_compiled() ? 2 : 0));
   CHECK(inner.event_waits == (host_control_diagnostics_compiled() ? 1 : 0));
+  outer.proof_metadata_host_ns = UINT64_MAX - 2;
+  add_host_control(outer, &HostControlObservations::proof_metadata_host_ns, 5);
+  CHECK(outer.proof_metadata_host_ns == UINT64_MAX);
+  add_host_control(outer, &HostControlObservations::proof_metadata_host_ns, UINT64_MAX);
+  CHECK(outer.proof_metadata_host_ns == UINT64_MAX);
   record_host_control(&HostControlObservations::submission_proofs);
   CHECK(outer.submission_proofs == (host_control_diagnostics_compiled() ? 2 : 0));
 }

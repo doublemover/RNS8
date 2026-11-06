@@ -40,7 +40,8 @@ class PublicQueueCollection(unittest.TestCase):
             host_control_diagnostics_compiled=True,
             hot_loop_serialization="typed_observations_json_after_intervals_v1",
             host_control_diagnostic=dict(
-                schema="rns8_public_queue_host_control_v1",
+                schema="rns8_public_queue_host_control_v2",
+                phase_time_contract="calling_thread_steady_ns_inclusive_scopes_nonadditive_v1",
                 scope="calling_thread_one_complete_observation_after_timing",
                 complete_groups=4,
                 cold_setup=cold,
@@ -60,6 +61,10 @@ class PublicQueueCollection(unittest.TestCase):
             ("event_records", True),
             ("proof_builds", 1),
             ("event_creates", 1),
+            ("range_proof_host_ns", True),
+            ("proof_metadata_host_ns", -1),
+            ("proof_identity_host_ns", 2**64),
+            ("graph_preflight_host_ns", 1.5),
         ]:
             bad = copy.deepcopy(c)
             bad["host_control_diagnostic"]["warm_observation"][key] = value
@@ -71,6 +76,14 @@ class PublicQueueCollection(unittest.TestCase):
         ]:
             bad = copy.deepcopy(c)
             bad[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_capture(bad, e)
+        for key, value in [
+            ("schema", "rns8_public_queue_host_control_v1"),
+            ("phase_time_contract", "sum_as_production_latency"),
+        ]:
+            bad = copy.deepcopy(c)
+            bad["host_control_diagnostic"][key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 validate_capture(bad, e)
         e["case"]["host_diagnostics"] = False

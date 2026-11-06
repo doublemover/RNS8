@@ -111,6 +111,11 @@ json host_control_json(const rns8::detail::HostControlObservations& value) {
           {"submission_proofs", value.submission_proofs},
           {"proof_builds", value.proof_builds},
           {"proof_reuses", value.proof_reuses},
+          {"range_proof_calls", value.range_proof_calls},
+          {"range_proof_host_ns", value.range_proof_host_ns},
+          {"proof_identity_host_ns", value.proof_identity_host_ns},
+          {"proof_metadata_host_ns", value.proof_metadata_host_ns},
+          {"graph_preflight_host_ns", value.graph_preflight_host_ns},
           {"graph_launches", value.graph_launches}};
 }
 json allocation_delta(const rns8::detail::hip_direct_allocation_counters& before,
@@ -527,7 +532,8 @@ int main(int argc, char** argv) {
       }
       const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
       host_diagnostic = {
-          {"schema", "rns8_public_queue_host_control_v1"},
+          {"schema", "rns8_public_queue_host_control_v2"},
+          {"phase_time_contract", "calling_thread_steady_ns_inclusive_scopes_nonadditive_v1"},
           {"scope", "calling_thread_one_complete_observation_after_timing"},
           {"complete_groups", reuse},
           {"cold_setup", host_control_json(cold_counts)},

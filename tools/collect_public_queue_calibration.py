@@ -148,6 +148,11 @@ HOST_CONTROL_FIELDS = {
     "proof_builds",
     "proof_reuses",
     "graph_launches",
+    "range_proof_calls",
+    "range_proof_host_ns",
+    "proof_identity_host_ns",
+    "proof_metadata_host_ns",
+    "graph_preflight_host_ns",
 }
 ALLOCATION_FIELDS = {
     "allocate_calls",
@@ -177,10 +182,11 @@ def validate_host_diagnostic(capture, case):
         raise ValueError("typed hot loop")
     if (
         not isinstance(diagnostic, dict)
-        or diagnostic.get("schema") != "rns8_public_queue_host_control_v1"
+        or diagnostic.get("schema") != "rns8_public_queue_host_control_v2"
     ):
         raise ValueError("host-control schema")
     fixed = dict(
+        phase_time_contract="calling_thread_steady_ns_inclusive_scopes_nonadditive_v1",
         scope="calling_thread_one_complete_observation_after_timing",
         complete_groups=case["reuse"],
         attempt_count_scope="prepared_submission_and_managed_runtime_handles",

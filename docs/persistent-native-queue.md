@@ -152,7 +152,7 @@ compilation alone supplies no ISA/register, correctness or speedup evidence.
 
 The public calibrator's `host_diagnostics: true` requires a separate
 `-DRNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS=ON` build. The default compiles these
-counter hooks away. An observer is borrowed on the calling thread for cold
+counter and proof-clock hooks away. An observer is borrowed on the calling thread for cold
 setup and one complete warm observation **after all timed intervals**, then
 removed even on exception. It reports attempt counts at prepared submission,
 proof-cache and managed runtime-handle sites: stream-device/capture queries,
@@ -161,6 +161,20 @@ and reuse, and native graph launch. These are scoped source call counts, not
 process-wide profiler events or generated GPU work. Existing successful HIP
 allocation/transfer API-payload counters are reported separately; host heap
 allocations, physical traffic and other threads are outside this diagnostic.
+
+The v2 diagnostic adds exact-range helper call counts and calling-thread
+`std::chrono::steady_clock` nanoseconds for range admission/output-summary
+construction, immutable proof identity checks, metadata staging/publication and
+whole-DAG preflight. These are attempted host scopes, not GPU events or CPU
+reference GEMM. Whole-DAG preflight includes its nested proof work; the fields
+are not additive and cannot be summed into call latency. A zero range-call
+count can establish that cached replay avoided that helper; a zero nanosecond
+value alone cannot establish zero work. Immutable proof-build/reuse counters
+count admitted owner packets separately from range-helper calls. Clock reads
+occur only with both the diagnostic build and an active observer. New prepared
+and diamond-DAG controls require one cold traversal per node and no warm range
+traversal while preserving exact outputs and refreshed-input behavior. These
+source additions and v2 collector controls await the deferred validation batch.
 
 Diagnostic configuration participates in the compiled manifest. Its timings
 are identified as ineligible for release-build latency claims even while the
