@@ -132,6 +132,22 @@ libraries. A failed sensitivity control stops before application tests. No host
 session, loader query, sensitivity control or test has executed during this
 implementation frontload.
 
+The manual `Native Instrumentation Candidate` workflow selects one of the native
+Linux debug/optimized ASan+UBSan, OpenMP-OFF TSan or separate ROCm10.1 device-ASan
+lanes. Its dedicated
+`rns8-host-checks`/`node24` image must already contain the selected locked LLVM
+toolchain, Ninja and ordinary native CPU dependencies; #60/#58 own that setup.
+The device selection additionally requires the prepared instrumented ROCm SDK,
+supported gfx942/gfx950 `xnack+` hardware, native HMM/KFD and existing
+`HSA_XNACK=1`; it invokes only the authored ordinary subset and consumers.
+The workflow installs only shared locked build tools, checks protocol controls,
+then invokes the same fresh bounded host session and installed consumers. It
+serializes image use, retains first-failure/process/JUnit evidence and adds no
+skip policy or suppression. It is authored, unexecuted and manual-only until a
+native pilot establishes detector sensitivity, complete inventory and measured
+cost for required PR/periodic activation. Host runs do not provide device-ASan
+coverage, and the device lane leaves detector sensitivity unexecuted.
+
 The host sanitizer session also requests two bounded witnesses from each real
 `rns8_tests` invocation and every packaged CPU consumer. A fresh 256-bit stage
 token is supplied only to CTest execution, never discovery. Native Toolhelp or
