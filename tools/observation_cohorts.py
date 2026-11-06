@@ -320,6 +320,7 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
                         paths[execution_id(c) or ("unqualified:" + capture_identity(c))]
                     ),
                     "phase_medians_us": {p: phase_median(c, p) for p in sorted(phases)},
+                    "measured_repeat_count": c.get("repeats"),
                 }
                 for c in observations
             ],
@@ -507,3 +508,54 @@ def compound_median(capture: dict, phases: list[str]) -> float | None:
             return None
         sums.append(sum(values))
     return statistics.median(sums)
+
+
+def amortized_prepack_measurement(capture: dict) -> dict:
+    """Charge each process's observed preparation over its own completed repeats."""
+    observations = evidence(capture).get("observations")
+    values, records, blockers = [], [], []
+    if not observations:
+        blockers.append("prepack_setup_process_observations_missing")
+    for observation in observations or []:
+        phases = observation.get("phase_medians_us") or {}
+        duration, setup = _number(phases.get("end_to_end")), _number(phases.get("prepack_setup"))
+        repeats = observation.get("measured_repeat_count")
+        if (
+            duration is None
+            or duration <= 0
+            or setup is None
+            or setup < 0
+            or type(repeats) is not int
+            or repeats <= 0
+        ):
+            blockers.append("prepack_setup_process_measurement_invalid")
+            continue
+        inclusive = duration + setup / repeats
+        if not math.isfinite(inclusive):
+            blockers.append("prepack_setup_process_measurement_invalid")
+            continue
+        values.append(inclusive)
+        records.append(
+            dict(
+                capture_sha256=observation["capture_sha256"],
+                repeat_count=repeats,
+                steady_median_us=duration,
+                setup_us=setup,
+                setup_inclusive_us=inclusive,
+            )
+        )
+    complete = bool(values) and not blockers
+    median = _number(statistics.median(values)) if complete else None
+    if complete and median is None:
+        blockers.append("prepack_setup_process_measurement_invalid")
+    spread = (max(values) - min(values)) / median if median is not None else None
+    if spread is not None and spread > DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD:
+        blockers.append("setup_inclusive_process_spread_exceeds_ten_percent")
+    return dict(
+        policy="per_process_prepack_setup_amortized_over_own_measured_repeats_v1",
+        units="microseconds_per_completed_call_including_amortized_prepack_setup",
+        median_us=median,
+        process_relative_range=spread,
+        observations=records,
+        blockers=sorted(set(blockers)),
+    )

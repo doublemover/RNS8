@@ -6,7 +6,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from observation_cohorts import aggregate_captures, evidence, phase_median, compound_median
+from observation_cohorts import (
+    aggregate_captures,
+    evidence,
+    phase_median,
+    compound_median,
+    amortized_prepack_measurement,
+)
 from test_benchmark_sweep_support import finite_capture, bounded_capture
 from test_capture_identity_support import synthetic_independent_runs
 from test_fhe_workload_report import proxy_capture
@@ -30,6 +36,68 @@ def write_all(root, captures):
 
 
 class ProcessObservations(unittest.TestCase):
+    def test_prepack_setup_amortizes_each_process_over_its_own_completed_repeats(self):
+        from itertools import permutations
+        from report_comparison import ComparisonPolicy
+        from test_capture_identity_support import synthetic_host_measurements
+
+        base = bounded_capture("hip-direct", 100)
+        base["reuse_packed_inputs"] = True
+        base["timing_summary_us"]["prepack_setup"] = dict(avg=900, median=900, p95=900)
+        captures = runs(base, 3)
+        for record, repeats in zip(captures, (9, 18, 27)):
+            original_repeats = record["repeats"]
+            record["repeats"] = repeats
+            setup = repeats * 100
+            record["raw_timings_us"]["prepack_setup"] = [setup]
+            record["timing_summary_us"]["prepack_setup"] = dict(avg=setup, median=setup, p95=setup)
+            record["avg_prepack_setup_us"] = setup
+            for phase, values in record["raw_timings_us"].items():
+                if phase != "prepack_setup" and len(values) == original_repeats:
+                    record["raw_timings_us"][phase] = [values[0]] * repeats
+            synthetic_host_measurements(record)
+        inclusive = ComparisonPolicy("amortized_preparation", amortize_prepack_setup=True)
+        for order in permutations(captures):
+            views = aggregate_captures(list(order))
+            self.assertEqual(len(views), 1)
+            view = views[0]
+            measured = amortized_prepack_measurement(view)
+            self.assertEqual(measured["median_us"], 200)
+            self.assertEqual(measured["process_relative_range"], 0)
+            self.assertEqual(measured["blockers"], [])
+            self.assertEqual(
+                sorted(item["repeat_count"] for item in measured["observations"]), [9, 18, 27]
+            )
+            self.assertEqual(inclusive.measurement(view)["median_us"], 200)
+            self.assertEqual(ComparisonPolicy("steady").measurement(view)["median_us"], 100)
+        view = aggregate_captures([*captures, deepcopy(captures[0])])[0]
+        self.assertEqual(len(amortized_prepack_measurement(view)["observations"]), 3)
+        noisy = deepcopy(view)
+        noisy["_observation_aggregate"]["observations"][0]["phase_medians_us"]["prepack_setup"] = (
+            100000
+        )
+        self.assertIn(
+            "setup_inclusive_process_spread_exceeds_ten_percent",
+            amortized_prepack_measurement(noisy)["blockers"],
+        )
+        for key, value in (("measured_repeat_count", 0), ("measured_repeat_count", True)):
+            malformed = deepcopy(view)
+            malformed["_observation_aggregate"]["observations"][0][key] = value
+            self.assertIsNone(amortized_prepack_measurement(malformed)["median_us"])
+        missing = deepcopy(view)
+        missing["_observation_aggregate"]["observations"][0]["phase_medians_us"].pop(
+            "prepack_setup"
+        )
+        self.assertIn(
+            "prepack_setup_process_measurement_invalid",
+            amortized_prepack_measurement(missing)["blockers"],
+        )
+        overflow = deepcopy(view)
+        observation = overflow["_observation_aggregate"]["observations"][0]
+        observation["measured_repeat_count"] = 1
+        observation["phase_medians_us"].update(end_to_end=1.5e308, prepack_setup=1.5e308)
+        self.assertIsNone(amortized_prepack_measurement(overflow)["median_us"])
+
     def test_cache_dirty_composition_splits_implementations_but_process_handles_do_not(self):
         from test_incremental_result_cache_report import public_cache_capture
 

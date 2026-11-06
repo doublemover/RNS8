@@ -275,6 +275,15 @@ implementations. Complete final mathematical references can cross continuation
 boundaries, while timing contracts retain those boundaries. Source controls are
 authored and await the consolidated validation batch.
 
+Shared report comparisons can also request setup-inclusive reuse measurements.
+Each independent process contributes its own steady median plus observed
+prepack setup divided by its own completed repeat count. The report takes the
+median of those process totals, retains their individual receipts and rejects
+missing setup/counts or excessive setup-inclusive process spread. This describes
+amortization over the recorded run length; it does not establish an application
+lifetime break-even. The default policy continues to compare steady complete
+calls. Consumer migration and runtime controls remain pending.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).

@@ -16,6 +16,7 @@ from observation_cohorts import (
     evidence,
     phase_median,
     row_identity,
+    amortized_prepack_measurement,
 )
 from reference_verdict import CPUReferenceIndex, reference_verdict
 from review_contract import release_capture_satisfied
@@ -28,6 +29,7 @@ class ComparisonPolicy:
     work_exclusions: tuple[str, ...] = ()
     require_cpu_anchor: bool = True
     cpu_gpu_comparison: bool = False
+    amortize_prepack_setup: bool = False
 
     def work(self, capture: dict) -> str:
         return canonical_work(capture, exclude=self.work_exclusions)
@@ -48,6 +50,16 @@ class ComparisonPolicy:
             baseline.get("backend_selected") in cpu
         )
         return opposite if self.cpu_gpu_comparison else not opposite
+
+    def measurement(self, capture: dict) -> dict:
+        if self.amortize_prepack_setup and capture.get("reuse_packed_inputs") is True:
+            return amortized_prepack_measurement(capture)
+        return dict(
+            policy="completed_call_steady_median",
+            median_us=phase_median(capture),
+            process_relative_range=None,
+            blockers=[],
+        )
 
 
 class ReportCohorts:
@@ -74,13 +86,21 @@ class ReportCohorts:
 
     def admission(self, capture: dict, policy: ComparisonPolicy | None = None) -> list[str]:
         anchor = policy.require_cpu_anchor if policy is not None else True
-        key = (capture_identity(capture), evidence(capture).get("implementation_key"), anchor)
+        setup = policy.amortize_prepack_setup if policy is not None else False
+        key = (
+            capture_identity(capture),
+            evidence(capture).get("implementation_key"),
+            anchor,
+            setup,
+        )
         if key not in self._admission:
             blockers = self.production.blockers(capture) + list(
                 self.numerical(capture, require_cpu_anchor=anchor).blockers
             )
             if not release_capture_satisfied(capture):
                 blockers.append("not_release_review")
+            if policy is not None:
+                blockers.extend(policy.measurement(capture)["blockers"])
             self._admission[key] = tuple(sorted(set(blockers)))
         return list(self._admission[key])
 
@@ -92,6 +112,7 @@ class ReportCohorts:
             intentional_work_differences=list(policy.work_exclusions),
             cpu_gpu_comparison=policy.cpu_gpu_comparison,
             comparison_environment_contract=policy.environment(capture),
+            measurement=policy.measurement(capture),
             reference_requirement="separate_cpu_anchor_and_full_output"
             if policy.require_cpu_anchor
             else "embedded_full_cpu_output_reference",
@@ -113,12 +134,15 @@ class ReportCohorts:
                 or self.admission(capture, policy)
             ):
                 continue
-            duration = phase_median(capture)
+            duration = policy.measurement(capture)["median_us"]
             if duration is not None and duration > 0:
                 valid.append(capture)
         return min(
             valid,
-            key=lambda capture: (phase_median(capture), evidence(capture)["implementation_key"]),
+            key=lambda capture: (
+                policy.measurement(capture)["median_us"],
+                evidence(capture)["implementation_key"],
+            ),
             default=None,
         )
 
@@ -146,18 +170,26 @@ class ReportCohorts:
                     "baseline:" + value
                     for value in reference_verdict(baseline, [candidate]).blockers
                 )
-        left = phase_median(baseline) if baseline is not None else None
-        right = phase_median(candidate)
+        baseline_measurement = policy.measurement(baseline) if baseline is not None else None
+        candidate_measurement = policy.measurement(candidate)
+        left = baseline_measurement["median_us"] if baseline_measurement is not None else None
+        right = candidate_measurement["median_us"]
         if left is None or right is None or left <= 0 or right <= 0:
             blockers.append("positive_completed_output_timing_missing")
         margin = comparison_noise_margin(candidate, baseline) if baseline is not None else None
         if margin is None:
             blockers.append("qualified_noise_margin_missing")
+        else:
+            for measurement in (candidate_measurement, baseline_measurement):
+                if measurement is not None and measurement["process_relative_range"] is not None:
+                    margin = max(margin, 1 + measurement["process_relative_range"])
         blockers = sorted(set(blockers))
         return dict(
             comparison_scope=policy.name,
             intentional_work_differences=list(policy.work_exclusions),
             cpu_gpu_comparison=policy.cpu_gpu_comparison,
+            candidate_measurement=candidate_measurement,
+            baseline_measurement=baseline_measurement,
             matching_work=work_match,
             matching_environment=environment_match,
             candidate_measurement_cohort=evidence(candidate),
