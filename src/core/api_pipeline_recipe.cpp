@@ -20,11 +20,32 @@ bool add_payload(uint64_t& value, uint64_t amount) {
 bool terminated(const char* text, size_t size) {
   return std::memchr(text, 0, size) != nullptr;
 }
+bool recipe_execution_mode_valid(uint32_t mode) {
+  return mode == RNS8_EXEC_SYNC || mode == RNS8_EXEC_BORROWED_STREAM ||
+         mode == RNS8_EXEC_OWNED_GRAPH;
+}
+uint32_t recipe_method_count(uint32_t route) {
+  switch (route) {
+  case RNS8_ROUTE_UNIFORM:
+  case RNS8_ROUTE_ENCODED_NATIVE_B:
+  case RNS8_ROUTE_SPLIT_K:
+    return 1;
+  case RNS8_ROUTE_NARROW:
+    return rns8::detail::native_narrow_method_count;
+  case RNS8_ROUTE_NATIVE_QUEUE:
+    return 4;
+  default:
+    return 0;
+  }
+}
+bool valid_recipe_candidate_tags(const rns8_pipeline_recipe_candidate& candidate) {
+  return minimum_abi_header(&candidate) &&
+         candidate.method < recipe_method_count(candidate.route) &&
+         recipe_execution_mode_valid(candidate.execution_mode) && candidate.cost_known <= 1;
+}
 bool valid_recipe_options(const rns8_pipeline_recipe_options& o) {
   return minimum_abi_header(&o) && o.route_mask && !(o.route_mask & ~31u) &&
-         (o.execution_mode == RNS8_EXEC_SYNC || o.execution_mode == RNS8_EXEC_BORROWED_STREAM ||
-          o.execution_mode == RNS8_EXEC_OWNED_GRAPH) &&
-         o.output_mode <= 5 &&
+         recipe_execution_mode_valid(o.execution_mode) && o.output_mode <= 5 &&
          (o.output_mode
               ? (o.output_limbs >= 1 && o.output_limbs <= (o.output_mode >= 4 ? 1u : 32u) &&
                  o.export_algorithm <= (o.output_mode >= 4 ? 0u : 4u) && o.output_ld > 0)
@@ -107,7 +128,6 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx, const rns8_plan
     if (!ctx || !plan || !a || !b || !c || !options || !required || (capacity && !output) ||
         (count && !prices) || count > 256 || !valid_recipe_options(*options))
       return RNS8_INVALID_ARGUMENT;
-    *required = 0;
     const auto& o = *options;
     if (!plan->tile_schedule.empty())
       return RNS8_UNSUPPORTED_BACKEND;
@@ -158,10 +178,7 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx, const rns8_plan
     const bool sign = plan->desc.semantics == RNS8_EXACT_WIDE_SIGNED;
     for (unsigned route = 0; route < 5; ++route)
       if (o.route_mask & (1u << route)) {
-        const unsigned methods = route == RNS8_ROUTE_NARROW
-                                     ? rns8::detail::native_narrow_method_count
-                                 : route == RNS8_ROUTE_NATIVE_QUEUE ? 4
-                                                                    : 1;
+        const unsigned methods = recipe_method_count(route);
         for (unsigned method = 0; method < methods; ++method) {
           if (route == RNS8_ROUTE_NATIVE_QUEUE &&
               !((o.locality_order_mask ? o.locality_order_mask : 1u) & (1u << method)))
@@ -435,7 +452,7 @@ rns8_status rns8_select_pipeline_recipe(const rns8_pipeline_recipe_candidate* ca
   uint32_t best = UINT32_MAX;
   for (uint32_t i = 0; i < count; ++i) {
     const auto& x = candidates[i];
-    if (!minimum_abi_header(&x))
+    if (!valid_recipe_candidate_tags(x))
       return RNS8_INVALID_ARGUMENT;
     if (x.status != RNS8_SUCCESS || !x.cost_known)
       continue;
@@ -591,10 +608,8 @@ rns8_status rns8_prepare_pipeline_recipe(rns8_context* ctx, const rns8_plan* pla
                                          const rns8_pipeline_recipe_candidate* selected,
                                          rns8_pipeline_recipe** out) {
   return guard_api([&]() -> rns8_status {
-    if (!out)
-      return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
-    if (!selected || !minimum_abi_header(selected) ||
+    if (!out || !selected || !valid_recipe_candidate_tags(*selected) || !options ||
+        !valid_recipe_options(*options) || selected->execution_mode != options->execution_mode ||
         !terminated(selected->identity_sha256, sizeof(selected->identity_sha256)))
       return RNS8_INVALID_ARGUMENT;
     rns8_pipeline_recipe_candidate fresh[16]{};
@@ -606,6 +621,7 @@ rns8_status rns8_prepare_pipeline_recipe(rns8_context* ctx, const rns8_plan* pla
     const rns8_pipeline_recipe_candidate* match = nullptr;
     for (uint32_t i = 0; i < count; ++i)
       if (fresh[i].route == selected->route && fresh[i].method == selected->method &&
+          fresh[i].execution_mode == selected->execution_mode &&
           std::strcmp(fresh[i].identity_sha256, selected->identity_sha256) == 0)
         match = &fresh[i];
     if (!match)
@@ -616,6 +632,7 @@ rns8_status rns8_prepare_pipeline_recipe(rns8_context* ctx, const rns8_plan* pla
         a->prepared_references == UINT64_MAX || b->prepared_references == UINT64_MAX ||
         c->prepared_references == UINT64_MAX)
       return RNS8_RANGE_ERROR;
+    *out = nullptr;
     std::unique_ptr<rns8_pipeline_recipe, RecipeDeleter> p(new rns8_pipeline_recipe);
     p->ctx = ctx;
     p->plan = plan;

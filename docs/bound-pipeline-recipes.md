@@ -7,6 +7,16 @@ providers. It does not change AUTO or install reviewed cache entries.
 
 ## Routes and admission
 
+Selection and preparation validate route-specific method tags, the explicit
+execution mode and the `cost_known` Boolean through one shared predicate. The
+query enumerator shares that route/method domain. Unknown tags, option/price
+bits and short records preserve caller indices, counts, candidate storage and
+handles. Preparation also rejects stale identities or a candidate execution tag
+inconsistent with its bound request before changing the handle. Admitted
+preparation retains its existing null-handle behavior for later resource failures.
+Raw-value and sized-record controls use
+real CPU/HIP query candidates; they are authored and await the combined batch.
+
 Uniform recipes accept bounded i64/u64, exact-wide signed/unsigned, finite
 ring/field and strict wrap64 plans with current inputs. Representation-specific
 routes retain their exact-wide admission. Candidates select an ordinary prepared RNS product, generation-bound

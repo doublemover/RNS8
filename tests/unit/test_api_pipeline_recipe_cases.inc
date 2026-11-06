@@ -1,5 +1,6 @@
 #include "rns8/pipeline_recipe.h"
 #include "core/hip_resources.hpp"
+#include <array>
 TEST_CASE("bound whole routes execute checked exports and reject stale or forged bindings",
           "[api][pipeline-recipe]") {
   for (bool hip : {false, true}) {
@@ -73,6 +74,118 @@ TEST_CASE("bound whole routes execute checked exports and reject stale or forged
     REQUIRE(rns8_select_pipeline_recipe(candidates, count, &chosen) == RNS8_SUCCESS);
     CHECK(chosen == 0);
     CHECK(candidates[0].cost_origin == 1);
+    const auto admission_counters = rns8::detail::hip_direct_allocation_counters_snapshot();
+    const auto admission_references = ctx->prepared_references;
+    const auto admission_generation = c->content_generation;
+    std::array<unsigned char, sizeof(candidates)> candidate_bytes{};
+    std::memcpy(candidate_bytes.data(), candidates, sizeof(candidates));
+    for (unsigned field = 0; field < 2; ++field)
+      for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), field == 0 ? 8u : 3u}) {
+        CAPTURE(hip, field, bits);
+        auto invalid = price;
+        if (field == 0)
+          invalid.known_mask = bits;
+        else
+          invalid.origin = bits;
+        uint32_t required = 67;
+        CHECK(rns8_query_pipeline_recipes(ctx, plan, a, b, c, &o, &invalid, 1, candidates, 16,
+                                          &required) == RNS8_INVALID_ARGUMENT);
+        CHECK(required == 67);
+        CHECK(std::memcmp(candidate_bytes.data(), candidates, sizeof(candidates)) == 0);
+      }
+    alignas(rns8_pipeline_recipe_candidate) uint64_t short_candidate = sizeof(uint64_t);
+    const auto* short_record =
+        reinterpret_cast<const rns8_pipeline_recipe_candidate*>(&short_candidate);
+    uint32_t short_index = 79;
+    CHECK(rns8_select_pipeline_recipe(short_record, 1, &short_index) == RNS8_INVALID_ARGUMENT);
+    CHECK(short_index == 79);
+    auto* const short_canary = reinterpret_cast<rns8_pipeline_recipe*>(uintptr_t(1));
+    auto* short_owner = short_canary;
+    CHECK(rns8_prepare_pipeline_recipe(ctx, plan, a, b, c, &o, short_record, &short_owner) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(short_owner == short_canary);
+    alignas(rns8_pipeline_recipe_options) uint64_t short_options = sizeof(uint64_t);
+    const auto* short_request =
+        reinterpret_cast<const rns8_pipeline_recipe_options*>(&short_options);
+    uint32_t short_required = 83;
+    CHECK(rns8_query_pipeline_recipes(ctx, plan, a, b, c, short_request, nullptr, 0, candidates, 16,
+                                      &short_required) == RNS8_INVALID_ARGUMENT);
+    CHECK(short_required == 83);
+    CHECK(std::memcmp(candidate_bytes.data(), candidates, sizeof(candidates)) == 0);
+    for (unsigned field = 0; field < 5; ++field)
+      for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                            field == 0   ? 32u
+                            : field == 1 ? 3u
+                            : field == 2 ? 6u
+                            : field == 3 ? 5u
+                                         : 16u}) {
+        CAPTURE(hip, field, bits);
+        auto invalid = o;
+        if (field == 0)
+          invalid.route_mask = bits;
+        else if (field == 1)
+          invalid.execution_mode = bits;
+        else if (field == 2)
+          invalid.output_mode = bits;
+        else if (field == 3)
+          invalid.export_algorithm = bits;
+        else
+          invalid.locality_order_mask = bits;
+        uint32_t required = 71;
+        CHECK(rns8_query_pipeline_recipes(ctx, plan, a, b, c, &invalid, nullptr, 0, candidates, 16,
+                                          &required) == RNS8_INVALID_ARGUMENT);
+        CHECK(required == 71);
+        CHECK(std::memcmp(candidate_bytes.data(), candidates, sizeof(candidates)) == 0);
+        auto* const canary = reinterpret_cast<rns8_pipeline_recipe*>(uintptr_t(1));
+        auto* rejected = canary;
+        CHECK(rns8_prepare_pipeline_recipe(ctx, plan, a, b, c, &invalid, &candidates[0],
+                                           &rejected) == RNS8_INVALID_ARGUMENT);
+        CHECK(rejected == canary);
+      }
+    for (unsigned field = 0; field < 4; ++field)
+      for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                            field == 0   ? 5u
+                            : field == 1 ? 1u
+                            : field == 2 ? 3u
+                                         : 2u}) {
+        CAPTURE(hip, field, bits);
+        auto invalid = candidates[0];
+        if (field == 0)
+          invalid.route = bits;
+        else if (field == 1)
+          invalid.method = bits;
+        else if (field == 2)
+          invalid.execution_mode = bits;
+        else
+          invalid.cost_known = bits;
+        uint32_t selected = 73;
+        CHECK(rns8_select_pipeline_recipe(&invalid, 1, &selected) == RNS8_INVALID_ARGUMENT);
+        CHECK(selected == 73);
+        for (bool poisoned : {false, true}) {
+          ctx->hip_failure_poisoned = poisoned;
+          auto* const canary = reinterpret_cast<rns8_pipeline_recipe*>(uintptr_t(1));
+          auto* rejected = canary;
+          CHECK(rns8_prepare_pipeline_recipe(ctx, plan, a, b, c, &o, &invalid, &rejected) ==
+                RNS8_INVALID_ARGUMENT);
+          CHECK(rejected == canary);
+          ctx->hip_failure_poisoned = false;
+        }
+      }
+    // A valid but changed execution tag still contradicts the bound identity.
+    auto changed_mode = candidates[0];
+    changed_mode.execution_mode = RNS8_EXEC_OWNED_GRAPH;
+    auto* const canary = reinterpret_cast<rns8_pipeline_recipe*>(uintptr_t(1));
+    auto* rejected = canary;
+    CHECK(rns8_prepare_pipeline_recipe(ctx, plan, a, b, c, &o, &changed_mode, &rejected) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rejected == canary);
+    CHECK(ctx->prepared_references == admission_references);
+    CHECK(c->content_generation == admission_generation);
+    const auto rejected_counters = rns8::detail::hip_direct_allocation_counters_snapshot();
+    CHECK(rejected_counters.allocate_calls == admission_counters.allocate_calls);
+    CHECK(rejected_counters.free_calls == admission_counters.free_calls);
+    CHECK(rejected_counters.h2d_calls == admission_counters.h2d_calls);
+    CHECK(rejected_counters.d2h_calls == admission_counters.d2h_calls);
     auto forged = candidates[0];
     forged.identity_sha256[0] = forged.identity_sha256[0] == '0' ? '1' : '0';
     rns8_pipeline_recipe* p = nullptr;
