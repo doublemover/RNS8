@@ -157,6 +157,27 @@ existing shrinker's verdict vocabulary, excluding movable cell coordinates.
 Automatic shrinking/retry after a failed GPU child remains disabled; the caller
 must separately authorize and bound any subsequent reproducer campaign.
 
+`tools/fuzz_replay_shrink.py` is that separate, explicit command. Supply the same
+backend/device/executable, original `--case`, fresh `--out`, and four-token
+`--signature KIND PHASE ACTUAL EXPECTED`. It plans by default. Execution requires
+`--execute`; a nonnegative device also requires `--allow-gpu`. It first reproduces
+the exact supplied signature through a fresh ordinary replay session before
+trying any reduction. A supplied signature alone is never evidence.
+
+The existing semantic minimizer controls operation/dimension/value reductions;
+each candidate uses the same full native replay, manifest, case and process
+checks. Defaults are32 replays and300seconds; ceilings are128 replays,3600seconds
+and256MiB across all nested sessions. The parent shares the outer wall deadline
+and artifact root, freezes the executable, and retains original/minimized bytes,
+every native session receipt and the shrinker's exact attempts. Device/backend
+failures, cancellation, timeouts, identity and cleanup defects stop the adapter;
+only value/padding/no-write and the explicitly admitted wrong-status classes can
+be minimized. A changed original signature stops before reductions. Other
+semantic failure categories cannot be accepted as reductions. Result status
+distinguishes a bounded local fixed point from budget exhaustion; global
+minimality and hardware qualification are not established. All native replay and
+minimization execution remains deferred; authored controls mock the child owner.
+
 Implementation is in progress under #101. These new controls and harness have
 not run in the deferred validation batch. Production-library instrumentation
 inspection, bounded discovery/replay CI, structured failure reports/shrinking,

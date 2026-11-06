@@ -195,9 +195,21 @@ def execute(args, plan, inputs):
             "tools/process_progress.py",
         )
     }
-    deadline = time.monotonic() + args.seconds
+    deadline = min(
+        time.monotonic() + args.seconds, getattr(args, "absolute_deadline", float("inf"))
+    )
     records = []
     retained_cases = {}
+    receipts = {}
+
+    def retain(path):
+        reference = dict(
+            path=str(path.resolve(strict=True)), bytes=path.stat().st_size, sha256=file_digest(path)
+        )
+        receipts[path] = reference
+        return reference
+
+    retain(out / "plan.json")
 
     def run(command, label):
         remaining = deadline - time.monotonic()
@@ -209,7 +221,7 @@ def execute(args, plan, inputs):
             label=label,
             timeout_seconds=min(args.case_seconds, remaining),
             max_output_bytes=8 * 1024**2,
-            artifact_roots=[out],
+            artifact_roots=[getattr(args, "artifact_root", out)],
             max_artifact_bytes=256 * 1024**2,
             return_on_interrupt=True,
         )
@@ -223,6 +235,11 @@ def execute(args, plan, inputs):
             raw_case(path) != raw for path, raw in retained_cases.items()
         ):
             raise ValueError("arithmetic input changed during replay")
+        if any(
+            path.stat().st_size != ref["bytes"] or file_digest(path) != ref["sha256"]
+            for path, ref in receipts.items()
+        ):
+            raise ValueError("retained replay receipt changed")
 
     error = None
     interrupted = False
@@ -230,12 +247,14 @@ def execute(args, plan, inputs):
         process = run([str(exe), "--build-identity"], "arithmetic-replay-identity")
         interrupted = bool(process.get("interrupted"))
         write(out / "identity-process.json", process)
+        retain(out / "identity-process.json")
         if not capture_succeeded(process):
             interrupted = bool(process.get("interrupted"))
             raise ValueError("native compiled identity preflight failed")
         document = parse_evidence_json(process["stdout"])
         identity = validate_document(document)
         write(out / "identity.json", document)
+        retain(out / "identity.json")
         bookend()
         for ordinal, (path, raw, case) in enumerate(inputs):
             run_id = uuid.uuid4().hex
@@ -248,6 +267,7 @@ def execute(args, plan, inputs):
             with retained.open("xb") as stream:
                 stream.write(raw)
             retained_cases[retained] = raw
+            row["case_input"] = retain(retained)
             command = [
                 str(exe),
                 "--case",
@@ -263,9 +283,11 @@ def execute(args, plan, inputs):
             process = run(command, "arithmetic-replay:" + str(ordinal))
             interrupted = bool(process.get("interrupted"))
             write(out / (run_id + "-process.json"), process)
+            row["process_receipt"] = retain(out / (run_id + "-process.json"))
             bookend()
             native = parse_evidence_json(process["stdout"])
             write(out / (run_id + "-native.json"), native)
+            row["native_receipt"] = retain(out / (run_id + "-native.json"))
             verdict = validate_result(
                 native, process, case, raw, args.backend, args.device, run_id, identity
             )
@@ -275,6 +297,7 @@ def execute(args, plan, inputs):
                 case_sha256=hashlib.sha256(raw).hexdigest(),
             )
             write(out / (run_id + "-verdict.json"), row)
+            retain(out / (run_id + "-verdict.json"))
             if verdict.kind == "failed":
                 raise ValueError("native arithmetic failure; further cases stopped")
         bookend()
@@ -292,6 +315,7 @@ def execute(args, plan, inputs):
         interrupted=interrupted,
         executable_sha256=before,
         adapter_sources_sha256=sources,
+        input_receipts=list(receipts.values()),
         plan=plan,
         cases=records,
         counts=counts,
