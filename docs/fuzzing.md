@@ -196,8 +196,14 @@ compiler, static CRT on Windows and full feedback/sanitizer flags. Each actual
 object is inspected with matching `llvm-nm`; missing feedback sites remain
 listed explicitly, including TUs without instrumentable branches. At least one
 production object must contain feedback sites. These observations establish
-configured flags and object sites; aggregate libFuzzer edge/feature counts do
-not attribute executed branches to individual library functions. External
+configured flags and object sites. For both production entrypoints, the runner
+also requires symbolized `-print_coverage=1` observations from retained `src/`
+files: multiple functions with nontrivial observed PC edges, including the
+actual public plan route. Missing debug/symbolizer attribution fails the lane.
+Every observed source/line/function and edge count is retained; aggregate
+libFuzzer edge/feature totals alone cannot satisfy this gate. PC-edge counts
+are not LLVM source-branch percentages or evidence for every conditional outcome.
+External
 dependencies and HIP code are outside this denominator. The JSON target remains
 honestly classified as third-party parser reachability.
 
@@ -224,6 +230,7 @@ three shared-replay assertion cases. An unchanged baseline must pass before
 mutants execute in disposable copies; only the intended public-route assertion
 failure counts as detection. These new witnesses remain unexecuted.
 
-Implementation remains in progress under #101: source-attributed library branch
-witnesses and broader reference-state lifecycle histories remain. Native replay,
+Implementation remains in progress under #101: broader reference-state lifecycle
+histories remain. The source-attributed PC-edge gate is authored but has not
+collected runtime observations. Native replay,
 minimizer, object inspection and discovery qualification are deferred.

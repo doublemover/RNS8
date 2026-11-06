@@ -11,7 +11,7 @@ import re
 import time
 
 from fuzz_cases import MAX_BYTES, admitted, encode, seeds
-from fuzz_library_inventory import TARGETS, inspect
+from fuzz_library_inventory import TARGETS, inspect, library_feedback
 from host_instrumentation_session import (
     ROOT,
     Session,
@@ -161,11 +161,16 @@ def execute(args, plan):
                     "-runs=" + str(args.runs),
                     "-max_total_time=" + str(args.discovery_seconds),
                     "-print_final_stats=1",
+                    "-print_coverage=1",
                     str(discovered),
                     str(originals),
                 ],
             )
             row["discovery"] = discovery_stats(result["stderr"] + "\n" + result["stdout"])
+            if name != TARGETS[2]:
+                row["library_feedback"] = library_feedback(
+                    result["stderr"] + "\n" + result["stdout"], report["source_inventory"]
+                )
             row["discovered_corpus"] = [
                 reference(item) for item in sorted(discovered.iterdir()) if item.is_file()
             ]
@@ -192,7 +197,7 @@ def execute(args, plan):
     report["interrupted"] = interrupted
     report["accepted"] = report["state"] == "completed"
     report["library_branch_execution_attribution"] = (
-        "not_measured; object sites and aggregate fuzzer feedback are separate"
+        "symbolized_production_function_pc_edges_required; source_branch_percentage_not_measured"
     )
     try:
         write_json(out / "results.json", report)

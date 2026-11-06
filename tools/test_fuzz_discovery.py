@@ -17,6 +17,34 @@ import host_instrumentation_session as host
 
 
 class FuzzDiscoveryControls(unittest.TestCase):
+    def test_executed_feedback_requires_retained_library_sources_and_public_route(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "src").mkdir()
+            source = root / "src/api.cpp"
+            source.write_text("// line one\n// line two\n")
+            retained = [host.reference(source)]
+            location = source.as_posix()
+            text = (
+                f"COVERED_FUNC: hits: 17 edges: 3/8 rns8_create_plan {location}:1\n"
+                f"COVERED_FUNC: hits: 8 edges: 2/3 production::admission(int) {location}:2\n"
+            )
+            result = inventory.library_feedback(text, retained, root=root)
+            self.assertEqual(len(result["functions"]), 2)
+            self.assertIsNone(result["source_branch_percentage"])
+            for bad in (
+                "cov: 200 ft: 999",
+                text.replace("/src/", "/tests/"),
+                text.replace("rns8_create_plan", "LLVMFuzzerTestOneInput"),
+                text.replace("edges: 3/8", "edges: 1/8"),
+                text.replace(":2\n", ":999\n"),
+                text.replace("edges: 3/8", "edges: 9/8"),
+            ):
+                with self.assertRaises(ValueError):
+                    inventory.library_feedback(bad, retained, root=root)
+            with self.assertRaises(ValueError):
+                inventory.library_feedback(text, [], root=root)
+
     def test_production_denominator_rejects_missing_or_aliased_translation_units(self):
         with tempfile.TemporaryDirectory() as temporary:
             build = Path(temporary).resolve()

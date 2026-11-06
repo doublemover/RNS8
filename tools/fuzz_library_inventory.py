@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import os
 from pathlib import Path
 import re
 
@@ -11,6 +12,7 @@ from execution_inventory import bounded_read
 from host_instrumentation_contract import native_argv, object_path
 from host_instrumentation_session import reference, version_number
 from json_evidence import parse_evidence_json
+from quality_inventory import ROOT
 
 TARGETS = (
     "rns8_fuzz_plan_descriptor",
@@ -61,6 +63,80 @@ def fuzz_flags(argv: list[str], *, windows: bool) -> dict:
 
 def feedback_symbols(text: str) -> bool:
     return bool(re.search(r"\b_?__sanitizer_cov_|\b_?__sancov_", text))
+
+
+def library_feedback(text: str, sources: list[dict], *, root: Path = ROOT) -> dict:
+    """Attribute libFuzzer's symbolized PC-edge observations to retained source.
+
+    These are SanitizerCoverage edges, not LLVM source branch percentages or
+    proof that both outcomes of each C++ conditional executed.
+    """
+    owned, line_counts = {}, {}
+    windows = os.name == "nt"
+    for source in sources:
+        path = Path(source["path"])
+        if path.is_relative_to(root / "src"):
+            owned[path.as_posix().casefold() if windows else path.as_posix()] = source
+    marker = " " + root.as_posix() + "/"
+    observed, seen, excluded = [], {}, 0
+    pattern = re.compile(r"^COVERED_FUNC: hits: ([0-9]+) edges: ([0-9]+)/([0-9]+) (.+)$")
+    for line in text.splitlines():
+        match = pattern.fullmatch(line)
+        if not match:
+            continue
+        hits, edges, total = map(int, match.groups()[:3])
+        tail = match[4].replace("\\", "/")
+        searchable, prefix = (tail.casefold(), marker.casefold()) if windows else (tail, marker)
+        position = searchable.find(prefix)
+        if position < 0:
+            excluded += 1
+            continue
+        function = tail[:position]
+        location = tail[position + 1 :]
+        path, separator, number = location.rpartition(":")
+        source = owned.get(path.casefold() if windows else path)
+        if source is None:
+            excluded += 1
+            continue
+        if source["path"] not in line_counts:
+            line_counts[source["path"]] = len(
+                Path(source["path"]).read_text(encoding="utf-8").splitlines()
+            )
+        if (
+            not separator
+            or not re.fullmatch(r"[0-9]+", number)
+            or int(number) <= 0
+            or not function
+            or not 0 < hits
+            or not 0 < edges <= total
+            or int(number) > line_counts[source["path"]]
+        ):
+            raise ValueError("symbolized production fuzz feedback is contradictory")
+        row = dict(
+            function=function,
+            source=source,
+            line=int(number),
+            hits=hits,
+            observed_pc_edges=edges,
+            instrumented_pc_edges=total,
+        )
+        key = function, path, int(number)
+        if key in seen and seen[key] != row:
+            raise ValueError("conflicting symbolized fuzz function observations")
+        if key not in seen:
+            seen[key] = row
+            observed.append(row)
+    nontrivial = [row for row in observed if row["observed_pc_edges"] >= 2]
+    if len(nontrivial) < 2 or not any(row["observed_pc_edges"] >= 3 for row in nontrivial):
+        raise ValueError("fuzz feedback lacks multiple executed production control-flow edges")
+    if not any("rns8_create_plan" in row["function"] for row in nontrivial):
+        raise ValueError("fuzz feedback lacks the actual public plan production route")
+    return dict(
+        scope="symbolized_first_party_library_function_pc_edges_not_source_branch_coverage",
+        functions=observed,
+        excluded_function_records=excluded,
+        source_branch_percentage=None,
+    )
 
 
 def configured_objects(build: Path, *, windows: bool):
