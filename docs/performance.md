@@ -282,7 +282,20 @@ median of those process totals, retains their individual receipts and rejects
 missing setup/counts or excessive setup-inclusive process spread. This describes
 amortization over the recorded run length; it does not establish an application
 lifetime break-even. The default policy continues to compare steady complete
-calls. Consumer migration and runtime controls remain pending.
+calls. Remaining consumer migration and runtime controls remain pending.
+
+The final-output RNS-chain report now uses this policy for resident, independent
+export/repack and prepacked-reuse implementations. It retains all process views,
+selects baselines within the matching work and hardware scope, and requires
+complete references and production companions before emitting ratios. Reuse
+recommendations must clear the observed noise margin against the same-backend
+non-reuse, strongest non-reuse, independent materialization and same-host CPU
+controls. Missing source-version/setup custody blocks reuse ratios. Break-even
+counts are labeled projections from observed cohort medians. The shared work
+contract now explicitly includes the native exact-wide limb count, including
+legacy records without the nested export descriptor. Exact-wide boundary
+diagnostics also account for the native emitter's D2H/status selector overlays.
+Protocol and loader controls are authored; runtime qualification remains pending.
 
 ## Commands
 

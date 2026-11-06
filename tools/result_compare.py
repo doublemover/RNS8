@@ -41,6 +41,7 @@ CONTRACT_KEYS = [
     "semantics",
     "finite_modulus",
     "residue_chain_length",
+    "exact_wide_limb_count",
     "requested_next_op.resolved",
     "output_logical_ld",
     "output_ld_padding",

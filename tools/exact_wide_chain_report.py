@@ -23,6 +23,10 @@ BOUNDARY_POLICY = ComparisonPolicy(
         "exact_output_contract.requested_final_output",
         "export_variant.final_output_mode",
         "export_variant.selector_key",
+        "export_variant.d2h_policy",
+        "export_variant.selector_status_policy",
+        "output_policy.status_handling",
+        "exact_output_contract.status_policy",
     ),
     require_cpu_anchor=False,
 )

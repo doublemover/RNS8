@@ -6,8 +6,16 @@ from __future__ import annotations
 import copy
 import tempfile
 from pathlib import Path
+import json
+from itertools import permutations
 
 import rns_chain_report
+from diagnostic_companion import build_binding
+from report_capture_inputs import load_report_captures
+from test_chain_report_support import exact_chain_capture
+from test_benchmark_schema_support_chains_wrap64 import as_reused_pack_capture
+from test_benchmark_schema_support_metadata import add_device_allocation_fields
+from test_review_reference_support import add_synthetic_full_reference
 
 
 def phase_summary(value: float) -> dict:
@@ -149,27 +157,125 @@ def first_gpu_row(
     )
 
 
+def production_controls():
+    from test_diagnostic_companion import authored_capture_pair
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+
+        def collect(label, setup_us=900, change=None):
+            captures, bindings = [], {}
+            for mode, duration in (
+                ("cpu", 5000),
+                ("independent", 2500),
+                ("final", 1000),
+                ("reuse", 700),
+            ):
+                for run in range(2):
+                    fixture = exact_chain_capture("final" if mode == "reuse" else mode, duration)
+                    if mode == "reuse":
+                        fixture = as_reused_pack_capture(fixture)
+                        fixture["prepack_setup_us"] = fixture["avg_prepack_setup_us"] = setup_us
+                        fixture["raw_timings_us"]["prepack_setup"] = [setup_us]
+                        fixture["timing_summary_us"]["prepack_setup"] = phase_summary(setup_us)
+                        add_device_allocation_fields(fixture)
+                        fixture["device_allocation"]["setup_scope"] = (
+                            "persistent_plan_workspace_prepacked_reuse"
+                        )
+                    if change is not None:
+                        change(fixture, mode, run)
+                    add_synthetic_full_reference(fixture)
+                    lane = root / f"{label}-{mode}-{run}"
+                    lane.mkdir()
+                    _, _, paths = authored_capture_pair(lane, fixture)
+                    captures.extend(load_report_captures([paths[0]]))
+                    if mode != "cpu":
+                        bindings[str(paths[0].resolve())] = build_binding(*paths)
+            return captures, bindings
+
+        captures, bindings = collect("matched")
+
+        def build(values, receipts=bindings):
+            return rns_chain_report.build_report_from_captures(values, diagnostic_bindings=receipts)
+
+        row = first_gpu_row(build(captures), backend="ck", pack_mode="prepacked_reuse")
+        assert row["decision"] == "candidate_reuse_chain_win", row["blockers"]
+        assert row["setup_inclusive_median_per_repeat_us"] == 800
+        assert row["speedup_vs_same_backend_nonreuse"] == 1.25
+        assert row["speedup_vs_cpu"] == 6.25
+        assert row["speedup_vs_independent_export_repack"] == 3.125
+        assert row["break_even_repeats_same_backend"] == 4
+        assert row["promotion_eligible"] is False
+        assert len(row["observation"]["measurement"]["observations"]) == 2
+        assert row["comparisons"]["cpu"]["cpu_gpu_comparison"] is True
+        for order in permutations(captures[4:]):
+            current = first_gpu_row(
+                build([*captures[:4], *order]), backend="ck", pack_mode="prepacked_reuse"
+            )
+            assert current["speedup_vs_same_backend_nonreuse"] == 1.25
+        singleton = first_gpu_row(
+            build([*captures[:6], captures[6], copy.deepcopy(captures[6])]),
+            backend="ck",
+            pack_mode="prepacked_reuse",
+        )
+        assert singleton["speedup_vs_same_backend_nonreuse"] is None
+        missing = dict(bindings)
+        missing.pop(str(Path(captures[7]["_path"]).resolve()))
+        assert (
+            first_gpu_row(build(captures, missing), backend="ck", pack_mode="prepacked_reuse")[
+                "speedup_vs_cpu"
+            ]
+            is None
+        )
+        slow, receipts = collect("slow", setup_us=3600)
+        assert (
+            first_gpu_row(build(slow, receipts), backend="ck", pack_mode="prepacked_reuse")[
+                "decision"
+            ]
+            == "deprioritize"
+        )
+
+        def variable_setup(fixture, mode, run):
+            if mode == "reuse" and run == 1:
+                fixture["prepack_setup_us"] = fixture["avg_prepack_setup_us"] = 100000
+                fixture["raw_timings_us"]["prepack_setup"] = [100000]
+                fixture["timing_summary_us"]["prepack_setup"] = phase_summary(100000)
+
+        noisy, receipts = collect("unstable-setup", change=variable_setup)
+        current = first_gpu_row(build(noisy, receipts), backend="ck", pack_mode="prepacked_reuse")
+        assert current["speedup_vs_same_backend_nonreuse"] is None
+        assert "setup_inclusive_process_spread_exceeds_ten_percent" in current["blockers"]
+
+        def different_input(fixture, mode, run):
+            if mode == "reuse":
+                fixture["seed"] += 1
+
+        changed, receipts = collect("different-seed", change=different_input)
+        current = first_gpu_row(build(changed, receipts), backend="ck", pack_mode="prepacked_reuse")
+        assert current["speedup_vs_same_backend_nonreuse"] is None
+
+
 def main() -> int:
     cpu = capture(backend="cpu-reference", median_us=5000.0)
     independent = capture(backend="hip-direct", median_us=2500.0, independent=True)
     direct = capture(backend="hip-direct", median_us=1000.0)
     report = rns_chain_report.build_report_from_captures([cpu, independent, direct])
     row = first_gpu_row(report)
-    assert report["summary"]["candidate_wins"] == 1
-    assert report["summary"]["independent_export_repack_baselines"] == 1
-    assert row["decision"] == "candidate_final_output_chain_win"
-    assert round(row["speedup_vs_cpu"], 4) == 5.0
-    assert round(row["speedup_vs_independent_export_repack"], 4) == 2.5
+    assert report["summary"]["candidate_wins"] == 0
+    assert report["summary"]["independent_export_repack_baselines"] == 0
+    assert row["decision"] == "keep_experimental"
+    assert row["speedup_vs_cpu"] is None
+    assert row["speedup_vs_independent_export_repack"] is None
 
     reuse = capture(
         backend="hip-direct", median_us=700.0, pack_mode="prepacked_reuse_b", setup_us=900.0
     )
     reuse_report = rns_chain_report.build_report_from_captures([cpu, independent, direct, reuse])
     reuse_row = first_gpu_row(reuse_report, pack_mode="prepacked_reuse_b")
-    assert reuse_row["decision"] == "candidate_reuse_chain_win"
-    assert round(reuse_row["setup_inclusive_median_per_repeat_us"], 4) == 800.0
-    assert round(reuse_row["speedup_vs_same_backend_nonreuse"], 4) == 1.25
-    assert reuse_row["break_even_repeats_same_backend"] == 4
+    assert reuse_row["decision"] == "keep_experimental"
+    assert reuse_row["setup_inclusive_median_per_repeat_us"] is None
+    assert reuse_row["speedup_vs_same_backend_nonreuse"] is None
+    assert reuse_row["break_even_repeats_same_backend"] is None
 
     slow_reuse = copy.deepcopy(reuse)
     slow_reuse["_path"] = "slow-reuse.json"
@@ -178,8 +284,8 @@ def main() -> int:
         [cpu, independent, direct, slow_reuse]
     )
     slow_row = first_gpu_row(slow_report, pack_mode="prepacked_reuse_b")
-    assert slow_row["decision"] == "deprioritize"
-    assert "reuse_not_faster_than_same_backend_nonreuse_setup_inclusive" in slow_row["blockers"]
+    assert slow_row["decision"] == "keep_experimental"
+    assert slow_row["speedup_vs_same_backend_nonreuse"] is None
 
     missing_independent_report = rns_chain_report.build_report_from_captures([cpu, direct])
     missing_independent_row = first_gpu_row(missing_independent_report)
@@ -190,11 +296,11 @@ def main() -> int:
     )
 
     independent_row = first_gpu_row(report, chain_mode="independent_export_repack")
-    assert independent_row["decision"] == "independent_export_repack_baseline"
+    assert independent_row["decision"] == "keep_experimental"
 
     missing_cpu_report = rns_chain_report.build_report_from_captures([independent, direct])
     missing_row = first_gpu_row(missing_cpu_report)
-    assert missing_row["decision"] == "missing_baseline"
+    assert missing_row["decision"] == "keep_experimental"
     assert "missing_cpu_final_output_baseline" in missing_row["blockers"]
 
     missing_identity = copy.deepcopy(reuse)
@@ -217,11 +323,12 @@ def main() -> int:
         review_path.write_text("{}", encoding="utf-8")
         manifest_path.write_text("{}", encoding="utf-8")
         capture_path.write_text("{}", encoding="utf-8")
-        expanded = rns_chain_report.expand_inputs([tmp_path])
-        assert capture_path in expanded
-        assert report_path not in expanded
-        assert review_path not in expanded
-        assert manifest_path not in expanded
+        capture_path.write_text(json.dumps(exact_chain_capture("final", 100)), encoding="utf-8")
+        loaded = load_report_captures([tmp_path])
+        assert len(loaded) == 1
+        assert Path(loaded[0]["_path"]) == capture_path
+
+    production_controls()
 
     print("rns chain report self-test: PASS")
     return 0
