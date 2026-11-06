@@ -13,6 +13,7 @@
 #include "core/prepared_export_read.hpp"
 #include "rns8/rns8.hpp"
 #include "rns8/experimental_product.h"
+#include "rns8/pipeline_recipe.h"
 #if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
 #include "../support/host_runtime_witness.hpp"
 #endif
@@ -419,6 +420,119 @@ void bounded_writer_faults(bool profile_only) {
               "bounded retry exact output");
     }
   std::printf("PASS bounded allocation_points=%zu bytes=%zu\n", profile.calls, profile.bytes);
+}
+
+void pipeline_price_admission_faults() {
+  current_case = "pipeline-price-admission";
+  rns8::Context ctx;
+  auto gd = gemm_desc(RNS8_EXACT_WIDE_SIGNED, 2, 2, 2);
+  gd.flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_EXACT_VALUE_BOUND;
+  rns8::Plan plan(ctx, gd);
+  rns8::Matrix a(ctx, matrix_desc(gd.semantics, 2, 2));
+  rns8::Matrix b(ctx, matrix_desc(gd.semantics, 2, 2));
+  rns8::Matrix c(ctx, matrix_desc(gd.semantics, 2, 2));
+  const int64_t ones[] = {1, 1, 1, 1};
+  for (auto* matrix : {a.get(), b.get(), c.get()})
+    rns8::check(rns8_pack_i64(ctx.get(), matrix, ones, 2, 0));
+  MatrixSnapshot a_before(*a.get()), b_before(*b.get()), c_before(*c.get());
+  const auto refs_before = ctx.get()->prepared_references;
+  rns8_pipeline_recipe_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.route_mask = 1;
+  options.execution_mode = RNS8_EXEC_SYNC;
+  options.modulus_group = options.workers = options.fragments = options.fragment_window = 1;
+  options.reuse_count = 1;
+  options.max_extra_payload_bytes = UINT64_MAX;
+  rns8_pipeline_recipe_prices base{};
+  base.struct_size = sizeof(base);
+  base.abi_version = RNS8_ABI_VERSION;
+  base.known_mask = 7;
+  base.origin = 1;
+  base.calibration_id[0] = 'x';
+  for (unsigned i = 0; i < 3; ++i)
+    base.lower_ns[i] = base.upper_ns[i] = 1;
+  for (unsigned mutation = 0; mutation < 19; ++mutation) {
+    rns8_pipeline_recipe_prices prices[] = {base, base};
+    auto& invalid = prices[0];
+    switch (mutation) {
+    case 0:
+      invalid.known_mask = UINT32_MAX;
+      break;
+    case 1:
+      invalid.known_mask = UINT32_C(0x80000000);
+      break;
+    case 2:
+      invalid.known_mask = 8;
+      break;
+    case 3:
+      invalid.origin = UINT32_MAX;
+      break;
+    case 4:
+      invalid.origin = UINT32_C(0x80000000);
+      break;
+    case 5:
+      invalid.origin = 3;
+      break;
+    case 6:
+      invalid.origin = 0;
+      break;
+    case 7:
+      ++invalid.abi_version;
+      break;
+    case 8:
+      --invalid.struct_size;
+      break;
+    case 9:
+      std::memset(invalid.identity_sha256, 'x', sizeof(invalid.identity_sha256));
+      break;
+    case 10:
+      std::memset(invalid.build_identity_sha256, 'x', sizeof(invalid.build_identity_sha256));
+      break;
+    case 11:
+      std::memset(invalid.target_id, 'x', sizeof(invalid.target_id));
+      break;
+    case 12:
+      std::memset(invalid.calibration_id, 'x', sizeof(invalid.calibration_id));
+      break;
+    case 13:
+      invalid.calibration_id[0] = 0;
+      break;
+    case 14:
+      invalid.lower_ns[0] = 0;
+      break;
+    case 15:
+      invalid.upper_ns[1] = std::numeric_limits<double>::quiet_NaN();
+      break;
+    case 16:
+      invalid.upper_ns[2] = 0.5;
+      break;
+    }
+    alignas(rns8_pipeline_recipe_prices) const uint64_t short_header = sizeof(uint64_t);
+    const auto* rejected = mutation == 17
+                               ? reinterpret_cast<const rns8_pipeline_recipe_prices*>(&short_header)
+                               : prices;
+    rns8_pipeline_recipe_candidate candidate;
+    std::memset(&candidate, 0xa5, sizeof(candidate));
+    std::array<unsigned char, sizeof(candidate)> before{};
+    std::memcpy(before.data(), &candidate, sizeof(candidate));
+    uint32_t required = 99;
+    const auto live = fault::live_allocations();
+    fault::begin(0);
+    const auto status =
+        rns8_query_pipeline_recipes(ctx.get(), plan.get(), a.get(), b.get(), c.get(), &options,
+                                    rejected, mutation == 18 ? 2 : 1, &candidate, 1, &required);
+    const auto observed = fault::end();
+    require(status == RNS8_INVALID_ARGUMENT && observed.calls == 0 && !observed.triggered,
+            "pipeline price rejection precedes proof and build-identity allocation");
+    require(required == 99 && std::memcmp(&candidate, before.data(), sizeof(candidate)) == 0,
+            "pipeline price rejection preserves candidate and required-count outputs");
+    require(ctx.get()->prepared_references == refs_before && fault::live_allocations() == live,
+            "pipeline price rejection acquires no resources");
+    a_before.check(*a.get());
+    b_before.check(*b.get());
+    c_before.check(*c.get());
+  }
 }
 
 void prepared_product_topology_faults(bool profile_only) {
@@ -874,6 +988,7 @@ int main(int argc, char** argv) {
   }
   prepared_crt_export_faults(profile_only);
   prepared_product_topology_faults(profile_only);
+  pipeline_price_admission_faults();
   std::size_t points = 0;
   Fixture signed_dual(RNS8_EXACT_WIDE_SIGNED);
   points += exercise("signed-dual-2x13", signed_dual, profile_only);

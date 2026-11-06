@@ -251,9 +251,9 @@ inline rns8_status build_native_wmma_schedule(const std::vector<NativeWmmaTask>&
           plan.rank_directory.resize(size_t(directory_words));
           for (size_t phase = 1; phase < plan.phases.size(); ++phase) {
             auto* table = plan.rank_directory.data() + (phase - 1) * stride;
-            const auto round = plan.phases[phase].round_begin;
+            const auto phase_round = plan.phases[phase].round_begin;
             for (uint32_t task = 0; task < tasks.size(); ++task)
-              if (counts[task] > round)
+              if (counts[task] > phase_round)
                 table[words + 1 + task / 32] |= 1u << (task % 32);
             for (uint32_t word = 0; word < words; ++word)
               table[word + 1] = table[word] + native_wmma_popcount32(table[words + 1 + word]);

@@ -128,6 +128,24 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx, const rns8_plan
     if (!ctx || !plan || !a || !b || !c || !options || !required || (capacity && !output) ||
         (count && !prices) || count > 256 || !valid_recipe_options(*options))
       return RNS8_INVALID_ARGUMENT;
+    // Reject price records before proof/build identity construction can allocate.
+    for (uint32_t i = 0; i < count; ++i) {
+      const auto& p = prices[i];
+      if (!minimum_abi_header(&p) || p.known_mask > 7 || (p.origin != 1 && p.origin != 2) ||
+          !terminated(p.identity_sha256, sizeof(p.identity_sha256)) ||
+          !terminated(p.build_identity_sha256, sizeof(p.build_identity_sha256)) ||
+          !terminated(p.target_id, sizeof(p.target_id)) ||
+          !terminated(p.calibration_id, sizeof(p.calibration_id)) || !p.calibration_id[0])
+        return RNS8_INVALID_ARGUMENT;
+      for (uint32_t j = 0; j < i; ++j)
+        if (std::strcmp(p.identity_sha256, prices[j].identity_sha256) == 0)
+          return RNS8_INVALID_ARGUMENT;
+      for (unsigned stage = 0; stage < 3; ++stage)
+        if (p.known_mask & (1u << stage))
+          if (!std::isfinite(p.lower_ns[stage]) || !std::isfinite(p.upper_ns[stage]) ||
+              p.lower_ns[stage] <= 0 || p.upper_ns[stage] < p.lower_ns[stage])
+            return RNS8_INVALID_ARGUMENT;
+    }
     const auto& o = *options;
     if (!plan->tile_schedule.empty())
       return RNS8_UNSUPPORTED_BACKEND;
@@ -157,23 +175,6 @@ rns8_status rns8_query_pipeline_recipes(const rns8_context* ctx, const rns8_plan
     auto status = rns8_get_pipeline_build_identity(build, sizeof(build));
     if (status != RNS8_SUCCESS)
       return status;
-    for (uint32_t i = 0; i < count; ++i) {
-      const auto& p = prices[i];
-      if (!minimum_abi_header(&p) || p.known_mask > 7 || (p.origin != 1 && p.origin != 2) ||
-          !terminated(p.identity_sha256, sizeof(p.identity_sha256)) ||
-          !terminated(p.build_identity_sha256, sizeof(p.build_identity_sha256)) ||
-          !terminated(p.target_id, sizeof(p.target_id)) ||
-          !terminated(p.calibration_id, sizeof(p.calibration_id)) || !p.calibration_id[0])
-        return RNS8_INVALID_ARGUMENT;
-      for (uint32_t j = 0; j < i; ++j)
-        if (std::strcmp(p.identity_sha256, prices[j].identity_sha256) == 0)
-          return RNS8_INVALID_ARGUMENT;
-      for (unsigned stage = 0; stage < 3; ++stage)
-        if (p.known_mask & (1u << stage))
-          if (!std::isfinite(p.lower_ns[stage]) || !std::isfinite(p.upper_ns[stage]) ||
-              p.lower_ns[stage] <= 0 || p.upper_ns[stage] < p.lower_ns[stage])
-            return RNS8_INVALID_ARGUMENT;
-    }
     std::vector<rns8_pipeline_recipe_candidate> candidates;
     const bool sign = plan->desc.semantics == RNS8_EXACT_WIDE_SIGNED;
     for (unsigned route = 0; route < 5; ++route)
