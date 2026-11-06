@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager, nullcontext
 import json
 from pathlib import Path
 import platform
 import struct
+import sys
+from types import SimpleNamespace
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from native_mutation_contract import change
 from host_instrumentation_session import reference, write_json
@@ -29,8 +32,10 @@ from scalar_proof_contract import (
     property_inventory,
     registry,
     replay_result,
+    resource_observation,
 )
 from scalar_proof_session import execute
+from scalar_proof_worker import run_owned
 
 
 def process(value, code=0):
@@ -107,10 +112,140 @@ def authored_plan(root, output, models):
         native_host=dict(
             os=platform.system(), abi="LLP64" if struct.calcsize("@l") == 4 else "LP64"
         ),
+        proof_python=reference(Path(sys.executable)),
+        proof_python_invocation=str(Path(sys.executable).absolute()),
+        proof_python_version=platform.python_version(),
+    )
+
+
+def authored_resources(selected, command, pid=51000, code=0):
+    system = selected["native_host"]["os"]
+    return dict(
+        schema="rns8_scalar_proof_child_resources_v1",
+        command=command,
+        os=system,
+        process_id=pid,
+        returncode=code,
+        elapsed_seconds=0.125,
+        elapsed_scope="owned_child_spawn_to_terminal_resource_observation",
+        worker_python_executable=selected["proof_python"]["path"],
+        worker_python_version=selected["proof_python_version"],
+        status="observed",
+        raw_peak=1024 if system == "Linux" else 1048576,
+        peak_memory_bytes=1048576,
+        resource_error=None,
+        source="linux_wait4_ru_maxrss"
+        if system == "Linux"
+        else "windows_K32GetProcessMemoryInfo_PeakWorkingSetSize",
+        units="KiB" if system == "Linux" else "bytes",
+        scope="waited_child_and_accounted_descendants_maxrss_not_concurrent_tree_total"
+        if system == "Linux"
+        else "single_owned_child_peak_working_set_excludes_descendants",
     )
 
 
 class ScalarProofAdmission(unittest.TestCase):
+    def test_scoped_resource_units_identity_and_unavailable_states(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selected = authored_plan(root, root / "out", ["LP64", "LLP64"])
+            command = ["/authored/cbmc", "--trace"]
+            captured = process([]) | dict(process_id=41000, elapsed_seconds=0.25)
+            for system in ("Windows", "Linux"):
+                selected["native_host"]["os"] = system
+                value = authored_resources(selected, command)
+                observed = resource_observation(value, captured, command, selected=selected)
+                self.assertEqual(observed["peak_memory_bytes"], 1048576)
+                self.assertEqual(observed["os"], system)
+                for field, invalid in (
+                    ("process_id", 41000),
+                    ("process_id", True),
+                    ("returncode", 10),
+                    ("command", command + ["--no-assertions"]),
+                    ("peak_memory_bytes", True),
+                    ("peak_memory_bytes", 1048577),
+                    ("raw_peak", True),
+                    ("units", "pages"),
+                    ("scope", "concurrent_tree_peak"),
+                    ("elapsed_seconds", -1),
+                    ("elapsed_seconds", 1),
+                    ("worker_python_version", "3.14.0"),
+                    ("worker_python_executable", "unrelated"),
+                ):
+                    with self.subTest(system=system, field=field):
+                        with self.assertRaises(ValueError):
+                            resource_observation(
+                                value | {field: invalid}, captured, command, selected=selected
+                            )
+                unavailable = value | dict(
+                    status="not_observed",
+                    raw_peak=None,
+                    peak_memory_bytes=None,
+                    resource_error="owned process counters unavailable",
+                )
+                self.assertEqual(
+                    resource_observation(unavailable, captured, command, selected=selected)[
+                        "status"
+                    ],
+                    "not_observed",
+                )
+                with self.assertRaises(ValueError):
+                    resource_observation(
+                        unavailable | dict(peak_memory_bytes=0),
+                        captured,
+                        command,
+                        selected=selected,
+                    )
+
+    def test_resource_worker_owns_one_linux_wait_and_windows_handle_scope(self):
+        command = ["/authored/cbmc"]
+        with (
+            patch("scalar_proof_worker.platform.system", return_value="Linux"),
+            patch("scalar_proof_worker.os.posix_spawn", return_value=5001, create=True) as spawn,
+            patch(
+                "scalar_proof_worker.os.wait4",
+                return_value=(5001, 0, SimpleNamespace(ru_maxrss=1234)),
+                create=True,
+            ) as wait,
+        ):
+            value = run_owned(command)
+            self.assertEqual(value["peak_memory_bytes"], 1234 * 1024)
+            self.assertEqual(value["process_id"], 5001)
+            self.assertEqual(spawn.call_args.args[:2], (command[0], command))
+            wait.assert_called_once_with(5001, 0)
+        child = MagicMock()
+        child.pid, child.wait.return_value = 5002, 0
+        process_owner = MagicMock()
+        process_owner.__enter__.return_value = child
+        with (
+            patch("scalar_proof_worker.platform.system", return_value="Windows"),
+            patch("scalar_proof_worker.subprocess.Popen", return_value=process_owner),
+            patch(
+                "scalar_proof_worker.windows_observer", return_value=nullcontext(lambda: 7654321)
+            ),
+        ):
+            value = run_owned(command)
+            self.assertEqual(value["peak_memory_bytes"], 7654321)
+            self.assertIn("excludes_descendants", value["scope"])
+        closed = []
+
+        @contextmanager
+        def observed(pid):
+            try:
+                yield lambda: 1
+            finally:
+                closed.append(pid)
+
+        child.wait.side_effect = KeyboardInterrupt
+        with (
+            patch("scalar_proof_worker.platform.system", return_value="Windows"),
+            patch("scalar_proof_worker.subprocess.Popen", return_value=process_owner),
+            patch("scalar_proof_worker.windows_observer", side_effect=observed),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                run_owned(command)
+        self.assertEqual(closed, [5002])
+
     def test_native_replay_requires_the_intended_exact_oracle_failure(self):
         intended = ["rns8.bv.checked.failure_preserves_output"]
         good = process(dict(exact_reference_passed=True, failed_properties=[]))
@@ -393,6 +528,14 @@ class ScalarProofAdmission(unittest.TestCase):
                                 None,
                             )
                             result = process(proof(inventory, fail=failed), 10 if failed else 0)
+                            resource_path = Path(argv[argv.index("--result") + 1])
+                            direct = argv[argv.index("--") + 1 :]
+                            write_json(
+                                resource_path,
+                                authored_resources(
+                                    selected, direct, 51000 + len(self.stages), result["returncode"]
+                                ),
+                            )
                     elif name == "native-replay-configure":
                         build = self.output / "native-build"
                         records = build / "CMakeFiles/authored"

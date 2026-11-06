@@ -8,9 +8,12 @@ import os
 from pathlib import Path
 import platform
 import struct
+import sys
 
 from compiled_binary_identity import canonical_digest
 from compiler_context import compiler_environment
+from execution_inventory import bounded_read
+from json_evidence import parse_evidence_json
 from host_instrumentation_session import (
     Session,
     check_bookends,
@@ -30,6 +33,8 @@ from scalar_proof_contract import (
     VERSION,
     complete_process,
     command_prefix,
+    proof_command,
+    bind_resources,
     proof_result,
     property_inventory,
     registry,
@@ -69,6 +74,14 @@ def source_inputs() -> list[dict]:
 
 
 def plan(args) -> dict:
+    if (
+        sys.version_info[:2] < (3, 15)
+        or struct.calcsize("P") != 8
+        or platform.system() not in {"Windows", "Linux"}
+    ):
+        raise ValueError(
+            "scalar proof acquisition requires Python 3.15+ on native 64-bit Windows/Linux"
+        )
     policy = registry()
     sources = source_inputs()
     for seed in policy["seeds"]:
@@ -120,6 +133,9 @@ def plan(args) -> dict:
         native_host=dict(
             os=platform.system(), abi="LLP64" if struct.calcsize("@l") == 4 else "LP64"
         ),
+        proof_python=reference(invocation_path(Path(sys.executable))),
+        proof_python_invocation=str(invocation_path(Path(sys.executable))),
+        proof_python_version=platform.python_version(),
         production_eligible=False,
     )
 
@@ -176,17 +192,23 @@ def verify(
     row["property_inventory"] = write_json(
         session.output / (name + "-" + model + ".properties.json"), inventory
     )
-    result = session.run(
-        name + "-" + model + "-proof", [*command, "--trace", "--all-properties"], required=False
-    )
+    invocation, resource_path = proof_command(selected, name, model, command)
+    result = session.run(name + "-" + model + "-proof", invocation, required=False)
     row.update(
         proof_result(
             result, inventory, family, intended=seed["intended_properties"] if seed else ()
         )
     )
     row["elapsed_seconds"] = result.get("elapsed_seconds")
-    row["resource_observations"] = dict(
-        peak_memory_bytes=None, status="not_observed", raw_statistics="retained_process_stdout"
+    resource = None
+    if resource_path.is_file():
+        text, row["resource_receipt"] = bounded_read(resource_path)
+        try:
+            resource = parse_evidence_json(text)
+        except ValueError:
+            pass
+    row["resource_observations"] = bind_resources(
+        row, resource, result, [*command, "--trace", "--all-properties"], selected=selected
     )
     return row
 

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 import re
 
 from execution_inventory import bounded_read
-from json_evidence import parse_evidence_json
+from json_evidence import parse_evidence_json, same_evidence_value
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "6.8.0"
@@ -81,6 +82,140 @@ def command_prefix(selected: dict, model: str, family: str, source: Path) -> lis
         "-I",
         str(source / "src"),
     ]
+
+
+def proof_command(
+    selected: dict, name: str, model: str, command: list[str]
+) -> tuple[list[str], Path]:
+    result = Path(selected["output"]) / (name + "-" + model + ".child-resources.json")
+    return [
+        selected["proof_python_invocation"],
+        str(ROOT / "tools/scalar_proof_worker.py"),
+        "--result",
+        str(result),
+        "--",
+        *command,
+        "--trace",
+        "--all-properties",
+    ], result
+
+
+def resource_observation(
+    document: dict, process: dict, command: list[str], *, selected: dict
+) -> dict:
+    if (
+        not isinstance(document, dict)
+        or set(document)
+        != {
+            "schema",
+            "command",
+            "os",
+            "process_id",
+            "returncode",
+            "elapsed_seconds",
+            "elapsed_scope",
+            "status",
+            "raw_peak",
+            "peak_memory_bytes",
+            "resource_error",
+            "source",
+            "units",
+            "scope",
+            "worker_python_executable",
+            "worker_python_version",
+        }
+        or document.get("schema") != "rns8_scalar_proof_child_resources_v1"
+        or type(document.get("os")) is not str
+        or document["os"] != selected["native_host"]["os"]
+        or document.get("worker_python_executable") != selected["proof_python"]["path"]
+        or document.get("worker_python_version") != selected["proof_python_version"]
+        or not complete_process(process, (0, 10))
+        or not same_evidence_value(document.get("command"), command)
+        or not same_evidence_value(document.get("returncode"), process.get("returncode"))
+        or type(document.get("process_id")) is not int
+        or not 0 < document["process_id"] < 2**32
+        or type(process.get("process_id")) is not int
+        or document["process_id"] == process["process_id"]
+        or document.get("elapsed_scope") != "owned_child_spawn_to_terminal_resource_observation"
+    ):
+        raise ValueError("owned verifier child command/PID/termination resource binding differs")
+    expected = {
+        "Linux": (
+            "linux_wait4_ru_maxrss",
+            "KiB",
+            "waited_child_and_accounted_descendants_maxrss_not_concurrent_tree_total",
+            1024,
+        ),
+        "Windows": (
+            "windows_K32GetProcessMemoryInfo_PeakWorkingSetSize",
+            "bytes",
+            "single_owned_child_peak_working_set_excludes_descendants",
+            1,
+        ),
+    }.get(document.get("os"))
+    if (
+        expected is None
+        or (document["source"], document["units"], document["scope"]) != expected[:3]
+    ):
+        raise ValueError("unknown or mislabeled platform child resource observation")
+    elapsed, outer = document["elapsed_seconds"], process.get("elapsed_seconds")
+    if (
+        any(
+            type(value) not in (int, float) or not 0 <= value <= 86400 or not math.isfinite(value)
+            for value in (elapsed, outer)
+        )
+        or elapsed > outer + 0.01
+    ):
+        raise ValueError("child resource interval is not bound by its complete process capture")
+    if document["status"] == "observed":
+        if (
+            type(document["raw_peak"]) is not int
+            or not 0 < document["raw_peak"] < 2**54
+            or type(document["peak_memory_bytes"]) is not int
+            or document["peak_memory_bytes"] != document["raw_peak"] * expected[3]
+            or document["resource_error"] is not None
+        ):
+            raise ValueError("invalid child peak-memory units/value observation")
+    elif document["status"] == "not_observed":
+        if (
+            document["peak_memory_bytes"] is not None
+            or not (
+                document["raw_peak"] is None
+                or type(document["raw_peak"]) is int
+                and document["raw_peak"] == 0
+            )
+            or type(document["resource_error"]) is not str
+            or not document["resource_error"]
+        ):
+            raise ValueError("unavailable child resources cannot claim a peak")
+    else:
+        raise ValueError("unknown child resource observation status")
+    return {
+        key: document[key]
+        for key in (
+            "os",
+            "status",
+            "source",
+            "units",
+            "scope",
+            "raw_peak",
+            "peak_memory_bytes",
+            "resource_error",
+            "process_id",
+            "elapsed_seconds",
+            "elapsed_scope",
+        )
+    }
+
+
+def bind_resources(
+    facts: dict, document: dict | None, process: dict, command: list[str], *, selected: dict
+) -> dict:
+    try:
+        return resource_observation(document, process, command, selected=selected)
+    except (ValueError, TypeError) as error:
+        facts.update(verdict="unknown", blocker="child_resource_receipt_unbound: " + str(error))
+        return dict(status="not_observed", peak_memory_bytes=None, blocker=str(error))
 
 
 def registry() -> dict:

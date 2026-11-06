@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 
 from compiled_binary_identity import canonical_digest
 from execution_inventory import bounded_read
@@ -27,6 +28,8 @@ from scalar_proof_contract import (
     property_inventory,
     registry,
     replay_result,
+    bind_resources,
+    proof_command,
 )
 from scalar_proof_session import (
     boundary_inputs,
@@ -86,6 +89,19 @@ def reviewed_session(path: Path) -> dict:
             reference(Path(invocation)), tools[name]
         ):
             raise ValueError("tool invocation differs from its selected executable bytes")
+    python_invocation, python_version = (
+        selected.get("proof_python_invocation"),
+        selected.get("proof_python_version"),
+    )
+    if (
+        type(python_invocation) is not str
+        or not same_evidence_value(reference(Path(python_invocation)), selected.get("proof_python"))
+        or type(python_version) is not str
+        or len(python_version) > 32
+        or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", python_version)
+        or tuple(map(int, python_version.split("."))) < (3, 15, 0)
+    ):
+        raise ValueError("selected proof worker Python identity/version differs")
     check_bookends(selected)
     stages, rows = report.get("stages"), report.get("rows")
     if (
@@ -195,9 +211,8 @@ def reviewed_session(path: Path) -> dict:
                     raise ValueError(
                         "retained scalar property inventory differs from native discovery"
                     )
-                result = stage(
-                    name + "-" + model + "-proof", [*command, "--trace", "--all-properties"]
-                )
+                invocation, resource_path = proof_command(selected, name, model, command)
+                result = stage(name + "-" + model + "-proof", invocation)
                 facts = proof_result(
                     result, inventory, family, intended=seed["intended_properties"] if seed else ()
                 )
@@ -205,17 +220,25 @@ def reviewed_session(path: Path) -> dict:
                     row.get("elapsed_seconds"), result.get("elapsed_seconds")
                 ):
                     raise ValueError("scalar proof elapsed observation differs from its process")
-                if not same_evidence_value(
-                    row.get("resource_observations"),
-                    dict(
-                        peak_memory_bytes=None,
-                        status="not_observed",
-                        raw_statistics="retained_process_stdout",
-                    ),
-                ):
-                    raise ValueError(
-                        "scalar resource claims differ from the unobserved source contract"
-                    )
+                resource = None
+                if row.get("resource_receipt") is not None:
+                    if Path(row["resource_receipt"]["path"]).resolve(
+                        strict=True
+                    ) != resource_path.resolve(strict=True):
+                        raise ValueError(
+                            "child resource receipt belongs to a different proof command"
+                        )
+                    resource = document(row["resource_receipt"])
+                elif resource_path.exists():
+                    raise ValueError("child resource receipt was omitted from the proof summary")
+                observed = bind_resources(
+                    facts,
+                    resource,
+                    result,
+                    [*command, "--trace", "--all-properties"],
+                    selected=selected,
+                )
+                facts["resource_observations"] = observed
         # Early capability failures do not publish property/result fields.
         for key, value in facts.items():
             actual = row.get(key, [] if key in {"properties", "counterexamples"} else None)

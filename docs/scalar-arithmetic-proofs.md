@@ -68,7 +68,7 @@ as detection of an arithmetic mutation.
 
 ## Reproduction and negative controls
 
-Supply selected tool paths and a Boost-capable CMake toolchain. The default
+Use 64-bit Python 3.15 or newer, selected tool paths and a Boost-capable CMake toolchain. The default
 prints a source-bound plan without launching a tool or creating output:
 
 ```sh
@@ -114,10 +114,29 @@ These receipts are content custody, not cryptographic execution attestation.
 
 The existing bounded process runner limits each command's duration and combined
 stdout/stderr to 32 MiB, and the owned artifact tree to 512 MiB. Full raw outcomes
-and process elapsed times remain in the ignored output directory. Peak memory is
-explicitly `not_observed`; neither solver statistics nor a sampled working set
-is silently presented as an exact peak. Resource measurement remains a separate
-validation gap. No solver enters ordinary plan creation or an output-element
+and process elapsed times remain in the ignored output directory. A source-bound
+worker preserves verifier stdout/stderr and writes a separate resource receipt.
+It binds the actual child command, PID and exit status to the selected Python
+worker identity and containing process capture. Child elapsed time covers spawn
+through terminal resource observation; outer capture elapsed time also includes
+worker startup, I/O and teardown.
+
+On Linux, the worker reaps exactly its child with `wait4` and converts kernel
+`ru_maxrss` KiB to bytes. The accounting scope includes the waited child and any
+descendants accounted by that kernel interface; it is not the concurrent sum of
+a process tree. [Linux wait4](https://www.man7.org/linux/man-pages/man2/wait4.2.html),
+[resource accounting](https://www.man7.org/linux/man-pages/man2/getrusage.2.html).
+On Windows, a query-only handle is retained through the child's terminal
+observation and `K32GetProcessMemoryInfo` supplies that single process's peak
+working set, excluding descendants. Handles close on exceptional exits too.
+[Microsoft process memory API](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-getprocessmemoryinfo).
+
+Unavailable counters remain `not_observed` with a reason; missing or mismatched
+child custody makes the proof receipt unknown. The reader reconstructs units,
+scope, child/worker identity, exit and elapsed bounds from the retained resource
+document. Solver statistics or polling are never relabeled as exact allocation
+peaks. These OS paths and their authored mocked controls have not run in this
+source pass. No solver enters ordinary plan creation or an output-element
 path, and no result changes backend eligibility, safe K caps or AUTO promotion.
 
 The pilot excludes wrap64 convolution, address admission, CRT, layout/wave
