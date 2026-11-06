@@ -265,6 +265,8 @@ rns8_status observe_resident_graph_hip(rns8_resident_graph* graph,
       *info = graph->completion;
       return RNS8_SUCCESS;
     }
+    rns8::detail::record_host_control(wait ? &rns8::detail::HostControlObservations::event_waits
+                                           : &rns8::detail::HostControlObservations::event_queries);
     const auto error = wait ? hipEventSynchronize(graph->completion_event.get())
                             : hipEventQuery(graph->completion_event.get());
     if (error == hipErrorNotReady)
@@ -425,6 +427,7 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph* graph) {
 static rns8_status submit_resident_graph_hip(rns8_resident_graph* graph, void* stream,
                                              rns8_graph_completion_token* token, bool replay,
                                              uint32_t* failed_preflight) {
+  rns8::detail::record_host_control(&rns8::detail::HostControlObservations::submission_proofs);
   return guard_api([&]() -> rns8_status {
     if (!graph || !stream || !token)
       return RNS8_INVALID_ARGUMENT;
@@ -463,9 +466,13 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph* graph, void* s
     if (hip_stream == hipStreamLegacy || hip_stream == hipStreamPerThread)
       return RNS8_INVALID_ARGUMENT;
     hipDevice_t device = -1;
+    rns8::detail::record_host_control(
+        &rns8::detail::HostControlObservations::stream_device_queries);
     if (hipStreamGetDevice(hip_stream, &device) != hipSuccess || device != graph->ctx->device_id)
       return RNS8_INVALID_ARGUMENT;
     hipStreamCaptureStatus capture = hipStreamCaptureStatusNone;
+    rns8::detail::record_host_control(
+        &rns8::detail::HostControlObservations::stream_capture_queries);
     if (hipStreamIsCapturing(hip_stream, &capture) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     if (capture != hipStreamCaptureStatusNone)
@@ -503,6 +510,7 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph* graph, void* s
     if (status == RNS8_SUCCESS && replay) {
       for (const auto& node : graph->nodes)
         invalidate_owned_graph_outputs(node);
+      rns8::detail::record_host_control(&rns8::detail::HostControlObservations::graph_launches);
       launch_error = hipGraphLaunch(graph->captured_executable, hip_stream);
       status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
     } else if (status == RNS8_SUCCESS)
@@ -519,6 +527,7 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph* graph, void* s
       record_async_failure(graph->async_failure, status, RNS8_ASYNC_FAILURE_ENQUEUE, launch_error,
                            graph->ctx->device_id, graph->epoch, failed);
     if (status == RNS8_SUCCESS) {
+      rns8::detail::record_host_control(&rns8::detail::HostControlObservations::event_records);
       const auto error = hipEventRecord(graph->completion_event.get(), hip_stream);
       if (error != hipSuccess) {
         status = RNS8_BACKEND_FAILURE;

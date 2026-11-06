@@ -404,8 +404,9 @@ result to one limb; its common final export can be wide. Exact preflight rejects
 an intermediate outside signed/unsigned native64 before HIP execution. Native
 host buffers, matrices and workspaces are retained; audits run outside timing.
 Internal roundtrip materializations belong to the same final-output cohort,
-while eager extra observations remain separate. The collector prefers the
-scalar-first public baseline when supplied.
+while eager extra observations remain separate. The collector selects the
+fastest measured manual control, retaining each control's proof policy and
+explicitly labeling any comparison that changes that policy.
 
 Capture v3 separates per-replay logical native H2D/D2H payload and retained
 native host buffer payload from actual HIP copy bytes/calls summed across the
@@ -433,6 +434,42 @@ Immutable artifact/build/target/environment cohorts require independent
 processes. Break-even reuse is computed only when a matched measured replay
 saving is positive; otherwise it remains unknown. These are enabling tools,
 not results: no tests, benchmarks or GPU qualification were run.
+
+The same harness also offers `prepared-nodes`, synchronous `resident-dag`,
+`resident-stream` and owned-capture `resident-graph`. These use the same fixed
+plan, values, full prefix and final host export as the manual controls.
+`exact_proof_policy` explicitly selects `eager_axis` (the omitted default) or
+`scalar_first`; the `manual-scalar-first` alias requires the latter. Repeat
+statistics never merge different policies. Kernel/target strings identify the
+declared fixed plan; they do not attest launched symbols or instructions.
+
+Independent prepared nodes need current intermediate inputs at preparation.
+Setup therefore executes only products referenced by later nodes and charges
+that initialization to setup. Each replay refreshes prepared inputs whose
+generations changed. A resident DAG retains its whole mathematical proof and
+performs its ordinary structural checks on each replay. Receipts distinguish
+these lifecycles, proof builds/reuses, native preparation/capture and terminal
+completion. Retained proof objects and vector capacities are reported separately
+from logical multiprecision limbs; neither is an allocator peak measurement.
+
+For these routes and manual proof controls, `side` can reach 1024. Optional
+`reduction_k` changes the reduction length; a nonsquare reduction is restricted
+to a single-product chain. Logical work, plane addressing and payload limits
+are checked before allocating. The small `benchmarks/exact-proof/` menu pairs
+a 1024-by-1024 output with K16 against a 512-cubed compute control. The collector
+reports useful integer operations and sustained useful TOPS, with setup and
+positive-saving break-even replay counts kept separate. These are source-ready
+cases, not new measurements, and are not an automatically started campaign.
+
+Optional `host_diagnostics: true` requires a separate build configured with
+`RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS=ON`. One cold-setup observation and one
+additional completed call after all timed intervals record calling-thread
+range/proof/metadata/preflight phases and selected submission attempts. Exact
+output auditing remains outside those phases. Times are inclusive and
+nonadditive; the diagnostic call and diagnostic builds cannot establish
+production latency. Production captures leave the option false and use an
+uninstrumented build. Both capture types remain unqualified until executed and
+reviewed with independent process evidence.
 
 ## Generation-bound ragged recipe inputs
 

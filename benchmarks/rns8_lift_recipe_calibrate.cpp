@@ -5,10 +5,12 @@
 #include "product_dataset.hpp"
 #include "product_replay_policy.hpp"
 #include "call_observation.hpp"
+#include "host_control_json.hpp"
 #include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <nlohmann/json.hpp>
 namespace {
 using json = nlohmann::json;
@@ -44,12 +46,14 @@ int main(int argc, char** argv) {
           "usage: rns8-lift-recipe-calibrate CASE.json unique-run-id [prices.json]");
     json c;
     std::ifstream(argv[1]) >> c;
-    if (c.size() != 12 + unsigned(c.contains("input_values")) +
-                        unsigned(c.contains("replay_policy")) +
-                        unsigned(c.contains("execution_policy")) ||
+    if (c.size() !=
+            12 + unsigned(c.contains("input_values")) + unsigned(c.contains("replay_policy")) +
+                unsigned(c.contains("execution_policy")) +
+                unsigned(c.contains("exact_proof_policy")) +
+                unsigned(c.contains("host_diagnostics")) + unsigned(c.contains("reduction_k")) ||
         c.at("schema") != "lift_recipe_case_v1" || !c.at("unsigned_inputs").is_boolean())
       throw std::invalid_argument("case ABI");
-    const unsigned side = number(c, "side", 1, 256), depth = number(c, "depth", 1, 12),
+    const unsigned side = number(c, "side", 1, 1024), depth = number(c, "depth", 1, 12),
                    prefix = number(c, "prefix", 1, 20),
                    source = number(c, "source_prefix", 1, prefix),
                    repeats = number(c, "repeats", 3, 100), warmups = number(c, "warmups", 1, 100),
@@ -57,11 +61,34 @@ int main(int argc, char** argv) {
     const uint64_t budget = number(c, "max_payload_bytes", 64, UINT64_C(1) << 40);
     const bool u = c.at("unsigned_inputs");
     const std::string mode = c.at("mode"), shape = c.at("topology");
+    const bool prepared_nodes = mode == "prepared-nodes", node_dag = mode == "resident-dag" ||
+                                                                     mode == "resident-stream" ||
+                                                                     mode == "resident-graph";
+    const bool proof_route = prepared_nodes || node_dag || mode == "manual-full" ||
+                             mode == "manual-scalar-first" || mode == "eager-observe";
+    const unsigned reduction =
+        c.contains("reduction_k") ? number(c, "reduction_k", 1, 1048576) : side;
+    if ((side > 256 && !proof_route) ||
+        (c.contains("reduction_k") &&
+         (!proof_route || (reduction != side && (depth != 1 || shape != "chain")))) ||
+        (c.contains("exact_proof_policy") &&
+         (!proof_route || !c.at("exact_proof_policy").is_string())) ||
+        (c.contains("host_diagnostics") && !c.at("host_diagnostics").is_boolean()))
+      throw std::invalid_argument("proof route/shape/diagnostic controls");
+    const std::string proof_policy =
+        c.value("exact_proof_policy",
+                std::string(mode == "manual-scalar-first" ? "scalar_first" : "eager_axis"));
+    if ((proof_policy != "scalar_first" && proof_policy != "eager_axis") ||
+        (mode == "manual-scalar-first" && proof_policy != "scalar_first"))
+      throw std::invalid_argument("exact proof policy");
+    const bool host_diagnostics = c.value("host_diagnostics", false);
+    if (host_diagnostics && !host_control_diagnostics_compiled())
+      throw std::invalid_argument("proof clocks require a separate host-control diagnostic build");
     const bool lift = mode.rfind("lift-", 0) == 0, recipe = mode.rfind("recipe-", 0) == 0,
                ragged = mode == "recipe-ragged-full" || mode == "recipe-ragged-minimum",
                eager = mode == "eager-observe", cpu_lift = mode == "lift-cpu-roundtrip";
     const bool native_roundtrip = mode == "native-roundtrip",
-               scalar_first = mode == "manual-scalar-first";
+               scalar_first = proof_policy == "scalar_first";
     if (c.contains("execution_policy") && (!recipe || c.at("execution_policy").is_boolean()))
       throw std::invalid_argument("execution policy requires recipe mode and integer selector");
     const auto execution_policy = static_cast<rns8_product_execution_policy>(
@@ -82,7 +109,7 @@ int main(int argc, char** argv) {
          mode != "recipe-minimum" && mode != "recipe-cost-model" && mode != "manual-full" &&
          mode != "manual-auto" && !native_roundtrip && !scalar_first && !eager && !materialized &&
          mode != "lift-wide" && mode != "lift-mixed" && mode != "lift-graph" && !cpu_lift &&
-         mode != "wider-producer") ||
+         mode != "wider-producer" && !prepared_nodes && !node_dag) ||
         (lift && shape != "chain"))
       throw std::invalid_argument("route/topology");
     const uint64_t cells = uint64_t(side) * side;
@@ -97,8 +124,8 @@ int main(int argc, char** argv) {
         throw std::invalid_argument("diamond depth is four");
     }
     std::vector<cpp_int> values(dataset.begin(), dataset.end());
-    for (auto node : nodes)
-      values.push_back(cpp_int(side) * values[node.a] * values[node.b]);
+    for (size_t i = 0; i < nodes.size(); ++i)
+      values.push_back(cpp_int(i ? side : reduction) * values[nodes[i].a] * values[nodes[i].b]);
     if (native_roundtrip) {
       const cpp_int native_min = u ? cpp_int(0) : cpp_int(-(cpp_int(1) << 63)),
                     native_max = (cpp_int(1) << (u ? 64 : 63)) - 1;
@@ -119,10 +146,13 @@ int main(int argc, char** argv) {
     if (!exact_range_fits(semantics, final_bound, modulus_product(prefix)) ||
         (lift && !exact_range_fits(semantics, cpp_int(side), modulus_product(source))))
       throw std::invalid_argument("strict range");
-    const uint64_t known_payload = (nodes.size() + 3) * cells * prefix +
-                                   cells * 48 * (nodes.size() + 1) + cells * 16 + native_host_bytes;
-    if (known_payload >= budget || cells * prefix > INT32_MAX ||
-        uint64_t(side) * side * side * nodes.size() > 134217728)
+    const uint64_t input_cells = uint64_t(side) * reduction;
+    const uint64_t known_payload = ((nodes.size() + 1) * cells + 2 * input_cells) * prefix +
+                                   cells * 48 * (nodes.size() + 1) +
+                                   std::max(cells, input_cells) * 16 + native_host_bytes;
+    if (known_payload >= budget || std::max(cells, input_cells) * prefix > INT32_MAX ||
+        uint64_t(side) * side * reduction * nodes.size() >
+            (proof_route ? (UINT64_C(1) << 30) : UINT64_C(134217728)))
       throw std::invalid_argument("payload/work");
     hip_direct_timing_set_enabled(false);
     rns8_context_options co{};
@@ -133,7 +163,7 @@ int main(int argc, char** argv) {
     rns8_plan *fixed = nullptr, *adaptive = nullptr, *producer = nullptr;
     rns8_workspace *fixed_work = nullptr, *auto_work = nullptr, *producer_work = nullptr;
     std::vector<rns8_matrix*> matrices(nodes.size() + 2);
-    std::vector<uint64_t> ones(cells, 1), output(size_t(side) * (side + 3) * 3, 99);
+    std::vector<uint64_t> ones(input_cells, 1), output(size_t(side) * (side + 3) * 3, 99);
     std::unique_ptr<RuntimeProductRecipe> owner;
     std::vector<std::vector<uint64_t>> native_values;
     uint64_t native_source_version = 1;
@@ -142,6 +172,9 @@ int main(int argc, char** argv) {
     rns8_product_recipe* ragged_recipe = nullptr;
     uint64_t ragged_retained = 0, ragged_input_bytes = 0, ragged_peak = 0;
     rns8_prepared_execution* prepared_lift = nullptr;
+    uint32_t initialized_products = 0;
+    std::vector<rns8_prepared_execution*> prepared_products;
+    rns8_resident_graph* resident_dag = nullptr;
     rns8_context* cpu = nullptr;
     rns8_matrix* host_matrix = nullptr;
     auto create_plan = [&](rns8_context* context, unsigned p, bool force, rns8_plan** out,
@@ -154,7 +187,7 @@ int main(int argc, char** argv) {
       d.requested_backend = context->backend;
       d.m = side;
       d.n = side;
-      d.k = side;
+      d.k = reduction;
       d.max_prefix = p;
       d.flags = force ? (RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_EXACT_VALUE_BOUND |
                          (scalar_first ? RNS8_PLAN_EXACT_SCALAR_FIRST : 0))
@@ -163,32 +196,37 @@ int main(int argc, char** argv) {
       if (work)
         check(rns8_create_workspace(context, *out, work));
     };
-    auto matrix = [&](rns8_context* context, rns8_matrix** out) {
+    auto matrix = [&](rns8_context* context, rns8_matrix** out, unsigned rows, unsigned cols) {
       rns8_matrix_desc d{};
       d.struct_size = sizeof(d);
       d.abi_version = RNS8_ABI_VERSION;
       d.semantics = semantics;
       d.bound_kind = RNS8_BOUND_NONE;
-      d.rows = side;
-      d.cols = side;
-      d.logical_ld = side;
+      d.rows = rows;
+      d.cols = cols;
+      d.logical_ld = cols;
       d.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
       d.max_prefix = prefix;
       check(rns8_create_matrix(context, &d, out));
     };
+    HostControlObservations cold_proof;
+    std::optional<HostControlObservationScope> cold_observer;
+    if (host_diagnostics)
+      cold_observer.emplace(cold_proof);
     const auto setup_begin = Clock::now();
     check(rns8_create_context(0, &co, &ctx));
     create_plan(ctx, prefix, true, &fixed, &fixed_work);
     create_plan(ctx, prefix, false, &adaptive, &auto_work);
     create_plan(ctx, source, true, &producer, &producer_work);
-    for (auto& m : matrices)
-      matrix(ctx, &m);
+    for (size_t i = 0; i < matrices.size(); ++i)
+      matrix(ctx, &matrices[i], i == 1 ? reduction : side, i == 0 ? reduction : side);
     if (!native_roundtrip)
       for (unsigned i = 0; i < 2; ++i) {
         std::fill(ones.begin(), ones.end(), rns8::bench::product_dataset_word(dataset[i]));
-        check(u ? rns8_pack_u64(ctx, matrices[i], ones.data(), side, 1)
-                : rns8_pack_i64(ctx, matrices[i], reinterpret_cast<const int64_t*>(ones.data()),
-                                side, 1));
+        const auto ld = i ? side : reduction;
+        check(u ? rns8_pack_u64(ctx, matrices[i], ones.data(), ld, 1)
+                : rns8_pack_i64(ctx, matrices[i], reinterpret_cast<const int64_t*>(ones.data()), ld,
+                                1));
       }
     if (native_roundtrip) {
       native_values.resize(nodes.size() + 1);
@@ -206,7 +244,7 @@ int main(int argc, char** argv) {
     json cost_model = nullptr, materialization_plan = nullptr, stage_price_identity = nullptr,
          stage_price_graph_identity = nullptr;
     if (ragged) {
-      matrix(ctx, &ragged_converted);
+      matrix(ctx, &ragged_converted, side, side);
       check(rns8_prepare_ragged_materialization(ctx, matrices[0], 3, 5, budget - known_payload,
                                                 &ragged_source));
       inputs[0] = ragged_converted;
@@ -344,7 +382,7 @@ int main(int argc, char** argv) {
       if (cpu_lift) {
         co.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
         check(rns8_create_context(-1, &co, &cpu));
-        matrix(cpu, &host_matrix);
+        matrix(cpu, &host_matrix, side, side);
       } else {
         rns8_exact_lift_options o{};
         o.struct_size = sizeof(o);
@@ -357,9 +395,61 @@ int main(int argc, char** argv) {
           check(rns8_capture_prepared_hip_graph(prepared_lift));
       }
     }
+    // Independent prepared nodes need current intermediate values. This real
+    // initialization work is charged to setup, never hidden in a warmup.
+    if (prepared_nodes) {
+      std::vector<bool> required(nodes.size(), false);
+      for (auto node : nodes)
+        for (auto value : {node.a, node.b})
+          if (value >= 2)
+            required[value - 2] = true;
+      for (size_t i = 0; i < nodes.size(); ++i)
+        if (required[i]) {
+          check(rns8_gemm_rns(ctx, fixed, matrices[nodes[i].a], matrices[nodes[i].b],
+                              matrices[i + 2], fixed_work));
+          ++initialized_products;
+        }
+      prepared_products.reserve(nodes.size());
+      for (size_t i = 0; i < nodes.size(); ++i) {
+        rns8_prepared_execution* product = nullptr;
+        check(rns8_prepare_gemm(ctx, fixed, matrices[nodes[i].a], matrices[nodes[i].b],
+                                matrices[i + 2], fixed_work, &product));
+        prepared_products.push_back(product);
+      }
+    }
+    rns8_resident_graph_resources graph_resources{};
+    graph_resources.struct_size = sizeof(graph_resources);
+    graph_resources.abi_version = RNS8_ABI_VERSION;
+    if (node_dag) {
+      std::vector<rns8_resident_node> descriptions(nodes.size());
+      for (size_t i = 0; i < nodes.size(); ++i) {
+        auto& node = descriptions[i];
+        node.struct_size = sizeof(node);
+        node.abi_version = RNS8_ABI_VERSION;
+        node.kind = RNS8_RESIDENT_MATMUL;
+        node.plan = fixed;
+        node.workspace = fixed_work;
+        node.a = matrices[nodes[i].a];
+        node.b = matrices[nodes[i].b];
+        node.c = matrices[i + 2];
+      }
+      check(rns8_create_resident_graph(ctx, descriptions.data(), uint32_t(descriptions.size()),
+                                       &resident_dag));
+      if (mode != "resident-dag")
+        check(rns8_prepare_resident_graph_hip(resident_dag));
+      if (mode == "resident-graph")
+        check(rns8_capture_resident_graph_hip(resident_dag));
+      check(rns8_get_resident_graph_resources(resident_dag, &graph_resources));
+      const auto available = budget - known_payload;
+      if (graph_resources.retained_device_scratch_bytes > available ||
+          graph_resources.retained_pinned_host_bytes >
+              available - graph_resources.retained_device_scratch_bytes)
+        throw std::runtime_error("resident graph control payload budget");
+    }
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     hip_unique_stream stream;
-    if (mode == "lift-graph" && stream.create_non_blocking() != hipSuccess)
+    if ((mode == "lift-graph" || mode == "resident-stream" || mode == "resident-graph") &&
+        stream.create_non_blocking() != hipSuccess)
       throw std::runtime_error("stream setup");
 #endif
     if (!recipe && !lift && mode != "wider-producer")
@@ -378,6 +468,32 @@ int main(int argc, char** argv) {
       lift_bytes = owner->lift_scratch_bytes();
     }
     const double setup = us(setup_begin, Clock::now());
+    cold_observer.reset();
+    const auto proof_snapshot = [&]() -> json {
+      if (!prepared_nodes && !node_dag)
+        return nullptr;
+      PreparedProofObservations total;
+      for (auto* product : prepared_products) {
+        const auto value = prepared_proof_observations(product);
+        total.builds += value.builds;
+        total.reuses += value.reuses;
+        total.retained_object_bytes += value.retained_object_bytes;
+        total.logical_limb_bytes += value.logical_limb_bytes;
+      }
+      if (node_dag)
+        total = resident_graph_proof_observations(resident_dag);
+      return {
+          {"schema", "rns8_exact_proof_owner_observation_v1"},
+          {"kind", node_dag ? "resident_node_dag" : "prepared_nodes"},
+          {"owner_count", node_dag ? 1 : prepared_products.size()},
+          {"builds", total.builds},
+          {"reuses", total.reuses},
+          {"retained_object_bytes", total.retained_object_bytes},
+          {"logical_limb_bytes", total.logical_limb_bytes},
+          {"memory_scope",
+           "retained_objects_and_vector_capacity_separate_logical_limb_bytes_not_allocator_peak"}};
+    };
+    const json setup_proof_owner = proof_snapshot();
     uint64_t replay = 0;
     const auto export_output = [&](rns8_matrix* result) {
       check(
@@ -398,7 +514,32 @@ int main(int argc, char** argv) {
         check(rns8_execute_product_recipe(ragged_recipe, result));
       else if (recipe)
         check(owner->execute(result));
-      else if (lift) {
+      else if (prepared_nodes) {
+        for (size_t i = 0; i < nodes.size(); ++i) {
+          if (nodes[i].a >= 2 || nodes[i].b >= 2)
+            check(rns8_refresh_prepared_inputs(prepared_products[i]));
+          rns8_completion_token token{};
+          check(rns8_execute_prepared(prepared_products[i], &token));
+        }
+      } else if (node_dag) {
+        rns8_graph_execution_info info{sizeof(info), RNS8_ABI_VERSION};
+        if (mode == "resident-dag")
+          check(rns8_execute_resident_graph(resident_dag, &info));
+        else {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+          rns8_graph_completion_token token{};
+          check(mode == "resident-graph"
+                    ? rns8_replay_resident_graph_hip(resident_dag, stream.get(), &token)
+                    : rns8_submit_resident_graph_hip(resident_dag, stream.get(), &token));
+          check(rns8_wait_resident_graph_hip(resident_dag, token, &info));
+#else
+          throw std::runtime_error("resident stream/capture requires HIP support");
+#endif
+        }
+        check(info.operation_status);
+        if (info.completed_nodes != nodes.size() || info.failed_node != UINT32_MAX)
+          throw std::runtime_error("resident DAG terminal coverage");
+      } else if (lift) {
         if (cpu_lift) {
           check(hip_direct_copy_device_to_host(ctx->device_id, host_matrix->residues.data(),
                                                result->hip_residues, size_t(cells * source)));
@@ -529,6 +670,49 @@ int main(int argc, char** argv) {
       sustained.push_back(
           {{"calls", count}, {"total_us", elapsed}, {"per_call_us", elapsed / count}});
     }
+    json proof_diagnostic = nullptr;
+    if (host_diagnostics) {
+      const auto owner_before = proof_snapshot();
+      HostControlObservations warm_proof;
+      {
+        HostControlObservationScope observation(warm_proof);
+        invoke(false);
+      }
+      audit();
+      proof_diagnostic = {{"schema", "rns8_exact_proof_host_diagnostic_v1"},
+                          {"scope", "cold_setup_and_one_completed_call_after_all_timing"},
+                          {"phase_time_contract", rns8::bench::host_proof_phase_contract},
+                          {"cold_setup", rns8::bench::host_control_json(cold_proof)},
+                          {"warm_observation", rns8::bench::host_control_json(warm_proof)},
+                          {"owner_before", owner_before},
+                          {"owner_after", proof_snapshot()},
+                          {"exact_reference_passed", true},
+                          {"latency_evidence", false}};
+    }
+    const json final_proof_owner = proof_snapshot();
+    json proof_execution = nullptr;
+    if (prepared_nodes || node_dag) {
+      unsigned refreshes = 0;
+      for (auto node : nodes)
+        refreshes += prepared_nodes && (node.a >= 2 || node.b >= 2);
+      proof_execution = {
+          {"schema", "rns8_exact_proof_execution_v1"},
+          {"mode", mode},
+          {"node_count", nodes.size()},
+          {"initialization_products_charged_to_setup", initialized_products},
+          {"input_refreshes_per_call", refreshes},
+          {"native_graph_prepared", bool(graph_resources.prepared)},
+          {"native_graph_owned_capture", mode == "resident-graph"},
+          {"retained_device_control_bytes", graph_resources.retained_device_scratch_bytes},
+          {"retained_pinned_control_bytes", graph_resources.retained_pinned_host_bytes},
+          {"terminal_contract", "all_products_complete_then_padded_final_three_limb_host_export"}};
+    }
+    const uint64_t useful_ops =
+        2 * cells *
+        (reduction +
+         ((lift || mode == "wider-producer") ? 0 : (nodes.size() - 1) * uint64_t(side)));
+    const std::string fixed_kernel = fixed->backend_selected_kernel,
+                      fixed_target = fixed->backend_target_id;
     const uint64_t retained_auto = auto_work->exact_auto_scratch_owner.bytes();
     const std::string target = ctx->device_info.gcn_arch, device = ctx->device_info.name;
     const int runtime = ctx->device_info.hip_runtime_version;
@@ -606,6 +790,10 @@ int main(int argc, char** argv) {
       check(rns8_destroy_matrix(ragged_converted));
     if (prepared_lift)
       check(rns8_destroy_prepared_execution(prepared_lift));
+    for (auto* product : prepared_products)
+      check(rns8_destroy_prepared_execution(product));
+    if (resident_dag)
+      check(rns8_destroy_resident_graph(resident_dag));
     if (host_matrix)
       check(rns8_destroy_matrix(host_matrix));
     if (cpu)
@@ -635,6 +823,16 @@ int main(int argc, char** argv) {
                  {"private_residue_transfer_control", cpu_lift},
                  {"native_roundtrip_control", native_roundtrip},
                  {"fixed_plan_exact_proof_policy", scalar_first ? "scalar_first" : "eager_axis"},
+                 {"fixed_plan_selected_kernel", fixed_kernel},
+                 {"fixed_plan_target_id", fixed_target},
+                 {"kernel_identity_scope",
+                  "declared_fixed_plan_not_launched_symbol_or_all_recipe_nodes_proof"},
+                 {"useful_integer_gemm_ops", useful_ops},
+                 {"proof_execution", proof_execution},
+                 {"proof_owner_setup", setup_proof_owner},
+                 {"proof_owner_final", final_proof_owner},
+                 {"host_control_diagnostics_compiled", host_control_diagnostics_compiled()},
+                 {"proof_host_diagnostic", proof_diagnostic},
                  {"logical_payload_estimate_bytes", known_payload},
                  {"recipe_execution", execution},
                  {"hot_loop_serialization", "typed_observation_no_phase_clocks_in_sustained_v2"},

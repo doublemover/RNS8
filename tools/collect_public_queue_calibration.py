@@ -19,6 +19,11 @@ from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 from json_evidence import parse_evidence_json as strict_json
 from collect_native_calibration import DEFAULT_MODULI
+from host_control_contract import (
+    HOST_CONTROL_FIELDS as HOST_CONTROL_FIELDS,
+    PHASE_TIME_CONTRACT,
+    validate_host_counts,
+)
 
 
 def integer(value, low, high):
@@ -134,26 +139,6 @@ def counts(case):
     return sum(work), metadata, encoded, sum(t["m"] * t["n"] * 24 for t in tasks)
 
 
-HOST_CONTROL_FIELDS = {
-    "device_gets",
-    "device_sets",
-    "stream_device_queries",
-    "stream_capture_queries",
-    "event_creates",
-    "event_destroys",
-    "event_records",
-    "event_queries",
-    "event_waits",
-    "submission_proofs",
-    "proof_builds",
-    "proof_reuses",
-    "graph_launches",
-    "range_proof_calls",
-    "range_proof_host_ns",
-    "proof_identity_host_ns",
-    "proof_metadata_host_ns",
-    "graph_preflight_host_ns",
-}
 ALLOCATION_FIELDS = {
     "allocate_calls",
     "free_calls",
@@ -186,7 +171,7 @@ def validate_host_diagnostic(capture, case):
     ):
         raise ValueError("host-control schema")
     fixed = dict(
-        phase_time_contract="calling_thread_steady_ns_inclusive_scopes_nonadditive_v1",
+        phase_time_contract=PHASE_TIME_CONTRACT,
         scope="calling_thread_one_complete_observation_after_timing",
         complete_groups=case["reuse"],
         attempt_count_scope="prepared_submission_and_managed_runtime_handles",
@@ -196,9 +181,9 @@ def validate_host_diagnostic(capture, case):
     for key, value in fixed.items():
         if type(diagnostic.get(key)) is not type(value) or diagnostic[key] != value:
             raise ValueError("host-control " + key)
+    for key in ("cold_setup", "warm_observation"):
+        validate_host_counts(diagnostic.get(key))
     for key, fields in [
-        ("cold_setup", HOST_CONTROL_FIELDS),
-        ("warm_observation", HOST_CONTROL_FIELDS),
         ("cold_setup_allocations", ALLOCATION_FIELDS),
         ("warm_observation_allocations", ALLOCATION_FIELDS),
     ]:

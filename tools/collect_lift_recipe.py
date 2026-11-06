@@ -16,6 +16,7 @@ from collect_native_interop import quantile
 from product_stage_contract import price_cells, price_identity
 from product_dataset import inputs as dataset_inputs, identity as dataset_identity
 from product_replay import policy as replay_policy, estimate as replay_estimate
+from host_control_contract import PHASE_TIME_CONTRACT, validate_host_counts
 
 MATERIALIZED_MODES = (
     "recipe-packed-full",
@@ -23,7 +24,10 @@ MATERIALIZED_MODES = (
     "recipe-layout-model",
     "recipe-measured",
 )
+OWNER_MODES = ("prepared-nodes", "resident-dag", "resident-stream", "resident-graph")
+PROOF_ROUTES = (*OWNER_MODES, "manual-full", "manual-scalar-first", "eager-observe")
 MODES = (
+    *OWNER_MODES,
     *MATERIALIZED_MODES,
     "recipe-ragged-full",
     "recipe-ragged-minimum",
@@ -43,6 +47,32 @@ MODES = (
 )
 
 
+def exact_proof_policy(case):
+    mode = case.get("mode")
+    if type(mode) is not str:
+        raise ValueError("mode")
+    policy = case.get(
+        "exact_proof_policy", "scalar_first" if mode == "manual-scalar-first" else "eager_axis"
+    )
+    if (
+        type(policy) is not str
+        or policy not in ("scalar_first", "eager_axis")
+        or "exact_proof_policy" in case
+        and mode not in PROOF_ROUTES
+        or mode == "manual-scalar-first"
+        and policy != "scalar_first"
+    ):
+        raise ValueError("exact proof policy")
+    return policy
+
+
+def useful_gemm_ops(case):
+    cells = case["side"] ** 2
+    first = case.get("reduction_k", case["side"])
+    single = case["mode"].startswith("lift-") or case["mode"] == "wider-producer"
+    return 2 * cells * (first + (0 if single else (len(graph(case)) - 1) * case["side"]))
+
+
 def graph(c):
     if c["topology"] == "diamond":
         return [(0, 1), (2, 1), (0, 2), (3, 4)]
@@ -51,15 +81,19 @@ def graph(c):
 
 def bounds(c):
     result = list(map(abs, dataset_inputs(c)))
-    for a, b in graph(c):
-        result.append(c["side"] * result[a] * result[b])
+    for index, (a, b) in enumerate(graph(c)):
+        result.append(
+            (c["side"] if index else c.get("reduction_k", c["side"])) * result[a] * result[b]
+        )
     return result
 
 
 def integer_values(c):
     result = list(dataset_inputs(c))
-    for a, b in graph(c):
-        result.append(c["side"] * result[a] * result[b])
+    for index, (a, b) in enumerate(graph(c)):
+        result.append(
+            (c["side"] if index else c.get("reduction_k", c["side"])) * result[a] * result[b]
+        )
     return result
 
 
@@ -79,10 +113,11 @@ def native_payload(c):
 def payload_bytes(c):
     cells = c["side"] ** 2
     nodes = len(graph(c))
+    input_cells = c["side"] * c.get("reduction_k", c["side"])
     return (
-        (nodes + 3) * cells * c["prefix"]
+        ((nodes + 1) * cells + 2 * input_cells) * c["prefix"]
         + cells * 48 * (nodes + 1)
-        + cells * 16
+        + max(cells, input_cells) * 16
         + native_payload(c)[2]
     )
 
@@ -105,11 +140,23 @@ def validate_case(c):
     if (
         type(c) is not dict
         or not keys <= set(c)
-        or set(c) - keys - {"input_values", "replay_policy", "execution_policy"}
+        or set(c)
+        - keys
+        - {
+            "input_values",
+            "replay_policy",
+            "execution_policy",
+            "exact_proof_policy",
+            "host_diagnostics",
+            "reduction_k",
+        }
         or c["schema"] != "lift_recipe_case_v1"
         or type(c["unsigned_inputs"]) is not bool
     ):
         raise ValueError("case ABI")
+    exact_proof_policy(c)
+    if "host_diagnostics" in c and type(c["host_diagnostics"]) is not bool:
+        raise ValueError("host diagnostics must be bool")
     if "execution_policy" in c and (
         type(c["mode"]) is not str
         or not c["mode"].startswith("recipe-")
@@ -118,7 +165,7 @@ def validate_case(c):
     ):
         raise ValueError("recipe execution policy")
     for key, lo, hi in [
-        ("side", 1, 256),
+        ("side", 1, 1024),
         ("depth", 1, 12),
         ("prefix", 1, 20),
         ("source_prefix", 1, 20),
@@ -129,6 +176,20 @@ def validate_case(c):
     ]:
         if type(c[key]) is not int or not lo <= c[key] <= hi:
             raise ValueError(key)
+    reduction = c.get("reduction_k", c["side"])
+    if (
+        type(reduction) is not int
+        or not 1 <= reduction <= 1048576
+        or c["side"] > 256
+        and c["mode"] not in PROOF_ROUTES
+        or "reduction_k" in c
+        and (
+            c["mode"] not in PROOF_ROUTES
+            or reduction != c["side"]
+            and (c["depth"] != 1 or c["topology"] != "chain")
+        )
+    ):
+        raise ValueError("bounded proof route/reduction shape")
     dataset_inputs(c)
     replay_policy(c)
     if "replay_policy" in c and c["mode"] not in MATERIALIZED_MODES:
@@ -164,11 +225,200 @@ def validate_case(c):
     payload = payload_bytes(c)
     if (
         payload >= c["max_payload_bytes"]
-        or cells * c["prefix"] > 2**31 - 1
-        or c["side"] ** 3 * nodes > 134217728
+        or max(cells, c["side"] * reduction) * c["prefix"] > 2**31 - 1
+        or cells * reduction * nodes > (2**30 if c["mode"] in PROOF_ROUTES else 134217728)
     ):
         raise ValueError("payload/work")
     return c
+
+
+def owner_snapshot(value, case):
+    if case["mode"] not in OWNER_MODES:
+        if value is not None:
+            raise ValueError("unrequested immutable proof owner")
+        return None
+    fields = {
+        "schema",
+        "kind",
+        "owner_count",
+        "builds",
+        "reuses",
+        "retained_object_bytes",
+        "logical_limb_bytes",
+        "memory_scope",
+    }
+    prepared = case["mode"] == "prepared-nodes"
+    if (
+        type(value) is not dict
+        or set(value) != fields
+        or value["schema"] != "rns8_exact_proof_owner_observation_v1"
+        or value["kind"] != ("prepared_nodes" if prepared else "resident_node_dag")
+        or type(value["owner_count"]) is not int
+        or value["owner_count"] != (len(graph(case)) if prepared else 1)
+        or value["memory_scope"]
+        != "retained_objects_and_vector_capacity_separate_logical_limb_bytes_not_allocator_peak"
+        or any(
+            type(value[key]) is not int or not 0 <= value[key] < 2**64
+            for key in ("builds", "reuses", "retained_object_bytes", "logical_limb_bytes")
+        )
+        or not value["retained_object_bytes"]
+        or not value["logical_limb_bytes"]
+    ):
+        raise ValueError("immutable proof owner observation")
+    return value
+
+
+def validate_proof_execution(c, case):
+    mode, nodes = case["mode"], graph(case)
+    owner = mode in OWNER_MODES
+    if ("host_control_diagnostics_compiled" in c or owner) and type(
+        c.get("host_control_diagnostics_compiled")
+    ) is not bool:
+        raise ValueError("host diagnostic build marker must be bool")
+    for key in ("fixed_plan_selected_kernel", "fixed_plan_target_id"):
+        if key in c or owner:
+            if type(c.get(key)) is not str or not c[key] or len(c[key]) > 512:
+                raise ValueError("declared fixed plan identity")
+    if ("kernel_identity_scope" in c or owner) and c.get(
+        "kernel_identity_scope"
+    ) != "declared_fixed_plan_not_launched_symbol_or_all_recipe_nodes_proof":
+        raise ValueError("fixed plan metadata cannot claim launched instruction evidence")
+    if "useful_integer_gemm_ops" in c or owner:
+        if type(c.get("useful_integer_gemm_ops")) is not int or c[
+            "useful_integer_gemm_ops"
+        ] != useful_gemm_ops(case):
+            raise ValueError("logical integer GEMM operation count")
+    receipt = c.get("proof_execution")
+    if not owner:
+        if receipt is not None:
+            raise ValueError("unrequested prepared/DAG execution receipt")
+    else:
+        prepared = mode == "prepared-nodes"
+        fields = {
+            "schema",
+            "mode",
+            "node_count",
+            "initialization_products_charged_to_setup",
+            "input_refreshes_per_call",
+            "native_graph_prepared",
+            "native_graph_owned_capture",
+            "retained_device_control_bytes",
+            "retained_pinned_control_bytes",
+            "terminal_contract",
+        }
+        expected = dict(
+            schema="rns8_exact_proof_execution_v1",
+            mode=mode,
+            node_count=len(nodes),
+            initialization_products_charged_to_setup=len(
+                {value for pair in nodes for value in pair if value >= 2}
+            )
+            if prepared
+            else 0,
+            input_refreshes_per_call=sum(a >= 2 or b >= 2 for a, b in nodes) if prepared else 0,
+            native_graph_prepared=mode in ("resident-stream", "resident-graph"),
+            native_graph_owned_capture=mode == "resident-graph",
+            terminal_contract="all_products_complete_then_padded_final_three_limb_host_export",
+        )
+        if (
+            type(receipt) is not dict
+            or set(receipt) != fields
+            or any(
+                type(receipt.get(key)) is not type(value) or receipt[key] != value
+                for key, value in expected.items()
+            )
+        ):
+            raise ValueError("prepared/DAG lifecycle or terminal receipt")
+        control = [
+            receipt[key]
+            for key in ("retained_device_control_bytes", "retained_pinned_control_bytes")
+        ]
+        if (
+            any(type(value) is not int or not 0 <= value < 2**64 for value in control)
+            or sum(control) + payload_bytes(case) > case["max_payload_bytes"]
+            or mode in ("prepared-nodes", "resident-dag")
+            and any(control)
+        ):
+            raise ValueError("prepared/DAG control payload scope")
+    initial = owner_snapshot(c.get("proof_owner_setup"), case)
+    final = owner_snapshot(c.get("proof_owner_final"), case)
+    if owner:
+        completed = (
+            1
+            + case["warmups"]
+            + case["repeats"]
+            + sum(row["calls"] for row in c["sustained"])
+            + int(case.get("host_diagnostics", False))
+        )
+        builds = len(nodes) if mode == "prepared-nodes" else 1
+        new_proofs = receipt["input_refreshes_per_call"] * completed
+        if (
+            initial["builds"] != builds
+            or final["builds"] != builds + new_proofs
+            or final["reuses"] <= initial["reuses"]
+        ):
+            raise ValueError("immutable proof construction/reuse coverage")
+        if mode != "prepared-nodes" and final["reuses"] != initial["reuses"] + completed:
+            raise ValueError("one retained DAG proof reuse per completed call")
+    diagnostic = c.get("proof_host_diagnostic")
+    if not case.get("host_diagnostics", False):
+        if diagnostic is not None:
+            raise ValueError("unrequested proof phase diagnostic")
+        return
+    if (
+        c.get("host_control_diagnostics_compiled") is not True
+        or type(diagnostic) is not dict
+        or set(diagnostic)
+        != {
+            "schema",
+            "scope",
+            "phase_time_contract",
+            "cold_setup",
+            "warm_observation",
+            "owner_before",
+            "owner_after",
+            "exact_reference_passed",
+            "latency_evidence",
+        }
+        or diagnostic.get("schema") != "rns8_exact_proof_host_diagnostic_v1"
+        or diagnostic.get("scope") != "cold_setup_and_one_completed_call_after_all_timing"
+        or diagnostic.get("phase_time_contract") != PHASE_TIME_CONTRACT
+        or diagnostic.get("exact_reference_passed") is not True
+        or diagnostic.get("latency_evidence") is not False
+    ):
+        raise ValueError("separate non-latency proof diagnostic contract")
+    validate_host_counts(diagnostic.get("cold_setup"))
+    warm = validate_host_counts(diagnostic.get("warm_observation"))
+    before = owner_snapshot(diagnostic.get("owner_before"), case)
+    after = owner_snapshot(diagnostic.get("owner_after"), case)
+    if owner:
+        if (
+            after != final
+            or after["builds"] - before["builds"] != receipt["input_refreshes_per_call"]
+            or after["reuses"] <= before["reuses"]
+            or mode != "prepared-nodes"
+            and after["reuses"] != before["reuses"] + 1
+        ):
+            raise ValueError("diagnostic proof owner delta")
+        expected_ranges = receipt["input_refreshes_per_call"]
+        if warm["range_proof_calls"] != expected_ranges or warm["proof_builds"] != expected_ranges:
+            raise ValueError("diagnostic mathematical range-call coverage")
+        if mode != "prepared-nodes" and warm["proof_reuses"] != 1:
+            raise ValueError("diagnostic retained DAG proof reuse")
+        streamed = mode in ("resident-stream", "resident-graph")
+        if streamed and any(
+            warm[key] != 1
+            for key in (
+                "submission_proofs",
+                "stream_device_queries",
+                "stream_capture_queries",
+                "event_records",
+                "event_waits",
+            )
+        ):
+            raise ValueError("diagnostic whole-DAG stream/terminal coverage")
+        if warm["graph_launches"] != int(mode == "resident-graph"):
+            raise ValueError("diagnostic owned DAG replay coverage")
 
 
 def validate_capture(c, entry):
@@ -191,9 +441,7 @@ def validate_capture(c, entry):
         extra_intermediate_observations=mode == "eager-observe",
         private_residue_transfer_control=mode == "lift-cpu-roundtrip",
         native_roundtrip_control=mode == "native-roundtrip",
-        fixed_plan_exact_proof_policy="scalar_first"
-        if mode == "manual-scalar-first"
-        else "eager_axis",
+        fixed_plan_exact_proof_policy=exact_proof_policy(case),
         logical_payload_estimate_bytes=payload_bytes(case),
         host_payload_bytes_before_final_export=cells * p
         if mode == "lift-cpu-roundtrip"
@@ -268,6 +516,7 @@ def validate_capture(c, entry):
     if (
         mode
         in (
+            *OWNER_MODES,
             "manual-full",
             "manual-scalar-first",
             "native-roundtrip",
@@ -398,6 +647,7 @@ def validate_capture(c, entry):
             or not math.isclose(s.get("per_call_us", -1), duration / count, rel_tol=1e-7)
         ):
             raise ValueError("sustained boundary")
+    validate_proof_execution(c, case)
     return c
 
 
@@ -742,8 +992,25 @@ def summarize(observations):
     cohorts = {}
     for entry, c in observations:
         validate_capture(c, entry)
+        case = entry["case"]
+        matched_case = {
+            k: v
+            for k, v in case.items()
+            if k
+            not in (
+                "mode",
+                "execution_policy",
+                "exact_proof_policy",
+                "reduction_k",
+                "host_diagnostics",
+            )
+        }
+        matched_case.update(
+            reduction_k=case.get("reduction_k", case["side"]),
+            host_diagnostics=case.get("host_diagnostics", False),
+        )
         identity = dict(
-            case={k: v for k, v in entry["case"].items() if k not in ("mode", "execution_policy")},
+            case=matched_case,
             boundary=c["output_boundary"],
             extra_intermediate_observations=c["extra_intermediate_observations"],
             build=c["build_manifest"],
@@ -756,13 +1023,26 @@ def summarize(observations):
                 for k in ("executable_sha256", "rns8_linkage", "shared_library_sha256")
             },
             environment=(c.get("request_identity") or {}).get("environment"),
+            declared_fixed_kernel=c.get("fixed_plan_selected_kernel"),
+            declared_fixed_target=c.get("fixed_plan_target_id"),
+            kernel_identity_scope=c.get("kernel_identity_scope"),
+            host_control_diagnostics_compiled=c.get("host_control_diagnostics_compiled", False),
         )
         training_us = c["stage_price_training_charge_ns"] / 1000
-        policy = entry["case"].get("execution_policy", 0)
-        label = entry["case"]["mode"] + ("@ordered-hip" if policy else "")
+        policy = case.get("execution_policy", 0)
+        proof_policy = exact_proof_policy(case)
+        default_proof_policy = (
+            "scalar_first" if case["mode"] == "manual-scalar-first" else "eager_axis"
+        )
+        label = case["mode"] + ("@ordered-hip" if policy else "")
+        if proof_policy != default_proof_policy:
+            label += "@proof-" + proof_policy
+        sustained_us = statistics.median(s["per_call_us"] for s in c["sustained"])
         cohorts.setdefault(json.dumps(identity, sort_keys=True), []).append(
             dict(
                 mode=label,
+                base_mode=case["mode"],
+                exact_proof_policy=proof_policy,
                 execution_policy=policy,
                 recipe_execution=c.get("recipe_execution"),
                 execution_id=c["execution_id"],
@@ -774,7 +1054,13 @@ def summarize(observations):
                 inclusive_setup_us=c["setup_us"] + training_us,
                 p50_us=quantile([s["total_us"] for s in c["samples"]], 0.5),
                 p95_us=quantile([s["total_us"] for s in c["samples"]], 0.95),
-                sustained_us=statistics.median(s["per_call_us"] for s in c["sustained"]),
+                sustained_us=sustained_us,
+                useful_integer_gemm_ops=useful_gemm_ops(case),
+                useful_integer_tops=useful_gemm_ops(case) / (sustained_us * 1e6),
+                proof_execution=c.get("proof_execution"),
+                proof_owner_setup=c.get("proof_owner_setup"),
+                proof_owner_final=c.get("proof_owner_final"),
+                proof_host_diagnostic=c.get("proof_host_diagnostic"),
             )
         )
     result = []
@@ -782,10 +1068,7 @@ def summarize(observations):
         if len({r["execution_id"] for r in rows}) != len(rows):
             raise ValueError("duplicate process")
         modes = {}
-        for mode in (
-            *MODES,
-            *(mode + "@ordered-hip" for mode in MODES if mode.startswith("recipe-")),
-        ):
+        for mode in sorted({row["mode"] for row in rows}):
             selected = [r for r in rows if r["mode"] == mode]
             if selected and len({r["independent_run"] for r in selected}) < 2:
                 raise ValueError("independent process evidence")
@@ -801,15 +1084,32 @@ def summarize(observations):
                         "p50_us",
                         "p95_us",
                         "sustained_us",
+                        "useful_integer_tops",
                     )
                 }
+                modes[mode].update(
+                    base_mode=selected[0]["base_mode"],
+                    exact_proof_policy=selected[0]["exact_proof_policy"],
+                    useful_integer_gemm_ops=selected[0]["useful_integer_gemm_ops"],
+                )
+        manual = [
+            mode
+            for mode, row in modes.items()
+            if row["base_mode"] in ("manual-full", "manual-scalar-first")
+        ]
+        candidates = manual or [
+            mode for mode, row in modes.items() if row["base_mode"] == "wider-producer"
+        ]
         baseline = (
-            "manual-scalar-first"
-            if "manual-scalar-first" in modes
-            else "manual-full"
-            if "manual-full" in modes
-            else "wider-producer"
-            if "wider-producer" in modes
+            min(
+                candidates,
+                key=lambda mode: (
+                    modes[mode]["sustained_us"],
+                    modes[mode]["base_mode"] != "manual-scalar-first",
+                    mode,
+                ),
+            )
+            if candidates
             else None
         )
         pairs = {}
@@ -823,6 +1123,11 @@ def summarize(observations):
                 )
                 pretrained_setup = max(0, metrics["setup_us"] - modes[baseline]["setup_us"])
                 pairs[mode] = dict(
+                    baseline_exact_proof_policy=modes[baseline]["exact_proof_policy"],
+                    candidate_exact_proof_policy=metrics["exact_proof_policy"],
+                    changed_exact_proof_policy=modes[baseline]["exact_proof_policy"]
+                    != metrics["exact_proof_policy"],
+                    speedup=modes[baseline]["sustained_us"] / metrics["sustained_us"],
                     cost_ratio=metrics["sustained_us"] / modes[baseline]["sustained_us"],
                     break_even_replays=math.ceil(extra_setup / saving) if saving > 0 else None,
                     conditional_pretrained_break_even_replays=math.ceil(pretrained_setup / saving)
@@ -856,6 +1161,9 @@ def summarize(observations):
                 matched_comparisons=pairs,
                 execution_policy_comparisons=execution_pairs,
                 promotion_eligible=False,
+                production_latency_eligible=not json.loads(key)[
+                    "host_control_diagnostics_compiled"
+                ],
             )
         )
     return result
