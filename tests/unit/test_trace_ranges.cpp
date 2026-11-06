@@ -57,6 +57,25 @@ TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops",
   CHECK(records.at(before + 2).at("stop_state") == 2); // explicit completion
   CHECK(records.at(before + 2).at("parent_range_id").is_null());
   CHECK(records.at(before + 2).at("operation_id") == 1234);
+  CHECK(after.at("host_clock").at("schema") == "rns8_linux_host_range_clock_v1");
+  CHECK(after.at("host_clock").at("clock_id") == 1);
+  CHECK(after.at("host_clock").at("unit") == "nanoseconds");
+  for (uint64_t index = before; index < before + 3; ++index) {
+    const auto& record = records.at(index);
+    REQUIRE(record.at("process_id").get<uint64_t>() > 0);
+    REQUIRE(record.at("start_thread_id").get<uint64_t>() > 0);
+    REQUIRE(record.at("stop_thread_id").get<uint64_t>() > 0);
+    const auto a = record.at("start_before_ns").get<uint64_t>();
+    const auto b = record.at("start_after_ns").get<uint64_t>();
+    const auto c = record.at("stop_before_ns").get<uint64_t>();
+    const auto d = record.at("stop_after_ns").get<uint64_t>();
+    CHECK(a <= b);
+    CHECK(b <= c);
+    CHECK(c <= d);
+  }
+  CHECK(records.at(before).at("start_thread_id") == records.at(before).at("stop_thread_id"));
+  CHECK(records.at(before + 2).at("start_thread_id") !=
+        records.at(before + 2).at("stop_thread_id"));
 #else
   SKIP("optional ROCTx build feature is disabled");
 #endif

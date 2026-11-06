@@ -12,15 +12,36 @@
 #include <cstring>
 #include <dlfcn.h>
 #include <nlohmann/json.hpp>
+#include <sys/syscall.h>
+#include <time.h>
+#include <unistd.h>
 
 namespace rns8::detail::trace {
 namespace {
 constexpr uint32_t capacity = 4096;
+struct Stamp {
+  uint64_t ns = 0;
+  bool available = false;
+};
+Stamp monotonic_stamp() noexcept {
+  timespec value{};
+  if (clock_gettime(CLOCK_MONOTONIC, &value) != 0 || value.tv_sec < 0 || value.tv_nsec < 0 ||
+      value.tv_nsec >= 1000000000 ||
+      uint64_t(value.tv_sec) > (UINT64_MAX - uint64_t(value.tv_nsec)) / 1000000000)
+    return {};
+  return {uint64_t(value.tv_sec) * 1000000000 + uint64_t(value.tv_nsec), true};
+}
+uint64_t native_thread() noexcept {
+  const auto value = syscall(SYS_gettid);
+  return value > 0 ? uint64_t(value) : 0;
+}
 struct Record {
   uint64_t range = 0;
   Parent parent{};
   Tag tag{};
   Phase phase = Phase::public_call;
+  uint64_t process = 0, start_thread = 0, stop_thread = 0;
+  Stamp start_before, start_after, stop_before, stop_after;
   std::atomic<bool> ready{false};
   std::atomic<uint32_t> outcome{0}; // zero means no host-side stop observed yet
 };
@@ -125,7 +146,9 @@ Token begin(Phase phase, Tag metadata, Parent parent) noexcept {
   if (!api.start)
     return {};
   Token result;
+  const auto start_before = monotonic_stamp();
   result.range = api.start(label(phase));
+  const auto start_after = monotonic_stamp();
   result.active = true; // Range ID zero is valid; availability has its own bit.
   const uint64_t index = claimed.fetch_add(1, std::memory_order_relaxed);
   if (index < capacity) {
@@ -135,6 +158,10 @@ Token begin(Phase phase, Tag metadata, Parent parent) noexcept {
     record.parent = parent;
     record.tag = metadata;
     record.phase = phase;
+    record.process = uint64_t(getpid());
+    record.start_thread = native_thread();
+    record.start_before = start_before;
+    record.start_after = start_after;
     record.ready.store(true, std::memory_order_release);
   }
   return result;
@@ -142,10 +169,16 @@ Token begin(Phase phase, Tag metadata, Parent parent) noexcept {
 void finish(Token& token, Outcome outcome) noexcept {
   if (!token.active)
     return;
+  const auto stop_before = monotonic_stamp();
   provider().stop(token.range);
-  if (token.slot < capacity)
-    records[token.slot].outcome.store(static_cast<uint32_t>(outcome) + 1,
-                                      std::memory_order_release);
+  const auto stop_after = monotonic_stamp();
+  if (token.slot < capacity) {
+    auto& record = records[token.slot];
+    record.stop_thread = native_thread();
+    record.stop_before = stop_before;
+    record.stop_after = stop_after;
+    record.outcome.store(static_cast<uint32_t>(outcome) + 1, std::memory_order_release);
+  }
   token.active = false;
 }
 void write_snapshot(std::ostream& out) {
@@ -155,7 +188,11 @@ void write_snapshot(std::ostream& out) {
   out << "{\"schema\":\"rns8_profiler_ranges_v1\",\"provider_status\":\"" << provider_status()
       << "\",\"capacity\":" << capacity << ",\"claimed\":" << count
       << ",\"dropped\":" << (count > capacity ? count - capacity : 0)
-      << ",\"scope\":\"host_ranges_not_inferred_GPU_dependencies\",\"records\":[";
+      << ",\"scope\":\"host_ranges_not_inferred_GPU_dependencies\",\"host_clock\":{"
+         "\"schema\":\"rns8_linux_host_range_clock_v1\",\"clock_id\":"
+      << int(CLOCK_MONOTONIC) << ','
+      << "\"name\":\"CLOCK_MONOTONIC\",\"unit\":\"nanoseconds\","
+         "\"timestamp_scope\":\"brackets_around_native_ROCTx_calls\"},\"records\":[";
   bool comma = false;
   uint32_t unpublished = 0;
   for (uint32_t i = 0; i < capacity && i < count; ++i) {
@@ -167,6 +204,7 @@ void write_snapshot(std::ostream& out) {
     if (comma)
       out << ',';
     comma = true;
+    const auto stop_state = record.outcome.load(std::memory_order_acquire);
     out << "{\"range_id\":" << record.range << ",\"parent_range_id\":";
     if (record.parent.available)
       out << record.parent.range;
@@ -176,8 +214,27 @@ void write_snapshot(std::ostream& out) {
         << ",\"iteration_id\":" << record.tag.iteration
         << ",\"operation_namespace\":" << static_cast<uint32_t>(record.tag.operation_namespace)
         << ",\"role\":" << static_cast<uint32_t>(record.tag.role)
-        << ",\"phase\":" << static_cast<uint32_t>(record.phase)
-        << ",\"stop_state\":" << record.outcome.load(std::memory_order_acquire) << '}';
+        << ",\"phase\":" << static_cast<uint32_t>(record.phase) << ",\"stop_state\":" << stop_state
+        << ",\"process_id\":" << record.process << ",\"start_thread_id\":" << record.start_thread
+        << ",\"stop_thread_id\":";
+    if (stop_state)
+      out << record.stop_thread;
+    else
+      out << "null";
+    const auto stamp = [&](const char* name, const Stamp* value) {
+      out << ",\"" << name << "\":";
+      if (value && value->available)
+        out << value->ns;
+      else
+        out << "null";
+    };
+    stamp("start_before_ns", &record.start_before);
+    stamp("start_after_ns", &record.start_after);
+    // Stop fields have one writer and are read only after its release store;
+    // an in-progress snapshot must not race with cross-thread completion.
+    stamp("stop_before_ns", stop_state ? &record.stop_before : nullptr);
+    stamp("stop_after_ns", stop_state ? &record.stop_after : nullptr);
+    out << '}';
   }
   out << "],\"unpublished\":" << unpublished << ",\"loaded_provider\":"
       << (provider().module_path ? nlohmann::json(provider().module_path).dump() : "null") << '}';

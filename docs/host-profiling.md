@@ -108,6 +108,16 @@ an ID can match while mapping attribution stays unresolved. The native map
 observation is not an independent raw-MMAP witness or a source-content proof;
 selected-operation and cross-clock joins remain open.
 
+The existing optional Linux ROCTx producer now adds a versioned host-clock
+extension to its range records: actual process/start-thread/stop-thread IDs and
+`CLOCK_MONOTONIC` timestamps bracketing each native ROCTx start/stop call. It
+records a missing timestamp explicitly if the clock query fails. Pending
+cross-thread ranges expose no unobserved stop fields; completion publishes them
+with the existing atomic outcome. These timestamps observe diagnostic host
+scopes, including observer cost, and do not certify GPU completion. The runtime
+disabled path takes no new timestamp/thread queries. Active Linux compilation,
+scope/cross-thread controls and the sample-to-operation join remain deferred.
+
 Input, sample, frame and decoded-document limits apply. Changes to the input or
 native module during decode reject the receipt. Existing outputs are not
 overwritten. `recording_sha256` identifies the same raw recording across file
