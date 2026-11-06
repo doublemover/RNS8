@@ -136,6 +136,13 @@ They must fail with relevant assertion/linker diagnostics. They are never run.
 Unsupported packing/enum flags are also rejected from actual compile commands
 and inherited cache flags.
 
+Installed consumer configuration preserves the C/C++ driver invocation names,
+including Unix `clang++` symlinks. Resolving that name to `clang` before CMake
+selection can change default C++ linking. The native compiler profile records
+both the invocation path and resolved binary/hash; layout and linkage checks
+still use the actual installed package. The driver-symlink regression is
+source-authored and awaits the deferred validation batch.
+
 The native smoke exercises the CPU context/matrix owner/deleter boundary and
 native-device contract query without accessing GPU memory. Its nine raw enum
 cases and descriptor size/version controls do **not** cover every external

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import copy
+import os
 from pathlib import Path
 import tempfile
 import subprocess
@@ -24,6 +25,7 @@ from check_public_abi import (
     reject_abi_flags,
     run_negative_consumers,
     tuple_key,
+    native_consumer_configure,
 )
 
 
@@ -82,6 +84,25 @@ def surface():
 
 
 class PublicABIInventory(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "native Unix compiler driver symlink control")
+    def test_installed_native_consumer_preserves_cxx_driver_invocation(self):
+        parent = Path(__file__).resolve().parents[1] / "temp/abi-driver-controls"
+        parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=parent) as folder:
+            root = Path(folder)
+            compiler = root / "clang"
+            compiler.write_bytes(b"inert compiler artifact; never execute")
+            cxx = root / "clang++"
+            cxx.symlink_to(compiler)
+            cmake = root / "cmake"
+            cmake.write_bytes(b"inert cmake artifact; never execute")
+            command = native_consumer_configure(
+                cmake, root / "consumer with spaces", root / "build", compiler, cxx, "Ninja"
+            )
+            self.assertIn("-DCMAKE_CXX_COMPILER=" + str(cxx), command)
+            self.assertIn("-DCMAKE_C_COMPILER=" + str(compiler), command)
+            self.assertNotIn("-DCMAKE_CXX_COMPILER=" + str(compiler), command)
+
     def test_complete_ast_categories_and_signature_changes(self):
         value = surface()
         self.assertEqual(value.records["rns8_record"], [["value", "uint64_t"]])

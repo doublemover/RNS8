@@ -29,6 +29,7 @@ from abi_probes import (
     LAYOUT_SCHEMA,
 )
 from json_evidence import load_evidence_json, parse_evidence_json, same_evidence_value
+from compiler_context import invocation_path
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_SCHEMA = "rns8_reviewed_public_abi_v1"
@@ -339,7 +340,11 @@ def native_build_profile(build: Path, compilers: dict[str, Path]) -> Object:
     reject_abi_flags(texts)
     return dict(
         compilers={
-            name: dict(path=str(path.resolve(strict=True)), sha256=sha256(path))
+            name: dict(
+                path=str(path.resolve(strict=True)),
+                invocation=str(invocation_path(path)),
+                sha256=sha256(path),
+            )
             for name, path in compilers.items()
         },
         compile_commands=commands,
@@ -484,6 +489,24 @@ def run_negative_consumers(cmake: Path, build: Path, targets: list[str], output:
     )
 
 
+def native_consumer_configure(
+    cmake: Path, source: Path, build: Path, cc: Path, cxx: Path, generator: str
+) -> list[str]:
+    return [
+        str(invocation_path(cmake)),
+        "-S",
+        str(source),
+        "-B",
+        str(build),
+        "-G",
+        generator,
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DCMAKE_C_COMPILER=" + str(invocation_path(cc)),
+        "-DCMAKE_CXX_COMPILER=" + str(invocation_path(cxx)),
+    ]
+
+
 def check_installed(args) -> Object:
     prefix = args.prefix.resolve(strict=True)
     configuration = installed_config(prefix)
@@ -509,19 +532,9 @@ def check_installed(args) -> Object:
         surface, include, layout, source, prefix, args.linkage, configuration
     )
     build = output / "build"
-    configure = [
-        str(args.cmake.resolve(strict=True)),
-        "-S",
-        str(source),
-        "-B",
-        str(build),
-        "-G",
-        args.generator,
-        "-DCMAKE_BUILD_TYPE=Release",
-        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-        "-DCMAKE_C_COMPILER=" + str(args.cc.resolve(strict=True)),
-        "-DCMAKE_CXX_COMPILER=" + str(args.cxx.resolve(strict=True)),
-    ]
+    configure = native_consumer_configure(
+        args.cmake, source, build, args.cc, args.cxx, args.generator
+    )
     command_output(configure, output / "configure.log", timeout=300)
     profile = native_build_profile(build, dict(c=args.cc, cpp=args.cxx))
     markers = list(build.glob("installed-binary-*.txt"))
