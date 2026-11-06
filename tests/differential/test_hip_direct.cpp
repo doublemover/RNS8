@@ -10,6 +10,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <limits>
 #include <random>

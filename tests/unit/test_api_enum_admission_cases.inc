@@ -569,6 +569,17 @@ TEST_CASE("raw roles graph tags and arithmetic methods reject with live CPU owne
   key.abi_version = RNS8_ABI_VERSION;
   key.cache_key_valid = 71;
   const auto key_before = key;
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 0u, 3u}) {
+    auto* const canary = reinterpret_cast<rns8_block_sparse_operand*>(uintptr_t(1));
+    auto* owner = canary;
+    for (bool poisoned : {false, true}) {
+      ctx->hip_failure_poisoned = poisoned;
+      CHECK(rns8_prepare_block_sparse_operand(ctx, a, raw_ffi_enum<rns8_block_sparse_role>(bits),
+                                              UINT64_MAX, &owner) == RNS8_INVALID_ARGUMENT);
+      CHECK(owner == canary);
+      ctx->hip_failure_poisoned = false;
+    }
+  }
   for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 3u}) {
     const auto role = raw_ffi_enum<rns8_operand_role>(bits);
     CHECK(rns8_get_prepack_cache_key_info(plan, a, role, &key) == RNS8_INVALID_ARGUMENT);

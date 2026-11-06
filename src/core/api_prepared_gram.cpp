@@ -2,6 +2,7 @@
 #include "backend_common/gram_five_product.hpp"
 #include <mutex>
 #include <cstring>
+#include <utility>
 using namespace rns8::detail;
 using namespace rns8::detail::api;
 struct rns8_prepared_gram {
@@ -102,12 +103,15 @@ rns8_status prepare_gram_impl(rns8_context* ctx, const rns8_matrix* x, rns8_matr
   if (!out || uint32_t(policy) > 2 || uint32_t(orientation) > 1 ||
       !gram_method_valid(uint32_t(method)) || limbs > 32)
     return RNS8_INVALID_ARGUMENT;
-  *out = nullptr;
-  auto owner = std::make_unique<rns8_prepared_gram>();
-  const auto status =
-      validate_gram_contract(ctx, x, c, orientation, method, owner->problem, owner->bound);
+  GramProblem problem;
+  cpp_int bound;
+  const auto status = validate_gram_contract(ctx, x, c, orientation, method, problem, bound);
   if (status != RNS8_SUCCESS)
     return status;
+  *out = nullptr;
+  auto owner = std::make_unique<rns8_prepared_gram>();
+  owner->problem = problem;
+  owner->bound = std::move(bound);
   const bool hip = x->backend == RNS8_BACKEND_HIP_DIRECT,
              finite = uses_finite_storage(x->desc.semantics);
   if (policy == RNS8_GRAM_RETAINED_NATIVE_I64 && !hip)
@@ -217,16 +221,17 @@ rns8_status rns8_prepare_gram_five_product(rns8_context* ctx, const rns8_matrix*
                                            rns8_gram_orientation orientation, uint32_t matrix,
                                            uint64_t budget, rns8_prepared_gram** out) {
   return guard_api([&]() -> rns8_status {
-    if (!out)
+    if (!out || matrix > 1)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
-    if (matrix > 1)
-      return RNS8_INVALID_ARGUMENT;
-    auto owner = std::make_unique<rns8_prepared_gram>();
-    auto status = validate_gram_contract(ctx, x, c, orientation, RNS8_GRAM_SCALAR, owner->problem,
-                                         owner->bound);
+    GramProblem problem;
+    cpp_int bound;
+    auto status = validate_gram_contract(ctx, x, c, orientation, RNS8_GRAM_SCALAR, problem, bound);
     if (status != RNS8_SUCCESS)
       return status;
+    *out = nullptr;
+    auto owner = std::make_unique<rns8_prepared_gram>();
+    owner->problem = problem;
+    owner->bound = std::move(bound);
     const bool hip = x->backend == RNS8_BACKEND_HIP_DIRECT;
     if (matrix) {
       if (!hip || !amdgpu_builtins_compiled())

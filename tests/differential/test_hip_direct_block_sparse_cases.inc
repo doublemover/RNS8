@@ -155,6 +155,40 @@ void check_public_block_sparse_owner(rns8_block_sparse_method method = RNS8_BLOC
   CHECK(rns8_get_block_sparse_storage_info(nullptr, &sparse_info) == RNS8_INVALID_ARGUMENT);
   const auto capability = ctx->native_wmma_capability;
   const auto initial_generation = c->content_generation;
+  const auto initial_current = c->device_residues_current;
+  const auto source_generation = sparse_info.source_generation;
+  const auto invalid_before = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 3u}) {
+    rns8_block_sparse_method invalid;
+    static_assert(sizeof(invalid) == sizeof(bits));
+    std::memcpy(&invalid, &bits, sizeof(bits));
+    CHECK(rns8_gemm_block_sparse_exact_with_method(ctx, plan, sa, sb, c, invalid, 0, UINT64_MAX,
+                                                   ws) == RNS8_INVALID_ARGUMENT);
+    CHECK(c->content_generation == initial_generation);
+    CHECK(c->device_residues_current == initial_current);
+    CHECK_FALSE(ws->in_flight);
+  }
+  const auto invalid_after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(invalid_after.allocate_calls == invalid_before.allocate_calls);
+  CHECK(invalid_after.free_calls == invalid_before.free_calls);
+  CHECK(invalid_after.h2d_calls == invalid_before.h2d_calls);
+  CHECK(invalid_after.d2h_calls == invalid_before.d2h_calls);
+  REQUIRE(rns8_get_block_sparse_storage_info(sa, &sparse_info) == RNS8_SUCCESS);
+  CHECK(sparse_info.source_generation == source_generation);
+  CHECK(sparse_info.source_instance == a->matrix_instance_id);
+  const auto export_current = [&](uint64_t* output) {
+    if constexpr (std::is_unsigned_v<T>)
+      return rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, output, n, 3);
+    else
+      return rns8_export_exact_wide_signed_limbs(ctx, plan, c, output, n, 3);
+  };
+  std::vector<uint64_t> old_value(m * n * 3);
+  REQUIRE(export_current(old_value.data()) == RNS8_SUCCESS);
+  for (size_t i = 0; i < cv.size(); ++i) {
+    CHECK(old_value[i * 3] == uint64_t(cv[i]));
+    CHECK(old_value[i * 3 + 1] == 0);
+    CHECK(old_value[i * 3 + 2] == 0);
+  }
   ctx->native_wmma_capability.target[0] = '!';
   CHECK(run(0) == RNS8_INVALID_ARGUMENT);
   CHECK(c->content_generation == initial_generation);
@@ -172,11 +206,7 @@ void check_public_block_sparse_owner(rns8_block_sparse_method method = RNS8_BLOC
   c->in_flight_readers = 0;
   REQUIRE(run() == RNS8_SUCCESS);
   std::vector<uint64_t> limbs(m * n * 3);
-  if constexpr (std::is_unsigned_v<T>)
-    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, limbs.data(), n, 3) ==
-            RNS8_SUCCESS);
-  else
-    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs.data(), n, 3) == RNS8_SUCCESS);
+  REQUIRE(export_current(limbs.data()) == RNS8_SUCCESS);
   for (int row = 0; row < m; ++row)
     for (int col = 0; col < n; ++col) {
       cpp_int expected = 0;

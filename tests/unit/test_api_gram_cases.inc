@@ -224,6 +224,9 @@ TEST_CASE("raw Gram enum values reject through real descriptors without changing
                                RNS8_GRAM_RESIDENT_RESIDUES, 0, UINT64_MAX,
                                &owner) == RNS8_INVALID_ARGUMENT);
     CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
+    CHECK(rns8_prepare_gram(ctx, x, c, RNS8_GRAM_TRANSPOSE_TIMES_SELF, method, UINT64_MAX,
+                            &owner) == RNS8_INVALID_ARGUMENT);
+    CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
   }
   for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
     rns8_gram_orientation orientation;
@@ -234,6 +237,21 @@ TEST_CASE("raw Gram enum values reject through real descriptors without changing
     CHECK(rns8_prepare_gram_ex(ctx, x, c, orientation, RNS8_GRAM_SCALAR,
                                RNS8_GRAM_RESIDENT_RESIDUES, 0, UINT64_MAX,
                                &owner) == RNS8_INVALID_ARGUMENT);
+    CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
+    for (bool poisoned : {false, true}) {
+      ctx->hip_failure_poisoned = poisoned;
+      for (uint32_t matrix : {0u, 1u}) {
+        CHECK(rns8_prepare_gram_five_product(ctx, x, c, orientation, matrix, UINT64_MAX, &owner) ==
+              RNS8_INVALID_ARGUMENT);
+        CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
+      }
+      ctx->hip_failure_poisoned = false;
+    }
+  }
+  for (uint32_t matrix : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
+    auto* owner = reinterpret_cast<rns8_prepared_gram*>(&old);
+    CHECK(rns8_prepare_gram_five_product(ctx, x, c, RNS8_GRAM_TRANSPOSE_TIMES_SELF, matrix,
+                                         UINT64_MAX, &owner) == RNS8_INVALID_ARGUMENT);
     CHECK(owner == reinterpret_cast<rns8_prepared_gram*>(&old));
   }
   for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), 3u}) {

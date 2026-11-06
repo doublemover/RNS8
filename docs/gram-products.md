@@ -1,5 +1,13 @@
 # Explicit single-source Gram products
 
+Prepared constructors run the shared Gram contract before owner allocation or
+caller-handle changes. Unknown orientation/method/input-policy values and invalid
+five-product matrix selectors preserve the caller handle and prior matrix value;
+post-admission budget/unsupported preparation keeps its existing null-output
+behavior. The five-product adapter uses the same orientation validator as the
+ordinary entrypoints. New raw-representation and poison-priority controls are
+authored and await the combined runtime batch.
+
 `rns8_gram_residues(ctx, X, C, orientation, method, budget)` computes either
 X-transpose times X or X times X-transpose from one resident matrix instance and
 generation. It never infers symmetry from two equal pointers. X is packed once;
