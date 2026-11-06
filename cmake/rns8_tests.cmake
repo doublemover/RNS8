@@ -1165,6 +1165,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
     tests/unit/test_fuzz_arithmetic_case.cpp
+    tests/unit/test_fuzz_arithmetic_replay.cpp
     tests/unit/test_residue_tile.cpp
     tests/unit/test_hipblaslt_metadata.cpp
     tests/unit/test_streaming_measurement.cpp

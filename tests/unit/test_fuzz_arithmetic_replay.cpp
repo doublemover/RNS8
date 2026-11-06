@@ -1,0 +1,86 @@
+#include <catch2/catch_test_macros.hpp>
+#include "../fuzz/arithmetic_replay.hpp"
+
+namespace {
+using namespace rns8_fuzz;
+using namespace rns8_fuzz::replay_support;
+struct CapturedFailure {
+  Failure value;
+};
+void capture_failure(const Failure& failure) {
+  throw CapturedFailure{failure};
+}
+struct FailureScope {
+  FailureHandler old = failure_handler;
+  FailureScope() { failure_handler = capture_failure; }
+  ~FailureScope() { failure_handler = old; }
+};
+} // namespace
+TEST_CASE("shared arithmetic replay checks complete CPU results and real lifecycle counts",
+          "[fuzz][replay][cpu]") {
+  FailureScope failures;
+  for (uint8_t semantics = 0; semantics < 6; ++semantics) {
+    ArithmeticCase value;
+    value.semantic = semantics;
+    value.m = value.n = value.k = 1;
+    value.a = {semantics == 2 ? 255u : 2u};
+    value.b = {semantics == 2 ? 255u : 3u};
+    value.prefix = value.finite() || value.wrap() ? 0 : 20;
+    value.modulus = value.finite() ? 254 : 0;
+    value.padding_a = 1;
+    value.padding_b = 3;
+    value.padding_c = 2;
+    value.operations = value.finite() || value.wrap() ? 3 : 7;
+    const auto expected = oracle(value);
+    REQUIRE(expected.admitted);
+    Observation observed;
+    const auto backend = value.wrap() ? RNS8_BACKEND_WRAP64_BYTE_LIMB : RNS8_BACKEND_CPU_REFERENCE;
+    replay(value, expected, backend, -1, &observed);
+    CHECK(observed.device_observed);
+    CHECK(observed.plan_observed);
+    CHECK(observed.plan.backend == backend);
+    CHECK(observed.plan.selected_kernel[0]);
+    CHECK(observed.gemm_calls == ((value.operations & 4) ? 3 : 2));
+    CHECK(observed.comparisons == ((value.operations & 4) ? 4 : 2));
+  }
+}
+TEST_CASE("shared arithmetic replay refutes wrong result status and no-write witnesses",
+          "[fuzz][replay][negative-control]") {
+  FailureScope failures;
+  ArithmeticCase value;
+  value.m = value.n = value.k = 1;
+  value.a = {2};
+  value.b = {3};
+  value.prefix = 20;
+  const auto expected = oracle(value);
+  try {
+    compare<int64_t>(value, expected, 1, [](int64_t* output, int64_t) {
+      *output = 7;
+      return RNS8_SUCCESS;
+    });
+    FAIL("wrong successful value was accepted");
+  } catch (const CapturedFailure& failure) {
+    CHECK(std::string(failure.value.kind) == "value_or_padding");
+    CHECK(failure.value.storage_element == 1);
+    CHECK(failure.value.actual_value == "7");
+    CHECK(failure.value.expected_value == "6");
+  }
+  try {
+    compare<int64_t>(value, expected, 1, [](int64_t*, int64_t) { return RNS8_RANGE_ERROR; });
+    FAIL("wrong export status was accepted");
+  } catch (const CapturedFailure& failure) {
+    CHECK(std::string(failure.value.kind) == "status");
+    CHECK(failure.value.actual == RNS8_RANGE_ERROR);
+    CHECK(failure.value.expected == RNS8_SUCCESS);
+  }
+  value.operations = 2;
+  try {
+    compare<int64_t>(value, expected, 1, [](int64_t* output, int64_t) {
+      *output = 7;
+      return RNS8_INVALID_ARGUMENT;
+    });
+    FAIL("invalid-LD write was accepted");
+  } catch (const CapturedFailure& failure) {
+    CHECK(std::string(failure.value.kind) == "no_write");
+  }
+}

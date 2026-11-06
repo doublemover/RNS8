@@ -88,8 +88,48 @@ Replay count and wall deadline are bounded; the callback must separately bound
 its own native process. Exhaustion retains the best reproducer and does not
 claim minimality. A completed pass is a local fixed point, not a global minimum.
 This component launches nothing and does not attest native execution; wiring
-and qualifying the artifact-bound explicit-backend replay adapter remain open.
+the bounded session adapter and qualifying native replay remain open.
 Authored minimizer controls use synthetic callbacks only and remain unexecuted.
+
+## Deterministic native replay
+
+`RNS8_BUILD_TOOLS=ON` also builds `rns8-arithmetic-replay` against the ordinary
+static library, independently of libFuzzer and discovery instrumentation. It
+consumes one unchanged arithmetic-case-v1 file per process:
+
+```sh
+rns8-arithmetic-replay --case temp/fuzz-corpus/arithmetic/CASE.bin --backend hip-direct --device 0 --run-id replay-001
+```
+
+Backend and device are mandatory. Backend names are `cpu-reference`,
+`hip-direct`, `hipblaslt`, `ck`, `rocwmma`, `wrap64-byte-limb`,
+`hip-vector-alu-int64`, `amdgpu-builtins` and `cpu-amx`; AUTO is excluded.
+CPU reference/AMX require device -1; GPU paths require a nonnegative ordinal.
+The separate wrap backend selects CPU or GPU explicitly with that ordinal.
+Selected plan backend/kernel metadata is observed before packing; it is not
+an executed-symbol ISA receipt. `--build-identity` uses the existing no-GPU
+compiled executable/library identity protocol.
+
+The fuzzer and native tool share the actual replay implementation and independent
+Boost oracle. Repeated GEMM, invalid-LD/no-write, repack/stale-prepared rejection
+and refreshed execution retain the same case bits. Each successful export
+compares every logical word/limb, sign extension, padding and guards. Reports
+include input digest, run/process identity, both compiled manifests, plan/device
+observations, actual GEMM/comparison counts and first status/value/storage failure.
+They carry no production latency or promotion eligibility.
+
+Malformed/out-of-envelope input exits65 without arithmetic; unavailable context
+or plan returns a typed unsupported report and exit77. Unexpected execution,
+export or cleanup status is a failure, including unsupported after work admission.
+On a checked failure the one-case child emits its first structured result and
+exits without unwinding public owners or issuing further library calls. This
+preserves the first failure and avoids unsafe cleanup after uncertain device
+work; it does not demonstrate device recovery. A parent must bound/retain each
+child and stop on unexplained failures. No GPU fault campaign is enabled.
+
+CPU shared-replay controls cover all six domains and lifecycle counts; seeded
+wrong-result/status/no-write controls exercise the same assertion boundary.
+These controls and native CPU/GPU replay remain unexecuted during the source pass.
 
 Implementation is in progress under #101. These new controls and harness have
 not run in the deferred validation batch. Production-library instrumentation
