@@ -1,34 +1,16 @@
 """Falsifiable review notes from bound dispatch observations, never promotion."""
 
 from __future__ import annotations
+from interval_observations import interval_summary
 
 
 def selected_interval_summary(observations: list[dict]) -> dict:
     # One receipt is one process/clock domain. Counter replay receipts remain
     # separate; their durations cannot be pooled into production throughput.
-    intervals = sorted((row["start_ns"], row["end_ns"]) for row in observations)
-    service = sum(end - start for start, end in intervals)
-    union = 0
-    start = end = None
-    for first, last in intervals:
-        if start is None:
-            start, end = first, last
-        elif first <= end:
-            end = max(end, last)
-        else:
-            union += end - start
-            start, end = first, last
-    if start is not None:
-        union += end - start
-    # The final interval by start is not necessarily the one with maximum end.
-    span = max(last for _, last in intervals) - intervals[0][0] if intervals else 0
+    summary = interval_summary([(row["start_ns"], row["end_ns"]) for row in observations])
     return dict(
-        selected_dispatch_count=len(intervals),
-        service_ns=service,
-        interval_union_ns=union,
-        span_ns=span,
-        uncovered_span_ns=span - union,
-        overlap_service_ns=service - union,
+        selected_dispatch_count=summary["count"],
+        **{key: value for key, value in summary.items() if key != "count"},
         scope="selected_dispatches_in_one_profiled_process_not_complete_workload",
         production_latency=False,
     )

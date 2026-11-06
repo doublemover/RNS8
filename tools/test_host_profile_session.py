@@ -235,6 +235,24 @@ class HostSession(unittest.TestCase):
                 self.plan(**policy)
         self.assertFalse(self.out.exists())
 
+    def test_range_selection_is_opt_in_and_rebuild_preserves_its_environment(self):
+        self.assertFalse(self.plan()["operation_ranges"])
+        value = json.loads(self.capture.read_text())
+        value["build_manifest"] = dict(configuration="roctx=OFF\n")
+        write(self.capture, value)
+        with self.assertRaisesRegex(ValueError, "compiled with ROCTx"):
+            self.plan(operation_ranges=True)
+        value["build_manifest"]["configuration"] = "roctx=ON\n"
+        write(self.capture, value)
+        plan = self.plan(operation_ranges=True)
+        for key in ("expected_native_environment", "profiler_environment"):
+            self.assertEqual(plan[key]["RNS8_PROFILE_RANGES"], "1")
+        with patch.object(session, "production_profile_input", return_value=self.binary):
+            self.assertEqual(session.rebuild(plan), plan)
+        with self.assertRaises(ValueError):
+            self.plan(operation_ranges=1)
+        self.assertFalse(self.out.exists())
+
     def test_mutated_command_and_non_linux_execution_do_not_start_work(self):
         original = self.plan()
         changed = copy.deepcopy(original)

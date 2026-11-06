@@ -106,7 +106,7 @@ load segments provide a separate count of samples whose native map translates
 to an executable file extent. That count is distinct from build-ID coverage:
 an ID can match while mapping attribution stays unresolved. The native map
 observation is not an independent raw-MMAP witness or a source-content proof;
-selected-operation and cross-clock joins remain open.
+cross-clock joins remain open.
 
 The existing optional Linux ROCTx producer now adds a versioned host-clock
 extension to its range records: actual process/start-thread/stop-thread IDs and
@@ -115,8 +115,25 @@ records a missing timestamp explicitly if the clock query fails. Pending
 cross-thread ranges expose no unobserved stop fields; completion publishes them
 with the existing atomic outcome. These timestamps observe diagnostic host
 scopes, including observer cost, and do not certify GPU completion. The runtime
-disabled path takes no new timestamp/thread queries. Active Linux compilation,
-scope/cross-thread controls and the sample-to-operation join remain deferred.
+disabled path takes no new timestamp/thread queries.
+
+`host_profile_session.py --operation-ranges` explicitly activates these existing
+scopes for the profiled child of the same ROCTx-enabled production binary. The
+baseline remains runtime-disabled. The finalizer first repeats raw recording,
+PID, sample and module custody, then joins samples to measured benchmark roots
+using their observed `CLOCK_MONOTONIC` brackets. It rejects dropped/unpublished
+records, unknown tags, invalid ancestry, child intervals outside their parent,
+crossing scopes and conflicting operation identities. Deepest same-thread host
+phases receive exclusive sample counts and CPU-clock period weights. Samples
+inside an observer bracket stay ambiguous; samples on unbound workers stay
+unbound. Cross-thread asynchronous completion ranges are not CPU-work intervals.
+
+The report separates sampled CPU exposure from the union, sum and span of
+observed host windows. Neither is exact CPU duration, GPU service or production
+latency. No selected samples is inconclusive rather than evidence of zero work.
+The default session retains process-total scope and an unbound operation field.
+Active Linux compilation, scope/cross-thread controls, pure join controls and
+the integrated native acquisition remain deferred to the final validation batch.
 
 Input, sample, frame and decoded-document limits apply. Changes to the input or
 native module during decode reject the receipt. Existing outputs are not

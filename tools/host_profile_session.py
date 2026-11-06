@@ -15,6 +15,7 @@ import sys
 
 from benchmark_request import attach_capture_identity, file_digest, request_identity
 from benchmark_schema import validate_capture
+from build_manifest import configuration_options
 from compiled_binary_identity import canonical_digest
 from check_dependencies_lib.system import find_command
 from device_observation import capture_observation, observation_relation
@@ -25,6 +26,7 @@ from execution_inventory import bounded_read
 from elf_module_identity import module_inventory
 from gpu_qualification import ROOT, execute_plan, write_json
 from host_profile_native import PRODUCER_CONTRACT, SCHEMA as NATIVE_SCHEMA
+from host_profile_ranges import join as join_host_ranges
 from perf_recording_contract import read_recording, validate_decoded_samples
 from json_evidence import parse_evidence_json, same_evidence_value
 from profiler_contract import production_profile_input
@@ -38,6 +40,8 @@ SOURCE_INPUTS = (
     ".python-version",
     "tools/host_profile_session.py",
     "tools/host_profile_native.py",
+    "tools/host_profile_ranges.py",
+    "tools/interval_observations.py",
     "tools/profiler_contract.py",
     "tools/build_instrumentation.py",
     "tools/execution_environment_contract.py",
@@ -209,8 +213,11 @@ def plan_capture(
     max_artifact_bytes=256 * 1024**2,
     max_output_bytes=16 * 1024**2,
     minimum_free_bytes=1024**3,
+    operation_ranges=False,
     _review_existing=False,
 ) -> dict:
+    if type(operation_ranges) is not bool:
+        raise ValueError("operation range selection must be explicit boolean policy")
     if (
         any(
             type(value) not in (int, float) or not math.isfinite(value) or value <= 0
@@ -237,6 +244,14 @@ def plan_capture(
     store = EvidenceStore()
     _, capture = store.json(inputs["production_capture"], ROOT)
     executable = production_profile_input(capture, store)
+    if (
+        operation_ranges
+        and configuration_options(capture["build_manifest"]["configuration"], strict=True).get(
+            "roctx"
+        )
+        != "ON"
+    ):
+        raise ValueError("operation ranges require the same production binary compiled with ROCTx")
     perf_tool, python = (store.reference(inputs[key], ROOT) for key in ("perf_tool", "python"))
     machine = elf_machine(executable)
     if machine not in (62, 183) or any(
@@ -249,6 +264,12 @@ def plan_capture(
     if "--record-execution-environment" not in arguments:
         arguments.append("--record-execution-environment")
     expected_environment = dict(capture["request_identity"]["environment"], PERF_CONFIG="/dev/null")
+    profiler_environment = dict(
+        PERF_CONFIG="/dev/null", DEBUGINFOD_URLS="", PYTHONDONTWRITEBYTECODE="1"
+    )
+    if operation_ranges:
+        expected_environment["RNS8_PROFILE_RANGES"] = "1"
+        profiler_environment["RNS8_PROFILE_RANGES"] = "1"
     commands = []
 
     def add(name, argv, **policy):
@@ -323,7 +344,7 @@ def plan_capture(
     )
     plan = dict(
         schema=SCHEMA,
-        schema_version=2,
+        schema_version=3,
         session_kind="host-perf-cpu-sampling",
         system="Linux",
         command_working_directory=str(ROOT),
@@ -334,9 +355,8 @@ def plan_capture(
         production_capture_identity=capture_identity(capture),
         inherited_environment=capture["request_identity"]["environment"],
         expected_native_environment=expected_environment,
-        profiler_environment=dict(
-            PERF_CONFIG="/dev/null", DEBUGINFOD_URLS="", PYTHONDONTWRITEBYTECODE="1"
-        ),
+        profiler_environment=profiler_environment,
+        operation_ranges=operation_ranges,
         commands=commands,
         devices=[],
         budgets=dict(
@@ -365,6 +385,7 @@ def rebuild(plan: dict, *, review_existing=False) -> dict:
         max_artifact_bytes=plan["commands"][3]["max_artifact_bytes"],
         max_output_bytes=plan["commands"][3]["max_output_bytes"],
         minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+        operation_ranges=plan["operation_ranges"],
         _review_existing=review_existing,
     )
 
@@ -491,6 +512,11 @@ def finalize(manifest_path: Path) -> dict:
         "selected_process_samples"
     ] != len(samples["samples"]):
         raise ValueError("native selected sample count differs from its rows")
+    selected_operation_range = (
+        join_host_ranges(samples, raw.get("profiler_ranges"))
+        if plan["operation_ranges"]
+        else "unbound"
+    )
     # perf forks the benchmark. The launched profiler's PID is intentionally not
     # substituted for the native application PID or used as a sample selector.
     request = request_identity(workload, environ=observed.environment)
@@ -530,7 +556,7 @@ def finalize(manifest_path: Path) -> dict:
         scope=samples["scope"],
         loss_status=samples["loss_status"],
         leaf_module_custody=modules,
-        selected_operation_range="unbound",
+        selected_operation_range=selected_operation_range,
         production_latency=False,
         promotion_allowed=False,
     )
@@ -586,6 +612,11 @@ def main(argv=None) -> int:
     parser.add_argument("--python", type=Path, default=Path(sys.executable))
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument(
+        "--operation-ranges",
+        action="store_true",
+        help="Enable existing ROCTx host scopes and require same-clock measured-operation attribution",
+    )
     parser.add_argument("--timeout-seconds", type=float, default=120)
     parser.add_argument("--total-seconds", type=float, default=240)
     parser.add_argument("--max-artifact-mib", type=int, default=256)
@@ -609,6 +640,7 @@ def main(argv=None) -> int:
             max_artifact_bytes=args.max_artifact_mib * 1024**2,
             max_output_bytes=args.max_output_mib * 1024**2,
             minimum_free_bytes=args.min_free_mib * 1024**2,
+            operation_ranges=args.operation_ranges,
         )
         if args.execute:
             return execute_capture(plan)
