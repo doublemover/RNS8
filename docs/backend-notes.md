@@ -88,6 +88,9 @@ The authored indexed differential controls include reordered prime channels,
 do not qualify their emitted instructions or device execution; the current
 frontload pass defers those checks to the final validation batch.
 
+Finite Sparse-A discovery forwards the actual modulus to the shared target
+predicate, keeping its single storage plane separate from arithmetic modulus.
+
 Sparse-A source preflight is shared with raw-device dispatch: current kernels
 admit `gfx942`, `gfx1200` and `gfx1201`, K divisible by4 up to65536, supported
 static byte moduli or default-basis prefix1..20, and complete packed/input/output

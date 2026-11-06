@@ -865,3 +865,42 @@ TEST_CASE(
         RNS8_UNSUPPORTED_BACKEND);
   CHECK(count == 0);
 }
+
+TEST_CASE("finite Sparse-A discovery forwards its modulus to the target contract",
+          "[api][provider][sparse][finite]") {
+  auto* ctx = create_cpu_context();
+  const auto original_info = ctx->device_info;
+  // Source-only target inventory: this CPU context never observes a GPU.
+  constexpr char target[] = "gfx942";
+  std::memcpy(ctx->device_info.gcn_arch, target, sizeof(target));
+  rns8_operation_query q{};
+  q.struct_size = sizeof(q);
+  q.abi_version = RNS8_ABI_VERSION;
+  q.operation = RNS8_OP_STRUCTURED_SPARSE_A;
+  q.execution_modes = RNS8_EXEC_SYNC;
+  q.scratch_budget = UINT64_MAX;
+  q.ldb = 24;
+  q.ldc = 23;
+  for (uint32_t modulus : {127u, 163u, 167u, 251u, 255u, 256u}) {
+    q.problem = finite_gemm_desc(RNS8_FINITE_RING_U8, 17, 19, 32, modulus);
+    q.problem.requested_backend = RNS8_BACKEND_AMDGPU_BUILTINS;
+    rns8_operation_support result{};
+    uint32_t count = 0;
+    REQUIRE(rns8_query_operation_support(ctx, &q, &result, 1, &count) == RNS8_SUCCESS);
+    REQUIRE(count == 1);
+    CHECK(result.status == (result.compiled_inventory ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND));
+    if (!result.compiled_inventory)
+      CHECK(result.reason_code == RNS8_SUPPORT_NOT_COMPILED);
+    CHECK(result.runtime_observed == 0);
+    CHECK(result.correctness_qualified == 0);
+    CHECK(result.performance_qualified == 0);
+  }
+  q.problem.finite_modulus = 250;
+  rns8_operation_support unsupported{};
+  uint32_t count = 0;
+  REQUIRE(rns8_query_operation_support(ctx, &q, &unsupported, 1, &count) == RNS8_SUCCESS);
+  CHECK(unsupported.status == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(unsupported.reason_code == RNS8_SUPPORT_MODULUS);
+  ctx->device_info = original_info;
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}

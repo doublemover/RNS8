@@ -227,7 +227,7 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     if (!cpu) {
       const auto status = rns8::detail::amdgpu_builtins_sparse_a_contract(
           ctx.device_info.gcn_arch, d.m, d.n, d.k, query.ldb ? query.ldb : d.n,
-          query.ldc ? query.ldc : d.n, finite ? 1 : prefix, finite);
+          query.ldc ? query.ldc : d.n, finite ? d.finite_modulus : prefix, finite);
       if (status != RNS8_SUCCESS)
         return reject(status, RNS8_SUPPORT_TARGET, "sparse_target_shape",
                       "shared sparse provider rejected target, address or sparse shape");
