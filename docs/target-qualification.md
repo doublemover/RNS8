@@ -6,6 +6,14 @@ are not a cache admission decision. Candidate verdicts identify an exact
 compiled artifact, source/configuration/dependency manifest, backend/kernel,
 mathematical work, device/runtime/driver and execution environment.
 
+Generated manifests claim a Git commit/clean status only when the actual source
+directory is Git's reported worktree root. Nested source copies and extracted
+snapshots retain their content digest but report an unknown commit and dirty
+state; they cannot borrow the containing checkout's identity for qualification.
+Linked worktrees retain their own root. Git identity probes have bounded time,
+ignore inherited `GIT_*` repository/configuration selection, disable fsmonitor
+and avoid optional index writes. This source check adds no runtime qualification.
+
 A new timing process is a new observation. It cannot hide a failed phase for
 the same candidate artifact and work. A passing historical capture alone also
 cannot qualify a newly supplied capture without an explicit phase association.

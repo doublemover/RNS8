@@ -75,6 +75,8 @@ def dependency_fixture(root, kind="native"):
 
 def clean_fixture_generate(source, config):
     def git(command, **kwargs):
+        if command[-1] == "--show-toplevel":
+            return (str(source.resolve()) + "\n").encode("utf-8")
         return b"c" * 40 if "rev-parse" in command else b""
 
     with patch("build_manifest.subprocess.check_output", side_effect=git):
@@ -88,6 +90,69 @@ def dependency_scratch():
 
 
 class BuildManifestTest(unittest.TestCase):
+    def test_nested_source_copy_cannot_borrow_parent_git_identity(self):
+        with dependency_scratch() as directory:
+            root = Path(directory).resolve()
+            source, config, _ = dependency_fixture(root)
+            calls = []
+
+            def parent_git(command, **kwargs):
+                calls.append(command)
+                return (str(root) + "\n").encode("utf-8")
+
+            with patch("build_manifest.subprocess.check_output", side_effect=parent_git):
+                manifest = generate(source, config)
+            self.assertEqual(manifest["source_commit"], "unknown")
+            self.assertTrue(manifest["source_dirty"])
+            self.assertFalse(manifest_provenance_complete(manifest))
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][-1], "--show-toplevel")
+            for malformed in (b"", b"relative-root\n"):
+                with patch("build_manifest.subprocess.check_output", return_value=malformed):
+                    rejected = generate(source, config)
+                self.assertTrue(rejected["source_dirty"])
+                self.assertEqual(rejected["source_commit"], "unknown")
+
+    def test_source_git_probe_is_bounded_and_ignores_ambient_repository_selection(self):
+        with dependency_scratch() as directory:
+            root = Path(directory).resolve()
+            source, config, _ = dependency_fixture(root)
+            seen = []
+
+            def exact_git(command, **kwargs):
+                seen.append((command, kwargs))
+                if command[-1] == "--show-toplevel":
+                    return (str(source.resolve()) + "\n").encode()
+                return b"c" * 40 if command[-1] == "HEAD" else b""
+
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "GIT_DIR": "foreign",
+                        "GIT_WORK_TREE": "foreign",
+                        "GIT_INDEX_FILE": "foreign",
+                        "GIT_CONFIG_COUNT": "1",
+                    },
+                ),
+                patch("build_manifest.subprocess.check_output", side_effect=exact_git),
+            ):
+                manifest = generate(source, config)
+            self.assertEqual(manifest["source_commit"], "c" * 40)
+            self.assertFalse(manifest["source_dirty"])
+            for command, kwargs in seen:
+                self.assertEqual(kwargs["timeout"], 30)
+                self.assertFalse(any(key.startswith("GIT_") for key in kwargs["env"]))
+                self.assertIn("--no-optional-locks", command)
+                self.assertIn("core.fsmonitor=false", command)
+            with patch(
+                "build_manifest.subprocess.check_output",
+                side_effect=subprocess.TimeoutExpired("git", 30),
+            ):
+                timed_out = generate(source, config)
+            self.assertTrue(timed_out["source_dirty"])
+            self.assertEqual(timed_out["source_commit"], "unknown")
+
     def test_native_identity_ignores_ambient_vcpkg_and_supports_cpu_only_selection(self):
         with dependency_scratch() as directory:
             root = Path(directory)

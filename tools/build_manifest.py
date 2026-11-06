@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -361,13 +362,30 @@ def manifest_dependencies_compatible(manifests):
 
 
 def generate(source, config):
+    source = Path(source).resolve(strict=True)
+    # Copied/subdirectory sources must not borrow the containing checkout's
+    # commit and clean status. Linked worktrees still report their own root.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
     def git(*args):
-        return subprocess.check_output(["git", "-C", str(source), *args], stderr=subprocess.DEVNULL)
+        return subprocess.check_output(
+            ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-C", str(source), *args],
+            stderr=subprocess.DEVNULL,
+            env=environment,
+            timeout=30,
+        )
 
     try:
-        commit = git("rev-parse", "HEAD").decode().strip()
-        dirty = bool(git("status", "--porcelain", "--untracked-files=normal"))
-    except (OSError, subprocess.CalledProcessError):
+        root_text = git("rev-parse", "--show-toplevel").decode("utf-8").strip()
+        if not root_text or not Path(root_text).is_absolute():
+            raise ValueError("Git did not report an absolute source worktree root")
+        git_root = Path(root_text).resolve(strict=True)
+        if git_root == source:
+            commit = git("rev-parse", "HEAD").decode("ascii").strip()
+            dirty = bool(git("status", "--porcelain", "--untracked-files=normal"))
+        else:
+            commit, dirty = "unknown", True
+    except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         commit, dirty = "unknown", True
     digest = hashlib.sha256()
     # Include untracked implementation inputs as well as tracked files.
