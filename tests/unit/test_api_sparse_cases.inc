@@ -884,3 +884,150 @@ TEST_CASE("sparse APIs reject mismatched sparse contracts without mutating outpu
   rns8_destroy_plan(bounded_plan);
   rns8_destroy_context(ctx);
 }
+
+namespace {
+void check_sparse_wide_all_prefixes(rns8_context* ctx, rns8_backend_kind backend) {
+  using boost::multiprecision::cpp_int;
+  constexpr int64_t m = 6, n = 2, k = 8, lda = 9, ldb = 3, ldc = 3;
+  constexpr unsigned positions[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+  constexpr uint64_t guard = 99;
+  REQUIRE(rns8_validate_default_moduli() == RNS8_SUCCESS);
+  for (bool sign : {false, true})
+    for (uint32_t prefix = 1; prefix <= RNS8_MAX_SUPPORTED_PREFIX; ++prefix) {
+      CAPTURE(backend, sign, prefix);
+      const auto semantics = sign ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
+      auto gd = exact_desc(semantics, m, n, k);
+      gd.requested_backend = backend;
+      gd.max_prefix = prefix;
+      gd.flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_EXACT_VALUE_BOUND;
+      rns8_plan* plan = nullptr;
+      REQUIRE(rns8_create_plan(ctx, &gd, &plan) == RNS8_SUCCESS);
+      rns8_workspace* work = nullptr;
+      REQUIRE(rns8_create_workspace(ctx, plan, &work) == RNS8_SUCCESS);
+      rns8_matrix *a = nullptr, *b = nullptr, *dense = nullptr, *sparse_output = nullptr;
+      auto ad = exact_matrix_desc(m, k, semantics), bd = exact_matrix_desc(k, n, semantics),
+           cd = exact_matrix_desc(m, n, semantics);
+      ad.max_prefix = bd.max_prefix = cd.max_prefix = prefix;
+      REQUIRE(rns8_create_matrix(ctx, &ad, &a) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(ctx, &bd, &b) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(ctx, &cd, &dense) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(ctx, &cd, &sparse_output) == RNS8_SUCCESS);
+      std::vector<int64_t> av(m * lda, 41), bv(k * ldb, 41);
+      for (int64_t row = 0; row < m; ++row) {
+        std::fill_n(av.data() + row * lda, k, 0);
+        for (int64_t group = 0; group < k / 4; ++group) {
+          av[row * lda + group * 4 + positions[row][0]] = 1;
+          av[row * lda + group * 4 + positions[row][1]] = sign ? -1 : 2;
+        }
+      }
+      for (int64_t q = 0; q < k; ++q)
+        for (int64_t col = 0; col < n; ++col)
+          bv[q * ldb + col] = (q + col) % 3 + (sign ? -1 : 1);
+      if (sign) {
+        REQUIRE(rns8_pack_i64(ctx, a, av.data(), lda, 11) == RNS8_SUCCESS);
+        REQUIRE(rns8_pack_i64(ctx, b, bv.data(), ldb, 12) == RNS8_SUCCESS);
+      } else {
+        const std::vector<uint64_t> au(av.begin(), av.end()), bu(bv.begin(), bv.end());
+        REQUIRE(rns8_pack_u64(ctx, a, au.data(), lda, 11) == RNS8_SUCCESS);
+        REQUIRE(rns8_pack_u64(ctx, b, bu.data(), ldb, 12) == RNS8_SUCCESS);
+      }
+      auto sd = rns8_sparse_matrix_desc{};
+      sd.struct_size = sizeof(sd);
+      sd.abi_version = RNS8_ABI_VERSION;
+      sd.semantics = semantics;
+      sd.bound_kind = RNS8_BOUND_NONE;
+      sd.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+      sd.sparse_operand = RNS8_SPARSE_OPERAND_A;
+      sd.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+      sd.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+      sd.rows = m;
+      sd.expanded_k = k;
+      sd.group_size = 4;
+      sd.nonzeros_per_group = 2;
+      sd.max_prefix = prefix;
+      rns8_sparse_matrix* sparse = nullptr;
+      REQUIRE(rns8_create_sparse_matrix(ctx, &sd, &sparse) == RNS8_SUCCESS);
+      std::vector<uint8_t> planes((uint64_t(prefix) * m - 1) * lda + k, 0xa5);
+      for (uint32_t p = 0; p < prefix; ++p)
+        for (int64_t row = 0; row < m; ++row)
+          for (int64_t q = 0; q < k; ++q) {
+            const int64_t modulus = rns8_default_modulus(p);
+            auto residue = av[row * lda + q] % modulus;
+            if (residue < 0)
+              residue += modulus;
+            if (residue >= (modulus + 1) / 2)
+              residue -= modulus;
+            planes[(uint64_t(p) * m + row) * lda + q] = static_cast<uint8_t>(residue);
+          }
+      REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse, planes.data(), lda, 13) ==
+              RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_rns(ctx, plan, a, b, dense, work) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_rns_sparse_a(ctx, plan, sparse, b, sparse_output, work) == RNS8_SUCCESS);
+      std::vector<uint64_t> expected(((m - 1) * ldc + n) * 3 + 2, guard), ordinary = expected,
+                                                                          observed = expected;
+      for (int64_t row = 0; row < m; ++row)
+        for (int64_t col = 0; col < n; ++col) {
+          cpp_int value = 0;
+          for (int64_t q = 0; q < k; ++q)
+            value += cpp_int(av[row * lda + q]) * bv[q * ldb + col];
+          // Conservative input/accumulation proof fits even signed prefix1.
+          REQUIRE(value >= -24);
+          REQUIRE(value <= 48);
+          if (value < 0)
+            value += cpp_int(1) << 192;
+          for (unsigned limb = 0; limb < 3; ++limb)
+            expected[1 + (row * ldc + col) * 3 + limb] =
+                ((value >> (64 * limb)) & UINT64_MAX).convert_to<uint64_t>();
+        }
+      const auto export_value = [&](rns8_matrix* matrix, uint64_t* destination) {
+        return sign ? rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, destination, ldc, 3)
+                    : rns8_export_exact_wide_unsigned_limbs(ctx, plan, matrix, destination, ldc, 3);
+      };
+      REQUIRE(export_value(dense, ordinary.data() + 1) == RNS8_SUCCESS);
+      REQUIRE(export_value(sparse_output, observed.data() + 1) == RNS8_SUCCESS);
+      CHECK(ordinary == expected);
+      CHECK(observed == expected);
+      REQUIRE(rns8_destroy_sparse_matrix(sparse) == RNS8_SUCCESS);
+      for (auto* matrix : {sparse_output, dense, b, a})
+        REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_workspace(work) == RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+    }
+}
+} // namespace
+
+TEST_CASE("structured sparse CPU arithmetic covers every ordered basis prefix and position pair",
+          "[api][sparse][cpu][prefix]") {
+  auto* ctx = create_cpu_context();
+  check_sparse_wide_all_prefixes(ctx, RNS8_BACKEND_CPU_REFERENCE);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+TEST_CASE("structured sparse GPU arithmetic covers every ordered basis prefix and position pair",
+          "[api][sparse][hip][prefix]") {
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_AMDGPU_BUILTINS;
+  rns8_context* ctx = nullptr;
+  const auto created = rns8_create_context(0, &options, &ctx);
+  if (created == RNS8_UNSUPPORTED_BACKEND) {
+    REQUIRE(ctx == nullptr);
+    SKIP("builtin GPU provider unavailable; no sparse GPU arithmetic executed");
+  }
+  REQUIRE(created == RNS8_SUCCESS);
+  const rns8::tools::SparseProfile preflight{
+      "sparse-all-prefix-preflight", RNS8_EXACT_WIDE_SIGNED, 0, 6, 2, 8, 0};
+  auto q = rns8::tools::sparse_profile_query(preflight, RNS8_OP_STRUCTURED_SPARSE_A);
+  q.problem.requested_backend = RNS8_BACKEND_AMDGPU_BUILTINS;
+  rns8_operation_support support{};
+  uint32_t count = 0;
+  REQUIRE(rns8_query_operation_support(ctx, &q, &support, 1, &count) == RNS8_SUCCESS);
+  REQUIRE(count == 1);
+  if (support.status == RNS8_UNSUPPORTED_BACKEND) {
+    REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+    SKIP("actual target does not support builtin Sparse-A; no sparse GPU arithmetic executed");
+  }
+  REQUIRE(support.status == RNS8_SUCCESS);
+  check_sparse_wide_all_prefixes(ctx, RNS8_BACKEND_AMDGPU_BUILTINS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}

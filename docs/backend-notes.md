@@ -120,6 +120,11 @@ semantic/modulus/basis policy, input dimensions/strides, reason/offending field,
 execution modes, safe K, alignment, resource status and requested byte bounds.
 Unknown or binding-dependent storage is not zero-resource qualification.
 Structured V1 requires complete four-position K groups even on CPU.
+Separate authored CPU and capability-gated GPU fixtures exercise signed/unsigned
+wide Sparse-A at every ordered prefix and all six position pairs. Tiny proved
+input bounds fit prefix1; independent Boost dots, dense controls and padded
+three-limb sign-extension checks cover every output. GPU absence/unsupported
+source targets remain explicit skips, never inferred execution.
 
 The sparse kernel catalogue is generated from the existing metadata registry;
 its names expose the declared SMFMAC/SWMMAC/source families. It is not a selected
