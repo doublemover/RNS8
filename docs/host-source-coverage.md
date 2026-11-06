@@ -57,3 +57,13 @@ success is invented. Per-invariant entrypoint/test/branch mapping, Python
 branch/subprocess collection, curated production mutations and CI policy
 remain separately tracked work under
 [#103](https://github.com/doublemover/RNS8/issues/103).
+
+The authored Python inventory wrapper, `tools/python_test_inventory.py`, uses
+the existing native `unittest` loader/runner and each module's `load_tests`
+hook. It rejects empty/duplicate selections and disabled Python assertions,
+records individual cases rather than a module-level exit alone, and preserves
+subtest/class-fixture failures, skipped/expected-failure/unexpected-success
+states and unexecuted cases. These controls do not count as ordinary passes.
+`--discover-only` records discovery without running cases. This wrapper and the
+bounded parent/child tracing control are source-authored; the integrated Python
+branch collector remains implementation work.
