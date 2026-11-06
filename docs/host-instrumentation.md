@@ -5,8 +5,8 @@ production performance nor HIP device instrumentation. The current source
 frontload adds build selection and sensitivity/concurrency controls under
 [#102](https://github.com/doublemover/RNS8/issues/102) and coverage instrumentation
 under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
-session and native LLVM coverage drivers are authored; CI, OpenMP runtime
-qualification, device-ASan preflight and continuous CI reporting remain
+session and native LLVM coverage drivers are authored; device-ASan preflight,
+complete application-process loader observation and continuous CI reporting remain
 implementation work. Python branch/subprocess collection source is authored.
 
 | Configure preset | Instrumentation | Initial scope |
@@ -85,19 +85,43 @@ An explicit `--compiler` overrides preset discovery. Compiler, llvm-nm and
 llvm-symbolizer must report the same complete LLVM version. The Windows lane
 retains static CRT/STL/runtime wiring and binds the copied ASan DLL; PE binary
 hashes and sensitivity controls are separate from archive symbol inspection.
-The initially selected lanes disable HIP, OpenMP, shared libraries and the
-separately owned libFuzzer corpus; they do not qualify those disabled features.
+The default lanes disable HIP, OpenMP, shared libraries and the separately
+owned libFuzzer corpus; they do not qualify those disabled features.
+
+For a separate native Linux TSan/OpenMP candidate, add
+`--openmp-archer /absolute/path/to/libarcher.so` to the `cpu-tsan-release`
+command. This requires actual CMake OpenMP discovery and LLVM libomp, an
+exported OMPT entrypoint in the selected Archer, and two observed OpenMP
+workers. The driver fixes the OpenMP/Archer environment, binds the configured
+libomp to the library supplying `omp_get_num_threads`, requires the selected
+Archer in the native loader snapshot and checks its positive startup message.
+It runs both the real OpenMP race and synchronized controls before application
+tests. No broad runtime suppression or `ignore_noninstrumented_modules` option
+is added. A runtime false positive is a blocker for review, not an automatic
+suppression. Archer supplies synchronization annotations; the receipt does not
+call this full instrumentation of libomp's own memory accesses. LLVM's
+[selected Archer implementation and usage](https://github.com/llvm/llvm-project/tree/llvmorg-23.1.5/openmp/tools/archer)
+describe the OMPT/TSan relationship. No OpenMP control has run in this pass.
 
 `--allowed-skips` accepts a JSON object mapping exact selected test names to
 reviewed reasons. There is no blanket HIP skip or historical-count allowance.
 Both named legal-concurrency tests and every installed consumer must pass.
 Expected bad controls require the intended diagnostic, configured nonzero exit,
-source location and native process identity where the runtime emits one; a
+exact marked source line in the top access frame (or the UBSan source
+diagnostic) and native process identity where the runtime emits one; a
 timeout, generic crash, unsupported control or missed defect cannot pass.
 Object symbols establish observed instrumentation sites, not coverage of every
-memory access. The available compiler runtime inventory is separate from a
-complete dynamic-loader map. No host session, sensitivity control or test has
-executed during this implementation frontload.
+memory access. A separate control query now observes actual loaded modules
+through native Windows Toolhelp or Linux `dl_iterate_phdr`, with lazy OpenMP
+initialization completed before enumeration. The bounded inventory requires
+the captured native PID, executable, exact Windows ASan DLL or Linux sanitizer
+symbol owner, immutable module file identities and explicit virtual images.
+This snapshot belongs to the detector query process. It is separate from the
+available compiler-runtime inventory and does not prove every library loaded
+later by every application/consumer process or instrumentation of external
+libraries. A failed sensitivity control stops before application tests. No host
+session, loader query, sensitivity control or test has executed during this
+implementation frontload.
 
 `tools/execution_inventory.py` reconciles retained native CTest JSON-v1 full
 discovery and selected discovery with its JUnit report. It requires explicitly

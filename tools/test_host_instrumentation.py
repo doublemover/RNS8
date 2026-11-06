@@ -14,6 +14,7 @@ from unittest import mock
 import host_instrumentation_session as session
 from host_instrumentation_contract import (
     detector_result,
+    detector_sites,
     native_argv,
     object_path,
     selected_flags,
@@ -21,6 +22,7 @@ from host_instrumentation_contract import (
     valid_result,
 )
 from test_execution_inventory import inventory, report
+from host_runtime_contract import ARCHER_STARTUP, control_document, loaded_inventory
 
 
 def capture(stdout="", stderr="", returncode=0):
@@ -42,7 +44,7 @@ class DetectorControls(unittest.TestCase):
             (
                 "heap-overread",
                 86,
-                "==4321==ERROR: AddressSanitizer: heap-buffer-overflow\n host_sanitizer_control.cpp:28",
+                "==4321==ERROR: AddressSanitizer: heap-buffer-overflow\n #0 host_sanitizer_control.cpp:28",
             ),
             (
                 "signed-overflow",
@@ -52,18 +54,19 @@ class DetectorControls(unittest.TestCase):
             (
                 "race",
                 88,
-                "WARNING: ThreadSanitizer: data race (pid=4321)\n host_sanitizer_control.cpp:50",
+                "WARNING: ThreadSanitizer: data race (pid=4321)\n #0 host_sanitizer_control.cpp:50",
             ),
             (
                 "openmp-race",
                 88,
-                "WARNING: ThreadSanitizer: data race (pid=4321)\n host_sanitizer_control.cpp:80",
+                "WARNING: ThreadSanitizer: data race (pid=4321)\n #0 host_sanitizer_control.cpp:80",
             ),
         )
         for mode, rc, diagnostic in rows:
             result = capture(stderr=diagnostic, returncode=rc)
+            line = {"heap-overread": 28, "signed-overflow": 35, "race": 50, "openmp-race": 80}[mode]
             with self.subTest(mode=mode):
-                value = detector_result(mode, result)
+                value = detector_result(mode, result, source_line=line)
                 self.assertEqual(value["status"], "passed")
                 self.assertEqual(value["application_pass_count"], 0)
                 for key, replacement in (
@@ -77,18 +80,44 @@ class DetectorControls(unittest.TestCase):
                     ("limit_exceeded", "output_bytes"),
                 ):
                     changed = {**result, key: replacement}
-                    self.assertNotEqual(detector_result(mode, changed)["status"], "passed")
+                    self.assertNotEqual(
+                        detector_result(mode, changed, source_line=line)["status"], "passed"
+                    )
                 self.assertEqual(
-                    detector_result(mode, {**result, "returncode": 77})["status"], "unsupported"
+                    detector_result(mode, {**result, "returncode": 77}, source_line=line)["status"],
+                    "unsupported",
                 )
+                self.assertNotEqual(
+                    detector_result(mode, result, source_line=line + 1)["status"], "passed"
+                )
+                if mode != "signed-overflow":
+                    caller_only = {**result, "stderr": diagnostic.replace("#0", "#2")}
+                    self.assertNotEqual(
+                        detector_result(mode, caller_only, source_line=line)["status"], "passed"
+                    )
         wrong = capture(stderr=rows[0][2].replace("4321", "9999"), returncode=86)
         self.assertEqual(
-            detector_result("heap-overread", wrong)["reason"], "asan_diagnostic_process_mismatch"
+            detector_result("heap-overread", wrong, source_line=28)["reason"],
+            "asan_diagnostic_process_mismatch",
         )
         wrong = capture(stderr=rows[2][2].replace("4321", "9999"), returncode=88)
         self.assertEqual(
-            detector_result("race", wrong)["reason"], "tsan_diagnostic_process_mismatch"
+            detector_result("race", wrong, source_line=50)["reason"],
+            "tsan_diagnostic_process_mismatch",
         )
+
+    def test_source_site_markers_bind_current_native_control_lines(self):
+        source = session.ROOT / "tests/controls/host_sanitizer_control.cpp"
+        sites = detector_sites(source)
+        lines = source.read_text(encoding="utf-8").splitlines()
+        for mode, line in sites.items():
+            self.assertIn("// rns8-detector-site:" + mode, lines[line - 1])
+        with tempfile.TemporaryDirectory() as directory:
+            bad = Path(directory) / "bad.cpp"
+            for text in ("", "// rns8-detector-site:race\n" * 2, "// rns8-detector-site:unknown"):
+                bad.write_text(text, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    detector_sites(bad)
 
     def test_synchronized_control_needs_clean_exit_and_exact_typed_values(self):
         doc = dict(schema="rns8_host_detector_valid_v1", value=128, expected=128)
@@ -101,6 +130,94 @@ class DetectorControls(unittest.TestCase):
         ):
             self.assertEqual(valid_result(capture(), changed)["status"], "failed")
         self.assertEqual(valid_result(capture(returncode=1), doc)["status"], "failed")
+
+
+class LoaderControls(unittest.TestCase):
+    def test_only_single_native_document_and_expected_archer_startup_are_accepted(self):
+        self.assertEqual(control_document(capture('{"control":1}')), {"control": 1})
+        self.assertEqual(
+            control_document(capture(ARCHER_STARTUP + '\n{"control":1}'), archer=True),
+            {"control": 1},
+        )
+        for stdout, archer in (
+            ("{}", True),
+            (ARCHER_STARTUP + "\n{}", False),
+            ("{}\n{}", False),
+            ("unexpected\n{}", False),
+            ("[]", False),
+            (ARCHER_STARTUP + "\n" + ARCHER_STARTUP + "\n{}", True),
+        ):
+            with self.subTest(stdout=stdout), self.assertRaises(ValueError):
+                control_document(capture(stdout), archer=archer)
+        with self.assertRaises(ValueError):
+            control_document(capture("{}", returncode=1))
+
+    def test_native_modules_require_actual_process_and_selected_symbol_owners(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            executable, omp, archer, extra = [
+                root / name for name in ("control", "libomp.so.5", "libarcher.so", "extra")
+            ]
+            for path in (executable, omp, archer, extra):
+                path.write_bytes(b"owned fixture " + path.name.encode())
+            document = dict(
+                schema="rns8_host_loaded_modules_v1",
+                process_id=4321,
+                modules=[str(executable), str(omp), str(archer)],
+                virtual_images=[],
+                symbol_owners=dict(sanitizer=str(executable), openmp=str(omp)),
+                openmp_workers=2,
+                scope="control_process_loader_snapshot_not_all_application_processes",
+            )
+            kwargs = dict(executable=executable, runtimes=[], openmp=omp, archer=archer)
+            value = loaded_inventory(document, capture(), **kwargs)
+            self.assertTrue(value["archer_annotation_adapter"])
+            self.assertEqual(len(value["files"]), 3)
+            self.assertEqual(
+                value["external_runtime_accesses_instrumented"],
+                "not_established_by_loader_snapshot",
+            )
+            session.check_bookends(value)
+            for changed in (
+                {**document, "process_id": 9999},
+                {**document, "process_id": True},
+                {**document, "modules": [str(executable), str(omp)]},
+                {**document, "modules": [str(omp), str(archer)]},
+                {**document, "modules": [*document["modules"], str(executable)]},
+                {**document, "modules": ["relative"]},
+                {**document, "virtual_images": ["unidentified-vdso"]},
+                {**document, "symbol_owners": dict(sanitizer=str(extra), openmp=str(omp))},
+                {**document, "symbol_owners": dict(sanitizer=str(executable), openmp=str(archer))},
+                {**document, "openmp_workers": 1},
+                {**document, "openmp_workers": 2.0},
+            ):
+                with self.subTest(changed=changed), self.assertRaises(ValueError):
+                    loaded_inventory(changed, capture(), **kwargs)
+            archer.write_bytes(b"changed after observation")
+            with self.assertRaisesRegex(ValueError, "changed"):
+                session.check_bookends(value)
+
+    def test_windows_asan_requires_loaded_exact_runtime_not_a_same_named_dll(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            executable, dll = root / "control.exe", root / "asan.dll"
+            executable.write_bytes(b"executable")
+            dll.write_bytes(b"runtime")
+            doc = dict(
+                schema="rns8_host_loaded_modules_v1",
+                process_id=4321,
+                modules=[str(executable), str(dll)],
+                virtual_images=[],
+                symbol_owners={},
+                openmp_workers=0,
+                scope="control_process_loader_snapshot_not_all_application_processes",
+            )
+            runtime = session.reference(dll)
+            kwargs = dict(executable=executable, runtimes=[runtime], windows_asan=dll)
+            self.assertEqual(len(loaded_inventory(doc, capture(), **kwargs)["files"]), 2)
+            dll.write_bytes(b"different runtime")
+            with self.assertRaisesRegex(ValueError, "selected compiler runtime"):
+                loaded_inventory(doc, capture(), **kwargs)
 
 
 class ObjectContracts(unittest.TestCase):
@@ -214,6 +331,9 @@ class SessionControls(unittest.TestCase):
                 "ASAN_OPTIONS": "halt_on_error=0",
                 "PYTHONOPTIMIZE": "2",
                 "COVERAGE_PROCESS_START": "secret",
+                "OMP_TOOL_LIBRARIES": "unreviewed.so",
+                "ARCHER_OPTIONS": "ignore_serial=1",
+                "CXXFLAGS": "-fno-sanitize=all",
                 "PATH": "/safe",
             },
             Path("/llvm/symbolizer"),
@@ -221,8 +341,11 @@ class SessionControls(unittest.TestCase):
         )
         self.assertEqual(env["PYTHONOPTIMIZE"], "")
         self.assertNotIn("COVERAGE_PROCESS_START", env)
+        self.assertNotIn("OMP_TOOL_LIBRARIES", env)
+        self.assertNotIn("ARCHER_OPTIONS", env)
+        self.assertNotIn("CXXFLAGS", env)
         self.assertIn("halt_on_error=1", env["ASAN_OPTIONS"])
-        for key in ("LD_PRELOAD", "CCC_OVERRIDE_OPTIONS", "CL"):
+        for key in ("LD_PRELOAD", "LD_AUDIT", "CCC_OVERRIDE_OPTIONS", "CL"):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 session.child_environment({key: "injected"}, Path("/llvm/symbolizer"), "thread")
 
@@ -247,6 +370,22 @@ class SessionControls(unittest.TestCase):
             self.assertFalse(out.exists())
             self.assertFalse(value["runtime_validation_executed"])
             self.assertIn("-DRNS8_BUILD_FUZZERS=OFF", value["configure"])
+            with (
+                mock.patch.object(session, "ROOT", root),
+                mock.patch.object(session, "run_capture") as run,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                self.assertEqual(session.main([*args, "--openmp-archer", str(tool)]), 0)
+                run.assert_not_called()
+            value = json.loads(stdout.getvalue())
+            self.assertIn("-DRNS8_ENABLE_CPU_PARALLEL=ON", value["configure"])
+            self.assertIn("-DRNS8_REQUIRE_OPENMP=ON", value["configure"])
+            self.assertEqual(value["openmp_archer"], str(tool))
+            self.assertFalse(out.exists())
+            invalid = args.copy()
+            invalid[invalid.index("cpu-tsan-release")] = "cpu-asan-ubsan-debug"
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(session.main([*invalid, "--openmp-archer", str(tool)]), 2)
 
     def test_missing_and_changed_execution_evidence_never_passes(self):
         with tempfile.TemporaryDirectory() as directory:

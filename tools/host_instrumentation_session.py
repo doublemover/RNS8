@@ -18,6 +18,7 @@ from compiler_context import compiler_environment
 from execution_inventory import bounded_read, discovery, reconcile
 from host_instrumentation_contract import (
     detector_result,
+    detector_sites,
     native_argv,
     object_path,
     selected_flags,
@@ -25,6 +26,7 @@ from host_instrumentation_contract import (
     valid_result,
 )
 from json_evidence import parse_evidence_json
+from host_runtime_contract import control_document, loaded_inventory
 from process_progress import capture_succeeded, run_capture
 from quality_inventory import ROOT, inventory
 
@@ -78,6 +80,7 @@ def child_environment(environment: dict[str, str], symbolizer: Path, lane: str) 
         environment.get(key)
         for key in (
             "LD_PRELOAD",
+            "LD_AUDIT",
             "DYLD_INSERT_LIBRARIES",
             "CCC_OVERRIDE_OPTIONS",
             "CLANG_CONFIG_FILE_USER_DIR",
@@ -90,7 +93,21 @@ def child_environment(environment: dict[str, str], symbolizer: Path, lane: str) 
     result = {
         key: value
         for key, value in environment.items()
-        if not key.startswith(("ASAN_", "UBSAN_", "TSAN_", "LSAN_", "LLVM_PROFILE_", "COVERAGE_"))
+        if not key.startswith(
+            (
+                "ASAN_",
+                "UBSAN_",
+                "TSAN_",
+                "LSAN_",
+                "LLVM_PROFILE_",
+                "COVERAGE_",
+                "OMP_",
+                "KMP_",
+                "GOMP_",
+                "ARCHER_",
+            )
+        )
+        and key not in {"CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS"}
     }
     result.update(
         PYTHONOPTIMIZE="",
@@ -397,6 +414,15 @@ def execute(args, plan):
     if output.exists():
         raise ValueError("host session output must not exist")
     environment = child_environment(dict(os.environ), args.symbolizer, plan["lane"])
+    if args.openmp_archer:
+        environment.update(
+            OMP_TOOL="enabled",
+            OMP_TOOL_LIBRARIES=str(args.openmp_archer),
+            OMP_NUM_THREADS="2",
+            OMP_DYNAMIC="FALSE",
+            OMP_THREAD_LIMIT="2",
+            ARCHER_OPTIONS="verbose=1 enable=1 ignore_serial=0",
+        )
     output.mkdir(parents=True)
     report = dict(
         schema="rns8_host_dynamic_check_session_v1",
@@ -438,10 +464,12 @@ def execute(args, plan):
         session.run("configure", plan["configure"])
         build = Path(plan["build"])
         cache = cache_values(build / "CMakeCache.txt")
-        if cache.get("RNS8_ENABLE_HIP", "").upper() not in {"OFF", "FALSE", "NO", "0"} or cache.get(
+        false_values = {"OFF", "FALSE", "NO", "0"}
+        true_values = {"ON", "TRUE", "YES", "1"}
+        if cache.get("RNS8_ENABLE_HIP", "").upper() not in false_values or cache.get(
             "RNS8_ENABLE_CPU_PARALLEL", ""
-        ).upper() not in {"OFF", "FALSE", "NO", "0"}:
-            raise ValueError("initial host lane requires CPU-only OpenMP-OFF configuration")
+        ).upper() not in (true_values if args.openmp_archer else false_values):
+            raise ValueError("host lane CPU/OpenMP configuration differs from plan")
         compiler = invocation_path(Path(cache["CMAKE_CXX_COMPILER"]))
         report["compiler"] = reference(compiler)
         versions["compiler"] = session.run("compiler-version", [str(compiler), "--version"])[
@@ -498,18 +526,43 @@ def execute(args, plan):
             or capability.get("schema") != "rns8_host_detector_capabilities_v1"
             or capability.get("lane") != plan["lane"]
             or capability.get("scope") != "host_only_not_hip_device"
-            or capability.get("openmp_compiled") is not False
+            or capability.get("openmp_compiled") is not bool(args.openmp_archer)
             or capability.get("address_feature") is not (plan["lane"] != "thread")
             or capability.get("thread_feature") is not (plan["lane"] == "thread")
         ):
             raise ValueError("compiled detector features differ from selected host lane")
         report["capability"] = capability
+        openmp = None
+        if args.openmp_archer:
+            openmp = Path(cache["OpenMP_omp_LIBRARY"]).resolve(strict=True)
+            report["openmp_runtime"] = reference(openmp)
+            report["archer_runtime"] = reference(args.openmp_archer)
+            symbols = session.run(
+                "archer-exported-symbols",
+                [str(args.nm), "--dynamic", "--defined-only", str(args.openmp_archer)],
+            )["stdout"]
+            if not re.search(r"\bompt_start_tool\b", symbols):
+                raise ValueError("selected Archer library lacks native OMPT entrypoint")
+        loader_capture = session.run("loaded-runtimes", [control, "--runtime-inventory"])
+        report["loaded_runtimes"] = loaded_inventory(
+            control_document(loader_capture, archer=bool(args.openmp_archer)),
+            loader_capture,
+            executable=Path(control),
+            runtimes=report["runtime_inventory"]["files"],
+            windows_asan=Path(report["windows_asan_dll"]["path"])
+            if plan["system"] == "Windows"
+            else None,
+            openmp=openmp,
+            archer=args.openmp_archer,
+        )
         valid_capture = session.run("valid-control", [control, "valid"], required=False, timeout=60)
         try:
             valid_doc = parse_evidence_json(valid_capture["stdout"])
         except ValueError:
             valid_doc = None
         controls = [valid_result(valid_capture, valid_doc)]
+        sites = detector_sites(ROOT / "tests/controls/host_sanitizer_control.cpp")
+        report["detector_source_sites"] = sites
         modes = {
             "thread": ["race"],
             "address-undefined": ["heap-overread", "signed-overflow"],
@@ -518,10 +571,42 @@ def execute(args, plan):
         for mode in modes:
             controls.append(
                 detector_result(
-                    mode, session.run(mode, [control, mode], required=False, timeout=60)
+                    mode,
+                    session.run(mode, [control, mode], required=False, timeout=60),
+                    source_line=sites[mode],
                 )
             )
         report["detectors"] = controls
+        if args.openmp_archer:
+            valid = session.run(
+                "openmp-valid", [control, "openmp-valid"], required=False, timeout=60
+            )
+            try:
+                document = control_document(valid, archer=True)
+            except ValueError:
+                document = None
+            openmp_controls = [
+                valid_result(valid, document),
+                detector_result(
+                    "openmp-race",
+                    session.run(
+                        "openmp-race", [control, "openmp-race"], required=False, timeout=60
+                    ),
+                    source_line=sites["openmp-race"],
+                ),
+            ]
+            controls.extend(openmp_controls)
+            report["openmp_race_qualification"] = dict(
+                status="passed"
+                if all(row["status"] == "passed" for row in openmp_controls)
+                else "failed",
+                controls=openmp_controls,
+                scope="selected_libomp_archer_controls_and_registered_cpu_tests_not_all_schedules",
+                external_runtime_instrumentation="OMPT_annotations_not_full_access_instrumentation",
+                runtime_suppressions=[],
+            )
+        if any(row["status"] != "passed" for row in controls):
+            raise ValueError("host_detector_sensitivity_failed_before_application_tests")
         allowed = {}
         if args.allowed_skips:
             raw, ref = bounded_read(args.allowed_skips)
@@ -639,6 +724,11 @@ def main(argv=None):
     parser.add_argument("--toolchain", type=Path)
     parser.add_argument("--compiler", type=Path)
     parser.add_argument("--allowed-skips", type=Path)
+    parser.add_argument(
+        "--openmp-archer",
+        type=Path,
+        help="Explicit LLVM Archer library; separate native Linux TSan/OpenMP qualification",
+    )
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--artifact-mib", type=int, default=32768)
@@ -646,6 +736,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         system, lane = PRESETS[args.preset]
+        if args.openmp_archer and (system != "Linux" or lane != "thread"):
+            raise ValueError("Archer/OpenMP qualification requires the native Linux TSan lane")
         if (
             args.jobs not in range(1, 65)
             or not 1 <= args.timeout_seconds <= 14400
@@ -663,6 +755,7 @@ def main(argv=None):
             "compiler",
             "toolchain",
             "allowed_skips",
+            "openmp_archer",
         ):
             path = getattr(args, name)
             if path is not None:
@@ -679,7 +772,10 @@ def main(argv=None):
             str(build),
             "-DPython3_EXECUTABLE=" + sys.executable,
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-            "-DRNS8_ENABLE_CPU_PARALLEL=OFF",
+            "-DRNS8_ENABLE_CPU_PARALLEL=" + ("ON" if args.openmp_archer else "OFF"),
+            "-DRNS8_REQUIRE_OPENMP=" + ("ON" if args.openmp_archer else "OFF"),
+            "-DCMAKE_CXX_COMPILER_LAUNCHER=",
+            "-DCMAKE_C_COMPILER_LAUNCHER=",
             "-DRNS8_BUILD_SHARED=OFF",
             "-DRNS8_BUILD_FUZZERS=OFF",
         ]
@@ -694,6 +790,7 @@ def main(argv=None):
             preset=args.preset,
             system=system,
             lane=lane,
+            openmp_archer=str(args.openmp_archer) if args.openmp_archer else None,
             output=str(output),
             build=str(build),
             configure=command,

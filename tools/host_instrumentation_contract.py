@@ -141,10 +141,26 @@ def symbol_classes(source: str, lane: str) -> list[str]:
     return sorted(name for name, pattern in SYMBOLS[lane].items() if re.search(pattern, source))
 
 
-def detector_result(mode: str, result: dict) -> dict:
+def detector_sites(path: Path) -> dict[str, int]:
+    sites = {}
+    for line, text in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        match = re.search(r"// rns8-detector-site:([a-z-]+)\s*$", text)
+        if match:
+            mode = match[1]
+            if mode not in DIAGNOSTIC or mode in sites:
+                raise ValueError("invalid or repeated native detector source site")
+            sites[mode] = line
+    if set(sites) != set(DIAGNOSTIC):
+        raise ValueError("native detector source sites incomplete")
+    return sites
+
+
+def detector_result(mode: str, result: dict, *, source_line: int) -> dict:
     if mode not in DIAGNOSTIC:
         raise ValueError("unknown detector control")
     rc = result.get("returncode")
+    if type(source_line) is not int or source_line <= 0:
+        raise ValueError("positive native detector source line required")
     source = str(result.get("stdout", "")) + "\n" + str(result.get("stderr", ""))
     if (
         type(rc) is not int
@@ -161,7 +177,16 @@ def detector_result(mode: str, result: dict) -> dict:
     elif (
         rc != EXIT_CODES[mode]
         or not re.search(DIAGNOSTIC[mode], source)
-        or "host_sanitizer_control.cpp" not in source
+        or not re.search(
+            (
+                r"host_sanitizer_control\.cpp:"
+                if mode == "signed-overflow"
+                else r"#0[^\n]*host_sanitizer_control\.cpp:"
+            )
+            + str(source_line)
+            + r"(?=[:\s]|$)",
+            source,
+        )
     ):
         status, reason = "failed", "exit_or_diagnostic_does_not_match_intended_defect"
     else:
@@ -184,6 +209,7 @@ def detector_result(mode: str, result: dict) -> dict:
         reason=reason,
         expected_exit_code=EXIT_CODES[mode],
         actual_returncode=rc,
+        expected_source_line=source_line,
         application_pass_count=0,
         production_latency=False,
         scope="disposable_host_control_not_hip_device",
