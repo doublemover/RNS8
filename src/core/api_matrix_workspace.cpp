@@ -1,4 +1,5 @@
 #include "core/api_internal.hpp"
+#include "core/host_upload_packet.hpp"
 #include "backend_common/locality_schedule.hpp"
 #include "backend_common/allocation_observations.hpp"
 

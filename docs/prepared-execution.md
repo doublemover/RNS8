@@ -529,6 +529,16 @@ it. Upload and readback adapters share admission/retirement while preserving
 their actual direction and phase label. No full host mirror is added to the
 resident matrix. The late-read source control is authored and unexecuted.
 
+Direct-HIP workspace construction snapshots mask and schedule metadata into one
+owned upload packet, preserving device offsets and initialized alignment gaps.
+The packet excludes scratch and replaces the separate cold metadata copies.
+The arena is pending before upload; a successful copy completes it without an
+additional device wait. Failure or exception attempts the defined drain, and an
+uncertain drain poisons the context while retry owners retain both the packet
+and arena. The caller's plan vectors and temporary active-entry list can then
+leave scope safely. Packet layout/overlap/padding/source-independence controls
+are authored; copy-count and performance benefits remain unmeasured.
+
 ### Cleanup and retry ownership
 
 Workspace, prepack-cache, result-cache and sparse-matrix destruction consume the

@@ -152,25 +152,44 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
         workspace->hip_tile_schedule_active_entries_bytes = active_schedule_bytes;
         workspace->hip_tile_schedule_active_entries_count =
             static_cast<uint64_t>(active_entries.size());
+        const auto metadata_bytes = offset;
         workspace->hip_workspace_scratch = assign_region(scratch_bytes);
         workspace->hip_workspace_scratch_bytes = scratch_bytes;
-        if (zero_a_bytes != 0) {
-          status = rns8::detail::hip_direct_copy_host_to_device(
-              ctx->device_id, workspace->hip_zero_a_rows, plan->zero_a_rows.data(), zero_a_bytes);
-        }
-        if (status == RNS8_SUCCESS && zero_b_bytes != 0) {
-          status = rns8::detail::hip_direct_copy_host_to_device(
-              ctx->device_id, workspace->hip_zero_b_cols, plan->zero_b_cols.data(), zero_b_bytes);
-        }
-        if (status == RNS8_SUCCESS && schedule_bytes != 0) {
-          status = rns8::detail::hip_direct_copy_host_to_device(
-              ctx->device_id, workspace->hip_tile_schedule, plan->tile_schedule.data(),
-              schedule_bytes);
-        }
-        if (status == RNS8_SUCCESS && active_schedule_bytes != 0) {
-          status = rns8::detail::hip_direct_copy_host_to_device(
-              ctx->device_id, workspace->hip_tile_schedule_active_entries, active_entries.data(),
-              active_schedule_bytes);
+        if (metadata_bytes) {
+          const auto region = [&](void* device, const void* source, size_t bytes) {
+            return rns8::detail::HostUploadRegion{
+                bytes ? static_cast<size_t>(static_cast<unsigned char*>(device) - arena) : 0,
+                source, bytes};
+          };
+          std::shared_ptr<void> packet;
+          status = rns8::detail::make_host_upload_packet(
+              metadata_bytes,
+              {region(workspace->hip_zero_a_rows, plan->zero_a_rows.data(), zero_a_bytes),
+               region(workspace->hip_zero_b_cols, plan->zero_b_cols.data(), zero_b_bytes),
+               region(workspace->hip_tile_schedule, plan->tile_schedule.data(), schedule_bytes),
+               region(workspace->hip_tile_schedule_active_entries, active_entries.data(),
+                      active_schedule_bytes)},
+              packet);
+          if (status != RNS8_SUCCESS)
+            return status;
+          workspace->arena_owner.mark_pending();
+          const auto observe = [&](rns8_status uploaded) noexcept {
+            if (uploaded == RNS8_SUCCESS ||
+                rns8::detail::hip_direct_synchronize(ctx->device_id) == RNS8_SUCCESS)
+              workspace->arena_owner.mark_completed();
+            else
+              ctx->hip_failure_poisoned = true;
+          };
+          try {
+            // One owned packet covers masks and both schedule directories;
+            // scratch is excluded and success adds no separate device wait.
+            status = rns8::detail::hip_direct_copy_owned_host_to_device(
+                ctx->device_id, arena, std::move(packet), metadata_bytes);
+          } catch (...) {
+            observe(RNS8_INTERNAL_ERROR);
+            throw;
+          }
+          observe(status);
         }
         if (status != RNS8_SUCCESS) {
           (void)release_workspace_resources(*workspace);

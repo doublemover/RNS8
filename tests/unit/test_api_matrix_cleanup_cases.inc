@@ -2,6 +2,7 @@
 #include "core/export_metadata_transaction.hpp"
 #include "core/host_readback_slot.hpp"
 #include "core/host_transfer_payload.hpp"
+#include "core/host_upload_packet.hpp"
 #include "backend_common/completed_observation.hpp"
 #include <array>
 #include <memory>
@@ -461,6 +462,38 @@ TEST_CASE("pageable readback cache reuses complete storage and isolates failed d
   cache.trim(1024);
   CHECK(cache.capacity() == 0);
   CHECK(cache.data() == nullptr);
+}
+
+TEST_CASE("workspace upload packets preserve offsets padding and independent source ownership",
+          "[api][workspace][lifetime]") {
+  using rns8::detail::make_host_upload_packet;
+  std::array<unsigned char, 3> first{1, 2, 3};
+  const std::array<unsigned char, 2> last{4, 5};
+  std::shared_ptr<void> packet;
+  REQUIRE(make_host_upload_packet(16, {{8, last.data(), 2}, {0, first.data(), 3}, {0, nullptr, 0}},
+                                  packet) == RNS8_SUCCESS);
+  first.fill(9); // Device preparation must not borrow the caller's vectors.
+  const auto* bytes = static_cast<const unsigned char*>(packet.get());
+  CHECK(bytes[0] == 1);
+  CHECK(bytes[2] == 3);
+  CHECK(bytes[8] == 4);
+  CHECK(bytes[9] == 5);
+  for (size_t i : {3u, 4u, 5u, 6u, 7u, 10u, 11u, 12u, 13u, 14u, 15u})
+    CHECK(bytes[i] == 0);
+  const auto original = packet.get();
+  const auto rejected = [&](std::initializer_list<rns8::detail::HostUploadRegion> regions) {
+    CHECK(make_host_upload_packet(16, regions, packet) == RNS8_INVALID_ARGUMENT);
+    CHECK(packet.get() == original);
+    CHECK(bytes[0] == 1);
+  };
+  rejected({{0, nullptr, 1}});
+  rejected({{17, first.data(), 0}});
+  rejected({{15, first.data(), 3}});
+  rejected({{0, first.data(), 3}, {2, last.data(), 2}});
+  rejected({{0, nullptr, 0}});
+  CHECK(make_host_upload_packet(0, {{0, first.data(), 3}}, packet) == RNS8_INVALID_ARGUMENT);
+  CHECK(make_host_upload_packet(SIZE_MAX, {{0, first.data(), 3}}, packet) == RNS8_RANGE_ERROR);
+  CHECK(packet.get() == original);
 }
 
 TEST_CASE("small status readbacks publish only after completion and retain failed destinations",
