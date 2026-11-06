@@ -208,7 +208,22 @@ object denominator, every seed replay, bounded discovery and first failure.
 It has not run. Required PR activation follows qualification of sensitivity and
 cost in the deferred batch; no new push-triggered discovery campaign is enabled.
 
+The named corpus also includes row/column and common-K permutations, legal zero
+K padding, physical-padding changes, zero/identity operands, independently
+range-admitted K split partials and sufficient-prefix changes for all six
+arithmetic domains. Every legal combination of repeat/no-write/prepared-refresh
+bits is represented on a nontrivial rectangle; finite/wrap cases exclude the
+RNS-only prepared bit. Each derived input is compared with its own scalar oracle.
+Authored Python controls separately check the mapped mathematical relations and
+ring-correct split recombination. This is an explicit bounded interaction set,
+not exhaustive API-history exploration or support for other layouts.
+
+The [native production mutation registry](native-production-mutations.md) binds
+real signed CRT, export rejection-status and prepared generation mutations to
+three shared-replay assertion cases. An unchanged baseline must pass before
+mutants execute in disposable copies; only the intended public-route assertion
+failure counts as detection. These new witnesses remain unexecuted.
+
 Implementation remains in progress under #101: source-attributed library branch
-witnesses, production wrong-result/status/stale-state mutation witnesses and
-broader lifecycle/metamorphic interactions remain. The new native replay,
-minimizer, inspection and discovery controls are authored but unexecuted.
+witnesses and broader reference-state lifecycle histories remain. Native replay,
+minimizer, object inspection and discovery qualification are deferred.

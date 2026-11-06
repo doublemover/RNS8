@@ -6209,6 +6209,10 @@
           "reference": "native-production-mutations.md"
         },
         {
+          "source": "docs/fuzzing.md",
+          "reference": "native-production-mutations.md"
+        },
+        {
           "source": "docs/host-instrumentation.md",
           "reference": "native-production-mutations.md"
         },

@@ -1,9 +1,14 @@
 # Native production mutations
 
 The authored `tools/native_mutation_session.py` lane builds real CPU library/test
-variants for four exact-source seeds in `metadata/native-production-mutations.json`:
+variants for six exact-source seeds in `metadata/native-production-mutations.json`:
 checked unsigned addition, signed CRT correction, published value generations
-and retry ownership after failed handle close. The ownership case instantiates
+and retry ownership after failed handle close, signed export rejection status
+and stale prepared-input generation admission. The shared native arithmetic
+replay is exercised through actual public CPU calls for wrong-result,
+wrong-status and stale-state sensitivity. These witnesses mutate production
+operations in disposable source copies; their assertions receive no mutant flag.
+The ownership case instantiates
 the maintained production template with fake host operations; it does not call
 a HIP driver or qualify a device failure. No source snapshot, compiler, build,
 Catch discovery/test, baseline or mutant has run in this source pass.
@@ -23,7 +28,7 @@ and prints the commands without creating snapshots or launching subprocesses.
 `--execute` first requires the actual clean committed source worktree. It copies
 bounded tracked regular files into fresh owned source trees; Git metadata,
 external gitlinks, SDKs and old build objects are excluded. One unchanged CPU
-baseline precedes four separate fresh mutant builds of `rns8_tests`. HIP,
+baseline precedes six separate fresh mutant builds of `rns8_tests`. HIP,
 accelerators, transports, OpenMP, optional CPU instructions, sanitizers, coverage,
 shared libraries, tools and benchmarks are explicitly disabled. Every source
 copy and test input is content-bound; mutations preserve unaffected file bytes
@@ -38,7 +43,7 @@ Copied trees remain unknown/dirty for general target provenance, and these
 correctness-only receipts are explicitly non-promotable. They cannot become
 production performance or source-checkout qualification evidence.
 
-Complete discovery and an exact five-case CTest selection are retained. A filter
+Complete discovery and an exact eight-case CTest selection are retained. A filter
 mismatch stops **before** execution. The baseline must pass every selected case;
 the publication seed requires both the reserved publication assertion and the
 real public CPU concurrency route to fail as expected. A mutant only counts as

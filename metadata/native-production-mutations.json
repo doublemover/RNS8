@@ -2,7 +2,7 @@
   "schema": "rns8_native_production_mutations_v1",
   "owner_issue": 103,
   "qualification": "source_authored_no_compiler_baseline_mutant_or_test_executed",
-  "scope": "CPU exact arithmetic/publication and actual templated host ownership with fake operations; no device faults",
+  "scope": "CPU exact arithmetic/publication, shared native fuzz replay result/status/stale-state assertions, and actual templated host ownership with fake operations; no device faults",
   "seeds": [
     {
       "id": "omit-checked-add-overflow-rejection",
@@ -31,6 +31,11 @@
           "name": "CRT reconstruction recovers signed and unsigned bounded values",
           "source": "tests/unit/test_crt.cpp",
           "assertion_marker": "reconstruct_signed"
+        },
+        {
+          "name": "native corpus detects production signed result mutations",
+          "source": "tests/unit/test_fuzz_arithmetic_replay.cpp",
+          "assertion_marker": "replay(value, expected)"
         }
       ],
       "source_sha256": "5affd0f217bea9909b84ff5f0bb24c267af732b232192b5c454e54805b07aae3",
@@ -71,6 +76,38 @@
         }
       ],
       "source_sha256": "9318ec711092619c0937820d36d1ad65195bc834737a60e07ea3587bf291474d",
+      "mandatory": true
+    },
+    {
+      "id": "misclassify-signed-export-preflight",
+      "source": "src/core/api_export.cpp",
+      "source_sha256": "ac9f7397357ce85426f867cea59f7df15e3969775c8dba203d43e88fcb0d64fc",
+      "anchor": "rns8_status rns8_export_i64(",
+      "before": "rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,\n                            int64_t* dst, int64_t ld) {\n  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(\n      rns8::detail::trace::Phase::export_result);\n  return guard_api([&]() -> rns8_status {\n    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {\n      return RNS8_INVALID_ARGUMENT;\n    }\n",
+      "after": "rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,\n                            int64_t* dst, int64_t ld) {\n  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(\n      rns8::detail::trace::Phase::export_result);\n  return guard_api([&]() -> rns8_status {\n    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {\n      return RNS8_RANGE_ERROR;\n    }\n",
+      "tests": [
+        {
+          "name": "native corpus detects production preflight status mutations",
+          "source": "tests/unit/test_fuzz_arithmetic_replay.cpp",
+          "assertion_marker": "replay(value, expected)"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "omit-prepared-a-generation-admission",
+      "source": "src/core/api_prepared.cpp",
+      "source_sha256": "8845c288574ef047bf52d51c02933c051f9c175a1becdc7c42e9650e8a64177c",
+      "anchor": "bool inputs_match(const rns8_prepared_execution& e) {",
+      "before": "return e.a_instance == e.a->matrix_instance_id && e.a_generation == e.a->content_generation &&",
+      "after": "return e.a_instance == e.a->matrix_instance_id &&",
+      "tests": [
+        {
+          "name": "native corpus detects production stale prepared mutations",
+          "source": "tests/unit/test_fuzz_arithmetic_replay.cpp",
+          "assertion_marker": "replay(value, expected)"
+        }
+      ],
       "mandatory": true
     }
   ]

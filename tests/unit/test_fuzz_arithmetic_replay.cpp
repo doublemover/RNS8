@@ -16,6 +16,43 @@ struct FailureScope {
   ~FailureScope() { failure_handler = old; }
 };
 } // namespace
+TEST_CASE("native corpus detects production signed result mutations", "[fuzz][replay][mutation]") {
+  FailureScope failures;
+  ArithmeticCase value;
+  value.m = value.n = value.k = 1;
+  value.prefix = 20;
+  value.a = {uint64_t(-2)};
+  value.b = {3};
+  const auto expected = oracle(value);
+  REQUIRE(expected.admitted);
+  REQUIRE(expected.cells.front() == -6);
+  REQUIRE_NOTHROW(replay(value, expected));
+}
+TEST_CASE("native corpus detects production preflight status mutations",
+          "[fuzz][replay][mutation]") {
+  FailureScope failures;
+  ArithmeticCase value;
+  value.m = value.n = value.k = 1;
+  value.prefix = 20;
+  value.operations = 2;
+  value.a = {2};
+  value.b = {3};
+  const auto expected = oracle(value);
+  REQUIRE(expected.admitted);
+  REQUIRE_NOTHROW(replay(value, expected));
+}
+TEST_CASE("native corpus detects production stale prepared mutations", "[fuzz][replay][mutation]") {
+  FailureScope failures;
+  ArithmeticCase value;
+  value.m = value.n = value.k = 1;
+  value.prefix = 20;
+  value.operations = 4;
+  value.a = {2};
+  value.b = {3};
+  const auto expected = oracle(value);
+  REQUIRE(expected.admitted);
+  REQUIRE_NOTHROW(replay(value, expected));
+}
 TEST_CASE("shared arithmetic replay checks complete CPU results and real lifecycle counts",
           "[fuzz][replay][cpu]") {
   FailureScope failures;

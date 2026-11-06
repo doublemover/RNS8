@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 from pathlib import Path
@@ -170,7 +170,61 @@ def admitted(case: Case) -> bool:
     return factor * max(map(abs, cells)) < product
 
 
+def metamorphic_seeds():
+    """Small explicit relations; every derived case has its own integer oracle."""
+    for semantic in range(6):
+        ring = semantic in (2, 3)
+        base = Case(
+            semantic,
+            2,
+            3,
+            3,
+            (-1, 2, -3, 4, -2, 1) if semantic in (0, 4) else (1, 2, 3, 4, 2, 1),
+            (1, 2, 3, 4, 0, 2, 3, 1, 2),
+            operations=3 if ring else 7,
+            prefix=0 if ring else 20,
+            modulus=6 if semantic == 2 else 0,
+        )
+        cases = {
+            "base": base,
+            "row-permutation": replace(base, a=base.a[base.k :] + base.a[: base.k]),
+            "column-permutation": replace(
+                base,
+                b=tuple(base.b[row * base.n + col] for row in range(base.k) for col in (2, 0, 1)),
+            ),
+            "common-k-permutation": replace(
+                base,
+                a=tuple(base.a[row * base.k + x] for row in range(base.m) for x in (2, 0, 1)),
+                b=tuple(base.b[x * base.n + col] for x in (2, 0, 1) for col in range(base.n)),
+            ),
+            "zero-k-padding": replace(
+                base,
+                k=4,
+                a=tuple(
+                    value for row in range(base.m) for value in (*base.a[row * 3 : row * 3 + 3], 0)
+                ),
+                b=base.b + (0,) * base.n,
+            ),
+            "physical-padding": replace(base, padding_a=7, padding_b=0, padding_c=5),
+            "zero-operand": replace(base, a=(0,) * len(base.a)),
+            "identity-operand": replace(base, b=(1, 0, 0, 0, 1, 0, 0, 0, 1)),
+            "split-k-left": replace(base, k=1, a=(base.a[0], base.a[3]), b=base.b[:3]),
+            "split-k-right": replace(base, k=2, a=base.a[1:3] + base.a[4:6], b=base.b[3:]),
+        }
+        if not ring:
+            cases["sufficient-prefix"] = replace(base, prefix=1)
+        for relation, case in cases.items():
+            if not admitted(case):
+                raise ValueError("metamorphic intermediate lacks its independent range envelope")
+            yield f"metamorphic-{semantic}-{relation}", case
+        # Cover all legal operation-bit combinations against one nontrivial
+        # rectangle, rather than multiplying every semantic boundary together.
+        for operations in range(4 if ring else 8):
+            yield f"history-{semantic}-{operations}", replace(base, operations=operations)
+
+
 def seeds(*, large_k=False):
+    yield from metamorphic_seeds()
     for semantic in range(6):
         ring = semantic in (2, 3)
         yield (

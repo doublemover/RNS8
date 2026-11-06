@@ -4,10 +4,43 @@ from dataclasses import replace
 import struct
 import unittest
 
-from fuzz_cases import Case, HEADER, admitted, decode, encode, expected, seeds
+from fuzz_cases import Case, HEADER, admitted, decode, encode, expected, metamorphic_seeds, seeds
 
 
 class FuzzCases(unittest.TestCase):
+    def test_mapped_metamorphic_relations_keep_independent_valid_intermediates(self):
+        cases = dict(metamorphic_seeds())
+        for semantic in range(6):
+            prefix = f"metamorphic-{semantic}-"
+            base = cases[prefix + "base"]
+            reference = expected(base)
+            self.assertEqual(
+                expected(cases[prefix + "row-permutation"]), reference[3:] + reference[:3]
+            )
+            self.assertEqual(
+                expected(cases[prefix + "column-permutation"]),
+                tuple(reference[row * 3 + col] for row in range(2) for col in (2, 0, 1)),
+            )
+            for relation in ("common-k-permutation", "zero-k-padding", "physical-padding"):
+                self.assertEqual(expected(cases[prefix + relation]), reference)
+            if semantic not in (2, 3):
+                self.assertEqual(expected(cases[prefix + "sufficient-prefix"]), reference)
+            self.assertEqual(expected(cases[prefix + "identity-operand"]), base.a)
+            self.assertEqual(expected(cases[prefix + "zero-operand"]), (0,) * 6)
+            left, right = (
+                expected(cases[prefix + "split-k-" + side]) for side in ("left", "right")
+            )
+            joined = tuple(a + b for a, b in zip(left, right))
+            if semantic in (2, 3):
+                modulus = base.modulus if semantic == 2 else 1 << 64
+                joined = tuple(cell % modulus for cell in joined)
+            self.assertEqual(joined, reference)
+            for operations in range(4 if semantic in (2, 3) else 8):
+                case = cases[f"history-{semantic}-{operations}"]
+                self.assertTrue(admitted(case))
+                self.assertEqual(case.operations, operations)
+                self.assertEqual(expected(case), reference)
+
     def test_wide_zero_product_needs_independently_representable_inputs(self):
         for semantic, limit in ((4, 127), (5, 255)):
             for reverse in (False, True):
