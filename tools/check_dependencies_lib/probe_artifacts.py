@@ -22,3 +22,14 @@ def write(path: Path, value: dict) -> dict:
         json.dump(value, stream, indent=2, allow_nan=False)
         stream.write("\n")
     return snapshot(path)
+
+
+def write_process(path: Path, process: dict) -> dict:
+    # User interruption takes precedence even when retaining its log fails.
+    try:
+        return write(path, process)
+    finally:
+        if process.get("interrupted"):
+            raise InterruptedError(
+                "Dependency probe interrupted; remaining work stopped: " + str(path)
+            )

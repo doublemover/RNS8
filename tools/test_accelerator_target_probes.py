@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from check_dependencies_lib import accelerators as p
+from check_dependencies_lib import probe_artifacts
 from check_dependencies_lib.resolution import selection_context
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -245,6 +246,26 @@ class AcceleratorTargets(unittest.TestCase):
         self.assertFalse(result["primitive_probe_ok"])
         self.assertEqual(result["primitive_probe_status"], "NOT_RUN_MISSING_COMPILER")
         self.assertFalse((self.root / "probes").exists())
+
+    def test_interruption_survives_a_failed_receipt_write(self):
+        def capture(command, **kwargs):
+            result = self.capture(command, **kwargs)
+            result["interrupted"] = True
+            return result
+
+        with (
+            patch.object(p, "run_capture", side_effect=capture) as execute,
+            patch.object(probe_artifacts, "write", side_effect=OSError("inert disk failure")),
+        ):
+            with self.assertRaises(InterruptedError):
+                p.compile_accelerator_target_probes(
+                    "ck",
+                    self.component,
+                    self.root / "probes",
+                    ("gfx1100", "gfx1102"),
+                    str(self.compiler),
+                )
+        self.assertEqual(execute.call_count, 1)
 
 
 if __name__ == "__main__":

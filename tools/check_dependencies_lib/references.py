@@ -17,6 +17,7 @@ from compiler_context import compiler_environment
 from json_evidence import parse_evidence_json
 from process_progress import capture_succeeded, run_capture
 from .probe_artifacts import snapshot as _snapshot, write as _write
+from .probe_artifacts import write_process
 from .resolution import ACTIVE_RESOLUTION
 from .system import repo_root
 
@@ -181,12 +182,8 @@ def reference_compile_probes(requested: bool = False, probe_dir: Path | None = N
                 max_artifact_bytes=256 * 1024**2,
                 return_on_interrupt=True,
             )
-            row["process_receipt"] = _write(directory / "process.json", process)
+            row["process_receipt"] = write_process(directory / "process.json", process)
             row["status"] = "COMPILE_LINK_FAIL"
-            if process.get("interrupted"):
-                row["status"] = "INTERRUPTED"
-                _write(directory / "probe.json", row)
-                raise InterruptedError("reference probe interrupted; no retry or further component")
             if capture_succeeded(process):
                 native_path = build / "reference-probe.json"
                 if native_path.stat().st_size > 65536:
@@ -227,6 +224,8 @@ def reference_compile_probes(requested: bool = False, probe_dir: Path | None = N
             log = build / "exact-reference-link-probe.log"
             if log.is_file():
                 row["link_log"] = _snapshot(log)
+        except InterruptedError:
+            raise
         except (OSError, ValueError) as error:
             row.update(status="PROBE_ERROR", ok=False, detail=str(error))
         _write(directory / "probe.json", row)

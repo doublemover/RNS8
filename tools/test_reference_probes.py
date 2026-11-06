@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 from check_dependencies_lib import references as p
+from check_dependencies_lib import probe_artifacts
 from check_dependencies_lib.readiness import optional_cpp_references
 from check_dependencies_lib.resolution import selection_context
 
@@ -269,6 +270,21 @@ class ReferenceProbes(unittest.TestCase):
                 "-DRNS8_" + name + "_ROOT=" + expected["canonical_root"].replace("\\", "/"), command
             )
         self.assertEqual(command[command.index("-B") + 1], str(self.root / "build with spaces"))
+
+    def test_interruption_stops_even_when_its_receipt_cannot_be_written(self):
+        def capture(command, **kwargs):
+            result = self.capture(command, **kwargs)
+            result["interrupted"] = True
+            return result
+
+        with (
+            selection_context(self.resolution),
+            patch.object(p, "run_capture", side_effect=capture) as execute,
+            patch.object(probe_artifacts, "write", side_effect=OSError("inert disk failure")),
+        ):
+            with self.assertRaises(InterruptedError):
+                p.reference_compile_probes(True)
+        self.assertEqual(execute.call_count, 1)
 
 
 if __name__ == "__main__":

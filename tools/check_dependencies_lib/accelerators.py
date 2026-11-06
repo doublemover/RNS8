@@ -34,7 +34,7 @@ from check_dependencies_lib.resolution import (
 )
 from compiler_context import compiler_environment
 from process_progress import capture_succeeded, run_capture
-from .probe_artifacts import snapshot, write
+from .probe_artifacts import snapshot, write_process
 from check_dependencies_lib.system import (
     compact_output,
     find_command,
@@ -617,9 +617,7 @@ def compile_accelerator_primitive_probe(
         max_artifact_bytes=256 * 1024**2,
         return_on_interrupt=True,
     )
-    receipt = write(root / "process.json", process)
-    if process.get("interrupted"):
-        raise InterruptedError("primitive probe interrupted; remaining targets will not run")
+    receipt = write_process(root / "process.json", process)
     output = process["stdout"] + process["stderr"]
     code = process.get("returncode")
     ok = capture_succeeded(process)
@@ -706,6 +704,8 @@ def compile_accelerator_target_probes(
         directory = run / hashlib.sha256(target.encode()).hexdigest()
         try:
             row = compile_accelerator_primitive_probe(name, component, directory, target, hipcc)
+        except InterruptedError:
+            raise
         except (OSError, ValueError) as error:
             row = primitive_probe_not_run_fields(name, directory, "PROBE_ERROR", str(error), True)
         rows.append({"target": target, **row})
