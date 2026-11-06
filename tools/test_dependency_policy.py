@@ -285,6 +285,24 @@ class Policy(unittest.TestCase):
         self.assertTrue(ck["matches_selected_version"])
         self.assertFalse(ck["matches_selected_pin"])
 
+    def test_host_llvm_archive_lock_is_exact_and_distinct_from_vendor_llvm(self):
+        for mutation in (
+            {"version": "23.1.4"},
+            {"prefix": "../escape"},
+            {"filename": "other.tar.xz"},
+            {"url": "https://example.invalid/llvm.tar.xz"},
+            {"sha256": "bad"},
+            {"download_bytes": True},
+            {"download_bytes": 0},
+            {"download_bytes": 4 * 1024**3},
+        ):
+            policy = deepcopy(self.policy)
+            policy["bootstrap"]["host_llvm_artifacts"][0].update(mutation)
+            self.assertTrue(p.validate_policy(policy))
+        policy = deepcopy(self.policy)
+        policy["bootstrap"]["host_llvm_artifacts"].pop()
+        self.assertTrue(p.validate_policy(policy))
+
     def test_platform_artifact_cannot_disagree_with_its_windows_git_patch(self):
         mutations = (
             {"version": "2.56.0"},

@@ -45,6 +45,27 @@ optional profiling/topology tools. Discovery is not a correctness test.
 not a basic compile. `numactl` and `lstopo` help record topology. RCCL readiness
 is relevant to future distributed paths; today's shard smoke has no collectives.
 
+## Standalone host LLVM candidate
+
+The reviewed LLVM23.1.5 Linux x86_64 archive has a separate opt-in bootstrap:
+
+```sh
+python3 tools/init_host_llvm.py
+python3 tools/init_host_llvm.py --install
+python3 tools/init_host_llvm.py --discover
+```
+
+The default parent is `$XDG_CACHE_HOME/rns8/host-llvm` or
+`~/.cache/rns8/host-llvm`; `--root` or `RNS8_HOST_LLVM_ROOT` overrides it. The JSON
+result contains the complete prefix, compiler and LLVM-tool paths to pass
+explicitly to the host instrumentation/coverage drivers. It verifies archived
+bytes, native format and complete-prefix reuse, preserving modified or foreign
+installations. It executes no compiler and installs no distro packages or
+AMD/ROCm components. The archive is about2.0GB compressed; the expanded-byte
+limit is a budget, not a measured disk requirement. Loader/STL/host ABI and
+project/sanitizer qualification remain pending. This path is distinct from the
+AMD compiler used for HIP kernels.
+
 ## Radeon build and first execution
 
 Choose the actual ROCm root and one target supported by that compiler/device.

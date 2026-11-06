@@ -274,6 +274,52 @@ def validate_policy(value: dict) -> list[str]:
             errors.append("native CMake artifact is not a reviewed exact release archive")
     if platforms != {"windows-amd64", "linux-x86_64"}:
         errors.append("native CMake lock must cover both supported bootstrap platforms")
+    llvm = bootstrap.get("host_llvm_artifacts")
+    refresh = value.get("candidate_refresh_20261105")
+    candidate = refresh.get("host_llvm_latest") if isinstance(refresh, dict) else None
+    version = candidate.get("version") if isinstance(candidate, dict) else None
+    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        errors.append("host LLVM bootstrap needs an exact stable compiler candidate")
+    elif not isinstance(llvm, list) or len(llvm) != 2:
+        errors.append("host LLVM archive lock must cover both supported native platforms")
+    else:
+        platforms = set()
+        for artifact in llvm:
+            if not isinstance(artifact, dict):
+                errors.append("invalid host LLVM archive record")
+                continue
+            key = artifact.get("platform")
+            if (
+                not isinstance(key, str)
+                or key not in {"windows-amd64", "linux-x86_64"}
+                or key in platforms
+            ):
+                errors.append("unsupported/duplicate host LLVM archive platform")
+                continue
+            platforms.add(key)
+            prefix = (
+                "clang+llvm-" + version + "-x86_64-pc-windows-msvc"
+                if key == "windows-amd64"
+                else "LLVM-" + version + "-Linux-X64"
+            )
+            filename = prefix + ".tar.xz"
+            if (
+                artifact.get("component") != "host-llvm"
+                or artifact.get("version") != version
+                or artifact.get("prefix") != prefix
+                or artifact.get("filename") != filename
+                or artifact.get("url")
+                != "https://github.com/llvm/llvm-project/releases/download/llvmorg-"
+                + version
+                + "/"
+                + filename.replace("+", "%2B")
+                or not hexadecimal(artifact.get("sha256"), 64)
+                or type(artifact.get("download_bytes")) is not int
+                or not 0 < artifact["download_bytes"] <= 3 * 1024**3
+            ):
+                errors.append(
+                    "host LLVM artifact differs from the reviewed exact release/size/hash contract"
+                )
     return errors
 
 

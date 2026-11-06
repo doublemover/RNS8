@@ -35,6 +35,29 @@ missing optional tools do not all block a direct-HIP build. It runs no installer
 `--accelerator-probes` separately requests compile/run probes. Driver installation
 and system changes are explicit administrative tasks.
 
+## Standalone host LLVM candidate
+
+For an isolated CPU/ASan/fuzz host compiler, inspect the reviewed LLVM23.1.5
+archive plan first. Install only when requested, then select the returned root
+for the existing host presets:
+
+```powershell
+python tools/init_host_llvm.py
+$llvm = python tools/init_host_llvm.py --install | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'Host LLVM initialization failed' }
+$env:LLVM_ROOT = $llvm.paths.root
+python tools/init_host_llvm.py --discover
+```
+
+The default parent is `%LOCALAPPDATA%/RNS8/dependencies/host-llvm`; `--root` or
+`RNS8_HOST_LLVM_ROOT` chooses another parent. The script verifies complete
+archive/prefix identity and native tool format, and returns exact compiler,
+LLVM-tool and expected resource paths. It preserves existing installations and
+does not run the compiler, install system components, or select AMD's HIP
+compiler. The compressed archive is about0.9GB; the expanded-byte limit is a
+budget, not a measured disk requirement. Native project/CRT/sanitizer
+qualification of this candidate remains pending.
+
 ## Configure and build
 
 Run `python tools/init.py` to select the exact repository Python, detect GPU

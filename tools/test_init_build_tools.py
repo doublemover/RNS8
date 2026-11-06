@@ -17,6 +17,7 @@ import zipfile
 
 import archive_install as archives
 import init_build_tools as native
+import native_archive
 import rocm_sdk as sdk
 
 
@@ -163,7 +164,9 @@ class NativeBuildTools(unittest.TestCase):
 
         for content in (b"verified", b"tampered"):
             destination = self.root / content.decode()
-            with patch.object(native.urllib.request, "urlopen", return_value=Response(content)):
+            with patch.object(
+                native_archive.urllib.request, "urlopen", return_value=Response(content)
+            ):
                 if content == b"verified":
                     native.download(artifact, destination)
                     self.assertEqual(destination.read_bytes(), content)
@@ -172,7 +175,9 @@ class NativeBuildTools(unittest.TestCase):
                         native.download(artifact, destination)
         with (
             patch.object(Response, "geturl", return_value="http://github.com/fixture"),
-            patch.object(native.urllib.request, "urlopen", return_value=Response(b"verified")),
+            patch.object(
+                native_archive.urllib.request, "urlopen", return_value=Response(b"verified")
+            ),
             self.assertRaisesRegex(ValueError, "release hosts"),
         ):
             native.download(artifact, self.root / "bad-origin")

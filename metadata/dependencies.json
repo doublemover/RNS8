@@ -2156,6 +2156,28 @@
         "sha256": "ed85135c5a5135b45e50423cb406dea04ca3338da0b8ef3c9ede963559680be0",
         "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-x86_64.tar.gz"
       }
+    ],
+    "host_llvm_artifacts": [
+      {
+        "component": "host-llvm",
+        "platform": "windows-amd64",
+        "version": "23.1.5",
+        "prefix": "clang+llvm-23.1.5-x86_64-pc-windows-msvc",
+        "filename": "clang+llvm-23.1.5-x86_64-pc-windows-msvc.tar.xz",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/clang%2Bllvm-23.1.5-x86_64-pc-windows-msvc.tar.xz",
+        "sha256": "62fdada7f6fa2b73856486dfbbdba3d2c1882991621615bcb55c60207611c6d4",
+        "download_bytes": 901309624
+      },
+      {
+        "component": "host-llvm",
+        "platform": "linux-x86_64",
+        "version": "23.1.5",
+        "prefix": "LLVM-23.1.5-Linux-X64",
+        "filename": "LLVM-23.1.5-Linux-X64.tar.xz",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/LLVM-23.1.5-Linux-X64.tar.xz",
+        "sha256": "f72edb0b36580ece7f52e23858f00c18fad4e87395ea7ad05d7e55c39f8fc78a",
+        "download_bytes": 2014093084
+      }
     ]
   },
   "prior_supported": {

@@ -4,20 +4,15 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
 import platform
 import sys
 import tarfile
-import tempfile
-import time
-import urllib.parse
-import urllib.request
 import zipfile
 
-from archive_install import extract_tar, extract_zip
+import native_archive
 from check_dependencies_lib.version_policy import load_policy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,39 +48,7 @@ def default_root() -> Path:
 
 
 def installation(root: Path, artifact: dict) -> Path:
-    return root / ("cmake-" + artifact["version"] + "-" + artifact["platform"])
-
-
-def file_hash(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        while chunk := source.read(1024**2):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def prefix_files(prefix: Path) -> dict[str, str]:
-    """Receipts cover the complete prefix, including modules and native binaries."""
-    result = {}
-    expanded = 0
-    for path in prefix.rglob("*"):
-        if len(result) >= MAX_MEMBERS:
-            raise ValueError("Native CMake prefix exceeds member budget")
-        relative = path.relative_to(prefix).as_posix()
-        if path.is_symlink():
-            if not path.resolve().is_relative_to(prefix.resolve()) or not path.exists():
-                raise ValueError("Native CMake prefix contains an escaping or dangling symlink")
-            result[relative] = "symlink:" + path.readlink().as_posix()
-        elif path.is_file():
-            expanded += path.stat().st_size
-            if expanded > MAX_EXTRACT:
-                raise ValueError("Native CMake prefix exceeds byte budget")
-            result[relative] = file_hash(path)
-        elif path.is_dir():
-            result[relative] = "directory"
-        else:
-            raise ValueError("Native CMake prefix contains a special file")
-    return dict(sorted(result.items()))
+    return native_archive.destination(root, "cmake", artifact)
 
 
 def binaries(prefix: Path, artifact: dict) -> dict[str, str]:
@@ -105,94 +68,33 @@ def binaries(prefix: Path, artifact: dict) -> dict[str, str]:
 
 def discover(root: Path | None = None, *, artifact: dict | None = None) -> dict[str, str] | None:
     artifact = selected_artifact() if artifact is None else artifact
-    destination = installation(default_root() if root is None else root, artifact)
-    if not destination.exists():
-        return None
-    if destination.is_symlink() or not destination.is_dir():
-        raise ValueError("Native CMake installation is not an owned directory")
-    receipt = json.loads((destination / RECEIPT).read_text(encoding="utf-8"))
-    prefix = destination / artifact["prefix"]
-    if prefix.is_symlink() or not prefix.is_dir():
-        raise ValueError("Native CMake prefix is not an owned directory")
-    if (
-        not isinstance(receipt, dict)
-        or receipt.get("schema") != "rns8_native_build_tools_v1"
-        or receipt.get("artifact") != artifact
-        or receipt.get("files") != prefix_files(prefix)
-    ):
-        raise ValueError("Native CMake receipt or prefix integrity mismatch; no overlay attempted")
-    return binaries(prefix, artifact)
+    return native_archive.discover(
+        installation(default_root() if root is None else root, artifact),
+        artifact,
+        receipt_name=RECEIPT,
+        schema="rns8_native_build_tools_v1",
+        validate=binaries,
+        max_bytes=MAX_EXTRACT,
+        max_members=MAX_MEMBERS,
+    )
 
 
 def download(artifact: dict, destination: Path) -> None:
-    digest, size = hashlib.sha256(), 0
-    deadline = time.monotonic() + 300
-    with (
-        urllib.request.urlopen(artifact["url"], timeout=60) as source,
-        destination.open("xb") as output,
-    ):
-        endpoint = urllib.parse.urlsplit(source.geturl())
-        if endpoint.scheme != "https" or endpoint.hostname not in {
-            "github.com",
-            "release-assets.githubusercontent.com",
-            "objects.githubusercontent.com",
-        }:
-            raise ValueError("Native CMake download redirected outside the reviewed release hosts")
-        while chunk := source.read(1024**2):
-            size += len(chunk)
-            if size > MAX_DOWNLOAD or time.monotonic() > deadline:
-                raise ValueError("Native CMake download exceeds byte/time budget")
-            digest.update(chunk)
-            output.write(chunk)
-    if not size or digest.hexdigest() != artifact["sha256"]:
-        raise ValueError("Native CMake archive SHA256 mismatch")
+    native_archive.download(artifact, destination, max_bytes=MAX_DOWNLOAD, seconds=300)
 
 
 def install(root: Path | None = None) -> dict[str, str]:
-    artifact = selected_artifact()
-    root = (default_root() if root is None else root).resolve()
-    if existing := discover(root, artifact=artifact):
-        return existing
-    root.mkdir(parents=True, exist_ok=True)
-    destination = installation(root, artifact)
-    # Cooperating initializers cannot publish competing prefixes. Leave unrelated
-    # or failed installations intact and report them instead of repairing in place.
-    lock = root / (destination.name + ".install-lock")
-    lock.mkdir()
-    try:
-        if existing := discover(root, artifact=artifact):
-            return existing
-        with tempfile.TemporaryDirectory(prefix=".cmake-stage-", dir=root) as scratch:
-            staging = Path(scratch)
-            archive = staging / artifact["filename"]
-            download(artifact, archive)
-            payload = staging / "payload"
-            extractor = extract_zip if archive.suffix == ".zip" else extract_tar
-            extractor(
-                archive,
-                payload,
-                "Windows" if artifact["platform"] == "windows-amd64" else "Linux",
-                max_bytes=MAX_EXTRACT,
-                max_members=MAX_MEMBERS,
-            )
-            prefix = payload / artifact["prefix"]
-            if list(payload.iterdir()) != [prefix]:
-                raise ValueError("Native CMake archive must contain exactly its reviewed prefix")
-            binaries(prefix, artifact)
-            receipt = dict(
-                schema="rns8_native_build_tools_v1",
-                artifact=artifact,
-                files=prefix_files(prefix),
-                qualification="installed_not_project_qualified",
-            )
-            with (payload / RECEIPT).open("x", encoding="utf-8") as output:
-                output.write(json.dumps(receipt, indent=2) + "\n")
-            if destination.exists():
-                raise ValueError("Native CMake destination appeared during installation")
-            payload.rename(destination)
-        return binaries(destination / artifact["prefix"], artifact)
-    finally:
-        lock.rmdir()
+    return native_archive.install(
+        default_root() if root is None else root,
+        selected_artifact(),
+        namespace="cmake",
+        receipt_name=RECEIPT,
+        schema="rns8_native_build_tools_v1",
+        validate=binaries,
+        downloader=download,
+        max_bytes=MAX_EXTRACT,
+        max_members=MAX_MEMBERS,
+    )
 
 
 def main(argv=None) -> int:

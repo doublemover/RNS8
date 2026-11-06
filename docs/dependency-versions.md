@@ -75,6 +75,19 @@ Downloads and extraction have byte, member and path limits shared with SDK
 provisioning. This source implementation still awaits offline controls and
 project qualification. The policy also records Git for Windows2.56.0.windows.4 and host LLVM23.1.5 candidates
 separately from installed tools and AMD's matched compiler.
+The standalone host LLVM candidate now has explicit Windows AMD64 and Linux
+x86_64 archive locks with official release asset SHA256 and byte counts. Its
+bootstrap shares bounded download, extraction, complete-prefix receipts,
+verified reuse and atomic publication with the native CMake adapter. Gzip/xz
+archives use the same path/link/member/expanded-byte admission. The default
+host-LLVM command is a write-free plan; installation and integrity discovery
+are separate explicit modes, with no compiler/runtime execution or automatic
+PATH/registry/SDK changes. Setup commands belong to the
+[Windows](platform-windows.md#standalone-host-llvm-candidate) and
+[Linux](platform-linux.md#standalone-host-llvm-candidate) guides. Published hashes
+are integrity inputs; release signatures and project compatibility remain
+unqualified. The retained clang-tidy23.1.4 analysis wheel remains a separate
+native-analysis selection.
 
 Fresh quality environments install the shared hashed build-tool requirements
 as well as formatter/type/analyzer locks, including selected pip26.3. The
