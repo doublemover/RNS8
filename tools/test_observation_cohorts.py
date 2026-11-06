@@ -30,6 +30,24 @@ def write_all(root, captures):
 
 
 class ProcessObservations(unittest.TestCase):
+    def test_cache_dirty_composition_splits_implementations_but_process_handles_do_not(self):
+        from test_incremental_result_cache_report import public_cache_capture
+
+        observations = []
+        for extent in (16, 32):
+            base = public_cache_capture("hip-direct", 800, "public_result_cache_candidate", True)
+            base["incremental_result_cache"]["dirty_regions"][0]["row_extent"] = extent
+            records = runs(base)
+            for ordinal, record in enumerate(records):
+                cache = record["incremental_result_cache"]
+                cache["a_matrix_instance_id"] = 101 + ordinal
+                cache["b_matrix_instance_id"] = 201 + ordinal
+                cache["result_cache_key_fingerprint"] = 301 + ordinal
+            observations.extend(records)
+        cohorts = aggregate_captures(observations)
+        self.assertEqual(len(cohorts), 2)
+        self.assertTrue(all(evidence(view)["independent_runs"] == 2 for view in cohorts))
+
     def test_grouped_task_composition_and_execution_strategy_are_not_merged(self):
         from test_benchmark_schema_support_grouped import as_grouped_dispatch_capture
 

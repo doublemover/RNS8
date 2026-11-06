@@ -307,6 +307,17 @@ and `many_small_grouped_report.py --diagnostic-binding` receipts. The new loader
 order, copied-ID, filename, noise, warmup and companion controls are authored but
 unexecuted; these source changes establish no new measured gain.
 
+Result-cache recommendations now use the shared report-facing comparison
+reader. Named cache-contract groups are partitioned by complete work, source
+and physical execution environment. Each public candidate needs independent
+production cohorts, all-process companions, complete numerical coverage and a
+matched full-recompute implementation. Its gain must reach 1.10× and exceed
+the observed noise margin. Excluded optional comparisons remain visible without
+changing a qualified pair; missing or incompatible required evidence yields no
+ratio. Dirty-region composition and cache policy remain distinct implementation
+identities. Supply `incremental_result_cache_report.py --diagnostic-binding`
+receipts. New parser controls remain unexecuted.
+
 ## Promotion boundaries
 
 - CPU success and static/host arithmetic tests do not qualify GPU code.

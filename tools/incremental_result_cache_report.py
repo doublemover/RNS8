@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
-from reference_verdict import CPUReferenceIndex
 from review_contract import COMPLETE_COMPARISON_STATUSES, FINAL_COMPARISON_STATUSES
+from diagnostic_companion import load_bindings
+from observation_cohorts import partition_rows, phase_median
+from report_comparison import ComparisonPolicy, ReportCohorts
+from timing_eligibility import capture_identity
 
 import argparse
 import json
@@ -12,13 +15,14 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_sweep_lib.capture_metadata import backend_id, median_phase
+from benchmark_sweep_lib.capture_metadata import backend_id
 from report_capture_inputs import load_report_captures
 
 
 DEFAULT_OUT_DIR = Path("temp") / "incremental-result-cache-reports"
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.10
+COMPARISON_POLICY = ComparisonPolicy("same_completed_output_result_cache_vs_full_recompute_v1")
 
 
 def _scenario(capture: dict[str, Any]) -> dict[str, Any]:
@@ -94,22 +98,18 @@ def _candidate_role(capture: dict[str, Any]) -> str:
     return str(_cache(capture).get("candidate_role") or "comparison_candidate")
 
 
-def _end_to_end(capture: dict[str, Any]) -> float | None:
-    value = median_phase(capture, "end_to_end")
-    return float(value) if isinstance(value, (int, float)) and value > 0 else None
-
-
 def _has_gpu_events(capture: dict[str, Any]) -> bool:
     timing = capture.get("timing_metadata")
     return isinstance(timing, dict) and timing.get("gpu_event_timing") is True
 
 
 def row_for_capture(
-    capture: dict[str, Any], references: CPUReferenceIndex | None = None
+    capture: dict[str, Any],
+    cohorts: ReportCohorts,
 ) -> dict[str, Any]:
     cache = _cache(capture)
-    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
-    blockers: list[str] = list(numerical.blockers)
+    numerical = cohorts.numerical(capture)
+    blockers: list[str] = cohorts.admission(capture)
     if cache.get("enabled") is not True:
         blockers.append("incremental_result_cache_not_enabled")
     promotion_scope = _promotion_scope(capture)
@@ -175,6 +175,7 @@ def row_for_capture(
             if cache.get(key) is not False:
                 blockers.append(f"{key}_must_be_false")
     return {
+        **cohorts.metadata(capture, COMPARISON_POLICY),
         "path": _path(capture),
         "backend": backend_id(capture),
         "semantics": capture.get("semantics"),
@@ -187,7 +188,7 @@ def row_for_capture(
         "checksum_policy": cache.get("checksum_policy"),
         "numerical_reference": numerical.to_json(),
         "partial_recompute_policy": cache.get("partial_recompute_policy"),
-        "median_end_to_end_us": median_phase(capture, "end_to_end"),
+        "median_end_to_end_us": phase_median(capture),
         "promotion_scope": promotion_scope,
         "public_contract_available": public_contract,
         "candidate_role": _candidate_role(capture),
@@ -199,91 +200,105 @@ def row_for_capture(
 
 
 def _public_group_decision(
-    rows: list[dict[str, Any]], captures: list[dict[str, Any]]
+    rows: list[dict[str, Any]], captures: list[dict[str, Any]], cohorts: ReportCohorts
 ) -> tuple[str, list[str], dict[str, Any]]:
-    blockers: list[str] = []
-    cpu_rows = [capture for capture in captures if backend_id(capture) in {"cpu", "cpu-reference"}]
+    by_identity = {row["capture_sha256"]: row for row in rows}
+    cpu_rows = [
+        capture
+        for capture in captures
+        if backend_id(capture) in {"cpu", "cpu-reference"}
+        and not by_identity[capture_identity(capture)]["blockers"]
+    ]
     full_rows = [
         capture
         for capture in captures
         if backend_id(capture) == "hip-direct"
         and _candidate_role(capture)
         in {"same_backend_full_recompute_baseline", "full_recompute_baseline"}
+        and not by_identity[capture_identity(capture)]["blockers"]
     ]
-    candidate_rows = [
+    candidates = [
         capture
         for capture in captures
         if backend_id(capture) == "hip-direct" and _public_contract(_cache(capture))
     ]
-    if not cpu_rows:
-        blockers.append("cpu_baseline_missing")
-    if not full_rows:
-        blockers.append("same_backend_full_recompute_baseline_missing")
-    if not candidate_rows:
-        blockers.append("public_result_cache_candidate_missing")
-    for row in rows:
-        blockers.extend(row["blockers"])
-    best_speedup = None
-    if full_rows and candidate_rows:
-        full_median = min((_end_to_end(capture) for capture in full_rows), default=None)
-        candidate_median = min((_end_to_end(capture) for capture in candidate_rows), default=None)
-        if full_median and candidate_median:
-            best_speedup = full_median / candidate_median
-            if best_speedup < PROMOTION_SPEEDUP_THRESHOLD:
+    comparisons = []
+    for candidate in candidates:
+        baseline = cohorts.best(full_rows, candidate, COMPARISON_POLICY)
+        pair = cohorts.compare(candidate, baseline, COMPARISON_POLICY)
+        blockers = list(pair["blockers"]) + by_identity[capture_identity(candidate)]["blockers"]
+        if not cpu_rows:
+            blockers.append("cpu_baseline_missing")
+        if baseline is None:
+            blockers.append("same_backend_full_recompute_baseline_missing")
+        ratio = pair["speedup"] if not blockers else None
+        noise = pair["required_speedup_margin"]
+        if ratio is not None:
+            if ratio < PROMOTION_SPEEDUP_THRESHOLD:
                 blockers.append("speedup_below_1_10x")
-        else:
-            blockers.append("median_end_to_end_missing")
-    for capture in candidate_rows:
-        cache = _cache(capture)
-        if cache.get("final_exact_comparison_status") not in FINAL_COMPARISON_STATUSES:
-            blockers.append("candidate_exact_comparison_missing")
-        if cache.get("stale_rejection_covered") is not True:
-            blockers.append("candidate_stale_rejection_coverage_missing")
-        if not _has_gpu_events(capture):
-            blockers.append("candidate_gpu_events_missing")
-    blockers = sorted(set(blockers))
-    details = {
-        "cpu_baseline_count": len(cpu_rows),
-        "full_recompute_baseline_count": len(full_rows),
-        "public_candidate_count": len(candidate_rows),
-        "best_speedup_vs_full_recompute": best_speedup,
-        "speedup_threshold": PROMOTION_SPEEDUP_THRESHOLD,
-    }
-    if blockers:
-        return (
-            "blocked"
-            if "public_result_cache_candidate_missing" in blockers
-            else "keep experimental",
-            blockers,
-            details,
+            if noise is None or ratio <= noise:
+                blockers.append("speedup_not_separated_from_observed_noise")
+        comparisons.append(
+            dict(
+                candidate=_path(candidate),
+                baseline=_path(baseline) if baseline is not None else None,
+                comparison=pair,
+                speedup_vs_full_recompute=ratio,
+                required_speedup_margin=max(PROMOTION_SPEEDUP_THRESHOLD, noise)
+                if noise is not None
+                else None,
+                blockers=sorted(set(blockers)),
+            )
         )
-    return "promote", blockers, details
+    ready = [item for item in comparisons if not item["blockers"]]
+    qualified_ratios = [
+        item["speedup_vs_full_recompute"]
+        for item in comparisons
+        if item["speedup_vs_full_recompute"] is not None
+    ]
+    details = dict(
+        cpu_baseline_count=len(cpu_rows),
+        full_recompute_baseline_count=len(full_rows),
+        public_candidate_count=len(candidates),
+        comparisons=comparisons,
+        best_speedup_vs_full_recompute=max(qualified_ratios, default=None),
+        speedup_threshold=PROMOTION_SPEEDUP_THRESHOLD,
+    )
+    if ready:
+        return "promote", [], details
+    blockers = sorted({value for item in comparisons for value in item["blockers"]})
+    if not candidates:
+        blockers.append("public_result_cache_candidate_missing")
+    return "keep experimental" if candidates else "blocked", blockers, details
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
+def build_report_from_captures(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
     captures = [
         capture
-        for capture in load_report_captures(paths)
+        for capture in captures
         if isinstance(capture.get("incremental_result_cache"), dict)
         and capture.get("incremental_result_cache", {}).get("enabled") is True
     ]
-    grouped: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
-    grouped_captures: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(
-        list
-    )
-    references = CPUReferenceIndex(captures)
-    for capture in captures:
+    cohorts = ReportCohorts(captures, diagnostic_bindings)
+    observations = {capture_identity(capture): capture for capture in cohorts.observations}
+    scoped = defaultdict(list)
+    for capture in cohorts.observations:
         key = _contract_key(capture)
-        grouped[key].append(row_for_capture(capture, references))
-        grouped_captures[key].append(capture)
+        scoped[key].append(row_for_capture(capture, cohorts))
+    grouped = []
+    for key, scoped_rows in sorted(scoped.items()):
+        for partition, rows in partition_rows(scoped_rows):
+            grouped.append((key, partition, rows))
     groups: list[dict[str, Any]] = []
     promotable: list[dict[str, Any]] = []
-    for key, rows in sorted(grouped.items(), key=lambda item: str(item[0])):
+    for key, partition, rows in grouped:
         blockers = sorted({blocker for row in rows for blocker in row["blockers"]})
         public_group = any(row["public_contract_available"] for row in rows)
         if public_group:
             decision, promotion_blockers, details = _public_group_decision(
-                rows, grouped_captures[key]
+                rows, [observations[row["capture_sha256"]] for row in rows], cohorts
             )
             promotion_scope = "public_result_cache_contract_candidate"
             status = decision
@@ -301,6 +316,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             status = "blocked" if blockers else "research-ready"
             details = {}
         group = {
+            "work_contract_key": partition[0],
+            "source_identity": partition[1],
+            "comparison_environment": partition[2],
             "family": key[0],
             "name": key[1],
             "source_identity_policy": key[2],
@@ -335,7 +353,7 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     )
     return {
         "schema": "rns8_incremental_result_cache_report_v1",
-        "policy": "research_rows_blocked_public_contract_candidates_require_1_10x_same_backend_speedup",
+        "policy": "qualified_same_work_production_cohorts_require_1_10x_and_observed_noise_separation",
         "rank75_gate_complete": bool(groups) and not any(group["blockers"] for group in groups),
         "rank78_gate_complete": bool(promotable),
         "promotable_result_cache_candidate_count": len(promotable),
@@ -343,6 +361,10 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             {
                 "family": group["family"],
                 "name": group["name"],
+                "work_contract_key": group["work_contract_key"],
+                "source_identity": group["source_identity"],
+                "comparison_environment": group["comparison_environment"],
+                "comparisons": group["details"].get("comparisons", []),
                 "best_speedup_vs_full_recompute": group["details"].get(
                     "best_speedup_vs_full_recompute"
                 ),
@@ -351,11 +373,18 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         ],
         "promotion_status": promotion_status,
         "capture_count": len(captures),
+        "observation_cohort_count": len(cohorts.observations),
         "group_count": len(groups),
         "blocker_counts": dict(sorted(blocker_counts.items())),
         "promotion_blocker_counts": dict(sorted(promotion_blocker_counts.items())),
         "groups": groups,
     }
+
+
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
+    return build_report_from_captures(
+        load_report_captures(paths), diagnostic_bindings=diagnostic_bindings
+    )
 
 
 def write_report(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
@@ -395,8 +424,9 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     args = parser.parse_args()
-    report = build_report(args.captures)
+    report = build_report(args.captures, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

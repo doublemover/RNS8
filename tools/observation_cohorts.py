@@ -149,6 +149,16 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
         fallback = comparison_environment(capture)
         timing = capture.get("timing_metadata") or {}
         implementation = {
+            "incremental_result_cache": {
+                field: value
+                for field, value in (capture.get("incremental_result_cache") or {}).items()
+                if field
+                not in (
+                    "a_matrix_instance_id",
+                    "b_matrix_instance_id",
+                    "result_cache_key_fingerprint",
+                )
+            },
             "grouped_dispatch_strategy": (capture.get("grouped_dispatch") or {}).get(
                 "execution_strategy"
             ),
