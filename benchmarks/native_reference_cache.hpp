@@ -237,12 +237,12 @@ std::string integer_reference_key(uint64_t m, uint64_t n, uint64_t k, const std:
                         std::to_string(n) + "\n" + std::to_string(k) + "\n" +
                         reference_input_digest(a) + "\n" + reference_input_digest(b) + "\n");
 }
-template <class T, class Output>
+template <class T, class Output, class Key, class Cell>
 NativeReferenceVerification
-verify_integer_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const std::vector<T>& a,
-                         const std::vector<T>& b, const std::vector<Output>& c,
-                         ReferenceContract contract, const std::string& cache_directory,
-                         bool populate, uint64_t cache_byte_budget = reference_cache_max_bytes) {
+verify_integer_reference_output(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc,
+                                const std::vector<Output>& c, ReferenceContract contract,
+                                const std::string& cache_directory, bool populate, Key&& key,
+                                Cell&& cell, uint64_t cache_byte_budget) {
   [[maybe_unused]] rns8::detail::trace::Scope trace_oracle(
       rns8::detail::trace::Phase::oracle, {0, 0, rns8::detail::trace::Role::oracle});
   static_assert(std::is_integral_v<T> && std::is_integral_v<Output>);
@@ -251,8 +251,8 @@ verify_integer_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const
   validate_reference_contract<T>(contract);
   const uint64_t limbs = contract.limbs;
   if (!m || !n || !k || ldc < n || m > UINT64_MAX / k || k > UINT64_MAX / n ||
-      m > UINT64_MAX / ldc / limbs || a.size() != m * k || b.size() != k * n ||
-      c.size() < m * ldc * limbs || cache_byte_budget < reference_cache_header_bytes + 8 ||
+      m > UINT64_MAX / ldc / limbs || c.size() < m * ldc * limbs ||
+      cache_byte_budget < reference_cache_header_bytes + 8 ||
       cache_byte_budget > reference_cache_max_bytes)
     throw std::invalid_argument("reference cache shape or byte budget");
   const bool cacheable = m <= (cache_byte_budget - reference_cache_header_bytes) / 8 / limbs / n;
@@ -260,13 +260,8 @@ verify_integer_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const
     throw std::invalid_argument("reference population needs a directory and a cacheable payload");
   const bool finite = contract.semantics == ReferenceSemantics::finite_ring ||
                       contract.semantics == ReferenceSemantics::finite_field;
-  if (finite)
-    for (const auto* input : {&a, &b})
-      for (T value : *input)
-        if (uint32_t(value) >= contract.modulus)
-          throw std::invalid_argument("noncanonical finite reference input");
   NativeReferenceVerification result;
-  result.key = integer_reference_key(m, n, k, a, b, contract);
+  result.key = key();
   std::string payload;
   const auto path = std::filesystem::path(cache_directory) / (result.key + ".bin");
   const bool hit = !cache_directory.empty() && std::filesystem::exists(path);
@@ -284,9 +279,7 @@ verify_integer_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const
                   upper = sign ? cpp_int((storage >> 1) - 1) : cpp_int(storage - 1);
     for (uint64_t row = 0; row < m; ++row)
       for (uint64_t col = 0; col < n; ++col) {
-        cpp_int expected = 0;
-        for (uint64_t q = 0; q < k; ++q)
-          expected += cpp_int(a[row * k + q]) * b[q * n + col];
+        cpp_int expected = cell(row, col);
         if (finite)
           expected %= contract.modulus;
         else if (contract.semantics == ReferenceSemantics::wrap64)
@@ -324,6 +317,81 @@ verify_integer_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const
   result.elapsed_us =
       std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
   return result;
+}
+template <class T, class Output>
+NativeReferenceVerification
+verify_integer_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const std::vector<T>& a,
+                         const std::vector<T>& b, const std::vector<Output>& c,
+                         ReferenceContract contract, const std::string& cache_directory,
+                         bool populate, uint64_t cache_byte_budget = reference_cache_max_bytes) {
+  return verify_integer_reference_output<T>(
+      m, n, k, ldc, c, contract, cache_directory, populate,
+      [&] {
+        if (a.size() != m * k || b.size() != k * n)
+          throw std::invalid_argument("reference cache input shape");
+        if (contract.semantics == ReferenceSemantics::finite_ring ||
+            contract.semantics == ReferenceSemantics::finite_field)
+          for (const auto* input : {&a, &b})
+            for (T value : *input)
+              if (uint32_t(value) >= contract.modulus)
+                throw std::invalid_argument("noncanonical finite reference input");
+        return integer_reference_key(m, n, k, a, b, contract);
+      },
+      [&](uint64_t row, uint64_t col) {
+        boost::multiprecision::cpp_int expected = 0;
+        for (uint64_t q = 0; q < k; ++q)
+          expected += boost::multiprecision::cpp_int(a[row * k + q]) * b[q * n + col];
+        return expected;
+      },
+      cache_byte_budget);
+}
+
+template <class T>
+NativeReferenceVerification verify_bounded_chain_reference(
+    uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const std::vector<T>& a,
+    const std::vector<T>& b, const std::vector<T>& d, const std::vector<T>& c,
+    ReferenceContract contract, const std::string& cache_directory, bool populate,
+    uint64_t cache_byte_budget = reference_cache_max_bytes) {
+  static_assert(std::is_integral_v<T> && sizeof(T) == 8);
+  using boost::multiprecision::cpp_int;
+  if (contract.semantics != ReferenceSemantics::bounded_i64 &&
+      contract.semantics != ReferenceSemantics::bounded_u64)
+    throw std::invalid_argument("two-product native chain requires an explicit bounded contract");
+  std::vector<T> producer_row;
+  uint64_t current_row = UINT64_MAX;
+  return verify_integer_reference_output<T>(
+      m, n, k, ldc, c, contract, cache_directory, populate,
+      [&] {
+        if (n > UINT64_MAX / n || a.size() != m * k || b.size() != k * n || d.size() != n * n)
+          throw std::invalid_argument("bounded chain reference input shape");
+        return detail::sha256(std::string("rns8-bounded-two-product-chain-reference-v1\n") +
+                              reference_semantic_name(contract.semantics) + "\n" +
+                              std::to_string(m) + "\n" + std::to_string(n) + "\n" +
+                              std::to_string(k) + "\n" + reference_input_digest(a) + "\n" +
+                              reference_input_digest(b) + "\n" + reference_input_digest(d) + "\n");
+      },
+      [&](uint64_t row, uint64_t col) {
+        // The producer is recomputed from A/B, never from a GPU intermediate.
+        // One row bounds scratch to O(N); a cache hit never allocates this row.
+        if (current_row != row) {
+          producer_row.resize(size_t(n));
+          for (uint64_t j = 0; j < n; ++j) {
+            cpp_int expected = 0;
+            for (uint64_t q = 0; q < k; ++q)
+              expected += cpp_int(a[row * k + q]) * b[q * n + j];
+            if (expected < cpp_int(std::numeric_limits<T>::lowest()) ||
+                expected > cpp_int(std::numeric_limits<T>::max()))
+              throw std::overflow_error("bounded chain producer exceeds native output width");
+            producer_row[j] = expected.template convert_to<T>();
+          }
+          current_row = row;
+        }
+        cpp_int expected = 0;
+        for (uint64_t q = 0; q < n; ++q)
+          expected += cpp_int(producer_row[q]) * d[q * n + col];
+        return expected;
+      },
+      cache_byte_budget);
 }
 template <class T>
 NativeReferenceVerification

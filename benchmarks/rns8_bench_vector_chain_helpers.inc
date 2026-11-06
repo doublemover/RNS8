@@ -266,6 +266,26 @@ BenchmarkResult run_vector_to_rns_chain(rns8_context* vector_ctx, rns8_context* 
   rns8_destroy_workspace(vector_workspace);
   rns8_destroy_plan(direct_plan);
   rns8_destroy_plan(vector_plan);
+  if (args.verify_native_output || args.sustained_batches || args.streaming_overlap ||
+      !args.reference_cache_directory.empty()) {
+    using namespace rns8::bench;
+    ReferenceContract contract{ReferenceSemantics::bounded_i64};
+    switch (args.semantics) {
+    case BenchSemantics::BoundedI64:
+      contract.semantics = ReferenceSemantics::bounded_i64;
+      break;
+    case BenchSemantics::BoundedU64:
+      contract.semantics = ReferenceSemantics::bounded_u64;
+      break;
+    default:
+      throw std::invalid_argument("vector-to-RNS chain reference requires bounded semantics");
+    }
+    append_integer_reference(result.native_reference,
+                             verify_bounded_chain_reference(
+                                 args.m, args.n, args.k, ldc, A, B, D, C, contract,
+                                 args.reference_cache_directory, args.populate_reference_cache));
+  }
+
   return result;
 #endif
 }

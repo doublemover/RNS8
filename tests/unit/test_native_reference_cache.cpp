@@ -18,6 +18,92 @@ struct ReferenceDirectory {
 };
 } // namespace
 
+TEST_CASE("bounded chain references cover both products and retain logical output padding",
+          "[native-reference-cache][vector-chain]") {
+  using namespace rns8::bench;
+  ReferenceDirectory directory;
+  const ReferenceContract contract{ReferenceSemantics::bounded_i64};
+  const std::vector<int64_t> a{1, -2, 3, 4}, b{5, 6, -7, 8}, d{2, 3, -4, 5};
+  const std::vector<int64_t> c{78, 7, -991, -226, 211, -992};
+  const auto first = verify_bounded_chain_reference(2, 2, 2, 3, a, b, d, c, contract,
+                                                    directory.path.string(), true);
+  CHECK(first.method == "boost_cpp_int_full_integer_reference");
+  CHECK(first.checked_cells == 4);
+  const auto hit = verify_bounded_chain_reference(2, 2, 2, 3, a, b, d, c, contract,
+                                                  directory.path.string(), false);
+  CHECK(hit.method == "cached_full_integer_reference");
+  CHECK(hit.key == first.key);
+  CHECK(hit.payload_sha256 == first.payload_sha256);
+  CHECK(c[2] == -991);
+  CHECK(c[5] == -992);
+  auto bad = c;
+  bad[4] ^= 1;
+  REQUIRE_THROWS(verify_bounded_chain_reference(2, 2, 2, 3, a, b, d, bad, contract,
+                                                directory.path.string(), false));
+  // A cached final result must be invalidated by any of the three actual inputs.
+  auto changed_a = a;
+  changed_a[0] += 1;
+  const auto a_result = verify_bounded_chain_reference(
+      2, 2, 2, 3, changed_a, b, d, std::vector<int64_t>{64, 52, 0, -226, 211, 0}, contract,
+      directory.path.string(), false);
+  auto changed_b = b;
+  changed_b[0] += 1;
+  const auto b_result = verify_bounded_chain_reference(
+      2, 2, 2, 3, a, changed_b, d, std::vector<int64_t>{80, 10, 0, -220, 220, 0}, contract,
+      directory.path.string(), false);
+  auto changed_d = d;
+  changed_d[0] += 1;
+  const auto d_result = verify_bounded_chain_reference(2, 2, 2, 3, a, b, changed_d,
+                                                       std::vector<int64_t>{97, 7, 0, -239, 211, 0},
+                                                       contract, directory.path.string(), false);
+  CHECK(a_result.key != first.key);
+  CHECK(b_result.key != first.key);
+  CHECK(d_result.key != first.key);
+  const auto streamed = verify_bounded_chain_reference(2, 2, 2, 3, a, b, d, c, contract, "", false,
+                                                       reference_cache_header_bytes + 8);
+  CHECK(streamed.method == "boost_cpp_int_full_integer_reference");
+  CHECK(streamed.checked_cells == 4);
+  CHECK(streamed.payload_sha256.empty());
+}
+
+TEST_CASE("bounded chain oracles reject intermediate overflow even when the final result cancels",
+          "[native-reference-cache][vector-chain]") {
+  using namespace rns8::bench;
+  const ReferenceContract signed_contract{ReferenceSemantics::bounded_i64};
+  const ReferenceContract unsigned_contract{ReferenceSemantics::bounded_u64};
+  const std::vector<int64_t> maximum{INT64_MAX, INT64_MAX}, ones{1, 1}, zero{0};
+  REQUIRE_THROWS(verify_bounded_chain_reference(1, 1, 2, 1, maximum, ones, zero, zero,
+                                                signed_contract, "", false));
+  const std::vector<int64_t> minimum{INT64_MIN}, one{1};
+  CHECK(verify_bounded_chain_reference(1, 1, 1, 1, minimum, one, one, minimum, signed_contract, "",
+                                       false)
+            .checked_cells == 1);
+  const std::vector<uint64_t> umaximum{UINT64_MAX}, uone{1}, utwo{2}, uzero{0};
+  CHECK(verify_bounded_chain_reference(1, 1, 1, 1, umaximum, uone, uone, umaximum,
+                                       unsigned_contract, "", false)
+            .checked_cells == 1);
+  REQUIRE_THROWS(verify_bounded_chain_reference(1, 1, 1, 1, umaximum, uone, utwo, uzero,
+                                                unsigned_contract, "", false));
+  REQUIRE_THROWS(verify_bounded_chain_reference(1, 1, 1, 1, minimum, one, one, minimum,
+                                                unsigned_contract, "", false));
+  REQUIRE_THROWS(verify_bounded_chain_reference(1, 1, 1, 1, minimum, one, one, minimum,
+                                                {ReferenceSemantics::wrap64}, "", false));
+}
+
+TEST_CASE("unsigned bounded chain references support output padding and reject malformed shapes",
+          "[native-reference-cache][vector-chain]") {
+  using namespace rns8::bench;
+  const ReferenceContract contract{ReferenceSemantics::bounded_u64};
+  const std::vector<uint64_t> a{2}, b{3, 4}, d{5, 7, 11, 13}, c{118, 146, 991};
+  CHECK(verify_bounded_chain_reference(1, 2, 1, 3, a, b, d, c, contract, "", false).checked_cells ==
+        2);
+  REQUIRE_THROWS(verify_bounded_chain_reference(1, 2, 1, 1, a, b, d, c, contract, "", false));
+  REQUIRE_THROWS(verify_bounded_chain_reference(1, 2, 1, 3, a, b, a, c, contract, "", false));
+  REQUIRE_THROWS(
+      verify_bounded_chain_reference(UINT64_MAX, 2, 2, 3, a, b, d, c, contract, "", false));
+  REQUIRE_THROWS(verify_bounded_chain_reference(1, 2, 1, 3, a, b, d, c, contract, "", true));
+}
+
 TEST_CASE("integer reference observations bind ordered task coverage before final policy status",
           "[native-reference-cache]") {
   using namespace rns8::bench;

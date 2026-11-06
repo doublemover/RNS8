@@ -194,6 +194,18 @@ checks take 139.6–142.3 ms each. These are observations of reference work outs
 production intervals. The library's arithmetic and routing are unchanged, and
 the helper remains C++17-compatible.
 
+The vector/native-to-RNS chain now has a separate complete `(A × B) × D`
+postflight oracle for requested native verification or reference caching. Its
+cache key binds all three actual inputs, shape and explicit signed/unsigned
+bounded semantics. A miss computes the producer independently with Boost,
+checks its native-width boundary, and compares every final logical output using
+one row of scratch; a hit compares the bound final payload. Verification runs
+after timed iterations and GPU-owner cleanup. The plain GEMM cache format and
+keys are preserved through a shared output/cache comparison helper. New chain
+padding, three-input invalidation, signed/unsigned boundaries, intermediate
+overflow, cache-hit and streaming-budget controls are authored but unexecuted;
+CPU and HIP-enabled benchmark frontend compilation passes.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).
