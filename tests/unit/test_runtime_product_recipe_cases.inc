@@ -424,6 +424,27 @@ TEST_CASE("public product recipe owns its arena and exposes exact prefix decisio
   desc.node_count = 4;
   desc.max_arena_and_lift_bytes = UINT64_MAX;
   desc.prefix_policy = RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;
+  const auto creation_refs = ctx->prepared_references;
+  const auto input_refs = a->prepared_references;
+  const auto creation_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
+    auto invalid = desc;
+    invalid.prefix_policy = raw_ffi_enum<rns8_product_prefix_policy>(bits);
+    auto* const canary = reinterpret_cast<rns8_product_recipe*>(uintptr_t(1));
+    auto* rejected = canary;
+    CHECK(rns8_create_product_recipe(ctx, &invalid, &rejected) == RNS8_INVALID_ARGUMENT);
+    CHECK(rejected == canary);
+    const uint32_t output_id = desc.input_count + desc.node_count - 1;
+    CHECK(rns8_create_product_recipe_outputs(ctx, &invalid, &output_id, 1, &rejected) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rejected == canary);
+    CHECK(ctx->prepared_references == creation_refs);
+    CHECK(a->prepared_references == input_refs);
+  }
+  const auto rejected_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(rejected_allocations.allocate_calls == creation_allocations.allocate_calls);
+  CHECK(rejected_allocations.h2d_calls == creation_allocations.h2d_calls);
+  CHECK(rejected_allocations.d2h_calls == creation_allocations.d2h_calls);
   rns8_product_recipe* recipe = nullptr;
   REQUIRE(rns8_create_product_recipe(ctx, &desc, &recipe) == RNS8_SUCCESS);
   rns8_product_recipe_execution_info execution_info{sizeof(execution_info), RNS8_ABI_VERSION};
@@ -432,8 +453,19 @@ TEST_CASE("public product recipe owns its arena and exposes exact prefix decisio
   CHECK(execution_info.stream_prepared == 0);
   CHECK(rns8_set_product_recipe_execution_policy(recipe, RNS8_PRODUCT_EXECUTION_ORDERED_HIP) ==
         RNS8_UNSUPPORTED_BACKEND);
-  CHECK(rns8_set_product_recipe_execution_policy(recipe, static_cast<rns8_product_execution_policy>(
-                                                             UINT32_MAX)) == RNS8_INVALID_ARGUMENT);
+  const auto execution_before = execution_info;
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
+    CHECK(rns8_set_product_recipe_execution_policy(
+              recipe, raw_ffi_enum<rns8_product_execution_policy>(bits)) == RNS8_INVALID_ARGUMENT);
+    REQUIRE(rns8_get_product_recipe_execution_info(recipe, &execution_info) == RNS8_SUCCESS);
+    CHECK(execution_info.policy == execution_before.policy);
+    CHECK(execution_info.stream_prepared == execution_before.stream_prepared);
+    CHECK(execution_info.retained_control_device_bytes ==
+          execution_before.retained_control_device_bytes);
+    CHECK(execution_info.retained_control_pinned_bytes ==
+          execution_before.retained_control_pinned_bytes);
+    CHECK(execution_info.stream_wait_calls == execution_before.stream_wait_calls);
+  }
   REQUIRE(rns8_set_product_recipe_execution_policy(
               recipe, RNS8_PRODUCT_EXECUTION_SYNCHRONOUS_WRAPPERS) == RNS8_SUCCESS);
   REQUIRE(rns8_get_product_recipe_execution_info(recipe, &execution_info) == RNS8_SUCCESS);

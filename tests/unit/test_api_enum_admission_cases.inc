@@ -1,3 +1,108 @@
+TEST_CASE("prepared CRT option rejection preserves caller handles and live source state",
+          "[api][abi][enum][host][crt]") {
+  auto* ctx = create_cpu_context();
+  auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 1);
+  desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  const auto md = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+  rns8_matrix* matrix = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &md, &matrix) == RNS8_SUCCESS);
+  const int64_t one = 1;
+  REQUIRE(rns8_pack_i64(ctx, matrix, &one, 1, 0) == RNS8_SUCCESS);
+  const auto generation = matrix->content_generation;
+  const auto residues = matrix->residues;
+  const auto refs = ctx->prepared_references, plan_refs = plan->prepared_references,
+             source_refs = matrix->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  rns8_crt_export_desc crt{};
+  crt.struct_size = sizeof(crt);
+  crt.abi_version = RNS8_ABI_VERSION;
+  crt.algorithm = RNS8_CRT_GARNER;
+  crt.limb_count = 1;
+  crt.max_scratch_bytes = UINT64_MAX;
+  rns8_quarter_crt_desc quarter{};
+  quarter.struct_size = sizeof(quarter);
+  quarter.abi_version = RNS8_ABI_VERSION;
+  quarter.limb_count = 1;
+  quarter.max_scratch_bytes = UINT64_MAX;
+  auto reject_crt = [&](const rns8_crt_export_desc* invalid) {
+    auto* const canary = reinterpret_cast<rns8_crt_export*>(uintptr_t(1));
+    auto* owner = canary;
+    CHECK(rns8_prepare_crt_export(ctx, plan, matrix, invalid, &owner) == RNS8_INVALID_ARGUMENT);
+    CHECK(owner == canary);
+  };
+  auto reject_quarter = [&](const rns8_quarter_crt_desc* invalid) {
+    auto* const canary = reinterpret_cast<rns8_quarter_crt_export*>(uintptr_t(1));
+    auto* owner = canary;
+    CHECK(rns8_prepare_quarter_crt_export(ctx, plan, matrix, invalid, &owner) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(owner == canary);
+  };
+  for (bool poisoned : {false, true}) {
+    ctx->hip_failure_poisoned = poisoned;
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 5u}) {
+      auto invalid = crt;
+      invalid.algorithm = raw_ffi_enum<rns8_crt_algorithm>(bits);
+      reject_crt(&invalid);
+    }
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 3u}) {
+      auto invalid_crt = crt;
+      auto invalid_quarter = quarter;
+      invalid_crt.mode = invalid_quarter.mode = bits;
+      reject_crt(&invalid_crt);
+      reject_quarter(&invalid_quarter);
+    }
+    for (uint32_t bits : {0u, UINT32_MAX, UINT32_C(0x80000000), 33u}) {
+      auto invalid_crt = crt;
+      auto invalid_quarter = quarter;
+      invalid_crt.limb_count = invalid_quarter.limb_count = bits;
+      reject_crt(&invalid_crt);
+      reject_quarter(&invalid_quarter);
+    }
+    for (uint32_t bits : {1u, UINT32_MAX, UINT32_C(0x80000000)}) {
+      auto invalid = crt;
+      invalid.producer_order = bits;
+      reject_crt(&invalid);
+    }
+    // A rejected size prefix must not expose a version/payload outside this allocation.
+    alignas(rns8_crt_export_desc) uint64_t short_crt = sizeof(uint64_t);
+    alignas(rns8_quarter_crt_desc) uint64_t short_quarter = sizeof(uint64_t);
+    reject_crt(reinterpret_cast<const rns8_crt_export_desc*>(&short_crt));
+    reject_quarter(reinterpret_cast<const rns8_quarter_crt_desc*>(&short_quarter));
+    CHECK(ctx->prepared_references == refs);
+    CHECK(plan->prepared_references == plan_refs);
+    CHECK(matrix->prepared_references == source_refs);
+    CHECK(matrix->content_generation == generation);
+    CHECK(matrix->residues == residues);
+    ctx->hip_failure_poisoned = false;
+  }
+  const auto rejected = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(rejected.allocate_calls == allocations.allocate_calls);
+  CHECK(rejected.free_calls == allocations.free_calls);
+  CHECK(rejected.h2d_calls == allocations.h2d_calls);
+  CHECK(rejected.d2h_calls == allocations.d2h_calls);
+  for (auto algorithm : {RNS8_CRT_GARNER, RNS8_CRT_DIRECT, RNS8_CRT_BALANCED, RNS8_CRT_GROUP_LOCAL,
+                         RNS8_CRT_GROUP_SPLIT}) {
+    crt.algorithm = algorithm;
+    rns8_crt_export* owner = nullptr;
+    REQUIRE(rns8_prepare_crt_export(ctx, plan, matrix, &crt, &owner) == RNS8_SUCCESS);
+    uint64_t output = UINT64_MAX;
+    REQUIRE(rns8_export_crt_limbs(owner, &output, 1) == RNS8_SUCCESS);
+    CHECK(output == 1);
+    REQUIRE(rns8_destroy_crt_export(owner) == RNS8_SUCCESS);
+  }
+  rns8_quarter_crt_export* owner = nullptr;
+  REQUIRE(rns8_prepare_quarter_crt_export(ctx, plan, matrix, &quarter, &owner) == RNS8_SUCCESS);
+  uint64_t output = UINT64_MAX;
+  REQUIRE(rns8_export_quarter_crt_limbs(owner, &output, 1) == RNS8_SUCCESS);
+  CHECK(output == 1);
+  REQUIRE(rns8_destroy_quarter_crt_export(owner) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("raw streaming schedule values preserve public query output", "[api][abi][enum][host]") {
   rns8_stream_gemm_desc desc{};
   desc.struct_size = sizeof(desc);

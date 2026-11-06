@@ -264,3 +264,13 @@ the concrete owner share that source predicate; compilation, exact semantic
 support, current 4B<=M certificate and device binding remain independent gates.
 No native-vector or byte-limb storage is treated as centered residues. Broader
 producer correctness cases are authored but unexecuted in this development pass.
+
+Both prepared CRT constructors preserve the caller's handle on failure and
+publish it only after preparation succeeds. Descriptor header, algorithm/mode,
+limb count and producer-order rejection precede backend routing or resource
+acquisition. A malformed descriptor therefore reports `INVALID_ARGUMENT` even
+when its requested backend is unavailable; a valid unsupported route retains
+`UNSUPPORTED_BACKEND`. Authored CPU controls cover raw unknown algorithm bits,
+short backing allocations, malformed scalar windows, unchanged source state and
+handle canaries, plus all five checked algorithms and quarter-range exports.
+Their execution remains part of the deferred validation batch.

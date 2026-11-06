@@ -15,13 +15,11 @@ rns8_status rns8_prepare_quarter_crt_export(rns8_context* ctx, const rns8_plan* 
                                             rns8_quarter_crt_export** out) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!ctx || !plan || !source || !desc || !out)
+    if (!ctx || !plan || !source || !out || !minimum_abi_header(desc) || desc->mode > 2 ||
+        !desc->limb_count || desc->limb_count > 32)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     if (!quarter_crt_backend_supported(plan->backend))
       return RNS8_UNSUPPORTED_BACKEND;
-    if (!minimum_abi_header(desc) || desc->mode > 2 || !desc->limb_count || desc->limb_count > 32)
-      return RNS8_INVALID_ARGUMENT;
     if (source->in_flight_writer)
       return RNS8_BUSY;
     if (!exact_wide_semantics(plan->desc.semantics) ||

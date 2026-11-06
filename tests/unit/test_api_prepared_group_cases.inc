@@ -36,12 +36,20 @@ TEST_CASE("heterogeneous prepared groups preflight all tasks before executing", 
   for (auto& binding : native_bindings)
     binding = {sizeof(binding), RNS8_ABI_VERSION, 1, nullptr};
   CHECK(rns8_prepare_native_group(group, &native, native_bindings, 2) == RNS8_UNSUPPORTED_BACKEND);
-  CHECK(rns8_prepare_native_group_dispatch(group, &native, native_bindings, 2,
-                                           RNS8_NATIVE_DISPATCH_NATIVE_OR_ENCODED_UNIFORM,
-                                           nullptr) == RNS8_UNSUPPORTED_BACKEND);
-  CHECK(rns8_prepare_native_group_dispatch(group, &native, native_bindings, 2,
-                                           static_cast<rns8_native_dispatch_policy>(UINT32_MAX),
-                                           nullptr) == RNS8_INVALID_ARGUMENT);
+  for (auto policy : {RNS8_NATIVE_DISPATCH_NATIVE_OR_ENCODED_UNIFORM, RNS8_NATIVE_DISPATCH_GENERIC})
+    CHECK(rns8_prepare_native_group_dispatch(group, &native, native_bindings, 2, policy, nullptr) ==
+          RNS8_UNSUPPORTED_BACKEND);
+  const auto native_refs = ctx->prepared_references;
+  const auto native_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 3u})
+    CHECK(rns8_prepare_native_group_dispatch(group, &native, native_bindings, 2,
+                                             raw_ffi_enum<rns8_native_dispatch_policy>(bits),
+                                             nullptr) == RNS8_INVALID_ARGUMENT);
+  CHECK(ctx->prepared_references == native_refs);
+  const auto after_native_rejection = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after_native_rejection.allocate_calls == native_allocations.allocate_calls);
+  CHECK(after_native_rejection.h2d_calls == native_allocations.h2d_calls);
+  CHECK(after_native_rejection.d2h_calls == native_allocations.d2h_calls);
   rns8_native_group_dispatch_info dispatch_info{sizeof(dispatch_info), RNS8_ABI_VERSION};
   CHECK(rns8_get_native_group_dispatch_info(group, &dispatch_info) == RNS8_INVALID_ARGUMENT);
   native.claim_chunk = 33;

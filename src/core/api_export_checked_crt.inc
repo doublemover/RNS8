@@ -116,12 +116,13 @@ rns8_status rns8_prepare_crt_export(rns8_context* ctx, const rns8_plan* plan,
                                     rns8_crt_export** out) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!out)
-      return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
-    if (!ctx || !plan || !source || !desc || !minimum_abi_header(desc) ||
+    if (!ctx || !plan || !source || !out || !minimum_abi_header(desc) ||
         desc->algorithm > RNS8_CRT_GROUP_SPLIT || desc->mode > 2 || !desc->limb_count ||
         desc->limb_count > 32)
+      return RNS8_INVALID_ARGUMENT;
+    const uint32_t groups = (plan->prefix + 7) / 8;
+    if ((desc->algorithm != RNS8_CRT_GROUP_SPLIT && desc->producer_order) ||
+        desc->producer_order >= 2 * groups)
       return RNS8_INVALID_ARGUMENT;
     if (!checked_crt_backend_supported(plan->backend))
       return RNS8_UNSUPPORTED_BACKEND;
@@ -137,10 +138,6 @@ rns8_status rns8_prepare_crt_export(rns8_context* ctx, const rns8_plan* plan,
                                                   desc->algorithm, gpu, desc->max_scratch_bytes);
     if (resources.status != RNS8_SUCCESS)
       return resources.status;
-    const uint32_t groups = (plan->prefix + 7) / 8;
-    if ((desc->algorithm != RNS8_CRT_GROUP_SPLIT && desc->producer_order) ||
-        desc->producer_order >= 2 * groups)
-      return RNS8_INVALID_ARGUMENT;
     if (!plan->arithmetic_guard || ctx->prepared_references == UINT64_MAX ||
         plan->prepared_references == UINT64_MAX || source->prepared_references == UINT64_MAX)
       return RNS8_RANGE_ERROR;

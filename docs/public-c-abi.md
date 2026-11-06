@@ -14,6 +14,14 @@ must explicitly have fixed uint32_t backing. Unmodeled public data exports,
 anonymous members, bitfields and function-like public macros fail review
 until their policy and probes are implemented.
 
+Representation/layout coverage does not establish semantic admission. The real
+CPU dispatcher controls separately exercise raw all-bits, high-bit and adjacent
+invalid values against live handles, with valid-mode and unsupported-backend
+controls. The current source pass extends those checks to prepared CRT options,
+product prefix/execution policies and native-group dispatch policy. New controls
+are authored and await the combined runtime/sanitizer batch; the remaining
+external enum/flag inventory is still under review.
+
 The registry's Windows x86_64 LLP64 entry is a compiler-front-end candidate,
 not a native-consumer qualification result. Linux LP64 and other supported
 architectures need their own deliberately reviewed native-target entries;
