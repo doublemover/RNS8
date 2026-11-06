@@ -497,6 +497,7 @@ RNS8_API rns8_status rns8_submit_prepared_group_hip_graph(rns8_prepared_group* g
  * Slots retain completion records until explicitly released. Caller serializes
  * host access; ordinary execution/refresh on pool-owned handles returns BUSY.
  * use_owned_graph is 0 (stream) or 1 (already captured owned graph).
+ * Invalid count/array/graph-selector arguments preserve the caller's pool handle.
  * BUSY admission preserves token and slot outputs. Any accepted epoch, including
  * enqueue failure, leases its returned slot until terminal observation/release. */
 typedef struct rns8_prepared_pool rns8_prepared_pool;
@@ -1046,6 +1047,8 @@ RNS8_API rns8_status rns8_plan_pipeline(const rns8_context*, const rns8_pipeline
 /* Explicit finite signed-nibble research owner. Default GEMM is unchanged.
  * mode0 packs B in each tile; mode1 retains v1 packed B. Preparation probes
  * the actual device code object once. Mutating B invalidates the owner.
+ * Malformed descriptor/header/mode arguments preserve the caller's handle;
+ * admitted unsupported-provider or resource failures clear it before preparation.
  * On undrainable preparation failure *out retains a cleanup-only owner; callers
  * must use checked destroy, which remains retryable. No scalar fallback. */
 typedef struct rns8_int4_recipe rns8_int4_recipe;
@@ -1784,6 +1787,8 @@ typedef struct rns8_locality_info {
   uint64_t output_read_write_bytes;
   uint64_t permutation_fingerprint;
 } rns8_locality_info;
+/* A missing/malformed locality descriptor preserves *out; admitted provider or
+ * resource failures clear it before workspace preparation. */
 RNS8_API rns8_status rns8_create_locality_workspace(rns8_context* ctx, const rns8_plan* plan,
                                                     const rns8_locality_desc* desc,
                                                     rns8_workspace** out);

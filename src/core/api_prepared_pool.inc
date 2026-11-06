@@ -35,9 +35,9 @@ rns8_status rns8_create_prepared_pool(rns8_prepared_execution* const* executions
   return guard_api([&]() -> rns8_status {
     if (!out)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     if (!executions || !count || count > 64 || use_owned_graph > 1)
       return RNS8_INVALID_ARGUMENT;
+    *out = nullptr;
     auto pool = std::make_unique<rns8_prepared_pool>();
     pool->slots.reserve(count);
     pool->graph = use_owned_graph != 0;

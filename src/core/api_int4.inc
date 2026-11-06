@@ -85,9 +85,9 @@ rns8_status rns8_prepare_int4_recipe(rns8_context* ctx, const rns8_plan* plan, c
     using namespace rns8::detail;
     if (!out)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     if (!ctx || !plan || !b || !desc || !minimum_abi_header(desc) || desc->mode > 1)
       return RNS8_INVALID_ARGUMENT;
+    *out = nullptr;
     if (ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;
     if (b->in_flight_writer)

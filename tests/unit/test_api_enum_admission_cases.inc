@@ -149,12 +149,22 @@ TEST_CASE("raw locality order values reject with live CPU context and plan",
   const auto references = ctx->prepared_references;
   const auto plan_references = plan->prepared_references;
   const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  auto* const locality_canary = reinterpret_cast<rns8_workspace*>(uintptr_t(1));
+  rns8_workspace* malformed = locality_canary;
+  CHECK(rns8_create_locality_workspace(ctx, plan, nullptr, &malformed) == RNS8_INVALID_ARGUMENT);
+  CHECK(malformed == locality_canary);
+  alignas(rns8_locality_desc) uint64_t short_locality = sizeof(uint64_t);
+  CHECK(rns8_create_locality_workspace(ctx, plan,
+                                       reinterpret_cast<const rns8_locality_desc*>(&short_locality),
+                                       &malformed) == RNS8_INVALID_ARGUMENT);
+  CHECK(malformed == locality_canary);
   for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 4u}) {
     locality.order = raw_ffi_enum<rns8_locality_order>(bits);
-    rns8_workspace* workspace = nullptr;
+    auto* const canary = reinterpret_cast<rns8_workspace*>(uintptr_t(1));
+    rns8_workspace* workspace = canary;
     CHECK(rns8_create_locality_workspace(ctx, plan, &locality, &workspace) ==
           RNS8_INVALID_ARGUMENT);
-    CHECK(workspace == nullptr);
+    CHECK(workspace == canary);
     CHECK(ctx->prepared_references == references);
     CHECK(plan->prepared_references == plan_references);
   }
@@ -680,6 +690,135 @@ TEST_CASE("raw roles graph tags and arithmetic methods reject with live CPU owne
   for (auto* matrix : {imag, c, b, a})
     REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
+TEST_CASE("raw INT4 pool integrity and lift selectors preserve admitted CPU owners",
+          "[api][abi][enum][host][prepared]") {
+  auto* ctx = create_cpu_context();
+  auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 1);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  auto md = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+  rns8_matrix *a = nullptr, *b = nullptr, *c = nullptr;
+  for (auto** matrix : {&a, &b, &c}) {
+    REQUIRE(rns8_create_matrix(ctx, &md, matrix) == RNS8_SUCCESS);
+    const int64_t value = 7;
+    REQUIRE(rns8_pack_i64(ctx, *matrix, &value, 1, 1) == RNS8_SUCCESS);
+  }
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  rns8_prepared_execution* execution = nullptr;
+  REQUIRE(rns8_prepare_gemm(ctx, plan, a, b, c, workspace, &execution) == RNS8_SUCCESS);
+  rns8_prepared_execution* members[] = {execution};
+  const auto references = ctx->prepared_references, plan_refs = plan->prepared_references,
+             a_refs = a->prepared_references, b_refs = b->prepared_references,
+             c_refs = c->prepared_references, work_refs = workspace->prepared_references;
+  const auto c_generation = c->content_generation;
+  const auto residues = c->residues;
+  const auto proof = rns8::detail::api::prepared_proof_observations(execution);
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  rns8_int4_desc int4{};
+  int4.struct_size = sizeof(int4);
+  int4.abi_version = RNS8_ABI_VERSION;
+  int4.max_preparation_bytes = UINT64_MAX;
+  rns8_exact_lift_options lift{};
+  lift.struct_size = sizeof(lift);
+  lift.abi_version = RNS8_ABI_VERSION;
+  lift.target_prefix = 1;
+  lift.max_total_scratch_bytes = UINT64_MAX;
+  rns8_native_integrity_options integrity{};
+  integrity.struct_size = sizeof(integrity);
+  integrity.abi_version = RNS8_ABI_VERSION;
+  integrity.max_scratch_bytes = UINT64_MAX;
+  for (bool poisoned : {false, true}) {
+    ctx->hip_failure_poisoned = poisoned;
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
+      auto invalid_int4 = int4;
+      invalid_int4.mode = bits;
+      auto* const int4_canary = reinterpret_cast<rns8_int4_recipe*>(uintptr_t(1));
+      auto* int4_owner = int4_canary;
+      CHECK(rns8_prepare_int4_recipe(ctx, plan, b, &invalid_int4, &int4_owner) ==
+            RNS8_INVALID_ARGUMENT);
+      CHECK(int4_owner == int4_canary);
+      auto* const pool_canary = reinterpret_cast<rns8_prepared_pool*>(uintptr_t(1));
+      auto* pool = pool_canary;
+      CHECK(rns8_create_prepared_pool(members, 1, bits, &pool) == RNS8_INVALID_ARGUMENT);
+      CHECK(pool == pool_canary);
+      for (unsigned field = 0; field < 3; ++field) {
+        auto invalid = integrity;
+        if (field == 0)
+          invalid.mode = bits;
+        if (field == 1)
+          invalid.flags = bits == 2 ? 1 : bits;
+        if (field == 2)
+          invalid.reserved = bits == 2 ? 1 : bits;
+        CHECK(rns8_set_prepared_native_integrity(execution, &invalid) == RNS8_INVALID_ARGUMENT);
+      }
+      for (unsigned field = 0; field < 2; ++field) {
+        auto invalid = lift;
+        if (field == 0)
+          invalid.algorithm = bits;
+        else
+          invalid.flags = bits == 2 ? 1 : bits;
+        auto* const canary = reinterpret_cast<rns8_prepared_execution*>(uintptr_t(1));
+        auto* owner = canary;
+        CHECK(rns8_prepare_exact_lift_hip(ctx, a, &invalid, &owner) == RNS8_INVALID_ARGUMENT);
+        CHECK(owner == canary);
+      }
+    }
+    alignas(rns8_int4_desc) uint64_t short_desc = sizeof(uint64_t);
+    auto* const canary = reinterpret_cast<rns8_int4_recipe*>(uintptr_t(1));
+    auto* owner = canary;
+    CHECK(rns8_prepare_int4_recipe(ctx, plan, b,
+                                   reinterpret_cast<const rns8_int4_desc*>(&short_desc),
+                                   &owner) == RNS8_INVALID_ARGUMENT);
+    CHECK(owner == canary);
+    CHECK(ctx->prepared_references == references);
+    CHECK(plan->prepared_references == plan_refs);
+    CHECK(a->prepared_references == a_refs);
+    CHECK(b->prepared_references == b_refs);
+    CHECK(c->prepared_references == c_refs);
+    CHECK(workspace->prepared_references == work_refs);
+    CHECK(c->content_generation == c_generation);
+    CHECK(c->residues == residues);
+    CHECK_FALSE(workspace->in_flight);
+    ctx->hip_failure_poisoned = false;
+  }
+  const auto rejected = rns8::detail::api::prepared_proof_observations(execution);
+  CHECK(rejected.builds == proof.builds);
+  CHECK(rejected.reuses == proof.reuses);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.free_calls == allocations.free_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  for (uint32_t mode : {0u, 1u}) {
+    int4.mode = mode;
+    rns8_int4_recipe* owner = nullptr;
+    CHECK(rns8_prepare_int4_recipe(ctx, plan, b, &int4, &owner) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(owner == nullptr);
+    rns8_prepared_pool* pool = nullptr;
+    CHECK(rns8_create_prepared_pool(members, 1, mode, &pool) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(pool == nullptr);
+    lift.algorithm = mode;
+    rns8_prepared_execution* lifted = nullptr;
+    CHECK(rns8_prepare_exact_lift_hip(ctx, a, &lift, &lifted) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(lifted == nullptr);
+  }
+  CHECK(rns8_set_prepared_native_integrity(execution, &integrity) == RNS8_SUCCESS);
+  integrity.mode = 1;
+  CHECK(rns8_set_prepared_native_integrity(execution, &integrity) == RNS8_UNSUPPORTED_BACKEND);
+  rns8_completion_token token{};
+  REQUIRE(rns8_execute_prepared(execution, &token) == RNS8_SUCCESS);
+  uint64_t output = 0;
+  REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, &output, 1, 1) == RNS8_SUCCESS);
+  CHECK(output == 49);
+  REQUIRE(rns8_destroy_prepared_execution(execution) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
+  for (auto* matrix : {c, b, a})
+    REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
