@@ -10,7 +10,7 @@ import tempfile
 from itertools import permutations
 
 import wrap64_direct_hip_tuning_report as report
-from test_benchmark_schema_support import (
+from test_benchmark_schema_support_chains_wrap64 import (
     as_hip_graph_full_wrap64_capture,
     as_wrap64_rocwmma_candidate_capture,
 )

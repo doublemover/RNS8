@@ -19,14 +19,16 @@ from diagnostic_companion import (
     validate_binding,
 )
 from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
-from test_benchmark_schema_support import (
+from test_benchmark_schema_support_chains_wrap64 import (
     as_reused_pack_capture,
     as_reused_a_capture,
-    add_helper_lane_fields,
     as_hip_graph_full_bounded_capture,
     as_hip_graph_full_finite_capture,
     as_hip_graph_full_exact_wide_capture,
     as_hip_graph_full_wrap64_capture,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
 )
 
 FIXTURES = Path(__file__).parents[1] / "tests/fixtures/benchmark_schema"

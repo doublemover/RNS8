@@ -12,11 +12,13 @@ from pathlib import Path
 
 import tile_shape_report
 from benchmark_schema import validate_capture
-from test_benchmark_schema_support import (
-    add_helper_lane_fields,
-    apply_int32_accumulator_contract,
+from test_benchmark_schema_support_core import (
     expect_valid,
     summary,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+    apply_int32_accumulator_contract,
     with_accumulator_key_fields,
 )
 
