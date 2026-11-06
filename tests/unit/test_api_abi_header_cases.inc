@@ -74,6 +74,20 @@ TEST_CASE("public descriptor admission reads the size prefix before version or p
     CHECK(c == 17);
     return status;
   });
+  check_short_descriptor<rns8_basis_desc>([](const auto* input) {
+    auto* const canary = reinterpret_cast<rns8_basis*>(uintptr_t(1));
+    auto* out = canary;
+    const auto status = rns8_create_basis(input, &out);
+    CHECK(out == canary);
+    return status;
+  });
+  check_short_descriptor<rns8_matrix_desc>([&](const auto* input) {
+    auto* const canary = reinterpret_cast<rns8_matrix*>(uintptr_t(1));
+    auto* out = canary;
+    const auto status = rns8_create_basis_matrix(ctx, nullptr, input, &out);
+    CHECK(out == canary);
+    return status;
+  });
   check_short_descriptor<rns8_matrix_desc>([&](const auto* input) {
     rns8_matrix* out = nullptr;
     const auto status = rns8_create_matrix(ctx, input, &out);

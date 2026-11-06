@@ -35,6 +35,15 @@ scratch, plus compact host output staging. Matrices and fixed descriptor/runtime
 metadata are outside those scratch budgets. There is no nested pinned allocation
 and no device allocation in an execution call.
 
+Basis descriptor admission checks the readable size prefix before version or
+payload fields. Unknown semantic/backend tags and reserved flag bits reject with
+`INVALID_ARGUMENT` before provider routing; known unsupported providers remain
+distinct. Plan construction and capability/resource queries preserve caller
+outputs on malformed preflight. The selector admits every candidate's plan and
+price tags before cohort filtering, so an ineligible price cannot hide malformed
+input. These raw-representation and short-allocation controls are authored but
+await the final runtime/sanitizer batch.
+
 The native packing functions accept explicit signedness, padded host inputs and
 optional stable source versions. They verify the exact maximum magnitude before
 staging a write. Signed packing handles `INT64_MIN` through unsigned magnitude

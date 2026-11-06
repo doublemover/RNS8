@@ -232,6 +232,34 @@ TEST_CASE("runtime basis selection binds prices to one exact workload and charge
   CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
         RNS8_UNSUPPORTED_BACKEND);
   request.reuse_count = 1;
+  for (unsigned field = 0; field < 5; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                          field < 2   ? 10u
+                          : field < 4 ? 8u
+                                      : 1u}) {
+      const auto original = candidates[1];
+      if (field == 0)
+        candidates[1].plan.backend = raw_ffi_enum<rns8_backend_kind>(bits);
+      if (field == 1)
+        candidates[1].cost.backend = raw_ffi_enum<rns8_backend_kind>(bits);
+      if (field == 2)
+        candidates[1].plan.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      if (field == 3)
+        candidates[1].cost.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      if (field == 4)
+        candidates[1].plan.flags = bits;
+      const auto before = selection;
+      auto* const canary = reinterpret_cast<rns8_basis_plan*>(uintptr_t(1));
+      plan = canary;
+      CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
+            RNS8_INVALID_ARGUMENT);
+      CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+      CHECK(rns8_create_selected_basis_plan(ctx, &request, candidates, 2, &selection, &plan) ==
+            RNS8_INVALID_ARGUMENT);
+      CHECK(plan == canary);
+      CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+      candidates[1] = original;
+    }
   request.n = 4;
   CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
         RNS8_UNSUPPORTED_BACKEND);

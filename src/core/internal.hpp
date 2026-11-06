@@ -501,6 +501,9 @@ uint32_t required_prefix_for_range(const cpp_int& range);
 uint32_t default_prefix_for_semantics(rns8_semantics semantics);
 bool input_range_output_bound(const rns8_gemm_desc& desc, uint64_t& output_bound);
 bool known_backend_kind(rns8_backend_kind backend);
+bool known_semantics(rns8_semantics semantics);
+bool known_bound_kind(rns8_bound_kind bound_kind);
+bool known_layout(rns8_layout layout);
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix);
 rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix);
 rns8_status validate_bound_contract(rns8_semantics semantics, rns8_bound_kind bound_kind,

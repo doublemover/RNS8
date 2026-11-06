@@ -1,12 +1,3 @@
-namespace {
-template <class T> T raw_ffi_enum(uint32_t bits) {
-  static_assert(std::is_enum_v<T> && sizeof(T) == sizeof(bits));
-  T value;
-  std::memcpy(&value, &bits, sizeof(value));
-  return value;
-}
-} // namespace
-
 TEST_CASE("raw streaming schedule values preserve public query output", "[api][abi][enum][host]") {
   rns8_stream_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -206,6 +197,102 @@ TEST_CASE("constructor descriptor rejection precedes poisoned context and output
   CHECK(after.allocate_calls == allocations.allocate_calls);
   CHECK(after.h2d_calls == allocations.h2d_calls);
   CHECK(after.d2h_calls == allocations.d2h_calls);
+}
+
+TEST_CASE("ordered basis descriptor admission preserves public outputs before routing",
+          "[api][abi][enum][host]") {
+  auto* ctx = create_cpu_context();
+  rns8_basis_plan_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.backend = RNS8_BACKEND_CPU_REFERENCE;
+  desc.semantics = RNS8_EXACT_WIDE_SIGNED;
+  desc.m = desc.n = desc.k = 1;
+  desc.prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  desc.max_host_bytes = desc.max_device_bytes = UINT64_MAX;
+  rns8_basis_resources resources{};
+  resources.struct_size = sizeof(resources);
+  resources.abi_version = RNS8_ABI_VERSION;
+  resources.required_host_bytes = 71;
+  rns8_operation_support support{};
+  support.struct_size = sizeof(support);
+  support.abi_version = RNS8_ABI_VERSION;
+  support.required_host_bytes = 73;
+  rns8_basis_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  info.identity = 79;
+  const auto resources_before = resources;
+  const auto support_before = support;
+  const auto info_before = info;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  auto reject = [&](const rns8_basis_plan_desc* bad, rns8_operation_kind operation, uint32_t modes,
+                    bool bad_descriptor) {
+    CHECK(rns8_query_basis_operation(ctx, nullptr, bad, operation, modes, &support, &info) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&support, &support_before, sizeof(support)) == 0);
+    CHECK(std::memcmp(&info, &info_before, sizeof(info)) == 0);
+    if (bad_descriptor) {
+      auto* const canary = reinterpret_cast<rns8_basis_plan*>(uintptr_t(1));
+      auto* out = canary;
+      CHECK(rns8_create_basis_plan(ctx, nullptr, bad, &out) == RNS8_INVALID_ARGUMENT);
+      CHECK(out == canary);
+      CHECK(rns8_query_basis_plan(nullptr, bad, &resources) == RNS8_INVALID_ARGUMENT);
+      CHECK(std::memcmp(&resources, &resources_before, sizeof(resources)) == 0);
+    }
+    CHECK(ctx->prepared_references == references);
+  };
+  for (unsigned field = 0; field < 3; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                          field == 0   ? 10u
+                          : field == 1 ? 8u
+                                       : 1u}) {
+      auto bad = desc;
+      if (field == 0)
+        bad.backend = raw_ffi_enum<rns8_backend_kind>(bits);
+      if (field == 1)
+        bad.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      if (field == 2)
+        bad.flags = bits;
+      reject(&bad, RNS8_OP_GEMM, RNS8_EXEC_SYNC, true);
+    }
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), uint32_t(RNS8_OP_COUNT)})
+    reject(&desc, raw_ffi_enum<rns8_operation_kind>(bits), RNS8_EXEC_SYNC, false);
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 128u, 0u})
+    reject(&desc, RNS8_OP_GEMM, bits, false);
+  for (unsigned malformed = 0; malformed < 2; ++malformed) {
+    auto bad = desc;
+    if (malformed == 0)
+      bad.struct_size = sizeof(bad) - 1;
+    else
+      bad.abi_version = RNS8_ABI_VERSION + 1;
+    reject(&bad, RNS8_OP_GEMM, RNS8_EXEC_SYNC, true);
+  }
+  // Only the readable size prefix exists here; payload reads would be out of bounds.
+  alignas(rns8_basis_plan_desc) uint64_t short_header = sizeof(uint64_t);
+  reject(reinterpret_cast<const rns8_basis_plan_desc*>(&short_header), RNS8_OP_GEMM, RNS8_EXEC_SYNC,
+         true);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  // Known arithmetic/provider tags retain their genuine unsupported distinction.
+  auto unsupported = desc;
+  unsupported.semantics = RNS8_BOUNDED_I64;
+  CHECK(rns8_query_basis_plan(nullptr, &unsupported, &resources) == RNS8_UNSUPPORTED_BACKEND);
+  unsupported = desc;
+  unsupported.backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  CHECK(rns8_query_basis_operation(ctx, nullptr, &unsupported, RNS8_OP_GEMM, RNS8_EXEC_SYNC,
+                                   &support, &info) == RNS8_UNSUPPORTED_BACKEND);
+  REQUIRE(rns8_query_basis_plan(nullptr, &desc, &resources) == RNS8_SUCCESS);
+  REQUIRE(rns8_query_basis_operation(ctx, nullptr, &desc, RNS8_OP_GEMM, RNS8_EXEC_SYNC, &support,
+                                     &info) == RNS8_SUCCESS);
+  CHECK(resources.required_host_bytes == support.required_host_bytes);
+  rns8_basis_plan* owner = nullptr;
+  REQUIRE(rns8_create_basis_plan(ctx, nullptr, &desc, &owner) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_basis_plan(owner) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor validators",

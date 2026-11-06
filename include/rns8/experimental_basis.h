@@ -9,7 +9,9 @@ typedef struct rns8_basis_plan rns8_basis_plan;
 
 /* Explicit experimental ordered centered-INT8 basis. Moduli are copied, each
  * lies in 2..256, and every pair must be coprime. Order is storage identity.
- * The explicit cost-bound selector below is opt-in; the default ladder is unchanged. */
+ * The explicit cost-bound selector below is opt-in; the default ladder is unchanged.
+ * Malformed descriptor/header/tag/flag preflight preserves caller handle and
+ * query output slots. A rejected candidate also preserves selector outputs. */
 typedef struct rns8_basis_desc {
   uint64_t struct_size;
   uint32_t abi_version, representation;

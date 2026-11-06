@@ -12,6 +12,14 @@ rns8_status select_basis_plan(const rns8_context* ctx, const rns8_basis_selectio
       request->flags & ~3u || !exact_wide_semantics(request->semantics) || request->m <= 0 ||
       request->n <= 0 || request->k <= 0 || !basis_cost_digest(request->cohort_identity))
     return RNS8_INVALID_ARGUMENT;
+  // Admit every candidate before prices or context state can hide malformed tags.
+  for (uint32_t i = 0; i < count; ++i) {
+    const auto& candidate = candidates[i];
+    if (!basis_plan_descriptor_valid(&candidate.plan, basis_modulus_count(candidate.basis)) ||
+        !minimum_abi_header(&candidate.cost) || !known_backend_kind(candidate.cost.backend) ||
+        !known_semantics(candidate.cost.semantics))
+      return RNS8_INVALID_ARGUMENT;
+  }
   if (ctx->hip_failure_poisoned)
     return RNS8_BACKEND_FAILURE;
   char build[65]{};
@@ -114,7 +122,6 @@ rns8_status rns8_create_selected_basis_plan(rns8_context* ctx,
   return guard_api([&]() -> rns8_status {
     if (!out)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     if (!output || !minimum_abi_header(output))
       return RNS8_INVALID_ARGUMENT;
     rns8_basis_selection choice{};
@@ -123,6 +130,7 @@ rns8_status rns8_create_selected_basis_plan(rns8_context* ctx,
     const auto selected = select_basis_plan(ctx, request, candidates, count, &choice);
     if (selected != RNS8_SUCCESS)
       return selected;
+    *out = nullptr;
     const auto& candidate = candidates[choice.selected_index];
     const auto created = rns8_create_basis_plan(ctx, candidate.basis, &candidate.plan, out);
     if (created == RNS8_SUCCESS)

@@ -229,3 +229,9 @@ rns8_prepack_cache_key_info prepack_cache_key_info(const rns8_plan* plan, const 
   REQUIRE(rns8_get_prepack_cache_key_info(plan, matrix, operand_role, &info) == RNS8_SUCCESS);
   return info;
 }
+template <class T> T raw_ffi_enum(uint32_t bits) {
+  static_assert(std::is_enum_v<T> && sizeof(T) == sizeof(bits));
+  T value;
+  std::memcpy(&value, &bits, sizeof(value));
+  return value;
+}

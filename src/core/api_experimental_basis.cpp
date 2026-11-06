@@ -109,10 +109,16 @@ bool basis_context_matches(const rns8_context& ctx, rns8_backend_kind backend) {
   return ctx.backend == (backend == RNS8_BACKEND_CPU_REFERENCE ? RNS8_BACKEND_CPU_REFERENCE
                                                                : RNS8_BACKEND_HIP_DIRECT);
 }
+bool basis_plan_descriptor_valid(const rns8_basis_plan_desc* d, uint32_t count) {
+  return minimum_abi_header(d) && known_backend_kind(d->backend) && known_semantics(d->semantics) &&
+         !d->flags && d->prefix && d->prefix <= count && d->m > 0 && d->n > 0 && d->k > 0;
+}
+uint32_t basis_modulus_count(const rns8_basis* basis) {
+  return basis ? basis->data->packet.count : RNS8_MAX_SUPPORTED_PREFIX;
+}
 rns8_status basis_plan_storage(const ExperimentalBasis& basis, const rns8_basis_plan_desc& d,
                                BasisStorage& out) {
-  if (!minimum_abi_header(&d) || d.flags || !d.prefix || d.prefix > basis.packet.count ||
-      d.m <= 0 || d.n <= 0 || d.k <= 0)
+  if (!basis_plan_descriptor_valid(&d, basis.packet.count))
     return RNS8_INVALID_ARGUMENT;
   if (!exact_wide_semantics(d.semantics) ||
       (d.backend != RNS8_BACKEND_CPU_REFERENCE && !basis_device_backend(d.backend)))
@@ -199,7 +205,6 @@ rns8_status rns8_create_basis(const rns8_basis_desc* desc, rns8_basis** out) {
   return guard_api([&]() -> rns8_status {
     if (!out)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     if (!desc || !minimum_abi_header(desc) || desc->representation != 1 || desc->flags ||
         !desc->moduli || !desc->count || desc->count > 20)
       return RNS8_INVALID_ARGUMENT;
@@ -210,6 +215,7 @@ rns8_status rns8_create_basis(const rns8_basis_desc* desc, rns8_basis** out) {
         if (std::gcd(desc->moduli[i], desc->moduli[j]) != 1)
           return RNS8_INVALID_ARGUMENT;
     }
+    *out = nullptr;
     auto owner = std::make_unique<rns8_basis>();
     owner->data = make_experimental_basis(desc->moduli, desc->count);
     *out = owner.release();
@@ -234,20 +240,25 @@ rns8_status rns8_create_basis_matrix(rns8_context* ctx, const rns8_basis* basis,
   return guard_api([&]() -> rns8_status {
     if (!out)
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     if (!ctx || !desc || !minimum_abi_header(desc))
       return RNS8_INVALID_ARGUMENT;
-    if (!exact_wide_semantics(desc->semantics) ||
-        (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_HIP_DIRECT))
-      return RNS8_UNSUPPORTED_BACKEND;
-    if (desc->flags || desc->bound_kind != RNS8_BOUND_NONE)
+    if (!known_semantics(desc->semantics) || !known_bound_kind(desc->bound_kind) ||
+        !known_layout(desc->logical_layout) || desc->flags || desc->bound_kind != RNS8_BOUND_NONE)
       return RNS8_INVALID_ARGUMENT;
-    auto data = basis_data(basis);
+    if (!exact_wide_semantics(desc->semantics) ||
+        (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_HIP_DIRECT)) {
+      *out = nullptr;
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
     auto normalized = *desc;
     if (!normalized.max_prefix)
-      normalized.max_prefix = data->packet.count;
-    if (normalized.max_prefix > data->packet.count)
+      normalized.max_prefix = basis_modulus_count(basis);
+    if (normalized.max_prefix > basis_modulus_count(basis))
       return RNS8_INVALID_ARGUMENT;
+    const auto validation = validate_matrix_desc(normalized, normalized.max_prefix);
+    if (validation != RNS8_SUCCESS)
+      return validation;
+    auto data = basis_data(basis);
     const auto status = rns8_create_matrix(ctx, &normalized, out);
     if (status != RNS8_SUCCESS)
       return status;
@@ -259,7 +270,8 @@ rns8_status rns8_create_basis_matrix(rns8_context* ctx, const rns8_basis* basis,
 rns8_status rns8_query_basis_plan(const rns8_basis* basis, const rns8_basis_plan_desc* desc,
                                   rns8_basis_resources* out) {
   return guard_api([&]() -> rns8_status {
-    if (!desc || !out || !minimum_abi_header(out))
+    if (!out || !minimum_abi_header(out) ||
+        !basis_plan_descriptor_valid(desc, basis_modulus_count(basis)))
       return RNS8_INVALID_ARGUMENT;
     const auto data = basis_data(basis);
     BasisStorage storage;
@@ -283,11 +295,15 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx, const rns8_basis
                                        rns8_operation_kind operation, uint32_t modes,
                                        rns8_operation_support* support, rns8_basis_info* info) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !desc || !support || !info || !minimum_abi_header(desc) ||
-        !minimum_abi_header(support) || !minimum_abi_header(info))
+    if (!ctx || !support || !info || !minimum_abi_header(support) || !minimum_abi_header(info) ||
+        !basis_plan_descriptor_valid(desc, basis_modulus_count(basis)) ||
+        operation >= RNS8_OP_COUNT || !modes || (modes & ~127u))
       return RNS8_INVALID_ARGUMENT;
     const auto data = basis_data(basis);
-    const auto described = describe_basis(*data, desc->prefix, info);
+    rns8_basis_info basis_info{};
+    basis_info.struct_size = sizeof(basis_info);
+    basis_info.abi_version = RNS8_ABI_VERSION;
+    const auto described = describe_basis(*data, desc->prefix, &basis_info);
     if (described != RNS8_SUCCESS)
       return described;
     rns8_operation_support out{};
@@ -313,11 +329,9 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx, const rns8_basis
       text(out.offending_field, sizeof(out.offending_field), field);
       text(out.explanation, sizeof(out.explanation), explanation);
       *support = out;
+      *info = basis_info;
       return status;
     };
-    if (operation >= RNS8_OP_COUNT || !modes || (modes & ~127u))
-      return finish(RNS8_INVALID_ARGUMENT, RNS8_SUPPORT_BAD_DESCRIPTOR, "operation/modes",
-                    "invalid operation or execution mode");
     if (desc->backend != RNS8_BACKEND_CPU_REFERENCE && !basis_device_backend(desc->backend))
       return finish(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_OPERATION, "backend",
                     "no explicit ordered-basis compute provider");
@@ -387,10 +401,10 @@ rns8_status rns8_query_basis_operation(const rns8_context* ctx, const rns8_basis
 rns8_status rns8_create_basis_plan(rns8_context* ctx, const rns8_basis* basis,
                                    const rns8_basis_plan_desc* desc, rns8_basis_plan** out) {
   return guard_api([&]() -> rns8_status {
-    if (!out)
+    if (!out || !ctx || !basis_plan_descriptor_valid(desc, basis_modulus_count(basis)))
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
-    if (!ctx || !desc || !basis_context_matches(*ctx, desc->backend))
+    if (!basis_context_matches(*ctx, desc->backend))
       return RNS8_INVALID_ARGUMENT;
     if (!basis_backend_compiled(desc->backend))
       return RNS8_UNSUPPORTED_BACKEND;
