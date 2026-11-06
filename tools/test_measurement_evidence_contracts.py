@@ -140,6 +140,55 @@ class StaticAssociation(unittest.TestCase):
                 "conflicting_same_object_symbol_reports", result["isa_association"]["reasons"]
             )
 
+    def test_conflicting_duplicate_selected_symbol_invalidates_all_reports(self):
+        capture, report = self.fixture()
+        conflict = deepcopy(report)
+        duplicate = deepcopy(conflict["symbols"][0])
+        duplicate["counts"]["wmma"] = 8
+        conflict["symbols"].append(duplicate)
+        with tempfile.TemporaryDirectory() as directory:
+            for reports in ([report, conflict], [conflict, report], [conflict]):
+                with self.subTest(reports=reports):
+                    result = lookup_isa_resources(
+                        self.load(directory, reports), "ck", "gfx1100", capture
+                    )
+                    self.assertFalse(result["isa_association"]["qualified"])
+                    self.assertEqual(result["isa_report_count"], 0)
+                    self.assertIn(
+                        "conflicting_same_object_symbol_reports",
+                        result["isa_association"]["reasons"],
+                    )
+
+    def test_selected_symbol_records_are_typed_and_inventory_is_not_selected(self):
+        capture, report = self.fixture()
+        report["symbols"].extend(
+            [
+                deepcopy(report["symbols"][0]),
+                {"symbol": ["malformed"], "counts": None},
+                {"symbol": "unselected_export", "counts": {"wmma": 888}},
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = lookup_isa_resources(self.load(directory, [report]), "ck", "gfx1100", capture)
+            self.assertTrue(result["isa_association"]["qualified"])
+            self.assertEqual(result["isa_report_count"], 1)
+            self.assertEqual(result["isa_wmma_count"], 7)
+            for counts in (None, [], [1], "invalid"):
+                malformed = deepcopy(report)
+                malformed["symbols"] = [deepcopy(report["symbols"][0])]
+                malformed["symbols"][0]["counts"] = counts
+                for reports in ([report, malformed], [malformed, report]):
+                    with self.subTest(counts=counts, reports=reports):
+                        result = lookup_isa_resources(
+                            self.load(directory, reports), "ck", "gfx1100", capture
+                        )
+                        self.assertFalse(result["isa_association"]["qualified"])
+                        self.assertEqual(result["isa_report_count"], 0)
+                        self.assertIn(
+                            "selected_symbol_resource_record_invalid",
+                            result["isa_association"]["reasons"],
+                        )
+
     def test_binding_checks_captured_artifact_and_exact_symbol(self):
         capture, report = self.fixture()
         with tempfile.TemporaryDirectory() as directory:

@@ -188,6 +188,14 @@ def _sha(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
+def _unqualified_resources(inventory: dict[str, Any], reason: str) -> dict[str, Any]:
+    return {
+        **aggregate_isa_resources([]),
+        "isa_inventory": inventory,
+        "isa_association": {"qualified": False, "reasons": [reason]},
+    }
+
+
 def lookup_isa_resources(
     index: dict[str, list[dict[str, Any]]],
     backend: Any,
@@ -236,33 +244,39 @@ def lookup_isa_resources(
             reasons.add("artifact_build_target_or_kernel_binding_mismatch")
             continue
         symbols = binding.get("symbols")
-        available = {
-            entry.get("symbol"): entry
-            for entry in report.get("isa_symbols", [])
-            if isinstance(entry, dict)
-        }
         if (
             not isinstance(symbols, list)
             or not symbols
-            or any(not isinstance(symbol, str) for symbol in symbols)
+            or any(not isinstance(symbol, str) or not symbol for symbol in symbols)
             or len(set(symbols)) != len(symbols)
-            or any(symbol not in available for symbol in symbols)
         ):
             reasons.add("selected_symbol_missing")
             continue
+        selected_symbols = set(symbols)
+        available = {}
+        for entry in report.get("isa_symbols", []):
+            if not isinstance(entry, dict):
+                continue
+            symbol = entry.get("symbol")
+            if not isinstance(symbol, str) or symbol not in selected_symbols:
+                continue
+            if symbol in available and entry.get("counts") != available[symbol].get("counts"):
+                # A clean report must not hide contradictory evidence for this object.
+                return _unqualified_resources(inventory, "conflicting_same_object_symbol_reports")
+            available[symbol] = entry
+        if any(symbol not in available for symbol in symbols):
+            reasons.add("selected_symbol_missing")
+            continue
+        if any(not isinstance(available[symbol].get("counts"), dict) for symbol in symbols):
+            return _unqualified_resources(inventory, "selected_symbol_resource_record_invalid")
         for symbol in symbols:
-            counts = available[symbol].get("counts") or {}
+            counts = available[symbol]["counts"]
             key = (binding["artifact_sha256"], report["isa_code_object_sha256"], symbol)
             if key in seen:
                 if seen[key] != counts:
-                    return {
-                        **aggregate_isa_resources([]),
-                        "isa_inventory": inventory,
-                        "isa_association": {
-                            "qualified": False,
-                            "reasons": ["conflicting_same_object_symbol_reports"],
-                        },
-                    }
+                    return _unqualified_resources(
+                        inventory, "conflicting_same_object_symbol_reports"
+                    )
                 continue
             seen[key] = counts
             selected = {
