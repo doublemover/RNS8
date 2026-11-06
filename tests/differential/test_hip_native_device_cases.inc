@@ -100,8 +100,20 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
         REQUIRE(value == 77);
       REQUIRE(rns8_export_native_device(ctx, matrix, write, resources.export_scratch_bytes) ==
               RNS8_SUCCESS);
-      REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), output.get(), actual.size() * 8) ==
-              RNS8_SUCCESS);
+      // A synchronous export must be usable on a nonblocking stream without
+      // inheriting ordering from another default-stream readback.
+      hip_unique_stream reader_stream;
+      hip_pinned_host_buffer host_result;
+      REQUIRE(reader_stream.create_non_blocking() == hipSuccess);
+      REQUIRE(host_result.ensure(0, actual.size() * 8) == hipSuccess);
+      host_result.mark_pending();
+      output.mark_pending();
+      REQUIRE(hipMemcpyAsync(host_result.get(), output.get(), actual.size() * 8,
+                             hipMemcpyDeviceToHost, reader_stream.get()) == hipSuccess);
+      REQUIRE(hipStreamSynchronize(reader_stream.get()) == hipSuccess);
+      host_result.mark_completed();
+      output.mark_completed();
+      std::memcpy(actual.data(), host_result.get(), actual.size() * 8);
       for (size_t i = 0; i < actual.size(); ++i) {
         const bool logical = i >= 1 && i < 20 && (i - 1) % 7 < 5;
         REQUIRE(actual[i] == (logical ? values[i] : 77));

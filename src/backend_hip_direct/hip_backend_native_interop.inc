@@ -1,3 +1,16 @@
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+namespace {
+hipError_t finish_native_interop_copy(hipError_t copied) {
+  // tracked_sync_copy_2d already observed successful default-stream completion.
+  // Keep the conservative failed-work drain and original error, without waiting
+  // for unrelated nonblocking streams again after a completed copy.
+  if (copied != hipSuccess)
+    (void)hipDeviceSynchronize();
+  return copied;
+}
+} // namespace
+#endif
+
 rns8_status hip_direct_copy_native_view(int device_id, const void* source, void* destination,
                                         int64_t rows, int64_t cols, int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -5,11 +18,9 @@ rns8_status hip_direct_copy_native_view(int device_id, const void* source, void*
   if (status != RNS8_SUCCESS)
     return status;
   const auto error = timed_hip_operation("interop_lease_snapshot_d2d", [&]() {
-    const auto issued =
-        tracked_sync_copy_2d(destination, size_t(cols) * 8, source, size_t(ld) * 8,
-                             size_t(cols) * 8, size_t(rows), hipMemcpyDeviceToDevice);
-    const auto drain = hipDeviceSynchronize();
-    return issued == hipSuccess ? drain : issued;
+    return finish_native_interop_copy(tracked_sync_copy_2d(destination, size_t(cols) * 8, source,
+                                                           size_t(ld) * 8, size_t(cols) * 8,
+                                                           size_t(rows), hipMemcpyDeviceToDevice));
   });
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -58,11 +69,9 @@ rns8_status hip_direct_import_native_view(int device_id, const void* source, voi
     return status;
   if (retained_native) {
     const auto copy = timed_hip_operation("interop_native_retain_d2d", [&]() {
-      const auto issued =
+      return finish_native_interop_copy(
           tracked_sync_copy_2d(retained_native, size_t(cols) * 8, source, size_t(ld) * 8,
-                               size_t(cols) * 8, size_t(rows), hipMemcpyDeviceToDevice);
-      const auto drain = hipDeviceSynchronize();
-      return issued == hipSuccess ? drain : issued;
+                               size_t(cols) * 8, size_t(rows), hipMemcpyDeviceToDevice));
     });
     if (copy != hipSuccess)
       return RNS8_BACKEND_FAILURE;
@@ -139,11 +148,9 @@ rns8_status hip_direct_export_native_view(int device_id, const void* residues, v
     return static_cast<rns8_status>(result);
   external_write_started = true;
   err = timed_hip_operation("interop_native_commit_d2d", [&]() {
-    const auto issued = tracked_sync_copy_2d(
+    return finish_native_interop_copy(tracked_sync_copy_2d(
         destination, size_t(ld) * element_bytes, scratch, size_t(cols) * element_bytes,
-        size_t(cols) * element_bytes, size_t(rows), hipMemcpyDeviceToDevice);
-    const auto drain = hipDeviceSynchronize();
-    return issued == hipSuccess ? drain : issued;
+        size_t(cols) * element_bytes, size_t(rows), hipMemcpyDeviceToDevice));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else

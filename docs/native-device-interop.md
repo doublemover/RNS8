@@ -8,6 +8,15 @@ exact-wide adapter below adds stream, owned-graph and dependency execution. CPU 
 support descriptor/resource queries and reject lease creation. No host pointer
 API accepts a device pointer implicitly.
 
+Synchronous snapshot, retained-native and export-commit copies observe their
+default-stream completion through the shared copy helper. They no longer add a
+second device-wide fence after that successful observation. Copy errors retain
+the conservative cleanup drain and original operation error. Kernel/proof
+completion and diagnostic timing keep their own existing boundaries. A padded,
+full-width export control now consumes results directly on an independent
+nonblocking stream; that control and runtime/performance validation are deferred.
+No speedup is claimed for the removed redundant waits.
+
 Lease creation validates the complete native descriptor before context poison,
 backend routing, owner allocation or callback acquisition. Pinned-host creation
 also validates its descriptor before changing the caller's handle. Malformed raw
