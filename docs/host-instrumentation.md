@@ -4,8 +4,9 @@ Host instrumentation is a separate build identity. It is neither ordinary
 production performance nor HIP device instrumentation. The current source
 frontload adds build selection and sensitivity/concurrency controls under
 [#102](https://github.com/doublemover/RNS8/issues/102) and coverage instrumentation
-under [#103](https://github.com/doublemover/RNS8/issues/103). Lane drivers,
-artifact/inventory reports and CI integration remain implementation work.
+under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
+session driver is authored; CI, OpenMP runtime qualification, device-ASan
+preflight and coverage/mutation reporting remain implementation work.
 
 | Configure preset | Instrumentation | Initial scope |
 |---|---|---|
@@ -48,9 +49,46 @@ An RNS8 static library with the dynamic host runtime is a distinct contract.
 [ASan usage](https://clang.llvm.org/docs/AddressSanitizer.html#usage),
 [UBSan usage](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html#usage)
 and [TSan limitations](https://clang.llvm.org/docs/ThreadSanitizer.html#limitations)
-own those compiler/runtime requirements. Matching llvm-profdata/llvm-cov,
-instrumented-library/test inventories, raw artifact identities and native
-detector observations still need the maintained reporting driver.
+own those compiler/runtime requirements. Matching llvm-profdata/llvm-cov and
+source coverage/mutation reports remain separate implementation work.
+
+`tools/host_instrumentation_session.py` prints a plan by default. Adding
+`--execute` configures a fresh build, builds its complete first-party targets,
+inspects configured argv and actual object/archive symbols, queries executable
+and linked-library identities, runs sensitivity controls, runs the complete
+registered test inventory serially, and installs/builds/tests all seven packaged
+CPU consumers. It uses the shared bounded process capture and retains the first
+failure without automatic retry. Configure/build/test commands, native outputs,
+sources, objects, tools, matching compiler runtime files, binaries and installed
+static library are digest-bound and checked again at completion.
+
+```sh
+python tools/host_instrumentation_session.py --preset cpu-tsan-release \
+  --out temp/host-tsan-candidate --cmake /path/to/cmake --ctest /path/to/ctest \
+  --compiler /path/to/clang++ --nm /path/to/llvm-nm \
+  --symbolizer /path/to/llvm-symbolizer
+```
+
+Use `cpu-asan-ubsan-debug`, `cpu-asan-ubsan-release` or
+`windows-clang-asan-debug` for the other lanes. Windows also requires an explicit
+`--toolchain` pointing to the vcpkg toolchain and its VS developer environment.
+An explicit `--compiler` overrides preset discovery. Compiler, llvm-nm and
+llvm-symbolizer must report the same complete LLVM version. The Windows lane
+retains static CRT/STL/runtime wiring and binds the copied ASan DLL; PE binary
+hashes and sensitivity controls are separate from archive symbol inspection.
+The initially selected lanes disable HIP, OpenMP, shared libraries and the
+separately owned libFuzzer corpus; they do not qualify those disabled features.
+
+`--allowed-skips` accepts a JSON object mapping exact selected test names to
+reviewed reasons. There is no blanket HIP skip or historical-count allowance.
+Both named legal-concurrency tests and every installed consumer must pass.
+Expected bad controls require the intended diagnostic, configured nonzero exit,
+source location and native process identity where the runtime emits one; a
+timeout, generic crash, unsupported control or missed defect cannot pass.
+Object symbols establish observed instrumentation sites, not coverage of every
+memory access. The available compiler runtime inventory is separate from a
+complete dynamic-loader map. No host session, sensitivity control or test has
+executed during this implementation frontload.
 
 `tools/execution_inventory.py` reconciles retained native CTest JSON-v1 full
 discovery and selected discovery with its JUnit report. It requires explicitly
