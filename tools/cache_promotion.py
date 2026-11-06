@@ -9,6 +9,7 @@ from pathlib import Path
 from benchmark_request import file_digest
 
 SCHEMA = "rns8_cache_promotion_receipt_v1"
+CANDIDATE_SCHEMA = "rns8_autotune_candidates_v1"
 ROLES = {
     "candidate",
     "observation",

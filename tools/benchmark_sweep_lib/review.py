@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -2846,12 +2845,12 @@ def reviewed_release_status_for_target(target_id: str | None) -> str:
     return "reviewed_release_unknown_target"
 
 
-def write_promoted_cache_entries(
-    report: dict[str, Any], captures: list[dict[str, Any]], path: Path
-) -> int:
+def _reviewed_cache_candidates(
+    report: dict[str, Any], captures: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], set[str]]:
     promotable = report.get("promotable_autotune_entries")
     if not isinstance(promotable, list) or not promotable:
-        return 0
+        return [], set()
     by_path = {str(capture.get("_path")): capture for capture in captures}
     entries = []
     written_sources = set()
@@ -2906,36 +2905,67 @@ def write_promoted_cache_entries(
         if entry.get("key"):
             entries.append(entry)
             written_sources.add(str(item.get("source_capture")))
+    return entries, written_sources
+
+
+def write_candidate_cache(
+    report: dict[str, Any], captures: list[dict[str, Any]], path: Path
+) -> int:
+    from cache_promotion import CANDIDATE_SCHEMA, unique_entries
+    from install_autotune_cache import write_cache_document
+
+    entries, _ = _reviewed_cache_candidates(report, captures)
+    entries = list(unique_entries(entries).values())
+    # Deliberately omit runtime schema_version: AUTO cannot load this artifact.
+    write_cache_document(path, dict(schema=CANDIDATE_SCHEMA, entries=entries))
+    report["candidate_cache"] = dict(
+        path=str(path), entries=len(entries), runtime_installable=False
+    )
+    return len(entries)
+
+
+def write_promoted_cache_entries(
+    report: dict[str, Any],
+    captures: list[dict[str, Any]],
+    path: Path,
+    *,
+    promotion_ledgers: list[Path] | None = None,
+) -> int:
+    from install_autotune_cache import AutotuneCacheInstallError, install_reviewed_entries
+
+    promotable = report.get("promotable_autotune_entries") or []
+    if not promotion_ledgers:
+        report["cache_publication_error"] = "promotion_ledger_required_for_cache_install"
+        for item in promotable:
+            if isinstance(item, dict):
+                item["cache_write_status"] = "blocked_missing_promotion_ledger"
+        return 0
+    entries, written_sources = _reviewed_cache_candidates(report, captures)
     if not entries:
         return 0
-
-    existing: dict[str, Any] = {"schema_version": 1, "entries": []}
-    if path.exists():
-        existing = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(existing, dict):
-            existing = {"schema_version": 1, "entries": []}
-    existing_entries = existing.get("entries")
-    if not isinstance(existing_entries, list):
-        existing_entries = []
-    by_key = {
-        entry.get("key"): entry
-        for entry in existing_entries
-        if isinstance(entry, dict) and entry.get("key")
-    }
-    for entry in entries:
-        by_key[entry["key"]] = entry
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {"schema_version": 1, "entries": list(by_key.values())}, indent=2, sort_keys=True
+    try:
+        installation = install_reviewed_entries(
+            entries,
+            path,
+            promotion_ledgers=promotion_ledgers,
+            source_by_key={
+                item["autotune_key"]: str(item["source_capture"])
+                for item in promotable
+                if isinstance(item, dict) and item.get("autotune_key")
+            },
         )
-        + "\n",
-        encoding="utf-8",
-    )
+    except AutotuneCacheInstallError as error:
+        report["cache_publication_error"] = str(error)
+        for item in promotable:
+            if isinstance(item, dict) and str(item.get("source_capture")) in written_sources:
+                item["cache_write_status"] = "blocked_shared_install_admission"
+        return 0
+    report.pop("cache_publication_error", None)
+    report["cache_installation"] = installation
     for item in promotable:
         if isinstance(item, dict) and str(item.get("source_capture")) in written_sources:
             item["cache_write_status"] = "written"
-    return len(entries)
+    return len({entry["key"] for entry in entries})
 
 
 def attach_cache_write_status(
@@ -2945,7 +2975,9 @@ def attach_cache_write_status(
         "requested": requested,
         "path": str(path) if requested else None,
         "entries_written": entries_written,
-        "status": "written"
+        "status": "blocked_admission"
+        if requested and report.get("cache_publication_error")
+        else "written"
         if requested and entries_written
         else "no_promotable_entries"
         if requested

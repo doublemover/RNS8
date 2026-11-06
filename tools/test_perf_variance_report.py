@@ -265,6 +265,7 @@ def main() -> int:
             "matched_diagnostic_companion_missing",
             "baseline:diagnostic_instrumented_host_time_not_production_evidence",
             "baseline:matched_diagnostic_companion_missing",
+            "baseline:missing_variance_gate_entry",
         }
 
         # Admission does not depend on a variance report honestly carrying its

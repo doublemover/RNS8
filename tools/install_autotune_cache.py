@@ -16,7 +16,7 @@ from typing import Any
 from check_dependencies_lib.config import LINUX_CDNA_TARGETS
 from metadata_registry_constants import BOUNDED_SEMANTICS, EXACT_WIDE_SEMANTICS, FINITE_U8_SEMANTICS
 from json_evidence import load_evidence_json, same_evidence_value
-from cache_promotion import entry_digest, unique_entries, validate_receipt
+from cache_promotion import CANDIDATE_SCHEMA, entry_digest, unique_entries, validate_receipt
 
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
@@ -378,7 +378,9 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
     return entry
 
 
-def read_cache(path: Path, *, allow_missing: bool = False) -> list[dict[str, Any]]:
+def read_cache(
+    path: Path, *, allow_missing: bool = False, allow_candidates: bool = False
+) -> list[dict[str, Any]]:
     if allow_missing and not path.exists():
         return []
     try:
@@ -389,7 +391,9 @@ def read_cache(path: Path, *, allow_missing: bool = False) -> list[dict[str, Any
         raise
     if not isinstance(root, dict):
         raise AutotuneCacheInstallError(f"{path}: root must be an object")
-    if root.get("schema_version") != 1:
+    if root.get("schema_version") != 1 and not (
+        allow_candidates and root.get("schema") == CANDIDATE_SCHEMA and "schema_version" not in root
+    ):
         raise AutotuneCacheInstallError(f"{path}: schema_version must be 1")
     entries = root.get("entries")
     if not isinstance(entries, list):
@@ -514,8 +518,12 @@ def validate_promotion_ledger_gate(
 
 
 def write_cache(path: Path, entries: list[dict[str, Any]]) -> None:
+    write_cache_document(path, {"schema_version": 1, "entries": entries})
+
+
+def write_cache_document(path: Path, document: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps({"schema_version": 1, "entries": entries}, indent=2, sort_keys=True) + "\n"
+    payload = json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n"
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", dir=path.parent, delete=False
     ) as handle:
@@ -564,8 +572,8 @@ def cache_coverage_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]
     ]
 
 
-def install_cache(
-    sources: list[Path],
+def install_reviewed_entries(
+    entries: list[dict[str, Any]],
     destination: Path,
     *,
     dry_run: bool = False,
@@ -574,7 +582,16 @@ def install_cache(
     require_variance_gate: bool = False,
     require_target_validation_gate: bool = False,
     allow_selector_review_cache: bool = False,
+    sources: list[Path] | None = None,
+    source_by_key: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    sources = sources or []
+    source_by_key = source_by_key or {}
+    reviewed_source_entries = [
+        validate_entry(entry, source=Path("<reviewed-candidates>"), index=index)
+        for index, entry in enumerate(entries)
+    ]
+    source_entries = len(reviewed_source_entries)
     if replace_existing:
         existing_entries: list[dict[str, Any]] = []
     else:
@@ -591,15 +608,6 @@ def install_cache(
         raise AutotuneCacheInstallError(str(error)) from error
     merged = dict(existing_by_key)
     initial_keys = set(merged)
-    source_entries = 0
-    reviewed_source_entries: list[dict[str, Any]] = []
-    source_by_key: dict[str, str] = {}
-    for source in sources:
-        entries = read_cache(source)
-        source_entries += len(entries)
-        reviewed_source_entries.extend(entries)
-        for entry in entries:
-            source_by_key[entry["key"]] = str(source)
     try:
         reviewed_source_entries = list(unique_entries(reviewed_source_entries).values())
     except (ValueError, TypeError) as error:
@@ -681,6 +689,37 @@ def install_cache(
         "replacement_history": replacement_history,
         "cache_coverage": cache_coverage_summary(ordered),
     }
+
+
+def install_cache(
+    sources: list[Path],
+    destination: Path,
+    *,
+    dry_run: bool = False,
+    replace_existing: bool = False,
+    promotion_ledgers: list[Path] | None = None,
+    require_variance_gate: bool = False,
+    require_target_validation_gate: bool = False,
+    allow_selector_review_cache: bool = False,
+) -> dict[str, Any]:
+    entries, source_by_key = [], {}
+    for source in sources:
+        rows = read_cache(source, allow_candidates=True)
+        entries.extend(rows)
+        for entry in rows:
+            source_by_key[entry["key"]] = str(source)
+    return install_reviewed_entries(
+        entries,
+        destination,
+        dry_run=dry_run,
+        replace_existing=replace_existing,
+        promotion_ledgers=promotion_ledgers,
+        require_variance_gate=require_variance_gate,
+        require_target_validation_gate=require_target_validation_gate,
+        allow_selector_review_cache=allow_selector_review_cache,
+        sources=sources,
+        source_by_key=source_by_key,
+    )
 
 
 def parse_args() -> argparse.Namespace:

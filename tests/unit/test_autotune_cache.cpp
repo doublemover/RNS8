@@ -156,10 +156,13 @@ std::filesystem::path unique_cache_fixture_path(const char* stem) {
          (std::string(stem) + "-" + std::to_string(tick) + ".json");
 }
 
-void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bool entry_schema) {
+void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bool entry_schema,
+                         bool candidate_only = false) {
   const std::string key = reviewed_key();
   std::ofstream output(path, std::ios::trunc);
   output << "{";
+  if (candidate_only)
+    output << "\"schema\":\"rns8_autotune_candidates_v1\",";
   if (root_schema) {
     output << "\"schema_version\":1,";
   }
@@ -787,7 +790,7 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   }
 }
 
-TEST_CASE("autotune cache reader requires explicit root and entry schema versions") {
+TEST_CASE("autotune cache reader rejects candidate artifacts and missing schema versions") {
   const std::filesystem::path path =
       unique_cache_fixture_path("rns8-autotune-cache-schema-fixture");
   const std::string key = reviewed_key();
@@ -802,6 +805,15 @@ TEST_CASE("autotune cache reader requires explicit root and entry schema version
     CHECK(rns8::detail::find_validated_autotune_entry(snapshot, key) == nullptr);
     CHECK(rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
           "exact_cache_hit_rejected_cache_schema_version:0");
+  }
+
+  write_cache_fixture(path, false, true, true);
+  {
+    const auto snapshot = rns8::detail::read_autotune_cache();
+    REQUIRE(snapshot.loaded);
+    CHECK(snapshot.schema_version == 0);
+    REQUIRE(rns8::detail::find_exact_autotune_entry(snapshot, key) != nullptr);
+    CHECK(rns8::detail::find_validated_autotune_entry(snapshot, key) == nullptr);
   }
 
   write_cache_fixture(path, true, false);

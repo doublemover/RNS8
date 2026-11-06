@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import statistics
 from datetime import datetime, timezone
@@ -157,6 +158,40 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
 def execution_id(capture: dict[str, Any]) -> str | None:
     value = capture.get("execution_id")
     return value if isinstance(value, str) and value.strip() else None
+
+
+def bound_entry_blockers(capture: dict, entry: object) -> list[str]:
+    if not isinstance(entry, dict):
+        return ["missing_variance_gate_entry"]
+    blockers = []
+    cohort, run = execution_cohort(capture), execution_id(capture)
+    if (
+        cohort is None
+        or run is None
+        or entry.get("capture_sha256") != capture_digest(capture)
+        or entry.get("execution_id") != run
+        or entry.get("execution_cohort") != cohort
+    ):
+        blockers.append("variance_capture_provenance_mismatch")
+    count = entry.get("distinct_run_count")
+    if type(count) is not int or count < DEFAULT_MIN_RUNS:
+        blockers.append("variance_independent_processes_missing")
+    for name in ("required_speedup_margin", "observed_max_relative_noise"):
+        value = entry.get(name)
+        if (
+            type(value) not in (int, float)
+            or not math.isfinite(value)
+            or value < (1 if name == "required_speedup_margin" else 0)
+        ):
+            blockers.append("variance_numeric_evidence_malformed")
+    reasons = entry.get("blockers")
+    if not isinstance(reasons, list) or any(type(item) is not str or not item for item in reasons):
+        blockers.append("variance_blockers_malformed")
+    else:
+        blockers.extend("variance_blocker:" + item for item in reasons)
+    if entry.get("promotion_ready") is not True:
+        blockers.append("variance_gate_not_ready")
+    return sorted(set(blockers))
 
 
 def variance_group_key(capture: dict[str, Any]) -> str:

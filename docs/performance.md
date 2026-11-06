@@ -247,8 +247,20 @@ rechecks their bytes and the payload digest before changing the destination.
 Same-key conflicting source payloads reject; timestamp-only regeneration is
 idempotent. A legacy ready ledger remains diagnostic input and cannot authorize
 a new write. The new publication and real producer-chain controls are authored;
-their runtime execution remains deferred. The generic sweep writer's remaining
-independent-run/publication reconciliation is tracked separately in issue27.
+their runtime execution remains deferred.
+
+The generic sweep writer now uses the same admission and atomic installer as
+the standalone command. `--write-autotune-cache` requires `--promotion-ledger`;
+a ready single process cannot satisfy the two-run minimum, and required baseline
+captures need their own matching independent variance evidence. Conflicting
+review/variance rows reject. Before authoring a ledger, export the reviewed
+payload with `--emit-candidate-cache temp/my-review/candidates.json` and matching
+`--out-root temp/my-review`. This artifact has schema
+`rns8_autotune_candidates_v1` and no runtime schema version, so AUTO rejects it.
+Use it as the ledger's `--cache` and as an explicit installer source; only
+successful shared admission publishes the runtime format. Candidate export
+never merges into an installed cache. Runtime/generic-writer/CLI and C++ AUTO
+rejection controls are authored and remain unexecuted.
 
 ## Promotion boundaries
 

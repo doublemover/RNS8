@@ -15,7 +15,12 @@ from .config import scenario_data_dir, SweepCommand
 from review_contract import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
 from .execution import autotune_cache_path, execute_sweep_entries, validate_paths
 from .reports import write_markdown_report, write_scenario_manifest
-from .review import attach_cache_write_status, review_captures, write_promoted_cache_entries
+from .review import (
+    attach_cache_write_status,
+    review_captures,
+    write_promoted_cache_entries,
+    write_candidate_cache,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -384,13 +389,35 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="stream per-capture start/end progress and pass --progress through to rns8-bench stderr",
     )
     parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument(
+    cache_output = parser.add_mutually_exclusive_group()
+    cache_output.add_argument(
         "--write-autotune-cache",
         action="store_true",
-        help="write performance_validated cache entries only for fastest promotable release-reviewed captures",
+        help="install release-reviewed entries through current content-bound promotion ledgers",
+    )
+    cache_output.add_argument(
+        "--emit-candidate-cache",
+        type=Path,
+        help="write a non-runtime candidate artifact under --out-root for ledger authoring",
+    )
+    parser.add_argument(
+        "--promotion-ledger",
+        type=Path,
+        action="append",
+        default=[],
+        help="current content-bound ledger; required by --write-autotune-cache",
     )
     parser.add_argument("--autotune-cache", type=Path, help="override autotune cache output path")
     args = parser.parse_args(argv)
+    if args.write_autotune_cache and not args.dry_run and not args.promotion_ledger:
+        parser.error(
+            "--write-autotune-cache requires --promotion-ledger; use --emit-candidate-cache before ledger authoring"
+        )
+    if args.emit_candidate_cache and (
+        not args.emit_candidate_cache.resolve().is_relative_to(args.out_root.resolve())
+        or args.emit_candidate_cache.resolve() == autotune_cache_path().resolve()
+    ):
+        parser.error("candidate cache must be a non-runtime artifact under --out-root")
     if args.max_new_captures is not None and args.max_new_captures < 0:
         parser.error("--max-new-captures must be non-negative")
     if args.dry_run and args.review_only:
@@ -645,8 +672,12 @@ def main() -> int:
     promoted = 0
     cache_path = args.autotune_cache or autotune_cache_path()
     if args.write_autotune_cache:
-        promoted = write_promoted_cache_entries(report, captures, cache_path)
+        promoted = write_promoted_cache_entries(
+            report, captures, cache_path, promotion_ledgers=args.promotion_ledger
+        )
     attach_cache_write_status(report, args.write_autotune_cache, cache_path, promoted)
+    if args.emit_candidate_cache:
+        write_candidate_cache(report, captures, args.emit_candidate_cache)
     report_path = args.out_root / "review_report.json"
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     markdown_path = args.out_root / "review_report.md"

@@ -18,6 +18,7 @@ from target_qualification import candidate_verdict, candidate_binding, VERDICT_S
 from json_evidence import load_evidence_json, same_evidence_value
 from benchmark_request import file_digest
 from cache_promotion import (
+    CANDIDATE_SCHEMA,
     entry_digest,
     evidence_references,
     receipt_from_references,
@@ -49,7 +50,10 @@ def load_cache_entries(path: Path | None) -> list[dict[str, Any]]:
     if path is None or not path.exists():
         return []
     data = load_evidence_json(path)
-    if not isinstance(data, dict) or data.get("schema_version") != 1:
+    if not isinstance(data, dict) or not (
+        data.get("schema_version") == 1
+        or (data.get("schema") == CANDIDATE_SCHEMA and "schema_version" not in data)
+    ):
         raise ValueError("candidate cache schema required")
     entries = data.get("entries")
     if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
@@ -71,7 +75,10 @@ def load_review_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
                     continue
                 capture_path = candidate.get("capture")
                 if isinstance(capture_path, str) and capture_path:
-                    reviewed[path_key(capture_path)] = candidate
+                    key = path_key(capture_path)
+                    if key in reviewed and not same_evidence_value(reviewed[key], candidate):
+                        raise ValueError("conflicting review evidence for " + key)
+                    reviewed[key] = candidate
     return reviewed
 
 
@@ -86,10 +93,19 @@ def load_variance_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
                 continue
             capture_key = entry.get("capture_key")
             capture_path = entry.get("capture")
-            if isinstance(capture_key, str) and capture_key:
-                entries[capture_key] = entry
-            elif isinstance(capture_path, str) and capture_path:
-                entries[path_key(capture_path)] = entry
+            key = (
+                capture_key
+                if isinstance(capture_key, str) and capture_key
+                else (
+                    path_key(capture_path)
+                    if isinstance(capture_path, str) and capture_path
+                    else None
+                )
+            )
+            if key is not None:
+                if key in entries and not same_evidence_value(entries[key], entry):
+                    raise ValueError("conflicting variance evidence for " + key)
+                entries[key] = entry
     return entries
 
 
@@ -344,25 +360,12 @@ def capture_entry(
     if (variance_gate_required or variance_report_supplied) and variance_entry is None:
         blockers.append("missing_variance_gate_entry")
     elif variance_entry is not None:
-        from perf_variance_report import capture_digest, execution_cohort, execution_id
+        from perf_variance_report import bound_entry_blockers
 
-        cohort, run = execution_cohort(capture), execution_id(capture)
-        if (
-            cohort is None
-            or run is None
-            or variance_entry.get("capture_sha256") != capture_digest(capture)
-            or variance_entry.get("execution_id") != run
-            or variance_entry.get("execution_cohort") != cohort
-        ):
-            blockers.append("variance_capture_provenance_mismatch")
+        blockers.extend(bound_entry_blockers(capture, variance_entry))
         variance_ready = variance_entry.get("promotion_ready") is True
         variance_required_margin = variance_entry.get("required_speedup_margin")
         variance_observed_noise = variance_entry.get("observed_max_relative_noise")
-        for blocker in variance_entry.get("blockers", []):
-            if isinstance(blocker, str) and blocker:
-                blockers.append(f"variance_blocker:{blocker}")
-        if not variance_ready and not variance_entry.get("blockers"):
-            blockers.append("variance_gate_not_ready")
         if (
             isinstance(speedup, (int, float))
             and isinstance(variance_required_margin, (int, float))
@@ -680,6 +683,7 @@ def build_ledger(
                 for key in ("production_capture", "diagnostic_capture")
             )
         references = evidence_references(inputs)
+    baseline_variance = {}
     for entry in entries:
         key = entry.get("autotune_key")
         entry["installed_cache_entry"] = bool(key and key in cache_keys)
@@ -689,6 +693,32 @@ def build_ledger(
         entry["counter_resource_summary"] = counter_resource_summary(counter_entry)
         if counter_entry is None and counter_reports:
             entry.setdefault("promotion_blockers", []).append("missing_counter_evidence")
+        if variance_reports:
+            from perf_variance_report import bound_entry_blockers
+
+            review = reviewed.get(path_key(entry["path"])) or {}
+            compared = (review.get("timing_comparison") or {}).get("baseline_capture")
+            baseline_paths = {path_key(compared)} if compared else set()
+            baseline_paths.update(
+                path_key(item["capture"]) for item in review.get("additional_baseline_evidence", [])
+            )
+            for baseline_path in sorted(baseline_paths):
+                if baseline_path not in baseline_variance:
+                    baseline_capture = load_capture(Path(baseline_path))
+                    validate_capture(baseline_capture, Path(baseline_path))
+                    row = variance.get(baseline_path)
+                    baseline_variance[baseline_path] = (
+                        bound_entry_blockers(baseline_capture, row),
+                        row.get("required_speedup_margin") if isinstance(row, dict) else None,
+                    )
+                reasons, margin = baseline_variance[baseline_path]
+                entry["promotion_blockers"].extend("baseline:" + reason for reason in reasons)
+                if (
+                    not reasons
+                    and isinstance(entry["speedup_margin"], (int, float))
+                    and entry["speedup_margin"] <= margin
+                ):
+                    entry["promotion_blockers"].append("speedup_inside_baseline_variance_margin")
         entry["cache_promotion_receipt"] = None
         if key in cache_by_key:
             from benchmark_sweep_lib.review import (

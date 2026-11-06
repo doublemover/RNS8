@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import contextlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -15,10 +17,13 @@ from benchmark_sweep_lib.review import (
     cache_entry_from_capture,
     review_captures,
     reviewed_release_status_for_target,
+    write_candidate_cache,
+    write_promoted_cache_entries,
 )
+from benchmark_sweep_lib.cli import parse_args
 from diagnostic_companion import build_binding
-from install_autotune_cache import AutotuneCacheInstallError, install_cache
-from perf_variance_report import build_report
+from install_autotune_cache import AutotuneCacheInstallError, install_cache, read_cache
+from perf_variance_report import build_report, bound_entry_blockers
 from promotion_ledger import build_ledger
 from test_autotune_cache_install import entry, write_cache, write_ledger
 from test_benchmark_sweep_support import finite_capture
@@ -26,6 +31,47 @@ from test_diagnostic_companion import authored_capture_pair
 
 
 class PayloadControls(unittest.TestCase):
+    def test_cli_distinguishes_candidate_export_and_reviewed_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for arguments in (
+                ["--write-autotune-cache"],
+                [
+                    "--out-root",
+                    str(root),
+                    "--emit-candidate-cache",
+                    str(root.parent / "outside.json"),
+                ],
+                ["--write-autotune-cache", "--emit-candidate-cache", str(root / "candidate.json")],
+            ):
+                with (
+                    self.subTest(arguments=arguments),
+                    contextlib.redirect_stderr(io.StringIO()),
+                    self.assertRaises(SystemExit),
+                ):
+                    parse_args(arguments)
+            parsed = parse_args(
+                [
+                    "--review-only",
+                    "--out-root",
+                    str(root),
+                    "--emit-candidate-cache",
+                    str(root / "candidate.json"),
+                ]
+            )
+            self.assertEqual(parsed.emit_candidate_cache, root / "candidate.json")
+            self.assertFalse(parsed.write_autotune_cache)
+            parsed = parse_args(
+                [
+                    "--review-only",
+                    "--write-autotune-cache",
+                    "--promotion-ledger",
+                    str(root / "ledger.json"),
+                ]
+            )
+            self.assertEqual(parsed.promotion_ledger, [root / "ledger.json"])
+            self.assertFalse((root / "candidate.json").exists())
+
     def test_timestamp_only_projection_and_all_other_payload_fields(self):
         original = entry()
         updated = {**original, "updated_utc": "2030-01-01T00:00:00Z"}
@@ -140,7 +186,19 @@ class PublicationControls(unittest.TestCase):
             source, ledger_path, destination = (
                 root / name for name in ("source.json", "ledger.json", "installed.json")
             )
-            write_cache(source, [expected])
+            self.assertEqual(write_candidate_cache(review, first, source), 1)
+            self.assertEqual(
+                json.loads(source.read_text(encoding="utf-8"))["schema"], contract.CANDIDATE_SCHEMA
+            )
+            with self.assertRaises(AutotuneCacheInstallError):
+                read_cache(source)
+            self.assertEqual(write_promoted_cache_entries(review, first, destination), 0)
+            self.assertFalse(destination.exists())
+            single = build_report([productions[0]], require_multi_run=False)["entries"][0]
+            self.assertTrue(single["promotion_ready"])
+            self.assertIn(
+                "variance_independent_processes_missing", bound_entry_blockers(candidate, single)
+            )
 
             def author():
                 return build_ledger(
@@ -155,7 +213,39 @@ class PublicationControls(unittest.TestCase):
             ledger = author()
             self.assertEqual(ledger["blocked_count"], 0, ledger["entries"][0]["promotion_blockers"])
             self.assertIsNotNone(ledger["entries"][0]["cache_promotion_receipt"])
+            variance_bytes = variance_path.read_bytes()
+            # A ready single baseline process cannot borrow the candidate's rerun.
+            variance_path.write_text(
+                json.dumps(
+                    build_report(
+                        [path for path in productions if path.parent.name != "hip-direct-1"],
+                        require_multi_run=False,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            baseline_blocked = author()
+            self.assertIn(
+                "baseline:variance_independent_processes_missing",
+                baseline_blocked["entries"][0]["promotion_blockers"],
+            )
+            self.assertIsNone(baseline_blocked["entries"][0]["cache_promotion_receipt"])
+            ledger_path.write_text(json.dumps(baseline_blocked), encoding="utf-8")
+            self.assertEqual(
+                write_promoted_cache_entries(
+                    review, first, destination, promotion_ledgers=[ledger_path]
+                ),
+                0,
+            )
+            self.assertFalse(destination.exists())
+            variance_path.write_bytes(variance_bytes)
             ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+            self.assertEqual(
+                write_promoted_cache_entries(
+                    review, first, destination, promotion_ledgers=[ledger_path]
+                ),
+                1,
+            )
             install_cache([source], destination, promotion_ledgers=[ledger_path])
             before = destination.read_bytes()
             changed = {
@@ -179,6 +269,13 @@ class PublicationControls(unittest.TestCase):
             other.write_bytes(saved + b"\n")
             with self.assertRaisesRegex(AutotuneCacheInstallError, "payload_or_evidence_changed"):
                 install_cache([source], destination, promotion_ledgers=[ledger_path])
+            self.assertEqual(
+                write_promoted_cache_entries(
+                    review, first, destination, promotion_ledgers=[ledger_path]
+                ),
+                0,
+            )
+            self.assertIn("payload_or_evidence_changed", review["cache_publication_error"])
             self.assertEqual(destination.read_bytes(), before)
             other.write_bytes(saved)
             refreshed = author()
