@@ -16,6 +16,7 @@ from measurement_contract import (
     host_instrumentation,
     host_observation_contract,
     host_observation_count,
+    task_scaling_contract,
 )
 from perf_variance_report import (
     execution_cohort,
@@ -36,13 +37,16 @@ def canonical_work(capture: dict, *, exclude: Iterable[str] = ()) -> str:
     contract = {key: contract_value(capture, key) for key in CONTRACT_KEYS if key not in excluded}
     # These describe the caller-visible boundary, not physical kernel tiling.
     contract["layout"] = capture.get("layout")
-    contract["checksum_policy"] = (capture.get("host_api_batch") or {}).get(
-        "checksum_policy", "single_final_output_checksum"
-    )
+    if "checksum_policy" not in excluded:
+        contract["checksum_policy"] = (capture.get("host_api_batch") or {}).get(
+            "checksum_policy", "single_final_output_checksum"
+        )
     return json.dumps(contract, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
-def comparison_environment(capture: dict, *, cpu_anchor: bool = False) -> str:
+def comparison_environment(
+    capture: dict, *, cpu_anchor: bool = False, task_scaling: bool = False
+) -> str:
     manifest = capture.get("build_manifest") or {}
     identity = {
         "source_commit": manifest.get("source_commit"),
@@ -53,6 +57,12 @@ def comparison_environment(capture: dict, *, cpu_anchor: bool = False) -> str:
         "host_observation_contract": host_observation_contract(capture),
         "host_batch_contract": host_batch_contract(capture),
     }
+    if task_scaling:
+        scaling = task_scaling_contract(capture)
+        identity["comparison_scope"] = scaling["scope"]
+        identity["host_batch_contract"] = dict(
+            aggregate_units=scaling["aggregate_units"], normalized_units=scaling["normalized_units"]
+        )
     if not cpu_anchor:
         identity.update(
             {
@@ -79,6 +89,9 @@ def comparison_environment(capture: dict, *, cpu_anchor: bool = False) -> str:
                 "amortization_policy",
             )
         }
+        if task_scaling:
+            identity["timing"]["host_result_kind"] = "explicit_per_task_throughput"
+            identity["timing"]["inner_repetitions"] = "explicit_task_count_normalization"
         # Backend flags may differ between explicitly compared implementations;
         # all other configuration text, including experimental policies, remains.
         configuration = manifest.get("configuration") or ""
@@ -90,6 +103,22 @@ def comparison_environment(capture: dict, *, cpu_anchor: bool = False) -> str:
             )
         )
     return json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def task_scaling_work(capture: dict) -> str:
+    scaling = task_scaling_contract(capture)
+    return json.dumps(
+        dict(
+            scope=scaling["scope"],
+            task_work=json.loads(
+                canonical_work(capture, exclude=("host_api_batch.work_contract", "checksum_policy"))
+            ),
+            checksum_comparison="own_complete_task_set_not_independent_single_checksum",
+        ),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
 
 
 def _number(value: Any) -> float | None:

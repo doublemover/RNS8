@@ -273,6 +273,17 @@ and blockers, without a performance ratio. Order, filename, copied-ID,
 high-spread and companion controls are authored but unexecuted. No historical
 capture or archived classification has been remeasured or reclassified.
 
+Host API batching is an explicit per-task throughput comparison, rather than
+equal-work latency. Its shared normalization admits the registered complete
+batch, task count, checksum and per-task host-output boundary; it preserves
+arithmetic/input/reuse and device/build/runtime identity. Each batch and
+independent baseline needs its own qualified process cohort and CPU reference
+covering its complete task set. GPU timings use separate production companions
+through `host_api_batch_report.py --diagnostic-binding`; CPU correctness anchors
+do not serve as GPU performance baselines. Unknown/legacy normalization and
+incompatible evidence retain blockers and omit ratios. The new controls have
+not run during this source pass.
+
 ## Promotion boundaries
 
 - CPU success and static/host arithmetic tests do not qualify GPU code.

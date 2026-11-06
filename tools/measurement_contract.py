@@ -36,6 +36,47 @@ def host_batch_contract(capture: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def task_scaling_contract(capture: dict[str, Any]) -> dict[str, Any]:
+    """Admit the registered host API batch's explicit per-task throughput boundary."""
+    batch = capture.get("host_api_batch") or {}
+    timing = capture.get("timing_metadata") or {}
+    enabled = batch.get("enabled") is True
+    tasks = batch.get("tasks_per_measured_repeat", 1)
+    if type(tasks) is not int or not 1 <= tasks <= 65536:
+        raise ValueError("bounded explicit host task count required")
+    if enabled:
+        if (
+            type(batch.get("batch_size")) is not int
+            or batch.get("batch_size") != tasks
+            or tasks < 2
+            or capture.get("benchmark_execution_mode") != "benchmark_host_api_batch"
+            or batch.get("setup_scope")
+            != "one_shared_plan_per_capture_one_resident_matrix_workspace_triplet_per_task"
+            or batch.get("timing_policy") != "aggregate_batch_totals_per_measured_repeat"
+            or batch.get("checksum_policy") != "fnv1a_over_final_task_output_checksums"
+        ):
+            raise ValueError("registered complete host task-batch contract required")
+    elif batch or tasks != 1 or capture.get("benchmark_execution_mode") != "persistent_resident":
+        raise ValueError("independent baseline must describe one complete task")
+    if (
+        timing.get("host_result_kind") != ("amortized_batch" if enabled else "single_operation")
+        or type(timing.get("inner_repetitions")) is not int
+        or timing.get("inner_repetitions") != tasks
+        or timing.get("amortization_policy")
+        != "explicit_independent_task_batch_with_per_task_output"
+        or output_completion_boundary(capture) != "per_task_host_destinations"
+        or host_observation_contract(capture) != {"unit": "completed_call_or_task_batch"}
+    ):
+        raise ValueError("per-task host completion and native amortization evidence required")
+    return dict(
+        scope="registered_host_task_throughput_scaling_v1",
+        tasks=tasks,
+        aggregate_units="microseconds_per_completed_task_batch",
+        normalized_units="microseconds_per_completed_task",
+        checksum_policy=batch.get("checksum_policy", "single_final_output_checksum"),
+    )
+
+
 def host_instrumentation(capture: dict[str, Any]) -> str:
     timing = capture.get("timing_metadata") or {}
     # Historical hook-enabled captures remain diagnostic, never silently become

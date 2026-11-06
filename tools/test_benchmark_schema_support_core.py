@@ -190,6 +190,9 @@ def as_host_api_batch_capture(capture: dict) -> dict:
     metadata["prepack_reuse_strategy"] = "none"
     metadata["host_api_batch_enabled"] = True
     metadata["host_api_batch_size"] = batch_size
+    metadata["host_result_kind"] = "amortized_batch"
+    metadata["inner_repetitions"] = batch_size
+    metadata["amortization_policy"] = "explicit_independent_task_batch_with_per_task_output"
     metadata["phase_notes"]["pack"] = (
         "per-repeat aggregate host timing for packing A and B for independent resident tasks"
     )

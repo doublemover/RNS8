@@ -69,6 +69,14 @@ def synthetic_host_measurements(capture: dict) -> None:
         censor_threshold_us=0.2,
         synthetic_fixture_only=True,
     )
+    batch = capture.get("host_api_batch") or {}
+    if batch.get("enabled") is True:
+        metadata["host_result_kind"] = "amortized_batch"
+        metadata["inner_repetitions"] = batch["tasks_per_measured_repeat"]
+    elif metadata.get("inner_repetitions") is None:
+        metadata["inner_repetitions"] = 1
+    if metadata.get("amortization_policy") is None:
+        metadata["amortization_policy"] = "explicit_independent_task_batch_with_per_task_output"
     metadata["phase_states"] = {
         phase: ("measured" if samples and min(samples) > 0.2 else "below_resolution")
         for phase, samples in capture.get("raw_timings_us", {}).items()
