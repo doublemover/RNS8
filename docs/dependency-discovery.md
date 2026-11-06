@@ -318,6 +318,26 @@ does not execute it. The separately registered smoke test checks runtime arithme
 when tests are enabled. Those authored checks do not establish complete transitive
 ABI or upgraded-stack qualification.
 
+FLINT enablement also resolves and binds GMP and MPFR, including when
+`RNS8_ENABLE_GMP=OFF`. `RNS8_MPFR_ROOT`, `RNS8_MPFR_INCLUDE_DIR` and
+`RNS8_MPFR_LIBRARY` follow the same explicit-choice rules as the GMP/FLINT inputs.
+A selected FLINT root is a dependency-prefix candidate, so a complete private
+prefix works without additional path edits; explicit per-library roots still
+take priority. Raw imported FLINT targets carry MPFR, GMP, native POSIX threads
+and, on Linux, libm. Native MSVC requires the complete `PThreads4W::PThreads4W`
+package interface, as used by the upstream Windows build. Put its prefix in
+`CMAKE_PREFIX_PATH`; an unsupported custom thread configuration fails rather
+than inventing an import target. Linux uses native `Threads::Threads`.
+
+The shared compile/link smoke requires GMP >=6.2.1, FLINT >=3 and MPFR >=4.1.0,
+checks GMP's host limb layout, and references the integer and MPFR conversion
+APIs together. The separately executed smoke checks the resulting arithmetic
+and prints runtime versions. These are compatibility checks for the selected
+APIs, not a complete loader or every-configuration ABI certificate. Additional
+custom FLINT features such as BLAS must provide a linkable configuration.
+The requirements follow [FLINT's dependency documentation](https://flintlib.org/doc/guide/getting-started/introduction.html)
+and the [selected release's Windows link setup](https://github.com/flintlib/flint/blob/v3.6.0/CMakeLists.txt).
+
 ## Installation and remaining gates
 
 The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`.

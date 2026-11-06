@@ -453,6 +453,63 @@ class Discovery(unittest.TestCase):
             self.assertFalse(refs["gmp"]["ok"])
             self.assertEqual(refs["gmp"]["compatibility"], "not_run")
 
+    def test_flint_resolves_transitive_gmp_and_mpfr_when_standalone_gmp_is_off(self):
+        for host in ("Windows", "Linux"):
+            with self.subTest(host=host):
+                prefix = self.base / (host + " exact references")
+                for name, header in (
+                    ("flint", "flint/flint.h"),
+                    ("gmp", "gmp.h"),
+                    ("mpfr", "mpfr.h"),
+                ):
+                    self.put(prefix, "include/" + header)
+                    self.put(
+                        prefix,
+                        "lib/" + (name + ".lib" if host == "Windows" else "lib" + name + ".a"),
+                    )
+                request = self.request(
+                    host, {"RNS8_FLINT_ROOT": str(prefix)}, {"RNS8_ENABLE_FLINT": True}
+                )
+                report = self.resolve(request)
+                self.assert_clean(report)
+                self.assertNotIn("RNS8_ENABLE_GMP", report["feature_policy"])
+                for name in ("gmp", "mpfr", "flint"):
+                    self.assertTrue(report["optional_components"][name]["feature_enabled"])
+                    self.assertEqual(
+                        Path(report["cmake_bindings"]["RNS8_" + name.upper() + "_ROOT"]), prefix
+                    )
+                broken = self.resolve(
+                    replace(
+                        request,
+                        overrides={
+                            **request.overrides,
+                            "RNS8_MPFR_ROOT": str(self.base / "missing MPFR"),
+                        },
+                    )
+                )
+                self.assertTrue(broken["errors"])
+                self.assertIsNone(broken["optional_components"]["mpfr"]["selected"])
+                (prefix / "include/mpfr.h").unlink()
+                self.assertTrue(self.resolve(request)["errors"])
+                # Optional-off discovery never makes absent transitive inputs mandatory.
+                self.assert_clean(self.resolve(replace(request, features={})))
+
+    def test_mpfr_component_overrides_reject_mixed_root(self):
+        one, two = self.base / "MPFR one", self.base / "MPFR two"
+        for prefix in (one, two):
+            self.put(prefix, "include/mpfr.h")
+            self.put(prefix, "lib/mpfr.lib")
+        report = self.resolve(
+            self.request(
+                overrides={
+                    "RNS8_MPFR_ROOT": str(one),
+                    "RNS8_MPFR_LIBRARY": str(two / "lib/mpfr.lib"),
+                }
+            )
+        )
+        self.assertTrue(report["errors"])
+        self.assertIsNone(report["optional_components"]["mpfr"]["selected"])
+
     def test_source_revision_and_unknown_version_are_separate(self):
         root = self.base / "ck"
         self.put(root, "include/ck/ck.hpp")

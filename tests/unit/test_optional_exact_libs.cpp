@@ -1,12 +1,22 @@
+#include <climits>
 #include <iostream>
 
-#if defined(RNS8_ENABLE_GMP)
+#if defined(RNS8_ENABLE_GMP) || defined(RNS8_ENABLE_FLINT)
 #include <gmp.h>
+static_assert(__GNU_MP_VERSION > 6 ||
+                  (__GNU_MP_VERSION == 6 &&
+                   (__GNU_MP_VERSION_MINOR > 2 ||
+                    (__GNU_MP_VERSION_MINOR == 2 && __GNU_MP_VERSION_PATCHLEVEL >= 1))),
+              "RNS8 exact references require GMP >= 6.2.1");
+static_assert(sizeof(mp_limb_t) * CHAR_BIT == GMP_LIMB_BITS, "GMP header/host limb ABI mismatch");
 #endif
 
 #if defined(RNS8_ENABLE_FLINT)
 #include <flint/flint.h>
 #include <flint/fmpz.h>
+#include <mpfr.h>
+static_assert(__FLINT_VERSION >= 3, "RNS8 exact references require FLINT >= 3");
+static_assert(MPFR_VERSION >= MPFR_VERSION_NUM(4, 1, 0), "FLINT requires MPFR >= 4.1.0");
 #endif
 
 int main() {
@@ -47,12 +57,23 @@ int main() {
   fmpz_mul_2exp(flint_expected, flint_expected, 130);
   fmpz_sub_ui(flint_expected, flint_expected, 21);
   const bool flint_exact = fmpz_equal(flint_product, flint_expected) != 0;
+  // Exercise MPFR's actual link/runtime edge and the selected GMP together.
+  mpz_t integer;
+  mpz_init(integer);
+  fmpz_get_mpz(integer, flint_product);
+  mpfr_t floating;
+  mpfr_init2(floating, 256);
+  const bool transitive_exact =
+      mpfr_set_z(floating, integer, MPFR_RNDN) == 0 && mpfr_cmp_z(floating, integer) == 0;
+  mpfr_clear(floating);
+  mpz_clear(integer);
   fmpz_clear(flint_a);
   fmpz_clear(flint_product);
   fmpz_clear(flint_expected);
-  if (!flint_exact)
+  if (!flint_exact || !transitive_exact)
     return 5;
   std::cout << "FLINT " << flint_version << '\n';
+  std::cout << "GMP " << gmp_version << " MPFR " << mpfr_get_version() << '\n';
 #endif
 
   return 0;

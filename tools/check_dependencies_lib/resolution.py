@@ -31,6 +31,7 @@ ROOT_KEYS = (
     "RNS8_HIPBLASLT_ROOT",
     "RNS8_GMP_ROOT",
     "RNS8_FLINT_ROOT",
+    "RNS8_MPFR_ROOT",
 )
 HIP_PATH_KEYS = {
     "RNS8_HIP_HIPCC": "compiler",
@@ -50,6 +51,8 @@ OPTIONAL_PATH_KEYS = {
     "RNS8_GMP_LIBRARY": ("gmp", "library"),
     "RNS8_FLINT_INCLUDE_DIR": ("flint", "include"),
     "RNS8_FLINT_LIBRARY": ("flint", "library"),
+    "RNS8_MPFR_INCLUDE_DIR": ("mpfr", "include"),
+    "RNS8_MPFR_LIBRARY": ("mpfr", "library"),
 }
 REQUEST_KEYS = (
     *ROOT_KEYS,
@@ -820,6 +823,7 @@ OPTIONAL = {
     ),
     "gmp": ("RNS8_GMP_ROOT", "RNS8_ENABLE_GMP", ("include/gmp.h",), "gmp"),
     "flint": ("RNS8_FLINT_ROOT", "RNS8_ENABLE_FLINT", ("include/flint/flint.h",), "flint"),
+    "mpfr": ("RNS8_MPFR_ROOT", "RNS8_ENABLE_FLINT", ("include/mpfr.h",), "mpfr"),
 }
 
 
@@ -828,6 +832,11 @@ def optional_components(
 ) -> dict:
     result = {}
     for name, (key, feature, headers, library_name) in OPTIONAL.items():
+        # FLINT's integer API still links against GMP and MPFR. Resolve their
+        # actual inputs even when the standalone GMP comparison is disabled.
+        enabled = request.features.get(feature, False) or (
+            name == "gmp" and request.features.get("RNS8_ENABLE_FLINT", False)
+        )
         roots = []
         if request.overrides.get(key):
             roots.append((request.overrides[key], "override:" + key, 0, True))
@@ -850,6 +859,12 @@ def optional_components(
                     roots.append((str(inferred), "override:" + variable, 0, True))
         if environment.get(key):
             roots.append((environment[key], "environment:" + key, 5, True))
+        if name in {"gmp", "mpfr"} and request.features.get("RNS8_ENABLE_FLINT", False):
+            flint_root = request.overrides.get("RNS8_FLINT_ROOT") or environment.get(
+                "RNS8_FLINT_ROOT"
+            )
+            if flint_root:
+                roots.append((flint_root, "selected_FLINT_dependency_prefix", 15, False))
         roots += [
             (prefix, "CMAKE_PREFIX_PATH", 20, False)
             for prefix in split_paths(request.overrides.get("CMAKE_PREFIX_PATH", ""), request.host)
@@ -875,8 +890,8 @@ def optional_components(
                     (
                         str(Path(installed) / selected["paths"]["triplet"]),
                         "selected_manifest_installation",
-                        10 if name in {"gmp", "flint"} else 30,
-                        name in {"gmp", "flint"} and request.features.get(feature, False),
+                        10 if name in {"gmp", "flint", "mpfr"} else 30,
+                        name in {"gmp", "flint", "mpfr"} and enabled,
                     )
                 )
             roots.append(
@@ -982,6 +997,7 @@ def optional_components(
                         "hipblaslt": ("hipblaslt/hipblaslt.h", "hipblaslt.h"),
                         "gmp": ("gmp.h",),
                         "flint": ("flint/flint.h",),
+                        "mpfr": ("mpfr.h",),
                     }[name]
                     actual_header = first_file(path, header_names)
                     if actual_header:
@@ -996,8 +1012,8 @@ def optional_components(
                 if not contains(candidate.canonical_root, path):
                     candidate.rejected.append(component + " escapes the selected root")
 
-        result[name] = select(name, roots, request, request.features.get(feature, False), inspect)
-        result[name]["feature_enabled"] = request.features.get(feature, False)
+        result[name] = select(name, roots, request, enabled, inspect)
+        result[name]["feature_enabled"] = enabled
         result[name]["scope"] = (
             "candidate paths only; existing optional finders own API/target/link probes; no backend enabled by discovery"
         )
