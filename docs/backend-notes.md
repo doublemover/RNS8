@@ -137,6 +137,25 @@ in the current frontload phase.
 
 ## AUTO and reviewed caches
 
+AUTO refreshes a context-owned immutable snapshot from the complete current
+cache bytes on every selection. The absolute path and SHA256 identify reuse of
+the parsed records and exact-key/cohort indexes. Creation, removal, atomic
+replacement, malformed content and environment-selected path changes are seen
+by the next selection; timestamps alone never authorize reuse. Input is bounded
+to a regular16MiB file,65536 entries and128 JSON nesting levels, with duplicate
+members and duplicate entry keys rejected.
+
+A conservative backend/semantics/modulus/shape/target shortlist eliminates
+definite misses before accelerator probing, lazy library creation or candidate
+plan construction. Surviving candidates still require complete arithmetic,
+runtime, exact-key and workspace admission. The trace retains every candidate;
+`RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY` has disposition3 (`not_evaluated`). Its
+empty key, false hit flags and zero workspace mean those facts were unobserved,
+not that an exact-key lookup or resource query failed. These rows are excluded
+from the rejected-candidate projection. Source-authored refresh, identity,
+shortlist and actual selector controls await the final batch; no planning or
+one-shot latency benefit has been measured.
+
 An AUTO context probes direct HIP and can use CPU when HIP is unavailable.
 Within a HIP AUTO context, an eligible plan may select a compiled backend from
 a reviewed exact-match cache. Admission binds semantics, target/runtime, kernel,

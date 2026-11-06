@@ -62,6 +62,28 @@ def fixture():
 
 
 class AutoTrace(unittest.TestCase):
+    def test_coarse_miss_has_explicit_unevaluated_disposition_and_unknown_observations(self):
+        c = fixture()
+        a = c["auto_selector"]
+        d = a["candidate_decisions"][1]
+        d.update(
+            disposition=3, reason_code=14, reason="not evaluated: no plausible reviewed cache entry"
+        )
+        a["rejected_candidates"].pop(0)
+        validate_capture(c)
+        for change in (
+            dict(disposition=0),
+            dict(exact_entry_present=True),
+            dict(validated_entry_present=True),
+            dict(key_sha256="b" * 64),
+            dict(required_workspace_bytes=1),
+            dict(reviewed_median_us=0.0),
+        ):
+            changed = deepcopy(c)
+            changed["auto_selector"]["candidate_decisions"][1].update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                validate_capture(changed)
+
     def test_two_eligible_hits_are_not_reported_absent(self):
         c = fixture()
         validate_capture(c)

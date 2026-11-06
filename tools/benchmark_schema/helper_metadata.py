@@ -406,6 +406,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
                         11: "reviewed exact entry selected",
                         12: "arithmetic proof rejected",
                         13: "tied with selected",
+                        14: "not evaluated: no plausible reviewed cache entry",
                     }
                     backends = set()
                     selected = 0
@@ -428,7 +429,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
                             backends.add(backend)
                         disposition = d.get("disposition")
                         if type(disposition) is not int or disposition != (
-                            2 if code == 0 else 1 if code == 11 else 0
+                            2 if code == 0 else 1 if code == 11 else 3 if code == 14 else 0
                         ):
                             self._error("auto_selector decision disposition mismatch")
                         if disposition == 1:
@@ -469,6 +470,15 @@ def validate_helper_lane_metadata(self: Any) -> None:
                             digest and not re.fullmatch(r"[0-9a-f]{64}", digest)
                         ):
                             self._error("auto_selector invalid candidate key identity")
+                        if code == 14 and (
+                            d.get("exact_entry_present") is not False
+                            or d.get("validated_entry_present") is not False
+                            or digest != ""
+                            or d.get("required_workspace_bytes") != 0
+                        ):
+                            self._error(
+                                "auto_selector skipped candidate invents key/resource observations"
+                            )
                     winners = [
                         d for d in decisions if type(d) is dict and d.get("reason_code") == 11
                     ]

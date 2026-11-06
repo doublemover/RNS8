@@ -1138,11 +1138,14 @@ typedef enum rns8_auto_reason RNS8_ENUM_BASE {
   RNS8_AUTO_SLOWER = 10,
   RNS8_AUTO_SELECTED = 11,
   RNS8_AUTO_ARITHMETIC_REJECTED = 12,
-  RNS8_AUTO_TIED = 13
+  RNS8_AUTO_TIED = 13,
+  RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY = 14
 } rns8_auto_reason;
 typedef struct rns8_auto_decision {
   uint64_t struct_size;
-  uint32_t abi_version, backend, disposition, reason_code; /* rejected0,selected1,baseline2 */
+  uint32_t abi_version, backend, disposition,
+      reason_code; /* rejected0,selected1,baseline2,not_evaluated3 */
+  /* For not_evaluated3, hit flags/key/workspace are unobserved, not exact-key misses. */
   uint32_t exact_entry_present, validated_entry_present;
   uint64_t required_workspace_bytes;
   double reviewed_median_us; /* zero means no admitted measurement, not free */

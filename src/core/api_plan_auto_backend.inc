@@ -41,6 +41,7 @@ void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
 }
 
 bool prepare_auto_candidate_backend(rns8_context& ctx, rns8_backend_kind backend) {
+  ++plan_validation_work.auto_candidate_preparations;
   static_cast<void>(ctx);
   rns8_backend_capability_info capability{};
   capability.struct_size = sizeof(capability);
@@ -122,6 +123,8 @@ static const char* auto_reason_text(uint32_t reason) {
     return "reviewed exact entry selected";
   case RNS8_AUTO_TIED:
     return "tied with selected";
+  case RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY:
+    return "not evaluated: no plausible reviewed cache entry";
   case RNS8_AUTO_ARITHMETIC_REJECTED:
     return "arithmetic proof rejected";
   default:
@@ -153,7 +156,10 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
   const rns8_backend_kind candidates[] = {RNS8_BACKEND_HIP_VECTOR_ALU_INT64, RNS8_BACKEND_HIPBLASLT,
                                           RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA,
                                           RNS8_BACKEND_AMDGPU_BUILTINS};
-  const auto snapshot = rns8::detail::read_autotune_cache();
+  const auto selected_snapshot =
+      rns8::detail::refresh_autotune_snapshot(std::atomic_load(&ctx.autotune_snapshot));
+  std::atomic_store(&ctx.autotune_snapshot, selected_snapshot);
+  const auto& snapshot = selected_snapshot->cache();
   trace.cache_exists = snapshot.exists;
   trace.cache_loaded = snapshot.loaded;
   trace.cache_entry_count = snapshot.entries.size();
@@ -161,11 +167,25 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
   const rns8::detail::AutotuneCacheEntry* best_hit = nullptr;
   rns8_plan best_plan{};
   size_t best_index = 0;
+  bool any_evaluated = false;
   for (const auto candidate_backend : candidates) {
     rns8_auto_decision decision{};
     decision.struct_size = sizeof(decision);
     decision.abi_version = RNS8_ABI_VERSION;
     decision.backend = candidate_backend;
+    // A definite coarse miss cannot become an exact reviewed hit. Do not probe
+    // the runtime, construct a plan, or invent a rejection observation for it.
+    if (!selected_snapshot->plausible(
+            backend_name(candidate_backend), semantics_name_for_key(plan.desc.semantics),
+            uses_finite_storage(plan.desc.semantics) ? plan.desc.finite_modulus : 0, plan.desc.m,
+            plan.desc.n, plan.desc.k, ctx.device_info.gcn_arch)) {
+      decision.disposition = 3;
+      decision.reason_code = RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY;
+      set_text(decision.reason, sizeof(decision.reason), auto_reason_text(decision.reason_code));
+      decisions.push_back(decision);
+      continue;
+    }
+    any_evaluated = true;
     const auto evaluate = [&]() -> uint32_t {
       if (!backend_supports_semantics(candidate_backend, plan.desc.semantics))
         return RNS8_AUTO_UNSUPPORTED_SEMANTICS;
@@ -185,6 +205,7 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
         return RNS8_AUTO_NOT_COMPILED;
       if (!prepare_auto_candidate_backend(ctx, candidate_backend))
         return RNS8_AUTO_PROBE_FAILED;
+      ++plan_validation_work.auto_candidate_plan_copies;
       rns8_plan candidate = plan;
       candidate.backend = candidate_backend;
       configure_plan_backend_metadata(candidate, &ctx);
@@ -193,16 +214,14 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
       decision.required_workspace_bytes = candidate.backend_workspace_required_bytes;
       const auto hash = rns8::detail::sha256(candidate.backend_autotune_key);
       set_text(decision.key_sha256, sizeof(decision.key_sha256), hash);
-      const auto* exact =
-          rns8::detail::find_exact_autotune_entry(snapshot, candidate.backend_autotune_key);
+      const auto* exact = selected_snapshot->exact(candidate.backend_autotune_key);
       decision.exact_entry_present = exact != nullptr;
       if (!exact)
         return RNS8_AUTO_NO_EXACT_ENTRY;
-      if (!rns8::detail::find_validated_autotune_entry(snapshot, candidate.backend_autotune_key))
+      if (!selected_snapshot->validated(candidate.backend_autotune_key))
         return RNS8_AUTO_UNVALIDATED_ENTRY;
       const auto runtime = autotune_runtime_identity_for_plan(ctx, candidate);
-      const auto* hit = rns8::detail::find_validated_autotune_entry_for_runtime(
-          snapshot, candidate.backend_autotune_key, runtime);
+      const auto* hit = selected_snapshot->runtime(candidate.backend_autotune_key, runtime);
       decision.validated_entry_present = hit != nullptr;
       if (!hit)
         return RNS8_AUTO_IDENTITY_MISMATCH;
@@ -237,10 +256,14 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
              auto_reason_text(RNS8_AUTO_SELECTED));
     trace.selected_exact_entry = 1;
     trace.selected_validated_entry = 1;
-    set_text(trace.decision, sizeof(trace.decision), "reviewed exact entry selected");
-  } else
     set_text(trace.decision, sizeof(trace.decision),
-             "baseline retained; no admissible reviewed exact candidate");
+             "reviewed exact entry selected; coarse nonmatches not evaluated");
+  } else
+    set_text(
+        trace.decision, sizeof(trace.decision),
+        !any_evaluated
+            ? "baseline retained; no plausible reviewed entries; candidates not evaluated"
+            : "baseline retained; no admissible exact candidate; coarse nonmatches not evaluated");
   plan.auto_trace = trace;
   plan.auto_decisions = std::move(decisions);
 }

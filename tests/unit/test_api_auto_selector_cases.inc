@@ -641,3 +641,51 @@ TEST_CASE("HIP prefix-nine decline seals signed and unsigned oneshots exactly on
   SKIP("HIP not compiled");
 #endif
 }
+
+TEST_CASE("AUTO definite cache misses avoid all runtime candidate preparation",
+          "[api][autotune][planning][cpu]") {
+  using namespace rns8::detail::api;
+  // Metadata-only context: no native device or provider is represented by this
+  // control. A definite cache miss must return before consulting either one.
+  rns8_context ctx{};
+  ctx.backend = RNS8_BACKEND_HIP_DIRECT;
+  ctx.auto_backend_selection = true;
+  std::snprintf(ctx.device_info.gcn_arch, sizeof(ctx.device_info.gcn_arch), "gfx1100");
+  const auto path = unique_cache_fixture_path("rns8-auto-definite-miss");
+  ScopedAutotuneCachePath scoped(path);
+  struct Cleanup {
+    std::filesystem::path path;
+    ~Cleanup() {
+      std::error_code ignored;
+      std::filesystem::remove(path, ignored);
+    }
+  } cleanup{path};
+  for (const auto* content : {"", "{\"schema_version\":1,\"entries\":[]}", "{not json",
+                              "{\"schema_version\":1,\"entries\":[{\"key\":\"unreviewed\"}]}"}) {
+    if (*content) {
+      std::ofstream output(path, std::ios::trunc);
+      output << content;
+    } else
+      std::filesystem::remove(path);
+    rns8_plan plan{};
+    plan.backend = RNS8_BACKEND_HIP_DIRECT;
+    plan.desc = bounded_gemm_desc(RNS8_BOUNDED_U64, 1, 1, 1);
+    plan_validation_work = {};
+    select_auto_backend_from_reviewed_cache(ctx, plan);
+    CHECK(plan.backend == RNS8_BACKEND_HIP_DIRECT);
+    CHECK(plan_validation_work.auto_candidate_preparations == 0);
+    CHECK(plan_validation_work.auto_candidate_plan_copies == 0);
+    CHECK(ctx.hipblaslt_handle == nullptr);
+    REQUIRE(plan.auto_decisions.size() == 6);
+    CHECK(std::string(plan.auto_trace.decision).find("not evaluated") != std::string::npos);
+    for (size_t i = 1; i < plan.auto_decisions.size(); ++i) {
+      const auto& decision = plan.auto_decisions[i];
+      CHECK(decision.disposition == 3);
+      CHECK(decision.reason_code == RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY);
+      CHECK(decision.exact_entry_present == 0);
+      CHECK(decision.validated_entry_present == 0);
+      CHECK(decision.key_sha256[0] == '\0');
+      CHECK(decision.required_workspace_bytes == 0);
+    }
+  }
+}

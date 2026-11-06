@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <limits>
@@ -194,6 +196,136 @@ void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bo
 }
 
 } // namespace
+
+TEST_CASE("immutable autotune indexes agree with exact validation and preserve coarse rejection",
+          "[autotune][planning][cpu]") {
+  using namespace rns8::detail;
+  AutotuneCacheSnapshot snapshot{};
+  snapshot.loaded = snapshot.exists = true;
+  const auto key = reviewed_key();
+  auto good = cache_entry(key.c_str(), "ck", true,
+                          "reviewed_release_same_contract_fastest_windows_gfx1100");
+  snapshot.entries.push_back(good);
+  auto unreviewed = good;
+  unreviewed.key = reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 513);
+  unreviewed.k = 513;
+  unreviewed.performance_validated = false;
+  snapshot.entries.push_back(unreviewed);
+  AutotuneSelectionSnapshot index(snapshot, "authored bytes not a file identity");
+  for (const auto& candidate : {key, unreviewed.key, std::string("absent")}) {
+    const auto* expected = find_exact_autotune_entry(snapshot, candidate);
+    const auto* observed = index.exact(candidate);
+    CHECK(bool(expected) == bool(observed));
+    if (expected && observed)
+      CHECK(expected->key == observed->key);
+    CHECK(bool(find_validated_autotune_entry(snapshot, candidate)) ==
+          bool(index.validated(candidate)));
+    for (const auto& runtime :
+         {AutotuneRuntimeIdentity{"gfx1100", "7.1"}, AutotuneRuntimeIdentity{"gfx942", "7.1"},
+          AutotuneRuntimeIdentity{"gfx1100", "changed"}})
+      CHECK(bool(find_validated_autotune_entry_for_runtime(snapshot, candidate, runtime)) ==
+            bool(index.runtime(candidate, runtime)));
+  }
+  REQUIRE(index.has_usable_entries());
+  CHECK(index.plausible("ck", "bounded_u64", 0, 512, 512, 512, "gfx1100"));
+  CHECK_FALSE(index.plausible("ck", "bounded_u64", 0, 512, 512, 513, "gfx1100"));
+  CHECK_FALSE(index.plausible("ck", "bounded_i64", 0, 512, 512, 512, "gfx1100"));
+  CHECK_FALSE(index.plausible("ck", "bounded_u64", 251, 512, 512, 512, "gfx1100"));
+  CHECK_FALSE(index.plausible("ck", "bounded_u64", 0, 512, 512, 512, "gfx942"));
+  CHECK_FALSE(index.plausible("rocwmma", "bounded_u64", 0, 512, 512, 512, "gfx1100"));
+  snapshot.entries[0].selected_kernel = "forged";
+  AutotuneSelectionSnapshot rejected(snapshot, "different authored bytes");
+  CHECK_FALSE(rejected.has_usable_entries());
+  CHECK(index.validated(key) != nullptr); // Earlier immutable data did not change.
+  snapshot.entries.push_back(snapshot.entries[0]);
+  CHECK_THROWS_AS(AutotuneSelectionSnapshot(snapshot, "duplicate"), std::invalid_argument);
+}
+
+TEST_CASE("autotune snapshot refresh uses bounded content rather than timestamps",
+          "[autotune][planning][cpu]") {
+  using namespace rns8::detail;
+  const auto path = unique_cache_fixture_path("rns8-autotune-immutable-refresh");
+  const auto other = unique_cache_fixture_path("rns8-autotune-other-path");
+  struct Cleanup {
+    std::filesystem::path first, second;
+    ~Cleanup() {
+      std::error_code ignored;
+      std::filesystem::remove(first, ignored);
+      std::filesystem::remove(second, ignored);
+    }
+  } cleanup{path, other};
+  ScopedAutotuneCachePath selected(path);
+  const auto missing = refresh_autotune_snapshot();
+  REQUIRE(missing->cache().loaded);
+  CHECK_FALSE(missing->cache().exists);
+  CHECK(refresh_autotune_snapshot(missing) == missing);
+  write_cache_fixture(path, true, true);
+  const auto first = refresh_autotune_snapshot(missing);
+  REQUIRE(first != missing);
+  REQUIRE(first->has_usable_entries());
+  CHECK(refresh_autotune_snapshot(first) == first);
+  const auto old_time = std::filesystem::last_write_time(path);
+  std::string bytes;
+  {
+    std::ifstream input(path, std::ios::binary);
+    bytes.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+  }
+  const auto position = bytes.find("4.0");
+  REQUIRE(position != std::string::npos);
+  bytes.replace(position, 3, "5.0");
+  {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    output << bytes;
+  }
+  std::filesystem::last_write_time(path, old_time);
+  const auto changed = refresh_autotune_snapshot(first);
+  REQUIRE(changed != first);
+  REQUIRE(changed->validated(reviewed_key()) != nullptr);
+  CHECK(changed->validated(reviewed_key())->measured_median_end_to_end_us == 5.0);
+  CHECK(first->validated(reviewed_key())->measured_median_end_to_end_us == 4.0);
+  CHECK(first->content_sha256() != changed->content_sha256());
+  auto replacement = *changed->validated(reviewed_key());
+  replacement.measured_median_end_to_end_us = 6.0;
+  std::string error;
+  REQUIRE(write_autotune_cache_entry(replacement, error));
+  const auto replaced = refresh_autotune_snapshot(changed);
+  REQUIRE(replaced != changed);
+  CHECK(replaced->validated(reviewed_key())->measured_median_end_to_end_us == 6.0);
+  {
+    std::ofstream output(path, std::ios::trunc);
+    output << "{\"schema_version\":1,\"schema_version\":1,\"entries\":[]}";
+  }
+  const auto malformed = refresh_autotune_snapshot(replaced);
+  CHECK_FALSE(malformed->cache().loaded);
+  CHECK_FALSE(malformed->has_usable_entries());
+  CHECK(malformed->cache().error.find("duplicate") != std::string::npos);
+  CHECK(refresh_autotune_snapshot(malformed) == malformed);
+  write_cache_fixture(other, true, true);
+  set_autotune_cache_path_for_test(other);
+  const auto renamed = refresh_autotune_snapshot(first);
+  CHECK(renamed != first);
+  CHECK(renamed->cache().path == std::filesystem::absolute(other).lexically_normal());
+  set_autotune_cache_path_for_test(path);
+  std::filesystem::remove(path);
+  const auto removed = refresh_autotune_snapshot(replaced);
+  CHECK_FALSE(removed->cache().exists);
+  CHECK_FALSE(removed->has_usable_entries());
+  {
+    std::ofstream output(path, std::ios::binary);
+    output.seekp(16 * 1024 * 1024);
+    output.put('x');
+  }
+  const auto oversized = refresh_autotune_snapshot(first);
+  CHECK_FALSE(oversized->cache().loaded);
+  CHECK(oversized->cache().error.find("bounded") != std::string::npos);
+  {
+    std::ofstream output(path, std::ios::trunc);
+    output << "{\"entries\":" << std::string(130, '[') << '0' << std::string(130, ']') << '}';
+  }
+  const auto nested = refresh_autotune_snapshot(first);
+  CHECK_FALSE(nested->cache().loaded);
+  CHECK(nested->cache().error.find("nesting") != std::string::npos);
+}
 
 TEST_CASE("autotune cache exposes only reviewed validated entries for selection") {
   rns8::detail::AutotuneCacheSnapshot snapshot{};

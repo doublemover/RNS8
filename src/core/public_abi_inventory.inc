@@ -3716,7 +3716,7 @@ RNS8_ABI_FUNCTION(rns8_wait_resident_graph_hip_for,rns8_abi_function_32_rns8_wai
 #undef RNS8_ABI_FUNCTION
 
 namespace {
-constexpr char rns8_public_declaration_sha256[] = "5903afe2cf90401bd4fcfa0c5c3c35c8b0ee3c66e08f9fac16d8bc7d0d5074ac";
+constexpr char rns8_public_declaration_sha256[] = "b8e3587d7580664789ac0c096977e4c85e903906d4823732fb6d1e55f607c0f2";
 constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"CHAR_BIT",(uint64_t)(CHAR_BIT)},
   {"alignof:rns8_adaptive_bound_method",(uint64_t)(RNS8_ABI_ALIGNOF(rns8_adaptive_bound_method))},
@@ -3914,6 +3914,7 @@ constexpr rns8_public_abi_metric rns8_compiled_abi_metrics[] = {
   {"constant:RNS8_AUTO_IDENTITY_MISMATCH",(uint64_t)(RNS8_AUTO_IDENTITY_MISMATCH)},
   {"constant:RNS8_AUTO_NOT_COMPILED",(uint64_t)(RNS8_AUTO_NOT_COMPILED)},
   {"constant:RNS8_AUTO_NO_EXACT_ENTRY",(uint64_t)(RNS8_AUTO_NO_EXACT_ENTRY)},
+  {"constant:RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY",(uint64_t)(RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY)},
   {"constant:RNS8_AUTO_PER_TILE_UNSUPPORTED",(uint64_t)(RNS8_AUTO_PER_TILE_UNSUPPORTED)},
   {"constant:RNS8_AUTO_PROBE_FAILED",(uint64_t)(RNS8_AUTO_PROBE_FAILED)},
   {"constant:RNS8_AUTO_SELECTED",(uint64_t)(RNS8_AUTO_SELECTED)},

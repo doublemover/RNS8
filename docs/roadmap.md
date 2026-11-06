@@ -165,9 +165,11 @@ implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
 paths, with physical cluster/memory-ordering/failure qualification pending. There are 70 open issues;
 child acceptance gates remain the roadmap's retirement criterion. The full audit
-records no known remaining implementation in the requested backlog. The current
-receipt distinguishes applicable local passes, unchanged carried evidence,
-explicit stopped lanes and unavailable-target qualification.
+record described its then-requested backlog. The November6 source frontload is
+still in progress; the [implementation ledger](../metadata/implementation-frontload-20261104.json)
+tracks newly audited source work separately from validation. Dated receipts
+retain their applicable local passes, unchanged carried evidence, stopped lanes
+and unavailable-target boundaries; they do not qualify the current head.
 
 ## Stop conditions for hardware work
 

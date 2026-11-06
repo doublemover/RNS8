@@ -5,6 +5,7 @@
 #include "core/api_internal.hpp"
 #include "backend_common/garner_constants.hpp"
 #include <cmath>
+#include <atomic>
 #include "backend_common/bilinear_resources.hpp"
 #include "backend_common/rank23_slp_resources.hpp"
 #include "backend_common/gram_plan.hpp"

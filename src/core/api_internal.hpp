@@ -503,6 +503,8 @@ uint64_t plan_workspace_fingerprint(const rns8_plan& plan);
 bool seal_plan_contract(rns8_plan& plan);
 bool revalidate_plan_schedule_contract(const rns8_plan& plan);
 struct plan_validation_counters {
+  uint64_t auto_candidate_preparations = 0;
+  uint64_t auto_candidate_plan_copies = 0;
   uint64_t exhaustive_validations = 0;
   uint64_t fingerprint_traversals = 0;
   uint64_t equivalent_comparisons = 0;

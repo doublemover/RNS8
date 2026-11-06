@@ -1,5 +1,6 @@
 #include "core/autotune_cache.hpp"
 #include "backend_ck/implementation_contract.hpp"
+#include "backend_common/sha256.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -7,6 +8,7 @@
 #include "rns8/moduli.h"
 
 #include <cstdlib>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -827,30 +829,58 @@ std::filesystem::path autotune_cache_path() {
   return std::filesystem::path("rns8-gemm") / "autotune.json";
 }
 
-AutotuneCacheSnapshot read_autotune_cache() {
+std::shared_ptr<const AutotuneSelectionSnapshot>
+refresh_autotune_snapshot(const std::shared_ptr<const AutotuneSelectionSnapshot>& previous) {
   AutotuneCacheSnapshot snapshot{};
-  snapshot.path = autotune_cache_path();
+  snapshot.path = std::filesystem::absolute(autotune_cache_path()).lexically_normal();
+  std::string content_sha256;
+  const auto result = [&]() {
+    return std::make_shared<const AutotuneSelectionSnapshot>(std::move(snapshot),
+                                                             std::move(content_sha256));
+  };
   std::error_code ec;
   snapshot.exists = std::filesystem::exists(snapshot.path, ec);
   if (ec) {
     snapshot.error = ec.message();
-    return snapshot;
+    return result();
   }
   if (!snapshot.exists) {
     snapshot.loaded = true;
-    return snapshot;
+    if (previous && previous->cache().path == snapshot.path && !previous->cache().exists &&
+        previous->cache().loaded && previous->cache().error.empty())
+      return previous;
+    return result();
   }
 
   try {
-    std::ifstream input(snapshot.path);
+    constexpr size_t max_bytes = 16 * 1024 * 1024;
+    if (!std::filesystem::is_regular_file(snapshot.path) ||
+        std::filesystem::file_size(snapshot.path) > max_bytes)
+      throw std::runtime_error("autotune cache exceeds the bounded regular-file envelope");
+    std::ifstream input(snapshot.path, std::ios::binary);
     if (!input) {
       snapshot.error = "failed to open autotune cache";
-      return snapshot;
+      return result();
     }
+    std::string bytes;
+    std::array<char, 65536> block{};
+    while (input.read(block.data(), block.size()) || input.gcount()) {
+      if (static_cast<size_t>(input.gcount()) > max_bytes - bytes.size())
+        throw std::runtime_error("autotune cache grew beyond the byte budget");
+      bytes.append(block.data(), static_cast<size_t>(input.gcount()));
+    }
+    if (input.bad() || !input.eof())
+      throw std::runtime_error("failed to read autotune cache");
+    content_sha256 = sha256(bytes);
+    if (previous && previous->cache().path == snapshot.path && previous->cache().exists &&
+        previous->content_sha256() == content_sha256)
+      return previous;
     // The JSON DOM otherwise retains only the last spelling of a duplicate
     // member. Reject it before identity checks lose that ambiguity.
     std::vector<std::set<std::string>> object_keys;
-    json root = json::parse(input, [&](int, json::parse_event_t event, json& value) {
+    json root = json::parse(bytes, [&](int depth, json::parse_event_t event, json& value) {
+      if (depth > 128)
+        throw std::runtime_error("autotune JSON exceeds the nesting budget");
       if (event == json::parse_event_t::object_start)
         object_keys.emplace_back();
       if (event == json::parse_event_t::key &&
@@ -860,15 +890,15 @@ AutotuneCacheSnapshot read_autotune_cache() {
         object_keys.pop_back();
       return true;
     });
-    if (input.bad())
-      throw std::runtime_error("failed to read autotune cache");
     if (!root.is_object()) {
       snapshot.error = "autotune cache root must be an object";
-      return snapshot;
+      return result();
     }
     snapshot.schema_version = explicit_u32_field_or_zero(root, "schema_version");
     std::set<std::string> entry_keys;
     if (const auto entries = root.find("entries"); entries != root.end() && entries->is_array()) {
+      if (entries->size() > 65536)
+        throw std::runtime_error("autotune cache exceeds the entry budget");
       for (const auto& item : *entries) {
         if (!item.is_object()) {
           throw std::runtime_error("autotune entry must be an object");
@@ -890,7 +920,62 @@ AutotuneCacheSnapshot read_autotune_cache() {
     snapshot.entries.clear();
     snapshot.error = error.what();
   }
-  return snapshot;
+  return result();
+}
+
+AutotuneCacheSnapshot read_autotune_cache() {
+  return refresh_autotune_snapshot()->cache();
+}
+
+namespace {
+bool reviewed_entry(uint32_t schema, const AutotuneCacheEntry& entry) {
+  return schema == 1 && entry.performance_validated && entry.schema_version == 1 &&
+         entry.validation_status.rfind("reviewed_release_", 0) == 0 &&
+         validated_entry_identity_failure(entry).empty() &&
+         reviewed_validation_status_matches_target(entry);
+}
+} // namespace
+
+AutotuneSelectionSnapshot::AutotuneSelectionSnapshot(AutotuneCacheSnapshot snapshot,
+                                                     std::string content_sha256)
+    : cache_(std::move(snapshot)), content_sha256_(std::move(content_sha256)) {
+  if (!cache_.loaded)
+    return;
+  if (cache_.entries.size() > 65536)
+    throw std::invalid_argument("autotune cache exceeds the entry budget");
+  exact_.reserve(cache_.entries.size());
+  for (const auto& entry : cache_.entries) {
+    const bool reviewed = reviewed_entry(cache_.schema_version, entry);
+    if (entry.key.empty() || !exact_.emplace(entry.key, IndexedEntry{&entry, reviewed}).second)
+      throw std::invalid_argument("duplicate autotune entry key");
+    if (reviewed) {
+      cohorts_.emplace(entry.selected_backend, entry.semantic_contract, entry.finite_modulus,
+                       entry.m, entry.n, entry.k, entry.target_id);
+    }
+  }
+}
+
+bool AutotuneSelectionSnapshot::plausible(std::string_view backend, std::string_view semantics,
+                                          uint32_t modulus, int64_t m, int64_t n, int64_t k,
+                                          std::string_view target) const {
+  return cohorts_.find(Cohort{backend, semantics, modulus, m, n, k, target}) != cohorts_.end();
+}
+
+const AutotuneCacheEntry* AutotuneSelectionSnapshot::exact(const std::string& key) const {
+  const auto hit = exact_.find(key);
+  return hit == exact_.end() ? nullptr : hit->second.entry;
+}
+
+const AutotuneCacheEntry* AutotuneSelectionSnapshot::validated(const std::string& key) const {
+  const auto hit = exact_.find(key);
+  return hit == exact_.end() || !hit->second.reviewed ? nullptr : hit->second.entry;
+}
+
+const AutotuneCacheEntry*
+AutotuneSelectionSnapshot::runtime(const std::string& key,
+                                   const AutotuneRuntimeIdentity& identity) const {
+  const auto* hit = validated(key);
+  return hit && validated_runtime_identity_failure(*hit, identity).empty() ? hit : nullptr;
 }
 
 const AutotuneCacheEntry* find_exact_autotune_entry(const AutotuneCacheSnapshot& snapshot,
@@ -912,16 +997,7 @@ const AutotuneCacheEntry* find_validated_autotune_entry(const AutotuneCacheSnaps
     return nullptr;
   }
   const AutotuneCacheEntry* hit = find_exact_autotune_entry(snapshot, key);
-  if (!hit || !hit->performance_validated || hit->schema_version != 1) {
-    return nullptr;
-  }
-  if (hit->validation_status.rfind("reviewed_release_", 0) != 0) {
-    return nullptr;
-  }
-  if (!validated_entry_identity_failure(*hit).empty()) {
-    return nullptr;
-  }
-  if (!reviewed_validation_status_matches_target(*hit)) {
+  if (!hit || !reviewed_entry(snapshot.schema_version, *hit)) {
     return nullptr;
   }
   return hit;

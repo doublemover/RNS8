@@ -22,7 +22,8 @@
 #include "cpu/cpu_amx.hpp"
 namespace rns8::detail {
 struct ExperimentalBasis;
-}
+class AutotuneSelectionSnapshot;
+} // namespace rns8::detail
 
 struct rns8_synchronous_lease {
   const rns8_matrix* a = nullptr;
@@ -69,6 +70,7 @@ struct rns8_context {
   mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool auto_backend_selection = false;
+  std::shared_ptr<const rns8::detail::AutotuneSelectionSnapshot> autotune_snapshot;
   bool hip_failure_poisoned = false;
   int device_id = -1;
   rns8_device_info device_info{};
