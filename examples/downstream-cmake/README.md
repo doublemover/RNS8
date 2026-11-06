@@ -3,7 +3,8 @@
 This directory is a self-contained C++17 consumer of the installed public API.
 It builds a bounded scalar smoke program, a signed/unsigned CPU exact-wide
 continuation example and two explicit Sparse-A programs. It needs the RNS8 package and a C++ compiler; it uses no
-repository-private headers, Boost headers, package manager or GPU.
+repository-private headers, Boost headers, package manager or GPU in its ordinary
+configuration. The optional sanitizer diagnostic below has additional inputs.
 
 The development package installs these sources under
 `share/RNS8/examples/downstream-cmake` by default. From a Visual Studio developer
@@ -176,3 +177,12 @@ These new cases are authored and syntax-checked, with execution deferred. The
 [CRT guide](https://github.com/doublemover/RNS8/blob/codex/runtime-cache-transactions-20261011/docs/balanced-crt.md#prepared-checked-integer-exports) describes
 the contracts and payload accounting; installed users can read the same guide
 in the source repository. Explicit policy selection does not change defaults.
+# Optional sanitizer-process observations
+
+The host sanitizer session can set `RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT` to its
+recorded source checkout and select the same `nlohmann_json_DIR` as the library
+build. This private diagnostic option adds native process/module bookends to
+the seven consumers only when the session supplies its execution token. It
+requires the checkout's test-support sources and JSON headers; ordinary package
+consumption leaves the option empty and has no such dependency. Loader snapshots
+do not qualify device instrumentation or production performance.

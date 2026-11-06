@@ -1,3 +1,6 @@
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+#include "host_runtime_witness.hpp"
+#endif
 #include <rns8/rns8.h>
 #include "noninteractive_errors.hpp"
 #include <cstdint>
@@ -20,6 +23,12 @@ void require(bool value, const char* message) {
 } // namespace
 int main(int argc, char** argv) {
   rns8_example::configure_noninteractive_errors();
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+  rns8::test::HostRuntimeWitness witness(argc, argv);
+#else
+  (void)argc;
+  (void)argv;
+#endif
   rns8_context* context = nullptr;
   rns8_stream_gemm_plan* plan = nullptr;
   try {

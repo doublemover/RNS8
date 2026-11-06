@@ -1,3 +1,6 @@
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+#include "host_runtime_witness.hpp"
+#endif
 #include <rns8/experimental_product.h>
 #include <algorithm>
 #include <array>
@@ -49,8 +52,14 @@ struct Owners {
   ~Owners() { (void)close(); }
 };
 } // namespace
-int main() {
+int main(int argc, char** argv) {
   rns8_example::configure_noninteractive_errors();
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+  rns8::test::HostRuntimeWitness witness(argc, argv);
+#else
+  (void)argc;
+  (void)argv;
+#endif
   try {
     Owners owner;
     rns8_context_options options{};

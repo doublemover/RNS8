@@ -1,3 +1,6 @@
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+#include "host_runtime_witness.hpp"
+#endif
 #include <rns8/rns8.h>
 #include <algorithm>
 #include <cstdint>
@@ -53,6 +56,12 @@ struct Owners {
 } // namespace
 int main(int argc, char** argv) {
   rns8_example::configure_noninteractive_errors();
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+  rns8::test::HostRuntimeWitness witness(argc, argv);
+#else
+  (void)argc;
+  (void)argv;
+#endif
   const bool gpu = argc == 2 && std::strcmp(argv[1], "--hip") == 0;
   if (argc > 2 || (argc == 2 && !gpu))
     return 2;

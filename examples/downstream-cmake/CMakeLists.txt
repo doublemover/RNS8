@@ -22,6 +22,13 @@ add_executable(rns8-downstream-stream-bounded-i64 stream_bounded_i64.cpp)
 add_executable(rns8-downstream-materialized-product-recipe materialized_product_recipe.cpp)
 add_executable(rns8-downstream-checked-crt checked_crt_export.cpp)
 option(RNS8_DOWNSTREAM_GPU_TESTS "Run installed direct-HIP examples" OFF)
+set(RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT "" CACHE PATH "Optional source checkout providing host-sanitizer process observations")
+if(RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT)
+  if(NOT EXISTS "${RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT}/tests/support/host_runtime_witness.hpp")
+    message(FATAL_ERROR "Runtime witness requires its explicit source checkout")
+  endif()
+  find_package(nlohmann_json CONFIG REQUIRED)
+endif()
 enable_testing()
 foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
     rns8-downstream-sparse-finite-ring rns8-downstream-sparse-bounded-i64 rns8-downstream-stream-bounded-i64
@@ -29,6 +36,13 @@ foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
   target_link_libraries(${consumer} PRIVATE ${RNS8_DOWNSTREAM_TARGET})
   rns8_copy_runtime_dependencies(${consumer})
   target_compile_features(${consumer} PRIVATE cxx_std_17)
+  if(RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT)
+    target_compile_definitions(${consumer} PRIVATE RNS8_ENABLE_HOST_RUNTIME_WITNESS=1)
+    target_include_directories(${consumer} PRIVATE
+      "${RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT}/src"
+      "${RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT}/tests/support")
+    target_link_libraries(${consumer} PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+  endif()
   if(MSVC)
     target_compile_options(${consumer} PRIVATE /W4 /WX /permissive-)
   else()

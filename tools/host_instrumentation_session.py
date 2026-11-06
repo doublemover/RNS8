@@ -9,6 +9,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import secrets
 import sys
 
 from analysis_inputs import cache_values, load_inputs, target_artifacts
@@ -26,7 +27,7 @@ from host_instrumentation_contract import (
     valid_result,
 )
 from json_evidence import parse_evidence_json
-from host_runtime_contract import control_document, loaded_inventory
+from host_runtime_contract import application_witnesses, control_document, loaded_inventory
 from process_progress import capture_succeeded, run_capture
 from quality_inventory import ROOT, inventory
 
@@ -107,7 +108,8 @@ def child_environment(environment: dict[str, str], symbolizer: Path, lane: str) 
                 "ARCHER_",
             )
         )
-        and key not in {"CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS"}
+        and key
+        not in {"CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "RNS8_HOST_RUNTIME_WITNESS_TOKEN"}
     }
     result.update(
         PYTHONOPTIMIZE="",
@@ -181,12 +183,13 @@ class Session:
         required=True,
         timeout=None,
         max_output_bytes=32 * 1024**2,
+        environment=None,
     ) -> dict:
         result = run_capture(
             command,
             cwd=cwd,
             label="host-check:" + name,
-            env=self.environment,
+            env=self.environment if environment is None else environment,
             timeout_seconds=timeout or self.timeout,
             max_output_bytes=max_output_bytes,
             artifact_roots=(self.output,),
@@ -217,7 +220,17 @@ class Session:
         value = parse_evidence_json(result["stdout"])
         return result, value
 
-    def tests(self, name, build, ctest, *, required, allowed=None, selection_names=None):
+    def tests(
+        self,
+        name,
+        build,
+        ctest,
+        *,
+        required,
+        allowed=None,
+        selection_names=None,
+        runtime_witness=None,
+    ):
         command = [str(ctest), "--test-dir", str(build), "--no-tests=error"]
         _, full = self.json(name + "-discovery", [*command, "--show-only=json-v1"])
         selection_ref = None
@@ -252,6 +265,14 @@ class Session:
             for path in sorted({test.command[0] for test in discovery(selected).values()})
         ]
         junit_path = self.output / (name + ".xml")
+        environment = None
+        token = None
+        if runtime_witness is not None:
+            token = secrets.token_hex(32)
+            environment = {**self.environment, "RNS8_HOST_RUNTIME_WITNESS_TOKEN": token}
+            command.extend(
+                ["--test-output-size-passed", "1048576", "--test-output-size-failed", "1048576"]
+            )
         result = self.run(
             name + "-execution",
             [
@@ -265,6 +286,7 @@ class Session:
                 str(junit_path),
             ],
             required=False,
+            environment=environment,
         )
         source, junit_ref = bounded_read(junit_path)
         value = reconcile(full, selected, source, required=required, allowed_skips=allowed)
@@ -289,6 +311,16 @@ class Session:
         if not capture_succeeded(result):
             value["status"] = "failed"
             value["blockers"].append("ctest_process_did_not_complete_successfully")
+        if runtime_witness is not None:
+            bindings = application_witnesses(
+                source, selected, result, token=token, **runtime_witness
+            )
+            bindings["inputs"] = dict(selected=selected_ref, junit=junit_ref)
+            check_bookends(bindings)
+            value["application_runtime_bindings"] = write_json(
+                self.output / (name + "-runtime-bindings.json"), bindings
+            )
+            value["application_runtime_module_files"] = bindings["files"]
         value["identity_sha256"] = canonical_digest(value)
         return write_json(self.output / (name + "-inventory.json"), value), value
 
@@ -613,7 +645,21 @@ def execute(args, plan):
             allowed = parse_evidence_json(raw)
             report["skip_policy"] = ref
         app_ref, app = session.tests(
-            "application", build, args.ctest, required=MANDATORY, allowed=allowed
+            "application",
+            build,
+            args.ctest,
+            required=MANDATORY,
+            allowed=allowed,
+            runtime_witness=dict(
+                executables=[binaries["rns8_tests"]["path"]],
+                lane=plan["lane"],
+                runtimes=report["runtime_inventory"]["files"],
+                windows_asan=Path(report["windows_asan_dll"]["path"])
+                if plan["lane"] == "windows-address"
+                else None,
+                openmp=openmp,
+                archer=args.openmp_archer,
+            ),
         )
         report["application_inventory"] = app_ref
         session.run(
@@ -644,6 +690,8 @@ def execute(args, plan):
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             "-DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF",
             "-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
+            "-DRNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT=" + str(ROOT),
+            "-Dnlohmann_json_DIR=" + cache["nlohmann_json_DIR"],
         ]
         if plan["lane"] == "windows-address":
             command.extend(
@@ -679,7 +727,23 @@ def execute(args, plan):
             )
         report["consumer_objects"] = consumer_objects
         consumer_ref, consumer_result = session.tests(
-            "consumer", consumer, args.ctest, required=CONSUMERS
+            "consumer",
+            consumer,
+            args.ctest,
+            required=CONSUMERS,
+            runtime_witness=dict(
+                executables=[
+                    consumer / (name + (".exe" if plan["system"] == "Windows" else ""))
+                    for name in CONSUMERS
+                ],
+                lane=plan["lane"],
+                runtimes=report["runtime_inventory"]["files"],
+                windows_asan=Path(report["consumer_asan_dll"]["path"])
+                if plan["lane"] == "windows-address"
+                else None,
+                openmp=openmp,
+                archer=args.openmp_archer,
+            ),
         )
         report["consumer_inventory"] = consumer_ref
         check_bookends([report, objects, app, consumer_result, session.stages])

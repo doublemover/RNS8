@@ -1,3 +1,6 @@
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+#include "host_runtime_witness.hpp"
+#endif
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -169,8 +172,14 @@ void continuation(rns8_semantics semantics) {
 }
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
   rns8_example::configure_noninteractive_errors();
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+  rns8::test::HostRuntimeWitness witness(argc, argv);
+#else
+  (void)argc;
+  (void)argv;
+#endif
   try {
     continuation(RNS8_EXACT_WIDE_SIGNED);
     continuation(RNS8_EXACT_WIDE_UNSIGNED);

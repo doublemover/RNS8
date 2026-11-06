@@ -1,6 +1,6 @@
 #pragma once
 
-// A snapshot of this control process, not a claim about every test subprocess.
+// One native process snapshot. Callers retain their control/application scope.
 #include "tool_common/process_identity.hpp"
 #include <filesystem>
 #include <nlohmann/json.hpp>

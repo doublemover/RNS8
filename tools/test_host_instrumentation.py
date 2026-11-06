@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
+import xml.etree.ElementTree as ET
 
 import host_instrumentation_session as session
 from host_instrumentation_contract import (
@@ -22,7 +23,234 @@ from host_instrumentation_contract import (
     valid_result,
 )
 from test_execution_inventory import inventory, report
-from host_runtime_contract import ARCHER_STARTUP, control_document, loaded_inventory
+from host_runtime_contract import (
+    ARCHER_STARTUP,
+    APPLICATION_SCOPE,
+    WITNESS_PREFIX,
+    application_witnesses,
+    control_document,
+    loaded_inventory,
+)
+
+
+def application_documents(executable, name="mandatory", *, token="a" * 64, windows_runtime=None):
+    """Synthetic native protocol bytes; no native process or detector is run."""
+    modules = dict(
+        schema="rns8_host_loaded_modules_v1",
+        process_id=7000,
+        modules=[str(executable)],
+        virtual_images=[],
+        symbol_owners=dict(sanitizer=str(executable)),
+        openmp_workers=0,
+        scope=APPLICATION_SCOPE,
+    )
+    if windows_runtime:
+        modules["modules"].append(str(windows_runtime))
+        modules["symbol_owners"] = {}
+    value = dict(
+        schema="rns8_host_application_witness_v1",
+        token=token,
+        process_id=7000,
+        parent_process_id=4321,
+        executable=str(executable),
+        arguments=[name],
+        elapsed_ns=10,
+        unwinding=False,
+        address_feature=True,
+        thread_feature=False,
+        loaded_modules=modules,
+    )
+    return [
+        dict(copy.deepcopy(value), phase="enter"),
+        dict(copy.deepcopy(value), phase="leave", elapsed_ns=1000),
+    ]
+
+
+def application_report(documents, *, name="mandatory", state="run"):
+    root = ET.fromstring(report((name, state, "SKIP_RETURN_CODE=4" if state == "notrun" else "")))
+    root.find("testcase/system-out").text = "ordinary output\n" + "\n".join(
+        WITNESS_PREFIX + json.dumps(value) for value in documents
+    )
+    return ET.tostring(root, encoding="unicode")
+
+
+class ApplicationLoaderControls(unittest.TestCase):
+    def test_native_child_bookends_bind_command_features_and_unique_module_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory).resolve() / "native-application"
+            executable.write_bytes(b"synthetic instrumented executable")
+            selected = inventory("mandatory")
+            selected["tests"][0]["command"][0] = str(executable)
+            docs = application_documents(executable)
+            kwargs = dict(
+                token="a" * 64, executables=[executable], lane="address-undefined", runtimes=[]
+            )
+            result = application_witnesses(application_report(docs), selected, capture(), **kwargs)
+            self.assertEqual(result["cases"][0]["process_id"], 7000)
+            self.assertEqual(result["ctest_process_id"], 4321)
+            self.assertEqual(len(result["files"]), 1)
+            self.assertEqual(result["scope"], APPLICATION_SCOPE)
+            self.assertFalse(result["production_latency"])
+            session.check_bookends(result)
+            mutations = [
+                ("token", "b" * 64),
+                ("process_id", 4321),
+                ("process_id", True),
+                ("parent_process_id", 99),
+                ("parent_process_id", True),
+                ("arguments", []),
+                ("executable", "relative"),
+                ("elapsed_ns", True),
+                ("elapsed_ns", 2**64),
+                ("unwinding", True),
+                ("address_feature", 1),
+                ("thread_feature", True),
+                ("schema", "detector_only"),
+                ("unexpected", 1),
+            ]
+            for key, value in mutations:
+                bad = copy.deepcopy(docs)
+                bad[0][key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    application_witnesses(application_report(bad), selected, capture(), **kwargs)
+            for bad in ([], docs[:1], docs + docs[:1], list(reversed(docs))):
+                with self.assertRaises(ValueError):
+                    application_witnesses(application_report(bad), selected, capture(), **kwargs)
+            for key, value in (("elapsed_ns", 9), ("elapsed_ns", 10**9), ("process_id", 7001)):
+                bad = copy.deepcopy(docs)
+                bad[-1][key] = value
+                with self.assertRaises(ValueError):
+                    application_witnesses(application_report(bad), selected, capture(), **kwargs)
+            for missing in ("modules", "process_id", "scope"):
+                bad = copy.deepcopy(docs)
+                bad[0]["loaded_modules"].pop(missing)
+                with self.assertRaises(ValueError):
+                    application_witnesses(application_report(bad), selected, capture(), **kwargs)
+            with self.assertRaises(ValueError):
+                application_witnesses(
+                    application_report(docs), selected, capture(returncode=1), **kwargs
+                )
+            executable.write_bytes(b"changed after publication")
+            with self.assertRaisesRegex(ValueError, "changed"):
+                session.check_bookends(result)
+
+    def test_windows_runtime_and_tsan_features_stay_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            executable, runtime = root / "app.exe", root / "asan.dll"
+            executable.write_bytes(b"synthetic app")
+            runtime.write_bytes(b"selected runtime")
+            selected = inventory("mandatory")
+            selected["tests"][0]["command"][0] = str(executable)
+            docs = application_documents(executable, windows_runtime=runtime)
+            kwargs = dict(
+                token="a" * 64,
+                executables=[executable],
+                lane="windows-address",
+                runtimes=[session.reference(runtime)],
+                windows_asan=runtime,
+            )
+            result = application_witnesses(application_report(docs), selected, capture(), **kwargs)
+            self.assertEqual(len(result["files"]), 2)
+            runtime.write_bytes(b"same name but different runtime")
+            with self.assertRaises(ValueError):
+                application_witnesses(application_report(docs), selected, capture(), **kwargs)
+            docs = application_documents(executable)
+            for item in docs:
+                item.update(address_feature=False, thread_feature=True)
+            kwargs = dict(token="a" * 64, executables=[executable], lane="thread", runtimes=[])
+            self.assertEqual(
+                len(
+                    application_witnesses(application_report(docs), selected, capture(), **kwargs)[
+                        "cases"
+                    ]
+                ),
+                1,
+            )
+            docs[-1]["thread_feature"] = False
+            with self.assertRaises(ValueError):
+                application_witnesses(application_report(docs), selected, capture(), **kwargs)
+
+    def test_skips_and_nonwitnessed_commands_cannot_gain_loader_credit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            executable, other = root / "native", root / "other"
+            executable.write_bytes(b"native fixture")
+            other.write_bytes(b"other fixture")
+            selected = inventory("mandatory", "skipped", "script")
+            for row in selected["tests"]:
+                row["command"][0] = str(other if row["name"] == "script" else executable)
+            xml = ET.fromstring(
+                report(
+                    ("mandatory", "run", ""),
+                    ("skipped", "notrun", "SKIP_RETURN_CODE=4"),
+                    ("script", "run", ""),
+                )
+            )
+            for element in xml.findall("testcase"):
+                if element.get("name") != "script":
+                    element.find("system-out").text = "\n".join(
+                        WITNESS_PREFIX + json.dumps(value)
+                        for value in application_documents(executable, element.get("name"))
+                    )
+            kwargs = dict(
+                token="a" * 64, executables=[executable], lane="address-undefined", runtimes=[]
+            )
+            result = application_witnesses(
+                ET.tostring(xml, encoding="unicode"), selected, capture(), **kwargs
+            )
+            self.assertEqual([row["test"] for row in result["cases"]], ["mandatory"])
+            self.assertEqual(
+                {row["test"] for row in result["excluded_cases"]}, {"skipped", "script"}
+            )
+            # A witness marker from an unselected native command is rejected.
+            xml.findall("testcase")[-1].find("system-out").text = WITNESS_PREFIX + "{}"
+            with self.assertRaises(ValueError):
+                application_witnesses(
+                    ET.tostring(xml, encoding="unicode"), selected, capture(), **kwargs
+                )
+
+    def test_owned_ctest_sets_fresh_token_only_for_execution_and_retains_module_bookends(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve()
+            executable = output / "native"
+            executable.write_bytes(b"owned fixture")
+            selected = inventory("mandatory")
+            selected["tests"][0]["command"][0] = str(executable)
+            owned = session.Session(output, {}, 60, 1024**2)
+            calls = []
+
+            def fake(command, **kwargs):
+                calls.append((command, kwargs["env"]))
+                if "--show-only=json-v1" in command:
+                    return capture(json.dumps(selected))
+                token = kwargs["env"]["RNS8_HOST_RUNTIME_WITNESS_TOKEN"]
+                (output / "app.xml").write_text(
+                    application_report(application_documents(executable, token=token)),
+                    encoding="utf-8",
+                )
+                return capture()
+
+            with mock.patch.object(session, "run_capture", side_effect=fake):
+                _, result = owned.tests(
+                    "app",
+                    output,
+                    Path("/ctest"),
+                    required=["mandatory"],
+                    runtime_witness=dict(
+                        executables=[executable], lane="address-undefined", runtimes=[]
+                    ),
+                )
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(len(calls), 3)
+            self.assertNotIn("RNS8_HOST_RUNTIME_WITNESS_TOKEN", calls[0][1])
+            self.assertNotIn("RNS8_HOST_RUNTIME_WITNESS_TOKEN", owned.environment)
+            self.assertEqual(len(calls[-1][1]["RNS8_HOST_RUNTIME_WITNESS_TOKEN"]), 64)
+            self.assertIn("--test-output-size-passed", calls[-1][0])
+            self.assertEqual(len(result["application_runtime_module_files"]), 1)
+            executable.write_bytes(b"changed after native tests")
+            with self.assertRaisesRegex(ValueError, "changed"):
+                session.check_bookends(result)
 
 
 def capture(stdout="", stderr="", returncode=0):
@@ -334,6 +562,7 @@ class SessionControls(unittest.TestCase):
                 "OMP_TOOL_LIBRARIES": "unreviewed.so",
                 "ARCHER_OPTIONS": "ignore_serial=1",
                 "CXXFLAGS": "-fno-sanitize=all",
+                "RNS8_HOST_RUNTIME_WITNESS_TOKEN": "inherited-not-owned",
                 "PATH": "/safe",
             },
             Path("/llvm/symbolizer"),
@@ -344,6 +573,7 @@ class SessionControls(unittest.TestCase):
         self.assertNotIn("OMP_TOOL_LIBRARIES", env)
         self.assertNotIn("ARCHER_OPTIONS", env)
         self.assertNotIn("CXXFLAGS", env)
+        self.assertNotIn("RNS8_HOST_RUNTIME_WITNESS_TOKEN", env)
         self.assertIn("halt_on_error=1", env["ASAN_OPTIONS"])
         for key in ("LD_PRELOAD", "LD_AUDIT", "CCC_OVERRIDE_OPTIONS", "CL"):
             with self.subTest(key=key), self.assertRaises(ValueError):

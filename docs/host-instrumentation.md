@@ -6,9 +6,10 @@ frontload adds build selection and sensitivity/concurrency controls under
 [#102](https://github.com/doublemover/RNS8/issues/102) and coverage instrumentation
 under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
 session, native LLVM coverage and separate device-ASan preflight drivers are
-authored; complete application-process loader observation, device correctness
-session integration and continuous CI reporting remain
-implementation work. Python branch/subprocess collection source is authored.
+authored. Native test-process and installed-consumer loader bookends are also
+authored; additional launcher/application coverage, device correctness session
+integration and continuous CI reporting remain implementation work. Python
+branch/subprocess collection source is authored.
 
 | Configure preset | Instrumentation | Initial scope |
 |---|---|---|
@@ -123,6 +124,41 @@ later by every application/consumer process or instrumentation of external
 libraries. A failed sensitivity control stops before application tests. No host
 session, loader query, sensitivity control or test has executed during this
 implementation frontload.
+
+The host sanitizer session also requests two bounded witnesses from each real
+`rns8_tests` invocation and every packaged CPU consumer. A fresh 256-bit stage
+token is supplied only to CTest execution, never discovery. Native Toolhelp or
+`getppid` parent identity binds each child to that captured CTest process;
+executable path, exact arguments, address/thread compiler features and ordered
+entry/exit module snapshots must agree with the discovered case. Missing,
+truncated, duplicated or contradictory bookends block the lane. A skip can
+retain observed bookends but receives no passing loader credit. Other CTest
+commands retain their inventory dispositions and are explicitly outside this
+native witness denominator. The launcher PID is never substituted for a child.
+
+Witnesses compile only into the selected sanitizer test configuration.
+Installed consumers opt in with
+`RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT`, pointing to the recorded checkout and
+its private witness sources; the driver supplies the configured JSON dependency.
+They still link the exact installed instrumented library. Ordinary installed
+consumer builds require neither that source checkout nor the witness dependency.
+Snapshots are emitted before test work and after its scope, outside injected
+allocation-failure windows. Failed emission forces failure rather than a clean
+exit without evidence.
+
+The reader hashes each distinct observed module file once per stage and
+rechecks those identities at final publication. This binds files available
+after execution; it is not an in-memory image attestation or a history of
+modules loaded and unloaded between bookends. An application's snapshot does
+not force unrelated OpenMP work merely to initialize Archer. It records whether
+the selected annotation adapter was actually present; the separate positive
+OpenMP controls remain required and external runtime access instrumentation
+remains unproven. None of these observations provide production timing credit.
+The reader uses CTest's per-case `system-out`, whose producer is explicit in the
+[selected CMake source](https://github.com/Kitware/CMake/blob/v4.4.5/Source/CTest/cmCTestTestHandler.cxx#L2558).
+Windows parent identity follows the documented
+[`PROCESSENTRY32W` field](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32w).
+These witness paths and protocol controls have not executed in this source pass.
 
 `tools/execution_inventory.py` reconciles retained native CTest JSON-v1 full
 discovery and selected discovery with its JUnit report. It requires explicitly

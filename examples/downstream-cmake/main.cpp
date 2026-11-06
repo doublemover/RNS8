@@ -1,3 +1,6 @@
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+#include "host_runtime_witness.hpp"
+#endif
 #include <rns8/rns8.h>
 
 #include <cstdint>
@@ -6,8 +9,14 @@
 
 #include "noninteractive_errors.hpp"
 
-int main() {
+int main(int argc, char** argv) {
   rns8_example::configure_noninteractive_errors();
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+  rns8::test::HostRuntimeWitness witness(argc, argv);
+#else
+  (void)argc;
+  (void)argv;
+#endif
   rns8_context_options options{};
   options.struct_size = sizeof(options);
   options.abi_version = RNS8_ABI_VERSION;
