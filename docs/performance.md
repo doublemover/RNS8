@@ -310,6 +310,16 @@ Incomplete lifetime/source metadata suppresses the affected ratio even when
 timing, full-output and companion evidence otherwise qualify. These controls
 are authored and remain unexecuted.
 
+Reuse-contract and delegated Direct-HIP reuse reports now use the same cohort,
+original-input reference, production-companion and per-process setup readers.
+The strongest non-reuse control is selected within matching GPU scope or an
+explicit same-host CPU comparison. Every run contributes source/stale/cache
+metadata; a representative cannot supply another run's missing owner or default
+promotion policy. Explicit workload-selector eligibility retains its separate
+source-version, runtime-cache and no-AUTO guards. Phase costs remain descriptive,
+and break-even counts remain projections. Native-format eight-process controls
+and delegated loader/binding controls are authored; runtime execution is pending.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).

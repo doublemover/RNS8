@@ -81,11 +81,11 @@ def main() -> int:
     summary = report["summary"]
     assert summary["direct_hip_reuse_comparisons"] == 3
     assert summary["rank20_scope_comparisons"] == 3
-    assert summary["candidate_workload_wins"] == 3
-    assert summary["explicit_workload_selector_ready"] == 3
+    assert summary["candidate_workload_wins"] == 0
+    assert summary["explicit_workload_selector_ready"] == 0
     assert summary["profiles"] == {
-        "adaptive_bounded_u64_colpair": {"candidate_workload_win": 2},
-        "finite_ring_native_a_reuse_b": {"candidate_workload_win": 1},
+        "adaptive_bounded_u64_colpair": {"keep_experimental": 2},
+        "finite_ring_native_a_reuse_b": {"keep_experimental": 1},
     }
     assert {item["scenario_family"] for item in report["comparisons"]} == {
         "direct-hip-reuse-expansion"

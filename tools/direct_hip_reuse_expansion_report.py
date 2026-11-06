@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 import reuse_contract_report
+from diagnostic_companion import load_bindings
+from report_capture_inputs import load_report_captures
 
 
 DEFAULT_OUT_DIR = Path("temp") / "direct-hip-reuse-expansion-reports"
@@ -66,8 +68,12 @@ def _comparison_profile(
     }
 
 
-def build_direct_hip_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
-    base = reuse_contract_report.compare_reuse_contracts(captures)
+def build_direct_hip_report_from_captures(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
+    base = reuse_contract_report.compare_reuse_contracts(
+        captures, diagnostic_bindings=diagnostic_bindings
+    )
     captures_by_path = {
         _capture_path(capture): capture for capture in captures if _capture_path(capture)
     }
@@ -114,20 +120,20 @@ def build_direct_hip_report_from_captures(captures: list[dict[str, Any]]) -> dic
         },
     }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "policy": "direct_hip_reuse_expansion_setup_inclusive_evidence_only",
         "source_report_policy": base.get("policy", reuse_contract_report.REUSE_SELECTOR_POLICY),
         "summary": summary,
         "comparisons": comparisons,
+        "observations": base["observations"],
     }
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = [
-        reuse_contract_report.load_validated_capture(path)
-        for path in reuse_contract_report.expand_inputs(paths)
-    ]
-    report = build_direct_hip_report_from_captures(captures)
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
+    captures = load_report_captures(paths)
+    report = build_direct_hip_report_from_captures(
+        captures, diagnostic_bindings=diagnostic_bindings
+    )
     return {"capture_count": len(captures), **report}
 
 
@@ -207,6 +213,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="write JSON and Markdown reports here"
     )
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     parser.add_argument("--json", action="store_true", help="print report JSON")
     return parser.parse_args()
 
@@ -216,7 +223,7 @@ def main() -> int:
     paths = [*(args.capture or []), *args.captures]
     if not paths:
         raise SystemExit("direct_hip_reuse_expansion_report requires at least one capture path")
-    report = build_report(paths)
+    report = build_report(paths, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     outputs = write_outputs(report, args.out_dir)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

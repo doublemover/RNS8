@@ -6,12 +6,17 @@ from __future__ import annotations
 import argparse
 import json
 import math
+from dataclasses import replace
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 import result_compare
-from report_inputs import load_validated_capture
+from diagnostic_companion import load_bindings
+from observation_cohorts import phase_median, evidence
+from report_capture_inputs import load_report_captures
+from report_comparison import ComparisonPolicy, ReportCohorts
+from timing_eligibility import capture_identity
 
 
 RELEASE_MIN_WARMUPS = 3
@@ -28,31 +33,24 @@ NORMALIZED_CONTRACT_EXCLUDE = {
 }
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
 DEFAULT_OUT_DIR = Path("temp") / "reuse-contract-reports"
-NON_CAPTURE_JSON_NAMES = {
-    "review_report.json",
-    "scenario_manifest.json",
-    "reuse_contract_report.json",
-    "reuse-contract-report.json",
-    "direct-hip-reuse-expansion-report.json",
-    "validation-summary.json",
-}
 SOURCE_VERSION_REJECTION_REASON = "source_version_changed"
 LEGACY_SOURCE_VERSION_POLICY = "monotonic_source_version_per_repeat_when_packing_runs"
 REUSE_SELECTOR_POLICY = "explicit_reuse_contract_only_not_auto"
-
-
-def expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(
-                sorted(
-                    item for item in path.rglob("*.json") if item.name not in NON_CAPTURE_JSON_NAMES
-                )
-            )
-        else:
-            expanded.append(path)
-    return expanded
+REUSE_POLICY = ComparisonPolicy(
+    "same_completed_work_setup_inclusive_reuse_v2",
+    work_exclusions=tuple(sorted(NORMALIZED_CONTRACT_EXCLUDE)),
+    require_cpu_anchor=False,
+    amortize_prepack_setup=True,
+)
+CPU_REUSE_POLICY = replace(
+    REUSE_POLICY, name="same_host_build_cpu_gpu_setup_inclusive_reuse_v2", cpu_gpu_comparison=True
+)
+STEADY_POLICY = replace(
+    REUSE_POLICY, name="same_completed_work_steady_reuse_v2", amortize_prepack_setup=False
+)
+CPU_STEADY_POLICY = replace(
+    CPU_REUSE_POLICY, name="same_host_build_cpu_gpu_steady_reuse_v2", amortize_prepack_setup=False
+)
 
 
 def backend_id(capture: dict[str, Any]) -> str:
@@ -109,6 +107,8 @@ def timing_summary_value(
 ) -> float | None:
     if capture is None:
         return None
+    if statistic == "median":
+        return phase_median(capture, phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None
@@ -120,6 +120,8 @@ def timing_summary_value(
 
 
 def prepack_setup_us(capture: dict[str, Any]) -> float | None:
+    if "_observation_aggregate" in capture:
+        return phase_median(capture, "prepack_setup")
     value = capture.get("avg_prepack_setup_us")
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
@@ -153,28 +155,35 @@ def prepack_setup_primary_phase(capture: dict[str, Any]) -> str | None:
     return phase if value > 0.0 else "none"
 
 
-def normalized_contract_key(capture: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for key in result_compare.CONTRACT_KEYS:
-        if key in NORMALIZED_CONTRACT_EXCLUDE:
-            continue
-        value = result_compare.contract_value(capture, key)
-        parts.append(f"{key}={value}")
-    return ";".join(parts)
+def normalized_contract_key(capture: dict) -> str:
+    return REUSE_POLICY.work(capture)
 
 
-def select_fastest(captures: list[dict[str, Any]]) -> dict[str, Any] | None:
-    timed = [
-        capture
-        for capture in captures
-        if timing_summary_value(capture, "end_to_end", "median") is not None
-    ]
-    if not timed:
-        return None
-    return min(
-        timed,
-        key=lambda capture: timing_summary_value(capture, "end_to_end", "median") or float("inf"),
+def comparison_policy(
+    candidate: dict, baseline: dict | None, *, steady: bool = False
+) -> ComparisonPolicy:
+    cross = baseline is not None and gpu_backend(candidate) != gpu_backend(baseline)
+    return (
+        (CPU_STEADY_POLICY if steady else CPU_REUSE_POLICY)
+        if cross
+        else (STEADY_POLICY if steady else REUSE_POLICY)
     )
+
+
+def select_baseline(captures: list[dict], candidate: dict, cohorts: ReportCohorts) -> dict | None:
+    matched, qualified = [], []
+    for view in captures:
+        policy = comparison_policy(candidate, view)
+        if policy.work(view) != policy.work(candidate) or policy.environment(
+            view
+        ) != policy.environment(candidate):
+            continue
+        matched.append(view)
+        if not cohorts.admission(view, policy):
+            duration = policy.measurement(view)["median_us"]
+            if duration is not None and duration > 0:
+                qualified.append((duration, evidence(view)["implementation_key"], view))
+    return min(qualified, key=lambda row: row[:2])[2] if qualified else next(iter(matched), None)
 
 
 def break_even_repeats(
@@ -188,42 +197,39 @@ def break_even_repeats(
     return max(1, math.floor(setup_us / savings) + 1)
 
 
-def setup_inclusive_per_repeat(capture: dict[str, Any], phase: str) -> float | None:
-    phase_median = timing_summary_value(capture, phase, "median")
-    if phase_median is None:
-        return None
-    repeats = capture.get("repeats")
-    if not isinstance(repeats, int) or repeats <= 0:
-        return None
-    setup = prepack_setup_us(capture)
-    if setup is None:
-        return None
-    return phase_median + setup / repeats if phase == "end_to_end" else phase_median
+def setup_inclusive_per_repeat(capture: dict, phase: str) -> float | None:
+    return (
+        REUSE_POLICY.measurement(capture)["median_us"]
+        if phase == "end_to_end"
+        else phase_median(capture, phase)
+    )
 
 
 def phase_comparison(
-    baseline: dict[str, Any] | None, reuse: dict[str, Any], phase: str
-) -> dict[str, Any]:
-    baseline_median = timing_summary_value(baseline, phase, "median")
-    reuse_median = timing_summary_value(reuse, phase, "median")
-    setup_inclusive = setup_inclusive_per_repeat(reuse, phase)
-    speedup = (
-        baseline_median / setup_inclusive
-        if baseline_median is not None and setup_inclusive not in (None, 0.0)
-        else None
+    baseline: dict | None, reuse: dict, phase: str, comparison: dict, steady: dict
+) -> dict:
+    base = phase_median(baseline, phase) if baseline is not None else None
+    candidate = phase_median(reuse, phase)
+    inclusive = setup_inclusive_per_repeat(reuse, phase)
+    return dict(
+        baseline_median_us=base,
+        reuse_steady_median_us=candidate,
+        reuse_setup_inclusive_per_repeat_us=inclusive,
+        steady_state_speedup=(
+            base / candidate
+            if steady["qualified"] and base is not None and candidate is not None and candidate > 0
+            else None
+        ),
+        setup_inclusive_speedup=(
+            base / inclusive
+            if comparison["qualified"]
+            and base is not None
+            and inclusive is not None
+            and inclusive > 0
+            else None
+        ),
+        timing_scope="matched_host_phase_cost_ratio_not_an_independent_phase_gain_gate",
     )
-    steady_speedup = (
-        baseline_median / reuse_median
-        if baseline_median is not None and reuse_median not in (None, 0.0)
-        else None
-    )
-    return {
-        "baseline_median_us": baseline_median,
-        "reuse_steady_median_us": reuse_median,
-        "reuse_setup_inclusive_per_repeat_us": setup_inclusive,
-        "steady_state_speedup": steady_speedup,
-        "setup_inclusive_speedup": speedup,
-    }
 
 
 def source_identity_metadata(capture: dict[str, Any]) -> dict[str, Any]:
@@ -565,8 +571,12 @@ def decision_for(
     break_even_same_backend: int | None,
     source_identity: dict[str, Any],
     stale_source_rejection: dict[str, Any],
+    same_comparison: dict,
+    best_comparison: dict,
 ) -> tuple[str, list[str]]:
-    blockers: list[str] = []
+    blockers: list[str] = list(same_comparison["blockers"]) + [
+        "best:" + item for item in best_comparison["blockers"]
+    ]
     if same_backend_baseline is None:
         return "missing_baseline", ["missing_same_backend_nonreuse_baseline"]
     if best_nonreuse_baseline is None:
@@ -585,12 +595,6 @@ def decision_for(
         blockers.append(
             str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata")
         )
-    if gpu_backend(reuse) and not gpu_events_available(reuse):
-        blockers.append("missing_reuse_gpu_events")
-    if gpu_backend(same_backend_baseline) and not gpu_events_available(same_backend_baseline):
-        blockers.append("missing_same_backend_gpu_events")
-    if gpu_backend(best_nonreuse_baseline) and not gpu_events_available(best_nonreuse_baseline):
-        blockers.append("missing_best_nonreuse_gpu_events")
 
     end_to_end = same_backend_phases["end_to_end"]
     same_backend_speedup = end_to_end.get("setup_inclusive_speedup")
@@ -604,22 +608,26 @@ def decision_for(
         return "keep_experimental", blockers
     if steady_state_speedup is not None and steady_state_speedup <= 1.0:
         return "deprioritize", ["reuse_not_faster_than_same_backend_steady_state"]
-    if break_even_same_backend is None:
-        return "deprioritize", ["reuse_never_breaks_even_vs_same_backend"]
-    if isinstance(repeats, int) and repeats < break_even_same_backend:
-        return "deprioritize", ["repeat_count_below_same_backend_break_even"]
     if same_backend_speedup is not None and same_backend_speedup <= 1.0:
         return "deprioritize", ["reuse_not_faster_than_same_backend_setup_inclusive"]
     if speedup_vs_best_nonreuse is not None and speedup_vs_best_nonreuse <= 1.0:
         return "deprioritize", ["reuse_not_faster_than_best_nonreuse_setup_inclusive"]
+    if (
+        same_backend_speedup <= same_comparison["required_speedup_margin"]
+        or speedup_vs_best_nonreuse <= best_comparison["required_speedup_margin"]
+    ):
+        return "keep_experimental", ["speedup_not_separated_from_observed_noise"]
     return "candidate_workload_win", []
 
 
-def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
+def compare_reuse_contracts(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
+    cohorts = ReportCohorts(captures, diagnostic_bindings)
     nonreuse_by_contract_backend: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     nonreuse_by_contract: dict[str, list[dict[str, Any]]] = defaultdict(list)
     reuse_captures: list[dict[str, Any]] = []
-    for capture in captures:
+    for capture in cohorts.observations:
         key = normalized_contract_key(capture)
         if is_reuse_capture(capture):
             reuse_captures.append(capture)
@@ -628,36 +636,100 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             nonreuse_by_contract[key].append(capture)
 
     comparisons: list[dict[str, Any]] = []
-    for reuse in sorted(reuse_captures, key=lambda item: str(item.get("_path"))):
+    for reuse in reuse_captures:
         key = normalized_contract_key(reuse)
         backend = backend_id(reuse)
-        same_backend_baseline = select_fastest(nonreuse_by_contract_backend.get((key, backend), []))
-        best_nonreuse_baseline = select_fastest(nonreuse_by_contract.get(key, []))
-        same_backend_phases = {
-            phase: phase_comparison(same_backend_baseline, reuse, phase) for phase in PHASES
-        }
-        best_nonreuse_per_repeat = setup_inclusive_per_repeat(reuse, "end_to_end")
-        best_nonreuse_median = timing_summary_value(best_nonreuse_baseline, "end_to_end", "median")
-        speedup_vs_best_nonreuse = (
-            best_nonreuse_median / best_nonreuse_per_repeat
-            if best_nonreuse_median is not None and best_nonreuse_per_repeat not in (None, 0.0)
-            else None
+        same_backend_baseline = select_baseline(
+            nonreuse_by_contract_backend.get((key, backend), []), reuse, cohorts
         )
-        break_even_same_backend = break_even_repeats(
-            timing_summary_value(same_backend_baseline, "end_to_end", "median"),
-            timing_summary_value(reuse, "end_to_end", "median"),
-            prepack_setup_us(reuse),
+        best_nonreuse_baseline = select_baseline(nonreuse_by_contract.get(key, []), reuse, cohorts)
+        same_comparison = cohorts.compare(
+            reuse, same_backend_baseline, comparison_policy(reuse, same_backend_baseline)
         )
-        break_even_best_nonreuse = break_even_repeats(
-            best_nonreuse_median,
-            timing_summary_value(reuse, "end_to_end", "median"),
-            prepack_setup_us(reuse),
+        best_comparison = cohorts.compare(
+            reuse, best_nonreuse_baseline, comparison_policy(reuse, best_nonreuse_baseline)
+        )
+        steady_same = cohorts.compare(
+            reuse,
+            same_backend_baseline,
+            comparison_policy(reuse, same_backend_baseline, steady=True),
         )
         source_identity = source_identity_metadata(reuse)
         reuse_contract = reuse_contract_metadata(reuse)
         runtime_prepack_cache = runtime_prepack_cache_metadata(reuse)
         stale_source_rejection = stale_source_rejection_metadata(
             reuse, source_identity, reuse_contract
+        )
+        process_contracts = []
+        process_blockers = []
+        for raw in cohorts.raw_observations(reuse):
+            identity = source_identity_metadata(raw)
+            contract = reuse_contract_metadata(raw)
+            cache = runtime_prepack_cache_metadata(raw)
+            stale = stale_source_rejection_metadata(raw, identity, contract)
+            for fact in (identity, stale):
+                if not fact.get("available"):
+                    process_blockers.append(fact["reason"])
+            process_contracts.append(
+                dict(
+                    capture_sha256=capture_identity(raw),
+                    source_identity=identity,
+                    reuse_contract=contract,
+                    runtime_prepack_cache=cache,
+                    stale_source_rejection=stale,
+                    prepack_setup_us=prepack_setup_us(raw),
+                )
+            )
+        if process_contracts:
+            reuse_contract["promotion_eligible"] = any(
+                record["reuse_contract"].get("promotion_eligible") is True
+                for record in process_contracts
+            )
+            for label, metadata in (
+                ("source_identity", source_identity),
+                ("reuse_contract", reuse_contract),
+                ("runtime_prepack_cache", runtime_prepack_cache),
+                ("stale_source_rejection", stale_source_rejection),
+            ):
+                failed = [
+                    record[label]
+                    for record in process_contracts
+                    if record[label].get("available") is not True
+                ]
+                if failed:
+                    metadata["available"] = False
+                    metadata["reason"] = failed[0].get("reason", "process_contract_incomplete")
+            runtime_prepack_cache["production_available"] = runtime_prepack_cache.get(
+                "production_available"
+            ) is True and all(
+                record["runtime_prepack_cache"].get("production_available") is True
+                for record in process_contracts
+            )
+        if process_blockers:
+            for comparison in (same_comparison, best_comparison, steady_same):
+                comparison["blockers"] = sorted(set(comparison["blockers"] + process_blockers))
+                comparison["qualified"], comparison["speedup"] = False, None
+        same_backend_phases = {
+            phase: phase_comparison(
+                same_backend_baseline, reuse, phase, same_comparison, steady_same
+            )
+            for phase in PHASES
+        }
+        best_nonreuse_median = timing_summary_value(best_nonreuse_baseline, "end_to_end", "median")
+        speedup_vs_best_nonreuse = best_comparison["speedup"]
+        break_even_same_backend = (
+            break_even_repeats(
+                timing_summary_value(same_backend_baseline, "end_to_end", "median"),
+                phase_median(reuse),
+                prepack_setup_us(reuse),
+            )
+            if same_comparison["qualified"]
+            else None
+        )
+        break_even_best_nonreuse = (
+            break_even_repeats(best_nonreuse_median, phase_median(reuse), prepack_setup_us(reuse))
+            if best_comparison["qualified"]
+            else None
         )
         same_workload_family = same_workload_family_metadata(
             reuse, same_backend_baseline, best_nonreuse_baseline
@@ -671,17 +743,13 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             break_even_same_backend,
             source_identity,
             stale_source_rejection,
+            same_comparison,
+            best_comparison,
         )
         requires_runtime_prepack_cache = (
             reuse.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache"
         )
-        release_review_pair = bool(
-            same_backend_baseline is not None
-            and best_nonreuse_baseline is not None
-            and release_satisfied(reuse)
-            and release_satisfied(same_backend_baseline)
-            and release_satisfied(best_nonreuse_baseline)
-        )
+        release_review_pair = same_comparison["qualified"] and best_comparison["qualified"]
         selector_eligibility = selector_eligibility_metadata(
             decision,
             blockers,
@@ -696,6 +764,12 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
         comparisons.append(
             {
                 "contract_key": key,
+                "observation": cohorts.metadata(reuse, REUSE_POLICY),
+                "same_backend_comparison": same_comparison,
+                "best_nonreuse_comparison": best_comparison,
+                "process_contract_observations": process_contracts,
+                "break_even_scope": "projection_from_observed_cohort_medians_not_application_lifetime_qualification",
+                "prepack_setup_breakdown_scope": "representative_process_see_process_contract_observations",
                 "backend": backend,
                 "semantics": reuse.get("semantics"),
                 "finite_modulus": reuse.get("finite_modulus"),
@@ -784,15 +858,19 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             1 for item in comparisons if item["decision"] == "missing_baseline"
         ),
     }
-    return {"summary": summary, "comparisons": comparisons}
-
-
-def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = [load_validated_capture(path) for path in expand_inputs(paths)]
-    report = compare_reuse_contracts(captures)
     return {
-        "schema_version": 1,
-        "policy": "reuse_contract_setup_inclusive_evidence_only_not_autotune_promotion",
+        "policy": "reuse_contract_qualified_process_cohorts_and_native_setup_v2",
+        "summary": summary,
+        "comparisons": comparisons,
+        "observations": [cohorts.metadata(view, REUSE_POLICY) for view in cohorts.observations],
+    }
+
+
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
+    captures = load_report_captures(paths)
+    report = compare_reuse_contracts(captures, diagnostic_bindings=diagnostic_bindings)
+    return {
+        "schema_version": 2,
         "capture_count": len(captures),
         **report,
     }
@@ -895,6 +973,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-dir", type=Path, help="write JSON and Markdown reports under this directory"
     )
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     parser.add_argument("--json", action="store_true", help="print report JSON")
     parser.add_argument("--out-json", type=Path, help="write JSON report")
     parser.add_argument("--out-md", type=Path, help="write Markdown report")
@@ -906,7 +985,7 @@ def main() -> int:
     input_paths = [*(args.capture or []), *args.captures]
     if not input_paths:
         raise SystemExit("reuse_contract_report requires at least one capture path")
-    report = build_report(input_paths)
+    report = build_report(input_paths, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     if args.out_dir:
         outputs = write_outputs(report, args.out_dir)
         if not args.json:
