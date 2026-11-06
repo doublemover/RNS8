@@ -14,7 +14,7 @@ from observation_cohorts import (
     phase_median,
     row_identity,
 )
-from reference_verdict import CPUReferenceIndex
+from reference_verdict import CPUReferenceIndex, reference_verdict
 from review_contract import release_capture_satisfied
 from timing_eligibility import capture_identity
 
@@ -23,6 +23,7 @@ from timing_eligibility import capture_identity
 class ComparisonPolicy:
     name: str
     work_exclusions: tuple[str, ...] = ()
+    require_cpu_anchor: bool = True
 
     def work(self, capture: dict) -> str:
         return canonical_work(capture, exclude=self.work_exclusions)
@@ -38,16 +39,25 @@ class ReportCohorts:
         self._numerical = {}
         self._admission = {}
 
-    def numerical(self, capture: dict):
-        key = (capture_identity(capture), evidence(capture).get("implementation_key"))
+    def numerical(self, capture: dict, *, require_cpu_anchor: bool = True):
+        key = (
+            capture_identity(capture),
+            evidence(capture).get("implementation_key"),
+            require_cpu_anchor,
+        )
         if key not in self._numerical:
-            self._numerical[key] = self.references.verdict(capture)
+            self._numerical[key] = self.references.verdict(
+                capture, require_anchor=require_cpu_anchor
+            )
         return self._numerical[key]
 
-    def admission(self, capture: dict) -> list[str]:
-        key = (capture_identity(capture), evidence(capture).get("implementation_key"))
+    def admission(self, capture: dict, policy: ComparisonPolicy | None = None) -> list[str]:
+        anchor = policy.require_cpu_anchor if policy is not None else True
+        key = (capture_identity(capture), evidence(capture).get("implementation_key"), anchor)
         if key not in self._admission:
-            blockers = self.production.blockers(capture) + list(self.numerical(capture).blockers)
+            blockers = self.production.blockers(capture) + list(
+                self.numerical(capture, require_cpu_anchor=anchor).blockers
+            )
             if not release_capture_satisfied(capture):
                 blockers.append("not_release_review")
             self._admission[key] = tuple(sorted(set(blockers)))
@@ -59,8 +69,14 @@ class ReportCohorts:
             capture_sha256=capture_identity(capture),
             comparison_scope=policy.name,
             intentional_work_differences=list(policy.work_exclusions),
-            numerical_reference=self.numerical(capture).to_json(),
-            admission_blockers=self.admission(capture),
+            reference_requirement="separate_cpu_anchor_and_full_output"
+            if policy.require_cpu_anchor
+            else "embedded_full_cpu_output_reference",
+            numerical_reference=self.numerical(
+                capture, require_cpu_anchor=policy.require_cpu_anchor
+            ).to_json(),
+            admission_blockers=self.admission(capture, policy),
+            production_observations=self.production.receipts(capture),
         )
 
     def best(self, captures: list[dict], candidate: dict, policy: ComparisonPolicy) -> dict | None:
@@ -77,7 +93,7 @@ class ReportCohorts:
                 other_cpu != cpu
                 or policy.work(capture) != work
                 or comparison_environment(capture) != environment
-                or self.admission(capture)
+                or self.admission(capture, policy)
             ):
                 continue
             duration = phase_median(capture)
@@ -90,7 +106,7 @@ class ReportCohorts:
         )
 
     def compare(self, candidate: dict, baseline: dict | None, policy: ComparisonPolicy) -> dict:
-        blockers = self.admission(candidate)
+        blockers = self.admission(candidate, policy)
         work_match = baseline is not None and policy.work(candidate) == policy.work(baseline)
         environment_match = baseline is not None and comparison_environment(
             candidate
@@ -98,7 +114,7 @@ class ReportCohorts:
         if baseline is None:
             blockers.append("qualified_baseline_missing")
         else:
-            blockers.extend("baseline:" + value for value in self.admission(baseline))
+            blockers.extend("baseline:" + value for value in self.admission(baseline, policy))
             if not work_match:
                 blockers.append("comparison_work_contract_mismatch")
             if not environment_match:
@@ -108,6 +124,14 @@ class ReportCohorts:
                 baseline.get("backend_selected") in cpu_backends
             ):
                 blockers.append("comparison_processor_class_mismatch")
+            # Embedded CPU oracles still need the same mathematical input key
+            # and output checksum across the two physical implementations.
+            if not policy.require_cpu_anchor:
+                blockers.extend(reference_verdict(candidate, [baseline]).blockers)
+                blockers.extend(
+                    "baseline:" + value
+                    for value in reference_verdict(baseline, [candidate]).blockers
+                )
         left = phase_median(baseline) if baseline is not None else None
         right = phase_median(candidate)
         if left is None or right is None or left <= 0 or right <= 0:
@@ -123,8 +147,19 @@ class ReportCohorts:
             matching_environment=environment_match,
             candidate_measurement_cohort=evidence(candidate),
             baseline_measurement_cohort=evidence(baseline),
-            candidate_numerical_reference=self.numerical(candidate).to_json(),
-            baseline_numerical_reference=self.numerical(baseline).to_json()
+            candidate_production_observations=self.production.receipts(candidate),
+            baseline_production_observations=self.production.receipts(baseline)
+            if baseline is not None
+            else [],
+            reference_requirement="separate_cpu_anchor_and_full_output"
+            if policy.require_cpu_anchor
+            else "embedded_full_cpu_output_reference",
+            candidate_numerical_reference=self.numerical(
+                candidate, require_cpu_anchor=policy.require_cpu_anchor
+            ).to_json(),
+            baseline_numerical_reference=self.numerical(
+                baseline, require_cpu_anchor=policy.require_cpu_anchor
+            ).to_json()
             if baseline is not None
             else None,
             candidate_capture_sha256=capture_identity(candidate),

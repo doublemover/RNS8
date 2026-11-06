@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 from reference_verdict import reference_verdict, checksum_u64
+from diagnostic_companion import load_bindings
+from observation_cohorts import phase_median, comparison_environment
+from report_comparison import ComparisonPolicy, ReportCohorts
 
 import argparse
 import json
@@ -14,8 +17,10 @@ from report_capture_inputs import load_report_captures
 
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.02
-RELEASE_MIN_WARMUPS = 3
-RELEASE_MIN_REPEATS = 9
+COMPARISON_POLICY = ComparisonPolicy(
+    "same_completed_bounded_two_product_chain_device_handoff_vs_host_repack_v1",
+    require_cpu_anchor=False,
+)
 
 
 def timing_metadata(capture: dict[str, Any]) -> dict[str, Any]:
@@ -50,56 +55,15 @@ def target_id(capture: dict[str, Any]) -> str:
 
 
 def timing_median(capture: dict[str, Any], phase: str) -> float | None:
-    summary = capture.get("timing_summary_us")
-    if not isinstance(summary, dict):
-        return None
-    item = summary.get(phase)
-    if not isinstance(item, dict):
-        return None
-    value = item.get("median")
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return phase_median(capture, phase)
 
 
 def event_median(capture: dict[str, Any], phase: str) -> float | None:
-    summary = capture.get("gpu_event_timing_summary_us")
-    if not isinstance(summary, dict):
-        return None
-    item = summary.get(phase)
-    if not isinstance(item, dict):
-        return None
-    value = item.get("median")
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return phase_median(capture, phase, event=True)
 
 
-def chain_key(capture: dict[str, Any]) -> tuple[Any, ...]:
-    return (
-        target_id(capture),
-        capture.get("semantics"),
-        capture.get("m"),
-        capture.get("n"),
-        capture.get("k"),
-        capture.get("pack_mode"),
-        capture.get("backend_selected"),
-        capture.get("backend_requested"),
-    )
-
-
-def release_reviewed(capture: dict[str, Any]) -> bool:
-    return (
-        int(capture.get("warmups") or 0) >= RELEASE_MIN_WARMUPS
-        and int(capture.get("repeats") or 0) >= RELEASE_MIN_REPEATS
-    )
-
-
-def event_complete(capture: dict[str, Any], required: list[str]) -> bool:
-    metadata = timing_metadata(capture)
-    if metadata.get("gpu_event_timing") is not True:
-        return False
-    phases = metadata.get("gpu_event_phase_order")
-    timings = capture.get("gpu_event_timings_us")
-    if not isinstance(phases, list) or not isinstance(timings, dict):
-        return False
-    return all(phase in phases and phase in timings for phase in required)
+def chain_key(capture: dict[str, Any]) -> tuple[str, str]:
+    return COMPARISON_POLICY.work(capture), comparison_environment(capture)
 
 
 def vector_chain_captures(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -115,7 +79,7 @@ def vector_chain_captures(captures: list[dict[str, Any]]) -> list[dict[str, Any]
 
 
 def classify_pair(
-    candidate: dict[str, Any] | None, control: dict[str, Any] | None
+    candidate: dict[str, Any] | None, control: dict[str, Any] | None, cohorts: ReportCohorts
 ) -> dict[str, Any]:
     blockers: list[str] = []
     if candidate is None:
@@ -146,35 +110,27 @@ def classify_pair(
     )
     if not checksum_match:
         blockers.append("final_checksum_mismatch_or_missing")
-    if not release_reviewed(candidate):
-        blockers.append("candidate_not_release_reviewed")
-    if not release_reviewed(control):
-        blockers.append("control_not_release_reviewed")
-    if not event_complete(
-        candidate, ["vector_alu_status_memset", "rns_gemm_kernel_group", "crt_export"]
-    ):
-        blockers.append("candidate_missing_required_events")
-    if not event_complete(
-        control, ["vector_alu_output_d2h", "vector_to_rns_host_repack_a", "rns_gemm_kernel_group"]
-    ):
-        blockers.append("control_missing_required_events")
-
-    speedup = None
-    if candidate_median and control_median and candidate_median > 0:
-        speedup = control_median / candidate_median
-
+    comparison = cohorts.compare(candidate, control, COMPARISON_POLICY)
+    blockers.extend(comparison["blockers"])
+    blockers = sorted(set(blockers))
+    speedup = comparison["speedup"] if not blockers else None
+    margin = comparison["required_speedup_margin"]
+    required = max(PROMOTION_SPEEDUP_THRESHOLD, margin) if margin is not None else None
     if blockers:
         disposition = "keep experimental"
-    elif speedup is not None and speedup >= PROMOTION_SPEEDUP_THRESHOLD:
+    elif speedup is not None and required is not None and speedup >= required and speedup > margin:
         disposition = "local promote"
     elif speedup is not None and speedup < 1.0:
         disposition = "drop/deprioritize"
     else:
         disposition = "keep experimental"
+        blockers.append("speedup_not_separated_from_observed_noise")
 
     return {
         "disposition": disposition,
         "blockers": blockers,
+        "comparison": comparison,
+        "required_speedup_margin": required,
         "candidate_end_to_end_median_us": candidate_median,
         "control_end_to_end_median_us": control_median,
         "speedup_vs_host_repack_control": speedup,
@@ -198,66 +154,59 @@ def classify_pair(
     }
 
 
-def build_report(captures: list[dict[str, Any]]) -> dict[str, Any]:
-    selected = vector_chain_captures(captures)
-    groups: dict[tuple[Any, ...], dict[str, list[dict[str, Any]]]] = {}
+def build_report(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
+    cohorts = ReportCohorts(captures, diagnostic_bindings)
+    selected = vector_chain_captures(cohorts.observations)
+    groups = {}
     for capture in selected:
         groups.setdefault(chain_key(capture), {}).setdefault(control_mode(capture), []).append(
             capture
         )
 
-    rows: list[dict[str, Any]] = []
-    for key, group in sorted(
-        groups.items(), key=lambda item: tuple(str(value) for value in item[0])
-    ):
-        candidate_observations = group.get("fused_device_native_to_rns", [])
-        control_observations = group.get("host_export_repack_control", [])
-        candidate = candidate_observations[-1] if candidate_observations else None
-        control = control_observations[-1] if control_observations else None
-        classified = classify_pair(candidate, control)
-        # Preserve every submitted numerical observation even before timing selection.
-        anchors = [capture for capture in (candidate, control) if capture is not None]
-        numerical_observations = [
-            reference_verdict(capture, anchors)
-            for capture in [*candidate_observations, *control_observations]
-        ]
-        numerical_blockers = sorted(
-            {item for verdict in numerical_observations for item in verdict.blockers}
-        )
-        classified["numerical_observations"] = [
-            verdict.to_json() for verdict in numerical_observations
-        ]
-        if numerical_blockers:
-            classified["blockers"] = sorted(set(classified["blockers"]) | set(numerical_blockers))
-            classified["disposition"] = "keep experimental"
-        representative = candidate or control or {}
+    rows = []
+    for key, group in sorted(groups.items()):
+        candidates = group.get("fused_device_native_to_rns", [])
+        controls = group.get("host_export_repack_control", [])
+        all_views = [view for views in group.values() for view in views]
+        anchor = next(iter(candidates or controls or all_views))
+        candidate = cohorts.best(candidates, anchor, COMPARISON_POLICY)
+        control = cohorts.best(controls, anchor, COMPARISON_POLICY)
+        # Unqualified views remain descriptive; never select a fastest raw file.
+        candidate = candidate or next(iter(candidates), None)
+        control = control or next(iter(controls), None)
+        classified = classify_pair(candidate, control, cohorts)
+        observations = [cohorts.metadata(view, COMPARISON_POLICY) for view in all_views]
+        representative = candidate or control or anchor
         rows.append(
-            {
-                "target_id": key[0],
-                "semantics": key[1],
-                "shape": {"m": key[2], "n": key[3], "k": key[4]},
-                "pack_mode": key[5],
-                "backend_selected": key[6],
-                "backend_requested": key[7],
-                "candidate_capture": candidate.get("_path") if candidate else None,
-                "control_capture": control.get("_path") if control else None,
-                "scenario_name": scenario_metadata(representative).get("name"),
+            dict(
+                target_id=target_id(representative),
+                semantics=representative.get("semantics"),
+                shape={field: representative.get(field) for field in ("m", "n", "k")},
+                pack_mode=representative.get("pack_mode"),
+                backend_selected=representative.get("backend_selected"),
+                backend_requested=representative.get("backend_requested"),
+                work_contract=key[0],
+                comparison_environment=key[1],
+                observations=observations,
+                candidate_capture=candidate.get("_path") if candidate is not None else None,
+                control_capture=control.get("_path") if control is not None else None,
+                scenario_name=scenario_metadata(representative).get("name"),
                 **classified,
-            }
+            )
         )
-
-    disposition_counts: dict[str, int] = {}
+    counts = {}
     for row in rows:
-        disposition = str(row["disposition"])
-        disposition_counts[disposition] = disposition_counts.get(disposition, 0) + 1
-
-    return {
-        "schema": "rns8_vector_to_rns_chain_report_v1",
-        "capture_count": len(selected),
-        "group_count": len(rows),
-        "disposition_counts": disposition_counts,
-        "rows": rows,
-    }
+        counts[row["disposition"]] = counts.get(row["disposition"], 0) + 1
+    return dict(
+        schema="rns8_vector_to_rns_chain_report_v1",
+        capture_count=len(vector_chain_captures(captures)),
+        observation_cohort_count=len(selected),
+        group_count=len(rows),
+        disposition_counts=counts,
+        rows=rows,
+    )
 
 
 def write_outputs(report: dict[str, Any], out_dir: Path) -> None:
@@ -304,10 +253,11 @@ def main() -> None:
     parser.add_argument("captures", nargs="+", type=Path)
     parser.add_argument("--out-dir", type=Path, default=Path("temp/vector-to-rns-chain-report"))
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     args = parser.parse_args()
 
     captures = load_report_captures(args.captures)
-    report = build_report(captures)
+    report = build_report(captures, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     write_outputs(report, args.out_dir)
     if args.json:
         print(json.dumps(report, indent=2))

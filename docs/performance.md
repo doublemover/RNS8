@@ -206,6 +206,19 @@ padding, three-input invalidation, signed/unsigned boundaries, intermediate
 overflow, cache-hit and streaming-budget controls are authored but unexecuted;
 CPU and HIP-enabled benchmark frontend compilation passes.
 
+Vector/native-to-RNS chain recommendations now use qualified process medians
+and matching complete work/source/device/timing domains. Both approaches need
+the embedded complete CPU oracle and matching mathematical input keys/checksums;
+any supplied matching CPU-anchor mismatch still blocks them. Standalone CPU
+anchor requirements remain the default for other shared report comparisons.
+Use `vector_to_rns_chain_report.py --diagnostic-binding` with separate production
+and diagnostic captures. Recommendations must clear the policy threshold and
+observed noise; legacy/singleton/unstable evidence keeps descriptive phase values
+with unavailable ratios. Submitted implementation views and selected process
+bindings remain visible. An identical filename alias cannot erase an intact
+binding or add another independent process. These report controls are authored
+but unexecuted and carry no new performance credit.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).

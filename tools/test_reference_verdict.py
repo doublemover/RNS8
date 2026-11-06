@@ -42,6 +42,22 @@ def cohort(records):
 
 
 class ReferenceVerdictTest(unittest.TestCase):
+    def test_embedded_cpu_oracle_policy_still_requires_complete_reference_and_retains_cpu_conflicts(
+        self,
+    ):
+        from reference_verdict import CPUReferenceIndex
+
+        self.assertFalse(CPUReferenceIndex([]).verdict(capture()).passed)
+        self.assertTrue(CPUReferenceIndex([]).verdict(capture(), require_anchor=False).passed)
+        self.assertFalse(
+            CPUReferenceIndex([]).verdict(capture(complete=False), require_anchor=False).passed
+        )
+        conflict = capture(8)
+        conflict["backend_selected"] = "cpu-reference"
+        verdict = CPUReferenceIndex([conflict]).verdict(capture(), require_anchor=False)
+        self.assertFalse(verdict.passed)
+        self.assertIn("checksum_mismatch_vs_reference", verdict.blockers)
+
     def test_wrap64_byte_limb_cpu_anchor_is_indexed(self):
         from reference_verdict import CPUReferenceIndex
 

@@ -248,13 +248,13 @@ class CPUReferenceIndex:
                 continue
             self._references.setdefault(key, []).append(capture)
 
-    def verdict(self, candidate: dict) -> ReferenceVerdict:
+    def verdict(self, candidate: dict, *, require_anchor: bool = True) -> ReferenceVerdict:
         try:
             references = self._references.get(numerical_contract(candidate), ())
         except (TypeError, ValueError, KeyError):
             references = ()
         verdict = reference_verdict(candidate, references)
-        if verdict.reference_capture_sha256:
+        if verdict.reference_capture_sha256 or not require_anchor:
             return verdict
         blockers = tuple(sorted(set(verdict.blockers) | {"cpu_reference_work_coverage_missing"}))
         return replace(

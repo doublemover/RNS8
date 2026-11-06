@@ -361,9 +361,12 @@ class ProductionCohortIndex:
     """Check every unique production observation, sharing expensive bindings."""
 
     def __init__(self, captures: Iterable[dict], diagnostic_bindings: dict | None = None):
-        self._captures = {capture_identity(capture): capture for capture in captures}
+        self._captures = defaultdict(dict)
+        for capture in captures:
+            self._captures[capture_identity(capture)].setdefault(str(capture.get("_path")), capture)
         self._bindings = diagnostic_bindings or {}
         self._checked: dict[str, list[str]] = {}
+        self._accepted = {}
 
     def blockers(self, capture: dict) -> list[str]:
         from diagnostic_companion import binding_for_capture, production_evidence
@@ -377,16 +380,41 @@ class ProductionCohortIndex:
             return sorted(set(blockers + ["production_observations_missing"]))
         for observation in observations:
             identity = observation.get("capture_sha256")
-            raw = self._captures.get(identity)
-            if raw is None:
+            aliases = self._captures.get(identity)
+            if not aliases:
                 blockers.append("production_observation_content_unavailable")
                 continue
             if identity not in self._checked:
-                self._checked[identity] = production_evidence(
-                    raw, binding_for_capture(raw, self._bindings)
-                )["blockers"]
+                errors = []
+                for _, raw in sorted(aliases.items()):
+                    binding = binding_for_capture(raw, self._bindings)
+                    found = production_evidence(raw, binding)["blockers"]
+                    if not found:
+                        # Identical content remains one observation. A copied
+                        # filename cannot erase an intact original binding.
+                        self._accepted[identity] = dict(
+                            capture_sha256=identity,
+                            source_capture=str(raw["_path"])
+                            if raw.get("_path") is not None
+                            else None,
+                            diagnostic_companion=binding,
+                        )
+                        errors = []
+                        break
+                    errors.extend(found)
+                self._checked[identity] = sorted(set(errors))
             blockers.extend(self._checked[identity])
         return sorted(set(blockers))
+
+    def receipts(self, capture: dict) -> list[dict]:
+        self.blockers(capture)
+        return [
+            dict(self._accepted[identity])
+            for identity in sorted(
+                {fact["capture_sha256"] for fact in evidence(capture).get("observations", [])}
+            )
+            if identity in self._accepted
+        ]
 
 
 def best_implementation(
