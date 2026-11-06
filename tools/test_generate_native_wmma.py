@@ -20,9 +20,15 @@ def main():
         for name in ("native_variants.hip", "native_variants.hpp", "native_variants.json"):
             assert (root / "a" / name).read_bytes() == (root / "b" / name).read_bytes()
         source = (root / "a/native_variants.hip").read_bytes()
+        header = (root / "a/native_variants.hpp").read_text(encoding="utf-8")
+        assert "backend_common/generated_native_variant.hpp" in header
         assert hashlib.sha256(source).hexdigest() == first["source_sha256"]
         for entry in first["variants"]:
             assert entry["kernel_symbol"].encode() in source
+            assert (
+                f'"{entry["id"]}","{entry["spec"]["target"]}","{entry["kernel_symbol"]}"' in header
+            )
+            assert "src/backend_common/generated_native_variant.hpp" in entry["dependencies"]
             assert len(entry["arithmetic_certificates"]) == 20
             assert len(entry["composition_certificates"]) == 20
             assert entry["resource_plan"]["global_temporary_bytes"] == 0

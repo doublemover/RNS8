@@ -1,6 +1,9 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
 #include "backend_hip_direct/native_tiled_prepared.hpp"
+#include "backend_common/generated_native_variant.hpp"
+#include "backend_common/matrix_target.hpp"
+#include "backend_common/hip_backend_timing.hpp"
 #include "backend_hip_direct/encoded_b_backend.hpp"
 #include "backend_common/complex_residue_plan.hpp"
 #include "backend_common/binary_layout.hpp"
@@ -18,6 +21,10 @@
 #include <nlohmann/json.hpp>
 #include <random>
 #include <stdexcept>
+
+#if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+#include "native_variants.hpp"
+#endif
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_direct_pack_i64_device(const int64_t*, int8_t*, int, int, int, int);
@@ -123,7 +130,7 @@ nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) 
 int main(int argc, char** argv) {
   try {
     const char* usage =
-        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|global_minimum|complex_3m|complex_4m|"
+        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|generated_wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|global_minimum|complex_3m|complex_4m|"
         "conversion_cold|conversion_prepared|conversion_pack_gemm|tiled_register|tiled_lds|encoded_b_cold|encoded_b_warm|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [mode-specific controls]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
@@ -134,7 +141,8 @@ int main(int argc, char** argv) {
         "encoded_b_cold/warm: append required reuse_count1..256; wmma accepts the same suffix (default1). Each timed execute is R GEMMs, one final verification. Cold includes allocate/prepare/free; warm reports one setup separately.\n"
         "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
         "repeats:1..10000 warmups:1..1000; adaptive cases require prefix20 and group1/2/4.\n"
-        "group=1 outside wmma/encoded_b/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
+        "group=1 outside wmma/generated_wmma/encoded_b/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
+        "generated_wmma requires the opt-in generated family and its exact target; group/signedness select one compiled variant. It accepts the same reuse suffix as wmma.\n"
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
         "epilogue cases: optional extreme|zero|copy|unit|general|channel-zero coefficient profile (default extreme).\n"
         "paired adaptive/wmma/pack_gemm: optional final --dataset full-width-v1|uniform-small-v2|mixed-tiles-v2|zero-tiles-v2|localized-outlier-v2 --seed uint32; requires capacity20.\n"
@@ -189,6 +197,7 @@ int main(int argc, char** argv) {
       throw std::invalid_argument(usage);
     // Preserve the original ten arguments; optional workers follows run identity.
     const std::string candidate = argv[1], run_id = argv[10];
+    const bool generated = candidate == "generated_wmma";
     const auto m = number(argv[2], 1, 1024), n = number(argv[3], 1, 1024),
                k = number(argv[4], 1, 65537), prefix = number(argv[5], 1, 20),
                group = number(argv[6], 1, 4), unsigned_inputs = number(argv[7], 0, 1),
@@ -236,7 +245,8 @@ int main(int argc, char** argv) {
     const bool global_minimum = candidate == "global_minimum",
                bound_control = adaptive || global_minimum;
     const bool compact = candidate == "adaptive_compact";
-    if (explicit_dataset && !bound_control && candidate != "wmma" && candidate != "pack_gemm")
+    if (explicit_dataset && !bound_control && candidate != "wmma" && !generated &&
+        candidate != "pack_gemm")
       throw std::invalid_argument(
           "dataset controls apply to adaptive, wmma and pack_gemm paired cases");
     if (explicit_dataset && prefix != 20)
@@ -245,7 +255,7 @@ int main(int argc, char** argv) {
     const bool tiled = candidate == "tiled_register" || candidate == "tiled_lds";
     const bool encoded = candidate == "encoded_b_cold" || candidate == "encoded_b_warm";
     const bool encoded_warm = candidate == "encoded_b_warm";
-    const bool reuse_batch = encoded || candidate == "wmma" || conversion;
+    const bool reuse_batch = encoded || candidate == "wmma" || generated || conversion;
     if (encoded && argc != 12)
       throw std::invalid_argument(
           "encoded_b cases require explicit reuse_count1..256 after run identity");
@@ -280,8 +290,8 @@ int main(int argc, char** argv) {
                                        : queued ? (argc >= 12 ? number(argv[11], 1, 1024) : 32u)
                                                 : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
-    const bool native = conversion || candidate == "wmma" || encoded || queued || prepared ||
-                        bound_control || tiled;
+    const bool native = conversion || candidate == "wmma" || generated || encoded || queued ||
+                        prepared || bound_control || tiled;
     if (candidate == "complex_3m" || candidate == "complex_4m")
       return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups,
                                run_id);
@@ -317,6 +327,34 @@ int main(int argc, char** argv) {
                                                          (unsigned_inputs ? "_unsigned" : "_signed")
                                                    : "not_applicable";
     rns8_device_info device{};
+    const rns8::generated::NativeVariant* generated_variant = nullptr;
+    if (generated) {
+#if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+      for (const auto& variant : rns8::generated::native_variants)
+        if (variant.group == group && variant.unsigned_inputs == bool(unsigned_inputs)) {
+          if (generated_variant)
+            throw std::runtime_error("ambiguous compiled generated native variant");
+          generated_variant = &variant;
+        }
+      if (!generated_variant) {
+        std::cerr << "requested generated native variant was not compiled\n";
+        return 77;
+      }
+      if (!generated_variant->launch)
+        throw std::runtime_error("compiled generated native launch pointer is missing");
+      const auto available = hip_direct_probe(0, device);
+      if (available == RNS8_UNSUPPORTED_BACKEND ||
+          (available == RNS8_SUCCESS &&
+           normalized_amdgpu_target(device.gcn_arch) != generated_variant->target)) {
+        std::cerr << "generated native WMMA target is unavailable\n";
+        return 77;
+      }
+      check(available);
+#else
+      std::cerr << "generated native WMMA family was not compiled\n";
+      return 77;
+#endif
+    }
     std::mt19937_64 rng(dataset_seed);
     std::vector<uint64_t> a(std::size_t{m} * k), b(std::size_t{k} * n);
     rns8::bench::fill_native_dataset(a, b, m, n, k, unsigned_inputs, dataset_profile, dataset_seed,
@@ -353,7 +391,8 @@ int main(int argc, char** argv) {
       if (global_minimum)
         dataset_model["global_bound_magnitude_limbs"] = model.global_bound_magnitude;
     }
-    check(hip_direct_probe(0, device));
+    if (!generated)
+      check(hip_direct_probe(0, device));
     std::vector<uint64_t> d(epilogue ? std::size_t{m} * n : 0);
     for (auto& x : d)
       x = rng();
@@ -566,6 +605,27 @@ int main(int argc, char** argv) {
                                          n, prefix));
         check(hip_direct_axpby_residues_device(0, intermediate.get(), rd.get(), dc.get(), m, n, n,
                                                n, n, prefix, alpha, beta));
+      } else if (generated) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+        if (!generated_variant || !generated_variant->launch)
+          throw std::runtime_error("generated native launch is unavailable");
+        for (uint32_t reuse = 0; reuse < reuse_count; ++reuse) {
+          auto error = hipSetDevice(0);
+          if (error == hipSuccess)
+            error = timed_hip_backend_launch("generated_native64_fused_kernel", nullptr, [&]() {
+              const auto issued = static_cast<hipError_t>(generated_variant->launch(
+                  da.get(), db.get(), static_cast<int8_t*>(dc.get()), m, n, k, k, n, n, prefix));
+              // Match the ordinary WMMA control's one completed public call
+              // per replay, rather than hiding R launches behind one fence.
+              const auto completed = hipDeviceSynchronize();
+              return issued == hipSuccess ? completed : issued;
+            });
+          if (error != hipSuccess)
+            throw std::runtime_error(hipGetErrorString(error));
+        }
+#else
+        throw std::runtime_error("generated native WMMA requires HIP");
+#endif
       } else if (candidate == "wmma") {
         for (uint32_t reuse = 0; reuse < reuse_count; ++reuse)
           check(hip_direct_gemm_native_wmma_grouped_device(
@@ -707,6 +767,15 @@ int main(int argc, char** argv) {
         {"schema", "rns8_native_microcase_v2"},
         {"run_id", run_id},
         {"candidate", candidate},
+        {"generated_variant",
+         generated_variant ? nlohmann::json{{"id", generated_variant->id},
+                                            {"target", generated_variant->target},
+                                            {"kernel_symbol", generated_variant->kernel_symbol},
+                                            {"group", generated_variant->group},
+                                            {"unsigned_inputs", generated_variant->unsigned_inputs},
+                                            {"dispatch", "exact_compiled_function_pointer"},
+                                            {"qualified", false}}
+                           : nlohmann::json(nullptr)},
         {"sustained", sustained},
         {"queue_prepare_ns", queue_prepare_ns},
         {"queue_preparation_scope",
@@ -870,14 +939,18 @@ int main(int argc, char** argv) {
             encoded && !encoded_warm ? encoded_layout.total_bytes : 0},
            {"encoded_b_same_B_immutable", true},
            {"encoded_b_public_ownership_measured", false},
-           {"encoded_b_kernel_selection",
-            std::string(encoded ? "encoded_b_grouped_g" : "native_grouped_g") +
-                std::to_string(group) + (unsigned_inputs ? "_unsigned" : "_signed")}});
+           {"encoded_b_kernel_selection", std::string(encoded     ? "encoded_b_grouped_g"
+                                                      : generated ? "generated_native_grouped_g"
+                                                                  : "native_grouped_g") +
+                                              std::to_string(group) +
+                                              (unsigned_inputs ? "_unsigned" : "_signed")}});
       report["timing_scope"] =
           encoded_warm
               ? "R synchronous private cached GEMMs per batch; one allocation/probe/B conversion reported separately; no upload, poison or verification in interval"
           : encoded
               ? "one allocation/probe/B conversion, R synchronous private cached GEMMs and cache release per batch; no upload, poison or verification in interval"
+          : generated
+              ? "R completed generated fused native GEMMs per batch, exact compiled variant and one synchronization per call; no per-call scratch or capability probe, upload, poison or verification in interval"
               : "R synchronous grouped native GEMMs per batch, including ordinary per-call capability/allocation policy; no upload, poison or verification in interval";
       report["cache_state"] =
           "same immutable native A/B; C poisoned before sampled batches and once before sustained burst";

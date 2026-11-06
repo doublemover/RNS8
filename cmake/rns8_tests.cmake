@@ -1274,6 +1274,17 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
               --output "${CMAKE_CURRENT_BINARY_DIR}/generated-native-wmma/isa.json"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(generated_native_wmma_isa_check PROPERTIES LABELS "hip;isa;generated-native")
+    if(TARGET rns8-native-calibrate)
+      foreach(_group IN ITEMS 1 2 4)
+        foreach(_unsigned IN ITEMS 0 1)
+          set(_name "generated_native_calibration_g${_group}_u${_unsigned}_smoke")
+          add_test(NAME "${_name}" COMMAND rns8-native-calibrate generated_wmma
+            17 19 33 3 ${_group} ${_unsigned} 1 1 "ctest-generated-g${_group}-u${_unsigned}")
+          set_tests_properties("${_name}" PROPERTIES
+            LABELS "hip;benchmark-smoke;generated-native" SKIP_RETURN_CODE 77 TIMEOUT 180)
+        endforeach()
+      endforeach()
+    endif()
   endif()
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>)

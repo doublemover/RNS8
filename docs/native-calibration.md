@@ -23,6 +23,7 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 | `packed_gemm` | Direct residue GEMM | Already packed residue planes |
 | `pack_gemm` | Pack both operands, then direct GEMM | Resident native 64-bit |
 | `wmma` | Fused native conversion/grouped WMMA | Resident native 64-bit |
+| `generated_wmma` | Exact compiled generated variant selected by group/signedness; opt-in family only | Same resident native 64-bit |
 | `encoded_b_cold` | Allocate, probe, encode B, execute R cached GEMMs, release cache | Same resident native A/B; explicit R |
 | `encoded_b_warm` | R cached GEMMs; one measured allocation/preparation reported separately | Resident native A and immutable prepared B |
 | `adaptive_grid`, `adaptive_compact` | Fresh axis-L1 discovery, adaptive native WMMA, exact suffix and staged commit | Resident full-width native 64-bit to complete prefix20 residues |
@@ -43,7 +44,7 @@ Arguments are candidate, M, N, K, prefix, group, unsigned flag (0/1), repeat cou
 warmup count, and a unique run ID. `queue`, `queue_prepared` and `split_k` accept an optional final
 worker count in 1..1024; it defaults to 32 to preserve existing invocations.
 `adaptive_compact` has its own required worker/method suffix described below.
-`wmma` interprets its optional suffix as a reuse count, not a worker count;
+`wmma` and `generated_wmma` interpret their optional suffix as a reuse count, not a worker count;
 the encoded-B candidates require that suffix, as described below. Other
 candidates reject a worker argument, including an explicit zero. `--help`
 lists every candidate and the argument domains. For example:
@@ -54,6 +55,30 @@ lists every candidate and the argument domains. For example:
 # Explicit requests are appended after the unique run ID.
 .\build\windows-msvc-hip-debug\rns8-native-calibrate.exe split_k 17 19 257 3 2 0 10 3 split-eight 8
 ```
+
+`generated_wmma` requires `RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=ON` and
+the exact generated target (`gfx1100`, `gfx1101` or `gfx1102`). It selects one
+compiled function pointer by group and signedness, reports the content-based
+variant ID and kernel symbol, and returns unsupported (77) when the family or
+target is unavailable. It never falls back to ordinary WMMA. Each replay has
+one completed call; paired instrumented/uninstrumented samples, poisoning and
+full Boost reference comparisons use the same protocol as `wmma`. The generated
+private wrapper has no per-call scratch or capability query; ordinary `wmma`
+retains its own admission policy. Reported timing scopes keep this distinction
+visible. Neither path includes input upload or CPU checking in timed work.
+
+The compact `generated-native-calibration.json` catalogue expands to
+`native-calibration/generated-wmma.json`: 68 explicit cases cover all six
+variants, matched ordinary WMMA controls, single-call pack-plus-direct controls,
+skinny/rectangular/ragged shapes and R=1/R=8 reuse. The large 256²×512 cohort is
+separate from the smaller shape diversity checks. Materialize cases through
+`tools/benchmark_cases.py` as in the other native campaigns. Collection requires
+`--generated-dir <build>/generated-native-wmma`: it regenerates the exact family
+against current source/proof dependencies before execution, retains the source,
+header and manifest, and checks those files and their dependencies around every
+child. A mismatched ID, symbol, target or changed source is rejected. Plan-only
+does not regenerate, open the executable or run the GPU. This opt-in route is
+authored and unexecuted; it establishes no qualification or dispatch promotion.
 
 M/N are at most 1024, K at most 65537, and
 M*N*K at most 1073741824 to bound the independent CPU reference (up to 1024³). A fixed seed and

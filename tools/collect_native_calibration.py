@@ -58,6 +58,20 @@ BOUND_CONTROLS = (*ADAPTIVE, "global_minimum")
 TILED = ("tiled_register", "tiled_lds")
 ENCODED = ("encoded_b_cold", "encoded_b_warm")
 REUSE = ("wmma", *ENCODED)
+OPTIONAL_GENERATED = ("generated_wmma",)
+BATCHED_NATIVE = (*REUSE, *OPTIONAL_GENERATED)
+GENERATED_FILES = ("native_variants.hip", "native_variants.hpp", "native_variants.json")
+
+
+def read_generated_family(directory):
+    files = {}
+    for name in GENERATED_FILES:
+        with (directory / name).open("rb") as stream:
+            data = stream.read(8 * 1024**2 + 1)
+        if not data or len(data) > 8 * 1024**2:
+            raise ValueError("generated family input exceeds its file/byte budget")
+        files[name] = data
+    return files
 
 
 def validate_case(case):
@@ -97,7 +111,7 @@ def validate_case(case):
     ):
         raise ValueError("invalid native calibration shape/prefix")
     native = case["candidate"] in (
-        *REUSE,
+        *BATCHED_NATIVE,
         *CONVERSION,
         "grid_prepared",
         *QUEUED,
@@ -106,7 +120,7 @@ def validate_case(case):
     )
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if (
-        case["candidate"] not in CANDIDATES
+        case["candidate"] not in (*CANDIDATES, *OPTIONAL_GENERATED)
         or type(case["group"]) is not int
         or case["group"] not in (1, 2, 4)
         or (not native and case["group"] != 1)
@@ -179,7 +193,7 @@ def validate_case(case):
     normalized = dict(case)
     if "dataset_profile" in case or "dataset_seed" in case:
         if (
-            case["candidate"] not in (*BOUND_CONTROLS, "wmma", "pack_gemm")
+            case["candidate"] not in (*BOUND_CONTROLS, "wmma", *OPTIONAL_GENERATED, "pack_gemm")
             or case["prefix"] != 20
             or case.get("dataset_profile") not in DATASET_PROFILES
             or type(case.get("dataset_seed")) is not int
@@ -201,8 +215,10 @@ def validate_case(case):
         normalized["coefficient_profile"] = profile
     elif "coefficient_profile" in case:
         raise ValueError("coefficient profiles apply only to epilogues")
-    if case["candidate"] in REUSE:
-        reuse = case.get("reuse_count", 1 if case["candidate"] == "wmma" else None)
+    if case["candidate"] in BATCHED_NATIVE:
+        reuse = case.get(
+            "reuse_count", 1 if case["candidate"] in ("wmma", *OPTIONAL_GENERATED) else None
+        )
         if type(reuse) is not int or not 1 <= reuse <= 256:
             raise ValueError(
                 "encoded B requires explicit integer reuse_count1..256; wmma defaults1"
@@ -577,7 +593,7 @@ def native_reuse_work(case):
 
 
 def reuse_contract(case):
-    if case["candidate"] not in REUSE:
+    if case["candidate"] not in BATCHED_NATIVE:
         return {}
     encoded, warm = case["candidate"] in ENCODED, case["candidate"] == "encoded_b_warm"
     work = native_reuse_work(case)
@@ -605,7 +621,13 @@ def reuse_contract(case):
         "encoded_b_transient_cache_bytes": size if encoded and not warm else 0,
         "encoded_b_same_B_immutable": True,
         "encoded_b_public_ownership_measured": False,
-        "encoded_b_kernel_selection": ("encoded_b_grouped_g" if encoded else "native_grouped_g")
+        "encoded_b_kernel_selection": (
+            "encoded_b_grouped_g"
+            if encoded
+            else "generated_native_grouped_g"
+            if case["candidate"] in OPTIONAL_GENERATED
+            else "native_grouped_g"
+        )
         + str(case["group"])
         + ("_unsigned" if case["unsigned_inputs"] else "_signed"),
     }
@@ -793,9 +815,58 @@ def same_value(actual, expected):
     return actual == expected
 
 
-def validate_capture(capture, case, run_id, repeats, warmups):
+def generated_variant_contract(case, manifest):
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema") != "rns8_generated_native_wmma_v1"
+        or not isinstance(manifest.get("variants"), list)
+    ):
+        raise ValueError("verified generated family manifest is required")
+    matches = [
+        entry
+        for entry in manifest["variants"]
+        if isinstance(entry, dict)
+        and isinstance(entry.get("spec"), dict)
+        and type(entry["spec"].get("group")) is int
+        and entry["spec"]["group"] == case["group"]
+        and entry["spec"].get("unsigned_inputs") is case["unsigned_inputs"]
+    ]
+    if len(matches) != 1:
+        raise ValueError("generated group/signedness must bind exactly one variant")
+    entry = matches[0]
+    if (
+        not isinstance(entry.get("id"), str)
+        or len(entry["id"]) != 64
+        or any(c not in "0123456789abcdef" for c in entry["id"])
+        or entry.get("kernel_symbol") != "rns8_native_" + entry["id"]
+        or entry["spec"].get("target") not in ("gfx1100", "gfx1101", "gfx1102")
+    ):
+        raise ValueError("invalid generated variant source identity")
+    return {
+        "id": entry["id"],
+        "target": entry["spec"]["target"],
+        "kernel_symbol": entry["kernel_symbol"],
+        "group": case["group"],
+        "unsigned_inputs": case["unsigned_inputs"],
+        "dispatch": "exact_compiled_function_pointer",
+        "qualified": False,
+    }
+
+
+def validate_capture(capture, case, run_id, repeats, warmups, generated_manifest=None):
     if not isinstance(capture, dict):
         raise ValueError("capture must be a JSON object")
+    if case["candidate"] in OPTIONAL_GENERATED:
+        expected_variant = generated_variant_contract(case, generated_manifest)
+        if (
+            not same_value(capture.get("generated_variant"), expected_variant)
+            or str(capture.get("target", "")).split(":")[0] != expected_variant["target"]
+        ):
+            raise ValueError(
+                "generated variant/symbol/target binding differs from the verified source family"
+            )
+    elif capture.get("generated_variant") is not None:
+        raise ValueError("ordinary control cannot carry generated dispatch metadata")
     for key, value in capture_contract(case, run_id, repeats, warmups).items():
         if key not in capture or not same_value(capture[key], value):
             raise ValueError(f"metadata mismatch: {key}")
@@ -852,7 +923,7 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             )
         ):
             raise ValueError("invalid conversion batch/GEMM accounting")
-    if case["candidate"] in REUSE:
+    if case["candidate"] in BATCHED_NATIVE:
         warm = case["candidate"] == "encoded_b_warm"
         setup = capture.get("encoded_b_prepare_ns")
         if "encoded_b_prepare_ns" not in capture or (
@@ -1081,6 +1152,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument(
+        "--generated-dir",
+        type=Path,
+        help="required for explicit generated_wmma execution; verify and retain the exact source/header/manifest family",
+    )
+    parser.add_argument(
         "--cases",
         type=Path,
         required=True,
@@ -1143,11 +1219,32 @@ def main():
                     "schema": "rns8_native_dataset_preflight_v2",
                     "cases": preflight,
                     "gpu_work_executed": False,
+                    "generated_family_required": any(
+                        case["candidate"] in OPTIONAL_GENERATED for case in cases
+                    ),
+                    "generated_family_binding": "not_run",
                 },
                 indent=2,
             )
         )
         return 0
+    generated_manifest = None
+    generated_files = {}
+    if any(case["candidate"] in OPTIONAL_GENERATED for case in cases):
+        if args.generated_dir is None:
+            parser.error("generated_wmma execution requires --generated-dir; no ordinary fallback")
+        from check_generated_native_wmma import verify_generated_source
+
+        try:
+            generated_files = read_generated_family(args.generated_dir)
+            generated_manifest = verify_generated_source(args.generated_dir)
+            if read_generated_family(args.generated_dir) != generated_files:
+                raise ValueError("generated family changed while verifying source dependencies")
+            for case in cases:
+                if case["candidate"] in OPTIONAL_GENERATED:
+                    generated_variant_contract(case, generated_manifest)
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
     exe = args.exe.resolve(strict=True)
     artifact = hashlib.sha256(exe.read_bytes()).hexdigest()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -1162,8 +1259,59 @@ def main():
     collector_identity = {
         path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in collector_sources
     }
+    generated_sources = {}
+    if generated_manifest:
+        root = Path(__file__).resolve().parents[1]
+        dependencies = {"tools/generate_native_wmma.py", "tools/check_generated_native_wmma.py"}
+        for entry in generated_manifest["variants"]:
+            dependencies.update(entry["dependencies"])
+        generated_sources = {
+            name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+            for name in sorted(dependencies)
+        }
+        for entry in generated_manifest["variants"]:
+            if entry["generator_sha256"] != generated_sources[
+                "tools/generate_native_wmma.py"
+            ] or any(
+                generated_sources[name] != digest for name, digest in entry["dependencies"].items()
+            ):
+                raise ValueError("generated proof/source dependencies changed after verification")
     distribution_observations = []
     campaign = str(uuid.uuid4())
+    generated_binding = None
+    if generated_files:
+        retained = args.output / ("generated-family-" + campaign)
+        retained.mkdir(exist_ok=False)
+        generated_binding = {}
+        for filename, data in generated_files.items():
+            path = retained / filename
+            with path.open("xb") as stream:
+                stream.write(data)
+            generated_binding[filename] = {
+                "path": str(path.resolve()),
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "bytes": len(data),
+            }
+
+    def bookend_sources():
+        if any(
+            hashlib.sha256(path.read_bytes()).hexdigest() != collector_identity[path.name]
+            for path in collector_sources
+        ):
+            raise ValueError("collector dependencies changed during collection")
+        if generated_files:
+            if (
+                read_generated_family(args.generated_dir) != generated_files
+                or read_generated_family(retained) != generated_files
+                or any(
+                    hashlib.sha256((root / name).read_bytes()).hexdigest() != digest
+                    for name, digest in generated_sources.items()
+                )
+            ):
+                raise ValueError(
+                    "generated family or proof/source dependencies changed during collection"
+                )
+
     jobs = [(c, independent) for independent in range(args.runs) for c in cases]
     random.Random(args.order_seed).shuffle(jobs)
     campaign_identity = None
@@ -1202,7 +1350,7 @@ def main():
                     "input_change",
                 )
             )
-        if case["candidate"] in REUSE:
+        if case["candidate"] in BATCHED_NATIVE:
             command.append(str(case["reuse_count"]))
         if case["candidate"].startswith("epilogue_"):
             command.append(case["coefficient_profile"])
@@ -1230,6 +1378,8 @@ def main():
             "case": case,
             "collector_sha256": collector_identity["collect_native_calibration.py"],
             "collector_sources_sha256": collector_identity,
+            "generated_family_binding": generated_binding,
+            "generated_sources_sha256": generated_sources,
             "started_unix_ns": time.time_ns(),
             "ordinal": ordinal,
             "independent_repeat": independent,
@@ -1238,6 +1388,7 @@ def main():
         }
         failure = None
         try:
+            bookend_sources()
             result = subprocess.run(
                 command, capture_output=True, text=True, timeout=args.timeout, check=False
             )
@@ -1247,7 +1398,10 @@ def main():
             if result.returncode != 0:
                 raise ValueError("native microcase failed")
             capture = strict_json(result.stdout)
-            identity = validate_capture(capture, case, run_id, args.repeats, args.warmups)
+            bookend_sources()
+            identity = validate_capture(
+                capture, case, run_id, args.repeats, args.warmups, generated_manifest
+            )
             if campaign_identity is not None and not same_value(identity, campaign_identity):
                 raise ValueError("build/device/runtime identity changed during collection")
             campaign_identity = identity
@@ -1270,6 +1424,7 @@ def main():
                 "warmups": args.warmups,
                 "timing_scope": capture["timing_scope"],
                 "cache_state": capture["cache_state"],
+                "generated_variant": capture.get("generated_variant"),
             }
             record["provenance_complete"] = manifest_provenance_complete(
                 capture["build_manifest"],

@@ -22,6 +22,9 @@ from collect_native_calibration import (
     ENCODED,
     QUEUED,
     REUSE,
+    BATCHED_NATIVE,
+    OPTIONAL_GENERATED,
+    GENERATED_FILES,
     TILED,
     adaptive_contract,
     capture_contract,
@@ -38,6 +41,8 @@ from collect_native_calibration import (
     valid_sustained,
     validate_capture,
     validate_case,
+    generated_variant_contract,
+    read_generated_family,
 )
 from native_locality_contract import private_contract as locality_contract
 from test_capture_identity_support import synthetic_identity
@@ -48,7 +53,14 @@ BASE = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inp
 
 def case_for(candidate, **changes):
     case = {**BASE, "candidate": candidate}
-    if candidate not in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *BOUND_CONTROLS, *TILED):
+    if candidate not in (
+        *BATCHED_NATIVE,
+        *CONVERSION,
+        "grid_prepared",
+        *QUEUED,
+        *BOUND_CONTROLS,
+        *TILED,
+    ):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
@@ -105,7 +117,7 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
             for _ in range(repeats)
         ],
     )
-    if case["candidate"] in REUSE:
+    if case["candidate"] in BATCHED_NATIVE:
         capture["encoded_b_prepare_ns"] = 4000.25 if case["candidate"] == "encoded_b_warm" else None
         capture["sustained"].update(
             gemm_calls=16 * case["reuse_count"],
@@ -156,6 +168,91 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
 
 
 class CaseTest(unittest.TestCase):
+    def test_generated_catalogue_has_matched_controls_and_shape_diversity(self):
+        path = case_root() / "native-calibration/generated-wmma.json"
+        cases = [validate_case(row) for row in strict_json(path.read_text(encoding="utf-8"))]
+        self.assertEqual(len(cases), 68)
+        generated = [row for row in cases if row["candidate"] == "generated_wmma"]
+        self.assertEqual(
+            {(row["group"], row["unsigned_inputs"]) for row in generated},
+            {(g, u) for g in (1, 2, 4) for u in (False, True)},
+        )
+        for case in generated:
+            self.assertIn(dict(case, candidate="wmma"), cases)
+            if case["reuse_count"] == 1:
+                control = dict(case, candidate="pack_gemm", group=1)
+                del control["reuse_count"]
+                self.assertIn(control, cases)
+        self.assertEqual({row["reuse_count"] for row in generated}, {1, 8})
+        self.assertTrue(any(row["m"] == 1 for row in generated))
+        self.assertTrue(any(row["m"] % 16 and row["n"] % 16 for row in generated))
+
+    def test_optional_generated_variant_is_exact_and_never_an_ordinary_fallback(self):
+        self.assertTrue(set(OPTIONAL_GENERATED).isdisjoint(CANDIDATES))
+        for group in (1, 2, 4):
+            for unsigned in (False, True):
+                case = case_for(
+                    "generated_wmma", group=group, unsigned_inputs=unsigned, reuse_count=8
+                )
+                entry = dict(
+                    id="a" * 64,
+                    kernel_symbol="rns8_native_" + "a" * 64,
+                    spec=dict(group=group, unsigned_inputs=unsigned, target="gfx1100"),
+                )
+                manifest = dict(schema="rns8_generated_native_wmma_v1", variants=[entry])
+                capture = capture_for(case)
+                capture["generated_variant"] = generated_variant_contract(case, manifest)
+                validate_capture(capture, case, "fixture-run", 3, 1, manifest)
+                self.assertEqual(capture["sustained"]["gemm_calls"], 128)
+                with self.assertRaises(ValueError):
+                    validate_capture(capture, case, "fixture-run", 3, 1)
+                for key, value in (
+                    ("id", "b" * 64),
+                    ("kernel_symbol", "ordinary_kernel"),
+                    ("target", "gfx1101"),
+                    ("group", True),
+                    ("unsigned_inputs", int(unsigned)),
+                    ("qualified", True),
+                    ("dispatch", "ordinary_wmma_fallback"),
+                ):
+                    bad = copy.deepcopy(capture)
+                    bad["generated_variant"][key] = value
+                    with self.assertRaises(ValueError):
+                        validate_capture(bad, case, "fixture-run", 3, 1, manifest)
+                for variants in (
+                    [],
+                    [entry, entry],
+                    [None],
+                    [dict(entry, spec={})],
+                    [dict(entry, kernel_symbol="wrong")],
+                    [dict(entry, spec=dict(entry["spec"], group=True))],
+                ):
+                    with self.assertRaises(ValueError):
+                        generated_variant_contract(case, dict(manifest, variants=variants))
+                bad = dict(capture, target="gfx1101")
+                with self.assertRaises(ValueError):
+                    validate_capture(bad, case, "fixture-run", 3, 1, manifest)
+                ordinary = case_for("wmma", group=group, unsigned_inputs=unsigned)
+                ordinary_capture = capture_for(ordinary)
+                ordinary_capture["generated_variant"] = capture["generated_variant"]
+                with self.assertRaises(ValueError):
+                    validate_capture(ordinary_capture, ordinary, "fixture-run", 3, 1)
+
+    def test_generated_family_file_budget_and_complete_denominator(self):
+        scratch = Path(__file__).resolve().parents[1] / "temp"
+        scratch.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            root = Path(directory)
+            for name in GENERATED_FILES:
+                (root / name).write_bytes(b"synthetic source")
+            self.assertEqual(set(read_generated_family(root)), set(GENERATED_FILES))
+            (root / GENERATED_FILES[0]).write_bytes(b"")
+            with self.assertRaises(ValueError):
+                read_generated_family(root)
+            (root / GENERATED_FILES[0]).write_bytes(b"x" * (8 * 1024**2 + 1))
+            with self.assertRaises(ValueError):
+                read_generated_family(root)
+
     def test_native_locality_and_real_displacement_receipts(self):
         for candidate in ("queue_prepared", "split_k"):
             for order in ("ordinary", "output-neighbor", "modulus", "same-output"):
@@ -1084,7 +1181,9 @@ class CollectorTest(unittest.TestCase):
         self.cases = self.root / "cases.json"
         self.output = self.root / "records"
 
-    def collect(self, cases, mutate=None, runs=1, child_action=None):
+    def collect(
+        self, cases, mutate=None, runs=1, child_action=None, generated_manifest=None, verifier=None
+    ):
         self.cases.write_text(json.dumps(cases), encoding="utf-8")
         argv = [
             "collector",
@@ -1102,6 +1201,12 @@ class CollectorTest(unittest.TestCase):
             "1",
         ]
         calls = []
+        if generated_manifest is not None:
+            self.generated = self.root / "generated"
+            self.generated.mkdir(exist_ok=True)
+            for name in GENERATED_FILES:
+                (self.generated / name).write_bytes(b"synthetic generated file; verifier mocked")
+            argv.extend(["--generated-dir", str(self.generated)])
 
         def child(command, **kwargs):
             calls.append(command)
@@ -1125,7 +1230,7 @@ class CollectorTest(unittest.TestCase):
                         else {}
                     ),
                     **({"bound_method": command[-1]} if command[1] in BOUND_CONTROLS else {}),
-                    **({"reuse_count": int(command[11])} if command[1] in REUSE else {}),
+                    **({"reuse_count": int(command[11])} if command[1] in BATCHED_NATIVE else {}),
                     **(
                         {"coefficient_profile": command[11]}
                         if command[1].startswith("epilogue_")
@@ -1160,6 +1265,8 @@ class CollectorTest(unittest.TestCase):
                     )
                 )
             capture = capture_for(case, command[10])
+            if case["candidate"] in OPTIONAL_GENERATED:
+                capture["generated_variant"] = generated_variant_contract(case, generated_manifest)
             if mutate:
                 mutate(capture, len(calls))
             if child_action:
@@ -1169,10 +1276,85 @@ class CollectorTest(unittest.TestCase):
         with (
             patch.object(sys, "argv", argv),
             patch("collect_native_calibration.subprocess.run", side_effect=child),
+            patch(
+                "check_generated_native_wmma.verify_generated_source",
+                side_effect=verifier,
+                return_value=generated_manifest,
+            ),
             contextlib.redirect_stdout(io.StringIO()),
         ):
             result = main()
         return result, calls
+
+    def generated_manifest(self):
+        import hashlib
+
+        generator = Path(__file__).with_name("generate_native_wmma.py")
+        return dict(
+            schema="rns8_generated_native_wmma_v1",
+            variants=[
+                dict(
+                    id="a" * 64,
+                    kernel_symbol="rns8_native_" + "a" * 64,
+                    spec=dict(group=2, unsigned_inputs=False, target="gfx1100"),
+                    dependencies={},
+                    generator_sha256=hashlib.sha256(generator.read_bytes()).hexdigest(),
+                )
+            ],
+        )
+
+    def test_generated_execution_requires_verified_family_before_child(self):
+        with self.assertRaises(SystemExit):
+            self.collect([case_for("generated_wmma")])
+        self.assertFalse(self.output.exists())
+
+    def test_generated_collection_retains_exact_family_and_source_binding(self):
+        result, calls = self.collect(
+            [case_for("generated_wmma", reuse_count=8)],
+            generated_manifest=self.generated_manifest(),
+        )
+        self.assertEqual(result, 0)
+        self.assertEqual(calls[0][-1], "8")
+        (record,) = self.records()
+        self.assertTrue(record["validated"])
+        self.assertFalse(record["promotion_eligible"])
+        self.assertEqual(set(record["generated_family_binding"]), set(GENERATED_FILES))
+        self.assertIn("tools/generate_native_wmma.py", record["generated_sources_sha256"])
+        for name, receipt in record["generated_family_binding"].items():
+            self.assertEqual(
+                Path(receipt["path"]).read_bytes(), (self.generated / name).read_bytes()
+            )
+        self.assertFalse(record["comparison_identity"]["generated_variant"]["qualified"])
+
+    def test_generated_family_drift_during_child_is_retained_and_stops(self):
+        def child(command, capture):
+            (retained,) = self.output.glob("generated-family-*")
+            (retained / "native_variants.hpp").write_bytes(b"changed retained family")
+            return subprocess.CompletedProcess(command, 0, json.dumps(capture), "")
+
+        with self.assertRaisesRegex(RuntimeError, "generated family"):
+            self.collect(
+                [case_for("generated_wmma")],
+                runs=2,
+                child_action=child,
+                generated_manifest=self.generated_manifest(),
+            )
+        (record,) = self.records()
+        self.assertFalse(record["validated"])
+        self.assertIn("changed during collection", record["validation_error"])
+
+    def test_generated_family_drift_during_verification_prevents_child(self):
+        manifest = self.generated_manifest()
+
+        def verifier(directory):
+            (directory / "native_variants.hip").write_bytes(b"changed after verification")
+            return manifest
+
+        with self.assertRaises(SystemExit):
+            self.collect(
+                [case_for("generated_wmma")], generated_manifest=manifest, verifier=verifier
+            )
+        self.assertFalse(self.output.exists())
 
     def records(self):
         return [

@@ -42,6 +42,7 @@ DEPENDENCIES = (
     "src/backend_common/native_wmma_queue.hpp",
     "src/backend_common/fragment_layout.hpp",
     "src/backend_common/address_domain.hpp",
+    "src/backend_common/generated_native_variant.hpp",
     "tools/arithmetic_certificate.py",
     "tools/arithmetic_composition.py",
     "tools/planning_recipe.py",
@@ -217,7 +218,7 @@ def generate(directory, variants, root=None):
         '#include "backend_hip_direct/hip_direct_device_common.cuh"',
         "}",
     ]
-    header = ["#pragma once", "#include <cstdint>"]
+    header = ["#pragma once", '#include "backend_common/generated_native_variant.hpp"']
     signature = "const void* a, const void* b, int8_t* c, int m, int n, int k, int lda, int ldb, int ldc, int prefix"
     for v, entry in zip(variants, entries):
         kernel, launch = entry["kernel_symbol"], entry["launch_symbol"]
@@ -241,13 +242,11 @@ def generate(directory, variants, root=None):
         header.append(f'extern "C" int {launch}({signature});')
     header += [
         "namespace rns8::generated {",
-        "struct NativeVariant { const char* id; uint32_t group; bool unsigned_inputs;",
-        "  int (*launch)(const void*,const void*,int8_t*,int,int,int,int,int,int,int); };",
         "inline constexpr NativeVariant native_variants[] = {",
     ]
     for v, entry in zip(variants, entries):
         header.append(
-            f'  {{"{entry["id"]}",{v.group},{str(v.unsigned_inputs).lower()},&{entry["launch_symbol"]}}},'
+            f'  {{"{entry["id"]}","{v.target}","{entry["kernel_symbol"]}",{v.group},{str(v.unsigned_inputs).lower()},&{entry["launch_symbol"]}}},'
         )
     header += ["};", "}"]
     source_text, header_text = "\n".join(source) + "\n", "\n".join(header) + "\n"
