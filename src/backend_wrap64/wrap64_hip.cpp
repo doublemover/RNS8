@@ -1,6 +1,6 @@
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "backend_wrap64/canonical_host_transfer.hpp"
-#include <vector>
+#include <memory>
 
 #include <cstddef>
 #include <cstdint>
@@ -174,12 +174,13 @@ rns8_status wrap64_hip_pack_u64_device(int device_id, const uint64_t* src, void*
     return hip_direct_upload_host_matrix(device_id, "pack_h2d", device_byte_limbs,
                                          transfer.logical.device_bytes, src, transfer.logical);
   // True representation conversion for an incompatible host byte order.
-  std::vector<uint8_t> canonical(transfer.logical.device_bytes);
+  std::shared_ptr<uint8_t[]> canonical(new uint8_t[transfer.logical.device_bytes]);
   for (int64_t row = 0; row < rows; ++row)
     for (int64_t col = 0; col < cols; ++col)
-      store_canonical_u64(canonical.data() + size_t(row * cols + col) * 8, src[row * ld + col]);
-  return hip_direct_copy_host_to_device_labeled(device_id, "pack_h2d", device_byte_limbs,
-                                                canonical.data(), canonical.size());
+      store_canonical_u64(canonical.get() + size_t(row * cols + col) * 8, src[row * ld + col]);
+  return hip_direct_copy_owned_host_to_device(device_id, device_byte_limbs,
+                                              std::shared_ptr<void>(canonical, canonical.get()),
+                                              transfer.logical.device_bytes, "pack_h2d");
 #else
   (void)device_id;
   (void)device_byte_limbs;
@@ -258,14 +259,15 @@ rns8_status wrap64_hip_export_u64_device(int device_id, const void* device_byte_
   if (transfer.native_byte_identity)
     return hip_direct_copy_compact_matrix_device_to_host(device_id, "wrap64_export_d2h", dst, ld,
                                                          device_byte_limbs, rows, cols, 8, false);
-  std::vector<uint8_t> canonical(output_bytes);
-  const auto status = hip_direct_copy_device_to_host(device_id, canonical.data(), device_byte_limbs,
-                                                     canonical.size());
+  std::shared_ptr<uint8_t[]> canonical(new uint8_t[output_bytes]);
+  const auto status = hip_direct_copy_device_to_owned_host(
+      device_id, std::shared_ptr<void>(canonical, canonical.get()), device_byte_limbs,
+      output_bytes);
   if (status != RNS8_SUCCESS)
     return status;
   for (int64_t row = 0; row < rows; ++row)
     for (int64_t col = 0; col < cols; ++col)
-      dst[row * ld + col] = load_canonical_u64(canonical.data() + size_t(row * cols + col) * 8);
+      dst[row * ld + col] = load_canonical_u64(canonical.get() + size_t(row * cols + col) * 8);
   return RNS8_SUCCESS;
 #else
   (void)device_id;

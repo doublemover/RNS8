@@ -189,12 +189,13 @@ rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<
 }
 
 rns8_status hip_direct_copy_owned_host_to_device(int device_id, void* destination,
-                                                 std::shared_ptr<void> source, std::size_t bytes) {
-  if (!destination || !source || !bytes)
+                                                 std::shared_ptr<void> source, std::size_t bytes,
+                                                 const char* timing_label) {
+  if (!destination || !source || !bytes || !timing_label || !*timing_label)
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   return copy_owned_host_payload(
-      device_id, std::move(source), bytes, "residue_h2d_sync", [&](void* host) {
+      device_id, std::move(source), bytes, timing_label, [&](void* host) {
         return tracked_sync_copy(destination, host, bytes, hipMemcpyHostToDevice);
       });
 #else

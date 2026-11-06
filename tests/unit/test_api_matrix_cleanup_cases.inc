@@ -3,6 +3,7 @@
 #include "core/host_readback_slot.hpp"
 #include "core/host_transfer_payload.hpp"
 #include "core/host_upload_packet.hpp"
+#include "backend_wrap64/canonical_host_transfer.hpp"
 #include "backend_common/completed_observation.hpp"
 #include <array>
 #include <memory>
@@ -494,6 +495,48 @@ TEST_CASE("workspace upload packets preserve offsets padding and independent sou
   CHECK(make_host_upload_packet(0, {{0, first.data(), 3}}, packet) == RNS8_INVALID_ARGUMENT);
   CHECK(make_host_upload_packet(SIZE_MAX, {{0, first.data(), 3}}, packet) == RNS8_RANGE_ERROR);
   CHECK(packet.get() == original);
+}
+
+TEST_CASE("canonical wrap transfer payloads preserve late encoded reads and writes",
+          "[api][wrap64][lifetime]") {
+  using Ops = MockDeviceBufferOperations;
+  Ops::deferred_count = 0;
+  const std::array<uint64_t, 8> words{0,
+                                      1,
+                                      UINT64_MAX,
+                                      uint64_t(1) << 63,
+                                      UINT64_C(0x8080808080808080),
+                                      UINT64_C(0x0123456789abcdef),
+                                      255,
+                                      256};
+  for (bool readback : {false, true}) {
+    {
+      auto canonical = std::shared_ptr<uint8_t[]>(new uint8_t[sizeof(words)]);
+      if (!readback)
+        for (size_t i = 0; i < words.size(); ++i)
+          rns8::detail::store_canonical_u64(canonical.get() + 8 * i, words[i]);
+      rns8::detail::HostTransferPayload transfer(Ops::defer);
+      REQUIRE(transfer.begin(0, std::shared_ptr<void>(canonical, canonical.get()), sizeof(words)) ==
+              RNS8_SUCCESS);
+    }
+    REQUIRE(Ops::deferred_count == 1);
+    auto* record = Ops::deferred[0];
+    auto* bytes = static_cast<uint8_t*>(record->pointer);
+    if (readback)
+      for (size_t i = 0; i < words.size(); ++i)
+        rns8::detail::store_canonical_u64(bytes + 8 * i, words[i]);
+    for (size_t i = 0; i < words.size(); ++i)
+      CHECK(rns8::detail::load_canonical_u64(bytes + 8 * i) == words[i]);
+    delete record; // Simulated later observation; no device fault or DMA.
+    Ops::deferred[0] = nullptr;
+    Ops::deferred_count = 0;
+  }
+  auto source = std::make_shared<uint64_t>(7);
+  uint64_t untouched = 99;
+  for (const char* label : {static_cast<const char*>(nullptr), ""})
+    CHECK(rns8::detail::hip_direct_copy_owned_host_to_device(
+              0, &untouched, source, sizeof(untouched), label) == RNS8_INVALID_ARGUMENT);
+  CHECK(untouched == 99);
 }
 
 TEST_CASE("small status readbacks publish only after completion and retain failed destinations",

@@ -528,6 +528,9 @@ allocation through the later drain; successful synchronous completion releases
 it. Upload and readback adapters share admission/retirement while preserving
 their actual direction and phase label. No full host mirror is added to the
 resident matrix. The late-read source control is authored and unexecuted.
+The wrap64 byte-order conversion fallback also retains its canonical source
+and readback allocations through these adapters, preserving their timing labels. Native
+little-endian uploads keep their existing representation path.
 
 Direct-HIP workspace construction snapshots mask and schedule metadata into one
 owned upload packet, preserving device offsets and initialized alignment gaps.

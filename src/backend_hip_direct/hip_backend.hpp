@@ -596,7 +596,8 @@ rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<
                                                  const void* source, std::size_t bytes);
 // Source aliases immutable shared bytes until the synchronous upload completes.
 rns8_status hip_direct_copy_owned_host_to_device(int device_id, void* destination,
-                                                 std::shared_ptr<void> source, std::size_t bytes);
+                                                 std::shared_ptr<void> source, std::size_t bytes,
+                                                 const char* timing_label = "residue_h2d_sync");
 rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src,
                                            std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device_labeled(int device_id, const char* timing_label,
