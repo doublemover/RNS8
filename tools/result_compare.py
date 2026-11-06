@@ -117,6 +117,7 @@ CONTRACT_KEYS = [
     "tile_shape_variant.tile_k",
     "tile_shape_variant.k_block_policy",
     "grouped_dispatch.task_count",
+    "grouped_dispatch.task_descriptor_contract",
     "adaptive_grouped_scheduler.requested",
     "adaptive_grouped_scheduler.strategy",
     "resident_lifetime.enabled",

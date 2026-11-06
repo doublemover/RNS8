@@ -3,6 +3,7 @@
 from __future__ import annotations
 from typing import Any
 from graph_caller_contract import full_path_graph, SCHEMA as GRAPH_CALLER_SCHEMA
+from grouped_task_contract import uniform_grouped_task_count
 
 
 def profile_ranges_instrumented(capture: dict[str, Any]) -> bool:
@@ -56,7 +57,11 @@ def task_scaling_contract(capture: dict[str, Any]) -> dict[str, Any]:
             or batch.get("checksum_policy") != "fnv1a_over_final_task_output_checksums"
         ):
             raise ValueError("registered complete host task-batch contract required")
-    elif batch or tasks != 1 or capture.get("benchmark_execution_mode") != "persistent_resident":
+    elif (
+        not single_task_batch_contract(capture)
+        or tasks != 1
+        or capture.get("benchmark_execution_mode") != "persistent_resident"
+    ):
         raise ValueError("independent baseline must describe one complete task")
     if (
         timing.get("host_result_kind") != ("amortized_batch" if enabled else "single_operation")
@@ -74,6 +79,82 @@ def task_scaling_contract(capture: dict[str, Any]) -> dict[str, Any]:
         aggregate_units="microseconds_per_completed_task_batch",
         normalized_units="microseconds_per_completed_task",
         checksum_policy=batch.get("checksum_policy", "single_final_output_checksum"),
+    )
+
+
+def single_task_batch_contract(capture: dict[str, Any]) -> bool:
+    """Accept absent legacy metadata or the native emitter's disabled-batch record."""
+    batch = capture.get("host_api_batch") or {}
+    return not batch or (
+        batch.get("enabled") is False
+        and type(batch.get("batch_size")) is int
+        and batch.get("batch_size") == 1
+        and type(batch.get("tasks_per_measured_repeat")) is int
+        and batch.get("tasks_per_measured_repeat") == 1
+        and batch.get("setup_scope") == "single_task_default_benchmark_mode"
+        and batch.get("timing_policy") == "single_call_totals_per_measured_repeat"
+        and batch.get("checksum_policy") == "single_final_output_checksum"
+    )
+
+
+def grouped_task_work(capture: dict[str, Any]) -> dict[str, Any] | None:
+    """Mathematical task composition, independent of physical descriptor placement."""
+    grouped = capture.get("grouped_dispatch") or {}
+    contract = grouped.get("task_descriptor_contract")
+    if grouped.get("requested") is not True or not isinstance(contract, dict):
+        return None
+    # Every other field, including ordered buckets, strides, lifetime and checksum,
+    # stays in the identity. Moving pointer tables to a device changes no input.
+    return {key: value for key, value in contract.items() if key != "device_descriptor_policy"}
+
+
+def uniform_task_sequence(capture: dict[str, Any]) -> dict[str, Any] | None:
+    """Same ordered input recipe in native host-batch and same-shape grouped lanes.
+
+    This identity keeps the complete task count. It is for numerical references,
+    never permission to divide unlike workloads or instrumentation boundaries.
+    """
+    grouped = capture.get("grouped_dispatch") or {}
+    batch = capture.get("host_api_batch") or {}
+    if grouped.get("requested") is True:
+        tasks = uniform_grouped_task_count(capture)
+        if (
+            tasks is None
+            or capture.get("benchmark_execution_mode") != "benchmark_grouped_dispatch_evidence"
+            or grouped.get("setup_scope")
+            != "benchmark_grouped_dispatch_one_shared_plan_persistent_resident_tasks"
+            or not single_task_batch_contract(capture)
+        ):
+            return None
+    elif batch.get("enabled") is True:
+        tasks = batch.get("tasks_per_measured_repeat")
+        if (
+            type(tasks) is not int
+            or not 2 <= tasks <= 65536
+            or type(batch.get("batch_size")) is not int
+            or batch["batch_size"] != tasks
+            or capture.get("benchmark_execution_mode") != "benchmark_host_api_batch"
+            or batch.get("setup_scope")
+            != "one_shared_plan_per_capture_one_resident_matrix_workspace_triplet_per_task"
+            or batch.get("checksum_policy") != "fnv1a_over_final_task_output_checksums"
+            or set(batch)
+            - {
+                "enabled",
+                "batch_size",
+                "tasks_per_measured_repeat",
+                "total_measured_tasks",
+                "setup_scope",
+                "timing_policy",
+                "checksum_policy",
+            }
+        ):
+            return None
+    else:
+        return None
+    return dict(
+        input_sequence="native_seeded_consecutive_uniform_task_inputs_v1",
+        tasks_per_measured_repeat=tasks,
+        checksum_policy="native_ordered_final_task_checksums_fnv1a_v1",
     )
 
 

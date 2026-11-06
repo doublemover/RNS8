@@ -294,6 +294,19 @@ cannot mark a group reviewed; missing or unqualified evidence yields no ratio
 or recommendation. Supply production captures and `--diagnostic-binding`
 receipts. The new warmup/order/copied-ID/device/companion controls are unexecuted.
 
+The many-small grouped report uses the same production and numerical gates.
+Its uniform-task adapter preserves input recipe, arithmetic, output completion
+and device/build/runtime identity while normalizing each native aggregate by
+its declared task count exactly once. A grouped candidate also needs the same
+task count and combined checksum as its host-batch control. Complete CPU
+host-batch references cover the identical ordered grouped input sequence;
+physical pointer-table placement does not change numerical work. Heterogeneous
+task descriptors and compact-slab completion remain visible with blockers and
+cannot borrow scalar or uniform host-output timings. Supply production captures
+and `many_small_grouped_report.py --diagnostic-binding` receipts. The new loader,
+order, copied-ID, filename, noise, warmup and companion controls are authored but
+unexecuted; these source changes establish no new measured gain.
+
 ## Promotion boundaries
 
 - CPU success and static/host arithmetic tests do not qualify GPU code.

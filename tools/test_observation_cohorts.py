@@ -30,6 +30,23 @@ def write_all(root, captures):
 
 
 class ProcessObservations(unittest.TestCase):
+    def test_grouped_task_composition_and_execution_strategy_are_not_merged(self):
+        from test_benchmark_schema_support_grouped import as_grouped_dispatch_capture
+
+        base = as_grouped_dispatch_capture(bounded_capture("hip-direct", 100))
+        device = deepcopy(base)
+        device["grouped_dispatch"]["execution_strategy"] = "device_grouped_pack_gemm_host_exports"
+        device["grouped_dispatch"]["task_descriptor_contract"]["device_descriptor_policy"] = (
+            "device_pointer_tables_and_compact_slabs"
+        )
+        different_work = deepcopy(base)
+        different_work["grouped_dispatch"]["task_descriptor_contract"]["buckets"] = [
+            {"shape_key": "different ordered task composition", "task_count": 8}
+        ]
+        observations = aggregate_captures(runs(base) + runs(device) + runs(different_work))
+        self.assertEqual(len(observations), 3)
+        self.assertTrue(all(evidence(view)["independent_runs"] == 2 for view in observations))
+
     def test_hipblaslt_operand_policies_remain_separate_implementations(self):
         captures = []
         for policy in ("none", "a", "b", "both"):

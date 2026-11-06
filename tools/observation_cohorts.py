@@ -149,6 +149,9 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
         fallback = comparison_environment(capture)
         timing = capture.get("timing_metadata") or {}
         implementation = {
+            "grouped_dispatch_strategy": (capture.get("grouped_dispatch") or {}).get(
+                "execution_strategy"
+            ),
             "locality_schedule": capture.get("locality_schedule"),
             "hipblaslt_metadata_policy": (capture.get("hipblaslt_metadata") or {}).get(
                 "policy", "legacy_per_block"

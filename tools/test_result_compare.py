@@ -8,6 +8,7 @@ from pathlib import Path
 
 import result_compare
 from benchmark_schema import load_capture
+from test_capture_identity_support import synthetic_host_measurements
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -62,6 +63,12 @@ def main() -> int:
     import reuse_contract_report
     import rns_chain_report
 
+    def host_task_key(capture):
+        current = copy.deepcopy(capture)
+        current["benchmark_execution_mode"] = "persistent_resident"
+        synthetic_host_measurements(current)
+        return host_api_batch_report.contract_key(current)
+
     for semantics, q1, q2 in [("finite_ring_u8", 255, 251), ("finite_field_u8", 251, 241)]:
         left = copy.deepcopy(cpu)
         right = copy.deepcopy(cpu)
@@ -78,7 +85,7 @@ def main() -> int:
             )
             assert not report["matching_contract"]
             assert not report["contract"]["finite_modulus"]["match"]
-        assert host_api_batch_report.contract_key(left) != host_api_batch_report.contract_key(right)
+        assert host_task_key(left) != host_task_key(right)
         assert reuse_contract_report.normalized_contract_key(
             left
         ) != reuse_contract_report.normalized_contract_key(right)
@@ -88,7 +95,7 @@ def main() -> int:
     missing = copy.deepcopy(cpu)
     missing.pop("finite_modulus", None)
     try:
-        host_api_batch_report.contract_key(missing)
+        host_task_key(missing)
     except result_compare.BenchmarkSchemaError:
         pass
     else:
@@ -284,7 +291,7 @@ def main() -> int:
         as_host_api_batch_capture,
         expect_valid,
     )
-    from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
+    from test_capture_identity_support import synthetic_identity
     from benchmark_sweep_lib.capture_metadata import capture_contract_key
     from perf_variance_report import execution_cohort, variance_group_key
 

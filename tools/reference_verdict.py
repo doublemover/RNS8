@@ -10,6 +10,7 @@ from typing import Iterable
 from benchmark_schema.public_timing import validate_native_reference
 from benchmark_sweep_lib.capture_metadata import capture_checksum_policy
 from result_compare import contract_value
+from measurement_contract import grouped_task_work, uniform_task_sequence
 from timing_eligibility import capture_identity
 
 SCHEMA = "rns8_numerical_reference_verdict_v1"
@@ -52,8 +53,14 @@ def numerical_contract(capture: dict) -> str:
     if type(capture.get("seed")) is not int or not 0 <= capture["seed"] < 2**64:
         raise ValueError("numerical input seed missing")
     work = {key: contract_value(capture, key) for key in NUMERICAL_KEYS}
+    work["grouped_dispatch.task_descriptor_contract"] = grouped_task_work(capture)
     work["input_profile"] = capture.get("input_profile", "uniform-small")
     work["checksum_policy"] = capture_checksum_policy(capture)
+    sequence = uniform_task_sequence(capture)
+    if sequence is not None:
+        work["host_api_batch.work_contract"] = sequence
+        work["grouped_dispatch.task_descriptor_contract"] = None
+        work["checksum_policy"] = sequence["checksum_policy"]
     reference = capture.get("native_reference_verification")
     work["reference_input_key"] = (
         reference.get("cache_key")
