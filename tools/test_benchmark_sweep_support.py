@@ -496,6 +496,15 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
             "kernel=direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4",
             "kernel=cpu_wrap64_byte_limb_reference_v1",
         )
+        metadata["accumulator_safety"].update(
+            k_block_cap=0,
+            max_lhs_abs=0,
+            max_rhs_abs=0,
+            max_product=0,
+            accumulator_type="uint64_wraparound_byte_limb",
+            status="exact_mod_2_64_byte_limb_no_int32_k_cap",
+        )
+        metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
         capture["device"] = {
             "device_id": -1,
             "name": "CPU wrap64 byte-limb reference",

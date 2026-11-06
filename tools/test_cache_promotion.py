@@ -28,6 +28,7 @@ from promotion_ledger import build_ledger
 from test_autotune_cache_install import entry, write_cache, write_ledger
 from test_benchmark_sweep_support import finite_capture
 from test_diagnostic_companion import authored_capture_pair
+from test_review_reference_support import add_synthetic_full_reference
 
 
 class PayloadControls(unittest.TestCase):
@@ -160,7 +161,9 @@ class PublicationControls(unittest.TestCase):
                 for run in range(2):
                     lane = root / f"{backend}-{run}"
                     lane.mkdir()
-                    _, _, paths = authored_capture_pair(lane, finite_capture(backend, cost))
+                    _, _, paths = authored_capture_pair(
+                        lane, add_synthetic_full_reference(finite_capture(backend, cost))
+                    )
                     production = load_capture(paths[0])
                     validate_capture(production, paths[0])
                     productions.append(paths[0])

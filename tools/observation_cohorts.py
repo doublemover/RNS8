@@ -23,6 +23,7 @@ from perf_variance_report import (
     DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD,
     DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD,
     DEFAULT_MIN_REPEATS,
+    DEFAULT_MIN_NOISE_SPEEDUP_MARGIN,
 )
 from result_compare import CONTRACT_KEYS, contract_value
 from timing_eligibility import capture_identity, phase_blockers
@@ -181,6 +182,7 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
             blockers.add("insufficient_independent_processes")
         if conflicts:
             blockers.add("conflicting_reused_execution_id")
+        within_spreads = []
         for capture in observations:
             environment_error = request_environment_identity(capture.get("request_identity"))[1]
             if environment_error:
@@ -196,6 +198,8 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
                 blockers.add("missing_within_capture_spread")
             elif max(0.0, (p95 - median) / median) > DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD:
                 blockers.add("high_within_capture_variance")
+            if median is not None and median > 0 and p95 is not None:
+                within_spreads.append(max(0.0, (p95 - median) / median))
         phases = set().union(*((c.get("timing_summary_us") or {}).keys() for c in observations))
         events = set().union(
             *((c.get("gpu_event_timing_summary_us") or {}).keys() for c in observations)
@@ -248,6 +252,7 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
             "independent_runs": independent,
             "minimum_runs": minimum_runs,
             "maximum_process_relative_range": DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD,
+            "maximum_observed_within_capture_relative_spread": max(within_spreads, default=None),
             "conflicting_execution_ids": sorted(conflicts),
             "submitted_observations": [
                 {
@@ -288,6 +293,55 @@ def evidence(capture: dict | None) -> dict:
 
 def qualified(capture: dict | None) -> bool:
     return evidence(capture).get("qualified") is True
+
+
+def comparison_noise_margin(baseline: dict | None, candidate: dict | None) -> float | None:
+    noise = [DEFAULT_MIN_NOISE_SPEEDUP_MARGIN]
+    for capture in (baseline, candidate):
+        if not qualified(capture):
+            return None
+        aggregate = evidence(capture)
+        for value in (
+            aggregate.get("maximum_observed_within_capture_relative_spread"),
+            (aggregate.get("process_spread_us", {}).get("end_to_end") or {}).get("relative_range"),
+        ):
+            number = _number(value)
+            if number is None or number < 0:
+                return None
+            noise.append(number)
+    return 1.0 + max(noise)
+
+
+class ProductionCohortIndex:
+    """Check every unique production observation, sharing expensive bindings."""
+
+    def __init__(self, captures: Iterable[dict], diagnostic_bindings: dict | None = None):
+        self._captures = {capture_identity(capture): capture for capture in captures}
+        self._bindings = diagnostic_bindings or {}
+        self._checked: dict[str, list[str]] = {}
+
+    def blockers(self, capture: dict) -> list[str]:
+        from diagnostic_companion import binding_for_capture, production_evidence
+
+        aggregate = evidence(capture)
+        blockers = list(aggregate.get("blockers", []))
+        if not qualified(capture):
+            blockers.append("independent_production_cohort_unqualified")
+        observations = aggregate.get("observations")
+        if not isinstance(observations, list) or not observations:
+            return sorted(set(blockers + ["production_observations_missing"]))
+        for observation in observations:
+            identity = observation.get("capture_sha256")
+            raw = self._captures.get(identity)
+            if raw is None:
+                blockers.append("production_observation_content_unavailable")
+                continue
+            if identity not in self._checked:
+                self._checked[identity] = production_evidence(
+                    raw, binding_for_capture(raw, self._bindings)
+                )["blockers"]
+            blockers.extend(self._checked[identity])
+        return sorted(set(blockers))
 
 
 def best_implementation(

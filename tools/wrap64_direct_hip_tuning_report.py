@@ -5,12 +5,25 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
 from report_capture_inputs import load_report_captures
+from observation_cohorts import (
+    ProductionCohortIndex,
+    aggregate_captures,
+    best_implementation,
+    canonical_work,
+    comparison_environment,
+    comparison_noise_margin,
+    evidence,
+    phase_median,
+    row_identity,
+)
+from diagnostic_companion import load_bindings
+from reference_verdict import CPUReferenceIndex
+from timing_eligibility import pair_blockers
 
 
 DEFAULT_OUT_DIR = Path("temp") / "wrap64-direct-hip-tuning-reports"
@@ -18,35 +31,24 @@ RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 DIRECT_V4_KERNEL = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
 GRAPH_EXECUTION_MODE = "hip_graph_replay_wrap64_pack_gemm_export"
-
-
-def _number(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)) and math.isfinite(float(value)):
-        return float(value)
-    return None
+# Only physical tiling differs; input recipes, reuse and output cadence stay strict.
+PHYSICAL_VARIANT_FIELDS = (
+    "tile_m",
+    "tile_n",
+    "k_block_size",
+    "schedule_metadata.tile_rows",
+    "schedule_metadata.tile_cols",
+    "schedule_metadata.tile_count",
+    "tile_shape_variant.name",
+    "tile_shape_variant.tile_m",
+    "tile_shape_variant.tile_n",
+    "tile_shape_variant.tile_k",
+    "tile_shape_variant.k_block_policy",
+)
 
 
 def _median(capture: dict[str, Any] | None, phase: str) -> float | None:
-    if not capture:
-        return None
-    summary = (
-        capture.get("timing_summary_us")
-        if isinstance(capture.get("timing_summary_us"), dict)
-        else {}
-    )
-    item = summary.get(phase)
-    if isinstance(item, dict) and _number(item.get("median")) is not None:
-        return float(item["median"])
-    raw = capture.get("raw_timings_us") if isinstance(capture.get("raw_timings_us"), dict) else {}
-    values = raw.get(phase)
-    if isinstance(values, list):
-        numeric = sorted(float(value) for value in values if _number(value) is not None)
-        if numeric:
-            return numeric[len(numeric) // 2]
-    avg = capture.get(f"avg_{phase}_us")
-    return _number(avg)
+    return phase_median(capture, phase) if capture else None
 
 
 def _target_id(capture: dict[str, Any]) -> str:
@@ -196,24 +198,13 @@ def _group_key(capture: dict[str, Any]) -> tuple[Any, ...]:
         capture.get("k"),
         capture.get("output_logical_ld"),
         int(capture.get("output_ld_padding", 0) or 0),
-    )
-
-
-def _candidate_key(capture: dict[str, Any]) -> tuple[str, str, str, str, str]:
-    variant = _tile_shape_variant(capture)
-    variant_name = variant.get("name") if isinstance(variant.get("name"), str) else "default"
-    policy = _k_block_policy(capture)
-    return (
-        _role(capture),
-        _backend_id(capture),
-        str(capture.get("selected_kernel") or "unknown"),
-        variant_name,
-        policy,
+        canonical_work(capture, exclude=PHYSICAL_VARIANT_FIELDS),
     )
 
 
 def _capture_row(capture: dict[str, Any]) -> dict[str, Any]:
     return {
+        **row_identity(capture, exclude=PHYSICAL_VARIANT_FIELDS),
         "path": capture.get("_path"),
         "role": _role(capture),
         "backend": _backend_id(capture),
@@ -237,28 +228,33 @@ def _comparison(
     candidate: dict[str, Any],
     direct: dict[str, Any] | None,
     reference: dict[str, Any] | None,
+    references: CPUReferenceIndex,
+    production: ProductionCohortIndex,
 ) -> dict[str, Any]:
     row = _capture_row(candidate)
-    blockers: list[str] = []
+    numerical = references.verdict(candidate)
+    row["numerical_reference"] = numerical.to_json()
+    production_blockers = production.blockers(candidate)
+    row["production_timing_qualified"] = not production_blockers
+    blockers: list[str] = list(numerical.blockers) + production_blockers
     role = row["role"]
     candidate_median = row["median_end_to_end_us"]
     direct_median = _median(direct, "end_to_end") if direct else None
     reference_checksum = reference.get("checksum_u64") if reference else None
-    if reference is None:
+    if reference is None and not numerical.passed:
         blockers.append("missing_wrap64_byte_limb_reference")
     if direct is None:
         blockers.append("missing_direct_hip_v4_baseline")
+    else:
+        blockers.extend("baseline:" + blocker for blocker in production.blockers(direct))
+        blockers.extend(pair_blockers(direct, candidate))
     if not row["release_reviewed"]:
         blockers.append("not_release_reviewed")
-    if (
-        role != "hip_graph_full_path"
-        and row["backend"] not in {"wrap64-byte-limb"}
-        and not row["gpu_events_available"]
-    ):
-        blockers.append("missing_required_gpu_events")
     if row["backend"] not in {"wrap64-byte-limb"} and not row["isa_evidence"]:
         blockers.append("missing_isa_evidence")
-    if reference_checksum is not None and candidate.get("checksum_u64") != reference_checksum:
+    if numerical.checksum_comparison == "mismatch" or (
+        reference_checksum is not None and candidate.get("checksum_u64") != reference_checksum
+    ):
         blockers.append("checksum_mismatch_vs_wrap64_reference")
     if role == "hip_graph_full_path":
         blockers.append("benchmark_only_graph_replay")
@@ -272,14 +268,23 @@ def _comparison(
     if scope and scope != "release_review_candidate":
         blockers.append("scenario_scope_not_autotune_promotable")
     speedup = direct_median / candidate_median if direct_median and candidate_median else None
+    required_margin = comparison_noise_margin(direct, candidate)
+    if role not in {"cpu_byte_limb_reference", "direct_hip_v4_baseline"} and direct is not None:
+        if required_margin is None:
+            blockers.append("matched_comparison_noise_unavailable")
+        elif speedup is not None and 1.0 / required_margin <= speedup <= required_margin:
+            blockers.append("speedup_inside_variance_margin")
+    blockers = sorted(set(blockers))
     critical = _critical_blockers(blockers)
+    if critical:
+        speedup = None
     if role == "cpu_byte_limb_reference":
         decision = "reference"
     elif role == "direct_hip_v4_baseline":
         decision = "baseline"
     elif critical:
         decision = "keep_experimental"
-    elif speedup is not None and speedup >= 1.03:
+    elif speedup is not None and required_margin is not None and speedup > required_margin:
         decision = "candidate_workload_win"
     elif speedup is not None:
         decision = "drop/deprioritize"
@@ -288,6 +293,7 @@ def _comparison(
     row.update(
         {
             "speedup_vs_direct_hip_v4": speedup,
+            "required_speedup_margin": required_margin,
             "direct_hip_v4_median_end_to_end_us": direct_median,
             "wrap64_reference_median_end_to_end_us": _median(reference, "end_to_end")
             if reference
@@ -300,10 +306,15 @@ def _comparison(
     return row
 
 
-def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
+def build_report_from_captures(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
     wrap_captures = [item for item in captures if item.get("semantics") == "wrap_u64_mod_2_64"]
+    references = CPUReferenceIndex(wrap_captures)
+    production = ProductionCohortIndex(wrap_captures, diagnostic_bindings)
+    observations = aggregate_captures(wrap_captures)
     grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
-    for capture in wrap_captures:
+    for capture in observations:
         grouped[_group_key(capture)].append(capture)
 
     groups: list[dict[str, Any]] = []
@@ -312,32 +323,28 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
         by_role: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for item in items:
             by_role[_role(item)].append(item)
-        reference = by_role.get("cpu_byte_limb_reference", [None])[0]
         direct_baselines = by_role.get("direct_hip_v4_baseline", [])
-        direct = next(
-            (
-                item
-                for item in direct_baselines
-                if _scenario_scope(item) == "release_review_candidate"
-            ),
-            None,
-        )
-        if direct is None:
-            direct = direct_baselines[0] if direct_baselines else None
+        qualified_direct = [
+            value
+            for value in direct_baselines
+            if not production.blockers(value) and references.verdict(value).passed
+        ]
         candidate_rows = []
-        seen: set[tuple[str, str, str, str, str]] = set()
         for item in sorted(
             items,
             key=lambda capture: (_role(capture), _backend_id(capture), str(capture.get("_path"))),
         ):
-            key_for_item = _candidate_key(item)
-            if key_for_item in seen and _role(item) not in {
-                "direct_hip_v4_baseline",
-                "cpu_byte_limb_reference",
-            }:
-                continue
-            seen.add(key_for_item)
-            row = _comparison(item, direct, reference)
+            direct = best_implementation(qualified_direct, candidate=item)
+            reference = next(
+                (
+                    value
+                    for value in by_role.get("cpu_byte_limb_reference", [])
+                    if comparison_environment(value, cpu_anchor=True)
+                    == comparison_environment(item, cpu_anchor=True)
+                ),
+                None,
+            )
+            row = _comparison(item, direct, reference, references, production)
             candidate_rows.append(row)
             decisions[row["decision"]] += 1
         groups.append(
@@ -357,9 +364,11 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
                         }
                     ),
                 },
-                "capture_count": len(items),
-                "has_wrap64_reference": reference is not None,
-                "has_direct_hip_v4_baseline": direct is not None,
+                "capture_count": sum(evidence(item)["submitted_records"] for item in items),
+                "observation_cohort_count": len(items),
+                "has_wrap64_reference": bool(by_role.get("cpu_byte_limb_reference")),
+                "has_direct_hip_v4_baseline": bool(direct_baselines),
+                "qualified_direct_baseline_cohorts": len(qualified_direct),
                 "comparisons": candidate_rows,
             }
         )
@@ -386,9 +395,13 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
+def build_report(
+    paths: list[Path], diagnostic_binding_paths: list[Path] | None = None
+) -> dict[str, Any]:
     captures = load_report_captures(paths)
-    return build_report_from_captures(captures)
+    return build_report_from_captures(
+        captures, diagnostic_bindings=load_bindings(diagnostic_binding_paths or [])
+    )
 
 
 def _fmt(value: Any) -> str:
@@ -447,13 +460,14 @@ def parse_args() -> argparse.Namespace:
         "captures", nargs="+", type=Path, help="schema-v4 capture files or directories"
     )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     parser.add_argument("--json", action="store_true", help="print report JSON")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    report = build_report(args.captures)
+    report = build_report(args.captures, args.diagnostic_binding)
     outputs = write_outputs(report, args.out_dir)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

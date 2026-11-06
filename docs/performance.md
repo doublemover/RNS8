@@ -262,6 +262,17 @@ successful shared admission publishes the runtime format. Candidate export
 never merges into an installed cache. Runtime/generic-writer/CLI and C++ AUTO
 rejection controls are authored and remain unexecuted.
 
+The strict wrap64 tuning report now uses shared independent-process cohorts,
+full-output CPU-reference verdicts and production/diagnostic binding for every
+unique process. Supply its `--diagnostic-binding` receipts alongside production
+captures. It compares process medians only within matching input/output and
+device/build/runtime contracts, with an observed noise margin. Physical tiling
+and K-slab variants may differ; reuse and graph output cadences are retained as
+distinct work. Missing or incompatible evidence leaves descriptive phase values
+and blockers, without a performance ratio. Order, filename, copied-ID,
+high-spread and companion controls are authored but unexecuted. No historical
+capture or archived classification has been remeasured or reclassified.
+
 ## Promotion boundaries
 
 - CPU success and static/host arithmetic tests do not qualify GPU code.
