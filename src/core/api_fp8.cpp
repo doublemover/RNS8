@@ -10,7 +10,7 @@ struct rns8_fp8_recipe {
   uint64_t scale_blocks = 0;
   uint32_t method = 0, format = 0;
   std::string certificate;
-  std::vector<uint8_t> host_scales;
+  std::shared_ptr<std::vector<uint8_t>> host_scales;
   const rns8_matrix *a = nullptr, *b = nullptr;
   rns8_matrix* c = nullptr;
   rns8_workspace* workspace = nullptr;
@@ -96,11 +96,11 @@ rns8_status rns8_prepare_fp8_recipe(rns8_context* ctx, const rns8_plan* plan,
     owner->method = desc->method;
     owner->format = desc->format;
     owner->scale_blocks = blocks;
-    auto& scales = owner->host_scales;
     if (mx) {
       if (blocks > uint64_t(PTRDIFF_MAX) / 2)
         return RNS8_RANGE_ERROR;
-      scales.resize(size_t(blocks * 2), 127);
+      owner->host_scales = std::make_shared<std::vector<uint8_t>>(size_t(blocks * 2), 127);
+      auto& scales = *owner->host_scales;
       const auto pair = mxfp_modular::pair(desc->format);
       const auto af = mxfp_modular::format(pair.a), bf = mxfp_modular::format(pair.b);
       if (desc->scale_count)
@@ -132,11 +132,13 @@ rns8_status rns8_prepare_fp8_recipe(rns8_context* ctx, const rns8_plan* plan,
     owner->probe.mark_pending();
     status = hip_direct_fp8_modular_prepare(ctx->device_id, owner->probe.get(), desc->format);
     if (status == RNS8_SUCCESS && mx) {
+      const auto& scales = *owner->host_scales;
       status = owner->scales.allocate(ctx->device_id, scales.size());
       if (status == RNS8_SUCCESS) {
         owner->scales.mark_pending();
-        status = hip_direct_copy_host_to_device(ctx->device_id, owner->scales.get(), scales.data(),
-                                                scales.size());
+        status = hip_direct_copy_owned_host_to_device(ctx->device_id, owner->scales.get(),
+                                                      {owner->host_scales, scales.data()},
+                                                      scales.size());
       }
     }
     if (status != RNS8_SUCCESS && hip_direct_synchronize(ctx->device_id) != RNS8_SUCCESS) {

@@ -95,9 +95,12 @@ boundary snapshot their source before submission. Padded matrix inputs copy only
 logical cells, including no trailing padding after the final row. Grouped native
 and finite slab uploads use the same protected boundary. Already-owned transfer
 packets retain their actual shared allocation without another snapshot.
-Finite-verifier challenges, grouped narrow task directories and private Gram
-job tables pass their existing shared allocations to that owned boundary. Their
-device owners still retain pending-work custody through subsequent computation.
+Finite-verifier challenges, grouped narrow task directories, private Gram
+job tables and MX scale packets pass their shared allocations to that owned
+boundary. Their device owners retain pending-work custody through subsequent
+computation.
+MX scale storage is allocated only for MX recipes; ordinary FP8 recipes do not
+acquire an empty scale owner.
 
 Owned uploads accept immutable shared packets without casting away source
 constness. Ordered-basis target/source packets retain their actual immutable
