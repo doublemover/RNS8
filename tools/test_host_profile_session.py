@@ -49,6 +49,10 @@ class RecordingFailure(unittest.TestCase):
                 "reported_perf_event_permission_denial",
             ),
             ("Permission error mapping pages.\n", "reported_perf_mapping_permission_denial"),
+            (
+                "Error:\r\n\tNo permission to enable cpu-clock:u event.\r\n",
+                "reported_perf_event_permission_denial",
+            ),
         ):
             with self.subTest(reason=reason, stderr=stderr):
                 observed = session.recording_failure(self.process(stderr))
@@ -133,6 +137,12 @@ class RecordingFailure(unittest.TestCase):
             )
             self.assertFalse(changed["acquisition_verified"])
             rows[0].update(returncode=2, stderr="earlier version failure")
+            write(root / "results.json", results)
+            self.assertEqual(
+                session.acquisition_failure(plan, root)["reason"],
+                "acquisition_failure_evidence_unavailable_or_changed",
+            )
+            results["results"] = rows[:1]
             write(root / "results.json", results)
             self.assertEqual(session.acquisition_failure(plan, root)["stage"], "perf-version")
             rows[0]["command"] = ["/another/perf", "--version"]

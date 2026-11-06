@@ -10,6 +10,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import sys
 
 from benchmark_request import attach_capture_identity, file_digest, request_identity
@@ -53,6 +54,20 @@ PERMISSION_DIAGNOSTIC_SOURCES = (
     "https://code.googlesource.com/linux/torvalds/linux/+/473f6c8f437b049f8ec015d57cd59bb983b1d85c/tools/perf/util/evsel.c",
     "https://code.googlesource.com/linux/torvalds/linux/+/4edcdefd4083ae04b1a5656f4be6cd83ae919ef4/tools/perf/builtin-record.c",
 )
+PERMISSION_PATTERNS = tuple(
+    (
+        reason,
+        re.compile(r"^[ \t]*" + message + r"[ \t\r]*$", re.MULTILINE | re.IGNORECASE | re.ASCII),
+    )
+    for reason, message in (
+        ("reported_perf_mapping_permission_denial", r"permission error mapping pages\."),
+        (
+            "reported_perf_event_permission_denial",
+            r"access to performance monitoring and observability operations is limited\.",
+        ),
+        ("reported_perf_event_permission_denial", r"no permission to enable [^\r\n]+ event\."),
+    )
+)
 
 
 def recording_failure(process: dict) -> dict:
@@ -79,20 +94,13 @@ def recording_failure(process: dict) -> dict:
     stderr = process.get("stderr")
     if not isinstance(stderr, str):
         return dict(state="failed", reason="recording_stderr_unavailable")
-    lines = {line.strip().casefold() for line in stderr.splitlines()}
     # Generic "permission denied" can refer to output files or the workload.
     # Only upstream perf-specific terminal diagnostics support these labels.
-    if "permission error mapping pages." in lines:
-        reason = "reported_perf_mapping_permission_denial"
-    elif (
-        "access to performance monitoring and observability operations is limited." in lines
-        or any(
-            line.startswith("no permission to enable ") and line.endswith(" event.")
-            for line in lines
-        )
-    ):
-        reason = "reported_perf_event_permission_denial"
-    else:
+    # Scan in place instead of allocating one Python object per log line.
+    reason = next(
+        (reason for reason, pattern in PERMISSION_PATTERNS if pattern.search(stderr)), None
+    )
+    if reason is None:
         return dict(state="failed", reason="recording_failure_unclassified")
     return dict(
         state="blocked",
@@ -137,6 +145,8 @@ def acquisition_failure(plan: dict, out: Path) -> dict:
             raise ValueError("failed acquisition checkpoint does not bind the plan")
         failed = None
         for expected, row in zip(plan["commands"], rows):
+            if failed is not None:
+                raise ValueError("acquisition checkpoint continues after its first failure")
             if not isinstance(row, dict) or row.get("name") != expected["name"]:
                 raise ValueError("acquisition checkpoint order changed")
             if row.get("command") != expected["argv"]:
