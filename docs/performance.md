@@ -248,6 +248,19 @@ both bounded vector chain approaches without creating GPU contexts. CPU and
 HIP-enabled parser/support/unit frontend checks pass; parser execution, linking
 and end-to-end chain validation remain deferred.
 
+Bounded and exact-wide residue chains now also admit complete references and
+read-only caching through the native parser and collectors. The independent
+Boost oracle computes `A × B^L` from the original inputs, using two rows of
+scratch on a cache miss. Keys bind both actual input arrays, shape, chain length
+and the explicit semantic/limb contract; single-product keys remain unchanged.
+Every final logical cell and limb is compared outside repeated timings. Bounded
+chains reject native-width intermediate overflow. Wide resident intermediates
+remain mathematical integers, with the declared limb width checked at final
+output. These full-output receipts do not masquerade as single-GEMM magnitude
+admission certificates. Cache hits compare the entire output without recomputing
+the chain. New cancellation, boundary, input/key, corruption, padded-output and
+real-parser/collector controls are authored; execution and timing remain pending.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).

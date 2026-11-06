@@ -26,17 +26,12 @@ def reference_cache_supported(arguments):
         return arguments[arguments.index(flag) + 1] if flag in arguments else default
 
     return all(
-        option(flag, "1") == "1"
-        for flag in ("--residue-chain-length", "--host-api-batch-size", "--grouped-dispatch")
+        option(flag, "1") == "1" for flag in ("--host-api-batch-size", "--grouped-dispatch")
     ) and not any(
         flag in arguments
         for flag in (
             "--native-to-rns-bridge",
-            "--vector-to-rns-chain",
             "--force-native-to-rns-bridge",
-            "--vector-native-to-rns-chain",
-            "--vector-to-rns-chain-host-repack-control",
-            "--vector-native-to-rns-chain-host-repack-control",
             "--transient-uniform-small-inputs",
             "--transient-uniform-small-i8-inputs",
             "--residue-channel-fusion",

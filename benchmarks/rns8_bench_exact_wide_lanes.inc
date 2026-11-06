@@ -43,10 +43,8 @@ template <class T>
 void verify_exact_wide_benchmark_output(const Args& args, const std::vector<T>& a,
                                         const std::vector<T>& b, const std::vector<uint64_t>& c,
                                         BenchmarkResult& result) {
-  if (args.residue_chain_length != 1)
-    return;
   const auto start = std::chrono::steady_clock::now();
-  if (!args.reference_cache_directory.empty()) {
+  if (!args.reference_cache_directory.empty() || args.residue_chain_length > 1) {
     using namespace rns8::bench;
     using boost::multiprecision::cpp_int;
     const bool sign = args.semantics == BenchSemantics::ExactWideSigned;
@@ -54,8 +52,8 @@ void verify_exact_wide_benchmark_output(const Args& args, const std::vector<T>& 
     const uint64_t ld = output_logical_ld(args);
     append_integer_reference(
         result.native_reference,
-        verify_integer_reference(
-            args.m, args.n, args.k, ld, a, b, c,
+        verify_resident_chain_reference(
+            args.m, args.n, args.k, args.residue_chain_length, ld, a, b, c,
             {sign ? ReferenceSemantics::wide_signed : ReferenceSemantics::wide_unsigned, 0, limbs},
             args.reference_cache_directory, args.populate_reference_cache));
     auto& stats = result.exact_wide_magnitude;

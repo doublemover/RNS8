@@ -115,6 +115,30 @@ class ReferenceTests(unittest.TestCase):
             self.assertTrue(reference_cache_supported(["--semantics", semantics]))
         for arguments in (["--host-api-batch-size", "2"], ["--force-native-to-rns-bridge"]):
             self.assertFalse(reference_cache_supported(arguments))
+        for mode in (
+            "--vector-to-rns-chain",
+            "--vector-native-to-rns-chain",
+            "--vector-to-rns-chain-host-repack-control",
+            "--vector-native-to-rns-chain-host-repack-control",
+            "--residue-chain-final-export",
+            "--residue-chain-independent-final-export",
+        ):
+            arguments = [mode]
+            if "residue" in mode:
+                arguments.extend(["--residue-chain-length", "3"])
+            self.assertTrue(reference_cache_supported(arguments))
+            chain_cases = [dict(name="chain", arguments=arguments)]
+            chain_plan = commands(
+                Path("bench"), chain_cases, 2, 7, Path("out"), reference_directory=Path("cache")
+            )
+            self.assertTrue(all("--reference-cache-dir" in item["command"] for item in chain_plan))
+            self.assertTrue(
+                all("--populate-reference-cache" not in item["command"] for item in chain_plan)
+            )
+            verified = commands(
+                Path("bench"), chain_cases, 2, 7, Path("out"), verify_native_output=True
+            )
+            self.assertTrue(all("--verify-native-output" in item["command"] for item in verified))
         with self.assertRaises(ValueError):
             commands(
                 Path("bench"),

@@ -1015,6 +1015,14 @@ void verify_sustained_native_output(const Args& args, const std::vector<T>& a,
   default:
     throw std::invalid_argument("unsupported native reference semantic");
   }
+  if (args.residue_chain_length > 1) {
+    append_integer_reference(result.native_reference,
+                             verify_resident_chain_reference(
+                                 args.m, args.n, args.k, args.residue_chain_length,
+                                 output_logical_ld(args), a, b, c, contract,
+                                 args.reference_cache_directory, args.populate_reference_cache));
+    return;
+  }
   if (!args.reference_cache_directory.empty()) {
     append_integer_reference(
         result.native_reference,

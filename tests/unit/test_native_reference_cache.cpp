@@ -18,6 +18,92 @@ struct ReferenceDirectory {
 };
 } // namespace
 
+TEST_CASE("resident references cover every product and bind chain length and actual inputs",
+          "[native-reference-cache][residue-chain]") {
+  using namespace rns8::bench;
+  ReferenceDirectory directory;
+  const ReferenceContract contract{ReferenceSemantics::bounded_i64};
+  const std::vector<int64_t> a{1, -2, 3, 4}, b{5, 6, -7, 8};
+  const std::vector<int64_t> twice{165, 34, -991, -415, 322, -992};
+  const auto verify = [&](uint32_t length, const auto& left, const auto& right, const auto& out) {
+    return verify_resident_chain_reference(2, 2, 2, length, 3, left, right, out, contract,
+                                           directory.path.string(), true);
+  };
+  const auto first = verify(2, a, b, twice);
+  CHECK(first.checked_cells == 4);
+  CHECK(first.method == "boost_cpp_int_full_integer_reference");
+  const auto hit = verify(2, a, b, twice);
+  CHECK(hit.method == "cached_full_integer_reference");
+  CHECK(hit.key == first.key);
+  CHECK(hit.payload_sha256 == first.payload_sha256);
+  auto corrupt = twice;
+  ++corrupt[4];
+  REQUIRE_THROWS(verify(2, a, b, corrupt));
+  auto padding = twice;
+  padding[2] = 123;
+  padding[5] = 456;
+  CHECK(verify(2, a, b, padding).key == first.key);
+  const std::vector<int64_t> thrice{587, 1262, -991, -4329, 86, -992};
+  CHECK(verify(3, a, b, thrice).key != first.key);
+  CHECK(verify(2, std::vector<int64_t>{0, -2, 3, 4}, b,
+               std::vector<int64_t>{182, -44, -991, -415, 322, -992})
+            .key != first.key);
+  CHECK(verify(2, a, std::vector<int64_t>{4, 6, -7, 8},
+               std::vector<int64_t>{142, 28, -991, -414, 304, -992})
+            .key != first.key);
+  const std::vector<int64_t> once{19, -10, -991, -13, 50, -992};
+  const auto plain = verify_integer_reference(2, 2, 2, 3, a, b, once, contract, "", false);
+  const auto single =
+      verify_resident_chain_reference(2, 2, 2, 1, 3, a, b, once, contract, "", false);
+  CHECK(single.key == plain.key);
+  CHECK(single.payload_sha256 == plain.payload_sha256);
+  const auto streamed = verify_resident_chain_reference(2, 2, 2, 2, 3, a, b, twice, contract, "",
+                                                        false, reference_cache_header_bytes + 8);
+  CHECK(streamed.checked_cells == 4);
+  CHECK(streamed.payload_sha256.empty());
+  REQUIRE_THROWS(verify_resident_chain_reference(2, 2, 2, 0, 3, a, b, twice, contract, "", false));
+  REQUIRE_THROWS(verify_resident_chain_reference(2, 2, 1, 2, 3, a, b, twice, contract, "", false));
+  REQUIRE_THROWS(verify_resident_chain_reference(2, 2, 2, 2, 3, a, std::vector<int64_t>{1}, twice,
+                                                 contract, "", false));
+  REQUIRE_THROWS(
+      verify_resident_chain_reference(UINT64_MAX, 2, 2, 2, 3, a, b, twice, contract, "", false));
+}
+
+TEST_CASE("resident references distinguish wide intermediates from bounded native results",
+          "[native-reference-cache][residue-chain]") {
+  using namespace rns8::bench;
+  const ReferenceContract wide{ReferenceSemantics::wide_signed, 0, 3};
+  const std::vector<int64_t> a{INT64_C(1) << 62}, b = a;
+  const std::vector<uint64_t> c{0, 0, UINT64_C(1) << 58};
+  CHECK(verify_resident_chain_reference(1, 1, 1, 2, 1, a, b, c, wide, "", false).checked_cells ==
+        1);
+  REQUIRE_THROWS(verify_resident_chain_reference(1, 1, 1, 3, 1, a, b, c, wide, "", false));
+  const std::vector<int64_t> negative{-a[0]};
+  const std::vector<uint64_t> negative_c{0, 0, uint64_t(0) - (UINT64_C(1) << 58)};
+  CHECK(verify_resident_chain_reference(1, 1, 1, 2, 1, negative, b, negative_c, wide, "", false)
+            .checked_cells == 1);
+  const std::vector<int64_t> large{INT64_MAX, 0}, nilpotent{2, 2, -2, -2}, zero{0, 0};
+  const ReferenceContract bounded{ReferenceSemantics::bounded_i64};
+  REQUIRE_THROWS(
+      verify_resident_chain_reference(1, 2, 2, 2, 2, large, nilpotent, zero, bounded, "", false));
+  CHECK(verify_resident_chain_reference(1, 2, 2, 2, 2, large, nilpotent,
+                                        std::vector<uint64_t>{0, 0},
+                                        {ReferenceSemantics::wide_signed, 0, 1}, "", false)
+            .checked_cells == 2);
+  const std::vector<uint64_t> umax{UINT64_MAX}, one{1};
+  CHECK(verify_resident_chain_reference(1, 1, 1, 2, 1, umax, one, umax,
+                                        {ReferenceSemantics::bounded_u64}, "", false)
+            .checked_cells == 1);
+  CHECK(verify_resident_chain_reference(1, 1, 1, 2, 1, umax, one,
+                                        std::vector<uint64_t>{UINT64_MAX, 0, 0},
+                                        {ReferenceSemantics::wide_unsigned, 0, 3}, "", false)
+            .checked_cells == 1);
+  REQUIRE_THROWS(verify_resident_chain_reference(1, 1, 1, 2, 1, umax, one, umax,
+                                                 {ReferenceSemantics::wrap64}, "", false));
+  REQUIRE_THROWS(verify_resident_chain_reference(
+      1, 1, 1, 2, 1, a, b, c, {ReferenceSemantics::wide_unsigned, 0, 3}, "", false));
+}
+
 TEST_CASE("bounded chain references cover both products and retain logical output padding",
           "[native-reference-cache][vector-chain]") {
   using namespace rns8::bench;

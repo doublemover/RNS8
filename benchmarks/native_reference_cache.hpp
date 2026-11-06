@@ -393,6 +393,63 @@ NativeReferenceVerification verify_bounded_chain_reference(
       },
       cache_byte_budget);
 }
+template <class T, class Output>
+NativeReferenceVerification
+verify_resident_chain_reference(uint64_t m, uint64_t n, uint64_t k, uint32_t chain_length,
+                                uint64_t ldc, const std::vector<T>& a, const std::vector<T>& b,
+                                const std::vector<Output>& c, ReferenceContract contract,
+                                const std::string& cache_directory, bool populate,
+                                uint64_t cache_byte_budget = reference_cache_max_bytes) {
+  using boost::multiprecision::cpp_int;
+  const bool bounded = contract.semantics == ReferenceSemantics::bounded_i64 ||
+                       contract.semantics == ReferenceSemantics::bounded_u64;
+  const bool wide = contract.semantics == ReferenceSemantics::wide_signed ||
+                    contract.semantics == ReferenceSemantics::wide_unsigned;
+  if ((!bounded && !wide) || !chain_length || (chain_length > 1 && k != n))
+    throw std::invalid_argument("resident chain requires bounded/exact-wide square right operands");
+  if (chain_length == 1)
+    return verify_integer_reference(m, n, k, ldc, a, b, c, contract, cache_directory, populate,
+                                    cache_byte_budget);
+  std::vector<cpp_int> current, next;
+  uint64_t current_row = UINT64_MAX;
+  return verify_integer_reference_output<T>(
+      m, n, k, ldc, c, contract, cache_directory, populate,
+      [&] {
+        if (a.size() != m * k || b.size() != k * n)
+          throw std::invalid_argument("resident chain reference input shape");
+        return detail::sha256(std::string("rns8-resident-integer-chain-reference-v1\n") +
+                              std::to_string(chain_length) + "\n" +
+                              integer_reference_key(m, n, k, a, b, contract) + "\n");
+      },
+      [&](uint64_t row, uint64_t col) -> cpp_int {
+        if (current_row != row) {
+          current.resize(size_t(n));
+          next.resize(size_t(n));
+          for (uint64_t j = 0; j < n; ++j)
+            current[j] = a[row * k + j];
+          // Compute A*B^L independently of GPU intermediates. Two rows bound
+          // scratch to O(N); neither row is allocated on a cache hit.
+          for (uint32_t stage = 0; stage < chain_length; ++stage) {
+            for (uint64_t j = 0; j < n; ++j) {
+              cpp_int expected = 0;
+              for (uint64_t q = 0; q < n; ++q)
+                expected += current[q] * b[q * n + j];
+              if (bounded && (expected < cpp_int(std::numeric_limits<T>::lowest()) ||
+                              expected > cpp_int(std::numeric_limits<T>::max())))
+                throw std::overflow_error("bounded resident chain exceeds native output width");
+              // Wide resident intermediates are mathematical integers. The
+              // final limb width is enforced by the shared output verifier.
+              next[j] = std::move(expected);
+            }
+            current.swap(next);
+          }
+          current_row = row;
+        }
+        return current[col];
+      },
+      cache_byte_budget);
+}
+
 template <class T>
 NativeReferenceVerification
 verify_native_reference(uint64_t m, uint64_t n, uint64_t k, uint64_t ldc, const std::vector<T>& a,

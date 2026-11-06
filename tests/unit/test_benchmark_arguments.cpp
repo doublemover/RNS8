@@ -94,3 +94,39 @@ TEST_CASE(
   SKIP("vector handoff argument admission requires the actual HIP-enabled build configuration");
 #endif
 }
+
+TEST_CASE("resident chain CLI admits complete bounded and wide references",
+          "[benchmark-arguments]") {
+  for (const auto semantics :
+       {"bounded-i64", "bounded-u64", "exact-wide-signed", "exact-wide-unsigned"})
+    for (const auto mode :
+         {"--residue-chain-final-export", "--residue-chain-independent-final-export"}) {
+      const auto args = parse_benchmark_arguments({
+          "rns8-bench",
+          "--backend",
+          "cpu",
+          "--semantics",
+          semantics,
+          "--m",
+          "4",
+          "--n",
+          "4",
+          "--k",
+          "4",
+          "--residue-chain-length",
+          "3",
+          mode,
+          "--verify-native-output",
+          "--reference-cache-dir",
+          "temp/parser-reference-cache",
+          "--populate-reference-cache",
+      });
+      CHECK(args.residue_chain_length == 3);
+      CHECK(args.residue_chain_final_export);
+      CHECK(args.residue_chain_independent_final_export ==
+            (std::string(mode) == "--residue-chain-independent-final-export"));
+      CHECK(args.verify_native_output);
+      CHECK(args.populate_reference_cache);
+      CHECK(args.reference_cache_directory == "temp/parser-reference-cache");
+    }
+}

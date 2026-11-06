@@ -1099,12 +1099,11 @@ Args parse_args(int argc, char** argv) {
   if (args.populate_reference_cache && args.reference_cache_directory.empty())
     usage_error("--populate-reference-cache requires --reference-cache-dir");
   if ((!args.reference_cache_directory.empty() || args.verify_native_output) &&
-      (args.residue_chain_length != 1 || args.host_api_batch_size != 1 ||
-       args.grouped_dispatch_tasks != 1 || args.native_to_rns_bridge ||
-       args.transient_uniform_small_inputs || args.residue_channel_fusion ||
-       args.streaming_overlap || args.hip_graph_replay))
+      (args.host_api_batch_size != 1 || args.grouped_dispatch_tasks != 1 ||
+       args.native_to_rns_bridge || args.transient_uniform_small_inputs ||
+       args.residue_channel_fusion || args.streaming_overlap || args.hip_graph_replay))
     usage_error(
-        "reference verification supports ordinary single-product or bounded vector-to-RNS chain host output only");
+        "reference verification supports ordinary, bounded vector-to-RNS or bounded/exact-wide resident chain output only");
   return args;
 }
 
