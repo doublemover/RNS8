@@ -144,10 +144,6 @@ bool checked_matrix_elements_i32(int64_t rows, int64_t cols) {
          static_cast<uint64_t>(std::numeric_limits<int>::max()) / static_cast<uint64_t>(cols);
 }
 
-void release_pinned_export_staging() {
-  g_pinned_export_staging.reset();
-}
-
 void* ensure_pinned_export_staging(int device_id, std::size_t bytes) {
   if (bytes == 0) {
     return nullptr;
@@ -195,19 +191,6 @@ void record_export_host_staging_copy_sample(const std::chrono::steady_clock::tim
   }
 }
 
-hipError_t copy_compact_matrix_device_to_host_direct(void* dst, int64_t dst_ld, const void* src,
-                                                     int64_t rows, int64_t cols,
-                                                     std::size_t cell_bytes) {
-  const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
-  if (rows == 1 || dst_ld == cols) {
-    return tracked_sync_copy(dst, src, static_cast<std::size_t>(rows) * compact_row_bytes,
-                             hipMemcpyDeviceToHost);
-  }
-  return tracked_sync_copy_2d(dst, static_cast<std::size_t>(dst_ld) * cell_bytes, src,
-                              compact_row_bytes, compact_row_bytes, static_cast<std::size_t>(rows),
-                              hipMemcpyDeviceToHost);
-}
-
 hipError_t copy_compact_matrix_device_to_host(int device_id, const char* label, void* dst,
                                               int64_t dst_ld, const void* src, int64_t rows,
                                               int64_t cols, std::size_t cell_bytes,
@@ -249,9 +232,36 @@ hipError_t copy_compact_matrix_device_to_host(int device_id, const char* label, 
       return hipSuccess;
     }
   }
-  return timed_hip_operation(label, [&]() {
-    return copy_compact_matrix_device_to_host_direct(dst, dst_ld, src, rows, cols, cell_bytes);
-  });
+  // Even the unpinned fallback must not leave an uncertain DMA targeting the
+  // caller's storage. Reuse a bounded pageable cache and publish only afterward.
+  const auto storage = g_pageable_export_staging.reserve(compact_bytes);
+  if (storage != RNS8_SUCCESS)
+    return storage == RNS8_BUSY ? hipErrorNotReady : hipErrorOutOfMemory;
+  HostTransferPayload retained(hip_direct_defer_buffer_cleanup);
+  const auto admitted = retained.begin(device_id, g_pageable_export_staging.owner(), compact_bytes);
+  if (admitted != RNS8_SUCCESS)
+    return admitted == RNS8_INTERNAL_ERROR ? hipErrorOutOfMemory : hipErrorInvalidValue;
+  hipError_t error;
+  try {
+    error = timed_hip_operation(label, [&]() {
+      return tracked_sync_copy(retained.data(), src, compact_bytes, hipMemcpyDeviceToHost);
+    });
+  } catch (...) {
+    g_pageable_export_staging.discard();
+    throw;
+  }
+  if (error != hipSuccess) {
+    g_pageable_export_staging.discard();
+    return error;
+  }
+  retained.complete();
+  const auto start = std::chrono::steady_clock::now();
+  scatter_compact_host_matrix(dst, dst_ld, g_pageable_export_staging.data(), rows, cols,
+                              cell_bytes);
+  const auto stop = std::chrono::steady_clock::now();
+  g_pageable_export_staging.trim(kPageableExportStagingMaxCachedBytes);
+  record_export_host_staging_copy_sample(start, stop);
+  return hipSuccess;
 }
 
 bool checked_limb_export_pitch(int64_t ld, uint32_t limb_count) {

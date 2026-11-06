@@ -14,10 +14,9 @@ rns8_status hip_direct_export_finite_u8_device(int device_id, const void* device
     return device_status;
   }
   if (modulus == 256) {
-    const hipError_t err = timed_hip_operation("finite_export_d2h", [&]() {
-      return copy_compact_matrix_device_to_host_direct(dst, ld, device_residues, rows, cols,
-                                                       sizeof(uint8_t));
-    });
+    const hipError_t err =
+        copy_compact_matrix_device_to_host(device_id, "finite_export_d2h", dst, ld, device_residues,
+                                           rows, cols, sizeof(uint8_t), false, false);
     return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
   const std::size_t output_bytes =

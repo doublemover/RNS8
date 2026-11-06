@@ -8,6 +8,46 @@
 #include <utility>
 
 namespace rns8::detail {
+// Reuse only observed-complete pageable storage. A failed transfer must discard
+// the cache's reference while its HostTransferPayload retains the old bytes.
+class HostReadbackStorage {
+public:
+  HostReadbackStorage() = default;
+  HostReadbackStorage(const HostReadbackStorage&) = delete;
+  HostReadbackStorage& operator=(const HostReadbackStorage&) = delete;
+  rns8_status reserve(size_t bytes) noexcept {
+    if (!bytes)
+      return RNS8_INVALID_ARGUMENT;
+    if (storage_.use_count() > 1)
+      return RNS8_BUSY;
+    if (capacity_ >= bytes)
+      return RNS8_SUCCESS;
+    try {
+      std::shared_ptr<unsigned char[]> next(new unsigned char[bytes]);
+      storage_ = std::move(next);
+      capacity_ = bytes;
+      return RNS8_SUCCESS;
+    } catch (const std::bad_alloc&) {
+      return RNS8_INTERNAL_ERROR;
+    }
+  }
+  void* data() const noexcept { return storage_.get(); }
+  size_t capacity() const noexcept { return capacity_; }
+  std::shared_ptr<void> owner() const noexcept { return {storage_, storage_.get()}; }
+  void discard() noexcept {
+    storage_.reset();
+    capacity_ = 0;
+  }
+  void trim(size_t maximum_cached_bytes) noexcept {
+    if (capacity_ > maximum_cached_bytes)
+      discard();
+  }
+
+private:
+  std::shared_ptr<unsigned char[]> storage_;
+  size_t capacity_ = 0;
+};
+
 // A DMA destination already has shared storage. Reserve its retry node before
 // submission; uncertain return/exception transfers that owner without copying.
 class HostTransferPayload {

@@ -391,6 +391,45 @@ TEST_CASE("large owned readbacks retain their actual destination through failure
   CHECK(Ops::deferred_count == 0);
 }
 
+TEST_CASE("pageable readback cache reuses complete storage and isolates failed destinations",
+          "[api][lifetime][export]") {
+  using Ops = MockDeviceBufferOperations;
+  Ops::deferred_count = 0;
+  rns8::detail::HostReadbackStorage cache;
+  CHECK(cache.reserve(0) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(cache.reserve(4096) == RNS8_SUCCESS);
+  auto* first = cache.data();
+  REQUIRE(cache.reserve(128) == RNS8_SUCCESS);
+  CHECK(cache.data() == first);
+  CHECK(cache.capacity() == 4096);
+  {
+    rns8::detail::HostTransferPayload pending(Ops::defer);
+    REQUIRE(pending.begin(7, cache.owner(), 4096) == RNS8_SUCCESS);
+    CHECK(cache.reserve(128) == RNS8_BUSY);
+    CHECK(cache.reserve(8192) == RNS8_BUSY);
+    cache.discard(); // An uncertain DMA cannot share storage with the next export.
+    CHECK(cache.data() == nullptr);
+    CHECK(cache.capacity() == 0);
+    REQUIRE(cache.reserve(4096) == RNS8_SUCCESS);
+    REQUIRE(cache.data() != first);
+    std::fill_n(static_cast<unsigned char*>(pending.data()), 4096, 123);
+    std::fill_n(static_cast<unsigned char*>(cache.data()), 4096, 77);
+  }
+  REQUIRE(Ops::deferred_count == 1);
+  auto* record = Ops::deferred[0];
+  REQUIRE(record->pointer == first);
+  CHECK(static_cast<unsigned char*>(record->pointer)[4095] == 123);
+  CHECK(static_cast<unsigned char*>(cache.data())[4095] == 77);
+  delete record; // A later observed drain releases only the old destination.
+  Ops::deferred[0] = nullptr;
+  Ops::deferred_count = 0;
+  cache.trim(4096);
+  CHECK(cache.capacity() == 4096);
+  cache.trim(1024);
+  CHECK(cache.capacity() == 0);
+  CHECK(cache.data() == nullptr);
+}
+
 TEST_CASE("small status readbacks publish only after completion and retain failed destinations",
           "[api][lifetime]") {
   using Slot = rns8::detail::HostReadbackSlot;

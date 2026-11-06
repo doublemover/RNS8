@@ -507,6 +507,17 @@ initialized by that full copy, avoiding a redundant initial zero fill, and no
 second host payload copy is introduced. Lifecycle and padded exact differential
 controls are authored; this change has no measured speedup credit.
 
+The ordinary compact/padded export helper also retains its pageable fallback
+destination before DMA, including direct finite modulus-256 copies. It scatters
+into caller memory only after successful transfer. Complete pageable storage is
+reused per host thread up to a 1 MiB cache limit; larger completed buffers are
+released, while failed/exceptional copies discard the cache reference and keep
+the destination in the device-drain retry record. Outstanding owners reject
+cache reuse. `RNS8_HIP_PINNED_EXPORT_STAGING=0` still disables pinned staging;
+the retained pageable fallback now supplies lifetime protection in that mode.
+Host scatter timing is recorded for either storage choice when timing is enabled.
+These source controls have no execution or performance qualification yet.
+
 ### Cleanup and retry ownership
 
 Workspace, prepack-cache, result-cache and sparse-matrix destruction consume the
