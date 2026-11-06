@@ -62,11 +62,12 @@ def discover(modules: list[str]):
 
 
 class Journal(unittest.TextTestResult):
-    def __init__(self, stream, descriptions, verbosity, *, selected, **kwargs):
+    def __init__(self, stream, descriptions, verbosity, *, selected, observer=None, **kwargs):
         super().__init__(stream, descriptions, verbosity, **kwargs)
         self.rows = {name: dict(state="not_run", detail="") for name in selected}
         self.started = []
         self.infrastructure = []
+        self.observer = observer
 
     def mark(self, test, state, detail=""):
         name = test.id()
@@ -79,7 +80,16 @@ class Journal(unittest.TextTestResult):
 
     def startTest(self, test):
         self.started.append(test.id())
+        if self.observer:
+            self.observer(test.id())
         super().startTest(test)
+
+    def stopTest(self, test):
+        try:
+            super().stopTest(test)
+        finally:
+            if self.observer:
+                self.observer(None)
 
     def addSuccess(self, test):
         self.mark(test, "passed")
@@ -169,7 +179,7 @@ class Journal(unittest.TextTestResult):
         )
 
 
-def main(argv=None):
+def main(argv=None, *, observer=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--module", action="append", required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -213,7 +223,9 @@ def main(argv=None):
             chosen = [test for test in tests if test.id() in selection]
 
             def factory(stream, descriptions, verbosity, **kwargs):
-                return Journal(stream, descriptions, verbosity, selected=names, **kwargs)
+                return Journal(
+                    stream, descriptions, verbosity, selected=names, observer=observer, **kwargs
+                )
 
             result = unittest.TextTestRunner(verbosity=2, failfast=False, resultclass=factory).run(
                 unittest.TestSuite(chosen)

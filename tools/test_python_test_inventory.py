@@ -22,6 +22,25 @@ def run_fixture(test_type):
 
 
 class NativeJournal(unittest.TestCase):
+    def test_optional_native_observer_tracks_case_scope_and_always_closes_it(self):
+        class Positive(unittest.TestCase):
+            def test_case(self):
+                self.assertTrue(True)
+
+        events = []
+        selected = list(cases(unittest.TestLoader().loadTestsFromTestCase(Positive)))
+        names = [test.id() for test in selected]
+
+        def factory(stream, descriptions, verbosity, **kwargs):
+            return Journal(
+                stream, descriptions, verbosity, selected=names, observer=events.append, **kwargs
+            )
+
+        unittest.TextTestRunner(stream=io.StringIO(), resultclass=factory).run(
+            unittest.TestSuite(selected)
+        )
+        self.assertEqual(events, [names[0], None])
+
     def test_passing_cases_have_exact_discovery_execution_and_pass_denominators(self):
         class Positive(unittest.TestCase):
             def test_first(self):

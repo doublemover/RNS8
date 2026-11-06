@@ -52,7 +52,8 @@ and [context producer](https://github.com/nedbat/coveragepy/blob/7.17.2/coverage
 
 `collected` means source-bound collection and its required inventory/control
 checks completed. Reviewed baseline thresholds, broader process/OS paths,
-production mutation detection, native C++ invariant mapping and continuous CI
-remain separate work under [#103](https://github.com/doublemover/RNS8/issues/103).
+execution of the authored [Python production mutations](production-mutations.md),
+native C++ mutations/invariant mapping and continuous CI remain separate work
+under [#103](https://github.com/doublemover/RNS8/issues/103).
 Coverage startup is scoped to these owned child invocations and must not leak
 into benchmark or performance evidence jobs.

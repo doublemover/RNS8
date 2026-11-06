@@ -1,0 +1,60 @@
+{
+  "schema": "rns8_python_production_mutations_v1",
+  "owner_issue": 103,
+  "scope": "isolated actual production modules and existing real tests; no test flags or GPU faults",
+  "qualification": "source_authored_no_mutation_or_baseline_executed",
+  "seeds": [
+    {
+      "id": "ignore-executable-library-mismatch",
+      "module": "compiled_binary_identity",
+      "function": "validate_document",
+      "before": "if not same_evidence_value(executable, library):",
+      "after": "if not same_evidence_value(executable, executable):",
+      "test_module": "test_compiled_binary_identity",
+      "required_test": "test_compiled_binary_identity.CompiledBinaryIdentity.test_manifests_must_be_real_complete_and_equal",
+      "assertion_marker": "ValueError not raised",
+      "source": "tools/compiled_binary_identity.py",
+      "source_sha256": "a65e866396018f111d82161408a9994958ae9ada8e0346b36354b3a34217061a",
+      "mandatory": true
+    },
+    {
+      "id": "ignore-request-environment-seal",
+      "module": "benchmark_request",
+      "function": "request_environment_identity",
+      "before": "if request[\"identity_sha256\"] != expected:",
+      "after": "if request[\"identity_sha256\"] != request[\"identity_sha256\"]:",
+      "test_module": "test_execution_environment_identity",
+      "required_test": "test_execution_environment_identity.EnvironmentIdentity.test_tampering_and_unbound_claimed_digest_cannot_override_actual_object",
+      "assertion_marker": "execution_request_identity_mismatch",
+      "source": "tools/benchmark_request.py",
+      "source_sha256": "e70425288261ee65c01a54db3bc5119fd41f6d189875c45fb92d2db6f2bf80a5",
+      "mandatory": true
+    },
+    {
+      "id": "omit-mandatory-native-test-admission",
+      "module": "execution_inventory",
+      "function": "reconcile",
+      "before": "if name not in states[\"passed\"]:",
+      "after": "if name not in required:",
+      "test_module": "test_execution_inventory",
+      "required_test": "test_execution_inventory.NativeInventory.test_missing_extra_failed_disabled_and_mandatory_are_blockers",
+      "assertion_marker": "mandatory_test_did_not_pass:mandatory",
+      "source": "tools/execution_inventory.py",
+      "source_sha256": "06bb9efba9c21ca14a8103fb919fc2009c270545301ebde96d4fe43993970edc",
+      "mandatory": true
+    },
+    {
+      "id": "admit-instrumented-production-builds",
+      "module": "build_instrumentation",
+      "function": "instrumentation_reasons",
+      "before": "return sorted(reasons)",
+      "after": "return []",
+      "test_module": "test_build_instrumentation",
+      "required_test": "test_build_instrumentation.InstrumentationAdmission.test_declared_and_actual_flags_never_supply_production_latency",
+      "assertion_marker": "is not true",
+      "source": "tools/build_instrumentation.py",
+      "source_sha256": "36be864a6fd48539ae06d19fffe26363b2fb4d3ade82eac4fc943eba10630dac",
+      "mandatory": true
+    }
+  ]
+}
