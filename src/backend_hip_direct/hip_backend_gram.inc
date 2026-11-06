@@ -57,8 +57,8 @@ rns8_status hip_direct_gram_device(int device_id, const void* x, void* c, const 
   if (status != RNS8_SUCCESS)
     return status;
   device_jobs.mark_pending();
-  status =
-      hip_direct_copy_host_to_device(device_id, device_jobs.get(), jobs->data(), support.job_bytes);
+  status = hip_direct_copy_owned_host_to_device(device_id, device_jobs.get(), {jobs, jobs->data()},
+                                                support.job_bytes);
   if (status != RNS8_SUCCESS) {
     if (hipDeviceSynchronize() == hipSuccess)
       device_jobs.mark_completed();

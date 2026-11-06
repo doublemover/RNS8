@@ -114,8 +114,8 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
           dr.mark_pending();
           dbr.mark_pending();
           flag.mark_pending();
-          status = hip_direct_copy_host_to_device(ctx->device_id, dr.get(), challenge.data(),
-                                                  challenge.size());
+          status = hip_direct_copy_owned_host_to_device(
+              ctx->device_id, dr.get(), {gpu_challenge, gpu_challenge->data()}, challenge.size());
           if (status != RNS8_SUCCESS)
             return status;
           status = hip_finite_verify_trial(ctx->device_id, A->hip_residues, B->hip_residues,

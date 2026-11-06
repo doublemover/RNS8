@@ -165,8 +165,8 @@ rns8_status rns8_gemm_narrow_exact_grouped(rns8_context* ctx, const rns8_plan* p
       if (status != RNS8_SUCCESS)
         return finish(status);
       directory.mark_pending();
-      status =
-          hip_direct_copy_host_to_device(ctx->device_id, directory.get(), native->data(), bytes);
+      status = hip_direct_copy_owned_host_to_device(ctx->device_id, directory.get(),
+                                                    {native, native->data()}, bytes);
       if (status != RNS8_SUCCESS)
         return finish(status);
       directory.mark_completed();

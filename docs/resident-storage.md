@@ -95,6 +95,9 @@ boundary snapshot their source before submission. Padded matrix inputs copy only
 logical cells, including no trailing padding after the final row. Grouped native
 and finite slab uploads use the same protected boundary. Already-owned transfer
 packets retain their actual shared allocation without another snapshot.
+Finite-verifier challenges, grouped narrow task directories and private Gram
+job tables pass their existing shared allocations to that owned boundary. Their
+device owners still retain pending-work custody through subsequent computation.
 
 Upload and readback use separate per-thread pageable caches, each retaining at
 most 1 MiB after successful completion. Larger snapshots are released after the
