@@ -338,6 +338,33 @@ custom FLINT features such as BLAS must provide a linkable configuration.
 The requirements follow [FLINT's dependency documentation](https://flintlib.org/doc/guide/getting-started/introduction.html)
 and the [selected release's Windows link setup](https://github.com/flintlib/flint/blob/v3.6.0/CMakeLists.txt).
 
+The doctor offers the same compile/link check explicitly:
+
+```sh
+python tools/check_dependencies.py --reference-probes --json
+```
+
+Use the existing `--cmake-cache` or `--set NAME=VALUE` inputs for the selected
+compiler, toolchain and native prefixes. It probes discovered GMP and FLINT
+separately, retaining a missing/unsupported state instead of installing anything.
+Each invocation configures a fresh tiny CMake project through the production
+finder in `temp/exact-reference-deps/COMPONENT-NONCE`; `--reference-probe-dir`
+selects another parent under repository `temp/`. Native Windows uses the existing
+developer-environment wrapper. Native Linux invokes the selected tools directly;
+cross/other-host configurations remain an explicit unsupported doctor lane.
+Both vcpkg manifest mode and configure-time installation are disabled.
+
+The 180-second, 8MiB output and 256MiB artifact budgets apply per component.
+Reports retain full bounded process output, compiler/link diagnostics, selected
+input bookends, actual compiler identity, linked binary and native CMake receipt.
+`COMPILE_LINK_PASS` establishes the selected smoke APIs linked; runtime loading,
+arithmetic execution, complete transitive file custody and platform qualification
+remain unproven. `optional_cpp_references` distinguishes that result from package
+inventory. Optional probe outcomes do not change host readiness, feature policy
+or default dispatch. Interrupted probes stop without retries. Ordinary discovery,
+`--resolve-only` and `--check-lock` never execute this path. The registered inert
+recorder controls are source-authored and await the final validation batch.
+
 ## Installation and remaining gates
 
 The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`.

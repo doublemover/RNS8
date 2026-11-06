@@ -32,7 +32,9 @@ from check_dependencies_lib.system import (
 from .resolution import ACTIVE_RESOLUTION
 
 
-def optional_cpp_references(vcpkg_installed: dict[str, str]) -> dict[str, dict[str, object]]:
+def optional_cpp_references(
+    vcpkg_installed: dict[str, str], probes: dict | None = None
+) -> dict[str, dict[str, object]]:
     report: dict[str, dict[str, object]] = {}
     resolution = ACTIVE_RESOLUTION.get()
     for package in OPTIONAL_CPP_PACKAGES:
@@ -47,6 +49,15 @@ def optional_cpp_references(vcpkg_installed: dict[str, str]) -> dict[str, dict[s
             "compatibility": "not_run",
             "detail": "inventory/path evidence alone does not establish version/API/ABI/transitive-link compatibility",
         }
+        probe = (probes or {}).get("items", {}).get(package)
+        if probe:
+            report[package]["compile_link_probe"] = probe
+            if probe["ok"]:
+                report[package].update(
+                    ok=True,
+                    compatibility="compile_link_compatible_runtime_not_run",
+                    detail="Selected native APIs compiled and linked using the production finder; runtime arithmetic and loader compatibility remain unobserved",
+                )
     return report
 
 

@@ -35,7 +35,14 @@ function(_rns8_find_exact_component name header)
       endforeach()
     endif()
     set(RNS8_${name}_FOUND TRUE PARENT_SCOPE)
-    if(NOT TARGET RNS8::${name})
+    if(TARGET RNS8::${name})
+      get_target_property(_existing_library RNS8::${name} IMPORTED_LOCATION)
+      get_target_property(_existing_include RNS8::${name} INTERFACE_INCLUDE_DIRECTORIES)
+      if(NOT _existing_library STREQUAL RNS8_${name}_LIBRARY OR
+         NOT _existing_include STREQUAL RNS8_${name}_INCLUDE_DIR)
+        message(FATAL_ERROR "Existing RNS8::${name} target conflicts with the selected reference inputs")
+      endif()
+    else()
       add_library(RNS8::${name} UNKNOWN IMPORTED GLOBAL)
       set_target_properties(RNS8::${name} PROPERTIES
         IMPORTED_LOCATION "${RNS8_${name}_LIBRARY}"
@@ -85,6 +92,8 @@ if(RNS8_ENABLE_FLINT)
 endif()
 set(RNS8_EXACT_REFERENCE_LINK_PROBE "not_run")
 if(_RNS8_EXACT_PROBE_LIBRARIES)
+  set(_rns8_previous_try_compile_type "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
   unset(_RNS8_EXACT_REFERENCE_LINK_PASSED CACHE)
   try_compile(_RNS8_EXACT_REFERENCE_LINK_PASSED
     "${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe"
@@ -92,7 +101,13 @@ if(_RNS8_EXACT_PROBE_LIBRARIES)
     CXX_STANDARD 17
     COMPILE_DEFINITIONS ${_RNS8_EXACT_PROBE_DEFINITIONS}
     LINK_LIBRARIES ${_RNS8_EXACT_PROBE_LIBRARIES}
+    COPY_FILE "${CMAKE_CURRENT_BINARY_DIR}/rns8-exact-reference-probe${CMAKE_EXECUTABLE_SUFFIX}"
     OUTPUT_VARIABLE RNS8_EXACT_REFERENCE_LINK_PROBE_OUTPUT)
+  if(_rns8_previous_try_compile_type)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_rns8_previous_try_compile_type}")
+  else()
+    unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+  endif()
   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe.log"
     "${RNS8_EXACT_REFERENCE_LINK_PROBE_OUTPUT}")
   if(_RNS8_EXACT_REFERENCE_LINK_PASSED)

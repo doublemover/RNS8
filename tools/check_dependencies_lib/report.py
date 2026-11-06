@@ -39,6 +39,7 @@ from check_dependencies_lib.system import (
 )
 from .resolution import ACTIVE_RESOLUTION, Request, resolve, selection_context
 from .version_policy import installed_vcpkg_receipt
+from .references import reference_compile_probes
 
 
 def build_report(
@@ -46,6 +47,9 @@ def build_report(
     accelerator_probe_dir: Path | None = None,
     request: Request | None = None,
     installed_root: Path | None = None,
+    *,
+    run_reference_probes: bool = False,
+    reference_probe_dir: Path | None = None,
 ) -> tuple[dict[str, object], bool]:
     requested = request or Request(
         platform.system(),
@@ -55,7 +59,13 @@ def build_report(
     )
     resolution = resolve(requested)
     with selection_context(resolution):
-        report, ready = _build_report(run_accelerator_probes, accelerator_probe_dir, installed_root)
+        report, ready = _build_report(
+            run_accelerator_probes,
+            accelerator_probe_dir,
+            installed_root,
+            run_reference_probes=run_reference_probes,
+            reference_probe_dir=reference_probe_dir,
+        )
     report["dependency_resolution"] = resolution
     report["schema"] = "rns8_dependency_report_v1"
     return report, ready and not resolution["errors"]
@@ -65,6 +75,9 @@ def _build_report(
     run_accelerator_probes: bool = False,
     accelerator_probe_dir: Path | None = None,
     installed_root: Path | None = None,
+    *,
+    run_reference_probes: bool = False,
+    reference_probe_dir: Path | None = None,
 ) -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
@@ -125,6 +138,7 @@ def _build_report(
         hip_info.get("target") if isinstance(hip_info.get("target"), str) else None
     )
     accelerators = accelerator_components()
+    reference_probes = reference_compile_probes(run_reference_probes, reference_probe_dir)
     report: dict[str, object] = {
         "system": {
             "platform": platform.platform(),
@@ -142,7 +156,8 @@ def _build_report(
         "vcpkg_packages": vcpkg_report,
         "vcpkg_inventory_source": inventory_source,
         "hip_info": hip_info,
-        "optional_cpp_references": optional_cpp_references(vcpkg_installed),
+        "optional_cpp_references": optional_cpp_references(vcpkg_installed, reference_probes),
+        "reference_compile_probes": reference_probes,
         "rccl": rccl_discovery_report(),
         "accelerator_components": accelerators,
         "accelerator_compile_probes": accelerator_compile_probes(

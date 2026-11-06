@@ -55,6 +55,16 @@ def main() -> int:
         help="explicit root/toolchain or feature override; same names as CMake",
     )
     parser.add_argument(
+        "--reference-probes",
+        action="store_true",
+        help="explicitly compile/link discovered GMP and FLINT using the build's finder; no installation or runtime execution",
+    )
+    parser.add_argument(
+        "--reference-probe-dir",
+        type=Path,
+        help="fresh probe subdirectories under repository temp/ (default temp/exact-reference-deps)",
+    )
+    parser.add_argument(
         "--accelerator-probes",
         "--probe-accelerators",
         action="store_true",
@@ -79,6 +89,8 @@ def main() -> int:
                 args.resolve_only
                 or args.require_locked
                 or args.accelerator_probes
+                or args.reference_probes
+                or args.reference_probe_dir
                 or args.cmake_cache
                 or args.definitions
                 or args.resolution_request
@@ -138,8 +150,8 @@ def main() -> int:
                 parser.error(
                     "--require-locked needs observed tool/package versions; resolve-only runs no version probes"
                 )
-            if args.accelerator_probes:
-                parser.error("resolve-only cannot execute accelerator probes")
+            if args.accelerator_probes or args.reference_probes:
+                parser.error("resolve-only cannot execute compiler probes")
             report = resolve(request)
             ok = not report["errors"]
             if args.json:
@@ -165,6 +177,8 @@ def main() -> int:
             args.accelerator_probe_dir,
             request,
             configured_installed_root(args.cmake_cache),
+            run_reference_probes=args.reference_probes,
+            reference_probe_dir=args.reference_probe_dir,
         )
         receipt = evaluate_report(policy_root, policy, report, args.cmake_cache)
         report["dependency_version_policy"] = receipt

@@ -859,7 +859,7 @@ def optional_components(
                     roots.append((str(inferred), "override:" + variable, 0, True))
         if environment.get(key):
             roots.append((environment[key], "environment:" + key, 5, True))
-        if name in {"gmp", "mpfr"} and request.features.get("RNS8_ENABLE_FLINT", False):
+        if name in {"gmp", "mpfr"}:
             flint_root = request.overrides.get("RNS8_FLINT_ROOT") or environment.get(
                 "RNS8_FLINT_ROOT"
             )

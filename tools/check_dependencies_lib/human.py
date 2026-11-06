@@ -136,6 +136,13 @@ def print_human(report: dict[str, object]) -> None:
             print(f"  inventory version only: {item['package_inventory_version']}")
         if item.get("selected"):
             print(f"  selected root: {item['selected']['canonical_root']}")
+        if item.get("compile_link_probe"):
+            probe = item["compile_link_probe"]
+            print(f"  compile/link: {probe['status']}; runtime: not_run")
+            if probe.get("directory"):
+                print(f"  logs: {probe['directory']}")
+            if probe.get("detail"):
+                print(f"  {probe['detail']}")
     print()
 
     print("RCCL / rccl-tests readiness")
