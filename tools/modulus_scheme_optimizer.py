@@ -7,99 +7,12 @@ by this objective. A measured optimum is only as applicable as its cost cohort.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
 
-from arithmetic_certificate import (
-    ArithmeticCertificate,
-    from_json,
-    verify,
-    exact_form_admissible,
-)
-
-
-@dataclass(frozen=True)
-class Form:
-    certificate: ArithmeticCertificate
-    conversion_ps: int
-    slab_ps: int
-    epilogue_ps: int
-    reconstruction_ps: int
-    cost_cohort: str
-
-    def cost(self, k: int) -> int:
-        return (
-            self.conversion_ps
-            + ((k + self.certificate.safe_k - 1) // self.certificate.safe_k)
-            * (self.slab_ps + self.epilogue_ps)
-            + self.reconstruction_ps
-        )
-
-
-class FormAdmissionError(ValueError):
-    """Strict whole-domain rejection with retained per-form proof obligations."""
-
-    def __init__(self, report: dict):
-        self.report = report
-        rejected = [row for row in report["forms"] if not row["admitted"]]
-        super().__init__("unverified arithmetic forms: " + json.dumps(rejected, sort_keys=True))
-
-
-def validate_problem(bound, signed, k, max_nodes):
-    if (
-        type(bound) is not int
-        or bound < 0
-        or type(k) is not int
-        or k <= 0
-        or type(signed) is not bool
-        or type(max_nodes) is not int
-        or max_nodes < 1
-    ):
-        raise ValueError("invalid exact output bound, K or search budget")
-
-
-def admit_forms(forms: list[Form]) -> dict:
-    if not forms or len(forms) > 24 or any(type(form) is not Form for form in forms):
-        raise ValueError("search domain must contain 1..24 explicitly supplied forms")
-    if (
-        any(type(form.cost_cohort) is not str or not form.cost_cohort for form in forms)
-        or len({f.cost_cohort for f in forms}) != 1
-    ):
-        raise ValueError("form costs must share an explicit calibration cohort")
-    rows = []
-    for index, form in enumerate(forms):
-        proof = verify(form.certificate)
-        rows.append(
-            dict(
-                form_id=index,
-                certificate_sha256=proof["sha256"],
-                checker_version=proof["checker_version"],
-                verdicts=proof["verdicts"],
-                proof_failures=proof["proof_failures"],
-                admitted=exact_form_admissible(proof),
-            )
-        )
-        if any(
-            type(cost) is not int or cost < 0
-            for cost in (form.conversion_ps, form.slab_ps, form.epilogue_ps, form.reconstruction_ps)
-        ):
-            raise ValueError("costs must be known nonnegative integer picoseconds")
-    report = dict(
-        schema="rns8_scheme_form_admission_v1",
-        policy="strict_reject_entire_domain",
-        forms=rows,
-        accepted=all(row["admitted"] for row in rows),
-        promotion_eligible=False,
-        runtime_ladder_changed=False,
-    )
-    if not report["accepted"]:
-        raise FormAdmissionError(report)
-    identities = [row["certificate_sha256"] for row in rows]
-    if len(set(identities)) != len(identities):
-        raise ValueError("duplicate form identity")
-    return report
+from arithmetic_certificate import from_json
+from scheme_form_contract import Form, FormAdmissionError, admit_forms, validate_problem
 
 
 def optimize(forms: list[Form], bound: int, signed: bool, k: int, max_nodes: int = 1000000) -> dict:
@@ -183,19 +96,25 @@ def main() -> int:
     ]
     try:
         if "joint_schedule" in request:
-            from joint_scheme_optimizer import ScheduledForm, joint_optimize
+            from joint_scheme_optimizer import ScheduledForm, joint_optimize, compare_staged
 
             scheduled = [
                 ScheduledForm(form, **item["resources"])
                 for form, item in zip(forms, request["forms"])
             ]
-            result = joint_optimize(
+            options = dict(request["joint_schedule"])
+            comparison = options.pop("compare_unrestricted", False)
+            if type(comparison) is not bool:
+                raise ValueError("compare_unrestricted must be a Boolean")
+            if comparison and "allowed_form_ids" not in options:
+                raise ValueError("staged comparison requires an explicit shortlist")
+            result = (compare_staged if comparison else joint_optimize)(
                 scheduled,
                 request["bound"],
                 request["signed"],
                 request["k"],
                 max_nodes=request.get("max_nodes", 1000000),
-                **request["joint_schedule"],
+                **options,
             )
         else:
             result = optimize(
@@ -210,6 +129,14 @@ def main() -> int:
         # a cheaper invalid form never becomes a certified incumbent.
         result = error.report
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if result.get("schema") == "rns8_staged_scheme_comparison_v1":
+        return (
+            0
+            if result["comparison_complete"]
+            and result["unrestricted"]["best"] is not None
+            and result["restricted"]["best"] is not None
+            else 1
+        )
     return 0 if result.get("feasible", result.get("best") is not None) else 1
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
+from evidence_scalars import finite_number
 
 from arithmetic_certificate import (
     ArithmeticCertificate,
@@ -192,19 +193,24 @@ def predict(
     }
 
 
-def pareto_frontier(candidates: list[dict]) -> list[dict]:
-    """Retain nondominated latency/workspace predictions; no measured-win label."""
-    return [
-        candidate
-        for candidate in candidates
-        if not any(
-            other is not candidate
-            and other["latency_upper_ns"] <= candidate["latency_upper_ns"]
-            and other["peak_workspace_bytes"] <= candidate["peak_workspace_bytes"]
-            and (
-                other["latency_upper_ns"] < candidate["latency_upper_ns"]
-                or other["peak_workspace_bytes"] < candidate["peak_workspace_bytes"]
-            )
-            for other in candidates
-        )
+def pareto_frontier(
+    candidates: list[dict], *, cost_key="latency_upper_ns", resource_key="peak_workspace_bytes"
+) -> list[dict]:
+    """Stable two-objective minimization; equal points retain all alternatives."""
+    points = [
+        (candidate[cost_key], candidate[resource_key], index)
+        for index, candidate in enumerate(candidates)
     ]
+    if any(not finite_number(value) or value < 0 for point in points for value in point[:2]):
+        raise ValueError("Pareto objectives must be finite nonnegative predictions")
+    selected = set()
+    best_resource, best_cost = None, None
+    # Sorting makes the remaining-resource minimum sufficient; avoid comparing
+    # every pair while preserving input order and equal-coordinate candidates.
+    for cost, resource, index in sorted(points):
+        if best_resource is None or resource < best_resource:
+            best_resource, best_cost = resource, cost
+            selected.add(index)
+        elif resource == best_resource and cost == best_cost:
+            selected.add(index)
+    return [candidate for index, candidate in enumerate(candidates) if index in selected]

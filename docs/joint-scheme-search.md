@@ -43,6 +43,16 @@ costs, resources, legal caps, exact prefix products, physical plane IDs, and the
 declared domain. Search-budget exhaustion returns only an incumbent and a zero
 lower bound, never an optimality claim.
 
+The joint report also retains latency/physical-plane-count Pareto candidates.
+One lowest-cost schedule per plane count is sufficient for this two-objective
+frontier, so retained candidate storage is bounded by the nonempty subsets of
+at most eight supplied forms. Schedule dictionaries are constructed only when
+that incumbent improves. Equivalent objective points keep one representative;
+this is not a list of every equivalent schedule or a measured hardware frontier.
+The shared two-objective helper preserves equal-point alternatives for its
+ordinary latency/workspace caller and uses a stable sorted sweep instead of
+pairwise comparisons. An exhausted search labels its frontier incomplete.
+
 An optional `allowed_form_ids` shortlist can be compared with unrestricted
 enumeration to quantify a staged search's lost optimum. The authored fixture
 demonstrates a cost of 202 for an isolated-cost shortlist versus 103 for the
@@ -51,6 +61,15 @@ channel. These are synthetic picoseconds, not timings. A separate labelled-bin
 brute-force fixture checks all toy basis orders, groups, and slabs without using
 the optimizer's partition generator. Runtime execution of these tests remains
 pending in the consolidated validation batch.
+
+Set `joint_schedule.compare_unrestricted=true` with explicit `allowed_form_ids`
+to retain both the unrestricted and staged searches, their separate identical
+node budgets and excluded form identities. The comparison reports a latency
+penalty only when both searches complete. An empty feasible shortlist and a
+budget-limited comparison have separate dispositions. Caller exclusions are
+labelled as unproved pruning; no default dominance justification is invented.
+The file CLI exits nonzero for inconclusive or infeasible selections. The same
+comparison is available as `compare_staged` for bounded research consumers.
 
 This finishes a concrete offline oracle slice of #32. It does not establish a
 globally optimal hardware pipeline, measured Pareto frontier or production

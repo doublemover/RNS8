@@ -3,11 +3,40 @@
 from dataclasses import replace
 from fractions import Fraction
 
-from analytical_planner import Rate, Stage, predict
+from analytical_planner import Rate, Stage, pareto_frontier, predict
 from arithmetic_certificate import centered_int8
 
 
 def main() -> int:
+    candidates = [
+        dict(latency_upper_ns=latency, peak_workspace_bytes=workspace, ordinal=index)
+        for index, (latency, workspace) in enumerate(
+            ((3, 9), (2, 8), (4, 5), (2, 8), (3, 8), (9, 9), (4, 6), (0, 10))
+        )
+    ]
+    expected = [
+        candidate
+        for candidate in candidates
+        if not any(
+            other["latency_upper_ns"] <= candidate["latency_upper_ns"]
+            and other["peak_workspace_bytes"] <= candidate["peak_workspace_bytes"]
+            and (
+                other["latency_upper_ns"] < candidate["latency_upper_ns"]
+                or other["peak_workspace_bytes"] < candidate["peak_workspace_bytes"]
+            )
+            for other in candidates
+        )
+    ]
+    assert pareto_frontier(candidates) == expected
+    assert pareto_frontier([]) == []
+    assert len([row for row in pareto_frontier(candidates) if row["latency_upper_ns"] == 2]) == 2
+    for invalid in (float("nan"), float("inf"), -1, True):
+        try:
+            pareto_frontier([dict(latency_upper_ns=invalid, peak_workspace_bytes=0)])
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid Pareto objective admitted")
     rates = {
         name: Rate(Fraction(1), Fraction(2), "operations", "synthetic-only")
         for name in ("conversion", "matrix", "reconstruction")

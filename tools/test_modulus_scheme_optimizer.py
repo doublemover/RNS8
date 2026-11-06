@@ -5,7 +5,7 @@ import math
 
 from arithmetic_certificate import centered_int8
 from modulus_scheme_optimizer import Form, optimize
-from joint_scheme_optimizer import ScheduledForm, arithmetic_limits, joint_optimize
+from joint_scheme_optimizer import ScheduledForm, arithmetic_limits, compare_staged, joint_optimize
 from dataclasses import replace
 
 
@@ -27,6 +27,7 @@ def joint_checks():
     for bound in (0, 10, 50, 1000):
         for k in (1, 9):
             costs = []
+            points = set()
             for count in range(1, len(forms) + 1):
                 for order in itertools.permutations(range(len(forms)), count):
                     moduli = [forms[i].form.certificate.modulus for i in order]
@@ -61,11 +62,25 @@ def joint_checks():
                                     for g, s in zip(groups, slabs)
                                 )
                             )
+                            points.add((costs[-1], count))
             result = joint_optimize(forms, bound, True, k, **options)
             assert result["search_complete"]
             assert (result["best"]["cost_ps"] if result["best"] else None) == (
                 min(costs) if costs else None
             )
+            frontier = {
+                point
+                for point in points
+                if not any(
+                    other[0] <= point[0] and other[1] <= point[1] and other != point
+                    for other in points
+                )
+            }
+            assert {
+                (row["cost_ps"], row["physical_plane_count"]) for row in result["pareto_candidates"]
+            } == frontier
+            assert result["pareto_complete_within_declared_domain"]
+            assert len(result["pareto_candidates"]) <= result["pareto_candidate_storage_bound"]
             if result["best"]:
                 assert result["lower_bound_ps"] == min(costs)
                 schedule = result["best"]["schedule"]
@@ -74,6 +89,7 @@ def joint_checks():
                 )
     limited = joint_optimize(forms, 10, False, 9, max_nodes=1, **options)
     assert not limited["search_complete"] and limited["lower_bound_ps"] == 0
+    assert not limited["pareto_complete_within_declared_domain"]
     # Isolated cheapest form loses when its layout prevents sharing a launch.
     base = Form(centered_int8(5), 0, 1, 0, 0, "toy")
     alternative = replace(base, certificate=replace(base.certificate, safe_k=65535), slab_ps=2)
@@ -88,6 +104,16 @@ def joint_checks():
     assert full["best"]["cost_ps"] == 103
     assert staged["best"]["cost_ps"] == 202
     assert set(full["best"]["ordered_form_ids"]) == {1, 2}
+    comparison = compare_staged(coupled, 17, False, 1, allowed_form_ids=(0, 2), **options)
+    assert comparison["status"] == "shortlist_lost_optimum"
+    assert comparison["latency_penalty_ps"] == 99
+    assert comparison["restricted"]["excluded_forms"][0]["form_id"] == 1
+    assert "not_proven_global_dominance" in comparison["restricted"]["excluded_forms"][0]["reason"]
+    limited_comparison = compare_staged(
+        coupled, 17, False, 1, allowed_form_ids=(0, 2), max_nodes=1, **options
+    )
+    assert limited_comparison["status"] == "inconclusive_search_budget"
+    assert limited_comparison["latency_penalty_ps"] is None
     # Intermediate arithmetic caps are separate from final range; reducing a
     # slab never admits a basis whose full product is insufficient.
     narrow = replace(centered_int8(5, 2), recombination_min=-10, recombination_max=10)

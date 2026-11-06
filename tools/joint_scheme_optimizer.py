@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from itertools import combinations, permutations, product
 import math
 
-from modulus_scheme_optimizer import Form, admit_forms, validate_problem
+from scheme_form_contract import Form, admit_forms, validate_problem
+from analytical_planner import pareto_frontier
 
 
 @dataclass(frozen=True)
@@ -154,6 +155,7 @@ def joint_optimize(
     hashes = [row["certificate_sha256"] for row in admission["forms"]]
     threshold = bound * (2 if signed else 1)
     best = None
+    best_by_planes = {}
     visited = 0
     exhausted = False
     rejected = {
@@ -199,6 +201,7 @@ def joint_optimize(
             # Scheduling costs are explicitly independent of logical order in
             # this declared model, so retain the minimum exact order cost.
             order_cost, order, products = min(orders)
+            plane_count = sum(len(forms[i].form.certificate.planes) for i in subset)
             for groups in partitions(list(subset)):
                 if not consume():
                     break
@@ -225,29 +228,33 @@ def joint_optimize(
                         forms[i].form.conversion_ps + forms[i].form.reconstruction_ps
                         for i in subset
                     )
-                    schedule = []
                     for group, slab in zip(groups, selected_slabs):
                         repeats = (k + slab - 1) // slab
                         cost += repeats * (
                             group_launch_ps
                             + sum(forms[i].form.slab_ps + forms[i].form.epilogue_ps for i in group)
                         )
-                        schedule.append(
-                            {
-                                "plane_ids": [order.index(i) for i in group],
-                                "form_ids": list(group),
-                                "slab": slab,
-                                "slab_count": repeats,
-                            }
-                        )
-                    if best is None or cost < best["cost_ps"]:
-                        best = {
+                    incumbent = best_by_planes.get(plane_count)
+                    if incumbent is None or cost < incumbent["cost_ps"]:
+                        candidate = {
                             "cost_ps": cost,
+                            "physical_plane_count": plane_count,
                             "ordered_form_ids": list(order),
                             "ordered_moduli": [forms[i].form.certificate.modulus for i in order],
                             "prefix_products": products,
-                            "schedule": schedule,
+                            "schedule": [
+                                dict(
+                                    plane_ids=[order.index(i) for i in group],
+                                    form_ids=list(group),
+                                    slab=slab,
+                                    slab_count=(k + slab - 1) // slab,
+                                )
+                                for group, slab in zip(groups, selected_slabs)
+                            ],
                         }
+                        best_by_planes[plane_count] = candidate
+                        if best is None or cost < best["cost_ps"]:
+                            best = candidate
                 if exhausted:
                     break
             if exhausted:
@@ -257,6 +264,12 @@ def joint_optimize(
     return {
         "schema": "rns8_joint_scheme_oracle_v1",
         "best": best,
+        "pareto_candidates": pareto_frontier(
+            list(best_by_planes.values()), cost_key="cost_ps", resource_key="physical_plane_count"
+        ),
+        "pareto_scope": "one_representative_per_latency_physical_plane_count_point_in_declared_cost_model",
+        "pareto_complete_within_declared_domain": not exhausted,
+        "pareto_candidate_storage_bound": (1 << len(forms)) - 1,
         "objective": "serial_groups_shared_launch_ordered_prefix_bits",
         "cost_cohort": forms[0].form.cost_cohort,
         "arithmetic_admission": admission,
@@ -285,6 +298,15 @@ def joint_optimize(
             for i, f in enumerate(forms)
         ],
         "allowed_form_ids": list(ids),
+        "excluded_forms": [
+            dict(
+                form_id=index,
+                certificate_sha256=hashes[index],
+                reason="caller_shortlist_exclusion_not_proven_global_dominance",
+            )
+            for index in range(len(forms))
+            if index not in ids
+        ],
         "form_limits": limits,
         "slab_domain": list(slabs),
         "strict_product_threshold": threshold,
@@ -296,3 +318,35 @@ def joint_optimize(
         "promotion_eligible": False,
         "runtime_ladder_changed": False,
     }
+
+
+def compare_staged(forms, bound, signed, k, *, allowed_form_ids, **options):
+    """Compare the caller's shortlist with the full bounded declared domain."""
+    restricted = joint_optimize(
+        forms, bound, signed, k, allowed_form_ids=allowed_form_ids, **options
+    )
+    full = joint_optimize(forms, bound, signed, k, **options)
+    complete = restricted["search_complete"] and full["search_complete"]
+    a, b = restricted["best"], full["best"]
+    if not complete:
+        status, lost = "inconclusive_search_budget", None
+    elif b is None:
+        status, lost = "declared_domain_infeasible", None
+    elif a is None:
+        status, lost = "shortlist_removed_all_feasible_schemes", None
+    else:
+        lost = a["cost_ps"] - b["cost_ps"]
+        if lost < 0:
+            raise ValueError("restricted domain cannot beat a completely searched full domain")
+        status = "shortlist_lost_optimum" if lost else "shortlist_preserved_latency_optimum"
+    return dict(
+        schema="rns8_staged_scheme_comparison_v1",
+        restricted=restricted,
+        unrestricted=full,
+        status=status,
+        latency_penalty_ps=lost,
+        comparison_complete=complete,
+        search_budget_per_domain=options.get("max_nodes", 1000000),
+        promotion_eligible=False,
+        runtime_ladder_changed=False,
+    )
