@@ -13,6 +13,7 @@ from diagnostic_companion import load_bindings
 from observation_cohorts import phase_median
 from report_capture_inputs import load_report_captures
 from report_comparison import ComparisonPolicy, ReportCohorts
+from timing_eligibility import capture_identity
 
 # This is a boundary-cost diagnostic, never a same-output host speedup.
 BOUNDARY_POLICY = ComparisonPolicy(
@@ -96,7 +97,9 @@ def capture_summary(
     )
 
 
-def residue_lifetime_metadata(capture: dict[str, Any] | None) -> dict[str, Any]:
+def residue_lifetime_metadata(
+    capture: dict[str, Any] | None, cohorts: ReportCohorts | None = None
+) -> dict[str, Any]:
     if capture is None:
         return {"available": False, "reason": "missing_residue_current_capture"}
     plan_packing = capture.get("plan_packing")
@@ -118,12 +121,27 @@ def residue_lifetime_metadata(capture: dict[str, Any] | None) -> dict[str, Any]:
         and requested_next_op.get("resolved") == "rns-gemm",
     }
     missing = [key for key, value in checks.items() if not value]
-    return {
+    result = {
         "available": not missing,
         "checks": checks,
         "reason": "available" if not missing else "incomplete_residue_current_lifetime_metadata",
         "missing": missing,
     }
+    if cohorts is not None:
+        observations = [
+            dict(capture_sha256=capture_identity(raw), **residue_lifetime_metadata(raw))
+            for raw in cohorts.raw_observations(capture)
+        ]
+        result["observations"] = observations
+        result["checks"] = {
+            key: bool(observations) and all(item["checks"][key] for item in observations)
+            for key in checks
+        }
+        result["missing"] = [key for key, available in result["checks"].items() if not available]
+        result["available"] = bool(observations) and all(item["available"] for item in observations)
+        if not result["available"]:
+            result["reason"] = "incomplete_residue_current_lifetime_metadata"
+    return result
 
 
 def row_for_backend(key: str, captures: list[dict], backend: str, cohorts: ReportCohorts) -> dict:
@@ -144,7 +162,11 @@ def row_for_backend(key: str, captures: list[dict], backend: str, cohorts: Repor
     cpu = cpu or next(iter(cpu_finals), None)
     boundary = cohorts.compare(residue or anchor, final, BOUNDARY_POLICY)
     completed = cohorts.compare(final or anchor, cpu, CPU_POLICY)
-    lifetime = residue_lifetime_metadata(residue)
+    lifetime = residue_lifetime_metadata(residue, cohorts)
+    if not lifetime["available"]:
+        boundary["qualified"] = False
+        boundary["speedup"] = None
+        boundary["blockers"] = sorted(set(boundary["blockers"] + [lifetime["reason"]]))
     blockers = list(boundary["blockers"]) + ["cpu:" + item for item in completed["blockers"]]
     if residue is None:
         blockers.append("missing_residue_current_capture")

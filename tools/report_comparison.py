@@ -66,11 +66,25 @@ class ReportCohorts:
     """Retain raw evidence and aggregate once before any implementation selection."""
 
     def __init__(self, captures: list[dict], diagnostic_bindings: dict | None = None):
+        self._raws = {}
+        for capture in captures:
+            identity = capture_identity(capture)
+            previous = self._raws.get(identity)
+            if previous is None or str(capture.get("_path", "")) < str(previous.get("_path", "")):
+                self._raws[identity] = capture
         self.observations = aggregate_captures(captures)
         self.production = ProductionCohortIndex(captures, diagnostic_bindings)
         self.references = CPUReferenceIndex(captures)
         self._numerical = {}
         self._admission = {}
+
+    def raw_observations(self, capture: dict) -> list[dict]:
+        """Return actual unique process records, never the representative's fields."""
+        return [
+            self._raws[record["capture_sha256"]]
+            for record in evidence(capture).get("observations", [])
+            if record.get("capture_sha256") in self._raws
+        ]
 
     def numerical(self, capture: dict, *, require_cpu_anchor: bool = True):
         key = (

@@ -254,6 +254,19 @@ def production_controls():
         current = first_gpu_row(build(changed, receipts), backend="ck", pack_mode="prepacked_reuse")
         assert current["speedup_vs_same_backend_nonreuse"] is None
 
+        def incomplete_source(fixture, mode, run):
+            if mode == "reuse" and run == 1:
+                fixture.pop("device_allocation")
+
+        incomplete, receipts = collect("one-process-source", change=incomplete_source)
+        for order in (incomplete, list(reversed(incomplete))):
+            current = first_gpu_row(
+                build(order, receipts), backend="ck", pack_mode="prepacked_reuse"
+            )
+            assert current["speedup_vs_same_backend_nonreuse"] is None
+            assert "reuse_process_source_identity_incomplete" in current["blockers"]
+            assert len(current["source_identity"]["observations"]) == 2
+
 
 def main() -> int:
     cpu = capture(backend="cpu-reference", median_us=5000.0)

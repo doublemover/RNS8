@@ -297,6 +297,13 @@ legacy records without the nested export descriptor. Exact-wide boundary
 diagnostics also account for the native emitter's D2H/status selector overlays.
 Protocol and loader controls are authored; runtime qualification remains pending.
 
+Chain lifetime and reuse source-version checks inspect every actual unique
+process record, with individual content identities retained in the report.
+The representative capture cannot supply missing custody for a different run.
+Incomplete lifetime/source metadata suppresses the affected ratio even when
+timing, full-output and companion evidence otherwise qualify. These controls
+are authored and remain unexecuted.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).

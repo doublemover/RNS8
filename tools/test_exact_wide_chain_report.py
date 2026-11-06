@@ -140,6 +140,18 @@ def production_controls():
         assert first_row(build(captures, missing))["final_output_vs_residue_current_ratio"] is None
         noisy, receipts = collect("unstable", times=((100, 100), (160, 260), (1600, 1600)))
         assert first_row(build(noisy, receipts))["final_output_vs_residue_current_ratio"] is None
+
+        def incomplete_lifetime(fixture, mode, run):
+            if mode == "resident" and run == 1:
+                fixture["plan_lowering"]["rns_continuation_available"] = False
+
+        incomplete, receipts = collect("one-process-lifetime", change=incomplete_lifetime)
+        for order in (incomplete, list(reversed(incomplete))):
+            current = first_row(build(order, receipts))
+            assert current["final_output_vs_residue_current_ratio"] is None
+            assert current["residue_lifetime"]["available"] is False
+            assert len(current["residue_lifetime"]["observations"]) == 2
+            assert "rns_continuation_available" in current["residue_lifetime"]["missing"]
         for label, mutation in (
             (
                 "seed",

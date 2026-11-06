@@ -15,6 +15,7 @@ from diagnostic_companion import load_bindings
 from observation_cohorts import phase_median, evidence
 from report_capture_inputs import load_report_captures
 from report_comparison import ComparisonPolicy, ReportCohorts
+from timing_eligibility import capture_identity
 
 
 DEFAULT_OUT_DIR = Path("temp") / "rns-chain-reports"
@@ -211,6 +212,19 @@ def row_for_capture(capture: dict, items: list[dict], cohorts: ReportCohorts) ->
     }
     blockers = cohorts.admission(capture, FINAL_POLICY)
     source = source_identity_metadata(capture)
+    source_observations = [
+        dict(capture_sha256=capture_identity(raw), **source_identity_metadata(raw))
+        for raw in cohorts.raw_observations(capture)
+    ]
+    source["observations"] = source_observations
+    source_failures = sorted(
+        {item["reason"] for item in source_observations if item.get("available") is False}
+    )
+    if reuse:
+        blockers.extend(source_failures)
+    if reuse and any(item.get("available") is False for item in source_observations):
+        source["available"] = False
+        source["reason"] = "reuse_process_source_identity_incomplete"
     if reuse and source.get("available") is False:
         for comparison in comparisons.values():
             comparison["blockers"] = sorted(set(comparison["blockers"] + [source["reason"]]))
