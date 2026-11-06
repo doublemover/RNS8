@@ -29,7 +29,9 @@ known prefix locations; explicit overrides must stay inside that SDK.
 version/HMM build prerequisites, existing `HSA_XNACK=1`, absence of a fabricated
 target override, loaded AMDGPU driver identity, KFD access and available host
 memory. It binds the actual SDK version file, matching AMD LLVM tools and HIP
-version family, selected native agent UUID and advertised `xnack+` ISA. Missing
+component version matching the selected HIP header, native agent UUID and
+advertised `xnack+` ISA. The ROCm Core release and HIP component version are
+independent identities; Core10.1.0 does not imply HIP10.1. Missing
 kernel configuration or runtime identities block the preflight. WSL and
 unreviewed release/target tuples cannot pass as native supported tuples.
 

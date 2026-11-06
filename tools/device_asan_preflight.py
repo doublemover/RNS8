@@ -14,6 +14,7 @@ import sys
 
 from analysis_inputs import cache_values, load_inputs, target_artifacts
 from build_manifest import source_content_digest
+from check_dependencies_lib.resolution import header_version
 from compiled_binary_identity import canonical_digest
 from device_asan_contract import (
     RELEASE,
@@ -22,6 +23,7 @@ from device_asan_contract import (
     compiler_flags,
     dynamic_dependencies,
     host_prerequisites,
+    hip_component_version,
     support,
 )
 from execution_inventory import bounded_read
@@ -287,8 +289,14 @@ def observe(args, plan) -> int:
         }
         if len({version_number(text) for name, text in versions.items() if name != "hipcc"}) != 1:
             raise ValueError("selected AMD LLVM compiler/artifact tools differ in complete version")
-        if not re.search(r"HIP version:\s*10\.1\.", versions["hipcc"], re.I):
-            raise ValueError("selected hipcc does not report the reviewed HIP10.1 family")
+        include = args.rocm_root / "include"
+        if not (include / "hip/hip_runtime_api.h").is_file():
+            include = args.rocm_root / "hip/include"
+        hip_header = include / "hip/hip_version.h"
+        report["hip_component"] = dict(
+            version=hip_component_version(versions["hipcc"], header_version(hip_header)),
+            version_header=reference(hip_header),
+        )
         report["versions"] = versions
         resource = Path(
             session.run("compiler-resource", [str(args.compiler), "--print-resource-dir"])[

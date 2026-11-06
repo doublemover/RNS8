@@ -17,6 +17,7 @@ from device_asan_contract import (
     compiler_flags,
     dynamic_dependencies,
     host_prerequisites,
+    hip_component_version,
     support,
 )
 from isa_common import bundle_target_for, extract_code_object
@@ -25,6 +26,19 @@ FLAGS = ["clang++", "-fsanitize=address", "-shared-libsan", "-g", "-fno-sanitize
 
 
 class DeviceEligibility(unittest.TestCase):
+    def test_core_sdk_release_does_not_replace_actual_hip_component_identity(self):
+        native = "HIP version: 7.16.26385-7da43026e4\nAMD clang version 23.0.0\n"
+        self.assertEqual(hip_component_version(native, "7.16.26385"), "7.16.26385")
+        for observed, header in (
+            (native, "10.1.0"),
+            (native, None),
+            (native, "7.16.26384"),
+            (native + native, "7.16.26385"),
+            ("clang version 23.0.0", "7.16.26385"),
+        ):
+            with self.assertRaises(ValueError):
+                hip_component_version(observed, header)
+
     def test_official_package_scope_never_becomes_execution_or_detector_pass(self):
         for system, release, target, expected in (
             ("Linux", "10.1.0", "gfx942:xnack+", "supported"),

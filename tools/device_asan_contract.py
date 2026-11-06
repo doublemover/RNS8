@@ -151,3 +151,15 @@ def dynamic_dependencies(text: str) -> list[str]:
     if not any(re.fullmatch(r"libclang_rt\.asan-[A-Za-z0-9_]+\.so", name) for name in rows):
         raise ValueError("application does not directly depend on shared ASan runtime")
     return rows
+
+
+def hip_component_version(native: str, header_version: str | None) -> str:
+    # Core SDK releases and HIP component versions have independent numbering.
+    versions = re.findall(
+        r"^\s*HIP version:\s*(\d+\.\d+\.\d+)(?:[-+][A-Za-z0-9._+-]+)?\s*$",
+        native,
+        re.I | re.M,
+    )
+    if len(versions) != 1 or not header_version or versions[0] != header_version:
+        raise ValueError("selected hipcc and its actual HIP version header disagree")
+    return versions[0]
