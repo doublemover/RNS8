@@ -5,6 +5,7 @@ option(RNS8_ENABLE_HOST_COVERAGE "Instrument native Clang host objects with sour
 option(RNS8_BUILD_SANITIZER_CONTROLS "Build disposable host sanitizer detector controls" OFF)
 option(RNS8_ENABLE_DEVICE_ASAN "Separate native Linux ROCm GPU address-sanitizer candidate" OFF)
 set(RNS8_DEVICE_ASAN_ROCM_VERSION "" CACHE STRING "Exact official device-ASan ROCm release")
+set(RNS8_DEVICE_ASAN_HSA_RUNTIME "" CACHE FILEPATH "Explicit instrumented HSA runtime for native device-ASan test witnesses")
 set(RNS8_DEVICE_ASAN_COMPILE_FLAGS "")
 set(RNS8_DEVICE_ASAN_LINK_FLAGS "")
 if(RNS8_ENABLE_DEVICE_ASAN)

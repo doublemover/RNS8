@@ -1,4 +1,4 @@
-"""Plan or observe native ROCm GPU-ASan prerequisites; never run GPU workloads."""
+"""Plan/observe native GPU-ASan; optionally select bounded ordinary correctness."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from compiled_binary_identity import canonical_digest
 from device_asan_contract import (
     RELEASE,
     TARGETS,
+    CORRECTNESS_CASES,
     agent_observation,
     compiler_flags,
     dynamic_dependencies,
@@ -215,6 +216,75 @@ def inspect_build(session: Session, args, build: Path, runtimes: dict[str, Path]
     return result
 
 
+def ordinary_correctness(session: Session, args, report: dict, output: Path) -> None:
+    if any(
+        os.environ.get(key)
+        for key in ("HIP_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL")
+    ):
+        raise ValueError(
+            "ordinary device-ASan requires no conflicting inherited HIP/CUDA ordinal masks"
+        )
+    report["ctest"] = reference(args.ctest)
+    ctest_version = session.run("ctest-version", [str(args.ctest), "--version"])["stdout"]
+    if version_number(ctest_version) != version_number(report["cmake_version"]):
+        raise ValueError("selected CMake/CTest complete versions differ")
+    report["ctest_version"] = ctest_version
+    contract = dict(
+        target=args.target,
+        agent_uuid=report["agent"]["uuid"],
+        runtimes=report["runtimes"],
+        minimum_free_bytes=args.minimum_free_mib * 1024**2,
+    )
+    report["correctness_contract"] = contract
+    selected_environment = session.environment
+    session.environment = dict(selected_environment)
+    try:
+        for key in ("HIP_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL"):
+            session.environment.pop(key, None)
+        session.environment["ROCR_VISIBLE_DEVICES"] = report["agent"]["uuid"]
+        report["correctness_environment"] = {
+            key: session.environment.get(key)
+            for key in (
+                "ROCR_VISIBLE_DEVICES",
+                "HSA_XNACK",
+                "HIP_VISIBLE_DEVICES",
+                "CUDA_VISIBLE_DEVICES",
+                "GPU_DEVICE_ORDINAL",
+            )
+        }
+        executable = report["compiled_objects"]["artifacts"]["rns8_tests"]["path"]
+        report["device_tests"] = "attempted_incomplete"
+        ref, result = session.tests(
+            "device-correctness",
+            output / "build",
+            args.ctest,
+            required=CORRECTNESS_CASES,
+            selection_names=list(CORRECTNESS_CASES),
+            runtime_witness=dict(
+                executables=[executable],
+                lane="device-address",
+                runtimes=list(report["runtimes"].values()),
+                device_contract=contract,
+            ),
+        )
+        report["correctness_inventory"] = ref
+        report["correctness_module_files"] = result["application_runtime_module_files"]
+        if result["status"] != "passed":
+            report["device_tests"] = "failed"
+            raise ValueError("required ordinary device-ASan correctness subset did not pass")
+        report["device_tests"] = "passed_bounded_subset"
+        report["dynamic_loader_resolution"] = "observed_in_each_selected_test_process"
+        report["device_available_memory"] = "native_per_case_entry_admission_and_exit_observations"
+        report["qualification"]["device_execution"] = "bounded_ordinary_correctness_passed"
+        report["pending_qualification"] = [
+            "separately authorized device detector sensitivity if required",
+            "external-backend/consumer instrumentation and broader target acceptance",
+            "continuous supported-host CI qualification",
+        ]
+    finally:
+        session.environment = selected_environment
+
+
 def observe(args, plan) -> int:
     output = Path(plan["output"])
     if output.exists():
@@ -357,7 +427,11 @@ def observe(args, plan) -> int:
             report["ninja_version"] = session.run("ninja-version", [str(args.ninja), "--version"])[
                 "stdout"
             ]
-            configure = [*plan["configure"], "-DRNS8_HIP_LIBRARY=" + str(runtimes["hip"])]
+            configure = [
+                *plan["configure"],
+                "-DRNS8_HIP_LIBRARY=" + str(runtimes["hip"]),
+                "-DRNS8_DEVICE_ASAN_HSA_RUNTIME=" + str(runtimes["hsa"]),
+            ]
             report["configured_runtime_command"] = configure
             session.run("configure", configure)
             built = session.run("build", plan["build_command"])
@@ -368,8 +442,16 @@ def observe(args, plan) -> int:
             ):
                 raise ValueError("compiler ignored required device instrumentation")
             report["compiled_objects"] = inspect_build(session, args, output / "build", runtimes)
+        if args.correctness:
+            ordinary_correctness(session, args, report, output)
         check_bookends([report, source, session.stages])
-        report["status"] = "artifact_preflight_ready" if args.compile else "prerequisites_observed"
+        report["status"] = (
+            "bounded_correctness_complete_sensitivity_not_run"
+            if args.correctness
+            else "artifact_preflight_ready"
+            if args.compile
+            else "prerequisites_observed"
+        )
     except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
         report["blockers"].append(str(error))
     report["stages"] = session.stages
@@ -385,7 +467,16 @@ def observe(args, plan) -> int:
             )
         )
     )
-    return 0 if report["status"] in {"artifact_preflight_ready", "prerequisites_observed"} else 1
+    return (
+        0
+        if report["status"]
+        in {
+            "artifact_preflight_ready",
+            "prerequisites_observed",
+            "bounded_correctness_complete_sensitivity_not_run",
+        }
+        else 1
+    )
 
 
 def main(argv=None):
@@ -395,7 +486,7 @@ def main(argv=None):
     parser.add_argument("--target", choices=TARGETS, required=True)
     parser.add_argument("--agent-index", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    for name in (*TOOLS, "cmake", "ninja", "hip_runtime", "hsa_runtime", "asan_runtime"):
+    for name in (*TOOLS, "cmake", "ctest", "ninja", "hip_runtime", "hsa_runtime", "asan_runtime"):
         parser.add_argument("--" + name.replace("_", "-"), type=Path)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
@@ -404,8 +495,14 @@ def main(argv=None):
     parser.add_argument(
         "--compile",
         action="store_true",
-        help="With --observe, build/inspect fresh real first-party HIP objects; never run application tests",
+        help="With --observe, build/inspect fresh real first-party HIP objects",
     )
+    parser.add_argument(
+        "--correctness",
+        action="store_true",
+        help="With --compile and --observe, run only the fixed ordinary exact/canary subset; no device faults",
+    )
+    parser.add_argument("--minimum-free-mib", type=int, default=256)
     args = parser.parse_args(argv)
     try:
         output = args.out.resolve()
@@ -422,8 +519,11 @@ def main(argv=None):
             or not 1 <= args.jobs <= 64
             or not 1 <= args.timeout_seconds <= 14400
             or not 256 <= args.artifact_mib <= 65536
+            or not 64 <= args.minimum_free_mib <= 1048576
         ):
             raise ValueError("device-ASan preflight budgets/agent index invalid")
+        if args.correctness and not args.compile:
+            raise ValueError("ordinary correctness requires the fresh inspected device-ASan build")
         for name, names in TOOLS.items():
             setattr(args, name, tool(args.rocm_root, getattr(args, name), names))
         if args.compile and args.ninja is None:
@@ -431,11 +531,15 @@ def main(argv=None):
             if not native:
                 raise ValueError("native Ninja unavailable; supply --ninja")
             args.ninja = Path(native)
-        for name in ("hip_runtime", "hsa_runtime", "asan_runtime", "cmake", "ninja"):
+        if args.correctness and args.ctest is None and args.cmake is not None:
+            args.ctest = args.cmake.with_name("ctest")
+        for name in ("hip_runtime", "hsa_runtime", "asan_runtime", "cmake", "ctest", "ninja"):
             if getattr(args, name) is not None:
                 setattr(args, name, invocation_path(getattr(args, name)))
         if args.compile and args.cmake is None:
             raise ValueError("fresh device-ASan build requires explicit native CMake")
+        if args.correctness and args.ctest is None:
+            raise ValueError("bounded ordinary correctness requires selected CTest")
         configure = [
             str(args.cmake),
             "-S",
@@ -509,6 +613,14 @@ def main(argv=None):
             device_tests="not_run",
             device_faults="not_run_not_authorized",
             runtime_resolution="not_run",
+            correctness=dict(
+                cases=list(CORRECTNESS_CASES),
+                ctest=str(args.ctest),
+                minimum_free_bytes=args.minimum_free_mib * 1024**2,
+                launch_requested_only_with_observe=True,
+            )
+            if args.correctness
+            else None,
             production_latency=False,
         )
         if not args.observe:

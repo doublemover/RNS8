@@ -9,6 +9,9 @@
 #include <exception>
 #include <iostream>
 #include <vector>
+#if defined(RNS8_ENABLE_DEVICE_RUNTIME_WITNESS)
+#include "device_runtime_witness.hpp"
+#endif
 
 #ifndef __has_feature
 #define __has_feature(value) 0
@@ -81,6 +84,9 @@ class HostRuntimeWitness {
   int exceptions_ = 0;
 
   void emit(const char* phase) const {
+#if defined(RNS8_ENABLE_DEVICE_RUNTIME_WITNESS)
+    auto device = device_runtime_snapshot();
+#endif
     auto modules = host_runtime_inventory();
     modules["scope"] = "application_process_loader_bookend_not_transient_image_history";
     modules["openmp_workers"] = 0; // Do not create unrelated work to initialize a runtime.
@@ -114,6 +120,9 @@ class HostRuntimeWitness {
                             {"address_feature", bool(__has_feature(address_sanitizer))},
                             {"thread_feature", bool(__has_feature(thread_sanitizer))},
                             {"loaded_modules", std::move(modules)}};
+#if defined(RNS8_ENABLE_DEVICE_RUNTIME_WITNESS)
+    value["device_runtime"] = std::move(device);
+#endif
     const auto encoded = value.dump();
     if (encoded.size() > 256 * 1024)
       throw std::runtime_error("native witness record budget exceeded");

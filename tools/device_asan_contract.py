@@ -3,11 +3,135 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
+from device_observation import runtime_identity
 
 from host_instrumentation_contract import selected_flags
 
 RELEASE = "10.1.0"
 TARGETS = ("gfx942:xnack+", "gfx950:xnack+")
+CORRECTNESS_CASES = (
+    "qualification pack covers dispatch thresholds and plane tails",
+    "minimal host allocations pack logical cells for every integer storage contract",
+    "finite exports cover scalar quad and block tails with logical padding canaries",
+    "HIP ragged exact extension feeds a GEMM crossing source tile boundaries",
+    "qualification persistent GEMM spans multiple safe K blocks",
+    "private HIP buffer moves and rejected replacement preserve allocation ownership",
+    "direct HIP explicit split K reduces byte partials through bounded merge levels",
+)
+
+
+def runtime_binding(value: dict, contract: dict, loaded: dict, *, entering: bool) -> dict:
+    fields = {
+        "schema",
+        "visible_hip_devices",
+        "current_hip_ordinal",
+        "runtime_version",
+        "driver_version",
+        "architecture",
+        "runtime_device_identity",
+        "hsa_gpu_count",
+        "hsa_uuid",
+        "hsa_name",
+        "hsa_bdfid",
+        "hsa_domain",
+        "free_device_bytes",
+        "total_device_bytes",
+        "hip_symbol_owner",
+        "hsa_symbol_owner",
+        "scope",
+    }
+    if (
+        type(value) is not dict
+        or set(value) != fields
+        or value["schema"] != "rns8_device_asan_runtime_snapshot_v1"
+        or value["scope"] != "single_visible_hsa_uuid_and_pci_join_to_observed_hip_ordinal_zero"
+    ):
+        raise ValueError("complete native device-ASan runtime observation required")
+    if (
+        type(contract) is not dict
+        or set(contract) != {"target", "agent_uuid", "runtimes", "minimum_free_bytes"}
+        or contract["target"] not in TARGETS
+        or type(contract["minimum_free_bytes"]) is not int
+        or not 64 * 1024**2 <= contract["minimum_free_bytes"] <= 2**40
+    ):
+        raise ValueError("explicit reviewed device runtime contract required")
+    for key, limit in (
+        ("visible_hip_devices", 2**32),
+        ("current_hip_ordinal", 2**31),
+        ("hsa_gpu_count", 2**32),
+        ("runtime_version", 2**32),
+        ("driver_version", 2**32),
+        ("hsa_bdfid", 2**16),
+        ("hsa_domain", 2**16),
+        ("free_device_bytes", 2**64),
+        ("total_device_bytes", 2**64),
+    ):
+        if type(value[key]) is not int or not 0 <= value[key] < limit:
+            raise ValueError(
+                "native device witness integer or unsupported partition/domain encoding"
+            )
+    base = contract["target"].split(":")[0]
+    architecture = value["architecture"]
+    parts = architecture.split(":") if type(architecture) is str else []
+    if (
+        value["visible_hip_devices"] != 1
+        or value["current_hip_ordinal"] != 0
+        or value["hsa_gpu_count"] != 1
+        or not value["runtime_version"]
+        or not value["driver_version"]
+        or not parts
+        or parts[0] != base
+        or "xnack+" not in parts[1:]
+        or len(parts) != len(set(parts))
+        or any(part not in {"xnack+", "sramecc+", "sramecc-"} for part in parts[1:])
+        or {"sramecc+", "sramecc-"}.issubset(parts[1:])
+        or value["hsa_name"] != base
+        or type(value["hsa_uuid"]) is not str
+        or not re.fullmatch(r"GPU-[0-9a-fA-F]{16}", value["hsa_uuid"])
+        or value["hsa_uuid"].lower() != str(contract["agent_uuid"]).lower()
+        or int(value["hsa_uuid"][4:], 16) == 0
+        or not 0 < value["free_device_bytes"] <= value["total_device_bytes"]
+        or entering
+        and value["free_device_bytes"] < contract["minimum_free_bytes"]
+    ):
+        raise ValueError(
+            "native device/runtime/agent/features or available-memory admission disagree"
+        )
+    identity = runtime_identity(value["runtime_device_identity"])
+    bdf, domain = value["hsa_bdfid"], value["hsa_domain"]
+    hsa_pci = f"{domain:04x}:{bdf >> 8:02x}:{(bdf >> 3) & 31:02x}.{bdf & 7}"
+    if identity.runtime_ordinal != 0 or identity.pci_bdf != hsa_pci:
+        raise ValueError("native HSA agent PCI does not identify workload HIP ordinal zero")
+    files = {row["path"]: row for row in loaded["files"]}
+    runtimes = contract["runtimes"]
+    if type(runtimes) is not dict or set(runtimes) != {"hip", "hsa", "asan"}:
+        raise ValueError("exact selected HIP/HSA/ASan runtime identities required")
+    for name, reference in runtimes.items():
+        path = Path(reference["path"]).resolve(strict=True)
+        if str(path) not in files or files[str(path)]["sha256"] != reference["sha256"]:
+            raise ValueError("actual device application did not load selected runtime: " + name)
+        owner = (
+            value.get(name + "_symbol_owner")
+            if name != "asan"
+            else loaded["symbol_owners"]["sanitizer"]
+        )
+        if type(owner) is not str or Path(owner).resolve(strict=True) != path:
+            raise ValueError(
+                "actual device runtime symbol owner differs from selected runtime: " + name
+            )
+    return dict(
+        target=base,
+        architecture=architecture,
+        agent_uuid=value["hsa_uuid"],
+        pci_bdf=hsa_pci,
+        runtime_identity=identity.to_json(),
+        runtime_version=value["runtime_version"],
+        driver_version=value["driver_version"],
+        total_device_bytes=value["total_device_bytes"],
+    )
+
+
 HMM_KEYS = (
     "CONFIG_HMM_MIRROR",
     "CONFIG_DEVICE_PRIVATE",

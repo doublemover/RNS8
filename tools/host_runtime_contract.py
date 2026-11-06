@@ -165,6 +165,7 @@ def application_witnesses(
     windows_asan: Path | None = None,
     openmp: Path | None = None,
     archer: Path | None = None,
+    device_contract: dict | None = None,
 ) -> dict:
     """Join native bookends to the exact CTest case; never substitute launcher PID."""
     if (
@@ -175,9 +176,12 @@ def application_witnesses(
             "address-undefined",
             "thread",
             "windows-address",
+            "device-address",
         }
     ):
         raise ValueError("explicit native witness token and sanitizer lane required")
+    if (lane == "device-address") != (device_contract is not None):
+        raise ValueError("device runtime custody requires its separate device-address lane")
     parent = capture.get("process_id")
     if type(parent) is not int or parent <= 0 or not capture_succeeded(capture):
         raise ValueError("successful witnessed CTest parent process required")
@@ -219,6 +223,7 @@ def application_witnesses(
             raise ValueError("exact native enter/leave runtime witness bookends required")
         bookends = [parse_evidence_json(line) for line in raw]
         bindings = []
+        device_bindings = []
         for phase, value in zip(("enter", "leave"), bookends):
             fields = {
                 "schema",
@@ -234,6 +239,8 @@ def application_witnesses(
                 "thread_feature",
                 "loaded_modules",
             }
+            if device_contract is not None:
+                fields.add("device_runtime")
             if (
                 type(value) is not dict
                 or set(value) != fields
@@ -272,6 +279,14 @@ def application_witnesses(
                 application_snapshot=True,
                 file_references=files,
             )
+            if device_contract is not None:
+                from device_asan_contract import runtime_binding
+
+                device_bindings.append(
+                    runtime_binding(
+                        value["device_runtime"], device_contract, binding, entering=phase == "enter"
+                    )
+                )
             bindings.append({key: value for key, value in binding.items() if key != "files"})
             bindings[-1]["modules"] = [row["path"] for row in binding["files"]]
         first, last = bookends
@@ -298,6 +313,10 @@ def application_witnesses(
             elapsed_ns=last["elapsed_ns"],
             witness_sha256=canonical_digest(bookends),
         )
+        if device_contract is not None:
+            if device_bindings[0] != device_bindings[1]:
+                raise ValueError("actual device identity or runtime changed across ordinary test")
+            row["device_runtime_binding"] = device_bindings[0]
         if passing:
             rows.append(row)
         else:
@@ -310,6 +329,10 @@ def application_witnesses(
             )
     if reached != expected or not rows:
         raise ValueError("native witness executable inventory missing or empty")
+    if device_contract is not None and any(
+        row["device_runtime_binding"] != rows[0]["device_runtime_binding"] for row in rows
+    ):
+        raise ValueError("different device/runtime identities across selected ordinary cases")
     return dict(
         schema="rns8_host_application_runtime_bindings_v1",
         scope=APPLICATION_SCOPE,

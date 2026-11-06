@@ -76,7 +76,51 @@ actual application/consumer loader resolution, ordinary bounded CPU-differential
 correctness and actual free device-memory admission remain separate gates.
 The report is non-promotable and supplies no production timing evidence.
 
-The command has no workload-launch or fault-injection option. Existing stopped
-device-failure campaigns remain stopped. A detector-sensitivity device fault
-would require its own bounded authorization and receipt; host controls cannot
-stand in for it. Deferred offline controls are in `tools/test_device_asan.py`.
+Preflight and compilation leave ordinary device tests unexecuted. The separate
+`--correctness` option selects a fixed ordinary subset only when combined with
+`--compile --observe`. Without `--observe`, it still prints an inert plan. CTest
+is discovered beside the supplied CMake or selected by `--ctest`; their complete
+versions must agree. There is no arbitrary test filter, campaign, repeat or
+device-fault option.
+
+The seven selected cases cover dispatch/plane tails, minimum legal host spans
+for all integer storage contracts, finite export padding canaries, ragged exact
+materialization, safe-K boundary CPU comparisons, small allocation/move/cleanup
+and hierarchical split-K differential checks. They execute serially through the
+existing bounded native CTest/JUnit inventory reader; every selected case is
+mandatory and a skip cannot pass. No detector fault, allocation exhaustion,
+driver reset or illegal device access is introduced.
+
+Each actual test process emits native entry/exit runtime witnesses. The task's
+child visibility selects the observed rocminfo UUID through `ROCR_VISIBLE_DEVICES`;
+conflicting inherited HIP/CUDA ordinal masks reject. Both HSA and HIP must observe
+one GPU. The selected HSA UUID, name and native domain/BDF fields must identify
+HIP ordinal zero's independently queried PCI address; opaque HIP UUID bytes are
+never reinterpreted as an HSA UUID. Architecture features must include the chosen
+`xnack+` target. Initial decoding accepts the documented 21-byte HSA UUID and
+ordinary 16-bit BDF/domain forms; unrecognized partition/domain encodings block
+rather than being masked into a different physical identity. The same device,
+target/runtime versions and total memory must persist across bookends and cases.
+
+The test executable directly links the explicitly selected instrumented HSA
+runtime, recorded as a dependency. Loader snapshots and actual HIP/HSA/ASan
+symbol owners must resolve to all three inspected files. The witness observes
+free memory before and after each case, requiring at least `--minimum-free-mib`
+(default256) on entry; that admission is not a measured allocation peak or a
+capacity experiment. Pool caching need not restore an identical free-byte count.
+Selected child visibility is restored even when a stage fails.
+
+`bounded_correctness_complete_sensitivity_not_run` records only the mandatory
+ordinary subset and its process/runtime custody. Device detector sensitivity,
+per-access coverage, external kernels, installed consumers, additional platforms
+and continuous CI retain their own gates. Source controls are authored, not run.
+The selected local Windows include root lacks `hsa/hsa.h`; the native HSA
+witness needs compilation against the selected native Linux SDK.
+
+AMD documents the native
+[HSA agent UUID/domain queries](https://github.com/ROCm/rocm-systems/blob/develop/projects/rocr-runtime/runtime/hsa-runtime/inc/hsa_ext_amd.h)
+and [process-local GPU visibility](https://rocm.docs.amd.com/en/latest/reference/system-optimization/gpu-isolation.html).
+Existing stopped device-failure campaigns remain stopped. A detector-sensitivity
+device fault would require its own bounded authorization and receipt; host
+controls cannot stand in for it. Deferred offline controls are in
+`tools/test_device_asan.py`.

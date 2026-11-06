@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
+from types import SimpleNamespace
 
 import device_asan_preflight as session
 from device_asan_contract import (
@@ -19,8 +21,218 @@ from device_asan_contract import (
     host_prerequisites,
     hip_component_version,
     support,
+    runtime_binding,
+    CORRECTNESS_CASES,
 )
 from isa_common import bundle_target_for, extract_code_object
+from test_capture_identity_support import synthetic_runtime_device_identity
+from test_host_instrumentation import application_documents, application_report, capture
+from test_execution_inventory import inventory
+from host_runtime_contract import application_witnesses
+
+
+def device_runtime_fixture(root):
+    """Synthetic native protocol records only; not an executed HIP/HSA observation."""
+    runtimes = {}
+    for name in ("hip", "hsa", "asan"):
+        path = root / (name + ".so")
+        path.write_bytes(b"synthetic selected runtime " + name.encode())
+        runtimes[name] = session.reference(path)
+    value = dict(
+        schema="rns8_device_asan_runtime_snapshot_v1",
+        visible_hip_devices=1,
+        current_hip_ordinal=0,
+        runtime_version=71626385,
+        driver_version=71626385,
+        architecture="gfx942:sramecc+:xnack+",
+        runtime_device_identity=synthetic_runtime_device_identity(),
+        hsa_gpu_count=1,
+        hsa_uuid="GPU-123456789abcdef0",
+        hsa_name="gfx942",
+        hsa_bdfid=4 << 8,
+        hsa_domain=0,
+        free_device_bytes=512 * 1024**2,
+        total_device_bytes=1024 * 1024**2,
+        hip_symbol_owner=runtimes["hip"]["path"],
+        hsa_symbol_owner=runtimes["hsa"]["path"],
+        scope="single_visible_hsa_uuid_and_pci_join_to_observed_hip_ordinal_zero",
+    )
+    contract = dict(
+        target="gfx942:xnack+",
+        agent_uuid=value["hsa_uuid"],
+        runtimes=runtimes,
+        minimum_free_bytes=256 * 1024**2,
+    )
+    loaded = dict(
+        files=list(runtimes.values()), symbol_owners=dict(sanitizer=runtimes["asan"]["path"])
+    )
+    return value, contract, loaded
+
+
+class OrdinaryRuntimeCustody(unittest.TestCase):
+    def test_observed_agent_pci_target_and_actual_selected_runtime_owners_must_join(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            value, contract, loaded = device_runtime_fixture(root)
+            bound = runtime_binding(value, contract, loaded, entering=True)
+            self.assertEqual(bound["pci_bdf"], "0000:04:00.0")
+            self.assertEqual(bound["agent_uuid"], contract["agent_uuid"])
+            for key, bad in (
+                ("visible_hip_devices", 2),
+                ("current_hip_ordinal", 1),
+                ("hsa_gpu_count", True),
+                ("runtime_version", 0),
+                ("driver_version", True),
+                ("hsa_bdfid", 2**28),
+                ("hsa_domain", 65536),
+                ("hsa_uuid", "GPU-ffffffffffffffff"),
+                ("architecture", "gfx942:xnack-"),
+                ("architecture", "gfx942:xnack+:xnack+"),
+                ("architecture", "gfx950:xnack+"),
+                ("architecture", "gfx942:sramecc+:sramecc-:xnack+"),
+                ("hsa_name", "gfx950"),
+                ("free_device_bytes", 1),
+                ("total_device_bytes", 1),
+                ("hip_symbol_owner", contract["runtimes"]["hsa"]["path"]),
+                ("scope", "agent_advertisement_only"),
+            ):
+                with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
+                    runtime_binding(dict(value, **{key: bad}), contract, loaded, entering=True)
+            for key, bad in (
+                ("pci_bdf", "0000:05:00.0"),
+                ("runtime_ordinal", 1),
+                ("valid_fields", 2),
+            ):
+                changed = copy.deepcopy(value)
+                changed["runtime_device_identity"][key] = bad
+                with self.assertRaises(ValueError):
+                    runtime_binding(changed, contract, loaded, entering=True)
+            # A runtime's retained pool can change free bytes; do not invent an
+            # exact free-memory restoration invariant after ordinary cleanup.
+            self.assertEqual(
+                runtime_binding(dict(value, free_device_bytes=1), contract, loaded, entering=False),
+                bound,
+            )
+            for name in contract["runtimes"]:
+                changed = copy.deepcopy(loaded)
+                changed["files"] = [
+                    row
+                    for row in changed["files"]
+                    if row["path"] != contract["runtimes"][name]["path"]
+                ]
+                with self.assertRaises(ValueError):
+                    runtime_binding(value, contract, changed, entering=True)
+
+    def test_device_bookends_are_separate_from_host_cleanliness_and_bind_each_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            value, contract, _ = device_runtime_fixture(root)
+            executable = root / "application"
+            executable.write_bytes(b"synthetic instrumented application")
+            selected = inventory("mandatory")
+            selected["tests"][0]["command"][0] = str(executable)
+            documents = application_documents(executable)
+            for document in documents:
+                document["device_runtime"] = copy.deepcopy(value)
+                document["loaded_modules"]["modules"].extend(
+                    row["path"] for row in contract["runtimes"].values()
+                )
+                document["loaded_modules"]["symbol_owners"]["sanitizer"] = contract["runtimes"][
+                    "asan"
+                ]["path"]
+            kwargs = dict(
+                token="a" * 64,
+                executables=[executable],
+                lane="device-address",
+                runtimes=list(contract["runtimes"].values()),
+                device_contract=contract,
+            )
+            result = application_witnesses(
+                application_report(documents), selected, capture(), **kwargs
+            )
+            self.assertIn("device_runtime_binding", result["cases"][0])
+            for changed in (
+                {**kwargs, "device_contract": None},
+                {**kwargs, "lane": "address-undefined"},
+            ):
+                with self.assertRaises(ValueError):
+                    application_witnesses(
+                        application_report(documents), selected, capture(), **changed
+                    )
+            bad = copy.deepcopy(documents)
+            bad[-1]["device_runtime"]["runtime_version"] += 1
+            with self.assertRaises(ValueError):
+                application_witnesses(application_report(bad), selected, capture(), **kwargs)
+            bad = copy.deepcopy(documents)
+            bad[-1].pop("device_runtime")
+            with self.assertRaises(ValueError):
+                application_witnesses(application_report(bad), selected, capture(), **kwargs)
+            bad = copy.deepcopy(documents)
+            for document in bad:
+                document.pop("device_runtime")
+            host = dict(kwargs, lane="address-undefined")
+            host.pop("device_contract")
+            self.assertNotIn(
+                "device_runtime_binding",
+                application_witnesses(application_report(bad), selected, capture(), **host)[
+                    "cases"
+                ][0],
+            )
+
+    def test_owned_ordinary_stage_selects_only_fixed_safe_cases_and_restores_visibility(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            _, contract, loaded = device_runtime_fixture(root)
+            ctest = root / "ctest"
+            ctest.write_bytes(b"inert tool fixture")
+            args = SimpleNamespace(ctest=ctest, target=contract["target"], minimum_free_mib=256)
+            for fail in (False, True):
+                report = dict(
+                    cmake_version="cmake version 4.4.5",
+                    agent=dict(uuid=contract["agent_uuid"]),
+                    runtimes=contract["runtimes"],
+                    compiled_objects=dict(
+                        artifacts=dict(rns8_tests=dict(path=str(root / "native")))
+                    ),
+                    qualification={},
+                )
+                owned = session.Session(root, {"ROCR_VISIBLE_DEVICES": "prior-value"}, 60, 1024**2)
+                before = dict(owned.environment)
+
+                def execute(*positional, owned=owned, fail=fail, **kwargs):
+                    self.assertEqual(kwargs["required"], CORRECTNESS_CASES)
+                    self.assertEqual(kwargs["selection_names"], list(CORRECTNESS_CASES))
+                    self.assertEqual(kwargs["runtime_witness"]["lane"], "device-address")
+                    self.assertEqual(
+                        owned.environment["ROCR_VISIBLE_DEVICES"], contract["agent_uuid"]
+                    )
+                    if fail:
+                        raise ValueError("first ordinary failure")
+                    return {}, dict(
+                        status="passed", application_runtime_module_files=loaded["files"]
+                    )
+
+                with (
+                    mock.patch.dict(session.os.environ, {}, clear=True),
+                    mock.patch.object(
+                        owned, "run", return_value=dict(stdout="ctest version 4.4.5")
+                    ),
+                    mock.patch.object(owned, "tests", side_effect=execute) as run,
+                ):
+                    if fail:
+                        with self.assertRaisesRegex(ValueError, "first ordinary failure"):
+                            session.ordinary_correctness(owned, args, report, root)
+                        self.assertEqual(report["device_tests"], "attempted_incomplete")
+                    else:
+                        session.ordinary_correctness(owned, args, report, root)
+                        self.assertEqual(report["device_tests"], "passed_bounded_subset")
+                        self.assertEqual(
+                            report["qualification"]["device_execution"],
+                            "bounded_ordinary_correctness_passed",
+                        )
+                    self.assertEqual(run.call_count, 1)
+                self.assertEqual(owned.environment, before)
+
 
 FLAGS = ["clang++", "-fsanitize=address", "-shared-libsan", "-g", "-fno-sanitize-recover=address"]
 
@@ -234,6 +446,27 @@ class ArtifactCustody(unittest.TestCase):
             self.assertIn("-DRNS8_ENABLE_CK=OFF", plan["configure"])
             self.assertIn("-DRNS8_ENABLE_HOST_COVERAGE=OFF", plan["configure"])
             self.assertEqual(plan["build_command"][-1], "--verbose")
+            with (
+                mock.patch.object(session, "ROOT", root),
+                mock.patch.object(session.Session, "run") as run,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                self.assertEqual(session.main([*args, "--correctness", "--ctest", str(cmake)]), 0)
+                run.assert_not_called()
+            planned = json.loads(stdout.getvalue())
+            self.assertEqual(planned["correctness"]["cases"], list(CORRECTNESS_CASES))
+            self.assertEqual(len(set(planned["correctness"]["cases"])), 7)
+            self.assertTrue(planned["correctness"]["launch_requested_only_with_observe"])
+            self.assertEqual(planned["device_tests"], "not_run")
+            self.assertFalse(output.exists())
+            no_compile = [arg for arg in args if arg != "--compile"]
+            with (
+                mock.patch.object(session, "ROOT", root),
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
+                self.assertEqual(
+                    session.main([*no_compile, "--correctness", "--ctest", str(cmake)]), 2
+                )
 
 
 if __name__ == "__main__":
