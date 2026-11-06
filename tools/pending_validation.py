@@ -7,7 +7,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -483,12 +483,12 @@ def decision_for_capture(
     review_index: dict | None = None,
     receipt_reader: ReviewReceiptReader | None = None,
 ) -> dict[str, Any]:
+    reader = receipt_reader if receipt_reader is not None else ReviewReceiptReader()
     try:
-        capture = load_capture(path)
-        validate_capture(capture, path)
+        capture = reader.capture(path)
         schema_status = "pass"
         schema_error = None
-    except BenchmarkSchemaError as exc:
+    except (OSError, ValueError) as exc:
         capture = {}
         schema_status = "fail"
         schema_error = str(exc)
@@ -496,11 +496,21 @@ def decision_for_capture(
         review_entry = review_index.get(_path_key(config.repo_root, path)) or review_index.get(
             "capture_sha256:" + capture_identity(capture)
         )
-    receipt = (
-        (receipt_reader or ReviewReceiptReader()).validate(capture, review_entry)
-        if capture and review_entry is not None
-        else None
-    )
+    receipt = None
+    if capture and review_entry is not None:
+        receipt = reader.validate(capture, review_entry)
+        if receipt_reader is None:
+            try:
+                reader.finish()
+            except (OSError, ValueError):
+                receipt = replace(
+                    receipt,
+                    bound=False,
+                    qualified=False,
+                    blockers=tuple(
+                        sorted(set(receipt.blockers + ("review_input_changed_during_decision",)))
+                    ),
+                )
     blockers: list[str] = []
     if schema_status != "pass":
         blockers.append("schema_failed")

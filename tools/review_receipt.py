@@ -122,6 +122,10 @@ class ReviewReceiptVerdict:
         return value
 
 
+class DiagnosticCompanionInputError(ValueError):
+    """A companion document is missing, changed or outside its declared binding."""
+
+
 class ReviewReceiptReader:
     """One bounded read snapshot per summary; never treat filenames as authority."""
 
@@ -151,7 +155,9 @@ class ReviewReceiptReader:
         path = path.resolve(strict=True)
         key = str(path)
         if key not in self._captures:
-            capture = self._document(path)
+            capture = {
+                key: value for key, value in self._document(path).items() if not key.startswith("_")
+            }
             validate_capture(capture, path)
             self._captures[key] = {**capture, "_path": key}
         return self._captures[key]
@@ -168,8 +174,9 @@ class ReviewReceiptReader:
             raise ValueError("document content changed: " + str(path))
         return path, data
 
-    def capture(self, reference: dict, parent: Path = Path(".")) -> dict:
-        path, _ = self.document(reference, parent)
+    def capture(self, reference: dict | Path, parent: Path = Path(".")) -> dict:
+        """Snapshot a current capture; a reference also requires its declared file hash."""
+        path = reference if isinstance(reference, Path) else self.document(reference, parent)[0]
         return self._capture(path)
 
     def isa_index(self, references: list[dict]) -> dict:
@@ -212,7 +219,25 @@ class ReviewReceiptReader:
                 raise ValueError("review input content changed")
             captures.append(other)
             if record["diagnostic_companion"] is not None:
-                bindings[str(path.resolve())] = record["diagnostic_companion"]
+                binding = record["diagnostic_companion"]
+                try:
+                    if not isinstance(binding, dict):
+                        raise ValueError("companion binding object required")
+                    # Retain both actual documents in this publication owner.
+                    # Production admission also replays the binding; without
+                    # this snapshot, finish() could miss a later diagnostic edit.
+                    for role in ("production", "diagnostic"):
+                        source = Path(binding[role + "_capture"])
+                        if not source.is_absolute():
+                            raise ValueError("absolute companion source required")
+                        observed = self._capture(source)
+                        if capture_identity(observed) != binding[role + "_capture_sha256"]:
+                            raise ValueError("companion source content changed")
+                except (KeyError, OSError, TypeError, ValueError) as error:
+                    raise DiagnosticCompanionInputError(
+                        "companion document unavailable or changed"
+                    ) from error
+                bindings[str(path.resolve())] = binding
         return captures, bindings
 
     def input_cohorts(self, receipt: dict) -> ReportCohorts:
@@ -292,6 +317,10 @@ class ReviewReceiptReader:
             return ReviewReceiptVerdict(False, False, tuple(sorted(set(blockers))))
         try:
             cohorts = self.input_cohorts(receipt)
+        except DiagnosticCompanionInputError:
+            return ReviewReceiptVerdict(
+                False, False, ("review_diagnostic_binding_unavailable_or_changed",)
+            )
         except (KeyError, OSError, TypeError, ValueError):
             return ReviewReceiptVerdict(False, False, ("review_input_content_missing_or_changed",))
         candidates = [

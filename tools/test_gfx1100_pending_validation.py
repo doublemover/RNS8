@@ -8,6 +8,7 @@ import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import gfx1100_pending_validation
 import pending_validation
@@ -126,7 +127,17 @@ def receipt_round_trip_controls():
         review_path = root / "review_report.json"
         review_path.write_text(json.dumps(report), encoding="utf-8")
         index = pending_validation.load_review_index([review_path])
-        candidate = captures[-1]
+        reviewed = next(
+            item
+            for group in report["groups"]
+            for item in group["candidates"]
+            if item["backend"] == "ck"
+        )
+        candidate = next(
+            capture
+            for capture in captures
+            if pending_validation.capture_identity(capture) == reviewed["capture_sha256"]
+        )
         path = Path(candidate["_path"])
 
         def decision(current_path=path, current_index=index):
@@ -134,14 +145,40 @@ def receipt_round_trip_controls():
                 gfx1100_pending_validation.CONFIG, current_path, review_index=current_index
             )
 
-        # This is the actual generic producer, including its existing duplicate-
-        # backend disposition. A valid receipt does not override that decision.
+        # Replay the actual producer's backend/semantic disposition separately
+        # from measurement qualification. Independent reruns are not duplicates.
         row = decision()
         assert row["review_receipt"]["bound"], row["blockers"]
         assert row["review_receipt"]["qualified"], row["blockers"]
         assert row["review_receipt"]["measurement_cohort"]["independent_runs"] == 2
-        assert row["disposition"] == "keep experimental"
+        assert row["disposition"] == (
+            "promote locally" if reviewed["promotable"] else "keep experimental"
+        )
         original = path.read_text(encoding="utf-8")
+
+        # Change a bound companion after admission, before the standalone
+        # decision's publication snapshot closes. No pathname/mtime credit.
+        companion = Path(bindings[str(path.resolve())]["diagnostic_capture"])
+        companion_bytes = companion.read_text(encoding="utf-8")
+        finish = pending_validation.ReviewReceiptReader.finish
+
+        def change_companion_before_finish(reader):
+            changed = json.loads(companion_bytes)
+            changed["checksum_u64"] += 1
+            companion.write_text(json.dumps(changed), encoding="utf-8")
+            finish(reader)
+
+        try:
+            with patch.object(
+                pending_validation.ReviewReceiptReader, "finish", change_companion_before_finish
+            ):
+                changed_decision = decision()
+            assert not changed_decision["review_receipt"]["bound"]
+            assert not changed_decision["review_receipt"]["qualified"]
+            assert "review_input_changed_during_decision" in changed_decision["blockers"]
+            assert changed_decision["disposition"] == "keep experimental"
+        finally:
+            companion.write_text(companion_bytes, encoding="utf-8")
         for mutation in ("checksum", "timing", "seed", "build", "device"):
             changed = json.loads(original)
             if mutation == "checksum":
@@ -169,6 +206,22 @@ def receipt_round_trip_controls():
         assert row["review_receipt"]["bound"]
         assert row["review_receipt"]["qualified"]
         assert row["review_receipt"]["measurement_cohort"]["independent_runs"] == 2
+
+        def change_alias_before_finish(reader):
+            changed = json.loads(original)
+            changed["checksum_u64"] += 1
+            renamed.write_text(json.dumps(changed), encoding="utf-8")
+            finish(reader)
+
+        try:
+            with patch.object(
+                pending_validation.ReviewReceiptReader, "finish", change_alias_before_finish
+            ):
+                changed_decision = decision(renamed)
+            assert not changed_decision["review_receipt"]["bound"]
+            assert "review_input_changed_during_decision" in changed_decision["blockers"]
+        finally:
+            renamed.write_text(original, encoding="utf-8")
 
         conflicting = copy.deepcopy(report)
         for group in conflicting["groups"]:

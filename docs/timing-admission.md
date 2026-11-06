@@ -19,6 +19,14 @@ This is an additional timing gate; it does not replace environment, correctness,
 instruction, variance or review requirements. Historical unbound reviews need
 new bound comparisons, not an automatic migration to qualified evidence.
 
+The bounded review snapshot retains every raw production capture and both files
+in each diagnostic binding, including a relocated candidate pathname read by a
+summary. Final hash checks therefore include companions and aliases. A standalone
+pending-validation decision closes its own snapshot before returning; a batch
+shares one owner and closes it before publishing the complete summary. Changes
+during a standalone decision clear its bound/qualified flags and produce a
+concrete blocker rather than a local promotion disposition.
+
 Before/after source changes use an explicit experiment rather than weakening
 ordinary source/build matching. `tools/collect_paired_experiment.py` writes a
 plan by default; it starts processes only with `--execute`. Its definition is a
