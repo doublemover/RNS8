@@ -426,6 +426,45 @@ TEST_CASE("private converted upload sources survive the original call scope",
   CHECK(retained.expired());
 }
 
+TEST_CASE("immutable upload packets retain their actual const allocation after failed completion",
+          "[api][lifetime][upload]") {
+  using Payload = rns8::detail::HostUploadPayload;
+  using Ops = MockDeviceBufferOperations;
+  static_assert(std::is_same_v<decltype(std::declval<Payload&>().data()), const void*>);
+  for (bool unwinding : {false, true}) {
+    Ops::deferred_count = 0;
+    std::weak_ptr<const std::array<uint64_t, 4>> retained;
+    try {
+      Payload transfer(Ops::defer);
+      auto packet = std::make_shared<const std::array<uint64_t, 4>>(
+          std::array<uint64_t, 4>{7, UINT64_MAX, 19, 23});
+      retained = packet;
+      REQUIRE(transfer.begin(3, {packet, packet->data() + 1}, 2 * sizeof(uint64_t)) ==
+              RNS8_SUCCESS);
+      CHECK(transfer.data() == packet->data() + 1);
+      packet.reset();
+      if (unwinding)
+        throw std::bad_alloc();
+    } catch (const std::bad_alloc&) {
+    }
+    REQUIRE(Ops::deferred_count == 1);
+    auto* record = Ops::deferred[0];
+    REQUIRE(record->kind == rns8::detail::hip_deferred_allocation_kind::host_payload);
+    {
+      const auto packet = retained.lock();
+      REQUIRE(packet);
+      CHECK(record->pointer == packet->data() + 1);
+      const auto* late_source = static_cast<const uint64_t*>(record->pointer);
+      CHECK(late_source[0] == UINT64_MAX);
+      CHECK(late_source[1] == 19);
+    }
+    delete record;
+    Ops::deferred[0] = nullptr;
+    Ops::deferred_count = 0;
+    CHECK(retained.expired());
+  }
+}
+
 TEST_CASE("pageable readback cache reuses complete storage and isolates failed destinations",
           "[api][lifetime][export]") {
   using Ops = MockDeviceBufferOperations;

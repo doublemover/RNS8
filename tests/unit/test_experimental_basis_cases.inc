@@ -39,9 +39,11 @@ TEST_CASE("experimental basis typed inventory shares concrete owner resources an
     REQUIRE(rns8_query_basis_plan(basis, &d, &resources) == RNS8_SUCCESS);
     CHECK(resources.required_device_bytes == support.required_device_bytes);
     CHECK(resources.required_host_bytes == support.required_host_bytes);
+    d.max_host_bytes = resources.required_host_bytes;
     rns8_basis_plan* plan = nullptr;
     REQUIRE(rns8_create_basis_plan(ctx, basis, &d, &plan) == RNS8_SUCCESS);
     REQUIRE(rns8_destroy_basis_plan(plan) == RNS8_SUCCESS);
+    d.max_host_bytes = UINT64_MAX;
     if (operation == RNS8_OP_GEMM)
       first_identity = support.provider_identity_sha256;
   }

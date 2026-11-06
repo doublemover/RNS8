@@ -99,6 +99,15 @@ Finite-verifier challenges, grouped narrow task directories and private Gram
 job tables pass their existing shared allocations to that owned boundary. Their
 device owners still retain pending-work custody through subsequent computation.
 
+Owned uploads accept immutable shared packets without casting away source
+constness. Ordered-basis target/source packets retain their actual immutable
+basis allocation, and plan native-word scratch has shared upload/readback
+custody. These transfers add no second numerical payload beyond the plan's
+existing scratch capacities. The plan's host budget describes those
+numerical capacities; owner/control blocks and opaque provider setup are
+separate. A failed copy retains the actual packet or scratch allocation until
+the existing completion queue observes a successful drain.
+
 Upload and readback use separate per-thread pageable caches, each retaining at
 most 1 MiB after successful completion. Larger snapshots are released after the
 copy. If completion fails or unwinds, the cache drops its reference and the

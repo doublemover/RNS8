@@ -155,11 +155,11 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 namespace {
-template <typename Transfer>
-rns8_status copy_selected_owned_host_payload(int device_id, std::shared_ptr<void> payload,
+template <typename Host, typename Transfer>
+rns8_status copy_selected_owned_host_payload(int device_id, std::shared_ptr<Host> payload,
                                              std::size_t bytes, const char* label,
                                              Transfer&& transfer) {
-  HostTransferPayload retained(hip_direct_defer_buffer_cleanup);
+  BasicHostTransferPayload<Host> retained(hip_direct_defer_buffer_cleanup);
   const auto admitted = retained.begin(device_id, std::move(payload), bytes);
   if (admitted != RNS8_SUCCESS)
     return admitted;
@@ -170,8 +170,8 @@ rns8_status copy_selected_owned_host_payload(int device_id, std::shared_ptr<void
   return RNS8_SUCCESS;
 }
 
-template <typename Transfer>
-rns8_status copy_owned_host_payload(int device_id, std::shared_ptr<void> payload, std::size_t bytes,
+template <typename Host, typename Transfer>
+rns8_status copy_owned_host_payload(int device_id, std::shared_ptr<Host> payload, std::size_t bytes,
                                     const char* label, Transfer&& transfer) {
   const auto selected = set_hip_device(device_id);
   if (selected != RNS8_SUCCESS)
@@ -228,13 +228,13 @@ rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<
 }
 
 rns8_status hip_direct_copy_owned_host_to_device(int device_id, void* destination,
-                                                 std::shared_ptr<void> source, std::size_t bytes,
-                                                 const char* timing_label) {
+                                                 std::shared_ptr<const void> source,
+                                                 std::size_t bytes, const char* timing_label) {
   if (!destination || !source || !bytes || !timing_label || !*timing_label)
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   return copy_owned_host_payload(
-      device_id, std::move(source), bytes, timing_label, [&](void* host) {
+      device_id, std::move(source), bytes, timing_label, [&](const void* host) {
         return tracked_sync_copy(destination, host, bytes, hipMemcpyHostToDevice);
       });
 #else

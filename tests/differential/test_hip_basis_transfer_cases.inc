@@ -167,6 +167,12 @@ TEST_CASE(
           CHECK(rns8_create_basis_plan(ctx, basis, &d, &plan) == RNS8_UNSUPPORTED_BACKEND);
           continue;
         }
+        rns8_basis_resources resources{};
+        resources.struct_size = sizeof(resources);
+        resources.abi_version = RNS8_ABI_VERSION;
+        REQUIRE(rns8_query_basis_plan(basis, &d, &resources) == RNS8_SUCCESS);
+        // Immutable packets and native scratch need no extra upload snapshot.
+        d.max_host_bytes = resources.required_host_bytes;
         REQUIRE(rns8_create_basis_plan(ctx, basis, &d, &plan) == RNS8_SUCCESS);
         auto* a = experimental_basis_fixture::matrix(ctx, basis, d.semantics, 2, 5);
         auto* b = experimental_basis_fixture::matrix(ctx, basis, d.semantics, 5, 3);

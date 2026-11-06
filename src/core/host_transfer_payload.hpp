@@ -7,6 +7,7 @@
 #include <cstring>
 #include <memory>
 #include <new>
+#include <type_traits>
 #include <utility>
 
 namespace rns8::detail {
@@ -74,17 +75,19 @@ private:
 
 // A DMA payload already has shared storage. Reserve its retry node before
 // submission; uncertain return/exception transfers that owner without copying.
-class HostTransferPayload {
+template <class Host = void> class BasicHostTransferPayload {
+  static_assert(std::is_void_v<Host>);
+
 public:
   using Defer = void (*)(hip_deferred_buffer_cleanup*) noexcept;
-  explicit HostTransferPayload(Defer defer) noexcept : defer_(defer) {}
-  HostTransferPayload(const HostTransferPayload&) = delete;
-  HostTransferPayload& operator=(const HostTransferPayload&) = delete;
-  ~HostTransferPayload() {
+  explicit BasicHostTransferPayload(Defer defer) noexcept : defer_(defer) {}
+  BasicHostTransferPayload(const BasicHostTransferPayload&) = delete;
+  BasicHostTransferPayload& operator=(const BasicHostTransferPayload&) = delete;
+  ~BasicHostTransferPayload() {
     if (record_)
       defer_(record_.release());
   }
-  rns8_status begin(int device_id, std::shared_ptr<void> destination, size_t bytes) noexcept {
+  rns8_status begin(int device_id, std::shared_ptr<Host> destination, size_t bytes) noexcept {
     if (record_)
       return RNS8_BUSY;
     if (!defer_ || device_id < 0 || !destination || !bytes)
@@ -95,12 +98,13 @@ public:
       return RNS8_INTERNAL_ERROR;
     next->kind = hip_deferred_allocation_kind::host_payload;
     next->device_id = device_id;
-    next->pointer = destination.get();
+    // The retry record erases pointer type; data() preserves source constness.
+    next->pointer = const_cast<void*>(static_cast<const void*>(destination.get()));
     next->host_payload = std::move(destination);
     record_ = std::move(next);
     return RNS8_SUCCESS;
   }
-  void* data() const noexcept { return record_ ? record_->pointer : nullptr; }
+  Host* data() const noexcept { return record_ ? record_->pointer : nullptr; }
   // Only a successful synchronous copy establishes completion here.
   void complete() noexcept { record_.reset(); }
 
@@ -108,4 +112,6 @@ private:
   Defer defer_;
   std::unique_ptr<hip_deferred_buffer_cleanup> record_;
 };
+using HostTransferPayload = BasicHostTransferPayload<void>;
+using HostUploadPayload = BasicHostTransferPayload<const void>;
 } // namespace rns8::detail

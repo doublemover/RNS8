@@ -27,7 +27,7 @@ struct rns8_basis_plan {
   std::mutex mutex;
   rns8_workspace lease_work;
   hip_direct_device_buffer device;
-  std::vector<uint64_t> host_words;
+  std::shared_ptr<std::vector<uint64_t>> host_words = std::make_shared<std::vector<uint64_t>>();
   std::vector<int8_t> host_residues;
   uint64_t max_cells = 0, packet_target = 0, packet_source = 0, native_upload = 0, scratch = 0;
   uint64_t provider_scratch = 0, provider_aux = 0, provider_bytes = 0, provider_aux_bytes = 0;
@@ -430,12 +430,12 @@ rns8_status rns8_create_basis_plan(rns8_context* ctx, const rns8_basis* basis,
     plan->provider_aux = storage.provider_aux;
     plan->provider_bytes = storage.provider_bytes;
     plan->provider_aux_bytes = storage.provider_aux_bytes;
-    plan->host_words.resize(size_t(storage.cells * 3));
+    plan->host_words->resize(size_t(storage.cells * 3));
     if (desc->backend == RNS8_BACKEND_CPU_REFERENCE)
       plan->host_residues.resize(size_t(storage.cells * plan->basis->packet.count));
-    if (plan->host_words.capacity() > desc->max_host_bytes / 8 ||
+    if (plan->host_words->capacity() > desc->max_host_bytes / 8 ||
         plan->host_residues.capacity() >
-            desc->max_host_bytes - uint64_t(plan->host_words.capacity()) * 8)
+            desc->max_host_bytes - uint64_t(plan->host_words->capacity()) * 8)
       return RNS8_WORKSPACE_TOO_SMALL;
     if (storage.device) {
       if (!direct_hip_compiled())
@@ -602,17 +602,17 @@ rns8_status basis_provider_gemm(rns8_basis_plan& plan, const rns8_matrix& a, con
 rns8_status upload_basis_packet(rns8_basis_plan& plan,
                                 const std::shared_ptr<const ExperimentalBasis>& source = {}) {
   if (!plan.target_uploaded) {
-    const auto status =
-        hip_direct_copy_host_to_device(plan.ctx->device_id, basis_device(plan, plan.packet_target),
-                                       &plan.basis->packet, sizeof(BasisPacket));
+    const auto status = hip_direct_copy_owned_host_to_device(
+        plan.ctx->device_id, basis_device(plan, plan.packet_target),
+        {plan.basis, &plan.basis->packet}, sizeof(BasisPacket));
     if (status != RNS8_SUCCESS)
       return status;
     plan.target_uploaded = true;
   }
   if (source && (!plan.source_basis || !equal_basis(*source, *plan.source_basis))) {
-    const auto status =
-        hip_direct_copy_host_to_device(plan.ctx->device_id, basis_device(plan, plan.packet_source),
-                                       &source->packet, sizeof(BasisPacket));
+    const auto status = hip_direct_copy_owned_host_to_device(
+        plan.ctx->device_id, basis_device(plan, plan.packet_source), {source, &source->packet},
+        sizeof(BasisPacket));
     if (status != RNS8_SUCCESS) {
       plan.source_basis.reset();
       return status;
@@ -745,7 +745,7 @@ rns8_status pack_basis(rns8_basis_plan* plan, rns8_matrix* matrix, const T* sour
       for (int64_t col = 0; col < matrix->desc.cols; ++col) {
         const auto value = source[row * ld + col];
         const auto word = uint64_t(value);
-        plan->host_words[size_t(uint64_t(row) * matrix->desc.cols + col)] = word;
+        (*plan->host_words)[size_t(uint64_t(row) * matrix->desc.cols + col)] = word;
         const auto magnitude = sign && (word >> 63) ? uint64_t(0) - word : word;
         maximum = std::max(maximum, magnitude);
       }
@@ -758,9 +758,9 @@ rns8_status pack_basis(rns8_basis_plan* plan, rns8_matrix* matrix, const T* sour
             auto result = upload_basis_packet(*plan);
             if (result != RNS8_SUCCESS)
               return result;
-            result = hip_direct_copy_host_to_device(plan->ctx->device_id,
-                                                    basis_device(*plan, plan->native_upload),
-                                                    plan->host_words.data(), size_t(cells * 8));
+            result = hip_direct_copy_owned_host_to_device(
+                plan->ctx->device_id, basis_device(*plan, plan->native_upload),
+                {plan->host_words, plan->host_words->data()}, size_t(cells * 8));
             if (result != RNS8_SUCCESS)
               return result;
             result = hip_direct_basis_pack(
@@ -772,7 +772,7 @@ rns8_status pack_basis(rns8_basis_plan* plan, rns8_matrix* matrix, const T* sour
           } else
             for (uint32_t p = 0; p < matrix->prefix; ++p)
               for (uint64_t cell = 0; cell < cells; ++cell) {
-                const auto word = plan->host_words[size_t(cell)];
+                const auto word = (*plan->host_words)[size_t(cell)];
                 const bool negative = sign && word >> 63;
                 const auto modulus = uint32_t(plan->basis->packet.moduli[p]);
                 auto residue = uint32_t((negative ? uint64_t(0) - word : word) % modulus);
@@ -1019,8 +1019,8 @@ rns8_status rns8_export_basis_limbs(rns8_basis_plan* plan, const rns8_matrix* ma
                                     uint64_t(limbs) * 8, span))
       return RNS8_RANGE_ERROR;
     for (const auto storage :
-         {std::pair<const void*, uint64_t>{plan->host_words.data(),
-                                           uint64_t(plan->host_words.capacity()) * 8},
+         {std::pair<const void*, uint64_t>{plan->host_words->data(),
+                                           uint64_t(plan->host_words->capacity()) * 8},
           {plan->host_residues.data(), plan->host_residues.capacity()},
           {matrix->residues.data(), matrix->residues.size()},
           {matrix->hip_residues, matrix->hip_residue_bytes},
@@ -1048,9 +1048,9 @@ rns8_status rns8_export_basis_limbs(rns8_basis_plan* plan, const rns8_matrix* ma
                 limbs, bound, basis_device_flag(*plan), &plan->device_status);
             if (result != RNS8_SUCCESS)
               return result;
-            return hip_direct_copy_device_to_host(plan->ctx->device_id, plan->host_words.data(),
-                                                  basis_device(*plan, plan->scratch),
-                                                  size_t(cells * limbs * 8));
+            return hip_direct_copy_device_to_owned_host(
+                plan->ctx->device_id, {plan->host_words, plan->host_words->data()},
+                basis_device(*plan, plan->scratch), size_t(cells * limbs * 8));
           }
           cpp_int value;
           for (uint64_t cell = 0; cell < cells; ++cell) {
@@ -1060,7 +1060,7 @@ rns8_status rns8_export_basis_limbs(rns8_basis_plan* plan, const rns8_matrix* ma
             if (value < 0)
               value += cpp_int(1) << (64 * limbs);
             for (uint32_t limb = 0; limb < limbs; ++limb) {
-              plan->host_words[size_t(cell * limbs + limb)] =
+              (*plan->host_words)[size_t(cell * limbs + limb)] =
                   static_cast<uint64_t>(value & UINT64_MAX);
               value >>= 64;
             }
@@ -1072,7 +1072,7 @@ rns8_status rns8_export_basis_limbs(rns8_basis_plan* plan, const rns8_matrix* ma
     const auto row_bytes = size_t(uint64_t(matrix->desc.cols) * limbs * 8);
     for (int64_t row = 0; row < matrix->desc.rows; ++row)
       std::memcpy(destination + uint64_t(row) * ld * limbs,
-                  plan->host_words.data() + uint64_t(row) * matrix->desc.cols * limbs, row_bytes);
+                  plan->host_words->data() + uint64_t(row) * matrix->desc.cols * limbs, row_bytes);
     return RNS8_SUCCESS;
   });
 }
