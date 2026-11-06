@@ -29,6 +29,13 @@ class SelectedStaticResources:
         return self.store.json(reference, parent)
 
     def include_report(self, path: Path, report: dict) -> None:
+        if "reports" in report:
+            rows = report["reports"]
+            if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+                raise ValueError("counter report inventory must contain object rows")
+            for row in rows:
+                self.include_report(path, row)
+            return
         self.inventory.append(
             dict(
                 path=str(path),

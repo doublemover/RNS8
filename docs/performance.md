@@ -826,3 +826,14 @@ separate. Legacy records and external derived export-selector rows are inventory
 the report recomputes schema validity and shared qualification from raw captures.
 Comparisons between source builds still require a separately bound paired
 experiment, rather than ignoring source identity. No such campaign is restarted.
+
+
+Resident-redesign review likewise selects a qualified strongest default cohort,
+checks every process's declared research checklist, and revalidates original
+selected ISA sidecars from counter reports. Inline resource explanations and
+flat counter labels are inventory. The checklist describes declared research
+coverage; it is not proof of a measured layout or scheduling change. Complete
+comparisons use the observed noise margin (at least 1.03), while host component
+medians stay descriptive and cannot independently establish phase speedups.
+Legacy-invalid records cannot authorize routing; missing process companions,
+selected resource metadata or checklist entries prevent a route candidate.

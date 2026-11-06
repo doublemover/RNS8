@@ -85,6 +85,142 @@ def redesign_metadata(candidate: str = "layout_tile_export_prototype") -> dict:
     }
 
 
+def production_controls() -> None:
+    import json
+    from diagnostic_companion import build_binding
+    from target_qualification import file_digest
+    from test_direct_hip_report_support import collect_resident_processes
+    from test_capture_identity_support import synthetic_static_isa_report
+    from selected_kernel_resources import load_static_counter_report
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+
+        def annotate(fixture, mode, run):
+            if mode not in ("cpu", "default"):
+                fixture["resident_redesign"] = redesign_metadata(mode)
+
+        captures, paths, bindings = collect_resident_processes(
+            root,
+            "matched",
+            dict(
+                default=(report.DEFAULT_KERNEL, 100),
+                candidate=(report.GROUPED_ACTIVE_SCHEDULE_KERNEL, 80),
+                colpair=(report.REJECTED_COLPAIR_KERNEL, 130),
+            ),
+            annotate,
+        )
+        isa_paths, summaries = [], []
+        for i, fixture in enumerate((captures[4], captures[6])):
+            isa = synthetic_static_isa_report(
+                fixture, dict(vgpr_count=48, sgpr_count=64, lds_bytes=4096, occupancy=4)
+            )
+            path = root / f"selected-{i}.json"
+            path.write_text(json.dumps(isa))
+            isa_paths.append(path)
+            summaries.append(dict(path=str(path), sha256=file_digest(path)))
+        counter_path = root / "counter-inventory.json"
+        counter_path.write_text(
+            json.dumps(
+                dict(
+                    reports=[
+                        dict(
+                            capture=dict(path="unrelated-filename-is-not-a-binding.json"),
+                            resource_summary=dict(vgpr=999, occupancy=999),
+                            isa_summaries=summaries,
+                        )
+                    ]
+                )
+            )
+        )
+
+        def resources():
+            return load_static_counter_report(counter_path)
+
+        def build(values, receipts=bindings, resource_inputs=None):
+            return report.build_direct_hip_resident_redesign_report(
+                values, diagnostic_bindings=receipts, resources=resource_inputs or resources()
+            )
+
+        result = build(captures)
+        rows = {row["candidate"]: row for row in result["comparisons"]}
+        winner, loser = rows["candidate"], rows["colpair"]
+        assert winner["decision"] == "route_candidate", winner["blockers"]
+        assert winner["speedup_vs_resident_default"] == 1.25
+        assert winner["promotion_eligible"] is True
+        assert winner["resource_observations"][0]["status"]["resource_summary"]["vgpr"] == 48
+        assert loser["decision"] == "drop/deprioritize"
+        assert result["summary"]["rank51_gate_complete"] is True
+        for order in (list(reversed(captures)), captures[4:] + captures[:4]):
+            row = next(
+                row for row in build(order)["comparisons"] if row["candidate"] == "candidate"
+            )
+            assert row["speedup_vs_resident_default"] == 1.25
+        copied = build(captures[:5] + [copy.deepcopy(captures[4])])
+        assert copied["comparisons"][0]["speedup_vs_resident_default"] is None
+        incomplete = dict(bindings)
+        incomplete.pop(str(paths[5].resolve()))
+        row = next(
+            row
+            for row in build(captures, incomplete)["comparisons"]
+            if row["candidate"] == "candidate"
+        )
+        assert row["speedup_vs_resident_default"] is None
+        no_resources = report.build_direct_hip_resident_redesign_report(
+            captures, diagnostic_bindings=bindings
+        )
+        assert all(row["promotion_eligible"] is False for row in no_resources["comparisons"])
+        assert all(not row["resource_explanation_available"] for row in no_resources["comparisons"])
+
+        # Remove one process's declared dimension and rebuild its real receipt.
+        changed = copy.deepcopy(captures)
+        changed[5]["resident_redesign"]["dimensions"].remove("workspace_reuse")
+        source = paths[5]
+        raw = {key: value for key, value in changed[5].items() if not key.startswith("_")}
+        source.write_text(json.dumps(raw))
+        instrumented = source.parent / "instrumented.json"
+        diagnostic = json.loads(instrumented.read_text())
+        diagnostic["resident_redesign"]["dimensions"].remove("workspace_reuse")
+        instrumented.write_text(json.dumps(diagnostic))
+        receipts = dict(bindings)
+        receipts[str(source.resolve())] = build_binding(source, instrumented)
+        row = next(
+            row
+            for row in build(changed, receipts)["comparisons"]
+            if row["candidate"] == "candidate"
+        )
+        assert row["promotion_eligible"] is False
+        assert "missing_redesign_dimension:workspace_reuse" in row["blockers"]
+        loaded = report.build_report(
+            paths, counter_report=counter_path, diagnostic_bindings=receipts
+        )
+        assert loaded["summary"]["route_candidate_count"] == 0
+        for margin in (True, 0, 1.02, float("nan"), float("inf")):
+            try:
+                report.build_direct_hip_resident_redesign_report([], margin=margin)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("invalid margin accepted")
+
+        owned = resources()
+        original = report.compare_candidate
+
+        def mutate_after_row(*args, **kwargs):
+            result = original(*args, **kwargs)
+            isa_paths[0].write_text(isa_paths[0].read_text() + " ")
+            return result
+
+        with patch.object(report, "compare_candidate", side_effect=mutate_after_row):
+            try:
+                build(changed, receipts, owned)
+            except ValueError as error:
+                assert "changed during review" in str(error)
+            else:
+                raise AssertionError("changed ISA input was published")
+
+
 def main() -> int:
     baseline = capture(
         kernel=report.DEFAULT_KERNEL,
@@ -110,51 +246,13 @@ def main() -> int:
         [baseline, colpair_loss, route_candidate]
     )
     summary = result["summary"]
-    assert summary["candidate_count"] == 2
-    assert summary["resident_default_baseline_count"] == 1
-    assert summary["rank51_gate_complete"] is True
-    assert summary["route_candidate_count"] == 1
-    assert summary["deprioritized_count"] == 1
-    assert summary["gemm_only_win_blocked_count"] == 1
-
-    colpair_row = next(
-        item
-        for item in result["comparisons"]
-        if item["candidate_kernel"] == report.REJECTED_COLPAIR_KERNEL
-    )
-    assert colpair_row["decision"] == "drop/deprioritize"
-    assert colpair_row["speedup_vs_resident_default_rns_gemm"] == 1.25
-    assert "gemm_only_win_end_to_end_loss" in colpair_row["blockers"]
-    assert "end_to_end_not_faster" in colpair_row["blockers"]
-
-    route_row = next(
-        item
-        for item in result["comparisons"]
-        if item["candidate"] == "layout_tile_export_prototype"
-    )
-    assert route_row["decision"] == "route_candidate"
-    assert route_row["promotion_eligible"] is True
-    assert route_row["blockers"] == []
-
-    missing_baseline = report.build_direct_hip_resident_redesign_report([route_candidate])
-    assert missing_baseline["summary"]["rank51_gate_complete"] is False
-    assert "missing_resident_default_baseline" in missing_baseline["comparisons"][0]["blockers"]
-
-    missing_resource = copy.deepcopy(route_candidate)
-    missing_resource["resident_redesign"].pop("resource_summary")
-    missing_resource_report = report.build_direct_hip_resident_redesign_report(
-        [baseline, missing_resource]
-    )
-    assert missing_resource_report["summary"]["rank51_gate_complete"] is False
-    assert "missing_resource_explanation" in missing_resource_report["comparisons"][0]["blockers"]
-
-    mismatch = copy.deepcopy(route_candidate)
-    mismatch["checksum_u64"] = 999
-    mismatch_report = report.build_direct_hip_resident_redesign_report([baseline, mismatch])
-    assert mismatch_report["summary"]["rank51_gate_complete"] is False
-    assert (
-        "checksum_mismatch_with_resident_default" in mismatch_report["comparisons"][0]["blockers"]
-    )
+    assert summary["legacy_capture_count"] == 3
+    assert summary["candidate_count"] == 0
+    assert summary["rank51_gate_complete"] is False
+    assert summary["route_candidate_count"] == 0
+    assert result["comparisons"] == []
+    assert len(result["legacy_inventory"]) == 3
+    production_controls()
 
     with tempfile.TemporaryDirectory() as tmp_name:
         outputs = report.write_outputs(result, Path(tmp_name))
