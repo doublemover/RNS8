@@ -17,6 +17,7 @@ ROLES = {
     "review",
     "variance",
     "target",
+    "isa",
     "diagnostic",
     "shape",
     "counter",

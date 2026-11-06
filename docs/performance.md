@@ -837,3 +837,28 @@ comparisons use the observed noise margin (at least 1.03), while host component
 medians stay descriptive and cannot independently establish phase speedups.
 Legacy-invalid records cannot authorize routing; missing process companions,
 selected resource metadata or checklist entries prevent a route candidate.
+
+
+Generic sweep review now groups complete work and observed environments before
+selecting implementations. Repeated backend records supply independent process
+observations; alternative kernels remain separate implementations. CPU arithmetic
+anchors and same-host CPU timing controls have explicit roles. Unqualified runs
+cannot supply a route headline or speedup. Every process companion, full-output
+reference and observed-noise requirement remains necessary alongside backend and
+semantic admission.
+
+Review schema 4 and capture receipt v2 bind the process estimator independently
+of path aliases. Candidate export reconstructs the bound observations and current
+review admission. Ledger payload derivation uses the same reconstructed cohort;
+cache timing medians describe that cohort, rather than its representative file.
+For example, two authored control observations at 190 and 196 microseconds produce
+a 193-microsecond fixture estimate; this is a protocol control, not a GPU result.
+All independent observations, diagnostic companions and original selected ISA
+inputs participate in publication custody. Bounded JSON inputs are parsed once
+per review owner and rehashed before publication. Old receipts remain readable as
+historical data and cannot authorize the current estimator.
+
+One-time prepack charges use each process's own observed setup and repeat count.
+Graph setup observations are also retained per process, while generic graph rows
+remain non-promoting; the dedicated graph report owns setup-qualified graph
+comparisons. This source cutover and its authored controls remain unexecuted.

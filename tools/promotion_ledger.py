@@ -17,6 +17,7 @@ import target_validation_report
 from target_qualification import candidate_verdict, candidate_binding, VERDICT_SCHEMA
 from json_evidence import load_evidence_json, same_evidence_value
 from benchmark_request import file_digest
+from review_receipt import ReviewReceiptReader, read_review_report
 from cache_promotion import (
     CANDIDATE_SCHEMA,
     entry_digest,
@@ -64,7 +65,7 @@ def load_cache_entries(path: Path | None) -> list[dict[str, Any]]:
 def load_review_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
     reviewed: dict[str, dict[str, Any]] = {}
     for path in paths:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data, report_sha256 = read_review_report(path)
         if not isinstance(data, dict):
             continue
         for group in data.get("groups", []):
@@ -76,9 +77,27 @@ def load_review_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
                 capture_path = candidate.get("capture")
                 if isinstance(capture_path, str) and capture_path:
                     key = path_key(capture_path)
-                    if key in reviewed and not same_evidence_value(reviewed[key], candidate):
+                    if key in reviewed and not same_evidence_value(
+                        {
+                            name: value
+                            for name, value in reviewed[key].items()
+                            if name != "_receipt_entry"
+                        },
+                        candidate,
+                    ):
                         raise ValueError("conflicting review evidence for " + key)
-                    reviewed[key] = candidate
+                    reviewed[key] = {
+                        **candidate,
+                        "_receipt_entry": dict(
+                            review_report=str(path.resolve()),
+                            review_report_sha256=report_sha256,
+                            review_schema_version=data.get("schema_version"),
+                            contract_key=group.get("contract_key"),
+                            required_baselines=group.get("required_baselines"),
+                            isa_input_references=data.get("isa_input_references", []),
+                            candidate=candidate,
+                        ),
+                    }
     return reviewed
 
 
@@ -666,6 +685,12 @@ def build_ledger(
                 inputs.append(("observation", Path(row["capture"])))
         referenced_bindings = list(diagnostic_bindings.values())
         for row in reviewed.values():
+            for reference in (row.get("_receipt_entry") or {}).get("isa_input_references", []):
+                inputs.append(("isa", Path(reference["path"])))
+            for record in (row.get("review_capture_receipt") or {}).get("inputs", []):
+                inputs.append(("observation", Path(record["capture"])))
+                if isinstance(record.get("diagnostic_companion"), dict):
+                    referenced_bindings.append(record["diagnostic_companion"])
             comparison = row.get("timing_comparison") or {}
             if isinstance(comparison.get("baseline_capture"), str):
                 inputs.append(("baseline", Path(comparison["baseline_capture"])))
@@ -684,6 +709,7 @@ def build_ledger(
             )
         references = evidence_references(inputs)
     baseline_variance = {}
+    review_reader = ReviewReceiptReader()
     for entry in entries:
         key = entry.get("autotune_key")
         entry["installed_cache_entry"] = bool(key and key in cache_keys)
@@ -727,6 +753,19 @@ def build_ledger(
             )
 
             current = load_capture(Path(entry["path"]))
+            review = (reviewed.get(path_key(entry["path"])) or {}).get("_receipt_entry")
+            verdict = review_reader.validate(current, review) if isinstance(review, dict) else None
+            if verdict is None or not verdict.qualified:
+                entry["promotion_blockers"].extend(
+                    "review_measurement:" + reason
+                    for reason in (
+                        verdict.blockers
+                        if verdict is not None
+                        else ("content_bound_review_missing",)
+                    )
+                )
+            else:
+                current = {**current, "_observation_aggregate": verdict.measurement_cohort}
             expected = cache_entry_from_capture(
                 current, reviewed_release_status_for_target(entry["target_id"])
             )
@@ -748,6 +787,7 @@ def build_ledger(
                         cache_by_key[key], [*references, {**candidate, "role": "candidate"}]
                     )
         entry["stale_invalidation_reasons"] = stale_invalidation_reasons(entry)
+    review_reader.finish()
     return {
         "schema_version": 1,
         "policy": "reviewed_release_evidence_required_for_autotune_promotion",

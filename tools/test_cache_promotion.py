@@ -152,50 +152,161 @@ class PublicationControls(unittest.TestCase):
                 [row["counter_resource_summary"]["vgpr"] for row in ledger["entries"]], [17, 83]
             )
 
+    def test_review_process_cohorts_reject_separately_bound_foreign_baselines(self):
+        from diagnostic_companion import digest
+        from test_capture_identity_support import synthetic_runtime_device_identity
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for mutation in ("matched", "device", "environment", "source"):
+                observations, bindings = [], {}
+                for backend, cost in (("ck", 190), ("hip-direct", 300), ("cpu-reference", 900)):
+                    for run in range(2):
+                        lane = root / f"{mutation}-{backend}-{run}"
+                        lane.mkdir()
+                        production, diagnostic, paths = authored_capture_pair(
+                            lane,
+                            add_synthetic_full_reference(finite_capture(backend, cost + run * 6)),
+                        )
+                        for raw, path in zip((production, diagnostic), paths):
+                            if backend == "ck":
+                                if mutation == "device":
+                                    identity = synthetic_runtime_device_identity(
+                                        raw["device"]["device_id"], device=7
+                                    )
+                                    raw["device_identity_witness"]["before"] = identity
+                                    raw["device_identity_witness"]["after"] = dict(identity)
+                                elif mutation == "environment":
+                                    request = raw["request_identity"]
+                                    request["environment"]["OMP_PROC_BIND"] = "spread"
+                                    request["identity_sha256"] = digest(
+                                        {
+                                            key: value
+                                            for key, value in request.items()
+                                            if key != "identity_sha256"
+                                        }
+                                    )
+                                elif mutation == "source":
+                                    raw["build_manifest"]["source_digest"] = "9" * 64
+                            validate_capture(raw, path)
+                            path.write_text(json.dumps(raw))
+                        production["_path"] = str(paths[0])
+                        observations.append(production)
+                        if backend != "cpu-reference":
+                            bindings[str(paths[0].resolve())] = build_binding(*paths)
+                result = review_captures(
+                    observations, review_mode="release", diagnostic_bindings=bindings
+                )
+                if mutation == "matched":
+                    self.assertEqual(len(result["promotable_autotune_entries"]), 1)
+                    forged = deepcopy(result)
+                    forged["promotable_autotune_entries"][0]["measurement_identity_sha256"] = (
+                        "0" * 64
+                    )
+                    self.assertEqual(
+                        write_candidate_cache(forged, observations, root / "forged.json"), 0
+                    )
+                else:
+                    self.assertEqual(result["promotable_autotune_entries"], [])
+                    ck = [
+                        row
+                        for group in result["groups"]
+                        for row in group["candidates"]
+                        if row["backend"] == "ck"
+                    ]
+                    self.assertTrue(ck)
+                    self.assertTrue(
+                        all(
+                            not row["cohort_comparisons"].get("direct", {}).get("qualified", False)
+                            for row in ck
+                        )
+                    )
+                    self.assertEqual(
+                        write_candidate_cache(result, observations, root / (mutation + ".json")), 0
+                    )
+
     def test_real_review_variance_ledger_install_chain_binds_payload_and_sources(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             productions, bindings, binding_paths = [], {}, []
-            first = []
+            observations = []
             for backend, cost in (("ck", 190), ("hip-direct", 300), ("cpu-reference", 900)):
                 for run in range(2):
                     lane = root / f"{backend}-{run}"
                     lane.mkdir()
                     _, _, paths = authored_capture_pair(
-                        lane, add_synthetic_full_reference(finite_capture(backend, cost))
+                        lane, add_synthetic_full_reference(finite_capture(backend, cost + run * 6))
                     )
                     production = load_capture(paths[0])
                     validate_capture(production, paths[0])
                     productions.append(paths[0])
-                    if run == 0:
-                        first.append(production)
+                    production["_path"] = str(paths[0])
+                    observations.append(production)
                     if backend != "cpu-reference":
                         binding = build_binding(*paths)
                         bindings[str(paths[0].resolve())] = binding
                         path = lane / "binding.json"
                         path.write_text(json.dumps(binding), encoding="utf-8")
                         binding_paths.append(path)
-            review = review_captures(first, review_mode="release", diagnostic_bindings=bindings)
+            review = review_captures(
+                observations, review_mode="release", diagnostic_bindings=bindings
+            )
             self.assertEqual(len(review["promotable_autotune_entries"]), 1)
             review_path, variance_path = root / "review.json", root / "variance.json"
             review_path.write_text(json.dumps(review), encoding="utf-8")
             variance_path.write_text(
                 json.dumps(build_report(productions, require_multi_run=True)), encoding="utf-8"
             )
-            candidate = first[0]
-            expected = cache_entry_from_capture(
-                candidate, reviewed_release_status_for_target("gfx1100")
+            candidate = next(
+                value
+                for value in observations
+                if value["_path"] == review["promotable_autotune_entries"][0]["source_capture"]
             )
+            from report_comparison import ReportCohorts
+            from observation_cohorts import measurement_identity
+
+            cohorts = ReportCohorts(observations, bindings)
+            view = next(view for view in cohorts.observations if view["backend_selected"] == "ck")
+            expected = cache_entry_from_capture(view, reviewed_release_status_for_target("gfx1100"))
+            self.assertEqual(expected["measured_medians_us"]["end_to_end"], 193)
+            self.assertEqual(expected["measurement_identity_sha256"], measurement_identity(view))
+            self.assertEqual(
+                expected["measurement_estimator"], "median_of_independent_process_medians"
+            )
+            self.assertEqual(review["groups"][0]["duplicate_backends"], [])
+            for order in (list(reversed(observations)), observations[2:] + observations[:2]):
+                ordered = review_captures(
+                    order, review_mode="release", diagnostic_bindings=bindings
+                )
+                self.assertEqual(
+                    ordered["promotable_autotune_entries"][0]["measurement_identity_sha256"],
+                    measurement_identity(view),
+                )
+                self.assertEqual(
+                    ordered["promotable_autotune_entries"][0]["median_end_to_end_us"], 193
+                )
+            single = review_captures(
+                [observations[i] for i in (0, 2, 4)],
+                review_mode="release",
+                diagnostic_bindings=bindings,
+            )
+            self.assertEqual(single["promotable_autotune_entries"], [])
+            copied = review_captures(
+                [observations[0], deepcopy(observations[0]), *observations[2:]],
+                review_mode="release",
+                diagnostic_bindings=bindings,
+            )
+            self.assertEqual(copied["promotable_autotune_entries"], [])
             source, ledger_path, destination = (
                 root / name for name in ("source.json", "ledger.json", "installed.json")
             )
-            self.assertEqual(write_candidate_cache(review, first, source), 1)
+            self.assertEqual(write_candidate_cache(review, observations, source), 1)
             self.assertEqual(
                 json.loads(source.read_text(encoding="utf-8"))["schema"], contract.CANDIDATE_SCHEMA
             )
             with self.assertRaises(AutotuneCacheInstallError):
                 read_cache(source)
-            self.assertEqual(write_promoted_cache_entries(review, first, destination), 0)
+            self.assertEqual(write_promoted_cache_entries(review, observations, destination), 0)
             self.assertFalse(destination.exists())
             single = build_report([productions[0]], require_multi_run=False)["entries"][0]
             self.assertTrue(single["promotion_ready"])
@@ -217,11 +328,20 @@ class PublicationControls(unittest.TestCase):
             self.assertEqual(ledger["blocked_count"], 0, ledger["entries"][0]["promotion_blockers"])
             self.assertIsNotNone(ledger["entries"][0]["cache_promotion_receipt"])
             variance_bytes = variance_path.read_bytes()
+            # Keep the selected representative and remove its distinct rerun.
+            baseline_path = Path(
+                review["promotable_autotune_entries"][0]["timing_comparison"]["baseline_capture"]
+            )
+            other_baseline = next(
+                path
+                for path in productions
+                if path.parent.name.startswith("hip-direct-") and path != baseline_path
+            )
             # A ready single baseline process cannot borrow the candidate's rerun.
             variance_path.write_text(
                 json.dumps(
                     build_report(
-                        [path for path in productions if path.parent.name != "hip-direct-1"],
+                        [path for path in productions if path != other_baseline],
                         require_multi_run=False,
                     )
                 ),
@@ -236,7 +356,7 @@ class PublicationControls(unittest.TestCase):
             ledger_path.write_text(json.dumps(baseline_blocked), encoding="utf-8")
             self.assertEqual(
                 write_promoted_cache_entries(
-                    review, first, destination, promotion_ledgers=[ledger_path]
+                    review, observations, destination, promotion_ledgers=[ledger_path]
                 ),
                 0,
             )
@@ -245,7 +365,7 @@ class PublicationControls(unittest.TestCase):
             ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
             self.assertEqual(
                 write_promoted_cache_entries(
-                    review, first, destination, promotion_ledgers=[ledger_path]
+                    review, observations, destination, promotion_ledgers=[ledger_path]
                 ),
                 1,
             )
@@ -267,14 +387,18 @@ class PublicationControls(unittest.TestCase):
             self.assertIsNone(rejected["entries"][0]["cache_promotion_receipt"])
             write_cache(source, [expected])
             # An independent run behind the same variance report is also immutable.
-            other = productions[1]
+            other = next(
+                path
+                for path in productions
+                if path.parent.name.startswith("ck-") and path != Path(candidate["_path"])
+            )
             saved = other.read_bytes()
             other.write_bytes(saved + b"\n")
             with self.assertRaisesRegex(AutotuneCacheInstallError, "payload_or_evidence_changed"):
                 install_cache([source], destination, promotion_ledgers=[ledger_path])
             self.assertEqual(
                 write_promoted_cache_entries(
-                    review, first, destination, promotion_ledgers=[ledger_path]
+                    review, observations, destination, promotion_ledgers=[ledger_path]
                 ),
                 0,
             )

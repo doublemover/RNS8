@@ -11,7 +11,11 @@ from measurement_contract import (
     host_observation_contract,
 )
 
-from .config import PLACEHOLDER_TARGET_IDS, WRAP64_ROCWMMA_CANDIDATE_BACKEND
+from .config import (
+    PLACEHOLDER_TARGET_IDS,
+    WRAP64_ROCWMMA_CANDIDATE_BACKEND,
+    CORRECTNESS_ANCHOR_REFERENCE_BACKENDS,
+)
 
 
 def capture_contract_key(capture: dict[str, Any]) -> str:
@@ -489,3 +493,15 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
             }
         ),
     }
+
+
+def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
+    if backend_family_id(backend_id(capture)) not in CORRECTNESS_ANCHOR_REFERENCE_BACKENDS:
+        return False
+    cpu_parallel = capture.get("cpu_parallel")
+    if not isinstance(cpu_parallel, dict):
+        return False
+    return (
+        cpu_parallel.get("correctness_anchor") is True
+        or cpu_parallel.get("reference_mode") == "correctness-anchor"
+    )

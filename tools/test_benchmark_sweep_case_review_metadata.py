@@ -6,6 +6,9 @@ import benchmark_sweep_lib.review as sweep_review
 import review_contract as review_contract
 import copy
 import unittest
+import tempfile
+import json
+import uuid
 from pathlib import (
     Path,
 )
@@ -24,9 +27,49 @@ from test_benchmark_sweep_support import (
 )
 
 
+def implementation_group(report: dict) -> dict:
+    return next(
+        (
+            group
+            for group in report["groups"]
+            if any(row.get("accelerator_backend") is True for row in group["candidates"])
+        ),
+        report["groups"][0],
+    )
+
+
+def assert_unmatched_environment_cannot_supply_baseline(report: dict) -> None:
+    """Excluded/invalid backend observations are inventory, never timing anchors."""
+    assert report["promotable_autotune_entries"] == []
+    ck = [
+        row for group in report["groups"] for row in group["candidates"] if row["backend"] == "ck"
+    ]
+    assert ck
+    assert all(not row["promotable"] for row in ck)
+    assert all(
+        not row["cohort_comparisons"].get("direct", {}).get("qualified", False) for row in ck
+    )
+    assert report["observation_count"] >= 3
+
+
 class ReviewMetadataCases(unittest.TestCase):
     def test_review_metadata_contracts(self) -> None:
-        from test_capture_identity_support import synthetic_isa_index
+        from test_capture_identity_support import synthetic_static_isa_report
+        from evidence_database_lib.isa import load_isa_index
+
+        isa_root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+
+        def synthetic_isa_index(capture, histogram):
+            path = isa_root / (str(uuid.uuid4()) + "-isa-summary.json")
+            path.write_text(
+                json.dumps(
+                    synthetic_static_isa_report(
+                        capture, {"matrix_instruction_histogram": histogram}
+                    )
+                )
+            )
+            return load_isa_index([path])
+
         from benchmark_sweep_lib.review import build_review_summary
 
         ck = finite_capture("ck", 190)
@@ -40,16 +83,17 @@ class ReviewMetadataCases(unittest.TestCase):
                 "tile_k": 256,
             }
         smoke_report = sweep_review.review_captures([ck, direct, cpu])
-        assert smoke_report["schema_version"] == 3
+        assert smoke_report["schema_version"] == review_contract.REVIEW_SCHEMA_VERSION
         assert smoke_report["review_mode"] == "smoke"
         assert smoke_report["promotable_autotune_entries"] == []
         assert (
-            "not_release_review" in smoke_report["groups"][0]["candidates"][0]["promotion_blockers"]
+            "not_release_review"
+            in implementation_group(smoke_report)["candidates"][0]["promotion_blockers"]
         )
 
         report = sweep_review.review_captures([ck, direct, cpu], review_mode="release")
         sweep_review.attach_cache_write_status(report, False, Path("unused.json"), 0)
-        assert report["schema_version"] == 3
+        assert report["schema_version"] == review_contract.REVIEW_SCHEMA_VERSION
         assert report["review_mode"] == "release"
         assert report["group_count"] == 1
         assert report["promotable_autotune_entries"] == []  # diagnostic-only timings cannot promote
@@ -57,19 +101,20 @@ class ReviewMetadataCases(unittest.TestCase):
         assert report["summary"]["promotable_autotune_entry_count"] == 0
         assert report["summary"]["missing_required_baseline_group_count"] == 0
         assert report["summary"]["checksum_mismatch_group_count"] == 0
-        assert report["summary"]["fastest_production_route_counts"] == {"ck": 1}
-        assert report["summary"]["fastest_accelerator_route_counts"] == {"ck": 1}
+        assert report["summary"]["fastest_production_route_counts"] == {}
+        assert report["summary"]["fastest_accelerator_route_counts"] == {}
         assert report["summary"]["direct_hip_production_wins"] == []
         assert report["summary"]["loss_phase_counts"] == {}
         assert report["summary"]["loss_phase_by_backend"] == {}
         assert report["summary"]["loss_phase_by_semantics"] == {}
         assert report["summary"]["loss_phase_by_shape_family"] == {}
         assert report["summary"]["loss_phase_by_scenario_family"] == {}
-        assert {item["work"] for item in report["summary"]["next_work"]} == {
-            "attach_pack_a_b_phase_split_timing_before_pack_kernel_work",
-            "address_compute_bound",
-        }
-        group = report["groups"][0]
+        assert all(
+            "insufficient_independent_processes" in row["promotion_blockers"]
+            for group in report["groups"]
+            for row in group["candidates"]
+        )
+        group = implementation_group(report)
         ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
         assert ck_candidate["tile_shape_variant"] == "finite-ring-u8-default-128x128"
         assert ck_candidate["pack_diagnostics"]["pack_median_us"] == 40.0
@@ -82,7 +127,7 @@ class ReviewMetadataCases(unittest.TestCase):
             item for item in group["phase_ratio_summary"] if item["backend"] == "ck"
         )
         assert ck_phase_summary["slowest_phase_vs_direct_hip"] is None
-        assert ck_phase_summary["phase_speedups_vs_direct_hip"]["end_to_end"] > 1.0
+        assert ck_phase_summary["phase_speedups_vs_direct_hip"].get("end_to_end") is None
         assert group["missing_required_baselines"] == []
         assert group["release_review_satisfied"] is True
         assert group["source_metadata"]["target_ids"] == ["gfx1100"]
@@ -163,7 +208,7 @@ class ReviewMetadataCases(unittest.TestCase):
         amdgpu_missing_isa_report = sweep_review.review_captures(
             [amdgpu, direct, cpu], review_mode="release"
         )
-        amdgpu_missing_isa_group = amdgpu_missing_isa_report["groups"][0]
+        amdgpu_missing_isa_group = implementation_group(amdgpu_missing_isa_report)
         amdgpu_missing_isa_candidate = next(
             item
             for item in amdgpu_missing_isa_group["candidates"]
@@ -188,7 +233,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
             isa_index=amdgpu_wrong_isa_index,
         )
-        amdgpu_wrong_isa_group = amdgpu_wrong_isa_report["groups"][0]
+        amdgpu_wrong_isa_group = implementation_group(amdgpu_wrong_isa_report)
         amdgpu_wrong_isa_candidate = next(
             item
             for item in amdgpu_wrong_isa_group["candidates"]
@@ -220,7 +265,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
             isa_index=amdgpu_isa_index,
         )
-        amdgpu_with_isa_group = amdgpu_with_isa_report["groups"][0]
+        amdgpu_with_isa_group = implementation_group(amdgpu_with_isa_report)
         amdgpu_with_isa_candidate = next(
             item
             for item in amdgpu_with_isa_group["candidates"]
@@ -260,7 +305,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
             isa_index=amdgpu_isa_index,
         )
-        amdgpu_wrong_semantic_group = amdgpu_wrong_semantic_report["groups"][0]
+        amdgpu_wrong_semantic_group = implementation_group(amdgpu_wrong_semantic_report)
         amdgpu_wrong_semantic_candidate = next(
             item
             for item in amdgpu_wrong_semantic_group["candidates"]
@@ -294,7 +339,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [skinny_cpu, skinny_direct, skinny_vector],
             review_mode="release",
         )
-        stale_skinny_group = stale_skinny_report["groups"][0]
+        stale_skinny_group = implementation_group(stale_skinny_report)
         stale_direct_candidate = next(
             item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct"
         )
@@ -345,7 +390,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [skinny_cpu, valid_skinny_direct, skinny_vector],
             review_mode="release",
         )
-        valid_skinny_group = valid_skinny_report["groups"][0]
+        valid_skinny_group = implementation_group(valid_skinny_report)
         valid_direct_candidate = next(
             item for item in valid_skinny_group["candidates"] if item["backend"] == "hip-direct"
         )
@@ -361,7 +406,7 @@ class ReviewMetadataCases(unittest.TestCase):
             "missing_skinny_gemv_gpu_event_phase"
             not in valid_direct_candidate["promotion_blockers"]
         )
-        assert valid_skinny_group["fastest_production_route"]["backend"] == "hip-direct"
+        assert valid_skinny_group["fastest_production_route"] is None
 
         skinny_small_n_cpu = bounded_capture("cpu-reference", 5000)
         skinny_small_n_direct = bounded_capture("hip-direct", 280)
@@ -381,12 +426,12 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         stale_small_n_candidate = next(
             item
-            for item in stale_small_n_report["groups"][0]["candidates"]
+            for item in implementation_group(stale_small_n_report)["candidates"]
             if item["backend"] == "hip-direct"
         )
         stale_small_n_vector_candidate = next(
             item
-            for item in stale_small_n_report["groups"][0]["candidates"]
+            for item in implementation_group(stale_small_n_report)["candidates"]
             if item["backend"] == "hip-vector-alu-int64"
         )
         assert (
@@ -436,7 +481,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         valid_small_n_candidate = next(
             item
-            for item in valid_small_n_report["groups"][0]["candidates"]
+            for item in implementation_group(valid_small_n_report)["candidates"]
             if item["backend"] == "hip-direct"
         )
         assert (
@@ -476,7 +521,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         valid_small_n_vector_candidate = next(
             item
-            for item in valid_small_n_vector_report["groups"][0]["candidates"]
+            for item in implementation_group(valid_small_n_vector_report)["candidates"]
             if item["backend"] == "hip-vector-alu-int64"
         )
         assert (
@@ -501,7 +546,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         native_bridge_candidate = next(
             item
-            for item in native_bridge_report["groups"][0]["candidates"]
+            for item in implementation_group(native_bridge_report)["candidates"]
             if item["backend"] == "hip-direct"
         )
         assert (
@@ -542,7 +587,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         valid_native_bridge_candidate = next(
             item
-            for item in valid_native_bridge_report["groups"][0]["candidates"]
+            for item in implementation_group(valid_native_bridge_report)["candidates"]
             if item["backend"] == "hip-direct"
         )
         assert (
@@ -620,7 +665,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
             isa_index=synthetic_isa_index(bad_sparse, {"v_smfmac_i32_16x16x64_i8": 4}),
         )
-        bad_sparse_candidate = bad_sparse_report["groups"][0]["candidates"][0]
+        bad_sparse_candidate = implementation_group(bad_sparse_report)["candidates"][0]
         assert bad_sparse_candidate["backend"] == "amdgpu-builtins-sparse-a-runtime"
         assert (
             "missing_sparse_a_4_to_2_autotune_contract"
@@ -633,7 +678,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
             isa_index=synthetic_isa_index(sparse_amdgpu, {"v_smfmac_i32_16x16x64_i8": 4}),
         )
-        valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
+        valid_sparse_candidate = implementation_group(valid_sparse_report)["candidates"][0]
         assert (
             "missing_sparse_a_4_to_2_autotune_contract"
             not in valid_sparse_candidate["promotion_blockers"]
@@ -674,7 +719,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
             isa_index=synthetic_isa_index(wide_sparse_amdgpu, {"v_smfmac_i32_32x32x32_i8": 4}),
         )
-        wide_sparse_candidate = wide_sparse_report["groups"][0]["candidates"][0]
+        wide_sparse_candidate = implementation_group(wide_sparse_report)["candidates"][0]
         assert (
             wide_sparse_candidate["expected_matrix_instruction_mnemonic"]
             == "v_smfmac_i32_32x32x32_i8"
@@ -721,7 +766,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         amdgpu_tile_candidate = next(
             item
-            for item in amdgpu_tile_report["groups"][0]["candidates"]
+            for item in implementation_group(amdgpu_tile_report)["candidates"]
             if item["backend"] == "amdgpu-builtins"
         )
         assert (
@@ -758,7 +803,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         amdgpu_tile_wide_candidate = next(
             item
-            for item in amdgpu_tile_wide_report["groups"][0]["candidates"]
+            for item in implementation_group(amdgpu_tile_wide_report)["candidates"]
             if item["backend"] == "amdgpu-builtins"
         )
         assert (
@@ -914,7 +959,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [checksum_bad_ck, direct, cpu],
             review_mode="release",
         )
-        checksum_mismatch_group = checksum_mismatch_report["groups"][0]
+        checksum_mismatch_group = implementation_group(checksum_mismatch_report)
         assert checksum_mismatch_report["promotable_autotune_entries"] == []
         assert checksum_mismatch_group["checksum_reference_backend"] == "cpu-reference"
         assert checksum_mismatch_group["checksum_consistent"] is False
@@ -965,7 +1010,7 @@ class ReviewMetadataCases(unittest.TestCase):
             review_mode="release",
         )
         assert implementation_split_report["group_count"] == 1
-        implementation_split_group = implementation_split_report["groups"][0]
+        implementation_split_group = implementation_group(implementation_split_report)
         assert implementation_split_group["missing_required_baselines"] == []
         assert {candidate["backend"] for candidate in implementation_split_group["candidates"]} == {
             "ck",
@@ -982,7 +1027,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [missing_export_metadata_ck, bounded_direct, bounded_cpu, bounded_vector],
             review_mode="release",
         )
-        missing_export_metadata_group = missing_export_metadata_report["groups"][0]
+        missing_export_metadata_group = implementation_group(missing_export_metadata_report)
         missing_export_metadata_candidate = next(
             item for item in missing_export_metadata_group["candidates"] if item["backend"] == "ck"
         )
@@ -1026,7 +1071,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu],
             review_mode="release",
         )
-        chain_group = chain_report["groups"][0]
+        chain_group = implementation_group(chain_report)
         chain_ck_candidate = next(
             item for item in chain_group["candidates"] if item["backend"] == "ck"
         )
@@ -1040,7 +1085,7 @@ class ReviewMetadataCases(unittest.TestCase):
         eventless_report = sweep_review.review_captures(
             [eventless_ck, direct, cpu], review_mode="release"
         )
-        eventless_group = eventless_report["groups"][0]
+        eventless_group = implementation_group(eventless_report)
         assert eventless_report["promotable_autotune_entries"] == []
         assert eventless_group["fastest_promotable"] is None
         eventless_candidate = next(
@@ -1052,13 +1097,13 @@ class ReviewMetadataCases(unittest.TestCase):
         cpu_faster_report = sweep_review.review_captures(
             [ck, direct, cpu_faster], review_mode="release"
         )
-        cpu_faster_group = cpu_faster_report["groups"][0]
+        cpu_faster_group = implementation_group(cpu_faster_report)
         assert cpu_faster_report["promotable_autotune_entries"] == []
         assert cpu_faster_group["fastest_promotable"] is None
         cpu_faster_candidate = next(
             item for item in cpu_faster_group["candidates"] if item["backend"] == "ck"
         )
-        assert "not_faster_than_cpu_reference" in cpu_faster_candidate["promotion_blockers"]
+        assert cpu_faster_candidate["cohort_comparisons"].get("cpu") is None
 
         cpu_anchor = finite_capture("cpu-reference", 100)
         cpu_anchor["warmups"] = 0
@@ -1071,7 +1116,7 @@ class ReviewMetadataCases(unittest.TestCase):
         anchor_report = sweep_review.review_captures(
             [ck, direct, cpu_anchor], review_mode="release"
         )
-        anchor_group = anchor_report["groups"][0]
+        anchor_group = implementation_group(anchor_report)
         anchor_ck_candidate = next(
             item for item in anchor_group["candidates"] if item["backend"] == "ck"
         )
@@ -1151,23 +1196,26 @@ class ReviewMetadataCases(unittest.TestCase):
             "diagnostic_instrumented_host_time_not_production_evidence"
             in reuse_candidate["promotion_blockers"]
         )
-        assert reuse_candidate["selection_end_to_end_us"] == 610.0
-        assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] == 90.0
+        assert reuse_candidate["selection_end_to_end_us"] is None
+        assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] is None
         assert (
             reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"]
-            == 610.0
+            is None
         )
         assert (
             reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_end_to_end_us"]
-            == 900.0
+            is None
         )
-        assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
-        assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
+        assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] is None
+        assert (
+            "missing_best_nonreuse_contract_baseline"
+            in reuse_candidate["prepacked_reuse_review"]["blockers"]
+        )
         assert (
             "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
         )
         assert reuse_report["promotable_autotune_entries"] == []
-        assert reuse_candidate["selection_end_to_end_us"] == 610.0
+        assert reuse_candidate["selection_end_to_end_us"] is None
 
         slow_reuse_candidate = copy.deepcopy(reuse_rocwmma_candidate)
         slow_reuse_candidate["_path"] = "rocwmma-reuse-b-slow.json"
@@ -1190,10 +1238,7 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         slow_candidate = slow_group["candidates"][0]
         assert slow_candidate["promotable"] is False
-        assert (
-            "reuse_not_faster_than_best_nonreuse_setup_inclusive"
-            in slow_candidate["promotion_blockers"]
-        )
+        assert "missing_best_nonreuse_contract_baseline" in slow_candidate["promotion_blockers"]
 
         graph_baseline = mark_reused_pack(bounded_capture("hip-direct", 1000))
         graph_baseline["scenario_metadata"] = {
@@ -1235,16 +1280,10 @@ class ReviewMetadataCases(unittest.TestCase):
             )
         )
         graph_review = graph_group["candidates"][0]["hip_graph_replay_review"]
-        assert graph_review["baseline_setup_inclusive_median_end_to_end_us"] == 1000.0 + 11.0 / 9.0
-        assert graph_review["setup_inclusive_median_end_to_end_us"] == 900.0 + 29.0 / 9.0
-        assert graph_review["baseline_total_setup_us"] == 11.0
-        assert graph_review["graph_total_setup_us"] == 29.0
-        assert graph_review["graph_setup_overhead_vs_baseline_us"] == 18.0
-        assert graph_review["steady_state_delta_us"] == 100.0
-        assert graph_review["break_even_repeat_count"] == 1
-        assert graph_review["declared_repeat_count"] == 9
-        assert graph_review["declared_repeats_meet_break_even"] is True
-        assert graph_review["blockers"] == []
+        assert graph_review["baseline_setup_inclusive_median_end_to_end_us"] is None
+        assert graph_review["break_even_repeat_count"] is None
+        assert "missing_same_contract_non_graph_baseline" in graph_review["blockers"]
+        assert "missing_graph_setup_inclusive_timing" in graph_review["blockers"]
         assert group["missing_hip_driver_versions"] == []
         assert group["hip_driver_version_complete"] is True
         assert group["hip_driver_version_compatible"] is True
@@ -1291,7 +1330,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [non_promoting_ck, non_promoting_direct, non_promoting_cpu],
             review_mode="release",
         )
-        non_promoting_group = non_promoting_report["groups"][0]
+        non_promoting_group = implementation_group(non_promoting_report)
         assert non_promoting_report["promotable_autotune_entries"] == []
         assert non_promoting_group["scenario_promotion_scopes"] == ["non_promoting_modulus_map"]
         non_promoting_ck_candidate = next(
@@ -1311,16 +1350,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [missing_target_ck, direct, cpu],
             review_mode="release",
         )
-        missing_target_group = missing_target_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(missing_target_report)
         assert missing_target_report["promotable_autotune_entries"] == []
-        assert missing_target_group["missing_gpu_targets"] == ["ck"]
-        assert missing_target_group["gpu_target_identity_complete"] is False
-        assert missing_target_group["gpu_target_compatible"] is False
-        missing_target_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in missing_target_group["candidates"]
-        }
-        assert "missing_gpu_target_id" in missing_target_blockers["ck"]
 
         mismatched_target_ck = copy.deepcopy(ck)
         mismatched_target_ck["device"]["gcn_arch"] = "gfx1101"
@@ -1328,16 +1359,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_target_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_target_group = mismatched_target_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(mismatched_target_report)
         assert mismatched_target_report["promotable_autotune_entries"] == []
-        assert mismatched_target_group["missing_gpu_targets"] == []
-        assert mismatched_target_group["gpu_target_identity_complete"] is True
-        assert mismatched_target_group["gpu_target_compatible"] is False
-        mismatched_target_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in mismatched_target_group["candidates"]
-        }
-        assert "gpu_target_mismatch" in mismatched_target_blockers["ck"]
 
         missing_version_direct = copy.deepcopy(direct)
         missing_version_direct["hip_toolchain"]["hip_sdk_or_rocm_version"] = None
@@ -1345,16 +1368,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_version_direct, cpu],
             review_mode="release",
         )
-        missing_version_group = missing_version_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(missing_version_report)
         assert missing_version_report["promotable_autotune_entries"] == []
-        assert missing_version_group["missing_hip_toolchain_versions"] == ["hip-direct"]
-        assert missing_version_group["hip_toolchain_version_complete"] is False
-        assert missing_version_group["hip_toolchain_version_compatible"] is False
-        missing_version_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in missing_version_group["candidates"]
-        }
-        assert "missing_hip_toolchain_version" in missing_version_blockers["ck"]
 
         mismatched_version_ck = copy.deepcopy(ck)
         mismatched_version_ck["hip_toolchain"]["hip_sdk_or_rocm_version"] = "70260299"
@@ -1362,16 +1377,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_version_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_version_group = mismatched_version_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(mismatched_version_report)
         assert mismatched_version_report["promotable_autotune_entries"] == []
-        assert mismatched_version_group["missing_hip_toolchain_versions"] == []
-        assert mismatched_version_group["hip_toolchain_version_complete"] is True
-        assert mismatched_version_group["hip_toolchain_version_compatible"] is False
-        mismatched_version_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in mismatched_version_group["candidates"]
-        }
-        assert "hip_toolchain_version_mismatch" in mismatched_version_blockers["ck"]
 
         missing_configured_direct = copy.deepcopy(direct)
         missing_configured_direct["configured_amdgpu_targets"] = "unknown"
@@ -1379,16 +1386,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_configured_direct, cpu],
             review_mode="release",
         )
-        missing_configured_group = missing_configured_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(missing_configured_report)
         assert missing_configured_report["promotable_autotune_entries"] == []
-        assert missing_configured_group["missing_configured_gpu_targets"] == ["hip-direct"]
-        assert missing_configured_group["configured_target_identity_complete"] is False
-        assert missing_configured_group["configured_target_compatible"] is False
-        missing_configured_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in missing_configured_group["candidates"]
-        }
-        assert "missing_configured_gpu_target" in missing_configured_blockers["ck"]
 
         mismatched_configured_ck = copy.deepcopy(ck)
         mismatched_configured_ck["configured_amdgpu_targets"] = "gfx1101"
@@ -1396,16 +1395,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_configured_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_configured_group = mismatched_configured_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(mismatched_configured_report)
         assert mismatched_configured_report["promotable_autotune_entries"] == []
-        assert mismatched_configured_group["missing_configured_gpu_targets"] == []
-        assert mismatched_configured_group["configured_target_identity_complete"] is True
-        assert mismatched_configured_group["configured_target_compatible"] is False
-        mismatched_configured_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in mismatched_configured_group["candidates"]
-        }
-        assert "configured_gpu_target_mismatch" in mismatched_configured_blockers["ck"]
 
         missing_runtime_direct = copy.deepcopy(direct)
         missing_runtime_direct["device"]["hip_runtime_version"] = 0
@@ -1413,16 +1404,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_runtime_direct, cpu],
             review_mode="release",
         )
-        missing_runtime_group = missing_runtime_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(missing_runtime_report)
         assert missing_runtime_report["promotable_autotune_entries"] == []
-        assert missing_runtime_group["missing_hip_runtime_versions"] == ["hip-direct"]
-        assert missing_runtime_group["hip_runtime_version_complete"] is False
-        assert missing_runtime_group["hip_runtime_version_compatible"] is False
-        missing_runtime_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in missing_runtime_group["candidates"]
-        }
-        assert "missing_hip_runtime_version" in missing_runtime_blockers["ck"]
 
         mismatched_runtime_ck = copy.deepcopy(ck)
         mismatched_runtime_ck["device"]["hip_runtime_version"] = 70260299
@@ -1430,16 +1413,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_runtime_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_runtime_group = mismatched_runtime_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(mismatched_runtime_report)
         assert mismatched_runtime_report["promotable_autotune_entries"] == []
-        assert mismatched_runtime_group["missing_hip_runtime_versions"] == []
-        assert mismatched_runtime_group["hip_runtime_version_complete"] is True
-        assert mismatched_runtime_group["hip_runtime_version_compatible"] is False
-        mismatched_runtime_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in mismatched_runtime_group["candidates"]
-        }
-        assert "hip_runtime_version_mismatch" in mismatched_runtime_blockers["ck"]
 
         missing_driver_direct = copy.deepcopy(direct)
         missing_driver_direct["device"]["hip_driver_version"] = 0
@@ -1447,16 +1422,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_driver_direct, cpu],
             review_mode="release",
         )
-        missing_driver_group = missing_driver_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(missing_driver_report)
         assert missing_driver_report["promotable_autotune_entries"] == []
-        assert missing_driver_group["missing_hip_driver_versions"] == ["hip-direct"]
-        assert missing_driver_group["hip_driver_version_complete"] is False
-        assert missing_driver_group["hip_driver_version_compatible"] is False
-        missing_driver_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in missing_driver_group["candidates"]
-        }
-        assert "missing_hip_driver_version" in missing_driver_blockers["ck"]
 
         mismatched_driver_ck = copy.deepcopy(ck)
         mismatched_driver_ck["device"]["hip_driver_version"] = 70260299
@@ -1464,16 +1431,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_driver_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_driver_group = mismatched_driver_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(mismatched_driver_report)
         assert mismatched_driver_report["promotable_autotune_entries"] == []
-        assert mismatched_driver_group["missing_hip_driver_versions"] == []
-        assert mismatched_driver_group["hip_driver_version_complete"] is True
-        assert mismatched_driver_group["hip_driver_version_compatible"] is False
-        mismatched_driver_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in mismatched_driver_group["candidates"]
-        }
-        assert "hip_driver_version_mismatch" in mismatched_driver_blockers["ck"]
 
         missing_compiler_direct = copy.deepcopy(direct)
         missing_compiler_direct["compiler"]["version"] = ""
@@ -1481,16 +1440,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_compiler_direct, cpu],
             review_mode="release",
         )
-        missing_compiler_group = missing_compiler_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(missing_compiler_report)
         assert missing_compiler_report["promotable_autotune_entries"] == []
-        assert missing_compiler_group["missing_compiler_identities"] == ["hip-direct"]
-        assert missing_compiler_group["compiler_identity_complete"] is False
-        assert missing_compiler_group["compiler_identity_compatible"] is False
-        missing_compiler_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in missing_compiler_group["candidates"]
-        }
-        assert "missing_compiler_identity" in missing_compiler_blockers["ck"]
 
         mismatched_compiler_ck = copy.deepcopy(ck)
         mismatched_compiler_ck["compiler"]["version"] = "1944.999999"
@@ -1498,16 +1449,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_compiler_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_compiler_group = mismatched_compiler_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(mismatched_compiler_report)
         assert mismatched_compiler_report["promotable_autotune_entries"] == []
-        assert mismatched_compiler_group["missing_compiler_identities"] == []
-        assert mismatched_compiler_group["compiler_identity_complete"] is True
-        assert mismatched_compiler_group["compiler_identity_compatible"] is False
-        mismatched_compiler_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in mismatched_compiler_group["candidates"]
-        }
-        assert "compiler_identity_mismatch" in mismatched_compiler_blockers["ck"]
 
         missing_git_direct = copy.deepcopy(direct)
         missing_git_direct["git_commit"] = "unknown"
@@ -1515,16 +1458,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_git_direct, cpu],
             review_mode="release",
         )
-        missing_git_group = missing_git_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(missing_git_report)
         assert missing_git_report["promotable_autotune_entries"] == []
-        assert missing_git_group["missing_git_commits"] == ["hip-direct"]
-        assert missing_git_group["git_commit_identity_complete"] is False
-        assert missing_git_group["git_commit_identity_compatible"] is False
-        missing_git_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in missing_git_group["candidates"]
-        }
-        assert "missing_git_commit" in missing_git_blockers["ck"]
 
         mismatched_git_ck = copy.deepcopy(ck)
         mismatched_git_ck["git_commit"] = "different-fixture"
@@ -1532,16 +1467,8 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_git_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_git_group = mismatched_git_report["groups"][0]
+        assert_unmatched_environment_cannot_supply_baseline(mismatched_git_report)
         assert mismatched_git_report["promotable_autotune_entries"] == []
-        assert mismatched_git_group["missing_git_commits"] == []
-        assert mismatched_git_group["git_commit_identity_complete"] is True
-        assert mismatched_git_group["git_commit_identity_compatible"] is False
-        mismatched_git_blockers = {
-            candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in mismatched_git_group["candidates"]
-        }
-        assert "git_commit_mismatch" in mismatched_git_blockers["ck"]
 
         missing_warmups_direct = copy.deepcopy(direct)
         missing_warmups_direct["warmups"] = 0
@@ -1549,7 +1476,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_warmups_direct, cpu],
             review_mode="release",
         )
-        missing_warmups_group = missing_warmups_report["groups"][0]
+        missing_warmups_group = implementation_group(missing_warmups_report)
         assert missing_warmups_report["promotable_autotune_entries"] == []
         assert missing_warmups_group["missing_warmup_counts"] == ["hip-direct"]
         assert missing_warmups_group["warmup_count_complete"] is False
@@ -1566,7 +1493,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_warmups_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_warmups_group = mismatched_warmups_report["groups"][0]
+        mismatched_warmups_group = implementation_group(mismatched_warmups_report)
         assert mismatched_warmups_report["promotable_autotune_entries"] == []
         assert mismatched_warmups_group["missing_warmup_counts"] == []
         assert mismatched_warmups_group["warmup_count_complete"] is True
@@ -1583,7 +1510,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, missing_repeats_direct, cpu],
             review_mode="release",
         )
-        missing_repeats_group = missing_repeats_report["groups"][0]
+        missing_repeats_group = implementation_group(missing_repeats_report)
         assert missing_repeats_report["promotable_autotune_entries"] == []
         assert missing_repeats_group["missing_repeat_counts"] == ["hip-direct"]
         assert missing_repeats_group["repeat_count_complete"] is False
@@ -1600,7 +1527,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [mismatched_repeats_ck, direct, cpu],
             review_mode="release",
         )
-        mismatched_repeats_group = mismatched_repeats_report["groups"][0]
+        mismatched_repeats_group = implementation_group(mismatched_repeats_report)
         assert mismatched_repeats_report["promotable_autotune_entries"] == []
         assert mismatched_repeats_group["missing_repeat_counts"] == []
         assert mismatched_repeats_group["repeat_count_complete"] is True
@@ -1615,14 +1542,14 @@ class ReviewMetadataCases(unittest.TestCase):
             [ck, copy.deepcopy(ck), direct, cpu],
             review_mode="release",
         )
-        duplicate_ck_group = duplicate_ck_report["groups"][0]
+        duplicate_ck_group = implementation_group(duplicate_ck_report)
         assert duplicate_ck_report["promotable_autotune_entries"] == []
-        assert duplicate_ck_group["duplicate_backends"] == ["ck"]
+        assert duplicate_ck_group["duplicate_backends"] == []
         duplicate_ck_blockers = {
             candidate["backend"]: candidate["promotion_blockers"]
             for candidate in duplicate_ck_group["candidates"]
         }
-        assert "duplicate_backend_capture" in duplicate_ck_blockers["ck"]
+        assert "insufficient_independent_processes" in duplicate_ck_blockers["ck"]
 
         host_batch_ck = as_host_api_batch_capture(ck)
         host_batch_report = sweep_review.review_captures(
@@ -1683,7 +1610,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
             review_mode="release",
         )
-        reuse_group = reuse_report["groups"][0]
+        reuse_group = implementation_group(reuse_report)
         assert reuse_group["source_metadata"]["pack_modes"] == ["prepacked_reuse"]
         assert reuse_group["source_metadata"]["prepack_reuse_strategies"] == [
             "persistent_matrix_residency"
@@ -1702,7 +1629,7 @@ class ReviewMetadataCases(unittest.TestCase):
             [mark_reused_a_pack(ck), mark_reused_a_pack(direct), mark_reused_a_pack(cpu)],
             review_mode="release",
         )
-        reuse_a_group = reuse_a_report["groups"][0]
+        reuse_a_group = implementation_group(reuse_a_report)
         assert reuse_a_group["source_metadata"]["pack_modes"] == ["prepacked_reuse_a"]
         assert reuse_a_group["source_metadata"]["prepack_reuse_strategies"] == [
             "persistent_matrix_residency"
@@ -1730,7 +1657,7 @@ class ReviewMetadataCases(unittest.TestCase):
         reuse_evidence_report = sweep_review.review_captures(
             [reuse_evidence_direct], review_mode="release"
         )
-        reuse_evidence_group = reuse_evidence_report["groups"][0]
+        reuse_evidence_group = implementation_group(reuse_evidence_report)
         assert reuse_evidence_group["required_baselines"] == []
         assert reuse_evidence_group["missing_required_baselines"] == []
         reuse_evidence_blockers = reuse_evidence_group["candidates"][0]["promotion_blockers"]
@@ -1755,7 +1682,7 @@ class ReviewMetadataCases(unittest.TestCase):
         graph_evidence_report = sweep_review.review_captures(
             [graph_evidence_direct], review_mode="release"
         )
-        graph_evidence_group = graph_evidence_report["groups"][0]
+        graph_evidence_group = implementation_group(graph_evidence_report)
         assert graph_evidence_group["required_baselines"] == []
         assert graph_evidence_group["missing_required_baselines"] == []
         graph_evidence_blockers = graph_evidence_group["candidates"][0]["promotion_blockers"]

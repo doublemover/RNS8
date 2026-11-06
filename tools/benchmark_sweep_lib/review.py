@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import statistics
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +18,22 @@ from timing_eligibility import (
     bound_comparison_blockers,
 )
 from diagnostic_companion import production_evidence, binding_for_capture
-from review_receipt import make_review_receipt
+from review_receipt import (
+    make_review_receipt,
+    isa_input_references,
+    ReviewReceiptReader,
+    digest as review_digest,
+    SCHEMA as REVIEW_RECEIPT_SCHEMA,
+)
+from observation_cohorts import (
+    canonical_work,
+    comparison_environment,
+    evidence as cohort_evidence,
+    measurement_identity,
+    amortized_prepack_measurement,
+    prepack_setup_observation,
+)
+from report_comparison import ComparisonPolicy, ReportCohorts
 from review_contract import REVIEW_MODES, release_capture_satisfied
 from first_call_setup import review_first_call
 from graph_caller_contract import (
@@ -39,6 +55,7 @@ from .capture_metadata import (
     capture_backend_metadata,
     capture_bound_source,
     capture_contract_key,
+    correctness_anchor_reference_capture,
     capture_device,
     capture_execution_mode,
     capture_export_variant_name,
@@ -652,18 +669,6 @@ def amdgpu_builtin_tile_variant_blockers(
     if metadata.get("matrix_instruction_dtype") != dtype:
         blockers.append("amdgpu_builtin_tile_variant_dtype_mismatch")
     return blockers
-
-
-def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
-    if backend_family_id(backend_id(capture)) not in CORRECTNESS_ANCHOR_REFERENCE_BACKENDS:
-        return False
-    cpu_parallel = capture.get("cpu_parallel")
-    if not isinstance(cpu_parallel, dict):
-        return False
-    return (
-        cpu_parallel.get("correctness_anchor") is True
-        or cpu_parallel.get("reference_mode") == "correctness-anchor"
-    )
 
 
 def autotune_promotable_scope(capture: dict[str, Any]) -> bool:
@@ -1333,12 +1338,14 @@ def prepack_setup_primary_phase(capture: dict[str, Any]) -> str | None:
 
 def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> float | None:
     setup = 0.0
+    if include_graph_setup and "_review_graph_total_setup_us" in capture:
+        return capture["_review_graph_total_setup_us"]
     if capture_prepacked_reuse(capture):
-        prepack = reuse_contract_numeric_value(capture, "setup_cost_us")
-        if prepack is None:
-            prepack = numeric_capture_value(capture, "avg_prepack_setup_us")
-        if prepack is None:
-            prepack = numeric_capture_value(capture, "prepack_setup_us")
+        prepack = (
+            median_phase(capture, "prepack_setup")
+            if "_observation_aggregate" in capture
+            else prepack_setup_observation(capture)
+        )
         if prepack is None:
             return None
         setup += prepack
@@ -1353,10 +1360,14 @@ def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> floa
 def setup_inclusive_end_to_end_us(
     capture: dict[str, Any], *, include_graph_setup: bool = False
 ) -> float | None:
-    if capture_prepacked_reuse(capture) and not include_graph_setup:
-        recorded = reuse_contract_numeric_value(capture, "setup_inclusive_median_end_to_end_us")
-        if recorded is not None:
-            return recorded
+    if (
+        capture_prepacked_reuse(capture)
+        and not include_graph_setup
+        and "_observation_aggregate" in capture
+    ):
+        return amortized_prepack_measurement(capture)["median_us"]
+    if include_graph_setup and "_review_graph_setup_inclusive_us" in capture:
+        return capture["_review_graph_setup_inclusive_us"]
     median = median_phase(capture, "end_to_end")
     repeats = normalized_positive_int(capture.get("repeats"))
     if median is None or repeats is None:
@@ -1463,23 +1474,27 @@ def setup_comparison_key(capture: dict[str, Any], *, include_pack_mode: bool) ->
 
 
 def fastest_capture(
-    captures: list[dict[str, Any]], *, include_graph_setup: bool = False
-) -> dict[str, Any] | None:
-    timed = [
-        capture
-        for capture in captures
-        if setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup)
-        is not None
-    ]
-    if not timed:
-        return None
-    return min(
-        timed,
-        key=lambda capture: (
-            setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup)
-            or float("inf")
-        ),
-    )
+    captures: list[dict[str, Any]],
+    *,
+    candidate: dict,
+    cohorts: ReportCohorts,
+    include_graph_setup: bool = False,
+) -> dict | None:
+    timed = []
+    for capture in captures:
+        cpu = backend_id(capture) in {"cpu", "cpu-reference", "wrap64-byte-limb"}
+        policy = GENERIC_CPU_REUSE_POLICY if cpu else GENERIC_REUSE_POLICY
+        if (
+            not policy.processor_pair(candidate, capture)
+            or policy.work(candidate) != policy.work(capture)
+            or policy.environment(candidate) != policy.environment(capture)
+            or cohorts.admission(capture, policy)
+        ):
+            continue
+        duration = setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup)
+        if duration is not None and duration > 0:
+            timed.append((duration, cohort_evidence(capture)["implementation_key"], capture))
+    return min(timed, key=lambda row: row[:2])[2] if timed else None
 
 
 def graph_status_available(capture: dict[str, Any]) -> bool:
@@ -1677,6 +1692,7 @@ def hip_graph_replay_review(
         "graph_capture_us": graph_numeric_value(capture, "capture_us"),
         "graph_instantiate_us": graph_numeric_value(capture, "instantiate_us"),
         "graph_total_setup_us": graph_total_setup,
+        "graph_process_setup_observations": capture.get("_review_graph_setup_records", []),
         "graph_setup_amortized_us": (
             graph_total_setup / float(declared_repeats)
             if graph_total_setup is not None and declared_repeats is not None
@@ -2042,6 +2058,13 @@ def review_route_candidate(candidate: dict[str, Any]) -> bool:
     return (
         scope in {None, "release_review_candidate"}
         and candidate.get("release_review_capture") is True
+        and not (candidate.get("observation") or {}).get(
+            "admission_blockers", ["cohort_evidence_missing"]
+        )
+        and all(
+            facts.get("qualified") is True
+            for facts in candidate.get("cohort_comparisons", {}).values()
+        )
         and candidate.get("checksum_matches_reference") is True
         and candidate.get("selection_end_to_end_us") is not None
         and not (blockers & fatal)
@@ -2066,6 +2089,58 @@ def fastest_route(
     return min(route_candidates, key=lambda item: item["selection_end_to_end_us"])
 
 
+GENERIC_REVIEW_POLICY = ComparisonPolicy(
+    "generic_review_completed_output", amortize_prepack_setup=True
+)
+GENERIC_CPU_POLICY = ComparisonPolicy(
+    "generic_review_same_host_cpu_gpu", cpu_gpu_comparison=True, amortize_prepack_setup=True
+)
+
+GENERIC_REUSE_POLICY = ComparisonPolicy(
+    "generic_review_setup_inclusive_reuse",
+    work_exclusions=(
+        "reuse_packed_inputs",
+        "pack_mode",
+        "prepack_reuse_operands",
+        "prepack_reuse_strategy",
+        "resident_lifetime.enabled",
+        "export_variant.selector_key",
+    ),
+    amortize_prepack_setup=True,
+)
+GENERIC_CPU_REUSE_POLICY = ComparisonPolicy(
+    "generic_review_same_host_cpu_gpu_reuse",
+    work_exclusions=GENERIC_REUSE_POLICY.work_exclusions,
+    cpu_gpu_comparison=True,
+    amortize_prepack_setup=True,
+)
+
+
+def _review_observation_groups(cohorts: ReportCohorts):
+    groups, cpus = defaultdict(list), defaultdict(list)
+    for capture in cohorts.observations:
+        contract, work = capture_contract_key(capture), canonical_work(capture)
+        if backend_id(capture) in {"cpu", "cpu-reference", "wrap64-byte-limb"}:
+            cpus[(contract, work, comparison_environment(capture, cpu_anchor=True))].append(capture)
+        else:
+            groups[(contract, work, comparison_environment(capture))].append(capture)
+    assigned_cpu = set()
+    for (key, work, environment), items in sorted(groups.items()):
+        anchor_key = (key, work, comparison_environment(items[0], cpu_anchor=True))
+        anchors = cpus.get(anchor_key, [])
+        assigned_cpu.update(id(capture) for capture in anchors)
+        yield key, environment, [*items, *anchors]
+    cpu_groups = defaultdict(list)
+    for captures in cpus.values():
+        for capture in captures:
+            if id(capture) not in assigned_cpu:
+                cpu_groups[(capture_contract_key(capture), comparison_environment(capture))].append(
+                    capture
+                )
+    for (key, environment), items in sorted(cpu_groups.items()):
+        yield key, environment, items
+
+
 def review_captures(
     captures: list[dict[str, Any]],
     *,
@@ -2075,33 +2150,62 @@ def review_captures(
 ) -> dict[str, Any]:
     if review_mode not in REVIEW_MODES:
         raise ValueError(f"unsupported review mode: {review_mode}")
+    isa_references = isa_input_references(isa_index)
+    isa_reader = ReviewReceiptReader()
+    isa_index = isa_reader.isa_index(isa_references)
+    cohorts = ReportCohorts(captures, diagnostic_bindings)
+    for view in cohorts.observations:
+        if not capture_hip_graph_replay(view):
+            continue
+        members = cohorts.raw_observations(view)
+        records = [
+            dict(
+                capture_sha256=capture_identity(raw),
+                repeats=raw.get("repeats"),
+                setup_us=setup_cost_us(raw, include_graph_setup=True),
+                setup_inclusive_us=setup_inclusive_end_to_end_us(raw, include_graph_setup=True),
+            )
+            for raw in members
+        ]
+        totals = [record["setup_us"] for record in records]
+        inclusive = [record["setup_inclusive_us"] for record in records]
+        view["_review_graph_total_setup_us"] = (
+            statistics.median(totals)
+            if totals and all(value is not None for value in totals)
+            else None
+        )
+        view["_review_graph_setup_inclusive_us"] = (
+            statistics.median(inclusive)
+            if inclusive and all(value is not None for value in inclusive)
+            else None
+        )
+        view["_review_graph_setup_records"] = records
     nonreuse_by_key_backend, nonreuse_by_key, graph_baseline_by_key_backend = (
-        build_setup_baseline_indexes(captures)
+        build_setup_baseline_indexes(cohorts.observations)
     )
-    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for capture in captures:
-        grouped[capture_contract_key(capture)].append(capture)
-
     groups = []
     promotable_entries = []
-    for key, items in sorted(grouped.items()):
-        backend_counts: dict[str, int] = defaultdict(int)
-        for item in items:
-            backend_counts[backend_id(item)] += 1
-        duplicate_backends = sorted(
-            backend for backend, count in backend_counts.items() if count > 1
-        )
-        by_backend: dict[str, dict[str, Any]] = {}
-        for item in items:
+    for key, environment, items in _review_observation_groups(cohorts):
+        duplicate_backends = []
+        by_backend = {}
+        for item in sorted(
+            items,
+            key=lambda value: (
+                bool(cohorts.admission(value)),
+                selection_end_to_end_us(value) or float("inf"),
+                cohort_evidence(value)["implementation_key"],
+            ),
+        ):
             by_backend.setdefault(backend_id(item), item)
+        raw_inputs = [raw for view in items for raw in cohorts.raw_observations(view)]
         semantics = items[0].get("semantics")
         required = required_baselines_for_group(semantics, items)
         missing = [backend for backend in required if backend not in by_backend]
         cpu_capture = by_backend.get("cpu-reference")
-        direct_capture = by_backend.get("hip-direct")
-        vector_capture = by_backend.get("hip-vector-alu-int64")
         phase_medians = {
-            f"{backend_id(item)}/{selected_kernel(item)}": phase_medians_for_capture(item)
+            f"{backend_id(item)}/{selected_kernel(item)}@{cohort_evidence(item)['implementation_key'][:16]}": phase_medians_for_capture(
+                item
+            )
             for item in items
         }
         gpu_targets = {
@@ -2295,18 +2399,47 @@ def review_captures(
             setup_key = setup_comparison_key(item, include_pack_mode=False)
             graph_key = setup_comparison_key(item, include_pack_mode=True)
             same_backend_nonreuse = fastest_capture(
-                nonreuse_by_key_backend.get((setup_key, backend_family), [])
+                nonreuse_by_key_backend.get((setup_key, backend_family), []),
+                candidate=item,
+                cohorts=cohorts,
             )
-            best_nonreuse = fastest_capture(nonreuse_by_key.get(setup_key, []))
+            best_nonreuse = fastest_capture(
+                nonreuse_by_key.get(setup_key, []), candidate=item, cohorts=cohorts
+            )
             graph_non_graph_baseline = fastest_capture(
                 graph_baseline_by_key_backend.get((graph_key, backend_family), []),
+                candidate=item,
+                cohorts=cohorts,
             )
-            direct_baseline = direct_capture or fastest_capture(
-                nonreuse_by_key_backend.get((setup_key, "hip-direct"), [])
-            )
-            vector_baseline = vector_capture or fastest_capture(
-                nonreuse_by_key_backend.get((setup_key, "hip-vector-alu-int64"), [])
-            )
+            direct_baseline = by_backend.get("hip-direct")
+            vector_baseline = by_backend.get("hip-vector-alu-int64")
+            for name, baseline in (("direct", direct_baseline), ("vector", vector_baseline)):
+                if baseline is not None and (
+                    cohorts.admission(baseline, GENERIC_REVIEW_POLICY)
+                    or not GENERIC_REVIEW_POLICY.processor_pair(item, baseline)
+                ):
+                    if name == "direct":
+                        direct_baseline = None
+                    else:
+                        vector_baseline = None
+            if timed_cpu_capture is not None:
+                timed_cpu_capture = cohorts.best([timed_cpu_capture], item, GENERIC_CPU_POLICY)
+            cohort_comparisons = {
+                name: cohorts.compare(item, baseline, policy)
+                for name, baseline, policy in (
+                    ("direct", direct_baseline, GENERIC_REVIEW_POLICY),
+                    ("vector", vector_baseline, GENERIC_REVIEW_POLICY),
+                    ("cpu", timed_cpu_capture, GENERIC_CPU_POLICY),
+                )
+                if baseline is not None
+            }
+            if hip_graph_replay_capture:
+                for facts in cohort_comparisons.values():
+                    facts["qualified"] = False
+                    facts["speedup"] = None
+                    facts["blockers"].append(
+                        "graph_setup_comparison_requires_dedicated_graph_report"
+                    )
             cpu = median_phase(timed_cpu_capture, "end_to_end") if timed_cpu_capture else None
             direct = median_phase(direct_baseline, "end_to_end") if direct_baseline else None
             vector = median_phase(vector_baseline, "end_to_end") if vector_baseline else None
@@ -2351,7 +2484,7 @@ def review_captures(
                     prepacked_reuse=False,
                     oneshot_capture=oneshot_capture,
                     host_api_batch_capture=host_api_batch_capture,
-                    hip_graph_replay_capture=False,
+                    hip_graph_replay_capture=hip_graph_replay_capture,
                     gpu_events_available=capture_gpu_events_available(item)
                     or companion["eligible"]
                     and companion["binding"] is not None,
@@ -2366,6 +2499,15 @@ def review_captures(
                     blockers.extend(graph_review["blockers"])
             else:
                 blockers = []
+            blockers.extend(cohorts.admission(item, GENERIC_REVIEW_POLICY))
+            for baseline_name, facts in cohort_comparisons.items():
+                blockers.extend(baseline_name + ":" + reason for reason in facts["blockers"])
+                if (
+                    accelerator
+                    and facts["qualified"]
+                    and facts["speedup"] <= facts["required_speedup_margin"]
+                ):
+                    blockers.append(baseline_name + ":speedup_inside_process_noise_margin")
             blockers.extend(phase_blockers(item))
             blockers.extend(companion["blockers"])
             timing_baseline = direct_baseline or vector_baseline
@@ -2466,9 +2608,13 @@ def review_captures(
                 blockers.append("checksum_mismatch_vs_reference")
             blockers.extend(scenario_promotion_blockers(item))
             promotable = not blockers
-            cpu_reference = by_backend.get("cpu-reference") or by_backend.get("cpu")
             numerical = reference_verdict(
-                item, [cpu_reference] if cpu_reference is not None else []
+                item,
+                [
+                    view
+                    for view in items
+                    if backend_id(view) in {"cpu", "cpu-reference", "wrap64-byte-limb"}
+                ],
             ).to_json()
             candidate = {
                 "backend": backend,
@@ -2476,9 +2622,12 @@ def review_captures(
                 "capture": item.get("_path"),
                 "capture_sha256": capture_identity(item),
                 "review_capture_receipt": make_review_receipt(
-                    item, items, required, diagnostic_bindings
+                    item, raw_inputs, required, diagnostic_bindings
                 ),
                 "numerical_reference": numerical,
+                "measurement_identity_sha256": measurement_identity(item),
+                "observation": cohorts.metadata(item, GENERIC_REVIEW_POLICY),
+                "cohort_comparisons": cohort_comparisons,
                 "production_timing_evidence": companion,
                 "baseline_production_timing_evidence": baseline_evidence,
                 "additional_baseline_evidence": additional_baselines,
@@ -2507,13 +2656,9 @@ def review_captures(
                     if isinstance(item.get("tile_shape_variant"), dict)
                     else None
                 ),
-                "speedup_vs_direct_hip": (direct / selection_e2e)
-                if direct and selection_e2e
-                else None,
+                "speedup_vs_direct_hip": cohort_comparisons.get("direct", {}).get("speedup"),
                 "timing_comparison": timing_comparison,
-                "speedup_vs_vector_alu": (vector / selection_e2e)
-                if vector and selection_e2e
-                else None,
+                "speedup_vs_vector_alu": cohort_comparisons.get("vector", {}).get("speedup"),
                 "exact_output_contract": (
                     item.get("exact_output_contract")
                     if isinstance(item.get("exact_output_contract"), dict)
@@ -2577,7 +2722,10 @@ def review_captures(
                     item["promotion_blockers"] = ["not_fastest_promotable_accelerator"]
                     item["promotion_reason"] = "blocked"
                     item["cache_write_status"] = "not_eligible"
-            source = by_backend.get(fastest["backend"])
+            source = next(
+                (view for view in items if capture_identity(view) == fastest["capture_sha256"]),
+                None,
+            )
             if source is not None:
                 metadata = (
                     source.get("backend_metadata")
@@ -2588,6 +2736,8 @@ def review_captures(
                     {
                         "source_capture": source.get("_path"),
                         "source_capture_sha256": capture_identity(source),
+                        "measurement_identity_sha256": measurement_identity(source),
+                        "review_capture_receipt": fastest.get("review_capture_receipt"),
                         "diagnostic_companion": binding_for_capture(source, diagnostic_bindings),
                         "timing_comparison": fastest.get("timing_comparison"),
                         "baseline_diagnostic_companion": (
@@ -2617,13 +2767,21 @@ def review_captures(
         groups.append(
             {
                 "contract_key": key,
+                "comparison_environment": environment,
+                "observation_count": len(items),
+                "submitted_capture_count": sum(
+                    cohort_evidence(view).get("submitted_records", 0) for view in items
+                ),
+                "observations": [cohorts.metadata(view, GENERIC_REVIEW_POLICY) for view in items],
                 "semantics": semantics,
                 "finite_modulus": items[0].get("finite_modulus"),
                 "shape": group_shape,
                 "shape_family": shape_family(
                     group_shape.get("m"), group_shape.get("n"), group_shape.get("k")
                 ),
-                "capture_count": len(items),
+                "capture_count": sum(
+                    cohort_evidence(view).get("submitted_records", 0) for view in items
+                ),
                 "scenario_families": scenario_values(items, "family"),
                 "scenario_names": scenario_values(items, "name"),
                 "source_metadata": group_source_metadata(items),
@@ -2690,11 +2848,15 @@ def review_captures(
             }
         )
 
+    isa_reader.finish()
     return {
+        "isa_input_references": isa_references,
         "schema_version": REVIEW_SCHEMA_VERSION,
         "numerical_reference_contract": NUMERICAL_REFERENCE_SCHEMA,
         "review_mode": review_mode,
-        "route_comparison_scope": "descriptive_same_instrumentation_only; production promotion separately requires bound hook-disabled evidence",
+        "route_comparison_scope": "qualified_independent_process_estimates_same_work_build_native_device_and_every_production_companion",
+        "input_capture_count": len(captures),
+        "observation_count": len(cohorts.observations),
         "release_review_requirements": {
             "min_warmups": RELEASE_MIN_WARMUPS,
             "min_repeats": RELEASE_MIN_REPEATS,
@@ -2716,11 +2878,6 @@ def review_captures(
 def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) -> dict[str, Any]:
     metadata = (
         capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
-    )
-    medians = (
-        capture.get("timing_summary_us")
-        if isinstance(capture.get("timing_summary_us"), dict)
-        else {}
     )
     schedule = (
         capture.get("schedule_metadata")
@@ -2785,13 +2942,19 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         )
 
     def median(phase: str) -> float:
-        item = medians.get(phase) if isinstance(medians, dict) else None
-        if isinstance(item, dict) and isinstance(item.get("median"), (int, float)):
-            return float(item["median"])
-        return 0.0
+        value = median_phase(capture, phase)
+        return value if value is not None else 0.0
 
     return {
         "key": key,
+        **(
+            {
+                "measurement_identity_sha256": measurement_identity(capture),
+                "measurement_estimator": cohort_evidence(capture).get("estimator"),
+            }
+            if "_observation_aggregate" in capture
+            else {}
+        ),
         "selected_backend": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "target_id": normalized_target_id(device.get("gcn_arch")) or "cpu",
@@ -2856,6 +3019,8 @@ def _reviewed_cache_candidates(
     if not isinstance(promotable, list) or not promotable:
         return [], set()
     by_path = {str(capture.get("_path")): capture for capture in captures}
+    reader = ReviewReceiptReader()
+    fresh_reviews = {}
     entries = []
     written_sources = set()
     for item in promotable:
@@ -2863,6 +3028,57 @@ def _reviewed_cache_candidates(
             continue
         capture = by_path.get(str(item.get("source_capture")))
         if not capture:
+            continue
+        receipt = item.get("review_capture_receipt")
+        try:
+            if (
+                report.get("schema_version") != REVIEW_SCHEMA_VERSION
+                or not isinstance(receipt, dict)
+                or receipt.get("schema") != REVIEW_RECEIPT_SCHEMA
+                or receipt.get("identity_sha256")
+                != review_digest(
+                    {key: value for key, value in receipt.items() if key != "identity_sha256"}
+                )
+            ):
+                raise ValueError("current content-bound review receipt required")
+            cohorts = reader.input_cohorts(receipt)
+            views = [
+                view
+                for view in cohorts.observations
+                if capture_identity(capture)
+                in {
+                    fact["capture_sha256"]
+                    for fact in cohort_evidence(view).get("submitted_observations", [])
+                }
+            ]
+            if len(views) != 1 or item.get("measurement_identity_sha256") != measurement_identity(
+                views[0]
+            ):
+                raise ValueError("review process estimator changed")
+            reviewed_view = views[0]
+            key = review_digest(receipt["inputs"])
+            if key not in fresh_reviews:
+                raw_inputs, bindings = reader.input_records(receipt)
+                fresh_reviews[key] = review_captures(
+                    raw_inputs,
+                    review_mode="release",
+                    diagnostic_bindings=bindings,
+                    isa_index=reader.isa_index(report.get("isa_input_references", [])),
+                )
+            fresh = next(
+                (
+                    row
+                    for row in fresh_reviews[key]["promotable_autotune_entries"]
+                    if row.get("source_capture_sha256") == capture_identity(capture)
+                    and row.get("measurement_identity_sha256")
+                    == measurement_identity(reviewed_view)
+                ),
+                None,
+            )
+            if fresh is None:
+                raise ValueError("review candidate no longer qualifies")
+        except (KeyError, OSError, TypeError, ValueError):
+            item["cache_write_status"] = "blocked_process_measurement_revalidation"
             continue
         # Defense in depth: a saved/edited review or mutated capture cannot bypass
         # the production/diagnostic binding at the actual cache mutation boundary.
@@ -2905,10 +3121,13 @@ def _reviewed_cache_candidates(
             continue
         device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
         target_id = normalized_target_id(device.get("gcn_arch")) or "cpu"
-        entry = cache_entry_from_capture(capture, reviewed_release_status_for_target(target_id))
+        entry = cache_entry_from_capture(
+            reviewed_view, reviewed_release_status_for_target(target_id)
+        )
         if entry.get("key"):
             entries.append(entry)
             written_sources.add(str(item.get("source_capture")))
+    reader.finish()
     return entries, written_sources
 
 

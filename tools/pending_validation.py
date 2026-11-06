@@ -279,6 +279,7 @@ def load_review_index(
                 "review_report": str(report_path),
                 "review_report_sha256": report_sha256,
                 "review_schema_version": data.get("schema_version"),
+                "isa_input_references": data.get("isa_input_references", []),
                 "review_report_group_index": group_index,
                 "review_mode": group.get("review_mode") or data.get("review_mode"),
                 "release_review_satisfied": group.get("release_review_satisfied"),
@@ -524,7 +525,15 @@ def decision_for_capture(
         "backend": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
-        "median_end_to_end_us": _median_us(capture),
+        "median_end_to_end_us": (receipt.measurement_cohort or {})
+        .get("phase_medians_us", {})
+        .get("end_to_end")
+        if receipt is not None and receipt.qualified
+        else _median_us(capture),
+        "raw_capture_median_end_to_end_us": _median_us(capture),
+        "measurement_estimator": (receipt.measurement_cohort or {}).get("estimator")
+        if receipt is not None
+        else None,
         "schema_status": schema_status,
         "schema_error": schema_error,
         "gpu_events_complete": _gpu_events_complete(capture) if capture else False,
@@ -837,6 +846,7 @@ def write_summary(
         decision_for_capture(config, path, review_index=review_index, receipt_reader=receipt_reader)
         for path in captures
     ]
+    receipt_reader.finish()
     payload = {
         "schema": config.summary_schema,
         "target": config.target,

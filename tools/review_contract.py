@@ -1,6 +1,6 @@
 """Shared producer/reader version and explicit review policy domains."""
 
-REVIEW_SCHEMA_VERSION = 3
+REVIEW_SCHEMA_VERSION = 4
 REVIEW_MODES = frozenset(("smoke", "release"))
 RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9

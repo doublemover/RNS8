@@ -192,6 +192,20 @@ class ProcessObservations(unittest.TestCase):
         )
         self.assertTrue(all(evidence(c)["independent_runs"] == 2 for c in cohorts))
 
+    def test_measurement_identity_binds_estimator_not_path_aliases(self):
+        from observation_cohorts import measurement_identity
+
+        a, b = runs(finite_capture("hip-direct", 100))
+        original = aggregate_captures([a, b])[0]
+        changed = deepcopy([a, b])
+        for index, capture in enumerate(changed):
+            capture["_path"] = f"renamed-{index}.json"
+        renamed = aggregate_captures(list(reversed(changed)) + [deepcopy(changed[0])])[0]
+        self.assertEqual(measurement_identity(original), measurement_identity(renamed))
+        altered = deepcopy(original)
+        altered["_observation_aggregate"]["phase_medians_us"]["end_to_end"] = 1
+        self.assertNotEqual(measurement_identity(original), measurement_identity(altered))
+
     def test_in_memory_private_verdicts_cannot_supply_measurements(self):
         from report_comparison import ReportCohorts
 

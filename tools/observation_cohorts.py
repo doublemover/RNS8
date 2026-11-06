@@ -365,6 +365,40 @@ def evidence(capture: dict | None) -> dict:
     }
 
 
+def measurement_identity(capture: dict) -> str:
+    """Bind the process estimator and inputs without giving path aliases weight."""
+    aggregate = evidence(capture)
+    projection = {
+        key: aggregate.get(key)
+        for key in (
+            "schema",
+            "cohort",
+            "implementation_key",
+            "independent_runs",
+            "qualified",
+            "blockers",
+            "phase_medians_us",
+            "event_medians_us",
+            "process_spread_us",
+            "maximum_observed_within_capture_relative_spread",
+            "estimator",
+        )
+    }
+    projection["observations"] = sorted(
+        (
+            {key: value for key, value in observation.items() if key != "paths"}
+            for observation in aggregate.get("observations", [])
+        ),
+        key=lambda observation: (
+            str(observation.get("execution_id")),
+            str(observation.get("capture_sha256")),
+        ),
+    )
+    return hashlib.sha256(
+        json.dumps(projection, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
+
+
 def qualified(capture: dict | None) -> bool:
     return evidence(capture).get("qualified") is True
 
