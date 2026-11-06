@@ -127,11 +127,35 @@ def _number(value: Any) -> float | None:
     return float(value) if type(value) in (int, float) and math.isfinite(value) else None
 
 
+def prepack_setup_observation(capture: dict) -> float | None:
+    """Read the native one-time scalar; never invent repeated setup samples."""
+    value = _number(capture.get("prepack_setup_us"))
+    average_alias = _number(capture.get("avg_prepack_setup_us"))
+    metadata = capture.get("timing_metadata")
+    if not isinstance(metadata, dict) or not isinstance(metadata.get("phase_availability"), dict):
+        return None
+    availability = metadata["phase_availability"].get("prepack_setup")
+    if not isinstance(availability, dict):
+        return None
+    if (
+        value is None
+        or value < 0
+        or average_alias != value
+        or availability.get("timed") is not True
+        or availability.get("timing_key") != "prepack_setup_us"
+        or availability.get("scope") != "one_time_before_warmups"
+    ):
+        return None
+    return value
+
+
 def phase_median(capture: dict, phase: str = "end_to_end", *, event: bool = False) -> float | None:
     aggregate = capture.get("_observation_aggregate")
     key = "event_medians_us" if event else "phase_medians_us"
     if isinstance(aggregate, dict):
         return aggregate[key].get(phase)
+    if not event and phase == "prepack_setup":
+        return prepack_setup_observation(capture)
     summary = capture.get("gpu_event_timing_summary_us" if event else "timing_summary_us") or {}
     return _number((summary.get(phase) or {}).get("median"))
 
@@ -245,6 +269,11 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
             if median is not None and median > 0 and p95 is not None:
                 within_spreads.append(max(0.0, (p95 - median) / median))
         phases = set().union(*((c.get("timing_summary_us") or {}).keys() for c in observations))
+        if any(
+            c.get("prepack_setup_us") is not None or c.get("reuse_packed_inputs") is True
+            for c in observations
+        ):
+            phases.add("prepack_setup")
         events = set().union(
             *((c.get("gpu_event_timing_summary_us") or {}).keys() for c in observations)
         )

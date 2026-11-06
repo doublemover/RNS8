@@ -36,6 +36,32 @@ def write_all(root, captures):
 
 
 class ProcessObservations(unittest.TestCase):
+    def test_native_once_setup_scalar_needs_matching_alias_and_explicit_scope(self):
+        base = bounded_capture("hip-direct", 100)
+        base["prepack_setup_us"] = base["avg_prepack_setup_us"] = 123
+        base["timing_metadata"].setdefault("phase_availability", {})["prepack_setup"] = dict(
+            timed=True, timing_key="prepack_setup_us", scope="one_time_before_warmups"
+        )
+        self.assertNotIn("prepack_setup", base["raw_timings_us"])
+        self.assertEqual(phase_median(base, "prepack_setup"), 123)
+        for field, value in (
+            ("avg_prepack_setup_us", 124),
+            ("prepack_setup_us", None),
+            ("prepack_setup_us", True),
+        ):
+            invalid = deepcopy(base)
+            invalid[field] = value
+            invalid["timing_summary_us"]["prepack_setup"] = dict(avg=123, median=123, p95=123)
+            self.assertIsNone(phase_median(invalid, "prepack_setup"))
+        for field, value in (
+            ("scope", "inside_every_call"),
+            ("timing_key", "other"),
+            ("timed", False),
+        ):
+            invalid = deepcopy(base)
+            invalid["timing_metadata"]["phase_availability"]["prepack_setup"][field] = value
+            self.assertIsNone(phase_median(invalid, "prepack_setup"))
+
     def test_prepack_setup_amortizes_each_process_over_its_own_completed_repeats(self):
         from itertools import permutations
         from report_comparison import ComparisonPolicy
@@ -43,17 +69,18 @@ class ProcessObservations(unittest.TestCase):
 
         base = bounded_capture("hip-direct", 100)
         base["reuse_packed_inputs"] = True
-        base["timing_summary_us"]["prepack_setup"] = dict(avg=900, median=900, p95=900)
+        base["prepack_setup_us"] = base["avg_prepack_setup_us"] = 900
+        base["timing_metadata"].setdefault("phase_availability", {})["prepack_setup"] = dict(
+            timed=True, timing_key="prepack_setup_us", scope="one_time_before_warmups"
+        )
         captures = runs(base, 3)
         for record, repeats in zip(captures, (9, 18, 27)):
             original_repeats = record["repeats"]
             record["repeats"] = repeats
             setup = repeats * 100
-            record["raw_timings_us"]["prepack_setup"] = [setup]
-            record["timing_summary_us"]["prepack_setup"] = dict(avg=setup, median=setup, p95=setup)
-            record["avg_prepack_setup_us"] = setup
+            record["prepack_setup_us"] = record["avg_prepack_setup_us"] = setup
             for phase, values in record["raw_timings_us"].items():
-                if phase != "prepack_setup" and len(values) == original_repeats:
+                if len(values) == original_repeats:
                     record["raw_timings_us"][phase] = [values[0]] * repeats
             synthetic_host_measurements(record)
         inclusive = ComparisonPolicy("amortized_preparation", amortize_prepack_setup=True)
@@ -62,6 +89,9 @@ class ProcessObservations(unittest.TestCase):
             self.assertEqual(len(views), 1)
             view = views[0]
             measured = amortized_prepack_measurement(view)
+            self.assertTrue(
+                all("prepack_setup" not in record["raw_timings_us"] for record in order)
+            )
             self.assertEqual(measured["median_us"], 200)
             self.assertEqual(measured["process_relative_range"], 0)
             self.assertEqual(measured["blockers"], [])

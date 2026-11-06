@@ -284,6 +284,12 @@ amortization over the recorded run length; it does not establish an application
 lifetime break-even. The default policy continues to compare steady complete
 calls. Remaining consumer migration and runtime controls remain pending.
 
+Native setup is a one-time scalar, not a repeated timing array. The cohort reader
+requires matching `prepack_setup_us` / `avg_prepack_setup_us` values and an explicit
+timed `one_time_before_warmups` scope. It carries that actual process observation
+into setup amortization without creating or changing raw timing samples. Missing
+scope or inconsistent aliases leave setup-inclusive comparisons unqualified.
+
 The final-output RNS-chain report now uses this policy for resident, independent
 export/repack and prepacked-reuse implementations. It retains all process views,
 selects baselines within the matching work and hardware scope, and requires

@@ -176,8 +176,6 @@ def production_controls():
                     if mode == "reuse":
                         fixture = as_reused_pack_capture(fixture)
                         fixture["prepack_setup_us"] = fixture["avg_prepack_setup_us"] = setup_us
-                        fixture["raw_timings_us"]["prepack_setup"] = [setup_us]
-                        fixture["timing_summary_us"]["prepack_setup"] = phase_summary(setup_us)
                         add_device_allocation_fields(fixture)
                         fixture["device_allocation"]["setup_scope"] = (
                             "persistent_plan_workspace_prepacked_reuse"
@@ -238,8 +236,6 @@ def production_controls():
         def variable_setup(fixture, mode, run):
             if mode == "reuse" and run == 1:
                 fixture["prepack_setup_us"] = fixture["avg_prepack_setup_us"] = 100000
-                fixture["raw_timings_us"]["prepack_setup"] = [100000]
-                fixture["timing_summary_us"]["prepack_setup"] = phase_summary(100000)
 
         noisy, receipts = collect("unstable-setup", change=variable_setup)
         current = first_gpu_row(build(noisy, receipts), backend="ck", pack_mode="prepacked_reuse")
