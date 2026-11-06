@@ -143,6 +143,30 @@ The orchestration and controls are authored; their deferred batch execution,
 real platform pilots, reviewed diagnostic dispositions and CI gate remain open
 under #99.
 
+`tools/analysis_dispositions.py --receipt temp/analysis-session/results.json
+--output temp/analysis-dispositions.json` applies the reviewed
+`metadata/analysis-dispositions.json` policy after native receipt reconstruction.
+The initial policy has no waivers. Findings require an exact check, compiler
+context, host/device branch, target, message and unique source-byte anchor;
+line-number churn outside that anchor does not erase a finding. Every allowed
+intentional-arithmetic or tool/third-party false-positive disposition needs an
+owner, reason, digest-bound reduced control or source-invariant evidence, and a
+revisit date. Tool/config changes, ambiguous/changed anchors, expired evidence,
+new findings and stale entries require review. Parse failures, errors, unknown
+locations and external-only diagnostics cannot be waived through a tree glob.
+Reachable defects need repairs rather than baseline entries. The gate neither
+applies replacements nor generates an accepted baseline automatically.
+
+Strict mode accepts only complete native analysis with no new findings and
+valid narrow dispositions. `--advisory` retains unclassified findings explicitly;
+it cannot accept incomplete/syntax-only coverage, stale entries or invalid
+evidence. The manual `Native CPU Analysis Candidate` workflow uses shared locked
+tools, the non-unity CPU preset, native sensitivity controls and bounded serial
+passes, preserving raw failures and gate receipts. Its first native pilot,
+finding cleanup and measured cost must establish the required PR/periodic
+cadence; branch pushes do not start this candidate workflow during source
+frontloading. Windows/HIP configurations keep their separate pilot gates.
+
 A GPU is unnecessary for portable reference, API and tooling work. On Windows,
 set `VCPKG_ROOT` to an installation containing the manifest packages, then use
 the VS wrapper from an ordinary PowerShell:
