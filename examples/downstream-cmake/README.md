@@ -80,7 +80,7 @@ fallback or device work. They demonstrate successful and budget/range-rejected
 calls; they do not qualify Debug STL out-of-memory handling, allocator faults,
 OpenMP, GPU execution or all platform/package combinations.
 
-## Explicit CPU Sparse-A workflows
+## Explicit Sparse-A workflows
 
 `sparse_finite_ring.cpp` and `sparse_bounded_i64.cpp` build as
 `rns8-downstream-sparse-finite-ring` and `rns8-downstream-sparse-bounded-i64`.
@@ -99,7 +99,7 @@ then pack a separate resident sparse handle. Public APIs currently do not direct
 import packed arrays into a resident handle; expansion plus resident packing is
 the available explicit sequence. No private storage accessor is used.
 
-The finite-ring example uses composite modulus250, canonical unsigned bytes and
+The default finite-ring example uses composite modulus250, canonical unsigned bytes and
 one plane (`max_prefix=0`). Values include125 and2: their product is zero in that
 ring even though both inputs are nonzero. The bounded signed example uses the
 public default modulus accessor and `RNS8_DEFAULT_BOUNDED_PREFIX`, with explicit
@@ -122,16 +122,34 @@ The finite example also checks that a mismatched modulus preserves the old C.
 
 Each program creates a plan/workspace, runs sparse and dense public controls,
 exports every result and compares both with an independent ordinary scalar
-integer product. Finite sums are bounded by `8*249^2` before reduction; signed
+integer product. Finite sums are bounded by `8*(q-1)^2` before reduction; signed
 partial sums by `8*8*3=192`, below the explicit output bound4096 and `INT64_MAX`.
 The reference therefore needs no Boost/GMP dependency or CRT reconstruction.
 Full output matrices, deterministic recipe identities and a checksum over every
 logical result are printed; padding is checked separately.
 
-The selected route is always `CPU_REFERENCE`, printed as CPU sparse expansion.
-There is no implicit fallback or target probing. These examples do not qualify
-SMFMAC/SWMMAC hardware, gfx1100 sparse support, hybrid scheduling or a speedup.
-GPU examples and measured same-contract profiles remain separate #51 acceptance.
+The default route is `CPU_REFERENCE`, printed as CPU sparse expansion.
+Passing `--hip [--device 0..63]` explicitly selects `AMDGPU_BUILTINS` and queries
+the existing shared structured-Sparse-A provider before matrix/workspace
+allocation. Missing compiled support or unsupported targets return a visible77
+skip; other failures fail the example. There is no automatic dense/CPU fallback.
+The source target predicate admits gfx942/gfx1200/gfx1201 and rejects gfx1100.
+The finite GPU case uses allowed composite modulus255 and nonzero85*3=0 in
+that ring, while the bounded case preserves the default ordered basis.
+Both routes check the selected plan/storage backend and compare complete sparse
+and dense-control exports/padding with the independent scalar oracle.
+
+```sh
+./rns8-downstream-sparse-finite-ring --hip --device 0
+./rns8-downstream-sparse-bounded-i64 --hip --device 0
+```
+
+`RNS8_DOWNSTREAM_GPU_TESTS=ON` registers both GPU invocations with skip code77.
+These new source paths and the supported-target device arithmetic remain
+unexecuted in the current frontload phase.
+The explicit preflight and small full-output comparison do not establish
+broader SMFMAC/SWMMAC ISA/performance qualification or gfx1100 sparse support.
+Measured same-contract profiles remain separate #51 acceptance.
 
 ## Hard-budget streaming consumer
 

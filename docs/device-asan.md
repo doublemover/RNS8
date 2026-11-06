@@ -98,6 +98,9 @@ stage. It selects the actual installed `RNS8Config.cmake` explicitly, binds the
 archive, package metadata and copied sources, and requires one distinct object
 per expected source under the selected compiler/instrumentation flags. Device
 consumers enable the same native HSA/HIP runtime witness and selected HSA link.
+The separately registered builtin Sparse-A GPU examples remain outside this
+fixed direct-HIP/CPU selection: their target-specific instruction provider needs
+its own configured build and qualification.
 Every required invocation must pass with the selected physical-device/runtime
 custody; unsupported returns and missing cases do not qualify the package.
 

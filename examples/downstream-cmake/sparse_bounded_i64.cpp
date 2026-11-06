@@ -13,13 +13,14 @@ uint8_t centered_byte(int64_t value, uint16_t modulus) {
     residue -= modulus;
   return static_cast<uint8_t>(residue); // Defined modulo-256 conversion preserves signed byte bits.
 }
-void run() {
+void run(const sparse_example::Request& requested) {
   using namespace sparse_example;
   constexpr size_t m = 6, n = 3, k = 8, ald = 10, bld = 5, cld = 5;
   constexpr uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   constexpr uint64_t bound = 4096;
-  auto ctx = context();
-  auto selected = plan(ctx.get(), RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, m, n, k, bound);
+  auto ctx = context(requested);
+  auto selected =
+      plan(ctx.get(), RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, m, n, k, bound, requested);
   auto work = workspace(ctx.get(), selected.get());
   auto dense_a = matrix(ctx.get(), m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, prefix);
   auto b = matrix(ctx.get(), k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, prefix);
@@ -97,25 +98,25 @@ void run() {
   require(observed == expected && dense_result == expected,
           "bounded sparse/dense result or export padding differs from scalar oracle");
   const auto info = storage(a.get());
-  require(info.backend == RNS8_BACKEND_CPU_REFERENCE && info.host_current == 1 &&
-              info.device_current == 0 && info.max_prefix == prefix,
-          "example did not preserve its explicitly selected CPU/default-prefix contract");
+  require(info.backend == requested.backend() && info.host_current == 1 &&
+              info.device_current == uint32_t(requested.hip) && info.max_prefix == prefix,
+          "example did not preserve its explicitly selected backend/default-prefix contract");
   std::cout << "recipe=sparse-bounded-i64-v1 bound=" << bound << " planes=" << prefix
             << " groups=" << info.group_count << '\n';
-  print_result("explicit bounded Sparse-A", observed, m, n, cld);
+  print_result("explicit bounded Sparse-A", observed, m, n, cld, requested);
 }
 } // namespace
 int main(int argc, char** argv) {
   rns8_example::configure_noninteractive_errors();
 #if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
   rns8::test::HostRuntimeWitness witness(argc, argv);
-#else
-  (void)argc;
-  (void)argv;
 #endif
   try {
-    run();
+    run(sparse_example::request(argc, argv));
     return sparse_example::cleanup_failed ? EXIT_FAILURE : EXIT_SUCCESS;
+  } catch (const sparse_example::Unsupported& error) {
+    std::cout << "SKIP: " << error.what() << '\n';
+    return sparse_example::cleanup_failed ? EXIT_FAILURE : 77;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return EXIT_FAILURE;

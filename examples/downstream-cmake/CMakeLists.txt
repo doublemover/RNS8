@@ -71,6 +71,10 @@ foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
 endforeach()
 
 if(RNS8_DOWNSTREAM_GPU_TESTS)
+  foreach(_sparse_consumer IN ITEMS rns8-downstream-sparse-finite-ring rns8-downstream-sparse-bounded-i64)
+    add_test(NAME ${_sparse_consumer}-hip COMMAND ${_sparse_consumer} --hip)
+    set_tests_properties(${_sparse_consumer}-hip PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77 LABELS "package;hip;sparse")
+  endforeach()
   add_test(NAME rns8-downstream-checked-crt-hip COMMAND rns8-downstream-checked-crt --hip)
   set_tests_properties(rns8-downstream-checked-crt-hip PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77 LABELS "package;hip;crt")
   add_test(NAME rns8-downstream-stream-bounded-i64-hip COMMAND rns8-downstream-stream-bounded-i64 --hip)
