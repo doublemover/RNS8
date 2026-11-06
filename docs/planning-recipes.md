@@ -298,6 +298,14 @@ not a zero-cost winner. Positive finite lower/upper rates schedule dependencies
 and shared host/copy/compute resources explicitly. Costs cannot alter arithmetic
 or resource admissibility or create an AUTO reviewed-cache record.
 
+The public operation query, its provider and analytical planning share one
+outer operation/execution/proof/domain/orientation/prefix tag check. Analytical
+planning also rejects unknown problem and profile backend tags before route
+selection. Rejected requests preserve candidate storage and the required-count
+slot; only a successful shortlist publishes its count. Known unsupported routes
+remain distinct from malformed tags. Raw-value CPU controls are authored for
+the deferred validation batch.
+
 Memory admission uses a conservative **simultaneous live payload sum**, not the
 peak of optimistic/slow endpoint schedules. This remains sound for interior
 rates and deliberately reports opaque setup separately. The budget is explicit

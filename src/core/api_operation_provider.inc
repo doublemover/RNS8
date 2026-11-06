@@ -36,10 +36,7 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     set_text(out.explanation, sizeof(out.explanation), explanation);
     return out;
   };
-  if (!header_valid || query.operation >= RNS8_OP_COUNT || !query.execution_modes ||
-      (query.execution_modes & ~127u) || (query.proof_flags & ~15u) || query.device_count > 64 ||
-      query.output_limbs > 32 || query.input_domain > 5 || query.output_domain > 5 ||
-      query.orientation > 1 || query.source_prefix > 20)
+  if (!operation_query_tags_valid(&query))
     return reject(RNS8_INVALID_ARGUMENT, RNS8_SUPPORT_BAD_DESCRIPTOR, "query",
                   "unknown ABI, operation, execution/proof flags or width");
   const auto& d = query.problem;

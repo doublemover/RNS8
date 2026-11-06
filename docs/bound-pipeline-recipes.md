@@ -8,7 +8,11 @@ providers. It does not change AUTO or install reviewed cache entries.
 ## Routes and admission
 
 Selection and preparation validate route-specific method tags, the explicit
-execution mode and the `cost_known` Boolean through one shared predicate. The
+execution mode, recognized status/reason/resource tags, Boolean fields and
+cost origin through one shared predicate. A known cost requires modeled or
+measured origin; an unknown cost requires origin zero. Malformed tags in a
+later candidate reject the complete selection without publishing an earlier
+winner. Known unsuccessful statuses remain ordinary ineligible candidates. The
 query enumerator shares that route/method domain. Unknown tags, option/price
 bits and short records preserve caller indices, counts, candidate storage and
 handles. Preparation also rejects stale identities or a candidate execution tag

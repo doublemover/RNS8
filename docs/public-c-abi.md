@@ -78,6 +78,14 @@ cover all-bits, high-bit and adjacent invalid backend, semantics, bounds, layout
 and flag values through live CPU owners, alongside valid controls. This extends
 the behavioral corpus without claiming every external enum/flag is covered.
 
+The analytical pipeline query shares operation tag admission with the public
+provider and preserves count/candidate outputs on rejection. Explicit whole-route
+selection/preparation reject unknown status/reason/resource tags and inconsistent
+cost-origin/Boolean metadata, including malformed later candidates after an
+eligible earlier entry. Known unsuccessful statuses remain ineligible rather
+than malformed. Raw status and count-preservation controls are authored; native
+runtime and sanitizer validation remains deferred.
+
 Context, plan and matrix constructors preserve caller handle slots when options
 or descriptor preflight rejects input. After successful preflight they initialize
 the slot to null before checking context health or acquiring backend resources.

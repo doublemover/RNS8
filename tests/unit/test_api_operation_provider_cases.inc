@@ -946,3 +946,105 @@ TEST_CASE("generated sparse profiles inventory all providers without executing m
   CHECK(after.d2d_calls == counters.d2d_calls);
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
+TEST_CASE("analytical pipeline malformed tags preserve counts and caller candidates",
+          "[api][abi][enum][host][planner]") {
+  auto* ctx = create_cpu_context();
+  rns8_pipeline_query query{};
+  query.struct_size = sizeof(query);
+  query.abi_version = RNS8_ABI_VERSION;
+  query.operation.struct_size = sizeof(query.operation);
+  query.operation.abi_version = RNS8_ABI_VERSION;
+  query.operation.operation = RNS8_OP_GEMM;
+  query.operation.execution_modes = RNS8_EXEC_SYNC;
+  query.operation.problem = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 1);
+  query.operation.scratch_budget = UINT64_MAX;
+  query.output_magnitude_limbs[0] = 1;
+  query.payload_budget = UINT64_MAX;
+  query.reuse_count = 1;
+  rns8_pipeline_candidate candidates[2]{};
+  candidates[0].prefix = 71;
+  candidates[1].prefix = 73;
+  unsigned char before[sizeof(candidates)];
+  std::memcpy(before, candidates, sizeof(candidates));
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  const uint32_t outside[] = {uint32_t(RNS8_OP_COUNT), 128, 16, 65, 33, 6, 6, 2, 21, 10, 8};
+  for (unsigned field = 0; field < std::size(outside); ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), outside[field]}) {
+      CAPTURE(field, bits);
+      auto invalid = query;
+      switch (field) {
+      case 0:
+        invalid.operation.operation = bits;
+        break;
+      case 1:
+        invalid.operation.execution_modes = bits;
+        break;
+      case 2:
+        invalid.operation.proof_flags = bits;
+        break;
+      case 3:
+        invalid.operation.device_count = bits;
+        break;
+      case 4:
+        invalid.operation.output_limbs = bits;
+        break;
+      case 5:
+        invalid.operation.input_domain = bits;
+        break;
+      case 6:
+        invalid.operation.output_domain = bits;
+        break;
+      case 7:
+        invalid.operation.orientation = bits;
+        break;
+      case 8:
+        invalid.operation.source_prefix = bits;
+        break;
+      case 9:
+        invalid.operation.problem.requested_backend = raw_ffi_enum<rns8_backend_kind>(bits);
+        break;
+      case 10:
+        invalid.operation.problem.semantics = raw_ffi_enum<rns8_semantics>(bits);
+        break;
+      }
+      uint32_t required = 79;
+      CHECK(rns8_plan_pipeline(ctx, &invalid, nullptr, 0, candidates, 2, &required) ==
+            RNS8_INVALID_ARGUMENT);
+      CHECK(required == 79);
+      CHECK(std::memcmp(candidates, before, sizeof(candidates)) == 0);
+      // The ordinary provider shares the same outer tag domain. Problem
+      // semantics remain its per-candidate arithmetic admission, tested below.
+      if (field < 10) {
+        rns8_operation_support support{};
+        support.reason_code = 83;
+        const auto saved = support;
+        CHECK(rns8_query_operation_support(ctx, &invalid.operation, &support, 1, &required) ==
+              RNS8_INVALID_ARGUMENT);
+        CHECK(required == 79);
+        CHECK(std::memcmp(&support, &saved, sizeof(support)) == 0);
+      }
+    }
+  rns8_pipeline_cost_profile profile{};
+  profile.struct_size = sizeof(profile);
+  profile.abi_version = RNS8_ABI_VERSION;
+  profile.backend = RNS8_BACKEND_CPU_REFERENCE;
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 10u}) {
+    profile.backend = bits;
+    uint32_t required = 89;
+    CHECK(rns8_plan_pipeline(ctx, &query, &profile, 1, candidates, 2, &required) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(required == 89);
+    CHECK(std::memcmp(candidates, before, sizeof(candidates)) == 0);
+  }
+  CHECK(ctx->prepared_references == references);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.free_calls == allocations.free_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  uint32_t required = 0;
+  REQUIRE(rns8_plan_pipeline(ctx, &query, nullptr, 0, candidates, 2, &required) == RNS8_SUCCESS);
+  CHECK(required > 0);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}

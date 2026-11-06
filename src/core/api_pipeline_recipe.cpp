@@ -41,7 +41,11 @@ uint32_t recipe_method_count(uint32_t route) {
 bool valid_recipe_candidate_tags(const rns8_pipeline_recipe_candidate& candidate) {
   return minimum_abi_header(&candidate) &&
          candidate.method < recipe_method_count(candidate.route) &&
-         recipe_execution_mode_valid(candidate.execution_mode) && candidate.cost_known <= 1;
+         recipe_execution_mode_valid(candidate.execution_mode) &&
+         candidate.status <= RNS8_TIMEOUT && candidate.reason_code <= RNS8_SUPPORT_TOPOLOGY &&
+         candidate.resource_status <= 3 && candidate.cost_known <= 1 && candidate.pareto <= 1 &&
+         (candidate.cost_known ? (candidate.cost_origin == 1 || candidate.cost_origin == 2)
+                               : candidate.cost_origin == 0);
 }
 bool valid_recipe_options(const rns8_pipeline_recipe_options& o) {
   return minimum_abi_header(&o) && o.route_mask && !(o.route_mask & ~31u) &&

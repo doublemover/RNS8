@@ -10,6 +10,7 @@
 #include "backend_common/gram_plan.hpp"
 #include "backend_common/checked_crt_export.hpp"
 #include "backend_common/pinned_host_contract.hpp"
+#include "backend_common/operation_query_tags.hpp"
 
 namespace rns8::detail::api {
 #include "api_plan_schedule.inc"

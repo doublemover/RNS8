@@ -142,11 +142,15 @@ TEST_CASE("bound whole routes execute checked exports and reject stale or forged
                                            &rejected) == RNS8_INVALID_ARGUMENT);
         CHECK(rejected == canary);
       }
-    for (unsigned field = 0; field < 4; ++field)
+    for (unsigned field = 0; field < 9; ++field)
       for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
                             field == 0   ? 5u
                             : field == 1 ? 1u
                             : field == 2 ? 3u
+                            : field == 4 ? 14u
+                            : field == 5 ? 15u
+                            : field == 6 ? 4u
+                            : field == 7 ? 3u
                                          : 2u}) {
         CAPTURE(hip, field, bits);
         auto invalid = candidates[0];
@@ -156,8 +160,18 @@ TEST_CASE("bound whole routes execute checked exports and reject stale or forged
           invalid.method = bits;
         else if (field == 2)
           invalid.execution_mode = bits;
-        else
+        else if (field == 3)
           invalid.cost_known = bits;
+        else if (field == 4)
+          invalid.status = raw_ffi_enum<rns8_status>(bits);
+        else if (field == 5)
+          invalid.reason_code = bits;
+        else if (field == 6)
+          invalid.resource_status = bits;
+        else if (field == 7)
+          invalid.cost_origin = bits;
+        else
+          invalid.pareto = bits;
         uint32_t selected = 73;
         CHECK(rns8_select_pipeline_recipe(&invalid, 1, &selected) == RNS8_INVALID_ARGUMENT);
         CHECK(selected == 73);
@@ -451,4 +465,48 @@ TEST_CASE("bound recipes chain checked pinned export without prior output public
 #else
   SKIP("HIP asynchronous host recipe requires direct HIP");
 #endif
+}
+TEST_CASE("route selection validates all metadata before publishing a priced winner",
+          "[api][abi][enum][host][planner]") {
+  rns8_pipeline_recipe_candidate valid{};
+  valid.struct_size = sizeof(valid);
+  valid.abi_version = RNS8_ABI_VERSION;
+  valid.route = RNS8_ROUTE_UNIFORM;
+  valid.execution_mode = RNS8_EXEC_SYNC;
+  valid.status = RNS8_SUCCESS;
+  valid.resource_status = 1;
+  valid.cost_known = valid.cost_origin = 1;
+  valid.lower_amortized_ns = 10;
+  valid.upper_amortized_ns = 20;
+  uint32_t selected = 71;
+  REQUIRE(rns8_select_pipeline_recipe(&valid, 1, &selected) == RNS8_SUCCESS);
+  CHECK(selected == 0);
+  for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), 14u}) {
+    auto invalid = valid;
+    invalid.status = raw_ffi_enum<rns8_status>(raw);
+    invalid.cost_known = invalid.cost_origin = 0;
+    rns8_pipeline_recipe_candidate batch[]{valid, invalid};
+    selected = 73;
+    CHECK(rns8_select_pipeline_recipe(batch, 2, &selected) == RNS8_INVALID_ARGUMENT);
+    CHECK(selected == 73);
+  }
+  for (uint32_t raw = RNS8_INVALID_ARGUMENT; raw <= RNS8_TIMEOUT; ++raw) {
+    auto rejected = valid;
+    rejected.status = raw_ffi_enum<rns8_status>(raw);
+    rejected.cost_known = rejected.cost_origin = 0;
+    selected = 79;
+    CHECK(rns8_select_pipeline_recipe(&rejected, 1, &selected) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(selected == 79);
+    rns8_pipeline_recipe_candidate batch[]{rejected, valid};
+    REQUIRE(rns8_select_pipeline_recipe(batch, 2, &selected) == RNS8_SUCCESS);
+    CHECK(selected == 1);
+  }
+  for (uint32_t origin : {0u, 1u, 2u}) {
+    auto candidate = valid;
+    candidate.cost_origin = origin;
+    candidate.cost_known = !origin;
+    selected = 83;
+    CHECK(rns8_select_pipeline_recipe(&candidate, 1, &selected) == RNS8_INVALID_ARGUMENT);
+    CHECK(selected == 83);
+  }
 }

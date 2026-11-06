@@ -36,13 +36,16 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx, const rns8_pipeline_quer
     using boost::multiprecision::cpp_int;
     using namespace rns8::detail;
     if (!ctx || !query || !required || (capacity && !results) || (profile_count && !profiles) ||
-        profile_count > 8 || !minimum_abi_header(query) || !minimum_abi_header(&query->operation) ||
+        profile_count > 8 || !minimum_abi_header(query) ||
+        !operation_query_tags_valid(&query->operation) ||
+        !minimum_abi_header(&query->operation.problem) ||
+        !known_backend_kind(query->operation.problem.requested_backend) ||
+        !known_semantics(query->operation.problem.semantics) ||
         (query->operation.operation != RNS8_OP_GEMM &&
          query->operation.operation != RNS8_OP_NARROW_NATIVE) ||
         query->operation.execution_modes != RNS8_EXEC_SYNC || query->operation.output_limbs > 32 ||
         query->output_boundary > 3 || query->retained_operands > 3 || !query->reuse_count)
       return RNS8_INVALID_ARGUMENT;
-    *required = 0;
     const auto& input = query->operation.problem;
     const bool native_producer = query->operation.operation == RNS8_OP_NARROW_NATIVE;
     if (native_producer && input.requested_backend != RNS8_BACKEND_AUTO &&
@@ -64,6 +67,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx, const rns8_pipeline_quer
     for (uint32_t i = 0; i < profile_count; ++i) {
       const auto& p = profiles[i];
       if (!minimum_abi_header(&p) || p.known_mask > 63 ||
+          !known_backend_kind(static_cast<rns8_backend_kind>(p.backend)) ||
           !pipeline_text(p.target_id, sizeof(p.target_id)) ||
           !pipeline_text(p.build_identity_sha256, sizeof(p.build_identity_sha256)) ||
           !pipeline_text(p.calibration_identity, sizeof(p.calibration_identity)))
