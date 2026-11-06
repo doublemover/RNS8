@@ -510,6 +510,126 @@ void prepared_product_topology_faults(bool profile_only) {
       b_before.check(*b.get());
     }
   }
+  // These tables are never consulted: fixed-size profile admission must reject
+  // before proof construction, ragged providers or the first host allocation.
+  static const rns8_product_materialization_node_costs admission_costs[2]{};
+  rns8_product_materialization_profile prices{};
+  prices.struct_size = sizeof(prices);
+  prices.abi_version = RNS8_ABI_VERSION;
+  prices.max_evaluations = 4;
+  prices.max_chain_frontier = 1;
+  prices.node_count = desc.node_count;
+  prices.cost_schema_version = RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;
+  prices.node_costs_size = sizeof(admission_costs[0]);
+  prices.identity.struct_size = sizeof(prices.identity);
+  prices.identity.abi_version = RNS8_ABI_VERSION;
+  std::strcpy(prices.calibration_identity, "admission-only-control");
+  prices.nodes = admission_costs;
+  prices.expected_replays = 1;
+  for (unsigned mutation = 0; mutation < 26; ++mutation) {
+    auto invalid = prices;
+    switch (mutation) {
+    case 0:
+      ++invalid.cost_schema_version;
+      break;
+    case 1:
+      --invalid.node_costs_size;
+      break;
+    case 2:
+      invalid.reserved = 1;
+      break;
+    case 3:
+      invalid.flags = UINT32_C(0x80000000);
+      break;
+    case 4:
+      invalid.expected_replays = 0;
+      break;
+    case 5:
+      invalid.expected_replays = UINT64_MAX;
+      break;
+    case 6:
+      invalid.nodes = nullptr;
+      break;
+    case 7:
+      invalid.node_count = 0;
+      break;
+    case 8:
+      invalid.node_count = 65;
+      break;
+    case 9:
+      invalid.max_evaluations = 3;
+      break;
+    case 10:
+      invalid.max_evaluations = 65537;
+      break;
+    case 11:
+      invalid.max_chain_frontier = 0;
+      break;
+    case 12:
+      invalid.max_chain_frontier = 4097;
+      break;
+    case 13:
+      ++invalid.abi_version;
+      break;
+    case 14:
+      invalid.struct_size = sizeof(invalid) - 1;
+      break;
+    case 15:
+      ++invalid.identity.abi_version;
+      break;
+    case 16:
+      invalid.identity.struct_size = sizeof(invalid.identity) - 1;
+      break;
+    case 17:
+      std::memset(invalid.identity.graph_sha256, 'x', sizeof(invalid.identity.graph_sha256));
+      break;
+    case 18:
+      std::memset(invalid.identity.build_sha256, 'x', sizeof(invalid.identity.build_sha256));
+      break;
+    case 19:
+      std::memset(invalid.identity.target, 'x', sizeof(invalid.identity.target));
+      break;
+    case 20:
+      std::memset(invalid.calibration_identity, 'x', sizeof(invalid.calibration_identity));
+      break;
+    case 21:
+      invalid.calibration_identity[0] = 0;
+      break;
+    case 22:
+      invalid.node_count = 1;
+      break;
+    case 23:
+      invalid.flags = 4;
+      break;
+    }
+    alignas(rns8_product_materialization_profile) const uint64_t short_header = sizeof(uint64_t);
+    const auto* rejected_prices =
+        mutation == 24 ? nullptr
+        : mutation == 25
+            ? reinterpret_cast<const rns8_product_materialization_profile*>(&short_header)
+            : &invalid;
+    for (bool ragged : {false, true}) {
+      auto* const canary = reinterpret_cast<rns8_product_recipe*>(uintptr_t(1));
+      auto* rejected = canary;
+      const auto live = fault::live_allocations();
+      fault::begin(0);
+      const auto status =
+          ragged ? rns8_create_materialized_product_recipe_ragged(ctx.get(), &desc, &binding, 1,
+                                                                  &last_id, 1, UINT64_MAX,
+                                                                  rejected_prices, &rejected)
+                 : rns8_create_materialized_product_recipe(ctx.get(), &desc, &last_id, 1,
+                                                           rejected_prices, &rejected);
+      const auto rejected_profile = fault::end();
+      require(status == RNS8_INVALID_ARGUMENT && rejected_profile.calls == 0 &&
+                  !rejected_profile.triggered,
+              "materialization profile rejection precedes proof and staging allocation");
+      require(rejected == canary && ctx.get()->prepared_references == refs_before &&
+                  fault::live_allocations() == live,
+              "materialization profile rejection preserves owner and acquires no resources");
+      a_before.check(*a.get());
+      b_before.check(*b.get());
+    }
+  }
   rns8_product_recipe* single = nullptr;
   rns8_product_recipe* multiple = nullptr;
   rns8::check(rns8_create_product_recipe(ctx.get(), &desc, &single));

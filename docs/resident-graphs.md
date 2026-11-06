@@ -399,6 +399,11 @@ building proof metadata. Malformed headers, prefix policies and structural
 counts therefore reject without host staging allocation and preserve caller
 owner/identity outputs. Dedicated allocation-failure controls cover these paths
 with a live CPU context and source matrices; their execution remains deferred.
+Materialized creation also admits fixed-size cost-profile headers, schema, flags,
+reserved fields, bounds, text termination and descriptor node count before proof
+construction or ragged-provider access. Invalid profiles preserve the owner
+output and reject without staging allocation; identity equality and cost-table
+contents retain their later mathematical/planner checks.
 
 `rns8-lift-recipe-calibrate` and `tools/collect_lift_recipe.py` bind identical
 integer/output boundaries across full-prefix manual execution, transactional

@@ -146,12 +146,9 @@ rns8_query_product_materialization_identity(rns8_context* ctx, const rns8_produc
   });
 }
 namespace {
-rns8_status materialization_profile(rns8_context* ctx, const rns8_product_recipe_desc* desc,
-                                    const std::vector<uint32_t>& outputs,
-                                    const rns8_product_materialization_profile* prices,
-                                    const rns8_product_materialization_identity& identity,
-                                    rns8::detail::ProductMaterializationProfile& profile) {
-  using namespace rns8::detail;
+bool valid_materialization_profile_header(
+    const rns8_product_materialization_profile* prices) noexcept {
+  using rns8::detail::minimum_abi_header;
   if (!prices || !minimum_abi_header(prices) ||
       prices->cost_schema_version != RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION ||
       prices->node_costs_size != sizeof(rns8_product_materialization_node_costs) ||
@@ -167,6 +164,16 @@ rns8_status materialization_profile(rns8_context* ctx, const rns8_product_recipe
       !materialization_text(prices->identity.target, sizeof(prices->identity.target)) ||
       !materialization_text(prices->calibration_identity, sizeof(prices->calibration_identity)) ||
       !prices->calibration_identity[0])
+    return false;
+  return true;
+}
+rns8_status materialization_profile(rns8_context* ctx, const rns8_product_recipe_desc* desc,
+                                    const std::vector<uint32_t>& outputs,
+                                    const rns8_product_materialization_profile* prices,
+                                    const rns8_product_materialization_identity& identity,
+                                    rns8::detail::ProductMaterializationProfile& profile) {
+  using namespace rns8::detail;
+  if (!valid_materialization_profile_header(prices))
     return RNS8_INVALID_ARGUMENT;
   if (identity.admission_status != RNS8_SUCCESS)
     return identity.admission_status;
@@ -260,7 +267,9 @@ rns8_status rns8_create_materialized_product_recipe(
     rns8_context* ctx, const rns8_product_recipe_desc* desc, const uint32_t* ids, uint32_t count,
     const rns8_product_materialization_profile* prices, rns8_product_recipe** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || !valid_product_recipe_header(ctx, desc, 64) || count > 64 || (count && !ids))
+    if (!out || !valid_product_recipe_header(ctx, desc, 64) ||
+        !valid_materialization_profile_header(prices) || prices->node_count != desc->node_count ||
+        count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     const auto outputs = count ? std::vector<uint32_t>(ids, ids + count) : std::vector<uint32_t>{};
     rns8_product_materialization_identity identity{};
@@ -297,7 +306,9 @@ rns8_status rns8_create_materialized_product_recipe_ragged(
     uint32_t count, uint64_t budget, const rns8_product_materialization_profile* prices,
     rns8_product_recipe** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || !valid_product_recipe_header(ctx, desc, 64) || count > 64 || (count && !ids))
+    if (!out || !valid_product_recipe_header(ctx, desc, 64) ||
+        !valid_materialization_profile_header(prices) || prices->node_count != desc->node_count ||
+        count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     const auto outputs = count ? std::vector<uint32_t>(ids, ids + count) : std::vector<uint32_t>{};
     rns8_product_materialization_identity identity{};
