@@ -179,15 +179,15 @@ void scatter_compact_host_matrix(void* dst, int64_t dst_ld, const void* src, int
   }
 }
 
-void record_export_host_staging_copy_sample(const std::chrono::steady_clock::time_point& start,
-                                            const std::chrono::steady_clock::time_point& stop) {
+void record_host_staging_copy_sample(const char* label,
+                                     const std::chrono::steady_clock::time_point& start,
+                                     const std::chrono::steady_clock::time_point& stop) {
   if (!hip_direct_timing_enabled()) {
     return;
   }
   const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
   if (nanos >= 0) {
-    hip_direct_timing_record_sample("export_host_staging_copy",
-                                    static_cast<double>(nanos) / 1000.0);
+    hip_direct_timing_record_sample(label, static_cast<double>(nanos) / 1000.0);
   }
 }
 
@@ -240,7 +240,7 @@ hipError_t copy_compact_matrix_device_to_host(
       const auto start = std::chrono::steady_clock::now();
       scatter_compact_host_matrix(dst, dst_ld, pinned, rows, cols, cell_bytes);
       const auto stop = std::chrono::steady_clock::now();
-      record_export_host_staging_copy_sample(start, stop);
+      record_host_staging_copy_sample("export_host_staging_copy", start, stop);
       return hipSuccess;
     }
   }
@@ -271,8 +271,8 @@ hipError_t copy_compact_matrix_device_to_host(
   scatter_compact_host_matrix(dst, dst_ld, g_pageable_export_staging.data(), rows, cols,
                               cell_bytes);
   const auto stop = std::chrono::steady_clock::now();
-  g_pageable_export_staging.trim(kPageableExportStagingMaxCachedBytes);
-  record_export_host_staging_copy_sample(start, stop);
+  g_pageable_export_staging.trim(kPageableTransferStagingMaxCachedBytes);
+  record_host_staging_copy_sample("export_host_staging_copy", start, stop);
   return hipSuccess;
 }
 

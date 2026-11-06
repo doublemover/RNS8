@@ -168,8 +168,8 @@ void check_public_adaptive_owner(bool cached = false,
   REQUIRE(pack(a, av) == RNS8_SUCCESS);
   REQUIRE(pack(b, bv) == RNS8_SUCCESS);
   REQUIRE(pack(c, av) == RNS8_SUCCESS);
-  // Both padded and compact retained packs use one native allocation and no
-  // second full input upload staging allocation.
+  // Both padded and compact retained packs use one device native allocation.
+  // A separate bounded host snapshot protects uncertain upload completion.
   const auto check_single_upload_owner = [&](rns8_matrix* matrix) {
     CHECK(matrix->residues.empty());
     CHECK(matrix->residues.capacity() == 0);

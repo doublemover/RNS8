@@ -1,8 +1,10 @@
 #pragma once
 
 #include "backend_common/deferred_resource.hpp"
+#include "backend_common/host_upload.hpp"
 #include "rns8/status.h"
 #include <cstddef>
+#include <cstring>
 #include <memory>
 #include <new>
 #include <utility>
@@ -10,11 +12,11 @@
 namespace rns8::detail {
 // Reuse only observed-complete pageable storage. A failed transfer must discard
 // the cache's reference while its HostTransferPayload retains the old bytes.
-class HostReadbackStorage {
+class HostTransferStorage {
 public:
-  HostReadbackStorage() = default;
-  HostReadbackStorage(const HostReadbackStorage&) = delete;
-  HostReadbackStorage& operator=(const HostReadbackStorage&) = delete;
+  HostTransferStorage() = default;
+  HostTransferStorage(const HostTransferStorage&) = delete;
+  HostTransferStorage& operator=(const HostTransferStorage&) = delete;
   rns8_status reserve(size_t bytes) noexcept {
     if (!bytes)
       return RNS8_INVALID_ARGUMENT;
@@ -32,6 +34,28 @@ public:
     }
   }
   void* data() const noexcept { return storage_.get(); }
+  // Copy only accessible logical bytes before submission. The caller can then
+  // return even if HIP cannot establish completion of its private source.
+  rns8_status snapshot(const void* source, const HostUploadPlan& plan) noexcept {
+    if (!source || !valid_host_upload_plan(plan))
+      return RNS8_INVALID_ARGUMENT;
+    // Snapshotting this cache into itself is not a supported borrowed input.
+    if (storage_ && !nonoverlapping_byte_ranges(source, plan.source_span_bytes, data(), capacity_))
+      return RNS8_INVALID_ARGUMENT;
+    const auto status = reserve(plan.device_bytes);
+    if (status != RNS8_SUCCESS)
+      return status;
+    if (plan.contiguous()) {
+      std::memcpy(data(), source, plan.device_bytes);
+    } else {
+      const auto* src = static_cast<const unsigned char*>(source);
+      auto* dst = static_cast<unsigned char*>(data());
+      for (size_t row = 0; row < plan.rows; ++row)
+        std::memcpy(dst + row * plan.row_bytes, src + row * plan.source_pitch_bytes,
+                    plan.row_bytes);
+    }
+    return RNS8_SUCCESS;
+  }
   size_t capacity() const noexcept { return capacity_; }
   std::shared_ptr<void> owner() const noexcept { return {storage_, storage_.get()}; }
   void discard() noexcept {

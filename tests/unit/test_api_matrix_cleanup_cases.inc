@@ -430,7 +430,7 @@ TEST_CASE("pageable readback cache reuses complete storage and isolates failed d
           "[api][lifetime][export]") {
   using Ops = MockDeviceBufferOperations;
   Ops::deferred_count = 0;
-  rns8::detail::HostReadbackStorage cache;
+  rns8::detail::HostTransferStorage cache;
   CHECK(cache.reserve(0) == RNS8_INVALID_ARGUMENT);
   REQUIRE(cache.reserve(4096) == RNS8_SUCCESS);
   auto* first = cache.data();
@@ -462,6 +462,73 @@ TEST_CASE("pageable readback cache reuses complete storage and isolates failed d
   CHECK(cache.capacity() == 4096);
   cache.trim(1024);
   CHECK(cache.capacity() == 0);
+  CHECK(cache.data() == nullptr);
+}
+
+TEST_CASE("borrowed upload snapshots compact only logical rows and retain uncertain source bytes",
+          "[api][lifetime][upload]") {
+  using namespace rns8::detail;
+  using Ops = MockDeviceBufferOperations;
+  Ops::deferred_count = 0;
+  HostTransferStorage cache;
+  HostUploadPlan plan;
+  REQUIRE(make_host_upload_plan(3, 2, 5, sizeof(uint64_t), plan));
+  // No trailing padding is allocated for the final row.
+  std::array<uint64_t, 12> source{11, 12, 99, 99, 99, 21, 22, 99, 99, 99, 31, 32};
+  const std::array<uint64_t, 6> expected{11, 12, 21, 22, 31, 32};
+  REQUIRE(cache.snapshot(source.data(), plan) == RNS8_SUCCESS);
+  auto* first = cache.data();
+  CHECK(std::memcmp(first, expected.data(), sizeof(expected)) == 0);
+  source.fill(123); // Caller storage may change after the synchronous API returns.
+  {
+    HostTransferPayload pending(Ops::defer);
+    REQUIRE(pending.begin(2, cache.owner(), plan.device_bytes) == RNS8_SUCCESS);
+    CHECK(cache.snapshot(source.data(), plan) == RNS8_BUSY);
+    CHECK(std::memcmp(first, expected.data(), sizeof(expected)) == 0);
+    cache.discard(); // Model failed completion without inducing a device fault.
+    REQUIRE(cache.snapshot(source.data(), plan) == RNS8_SUCCESS);
+    CHECK(cache.data() != first);
+    CHECK(std::memcmp(pending.data(), expected.data(), sizeof(expected)) == 0);
+  }
+  REQUIRE(Ops::deferred_count == 1);
+  REQUIRE(Ops::deferred[0]->device_id == 2);
+  CHECK(std::memcmp(Ops::deferred[0]->pointer, expected.data(), sizeof(expected)) == 0);
+  delete Ops::deferred[0];
+  Ops::deferred[0] = nullptr;
+  Ops::deferred_count = 0;
+
+  // Completed transfers can reuse capacity; invalid requests preserve it.
+  HostUploadPlan compact;
+  REQUIRE(make_host_upload_plan(1, 6, INT64_MAX, sizeof(uint64_t), compact));
+  REQUIRE(cache.snapshot(expected.data(), compact) == RNS8_SUCCESS);
+  auto* reused = cache.data();
+  CHECK(cache.snapshot(cache.data(), compact) == RNS8_INVALID_ARGUMENT);
+  CHECK(cache.snapshot(nullptr, compact) == RNS8_INVALID_ARGUMENT);
+  for (unsigned field = 0; field < 5; ++field) {
+    auto invalid = plan;
+    if (field == 0)
+      invalid.rows = SIZE_MAX;
+    if (field == 1)
+      invalid.row_bytes = SIZE_MAX;
+    if (field == 2)
+      invalid.source_pitch_bytes = 1;
+    if (field == 3)
+      --invalid.source_span_bytes;
+    if (field == 4)
+      --invalid.device_bytes;
+    CHECK(cache.snapshot(source.data(), invalid) == RNS8_INVALID_ARGUMENT);
+    CHECK(cache.data() == reused);
+    CHECK(std::memcmp(cache.data(), expected.data(), sizeof(expected)) == 0);
+  }
+  {
+    HostTransferPayload completed(Ops::defer);
+    REQUIRE(completed.begin(2, cache.owner(), compact.device_bytes) == RNS8_SUCCESS);
+    completed.complete();
+  }
+  CHECK(Ops::deferred_count == 0);
+  REQUIRE(cache.snapshot(expected.data(), compact) == RNS8_SUCCESS);
+  CHECK(cache.data() == reused);
+  cache.trim(sizeof(expected) - 1);
   CHECK(cache.data() == nullptr);
 }
 

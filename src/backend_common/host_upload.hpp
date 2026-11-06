@@ -16,6 +16,15 @@ struct HostUploadPlan {
   bool contiguous() const { return source_pitch_bytes == row_bytes; }
 };
 
+inline bool valid_host_upload_plan(const HostUploadPlan& plan) {
+  AddressDomain source, compact;
+  return plan.device_ld > 0 &&
+         checked_host_plane_address(plan.rows, plan.row_bytes, plan.source_pitch_bytes, 1, 1,
+                                    source) &&
+         checked_host_plane_address(plan.rows, plan.row_bytes, plan.row_bytes, 1, 1, compact) &&
+         source.byte_extent == plan.source_span_bytes && compact.byte_extent == plan.device_bytes;
+}
+
 // The last row has no accessible trailing padding. Device storage is always
 // compact, so consumers must use device_ld rather than the caller's pitch.
 inline bool make_host_upload_plan(int64_t rows, int64_t cols, int64_t ld, std::size_t element_bytes,

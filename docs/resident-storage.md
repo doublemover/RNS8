@@ -87,3 +87,25 @@ device free-memory samples must be recorded separately when reconciling physical
 capacity. The API establishes no total-VRAM peak or performance claim. New
 concurrent-ledger, overflow, reset, unsupported-context, device/pinned and BUSY
 ownership regressions are authored and await execution.
+
+## Synchronous host upload custody
+
+Borrowed native matrix uploads and the shared borrowed host-to-device copy
+boundary snapshot their source before submission. Padded matrix inputs copy only
+logical cells, including no trailing padding after the final row. Grouped native
+and finite slab uploads use the same protected boundary. Already-owned transfer
+packets retain their actual shared allocation without another snapshot.
+
+Upload and readback use separate per-thread pageable caches, each retaining at
+most 1 MiB after successful completion. Larger snapshots are released after the
+copy. If completion fails or unwinds, the cache drops its reference and the
+existing deferred-cleanup queue retains the actual DMA payload until a later
+successful drain. A subsequent upload cannot overwrite uncertain source bytes.
+Matrix write leases and pending device-buffer owners separately protect the
+destination; a host snapshot does not replace those reservations.
+
+`upload_host_staging_copy` records host allocation/compaction time with the steady
+clock when instrumentation is enabled. The existing transfer label records the
+HIP copy separately. Snapshot memory is ordinary host heap and is excluded from
+device/pinned allocation observations. New ownership and HIP differential controls
+are authored; runtime qualification and the additional copy's cost remain pending.

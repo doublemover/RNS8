@@ -915,3 +915,42 @@ TEST_CASE("minimal host allocations pack logical cells for every integer storage
   REQUIRE(rns8_destroy_context(cpu) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(gpu) == RNS8_SUCCESS);
 }
+
+TEST_CASE("borrowed HIP uploads snapshot logical rows before returning to their caller",
+          "[hip][lifetime][upload]") {
+  if (!hip_available())
+    SKIP("HIP device required for upload snapshots");
+  using namespace rns8::detail;
+  for (bool padded : {false, true}) {
+    std::array<uint64_t, 12> source{11, 12, 99, 99, 99, 21, 22, 99, 99, 99, 31, 32};
+    const std::array<uint64_t, 6> expected{11, 12, 21, 22, 31, 32};
+    if (!padded)
+      std::copy(expected.begin(), expected.end(), source.begin());
+    HostUploadPlan plan;
+    REQUIRE(make_host_upload_plan(3, 2, padded ? 5 : 2, sizeof(uint64_t), plan));
+    hip_direct_device_buffer buffer;
+    REQUIRE(buffer.allocate(0, plan.device_bytes) == RNS8_SUCCESS);
+    hip_direct_allocation_counters_reset();
+    hip_direct_timing_set_enabled(true);
+    hip_direct_timing_reset();
+    buffer.mark_pending();
+    const auto status =
+        padded ? hip_direct_upload_host_matrix(0, "residue_h2d_sync", buffer.get(),
+                                               plan.device_bytes, source.data(), plan)
+               : hip_direct_copy_host_to_device(0, buffer.get(), source.data(), plan.device_bytes);
+    const auto events = hip_direct_timing_snapshot();
+    hip_direct_timing_set_enabled(false);
+    REQUIRE(status == RNS8_SUCCESS);
+    buffer.mark_completed();
+    source.fill(123);
+    const auto counters = hip_direct_allocation_counters_snapshot();
+    CHECK(counters.h2d_calls == 1);
+    CHECK(counters.h2d_bytes == sizeof(expected));
+    CHECK(std::any_of(events.begin(), events.end(),
+                      [](const auto& event) { return event.label == "upload_host_staging_copy"; }));
+    auto actual = std::make_shared<std::array<uint64_t, 6>>();
+    REQUIRE(hip_direct_copy_device_to_owned_host(0, {actual, actual->data()}, buffer.get(),
+                                                 sizeof(expected)) == RNS8_SUCCESS);
+    CHECK(*actual == expected);
+  }
+}

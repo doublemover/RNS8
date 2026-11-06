@@ -2,9 +2,10 @@ namespace {
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 constexpr std::size_t kPinnedExportStagingMinBytes = 64u * 1024u;
-constexpr std::size_t kPageableExportStagingMaxCachedBytes = 1024u * 1024u;
+constexpr std::size_t kPageableTransferStagingMaxCachedBytes = 1024u * 1024u;
 thread_local hip_pinned_host_buffer g_pinned_export_staging;
-thread_local HostReadbackStorage g_pageable_export_staging;
+thread_local HostTransferStorage g_pageable_export_staging;
+thread_local HostTransferStorage g_pageable_upload_staging;
 thread_local HostReadbackSlot g_host_status_readback(hip_direct_defer_buffer_cleanup);
 #endif
 std::atomic<uint64_t> g_hip_direct_allocate_calls{0};

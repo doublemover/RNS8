@@ -156,11 +156,9 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 namespace {
 template <typename Transfer>
-rns8_status copy_owned_host_payload(int device_id, std::shared_ptr<void> payload, std::size_t bytes,
-                                    const char* label, Transfer&& transfer) {
-  const auto selected = set_hip_device(device_id);
-  if (selected != RNS8_SUCCESS)
-    return selected;
+rns8_status copy_selected_owned_host_payload(int device_id, std::shared_ptr<void> payload,
+                                             std::size_t bytes, const char* label,
+                                             Transfer&& transfer) {
   HostTransferPayload retained(hip_direct_defer_buffer_cleanup);
   const auto admitted = retained.begin(device_id, std::move(payload), bytes);
   if (admitted != RNS8_SUCCESS)
@@ -170,6 +168,47 @@ rns8_status copy_owned_host_payload(int device_id, std::shared_ptr<void> payload
     return RNS8_BACKEND_FAILURE;
   retained.complete();
   return RNS8_SUCCESS;
+}
+
+template <typename Transfer>
+rns8_status copy_owned_host_payload(int device_id, std::shared_ptr<void> payload, std::size_t bytes,
+                                    const char* label, Transfer&& transfer) {
+  const auto selected = set_hip_device(device_id);
+  if (selected != RNS8_SUCCESS)
+    return selected;
+  return copy_selected_owned_host_payload(device_id, std::move(payload), bytes, label,
+                                          std::forward<Transfer>(transfer));
+}
+
+rns8_status copy_borrowed_host_to_device(int device_id, const char* label, void* destination,
+                                         const void* source, const HostUploadPlan& plan) {
+  const auto selected = set_hip_device(device_id);
+  if (selected != RNS8_SUCCESS)
+    return selected;
+  const bool record_staging = hip_direct_timing_enabled();
+  const auto start =
+      record_staging ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  const auto staged = g_pageable_upload_staging.snapshot(source, plan);
+  if (staged != RNS8_SUCCESS)
+    return staged;
+  rns8_status copied;
+  try {
+    if (record_staging)
+      record_host_staging_copy_sample("upload_host_staging_copy", start,
+                                      std::chrono::steady_clock::now());
+    copied = copy_selected_owned_host_payload(
+        device_id, g_pageable_upload_staging.owner(), plan.device_bytes, label, [&](void* host) {
+          return tracked_sync_copy(destination, host, plan.device_bytes, hipMemcpyHostToDevice);
+        });
+  } catch (...) {
+    g_pageable_upload_staging.discard();
+    throw;
+  }
+  if (copied != RNS8_SUCCESS)
+    g_pageable_upload_staging.discard();
+  else
+    g_pageable_upload_staging.trim(kPageableTransferStagingMaxCachedBytes);
+  return copied;
 }
 } // namespace
 #endif
@@ -210,13 +249,10 @@ rns8_status hip_direct_copy_host_to_device_labeled(int device_id, const char* ti
   if (!timing_label || timing_label[0] == '\0' || !dst || !src || bytes == 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const rns8_status device_status = set_hip_device(device_id);
-  if (device_status != RNS8_SUCCESS) {
-    return device_status;
-  }
-  const hipError_t err = timed_hip_operation(
-      timing_label, [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyHostToDevice); });
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  const HostUploadPlan plan{1, bytes, bytes, bytes, bytes, 1};
+  if (!valid_host_upload_plan(plan))
+    return RNS8_INVALID_ARGUMENT;
+  return copy_borrowed_host_to_device(device_id, timing_label, dst, src, plan);
 #else
   (void)device_id;
   (void)timing_label;
@@ -235,20 +271,11 @@ rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void*
 rns8_status hip_direct_upload_host_matrix(int device_id, const char* timing_label, void* dst,
                                           std::size_t capacity, const void* src,
                                           const HostUploadPlan& plan) {
-  if (!timing_label || !*timing_label || !dst || !src || !plan.rows || !plan.row_bytes ||
-      capacity < plan.device_bytes || !plan.device_bytes)
+  if (!timing_label || !*timing_label || !dst || !src || !valid_host_upload_plan(plan) ||
+      capacity < plan.device_bytes)
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  const auto status = set_hip_device(device_id);
-  if (status != RNS8_SUCCESS)
-    return status;
-  const auto error = timed_hip_operation(timing_label, [&]() {
-    return plan.contiguous()
-               ? tracked_sync_copy(dst, src, plan.device_bytes, hipMemcpyHostToDevice)
-               : tracked_sync_copy_2d(dst, plan.row_bytes, src, plan.source_pitch_bytes,
-                                      plan.row_bytes, plan.rows, hipMemcpyHostToDevice);
-  });
-  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  return copy_borrowed_host_to_device(device_id, timing_label, dst, src, plan);
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;

@@ -224,13 +224,11 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  hipError_t err = timed_hip_operation("pack_h2d", [&]() {
-    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  err = timed_hip_operation("pack_kernel", [&]() {
+  status = hip_direct_copy_host_to_device_labeled(device_id, "pack_h2d", device_src_slab, src_slab,
+                                                  source_bytes);
+  if (status != RNS8_SUCCESS)
+    return status;
+  hipError_t err = timed_hip_operation("pack_kernel", [&]() {
     const int code = rns8_hip_direct_pack_i64_grouped_device(
         static_cast<const int64_t*>(device_src_slab),
         static_cast<int8_t* const*>(const_cast<void*>(device_residue_ptrs)),
@@ -310,13 +308,11 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  hipError_t err = timed_hip_operation("pack_h2d", [&]() {
-    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  err = timed_hip_operation("pack_kernel", [&]() {
+  status = hip_direct_copy_host_to_device_labeled(device_id, "pack_h2d", device_src_slab, src_slab,
+                                                  source_bytes);
+  if (status != RNS8_SUCCESS)
+    return status;
+  hipError_t err = timed_hip_operation("pack_kernel", [&]() {
     const int code = rns8_hip_direct_pack_u64_grouped_device(
         static_cast<const uint64_t*>(device_src_slab),
         static_cast<int8_t* const*>(const_cast<void*>(device_residue_ptrs)),
@@ -531,13 +527,11 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  hipError_t err = timed_hip_operation("finite_pack_h2d", [&]() {
-    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  err = timed_hip_operation("finite_pack_kernel", [&]() {
+  status = hip_direct_copy_host_to_device_labeled(device_id, "finite_pack_h2d", device_src_slab,
+                                                  src_slab, source_bytes);
+  if (status != RNS8_SUCCESS)
+    return status;
+  hipError_t err = timed_hip_operation("finite_pack_kernel", [&]() {
     const int code = rns8_hip_direct_pack_u8_grouped_modulus_device(
         static_cast<const uint8_t*>(device_src_slab),
         static_cast<int8_t* const*>(const_cast<void*>(device_residue_ptrs)),
