@@ -1021,6 +1021,40 @@ def optional_components(
     return result
 
 
+def host_environment(request: Request, environment: Mapping[str, str]) -> dict:
+    actual = platform.system()
+    if request.host != actual:
+        return {
+            "kind": "request_only",
+            "requested_os": request.host,
+            "observed_os": actual,
+            "source": "requested_host_differs_from_running_host",
+            "qualification": "not_run",
+        }
+    if actual != "Linux":
+        return {
+            "kind": "native_" + actual.lower(),
+            "source": "running_host",
+            "qualification": "not_run",
+        }
+    release = platform.release()
+    if "microsoft" in release.lower() or "wsl" in release.lower():
+        kind = "wsl2" if "wsl2" in release.lower() else "wsl_version_unspecified"
+        source = "running_kernel_release"
+    elif environment.get("WSL_INTEROP") or environment.get("WSL_DISTRO_NAME"):
+        kind, source = "wsl_hint_unverified", "environment_markers_only"
+    else:
+        kind = "native_linux" if release else "linux_environment_unknown"
+        source = "running_kernel_release" if release else "kernel_release_unavailable"
+    return {
+        "kind": kind,
+        "source": source,
+        "kernel_release": release,
+        "package_policy": "native_linux_artifacts_only",
+        "qualification": "not_run",
+    }
+
+
 def resolve(
     request: Request,
     environment: Mapping[str, str] | None = None,
@@ -1147,6 +1181,7 @@ def resolve(
     report = {
         "schema": SCHEMA,
         "request": asdict(request),
+        "host_environment": host_environment(request, env),
         "status": "invalid" if errors else "resolved",
         "errors": errors,
         "hip": hip,
@@ -1186,6 +1221,7 @@ def resolve(
 
     identity = {
         "host": request.host,
+        "host_environment": report["host_environment"],
         "hip": selected_identity(hip) if request.require_hip else {"status": "disabled"},
         "toolchain": toolchain,
         "vcpkg": selected_identity(vcpkg)

@@ -644,6 +644,9 @@ def compile_accelerator_primitive_probe(
         "primitive_object_receipt": artifact,
         "primitive_input_bookends": inputs,
         "primitive_compiler_environment": compiler_environment(environment),
+        "primitive_host_environment": active.get("host_environment", {"kind": "unknown"})
+        if active
+        else {"kind": "unknown"},
         "primitive_detail": (
             "object-only int8 matrix-engine primitive probe compiled for the requested target; "
             "this is dependency evidence only, not runtime execution or correctness validation"

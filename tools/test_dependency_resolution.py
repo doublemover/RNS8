@@ -27,6 +27,38 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Discovery(unittest.TestCase):
+    def test_host_environment_does_not_transfer_native_linux_scope_to_wsl(self):
+        request = self.request("Linux")
+        for release, environment, kind in (
+            ("6.14.0-generic", {}, "native_linux"),
+            ("6.6.87.2-microsoft-standard-WSL2", {}, "wsl2"),
+            ("4.4.0-19041-Microsoft", {}, "wsl_version_unspecified"),
+            ("", {}, "linux_environment_unknown"),
+            ("6.14.0-generic", {"WSL_INTEROP": "private socket path"}, "wsl_hint_unverified"),
+        ):
+            with (
+                self.subTest(kind=kind),
+                patch.object(r.platform, "system", return_value="Linux"),
+                patch.object(r.platform, "release", return_value=release),
+            ):
+                value = r.host_environment(request, environment)
+            self.assertEqual(value["kind"], kind)
+            self.assertEqual(value["qualification"], "not_run")
+            self.assertEqual(value["package_policy"], "native_linux_artifacts_only")
+            self.assertNotIn("private socket path", str(value))
+        with patch.object(r.platform, "system", return_value="Windows"):
+            self.assertEqual(r.host_environment(request, {})["kind"], "request_only")
+        identities = []
+        for release in ("6.14.0-generic", "6.6.87.2-microsoft-standard-WSL2"):
+            with (
+                patch.object(r.platform, "system", return_value="Linux"),
+                patch.object(r.platform, "release", return_value=release),
+            ):
+                report = self.resolve(request)
+            self.assert_clean(report)
+            identities.append(report["identity_sha256"])
+        self.assertNotEqual(*identities)
+
     def test_selected_compiler_environment_survives_windows_wrapping_without_parsing_shell_text(
         self,
     ):

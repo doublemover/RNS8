@@ -170,6 +170,7 @@ def reference_compile_probes(requested: bool = False, probe_dir: Path | None = N
                 input_bookends=before,
                 launcher_compiler_environment=compiler_environment(environment),
                 selection_identity_sha256=resolution["identity_sha256"],
+                host_environment=resolution.get("host_environment", {"kind": "unknown"}),
             )
             process = run_capture(
                 command,

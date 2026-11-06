@@ -425,6 +425,17 @@ and command recorders never qualify native dependency binaries.
 | Linux ROCm/reference packages and fresh custom prefixes | Native entrypoints and explicit manual setup policy authored | Pending native compiler/link/runtime and disposable install runs |
 | WSL | Separate Linux/native-artifact policy | No transferred native-Linux or Windows qualification |
 
+Resolution now records an explicit `host_environment`: native Windows/Linux,
+kernel-reported WSL2 or unspecified WSL, unverified WSL environment hints,
+unknown Linux kernel scope, or a requested platform differing from the running
+host. Private WSL socket/distribution values are not recorded. This scope is
+bound into selection identity and carried by doctor/bootstrap/reference and
+primitive probe reports, so native Linux and WSL cannot silently reuse one
+selection identity. Both retain native Linux artifact discovery and Windows
+package rejection. Kernel/environment metadata is not a driver or GPU support
+probe; all scopes retain `qualification: not_run` until their separate native
+acceptance is observed.
+
 The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`.
 Install declared packages explicitly using the existing
 [dependency guide](../third_party/README.md) command. An old cache or deliberately

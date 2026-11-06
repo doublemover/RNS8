@@ -215,6 +215,7 @@ def toolchain_report(target: str) -> dict[str, object]:
         "msvc_probe": msvc_probe,
         "native_compiler_probe": native_compiler_probe,
         "host_platform": host,
+        "host_environment": resolution.get("host_environment", {"kind": "unknown"}),
         "hip_info": hip_info,
         "requested_target": target,
         "target_matches_hip_info": hip_target == target if hip_target else False,

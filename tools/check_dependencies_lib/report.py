@@ -143,6 +143,9 @@ def _build_report(
         "system": {
             "platform": platform.platform(),
             "python": sys.version.split()[0],
+            "environment": (ACTIVE_RESOLUTION.get() or {}).get(
+                "host_environment", {"kind": "unknown"}
+            ),
         },
         "commands": commands,
         "msvc": {"ok": bool(msvc), "detail": msvc or "not found"},

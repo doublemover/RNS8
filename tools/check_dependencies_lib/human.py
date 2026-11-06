@@ -15,6 +15,9 @@ def print_human(report: dict[str, object]) -> None:
     assert isinstance(system, dict)
     print(f"platform: {system['platform']}")
     print(f"python:   {system['python']}")
+    environment = system.get("environment")
+    if isinstance(environment, dict):
+        print(f"environment: {environment.get('kind', 'unknown')} (qualification: not_run)")
     print()
     policy = report.get("dependency_version_policy")
     if isinstance(policy, dict):
