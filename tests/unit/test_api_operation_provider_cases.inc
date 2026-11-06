@@ -904,3 +904,45 @@ TEST_CASE("finite Sparse-A discovery forwards its modulus to the target contract
   ctx->device_info = original_info;
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
+
+TEST_CASE("generated sparse profiles inventory all providers without executing matrix work",
+          "[api][provider][sparse][profiles]") {
+  auto* ctx = create_cpu_context();
+  const auto counters = rns8::detail::hip_direct_allocation_counters_snapshot();
+  const auto references = ctx->prepared_references;
+  const auto report = rns8::tools::sparse_profile_report(ctx);
+  CHECK(report.at("profile_count") == 18);
+  CHECK(report.at("operation_count") == 3);
+  CHECK(report.at("row_count") == report.at("rows").size());
+  CHECK_FALSE(report.at("registered_sparse_kernel_catalog").empty());
+  std::set<std::tuple<std::string, uint32_t, uint32_t>> identities;
+  std::map<std::pair<std::string, uint32_t>, std::set<uint32_t>> coverage;
+  for (const auto& row : report.at("rows")) {
+    const auto profile = row.at("profile").get<std::string>();
+    const auto operation = row.at("operation").get<uint32_t>();
+    const auto backend = row.at("backend_id").get<uint32_t>();
+    REQUIRE(identities.emplace(profile, operation, backend).second);
+    coverage[{profile, operation}].insert(backend);
+    CHECK(row.at("problem").at("proof_flags") == 0);
+    CHECK(row.at("correctness_qualified") == 0);
+    CHECK(row.at("performance_qualified") == 0);
+    CHECK(row.at("dispatched_symbol").is_null());
+    if (backend == RNS8_BACKEND_CPU_REFERENCE && operation == RNS8_OP_GEMM)
+      CHECK(row.at("status_code") == uint32_t(RNS8_SUCCESS));
+    if (backend == RNS8_BACKEND_CPU_REFERENCE && operation == RNS8_OP_STRUCTURED_SPARSE_A &&
+        (profile == "bounded-k33-tail" || profile == "bounded-k65537"))
+      CHECK(row.at("status_code") == uint32_t(RNS8_INVALID_ARGUMENT));
+  }
+  REQUIRE(coverage.size() == 54);
+  const auto backends = coverage.begin()->second;
+  for (const auto& item : coverage)
+    CHECK(item.second == backends);
+  CHECK(ctx->prepared_references == references);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == counters.allocate_calls);
+  CHECK(after.free_calls == counters.free_calls);
+  CHECK(after.h2d_calls == counters.h2d_calls);
+  CHECK(after.d2h_calls == counters.d2h_calls);
+  CHECK(after.d2d_calls == counters.d2d_calls);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}

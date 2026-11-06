@@ -8,7 +8,10 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
+#include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "core/api_internal.hpp"
@@ -19,6 +22,7 @@
 #include "backend_common/resident_transfer_plan.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
+#include "tool_common/sparse_profiles.hpp"
 #include "rns8/rns8.hpp"
 #include "../support/experimental_basis_fixture.hpp"
 

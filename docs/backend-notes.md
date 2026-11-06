@@ -102,6 +102,34 @@ proof. CPU predicate and gfx1100 negative-preservation fixtures pass the
 [current local batch](../metadata/remaining-code-validation-20261027.json);
 supported sparse-target arithmetic remains unqualified.
 
+## Generated sparse support profiles
+
+`rns8-inspect --sparse-profiles --json --backend cpu-reference` generates a
+concrete dense/structured-Sparse-A/block-sparse matrix from the same public
+operation provider. Select `--backend hip-direct --device 0` to bind the inventory to an available GPU context and target. This queries
+all source providers without allocating matrices, preparing sparse owners,
+running a capability kernel or executing GEMM. Context creation performs the
+ordinary selected-backend discovery.
+
+The18 fixed profiles cover bounded signed/unsigned and signed/unsigned wide,
+all six builtin finite byte moduli plus unsupported-provider controls,
+short/large family shapes, K tails and65536/65537 boundaries, and a padded-address
+control. Every profile includes all three representation families and every
+returned backend, including rejected/uncompiled rows. Typed fields preserve
+semantic/modulus/basis policy, input dimensions/strides, reason/offending field,
+execution modes, safe K, alignment, resource status and requested byte bounds.
+Unknown or binding-dependent storage is not zero-resource qualification.
+Structured V1 requires complete four-position K groups even on CPU.
+
+The sparse kernel catalogue is generated from the existing metadata registry;
+its names expose the declared SMFMAC/SWMMAC/source families. It is not a selected
+or executed-symbol list. Compiled inventory, matching-context runtime observation
+and receipt-bound differential/performance qualification remain separate per
+row. The unbound block-sparse query covers its scalar operation; explicit
+WMMA/hybrid owners retain their native compiled capability probe and dynamic
+structure/range checks. New profile controls and CLI execution remain unexecuted
+in the current frontload phase.
+
 ## AUTO and reviewed caches
 
 An AUTO context probes direct HIP and can use CPU when HIP is unavailable.

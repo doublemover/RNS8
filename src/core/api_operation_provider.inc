@@ -224,6 +224,9 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     if (!cpu && backend != RNS8_BACKEND_AMDGPU_BUILTINS)
       return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_OPERATION, "operation",
                     "structured sparse-A requires its CPU or builtin sparse provider");
+    if (d.k % 4)
+      return reject(RNS8_INVALID_ARGUMENT, RNS8_SUPPORT_SHAPE, "k",
+                    "structured sparse-A V1 requires complete four-position K groups");
     if (!cpu) {
       const auto status = rns8::detail::amdgpu_builtins_sparse_a_contract(
           ctx.device_info.gcn_arch, d.m, d.n, d.k, query.ldb ? query.ldb : d.n,

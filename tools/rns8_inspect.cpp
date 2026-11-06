@@ -9,6 +9,7 @@
 #include "rns8/rns8.h"
 #include "tool_common/cli_integer.hpp"
 #include "tool_common/build_identity.hpp"
+#include "tool_common/sparse_profiles.hpp"
 #include "tool_common/device_identity_json.hpp"
 
 namespace {
@@ -22,6 +23,7 @@ int main(int argc, char** argv) {
     return identity_status;
   bool json = false;
   bool operations = false;
+  bool sparse_profiles = false;
   bool show_autotune_cache = false;
   bool selector_shadow = false;
   int device_id = -1;
@@ -32,6 +34,8 @@ int main(int argc, char** argv) {
     const std::string arg = argv[i];
     if (arg == "--json") {
       json = true;
+    } else if (arg == "--sparse-profiles") {
+      sparse_profiles = true;
     } else if (arg == "--operations") {
       operations = true;
     } else if (arg == "--show-autotune-cache") {
@@ -68,6 +72,12 @@ int main(int argc, char** argv) {
       std::cerr << "unknown argument: " << arg << "\n";
       return 2;
     }
+  }
+
+  if (sparse_profiles &&
+      (operations || show_autotune_cache || selector_shadow || !autotune_key.empty())) {
+    std::cerr << "--sparse-profiles is a separate inspection mode\n";
+    return 2;
   }
 
   rns8_context_options options{};
@@ -108,6 +118,31 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (sparse_profiles) {
+    int result = 0;
+    try {
+      auto report = rns8::tools::sparse_profile_report(ctx);
+#ifdef RNS8_BUILD_MANIFEST_JSON
+      report["build_manifest"] = nlohmann::json::parse(RNS8_BUILD_MANIFEST_JSON);
+#else
+      report["build_manifest"] = nullptr;
+#endif
+      if (json)
+        std::cout << report.dump(2) << '\n';
+      else {
+        std::cout << "profile representation backend status reason safe_k target\n";
+        for (const auto& row : report["rows"])
+          std::cout << row["profile"] << ' ' << row["representation"] << ' ' << row["backend"]
+                    << ' ' << row["status"] << ' ' << row["reason"] << ' ' << row["safe_k"] << ' '
+                    << row["target"] << '\n';
+      }
+    } catch (const std::exception& error) {
+      std::cerr << error.what() << '\n';
+      result = 1;
+    }
+    return rns8_destroy_context(ctx) == RNS8_SUCCESS ? result : 1;
+  }
+
   if (operations) {
     nlohmann::json rows = nlohmann::json::array();
     for (uint32_t operation = 0; operation < RNS8_OP_COUNT; ++operation) {
@@ -140,22 +175,8 @@ int main(int argc, char** argv) {
       }
       for (uint32_t i = 0; i < count; ++i) {
         const auto& r = records[i];
-        rows.push_back({{"operation", operation},
-                        {"backend", backend_name(static_cast<rns8_backend_kind>(r.backend))},
-                        {"status", rns8_status_string(r.status)},
-                        {"reason", r.reason_code},
-                        {"source", r.source_implemented},
-                        {"compiled", r.compiled_inventory},
-                        {"runtime_observed", r.runtime_observed},
-                        {"correctness_qualified", r.correctness_qualified},
-                        {"performance_qualified", r.performance_qualified},
-                        {"requires_binding", r.requires_binding},
-                        {"execution_modes", r.supported_execution_modes},
-                        {"resource_status", r.resource_status},
-                        {"device_bytes", r.required_device_bytes},
-                        {"host_bytes", r.required_host_bytes},
-                        {"explanation", r.explanation},
-                        {"provider_sha256", r.provider_identity_sha256}});
+        rows.push_back(rns8::tools::operation_support_json(
+            r, backend_name(static_cast<rns8_backend_kind>(r.backend))));
       }
     }
     if (json)
@@ -163,13 +184,13 @@ int main(int argc, char** argv) {
           << nlohmann::json(
                  {{"schema", "rns8-operation-support-v1"},
                   {"contract",
-                   "16x16x16 signed exact-wide prefix9; hypothetical proof flags; not qualification"},
+                   "16x16x16 signed exact-wide prefix20; hypothetical proof flags; not qualification"},
                   {"rows", rows}})
                  .dump(2)
           << "\n";
     else {
       std::cout
-          << "Operation support: 16x16x16 signed exact-wide prefix9, hypothetical proofs. No qualification inferred.\n";
+          << "Operation support: 16x16x16 signed exact-wide prefix20, hypothetical proofs. No qualification inferred.\n";
       for (const auto& r : rows)
         std::cout << r["operation"] << " " << r["backend"] << " " << r["status"] << " "
                   << r["explanation"] << "\n";
