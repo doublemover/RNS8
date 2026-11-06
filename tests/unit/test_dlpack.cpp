@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "rns8/dlpack.hpp"
 #include <array>
+#include <cstring>
 namespace {
 struct Fixture {
   std::array<uint64_t, 40> payload{};
@@ -110,4 +111,58 @@ TEST_CASE("DLPack rejects unsafe layouts flags versions and ownership before con
   REQUIRE(lease == nullptr);
   REQUIRE(f.deleted == 0);
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
+TEST_CASE("DLPack raw foreign device access dtype and flag values preserve caller outputs",
+          "[dlpack][abi][enum]") {
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), UINT32_C(19)}) {
+    for (bool foreign_device : {false, true}) {
+      Fixture f;
+      if (foreign_device) {
+        static_assert(sizeof(f.tensor.dl_tensor.device.device_type) == sizeof(bits));
+        std::memcpy(&f.tensor.dl_tensor.device.device_type, &bits, sizeof(bits));
+      } else {
+        static_assert(sizeof(f.binding.access) == sizeof(bits));
+        std::memcpy(&f.binding.access, &bits, sizeof(bits));
+      }
+      rns8_native_device_desc output{};
+      output.owner_identity = 19;
+      output.rows = 23;
+      CHECK(rns8::dlpack::describe(f.tensor, f.binding, output) == RNS8_INVALID_ARGUMENT);
+      CHECK(output.owner_identity == 19);
+      CHECK(output.rows == 23);
+      CHECK(output.allocation_base == nullptr);
+      CHECK(f.deleted == 0);
+    }
+  }
+  for (uint8_t code : {uint8_t(2), uint8_t(128), uint8_t(255)}) {
+    Fixture f;
+    f.tensor.dl_tensor.dtype.code = code;
+    rns8_native_device_desc output{};
+    output.generation = 77;
+    CHECK(rns8::dlpack::describe(f.tensor, f.binding, output) == RNS8_INVALID_ARGUMENT);
+    CHECK(output.generation == 77);
+    CHECK(f.deleted == 0);
+  }
+  for (uint64_t flags : {UINT64_C(4), UINT64_C(0x8000000000000000), UINT64_MAX}) {
+    Fixture f;
+    f.tensor.flags = flags;
+    rns8_native_device_desc output{};
+    output.generation = 77;
+    CHECK(rns8::dlpack::describe(f.tensor, f.binding, output) == RNS8_INVALID_ARGUMENT);
+    CHECK(output.generation == 77);
+    CHECK(f.deleted == 0);
+  }
+  for (auto access : {RNS8_NATIVE_DEVICE_READ, RNS8_NATIVE_DEVICE_WRITE})
+    for (uint8_t code : {uint8_t(kDLInt), uint8_t(kDLUInt)}) {
+      Fixture f;
+      f.binding.access = access;
+      f.tensor.dl_tensor.dtype.code = code;
+      rns8_native_device_desc output{};
+      REQUIRE(rns8::dlpack::describe(f.tensor, f.binding, output) == RNS8_SUCCESS);
+      CHECK(output.access == access);
+      CHECK(output.element_type ==
+            (code == kDLInt ? RNS8_NATIVE_DEVICE_I64 : RNS8_NATIVE_DEVICE_U64));
+      CHECK(f.deleted == 0);
+    }
 }

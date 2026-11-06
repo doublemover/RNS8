@@ -116,7 +116,7 @@ accepted as their actual owned allocation; RNS8 adds no payload copy. The
 existing native device example accepts `--dlpack` and `--dlpack-prepared` when
 configured with `RNS8_DLPACK_INCLUDE_DIR`. Its external producer/consumer and
 full independent output/padding oracle exercise this adapter. The adapter uses
-the [official1.2 header](https://github.com/dmlc/dlpack/blob/v1.2/include/dlpack/dlpack.h);
+the [official 1.2 header](https://github.com/dmlc/dlpack/blob/v1.2/include/dlpack/dlpack.h);
 it adds no framework or core dependency. Framework stream negotiation occurs
 before consumption; the adapter does not infer an ordering guarantee from a
 pointer. The [October27 implementation validation](../metadata/implementation-closeout-20261027.json) separately records the optional
@@ -124,6 +124,13 @@ DLPack unit coverage and four standalone installed producer/consumer checks,
 including synchronous and graph-backed DLPack paths on gfx1100. Real failed-drain
 recovery, native Linux and matched DLPack performance remain unqualified.
 No new measured speedup or broader target support is claimed.
+
+The current source checks versions before forming tensor-layout references.
+The official1.2 device tag has explicit signed32-bit backing; dtype codes are
+byte fields. Authored raw `UINT32_MAX`, high-bit and unknown tag/access controls,
+unsupported dtype/reserved-flag controls, and four valid read/write signed/
+unsigned combinations call the real descriptor query and check preserved output
+and producer ownership. Only frontend syntax has run for these additions.
 
 The installed `examples/device-native` consumer supplies custom HIP producer and
 consumer kernels around public exact GEMM. It independently checks all output

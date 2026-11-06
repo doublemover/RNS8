@@ -5,11 +5,14 @@
 #include <atomic>
 #include <cstdint>
 #include <new>
+#include <type_traits>
 
 // Optional DLPack 1.2 C++ consumer. Include this header only when the official
 // dlpack/dlpack.h is supplied by the application; the core has no DLPack dependency.
 static_assert(DLPACK_MAJOR_VERSION == 1 && DLPACK_MINOR_VERSION == 2,
               "RNS8's DLPack consumer requires the pinned 1.2 header");
+static_assert(std::is_same_v<std::underlying_type_t<DLDeviceType>, int32_t>,
+              "DLPack1.2 fixes device tags to signed32-bit representation");
 namespace rns8::dlpack {
 struct Binding {
   void* allocation_base = nullptr;
@@ -48,9 +51,12 @@ struct Owner {
 // invented byte span starting at a possibly interior tensor data pointer.
 inline rns8_status describe(const DLManagedTensorVersioned& managed, const Binding& b,
                             rns8_native_device_desc& output) noexcept {
+  // A different major version does not promise this tensor layout. Reject it
+  // before forming references to any version-dependent member.
+  if (managed.version.major != 1 || managed.version.minor > 2)
+    return RNS8_INVALID_ARGUMENT;
   const auto& t = managed.dl_tensor;
-  if (managed.version.major != 1 || managed.version.minor > 2 ||
-      (managed.flags &
+  if ((managed.flags &
        ~(uint64_t(DLPACK_FLAG_BITMASK_READ_ONLY) | DLPACK_FLAG_BITMASK_IS_COPIED)) ||
       (b.access == RNS8_NATIVE_DEVICE_WRITE && (managed.flags & DLPACK_FLAG_BITMASK_READ_ONLY)) ||
       t.device.device_type != kDLROCM || t.device.device_id < 0 || t.ndim != 2 || !t.shape ||
