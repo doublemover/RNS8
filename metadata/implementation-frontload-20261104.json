@@ -655,9 +655,13 @@
       "url": "https://github.com/doublemover/RNS8/issues/61",
       "requirements_sha256": "fa11c7f7a3eca4296a9ca8ad026cd50baa90928ea764bb9477b7498d53380b66",
       "comments_reviewed": 3,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Reconcile current documentation navigation against the complete Git-backed inventory: add explicit audience/purpose/disposition/canonical/evidence owners for14 new ABI/instrumentation/profiling/proof/calibration guides, link them from the task index, move dated implementation notes out of the newcomer entry point, and regenerate inbound links/anchors across159 first-party documents. Restore the exact current main-branch doublemover GitHub funding file with its own preservation record. Update README/readiness to link actual Core10.1 correctness evidence alongside older HIP7.1 measurements, and distinguish the historical Python3.15.1 qualification from current selected3.15.2 source work. Existing static documentation lint passed159 records with zero local errors; no documentation self-test, external-link sweep, command execution, configure/build or GPU work ran. Full issue61 editorial/dependency/body acceptance still needs reconciliation; no runtime qualification transferred."
+      ],
+      "remaining_source_items": [
+        "Reconcile complete issue61 body/comments against current introduction/backend/hardware/setup claims, all canonical document dispositions and remaining editorial duplication. Current local inventory/navigation lint passes159 documents; external reachability, native clean-checkout commands and final template rendering remain separate deferred validation."
+      ]
     },
     {
       "issue": 63,

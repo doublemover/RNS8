@@ -75,8 +75,8 @@ tests check its schema, required fields/notice and optional parser rendering
 structure. Final GitHub rendering is an external UI check. The form accepts
 "not sure" and asks for a safe coordination method; credentials and private
 endpoints are never requested. Monetary sponsorship remains a separate Sponsors
-link. Existing funding configuration, when present on the integration branch,
-must be preserved; this change creates no replacement funding file.
+link. `.github/FUNDING.yml` preserves the `doublemover` configuration verified on
+the repository's main branch; it does not redirect hardware offers to sponsorship.
 
 ## Command evidence and dependent acceptance
 

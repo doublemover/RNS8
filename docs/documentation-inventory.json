@@ -16,6 +16,10 @@
           "reference": "branch-code-audit-20261027.md"
         },
         {
+          "source": "docs/roadmap.md",
+          "reference": "branch-code-audit-20261027.md"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/branch-code-audit-20261027.md"
         }
@@ -256,6 +260,10 @@
           "reference": "../CONTRIBUTING.md"
         },
         {
+          "source": "docs/dependency-versions.md",
+          "reference": "../CONTRIBUTING.md#source-quality"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "../CONTRIBUTING.md"
         },
@@ -303,8 +311,10 @@
         "gpu-correctness-and-measurements",
         "install-and-test-a-consumer",
         "make-a-focused-change",
+        "optional-scalar-proofs",
         "pull-requests-and-compute-offers",
-        "sanitizers"
+        "sanitizers",
+        "source-quality"
       ]
     },
     {
@@ -1682,6 +1692,7 @@
         "backend-implementation-and-selection",
         "experimental-paths-and-reserved-apis",
         "explicit-finite-int4-ownership",
+        "generated-sparse-support-profiles",
         "metadata-ownership-and-execution",
         "public-paths"
       ]
@@ -2039,6 +2050,10 @@
           "reference": "dependency-discovery.md"
         },
         {
+          "source": "docs/platform-linux.md",
+          "reference": "dependency-discovery.md"
+        },
+        {
           "source": "docs/platform-windows.md",
           "reference": "dependency-discovery.md#sdk-initialization"
         },
@@ -2104,6 +2119,10 @@
         {
           "source": "third_party/README.md",
           "reference": "../docs/dependency-versions.md"
+        },
+        {
+          "source": "third_party/README.md",
+          "reference": "../docs/dependency-versions.md#inspect-and-enforce-the-selection"
         },
         {
           "source": "third_party/README.md",
@@ -2557,6 +2576,7 @@
       "anchors": [
         "after-smoke-before-promotion",
         "combined-accelerator-lane",
+        "compiled-binary-association",
         "existing-kernel-families-and-remaining-target-checks",
         "external-accelerator-build-identity",
         "generate-the-manifests-anywhere",
@@ -2585,6 +2605,10 @@
         {
           "source": "docs/gram-products.md",
           "reference": "gram-prepared-reuse.md"
+        },
+        {
+          "source": "examples/workloads/README.md",
+          "reference": "../../docs/gram-prepared-reuse.md"
         },
         {
           "source": "examples/workloads/README.md",
@@ -3153,7 +3177,19 @@
           "reference": "narrow-native-owner.md"
         },
         {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "narrow-native-owner.md"
+        },
+        {
           "source": "docs/backend-notes.md",
+          "reference": "narrow-native-owner.md"
+        },
+        {
+          "source": "docs/narrow-group-calibration.md",
+          "reference": "narrow-native-owner.md"
+        },
+        {
+          "source": "docs/native-narrow.md",
           "reference": "narrow-native-owner.md"
         },
         {
@@ -3163,6 +3199,8 @@
       ],
       "anchors": [
         "explicit-fused-native-accumulator-to-rns-variants",
+        "explicit-signed-hierarchical-split-k",
+        "independent-grouped-narrow-execution",
         "public-narrow-native-products",
         "public-skinny-route-identity-and-width-exact-control"
       ]
@@ -3435,6 +3473,10 @@
           "reference": "performance.md"
         },
         {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "performance.md"
+        },
+        {
           "source": "docs/platform-linux.md",
           "reference": "performance.md"
         },
@@ -3505,6 +3547,10 @@
         },
         {
           "source": "docs/backend-notes.md",
+          "reference": "persistent-native-queue.md"
+        },
+        {
+          "source": "docs/encoded-b-native.md",
           "reference": "persistent-native-queue.md"
         },
         {
@@ -3639,6 +3685,14 @@
           "reference": "platform-linux.md"
         },
         {
+          "source": "docs/dependency-discovery.md",
+          "reference": "platform-linux.md"
+        },
+        {
+          "source": "docs/dependency-versions.md",
+          "reference": "platform-linux.md#standalone-host-llvm-candidate"
+        },
+        {
           "source": "docs/distributed-process.md",
           "reference": "platform-linux.md"
         },
@@ -3671,6 +3725,7 @@
         "optional-backends-and-profiling",
         "prerequisites",
         "radeon-build-and-first-execution",
+        "standalone-host-llvm-candidate",
         "wsl"
       ]
     },
@@ -3743,6 +3798,14 @@
           "reference": "platform-windows.md"
         },
         {
+          "source": "docs/dependency-discovery.md",
+          "reference": "platform-windows.md"
+        },
+        {
+          "source": "docs/dependency-versions.md",
+          "reference": "platform-windows.md#standalone-host-llvm-candidate"
+        },
+        {
           "source": "docs/dependency-versions.md",
           "reference": "platform-windows.md#october-26-core-sdk-101-local-release-validation"
         },
@@ -3789,6 +3852,7 @@
         "october-26-core-sdk-101-local-release-validation",
         "optional-accelerators",
         "prerequisites",
+        "standalone-host-llvm-candidate",
         "tests-packaging-and-evidence",
         "windows-hip-sdk-setup"
       ]
@@ -4759,8 +4823,9 @@
         "consume-the-rns8-package",
         "cpu-continuation-workflow",
         "experimental-materialized-product-consumer",
-        "explicit-cpu-sparse-a-workflows",
-        "hard-budget-streaming-consumer"
+        "explicit-sparse-a-workflows",
+        "hard-budget-streaming-consumer",
+        "optional-sanitizer-process-observations"
       ]
     },
     {
@@ -4915,6 +4980,10 @@
           "reference": "../third_party/README.md"
         },
         {
+          "source": "docs/dependency-discovery.md",
+          "reference": "../third_party/README.md"
+        },
+        {
           "source": "docs/dependency-versions.md",
           "reference": "../third_party/README.md#optional-exact-references-and-accelerator-pins"
         },
@@ -4953,6 +5022,8 @@
         "october-rank-23-mathematical-artifact",
         "optional-exact-references-and-accelerator-pins",
         "optional-process-transport-dependencies",
+        "optional-python-coverage-tooling",
+        "optional-scalar-proofs",
         "shared-prerequisites"
       ]
     },
@@ -5178,7 +5249,8 @@
       "anchors": [
         "host-payload-consumers",
         "live-allocation-observations",
-        "resident-storage-allocation"
+        "resident-storage-allocation",
+        "synchronous-host-upload-custody"
       ]
     },
     {
@@ -5399,10 +5471,6 @@
       "owner": "metadata/local-validation-20261025.json",
       "reason": "Preserve exact artifact-scoped local results; current release gates remain in docs/roadmap.md.",
       "inbound_links": [
-        {
-          "source": "README.md",
-          "reference": "docs/local-validation-20261025.md"
-        },
         {
           "source": "README.md",
           "reference": "docs/local-validation-20261025.md"
@@ -5910,6 +5978,435 @@
         "epochs-visibility-and-failures",
         "explicit-process-and-network-transports"
       ]
+    },
+    {
+      "path": "docs/amd-profiler.md",
+      "purpose": "AMD profiler acquisition, dispatch evidence and review",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/amd-profiler.md",
+      "owner": "tools/amd_profiler_session.py",
+      "reason": "Capability-gated acquisition and source-bound dispatch/range evidence; native execution and remaining adapters retain separate gates.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "amd-profiler.md"
+        },
+        {
+          "source": "docs/performance.md",
+          "reference": "amd-profiler.md"
+        },
+        {
+          "source": "docs/target-qualification.md",
+          "reference": "amd-profiler.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/amd-profiler.md"
+        }
+      ],
+      "anchors": [
+        "amd-profiler-evidence",
+        "maintained-source-contracts",
+        "native-report-attachments",
+        "optional-roctx-ranges",
+        "plan-and-preflight",
+        "remaining-implementation-and-validation"
+      ]
+    },
+    {
+      "path": "docs/device-asan.md",
+      "purpose": "Native ROCm device-ASan prerequisite and artifact contract",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/device-asan.md",
+      "owner": "tools/device_asan_preflight.py",
+      "reason": "Separate device instrumentation candidate with exact Linux/SDK/target scope, build identity and pending sensitivity qualification.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "device-asan.md"
+        },
+        {
+          "source": "docs/host-instrumentation.md",
+          "reference": "device-asan.md"
+        },
+        {
+          "source": "docs/host-instrumentation.md",
+          "reference": "device-asan.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/device-asan.md"
+        }
+      ],
+      "anchors": [
+        "native-rocm-device-asan-candidate"
+      ]
+    },
+    {
+      "path": "docs/device-observation.md",
+      "purpose": "Runtime GPU visibility and physical identity observations",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/device-observation.md",
+      "owner": "tools/device_observation.py",
+      "reason": "Distinguish runtime ordinal namespace, actual observations and target qualification without assuming physical mapping.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "device-observation.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/device-observation.md"
+        }
+      ],
+      "anchors": [
+        "runtime-device-observations"
+      ]
+    },
+    {
+      "path": "docs/fuzzing.md",
+      "purpose": "Instrumented CPU fuzz discovery and exact arithmetic replay",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/fuzzing.md",
+      "owner": "tools/fuzz_cases.py",
+      "reason": "Keep discovery corpus, semantic shrinking, exact oracle and separate GPU replay boundaries together.",
+      "inbound_links": [
+        {
+          "source": "CONTRIBUTING.md",
+          "reference": "docs/fuzzing.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "fuzzing.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/fuzzing.md"
+        }
+      ],
+      "anchors": [
+        "cpu-fuzz-discovery-and-arithmetic-corpus"
+      ]
+    },
+    {
+      "path": "docs/host-instrumentation.md",
+      "purpose": "Host sanitizer and race build/session contracts",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/host-instrumentation.md",
+      "owner": "tools/host_instrumentation_session.py",
+      "reason": "Own sensitivity, native application/consumer custody and production versus detector evidence boundaries.",
+      "inbound_links": [
+        {
+          "source": "CONTRIBUTING.md",
+          "reference": "docs/host-instrumentation.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "host-instrumentation.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/host-instrumentation.md"
+        }
+      ],
+      "anchors": [
+        "host-dynamic-checks-and-source-coverage"
+      ]
+    },
+    {
+      "path": "docs/host-profiling.md",
+      "purpose": "Host sampling, allocation and synchronization diagnostics",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/host-profiling.md",
+      "owner": "tools/host_profile_session.py",
+      "reason": "Own bounded native profiling and attribution workflow; remaining Windows/range/allocator adapters stay explicit.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "host-profiling.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/host-profiling.md"
+        }
+      ],
+      "anchors": [
+        "host-cpu-and-allocation-diagnostics",
+        "native-linux-cpu-sample-decoding",
+        "windows-acquisition-boundary"
+      ]
+    },
+    {
+      "path": "docs/host-source-coverage.md",
+      "purpose": "Native LLVM host source and branch coverage",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/host-source-coverage.md",
+      "owner": "tools/host_coverage_session.py",
+      "reason": "Own actual compiled source denominator, profile/module custody and unexecuted native coverage lane.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "host-source-coverage.md"
+        },
+        {
+          "source": "docs/host-instrumentation.md",
+          "reference": "host-source-coverage.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/host-source-coverage.md"
+        }
+      ],
+      "anchors": [
+        "native-host-source-coverage"
+      ]
+    },
+    {
+      "path": "docs/narrow-group-calibration.md",
+      "purpose": "Complete-call grouped narrow arithmetic controls",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/narrow-group-calibration.md",
+      "owner": "tools/collect_narrow_group_calibration.py",
+      "reason": "Match public grouped fused/split-K, single-call and RNS control boundaries, useful work and retained inputs.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "narrow-group-calibration.md"
+        },
+        {
+          "source": "docs/narrow-native-owner.md",
+          "reference": "narrow-group-calibration.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/narrow-group-calibration.md"
+        }
+      ],
+      "anchors": [
+        "grouped-narrow-complete-call-calibration"
+      ]
+    },
+    {
+      "path": "docs/native-production-mutations.md",
+      "purpose": "Native C++ production mutation workflow",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/native-production-mutations.md",
+      "owner": "tools/native_mutation_session.py",
+      "reason": "Own curated real-source baseline/mutant compilation, intended native assertion and interruption evidence.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "native-production-mutations.md"
+        },
+        {
+          "source": "docs/host-instrumentation.md",
+          "reference": "native-production-mutations.md"
+        },
+        {
+          "source": "docs/production-mutations.md",
+          "reference": "native-production-mutations.md"
+        },
+        {
+          "source": "docs/python-source-coverage.md",
+          "reference": "native-production-mutations.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/native-production-mutations.md"
+        }
+      ],
+      "anchors": [
+        "native-production-mutations"
+      ]
+    },
+    {
+      "path": "docs/production-mutations.md",
+      "purpose": "Python production mutation workflow",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/production-mutations.md",
+      "owner": "tools/seeded_mutation_session.py",
+      "reason": "Own source-bound production mutations and intended assertion evidence separately from test weakening.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "production-mutations.md"
+        },
+        {
+          "source": "docs/host-instrumentation.md",
+          "reference": "production-mutations.md"
+        },
+        {
+          "source": "docs/native-production-mutations.md",
+          "reference": "production-mutations.md"
+        },
+        {
+          "source": "docs/python-source-coverage.md",
+          "reference": "production-mutations.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/production-mutations.md"
+        }
+      ],
+      "anchors": [
+        "curated-production-mutations"
+      ]
+    },
+    {
+      "path": "docs/public-c-abi.md",
+      "purpose": "Public C declaration, layout and binary interface review",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/public-c-abi.md",
+      "owner": "tools/check_public_abi.py",
+      "reason": "Own compiler-derived inventory, installed consumers, enum/descriptor admission scope and per-ABI baselines.",
+      "inbound_links": [
+        {
+          "source": "CONTRIBUTING.md",
+          "reference": "docs/public-c-abi.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "public-c-abi.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/public-c-abi.md"
+        }
+      ],
+      "anchors": [
+        "installed-native-checks",
+        "optional-linux-elf-types",
+        "public-c-abi-review",
+        "updating-and-checking-source",
+        "version-policy"
+      ]
+    },
+    {
+      "path": "docs/python-source-coverage.md",
+      "purpose": "Python branch and subprocess coverage",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/python-source-coverage.md",
+      "owner": "tools/python_coverage_session.py",
+      "reason": "Own exact module/process/source contexts and missing branch attribution; authored collection is not coverage evidence.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "python-source-coverage.md"
+        },
+        {
+          "source": "docs/host-instrumentation.md",
+          "reference": "python-source-coverage.md"
+        },
+        {
+          "source": "docs/host-source-coverage.md",
+          "reference": "python-source-coverage.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/python-source-coverage.md"
+        }
+      ],
+      "anchors": [
+        "python-production-branch-coverage"
+      ]
+    },
+    {
+      "path": "docs/scalar-arithmetic-proofs.md",
+      "purpose": "Bounded scalar arithmetic implementation proof pilot",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/scalar-arithmetic-proofs.md",
+      "owner": "tools/scalar_proof_session.py",
+      "reason": "Own exact source-bound property/refutation and retained replay, distinct from GPU instruction qualification.",
+      "inbound_links": [
+        {
+          "source": "CONTRIBUTING.md",
+          "reference": "docs/scalar-arithmetic-proofs.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "scalar-arithmetic-proofs.md"
+        },
+        {
+          "source": "third_party/README.md",
+          "reference": "../docs/scalar-arithmetic-proofs.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/scalar-arithmetic-proofs.md"
+        }
+      ],
+      "anchors": [
+        "reproduction-and-negative-controls",
+        "scalar-arithmetic-proof-pilot",
+        "source-and-tool-boundary",
+        "stated-domains-and-obligations"
+      ]
+    },
+    {
+      "path": "docs/target-qualification.md",
+      "purpose": "Exact candidate artifact target qualification",
+      "audience": "RNS8 maintainers and validation contributors",
+      "disposition": "keep",
+      "canonical": "docs/target-qualification.md",
+      "owner": "tools/target_qualification.py",
+      "reason": "Own matching candidate/build/device/phase admission without promoting historical platform inventory.",
+      "inbound_links": [
+        {
+          "source": "CONTRIBUTING.md",
+          "reference": "docs/target-qualification.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "target-qualification.md"
+        },
+        {
+          "source": "docs/amd-profiler.md",
+          "reference": "target-qualification.md"
+        },
+        {
+          "source": "docs/gpu-qualification.md",
+          "reference": "target-qualification.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/target-qualification.md"
+        }
+      ],
+      "anchors": [
+        "candidate-target-qualification",
+        "emitting-a-receipt-without-running-work",
+        "existing-session-evidence",
+        "native-profiler-boundary"
+      ]
+    },
+    {
+      "path": ".github/FUNDING.yml",
+      "purpose": "GitHub Sponsors funding destination",
+      "audience": "Potential financial sponsors",
+      "disposition": "preserve",
+      "canonical": ".github/FUNDING.yml",
+      "owner": ".github/FUNDING.yml",
+      "reason": "Preserve the current main-branch doublemover funding configuration; compute offers remain in their separate issue form.",
+      "inbound_links": [
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../.github/FUNDING.yml"
+        }
+      ],
+      "anchors": []
     }
   ]
 }

@@ -45,9 +45,11 @@ an issue's unfulfilled hardware or measured-performance acceptance gates.
 
 ## Recorded baseline
 
-The local stack is TheRock Core10.1 / HIP7.16.26385 / AMDClang24, VS2026,
-Python3.15.1 and Radeon RX7900XTX (`gfx1100`). Current compiled validation is
-recorded above. Earlier Release, Debug, OpenMP-OFF, CPU-ASan and installed-package
+The October 27 validated stack was TheRock Core10.1 / HIP7.16.26385 / AMDClang24,
+VS2026, Python3.15.1 and Radeon RX7900XTX (`gfx1100`). The current source selects
+Python3.15.2 and pinned development tools through the shared dependency policy;
+its frontend checks do not extend the earlier runtime qualification. Earlier
+Release, Debug, OpenMP-OFF, CPU-ASan and installed-package
 checks remain in the [SDK record](../metadata/hip101-validation-20261026.json),
 [configuration follow-up](platform-windows.md#october-26-configuration-follow-up)
 and [replay receipt](../metadata/replay-extension-validation-20261027.json).

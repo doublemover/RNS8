@@ -16,7 +16,7 @@ an application can build around.
 
 | GPU / family | Target | OS + tested stack | Implementation availability | Actual RNS8 validation evidence | Next needed check |
 |---|---|---|---|---|---|
-| **RX 7900 XTX / RDNA3** | `gfx1100` | Windows, VS2026, HIP 7.1 | Public direct HIP, vector ALU, wrap64; opt-in hipBLASLt, CK, rocWMMA, builtins | [October 25 local correctness and sanitizer coverage](docs/local-validation-20261025.md); [matched 512³/1024³ measurements](docs/7900xtx-large-throughput-2026-10-23.md) | Matched timing for the expanded source; Linux GPU run |
+| **RX 7900 XTX / RDNA3** | `gfx1100` | Windows, VS2026; HIP 7.1 and later Core10.1/HIP7.16 | Public direct HIP, vector ALU, wrap64; opt-in hipBLASLt, CK, rocWMMA, builtins | [Core10.1 correctness and sanitizer record](metadata/branch-code-audit-validation-20261027.json); [matched 512³/1024³ HIP7.1 measurements](docs/7900xtx-large-throughput-2026-10-23.md) | Combined validation and matched timing for the current source; Linux GPU run |
 | Radeon PRO W6800 / RDNA2 | `gfx1030` | No RNS8 GPU run; Linux ROCm 7.1 candidate | Direct HIP source; optional backends subject to target support | **Validation wanted / unvalidated** | Supported Linux stack, compile and CPU differentials |
 | RX 9060 / 9060 XT / RDNA4 | `gfx1200` | No RNS8 GPU run; AMD lists Linux 7.1 and Windows HIP SDK 7.1.1 | Direct HIP and target-specific builtin source | **Validation wanted / unvalidated** | Exact SKU/OS/compiler check and device differentials |
 | RX 9070 / 9070 XT / 9070 GRE / RDNA4 | `gfx1201` | No RNS8 GPU run; same AMD release matrices | Direct HIP and target-specific builtin source | **Validation wanted / unvalidated** | Per-device compilation, arithmetic and ISA checks |

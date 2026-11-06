@@ -21,6 +21,13 @@ without device evidence. A measured result may still lack promotion gates.
 
 ## Recorded platform boundary
 
+The [October 27 Core10.1 record](../metadata/branch-code-audit-validation-20261027.json)
+identifies source `2c713a1`, Windows/gfx1100, HIP7.16.26385 and AMDClang24:
+1,122 HIP passes with 34 skips, plus 633 CPU-ASan passes with 45 skips and
+installed consumers. Those results apply to that source/configuration. The
+[current implementation ledger](../metadata/implementation-frontload-20261104.json)
+tracks later source changes; their combined runtime batch remains deferred.
+
 The [October 23 expanded record](local-all-features-20261023.md) documents
 `51ae8d8`, Windows, VS2026/HIP 7.1 and RX 7900 XTX/gfx1100 with the locally
 available optional backends enabled: 489 passes and three expected

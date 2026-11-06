@@ -4,12 +4,6 @@ Choose the task you want to complete. Public API behavior is defined in the
 [headers](../include/rns8/rns8.h) and [correctness contract](correctness.md).
 Dated records identify the builds and devices actually checked.
 
-- [Five-issue implementation follow-through](five-issue-implementation-20261026.md): bound recipes, distributed commit checks, FP8, CDNA5 TDM and capability reconciliation
-
-- [October 26 selected implementation pass](selected-implementation-20261026.md): 25 requested source slices, new distributed execution/system probes and deferred qualification
-
-- [October 25 focused measurements](focused-closeout-measurements-20261025.md): genuine wide values, scalar-first proof controls and failed held-out models
-
 ## Build
 
 - [Windows HIP SDK](platform-windows.md): prerequisites, explicit roots, configure and build
@@ -66,12 +60,21 @@ issue links.
 
 ## Contribute
 
+- [ABI review](public-c-abi.md) and [candidate qualification](target-qualification.md): compiled interface and evidence admission
+- [CPU fuzz discovery and replay](fuzzing.md), [host instrumentation](host-instrumentation.md) and [device-ASan candidate](device-asan.md)
+- [Native host coverage](host-source-coverage.md), [Python branch coverage](python-source-coverage.md), [native mutations](native-production-mutations.md) and [Python mutations](production-mutations.md)
+- [Scalar arithmetic proof pilot](scalar-arithmetic-proofs.md): bounded implementation proofs and replay
+- [Runtime device observations](device-observation.md), [AMD profiler evidence](amd-profiler.md) and [host profiling](host-profiling.md)
+- [Grouped narrow calibration](narrow-group-calibration.md): public batch and single-call controls
 - [Contributor workflow](../CONTRIBUTING.md): CPU oracle, tests, sanitizers, packaging and documentation checks
 - [Offer hardware validation](https://github.com/doublemover/RNS8/issues/new?template=hardware_validation_offer.yml)
 - [Documentation ownership and migration inventory](documentation-maintenance.md)
 - [Security reporting](../SECURITY.md), [changelog](../CHANGELOG.md)
 
 ## History
+
+- [October 26 implementation follow-through](five-issue-implementation-20261026.md) and [selected source pass](selected-implementation-20261026.md)
+- [October 25 focused measurements](focused-closeout-measurements-20261025.md): wide values, proof controls and held-out models
 
 [Historical records](archive/README.md) preserve earlier audit findings, local
 checkpoints, the resident-output proposal and superseded chronological status.
