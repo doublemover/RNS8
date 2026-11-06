@@ -288,11 +288,11 @@ rns8_status rns8_create_pinned_host_buffer_hip(rns8_context* ctx, const rns8_pin
   return guard_api([&]() -> rns8_status {
     if (!ctx || !desc || !out || !exact_abi_header(desc))
       return RNS8_INVALID_ARGUMENT;
-    *out = nullptr;
     PinnedHostResources resources;
     auto result = query_pinned_host_contract(*desc, resources);
     if (result != RNS8_SUCCESS)
       return result;
+    *out = nullptr;
     if (resources.pinned > budget)
       return RNS8_WORKSPACE_TOO_SMALL;
     if (ctx->hip_failure_poisoned)

@@ -8,6 +8,15 @@ exact-wide adapter below adds stream, owned-graph and dependency execution. CPU 
 support descriptor/resource queries and reject lease creation. No host pointer
 API accepts a device pointer implicitly.
 
+Lease creation validates the complete native descriptor before context poison,
+backend routing, owner allocation or callback acquisition. Pinned-host creation
+also validates its descriptor before changing the caller's handle. Malformed raw
+dtype/access/policy values, flags or reserved bits preserve the caller output and
+report `INVALID_ARGUMENT`; valid CPU-only creation still reports
+`UNSUPPORTED_BACKEND`. Pinned creation retains its existing null-handle behavior
+for failures after descriptor admission, including budget rejection. The new
+live CPU constructor/query controls are authored and await the combined batch.
+
 A versioned descriptor names native i64/u64 dtype, read OR write access,
 allocation base/capacity, byte offset, rows/columns/leading dimension, device,
 owner identity, nonzero binding generation, explicit BORROW or COPY_OWNED policy, producer

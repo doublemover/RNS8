@@ -1,4 +1,60 @@
 #include "backend_common/pinned_host_contract.hpp"
+TEST_CASE("pinned descriptor raw values reject before output publication or backend routing",
+          "[api][abi][enum][host-transfer]") {
+  auto* ctx = create_cpu_context();
+  rns8_pinned_host_desc valid{};
+  valid.struct_size = sizeof(valid);
+  valid.abi_version = RNS8_ABI_VERSION;
+  valid.element_type = RNS8_NATIVE_DEVICE_I64;
+  valid.access = RNS8_NATIVE_DEVICE_READ;
+  valid.rows = 3;
+  valid.cols = 5;
+  valid.ld = 8;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (unsigned field = 0; field < 4; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                          field == 0   ? 5u
+                          : field == 1 ? 3u
+                                       : 1u}) {
+      auto invalid = valid;
+      if (field == 0)
+        invalid.element_type = raw_ffi_enum<rns8_native_device_type>(bits);
+      else if (field == 1)
+        invalid.access = raw_ffi_enum<rns8_native_device_access>(bits);
+      else if (field == 2)
+        invalid.flags = bits;
+      else
+        invalid.reserved = bits;
+      uint64_t bytes = 71;
+      CHECK(rns8_query_pinned_host_bytes(&invalid, &bytes) == RNS8_INVALID_ARGUMENT);
+      CHECK(bytes == 71);
+      for (bool poisoned : {false, true}) {
+        ctx->hip_failure_poisoned = poisoned;
+        auto* const canary = reinterpret_cast<rns8_pinned_host_buffer*>(uintptr_t(1));
+        auto* output = canary;
+        CHECK(rns8_create_pinned_host_buffer_hip(ctx, &invalid, UINT64_MAX, &output) ==
+              RNS8_INVALID_ARGUMENT);
+        CHECK(output == canary);
+        CHECK(ctx->prepared_references == references);
+        ctx->hip_failure_poisoned = false;
+      }
+    }
+  const auto rejected = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(rejected.allocate_calls == allocations.allocate_calls);
+  CHECK(rejected.free_calls == allocations.free_calls);
+  CHECK(rejected.h2d_calls == allocations.h2d_calls);
+  CHECK(rejected.d2h_calls == allocations.d2h_calls);
+  uint64_t bytes = 0;
+  REQUIRE(rns8_query_pinned_host_bytes(&valid, &bytes) == RNS8_SUCCESS);
+  CHECK(bytes == 192);
+  rns8_pinned_host_buffer* output = nullptr;
+  CHECK(rns8_create_pinned_host_buffer_hip(ctx, &valid, bytes, &output) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  CHECK(output == nullptr);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("pinned native host rectangles and budgets are checked without HIP",
           "[api][host-transfer][contract]") {
   using namespace rns8::detail;

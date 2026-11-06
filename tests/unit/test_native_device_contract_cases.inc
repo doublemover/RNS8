@@ -149,6 +149,9 @@ TEST_CASE("raw C enum representations are rejected before native owner acquisiti
   uint64_t words[32]{};
   Owner owner;
   const auto valid = descriptor(words, sizeof(words), owner);
+  auto* ctx = create_cpu_context();
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
   for (unsigned field = 0; field < 3; ++field)
     for (uint32_t raw : {UINT32_MAX, UINT32_C(0x80000000), field == 0 ? 5u : 3u}) {
       auto d = valid;
@@ -165,7 +168,27 @@ TEST_CASE("raw C enum representations are rejected before native owner acquisiti
       const auto before = out;
       CHECK(rns8_query_native_device(&d, &out) == RNS8_INVALID_ARGUMENT);
       CHECK(std::memcmp(&out, &before, sizeof(out)) == 0);
+      for (bool poisoned : {false, true}) {
+        ctx->hip_failure_poisoned = poisoned;
+        auto* const canary = reinterpret_cast<rns8_native_device_lease*>(uintptr_t(1));
+        auto* lease = canary;
+        CHECK(rns8_create_native_device_lease(ctx, &d, &lease) == RNS8_INVALID_ARGUMENT);
+        CHECK(lease == canary);
+        CHECK(ctx->prepared_references == references);
+        ctx->hip_failure_poisoned = false;
+      }
     }
   CHECK(owner.acquired == 0);
   CHECK(owner.released == 0);
+  const auto rejected = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(rejected.allocate_calls == allocations.allocate_calls);
+  CHECK(rejected.h2d_calls == allocations.h2d_calls);
+  CHECK(rejected.d2h_calls == allocations.d2h_calls);
+  auto* const canary = reinterpret_cast<rns8_native_device_lease*>(uintptr_t(1));
+  auto* lease = canary;
+  CHECK(rns8_create_native_device_lease(ctx, &valid, &lease) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(lease == canary);
+  CHECK(owner.acquired == 0);
+  CHECK(owner.released == 0);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }

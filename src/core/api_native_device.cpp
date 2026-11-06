@@ -216,10 +216,16 @@ rns8_status rns8_create_native_device_lease(rns8_context* ctx, const rns8_native
   return guard_api([&]() -> rns8_status {
     if (!ctx || !desc || !out || !exact_abi_header(desc))
       return RNS8_INVALID_ARGUMENT;
+    rns8_native_device_resources resources{};
+    auto status = query_native_device_contract(*desc, resources);
+    if (status != RNS8_SUCCESS)
+      return status;
     if (ctx->hip_failure_poisoned)
       return RNS8_BACKEND_FAILURE;
     if (ctx->backend != RNS8_BACKEND_HIP_DIRECT || !hip_direct_compiled())
       return RNS8_UNSUPPORTED_BACKEND;
+    if (desc->device_id != ctx->device_id)
+      return RNS8_INVALID_ARGUMENT;
     const auto discard = [](rns8_native_device_lease* lease) noexcept {
       if (!lease)
         return;
@@ -240,11 +246,7 @@ rns8_status rns8_create_native_device_lease(rns8_context* ctx, const rns8_native
     };
     std::unique_ptr<rns8_native_device_lease, decltype(discard)> lease(new rns8_native_device_lease,
                                                                        discard);
-    auto status = query_native_device_contract(*desc, lease->resources);
-    if (status != RNS8_SUCCESS)
-      return status;
-    if (desc->device_id != ctx->device_id)
-      return RNS8_INVALID_ARGUMENT;
+    lease->resources = resources;
     if (ctx->prepared_references == UINT64_MAX)
       return RNS8_RANGE_ERROR;
     lease->ctx = ctx;

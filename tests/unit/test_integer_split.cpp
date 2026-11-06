@@ -27,6 +27,34 @@ rns8_integer_split_i64_info query(const rns8_integer_split_i64_desc& d) {
 }
 } // namespace
 
+TEST_CASE("raw integer split formats preserve query and conversion outputs",
+          "[api][abi][enum][integer-split]") {
+  const auto valid = descriptor(1, 1, 1);
+  auto info = query(valid);
+  const auto unchanged_info = info;
+  const int64_t source = 17;
+  int64_t output = 73;
+  std::vector<int8_t> components(size_t(info.required_component_bytes), 42);
+  const auto unchanged_components = components;
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 0u, 2u}) {
+    auto invalid = valid;
+    static_assert(sizeof(invalid.format) == sizeof(bits));
+    std::memcpy(&invalid.format, &bits, sizeof(bits));
+    CHECK(rns8_query_integer_split_i64(&invalid, &info) == RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&info, &unchanged_info, sizeof(info)) == 0);
+    CHECK(rns8_split_i64(&invalid, &source, components.data(), components.size()) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(components == unchanged_components);
+    CHECK(rns8_merge_i64(&invalid, components.data(), components.size(), &output) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(output == 73);
+  }
+  REQUIRE(rns8_query_integer_split_i64(&valid, &info) == RNS8_SUCCESS);
+  REQUIRE(rns8_split_i64(&valid, &source, components.data(), components.size()) == RNS8_SUCCESS);
+  REQUIRE(rns8_merge_i64(&valid, components.data(), components.size(), &output) == RNS8_SUCCESS);
+  CHECK(output == source);
+}
+
 TEST_CASE(
     "signed radix128 split reconstructs full integer boundaries without floating conversion") {
   using boost::multiprecision::cpp_int;
