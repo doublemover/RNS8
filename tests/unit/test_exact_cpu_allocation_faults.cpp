@@ -12,6 +12,7 @@
 #include "core/internal.hpp"
 #include "core/prepared_export_read.hpp"
 #include "rns8/rns8.hpp"
+#include "rns8/experimental_product.h"
 
 namespace {
 using boost::multiprecision::cpp_int;
@@ -438,6 +439,77 @@ void prepared_product_topology_faults(bool profile_only) {
   desc.node_count = 2;
   desc.prefix_policy = RNS8_PRODUCT_FULL_PREFIX;
   desc.max_arena_and_lift_bytes = UINT64_MAX;
+  const uint32_t last_id = 3;
+  const rns8_ragged_recipe_binding binding{0, nullptr, nullptr};
+  const auto refs_before = ctx.get()->prepared_references;
+  MatrixSnapshot a_before(*a.get()), b_before(*b.get());
+  for (unsigned mutation = 0; mutation < 7; ++mutation) {
+    auto invalid = desc;
+    if (mutation < 3) {
+      const uint32_t bits = mutation == 0 ? UINT32_MAX : mutation == 1 ? UINT32_C(0x80000000) : 2u;
+      std::memcpy(&invalid.prefix_policy, &bits, sizeof(bits));
+    } else if (mutation == 3)
+      ++invalid.abi_version;
+    else if (mutation == 4)
+      invalid.inputs = nullptr;
+    else if (mutation == 5)
+      invalid.node_count = 0;
+    alignas(rns8_product_recipe_desc) const uint64_t short_header = sizeof(uint64_t);
+    const auto* rejected_desc =
+        mutation == 6 ? reinterpret_cast<const rns8_product_recipe_desc*>(&short_header) : &invalid;
+    for (unsigned variant = 0; variant < 7; ++variant) {
+      auto* const canary = reinterpret_cast<rns8_product_recipe*>(uintptr_t(1));
+      auto* rejected = canary;
+      rns8_product_materialization_identity info;
+      std::memset(&info, 0xa5, sizeof(info));
+      info.struct_size = sizeof(info);
+      info.abi_version = RNS8_ABI_VERSION;
+      std::array<unsigned char, sizeof(info)> info_before{};
+      std::memcpy(info_before.data(), &info, sizeof(info));
+      const auto live = fault::live_allocations();
+      fault::begin(0);
+      rns8_status status = RNS8_INTERNAL_ERROR;
+      switch (variant) {
+      case 0:
+        status = rns8_create_product_recipe(ctx.get(), rejected_desc, &rejected);
+        break;
+      case 1:
+        status =
+            rns8_create_product_recipe_outputs(ctx.get(), rejected_desc, &last_id, 1, &rejected);
+        break;
+      case 2:
+        status = rns8_query_product_materialization_identity(ctx.get(), rejected_desc, &last_id, 1,
+                                                             &info);
+        break;
+      case 3:
+        status = rns8_query_product_materialization_identity_ragged(
+            ctx.get(), rejected_desc, &binding, 1, &last_id, 1, UINT64_MAX, &info);
+        break;
+      case 4:
+        status = rns8_create_materialized_product_recipe(ctx.get(), rejected_desc, &last_id, 1,
+                                                         nullptr, &rejected);
+        break;
+      case 5:
+        status = rns8_create_materialized_product_recipe_ragged(
+            ctx.get(), rejected_desc, &binding, 1, &last_id, 1, UINT64_MAX, nullptr, &rejected);
+        break;
+      case 6:
+        status = rns8_create_product_recipe_ragged(ctx.get(), rejected_desc, &binding, 1, &last_id,
+                                                   1, UINT64_MAX, &rejected);
+        break;
+      }
+      const auto rejected_profile = fault::end();
+      require(status == RNS8_INVALID_ARGUMENT && rejected_profile.calls == 0 &&
+                  !rejected_profile.triggered,
+              "recipe descriptor rejection precedes all output/input staging allocation");
+      require(rejected == canary && std::memcmp(&info, info_before.data(), sizeof(info)) == 0,
+              "recipe descriptor rejection preserves owner and identity bytes");
+      require(ctx.get()->prepared_references == refs_before && fault::live_allocations() == live,
+              "recipe descriptor rejection acquires no owner or allocation");
+      a_before.check(*a.get());
+      b_before.check(*b.get());
+    }
+  }
   rns8_product_recipe* single = nullptr;
   rns8_product_recipe* multiple = nullptr;
   rns8::check(rns8_create_product_recipe(ctx.get(), &desc, &single));

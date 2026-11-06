@@ -6,12 +6,9 @@ create_product_recipe_ragged(rns8_context* ctx, const rns8_product_recipe_desc* 
                              const rns8::detail::ProductMaterializationProfile* profile = nullptr) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!ctx || !desc || !out || !minimum_abi_header(desc) || !desc->inputs || !desc->nodes ||
-        !desc->input_count || desc->input_count > 4096 || !desc->node_count ||
-        desc->node_count > 4096 || !bindings || !count || count > desc->input_count ||
-        output_count > 4096 || (output_count && !output_ids) || (!output_count && output_ids) ||
-        (desc->prefix_policy != RNS8_PRODUCT_FULL_PREFIX &&
-         desc->prefix_policy != RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
+    if (!out || !valid_product_recipe_header(ctx, desc) || !bindings || !count ||
+        count > desc->input_count || output_count > 4096 || (output_count && !output_ids) ||
+        (!output_count && output_ids))
       return RNS8_INVALID_ARGUMENT;
     std::vector<const rns8_matrix*> inputs(desc->inputs, desc->inputs + desc->input_count);
     std::vector<rns8_ragged_recipe_binding> adapted(bindings, bindings + count);

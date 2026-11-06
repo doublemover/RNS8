@@ -393,6 +393,13 @@ conversion nodes retain their existing backend requirements.
 
 ## Shared lift/recipe cost harness (authored, not executed)
 
+Ordinary, multi-output, ragged and materialized public recipe entry points share
+constant-size descriptor admission before copying input/output-ID arrays or
+building proof metadata. Malformed headers, prefix policies and structural
+counts therefore reject without host staging allocation and preserve caller
+owner/identity outputs. Dedicated allocation-failure controls cover these paths
+with a live CPU context and source matrices; their execution remains deferred.
+
 `rns8-lift-recipe-calibrate` and `tools/collect_lift_recipe.py` bind identical
 integer/output boundaries across full-prefix manual execution, transactional
 minimum-prefix execution, and retained full/minimum/cost-model recipe arenas.

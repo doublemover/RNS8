@@ -1086,6 +1086,18 @@ struct rns8_product_recipe {
       rns8::detail::release_ragged_recipe_binding(source);
   }
 };
+namespace {
+// All public variants admit the constant-size contract before staging caller
+// arrays. Allocation failure must not mask an invalid ABI header or selector.
+bool valid_product_recipe_header(const rns8_context* ctx, const rns8_product_recipe_desc* desc,
+                                 uint32_t maximum_nodes = 4096) noexcept {
+  return ctx && rns8::detail::minimum_abi_header(desc) && desc->inputs && desc->nodes &&
+         desc->input_count && desc->input_count <= 4096 && desc->node_count &&
+         desc->node_count <= maximum_nodes &&
+         (desc->prefix_policy == RNS8_PRODUCT_FULL_PREFIX ||
+          desc->prefix_policy == RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX);
+}
+} // namespace
 #include "api_product_recipe_ragged_helpers.inc"
 
 static rns8_status create_product_recipe(
@@ -1094,11 +1106,7 @@ static rns8_status create_product_recipe(
     const rns8::detail::ProductMaterializationProfile* materializations = nullptr) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
-    if (!ctx || !desc || !out || !minimum_abi_header(desc) || !desc->inputs || !desc->nodes ||
-        !desc->input_count || desc->input_count > 4096 || !desc->node_count ||
-        desc->node_count > 4096 ||
-        (desc->prefix_policy != RNS8_PRODUCT_FULL_PREFIX &&
-         desc->prefix_policy != RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
+    if (!out || !valid_product_recipe_header(ctx, desc))
       return RNS8_INVALID_ARGUMENT;
     std::vector<const rns8_matrix*> inputs(desc->inputs, desc->inputs + desc->input_count);
     std::vector<ProductNode> nodes;
@@ -1122,14 +1130,18 @@ static rns8_status create_product_recipe(
 }
 rns8_status rns8_create_product_recipe(rns8_context* ctx, const rns8_product_recipe_desc* desc,
                                        rns8_product_recipe** out) {
-  return create_product_recipe(ctx, desc, {}, out);
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if (!out || !valid_product_recipe_header(ctx, desc))
+      return RNS8_INVALID_ARGUMENT;
+    return create_product_recipe(ctx, desc, {}, out);
+  });
 }
 rns8_status rns8_create_product_recipe_outputs(rns8_context* ctx,
                                                const rns8_product_recipe_desc* desc,
                                                const uint32_t* ids, uint32_t count,
                                                rns8_product_recipe** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!ids || !count || count > 4096)
+    if (!out || !valid_product_recipe_header(ctx, desc) || !ids || !count || count > 4096)
       return RNS8_INVALID_ARGUMENT;
     return create_product_recipe(ctx, desc, std::vector<uint32_t>(ids, ids + count), out);
   });

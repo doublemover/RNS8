@@ -22,11 +22,7 @@ product_materialization_identity(rns8_context* ctx, const rns8_product_recipe_de
                                  const std::vector<ProductInputProjection>* projected = nullptr) {
   using namespace rns8::detail;
   using namespace rns8::detail::api;
-  if (!ctx || !desc || !minimum_abi_header(desc) || !desc->inputs || !desc->nodes ||
-      !desc->input_count || desc->input_count > 4096 || !desc->node_count ||
-      desc->node_count > 64 ||
-      (desc->prefix_policy != RNS8_PRODUCT_FULL_PREFIX &&
-       desc->prefix_policy != RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
+  if (!valid_product_recipe_header(ctx, desc, 64))
     return RNS8_INVALID_ARGUMENT;
   if (projected && projected->size() != desc->input_count)
     return RNS8_INVALID_ARGUMENT;
@@ -137,7 +133,8 @@ rns8_query_product_materialization_identity(rns8_context* ctx, const rns8_produc
                                             const uint32_t* ids, uint32_t count,
                                             rns8_product_materialization_identity* out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || !rns8::detail::minimum_abi_header(out) || count > 64 || (count && !ids))
+    if (!out || !rns8::detail::minimum_abi_header(out) ||
+        !valid_product_recipe_header(ctx, desc, 64) || count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     rns8_product_materialization_identity identity{};
     const auto status = product_materialization_identity(
@@ -235,8 +232,8 @@ rns8_status ragged_materialization_identity(rns8_context* ctx, const rns8_produc
                                             uint64_t budget,
                                             rns8_product_materialization_identity& identity) {
   using namespace rns8::detail;
-  if (!ctx || !desc || !minimum_abi_header(desc) || !desc->inputs || !desc->input_count ||
-      desc->input_count > 4096 || !bindings || !count || count > desc->input_count)
+  if (!valid_product_recipe_header(ctx, desc, 64) || !bindings || !count ||
+      count > desc->input_count)
     return RNS8_INVALID_ARGUMENT;
   std::vector<const rns8_matrix*> inputs(desc->inputs, desc->inputs + desc->input_count);
   std::vector<ProductInputProjection> projected(desc->input_count);
@@ -263,7 +260,7 @@ rns8_status rns8_create_materialized_product_recipe(
     rns8_context* ctx, const rns8_product_recipe_desc* desc, const uint32_t* ids, uint32_t count,
     const rns8_product_materialization_profile* prices, rns8_product_recipe** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || count > 64 || (count && !ids))
+    if (!out || !valid_product_recipe_header(ctx, desc, 64) || count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     const auto outputs = count ? std::vector<uint32_t>(ids, ids + count) : std::vector<uint32_t>{};
     rns8_product_materialization_identity identity{};
@@ -282,7 +279,8 @@ rns8_status rns8_query_product_materialization_identity_ragged(
     const rns8_ragged_recipe_binding* bindings, uint32_t binding_count, const uint32_t* ids,
     uint32_t count, uint64_t budget, rns8_product_materialization_identity* out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || !rns8::detail::minimum_abi_header(out) || count > 64 || (count && !ids))
+    if (!out || !rns8::detail::minimum_abi_header(out) ||
+        !valid_product_recipe_header(ctx, desc, 64) || count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     const auto outputs = count ? std::vector<uint32_t>(ids, ids + count) : std::vector<uint32_t>{};
     rns8_product_materialization_identity identity{};
@@ -299,7 +297,7 @@ rns8_status rns8_create_materialized_product_recipe_ragged(
     uint32_t count, uint64_t budget, const rns8_product_materialization_profile* prices,
     rns8_product_recipe** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!out || count > 64 || (count && !ids))
+    if (!out || !valid_product_recipe_header(ctx, desc, 64) || count > 64 || (count && !ids))
       return RNS8_INVALID_ARGUMENT;
     const auto outputs = count ? std::vector<uint32_t>(ids, ids + count) : std::vector<uint32_t>{};
     rns8_product_materialization_identity identity{};
