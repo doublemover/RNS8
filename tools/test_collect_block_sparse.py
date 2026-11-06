@@ -13,6 +13,8 @@ from unittest.mock import patch
 from collect_block_sparse import (
     BUDGET,
     MODES,
+    PATTERNS,
+    active,
     checksum,
     collect,
     contract,
@@ -210,7 +212,7 @@ def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
 class Captures(unittest.TestCase):
     def test_modes_patterns_reuse_and_thresholds(self):
         for mode in MODES:
-            for pattern in ("dense", "mixed", "disjoint"):
+            for pattern in PATTERNS:
                 for reuse in (1, 8, 256):
                     case = case_for(mode, pattern=pattern, reuse_count=reuse)
                     validate_capture(fixture(case), case, "fixture-run", 2, 1)
@@ -242,6 +244,37 @@ class Captures(unittest.TestCase):
         self.assertEqual(int.from_bytes(b[:8], "little", signed=True), -(1 << 63))
         self.assertEqual(dataset(BASE), dataset(BASE))
         self.assertNotEqual(dataset(BASE), dataset({**BASE, "pattern": "disjoint"}))
+
+    def test_natural_pattern_masks_and_intersections_match_literal_sets(self):
+        expected = {
+            "half": ({0, 2, 4, 6},) * 4,
+            "diagonal": ({0}, {1}, {2}, {3}),
+            "banded": ({0, 1}, {0, 1, 2}, {1, 2, 3}, {2, 3, 4}),
+            "skewed": (set(range(8)), {1}, {2}, {3}),
+            "clustered": ({0, 1, 2, 3}, {0, 1, 2, 3}, {4, 5, 6, 7}, {4, 5, 6, 7}),
+        }
+        for pattern, masks in expected.items():
+            case = case_for("sparse_hybrid", m=64, n=64, k=512, pattern=pattern)
+            for lhs in (True, False):
+                self.assertEqual(
+                    [{k for k in range(8) if active(case, lhs, tile, k)} for tile in range(4)],
+                    list(masks),
+                )
+            counts = structure(case)
+            self.assertEqual(counts["modeled_a_blocks"], sum(map(len, masks)))
+            self.assertEqual(counts["modeled_b_blocks"], sum(map(len, masks)))
+            self.assertEqual(
+                counts["modeled_total_block_intersections"],
+                sum(len(a & b) for a in masks for b in masks),
+            )
+            self.assertEqual(
+                counts["modeled_empty_output_tiles"], sum(not a & b for a in masks for b in masks)
+            )
+        # Degenerate K/tile tails are honest masks, not promised 50% density.
+        for pattern in expected:
+            for k in (1, 63, 64, 65):
+                case = case_for("sparse_hybrid", m=17, n=19, k=k, pattern=pattern)
+                validate_capture(fixture(case), case, "fixture-run", 2, 1)
 
     def test_invalid_controls_and_manifest_duplicates(self):
         for key, values in {
@@ -414,7 +447,7 @@ class Captures(unittest.TestCase):
             mutation(capture["separate_batch_observation"])
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 validate_capture(capture, BASE, "fixture-run", 2, 1)
-        for pattern in ("dense", "mixed", "disjoint"):
+        for pattern in PATTERNS:
             case = case_for("sparse_scalar_cold", m=1, n=1, k=1, pattern=pattern)
             for key in (
                 "device_allocation_calls",
@@ -431,7 +464,12 @@ class Captures(unittest.TestCase):
 
     def test_tracked_manifests_have_complete_controls(self):
         root = case_root() / "block-sparse"
-        for name, count in (("smoke.json", 7), ("tail-reuse.json", 63), ("512-reuse.json", 42)):
+        for name, count in (
+            ("smoke.json", 7),
+            ("tail-reuse.json", 63),
+            ("512-reuse.json", 42),
+            ("patterns-smoke.json", 35),
+        ):
             cases = load_cases(root / name)
             self.assertEqual(len(cases), count)
             for shape in {(case["pattern"], case["reuse_count"]) for case in cases}:

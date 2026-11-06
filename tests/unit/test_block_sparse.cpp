@@ -1,4 +1,6 @@
 #include "backend_common/block_sparse.hpp"
+#include "../../benchmarks/block_sparse_patterns.hpp"
+#include <set>
 #include "backend_common/block_sparse_directory.hpp"
 #include "core/internal.hpp"
 #include <catch2/catch_test_macros.hpp>
@@ -121,4 +123,31 @@ TEST_CASE("native block sparsity is exact and dense materialization preserves "
                                 packed) == RNS8_SUCCESS);
   REQUIRE(layout.k_blocks.empty());
   REQUIRE(packed.empty());
+}
+
+TEST_CASE("natural block-sparse benchmark recipes preserve explicit integer-zero masks") {
+  using namespace rns8::bench;
+  using Masks = std::array<std::set<uint64_t>, 4>;
+  const std::array<std::pair<std::string_view, Masks>, 5> cases{{
+      {"half", {{{0, 2, 4, 6}, {0, 2, 4, 6}, {0, 2, 4, 6}, {0, 2, 4, 6}}}},
+      {"diagonal", {{{0}, {1}, {2}, {3}}}},
+      {"banded", {{{0, 1}, {0, 1, 2}, {1, 2, 3}, {2, 3, 4}}}},
+      {"skewed", {{{0, 1, 2, 3, 4, 5, 6, 7}, {1}, {2}, {3}}}},
+      {"clustered", {{{0, 1, 2, 3}, {0, 1, 2, 3}, {4, 5, 6, 7}, {4, 5, 6, 7}}}},
+  }};
+  for (const auto& example : cases)
+    for (bool lhs : {false, true})
+      for (uint64_t tile = 0; tile < 4; ++tile) {
+        std::set<uint64_t> observed;
+        for (uint64_t k = 0; k < 8; ++k)
+          if (block_sparse_pattern_active(example.first, lhs, tile, k, 8))
+            observed.insert(k);
+        CHECK(observed == example.second[tile]);
+      }
+  for (auto pattern : block_sparse_patterns) {
+    CHECK_FALSE(block_sparse_pattern_active(pattern, true, 0, 0, 0));
+    CHECK_FALSE(block_sparse_pattern_active(pattern, true, 0, 8, 8));
+  }
+  CHECK(block_sparse_pattern_active("banded", true, UINT64_MAX - 1, UINT64_MAX - 2, UINT64_MAX));
+  CHECK_FALSE(block_sparse_pattern_active("banded", true, UINT64_MAX - 1, 0, UINT64_MAX));
 }

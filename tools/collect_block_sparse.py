@@ -31,6 +31,7 @@ MODES = (
     "sparse_wmma_cold",
     "sparse_hybrid_cold",
 )
+PATTERNS = ("dense", "mixed", "disjoint", "half", "diagonal", "banded", "skewed", "clustered")
 KEYS = {"device", "mode", "m", "n", "k", "pattern", "reuse_count", "hybrid_threshold"}
 RECIPE = "splitmix64_signed64_block_masks_seed3135_v1"
 
@@ -46,7 +47,7 @@ def validate_case(case):
         "shape/reference work outside bounds",
     )
     demand(
-        case["pattern"] in ("dense", "mixed", "disjoint")
+        case["pattern"] in PATTERNS
         and integer(case["reuse_count"], 1, 256)
         and integer(case["hybrid_threshold"], 0, (1 << 32) - 1),
         "invalid pattern/reuse/threshold",
@@ -80,7 +81,20 @@ def active(case, lhs, tile, kb):
         return True
     if case["pattern"] == "disjoint":
         return kb % 2 == (0 if lhs else 1)
-    return True if tile % 3 == 0 else kb == 0 if tile % 3 == 2 else kb % 2 == (0 if lhs else 1)
+    if case["pattern"] == "half":
+        return kb % 2 == 0
+    center = tile % ((case["k"] + 63) // 64)
+    if case["pattern"] == "diagonal":
+        return kb == center
+    if case["pattern"] == "banded":
+        return abs(kb - center) <= 1
+    if case["pattern"] == "skewed":
+        return tile % 4 == 0 or kb == center
+    if case["pattern"] == "clustered":
+        return (kb // 4) % 2 == (tile // 2) % 2
+    if case["pattern"] == "mixed":
+        return True if tile % 3 == 0 else kb == 0 if tile % 3 == 2 else kb % 2 == (0 if lhs else 1)
+    raise ValueError("unknown exact-zero block recipe")
 
 
 def structure(case):

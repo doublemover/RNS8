@@ -180,6 +180,55 @@
               ]
             }
           }
+        ],
+        [
+          "patterns-smoke.json",
+          "3d04ddde862d450779c679d855a5eecc50dad8852eaf7cf643aea4586e9f7586",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "mode", "m", "n", "k", "pattern", "reuse_count", "hybrid_threshold"]
+              ],
+              "defaults": {"device": 0, "m": 65, "n": 49, "k": 513, "reuse_count": 1},
+              "rows": [
+                [0, "dense", "half", 0],
+                [0, "sparse_scalar", "half", 0],
+                [0, "sparse_wmma", "half", 0],
+                [0, "sparse_hybrid", "half", 1],
+                [0, "sparse_scalar_cold", "half", 0],
+                [0, "sparse_wmma_cold", "half", 0],
+                [0, "sparse_hybrid_cold", "half", 1],
+                [0, "dense", "diagonal", 0],
+                [0, "sparse_scalar", "diagonal", 0],
+                [0, "sparse_wmma", "diagonal", 0],
+                [0, "sparse_hybrid", "diagonal", 1],
+                [0, "sparse_scalar_cold", "diagonal", 0],
+                [0, "sparse_wmma_cold", "diagonal", 0],
+                [0, "sparse_hybrid_cold", "diagonal", 1],
+                [0, "dense", "banded", 0],
+                [0, "sparse_scalar", "banded", 0],
+                [0, "sparse_wmma", "banded", 0],
+                [0, "sparse_hybrid", "banded", 1],
+                [0, "sparse_scalar_cold", "banded", 0],
+                [0, "sparse_wmma_cold", "banded", 0],
+                [0, "sparse_hybrid_cold", "banded", 1],
+                [0, "dense", "skewed", 0],
+                [0, "sparse_scalar", "skewed", 0],
+                [0, "sparse_wmma", "skewed", 0],
+                [0, "sparse_hybrid", "skewed", 1],
+                [0, "sparse_scalar_cold", "skewed", 0],
+                [0, "sparse_wmma_cold", "skewed", 0],
+                [0, "sparse_hybrid_cold", "skewed", 1],
+                [0, "dense", "clustered", 0],
+                [0, "sparse_scalar", "clustered", 0],
+                [0, "sparse_wmma", "clustered", 0],
+                [0, "sparse_hybrid", "clustered", 1],
+                [0, "sparse_scalar_cold", "clustered", 0],
+                [0, "sparse_wmma_cold", "clustered", 0],
+                [0, "sparse_hybrid_cold", "clustered", 1]
+              ]
+            }
+          }
         ]
       ]
     }

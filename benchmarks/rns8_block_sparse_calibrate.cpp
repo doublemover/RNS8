@@ -2,6 +2,7 @@
 #include <rns8/rns8.h>
 #include <rns8/moduli.h>
 #include "native_diagnostic_observation.hpp"
+#include "block_sparse_patterns.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -95,7 +96,7 @@ void help() {
   std::cout
       << "rns8-block-sparse-calibrate DEVICE MODE M N K PATTERN REUSE_COUNT HYBRID_THRESHOLD REPEATS WARMUPS RUN_ID\n"
          "Explicit direct-HIP DEVICE 0..63; no CPU fallback. MODE dense | sparse_scalar | sparse_wmma | sparse_hybrid | sparse_scalar_cold | sparse_wmma_cold | sparse_hybrid_cold.\n"
-         "M,N 1..512; K 1..65537; M*N*K<=134217728. PATTERN dense|mixed|disjoint.\n"
+         "M,N 1..512; K 1..65537; M*N*K<=134217728. PATTERN dense|mixed|disjoint|half|diagonal|banded|skewed|clustered.\n"
          "REUSE_COUNT 1..256 GEMMs per wall interval; threshold uint32 only for hybrid, otherwise zero. REPEATS/WARMUPS 1..1000.\n"
          "Run ID 1..128 ASCII alnum/_/-. Signed exact-wide prefix20, full Boost reference outside timing, 256MiB logical live-payload cap.\n"
          "Warm sparse setup prepares once; cold modes include two preparations, reuse GEMMs and checked destruction inside every call.\n";
@@ -115,7 +116,9 @@ Case parse(int argc, char** argv) {
   c.n = size_t(number(argv[4], 1, 512));
   c.k = size_t(number(argv[5], 1, 65537));
   require(uint64_t(c.m) * c.n * c.k <= 134217728, "reference work exceeds bound");
-  require(c.pattern == "dense" || c.pattern == "mixed" || c.pattern == "disjoint",
+  require(std::find(rns8::bench::block_sparse_patterns.begin(),
+                    rns8::bench::block_sparse_patterns.end(),
+                    c.pattern) != rns8::bench::block_sparse_patterns.end(),
           "invalid exact-zero recipe pattern");
   c.reuse = uint32_t(number(argv[7], 1, 256));
   c.threshold = uint32_t(number(argv[8], 0, UINT32_MAX));
@@ -132,15 +135,7 @@ Case parse(int argc, char** argv) {
   return c;
 }
 bool active(const Case& c, bool lhs, size_t tile, size_t kb) {
-  if (c.pattern == "dense")
-    return true;
-  if (c.pattern == "disjoint")
-    return kb % 2 == (lhs ? 0u : 1u);
-  if (tile % 3 == 0)
-    return true;
-  if (tile % 3 == 2)
-    return kb == 0;
-  return kb % 2 == (lhs ? 0u : 1u);
+  return rns8::bench::block_sparse_pattern_active(c.pattern, lhs, tile, kb, (c.k + 63) / 64);
 }
 struct Structure {
   uint64_t a_blocks = 0, b_blocks = 0, payload = 0, metadata = 0, intersections = 0,

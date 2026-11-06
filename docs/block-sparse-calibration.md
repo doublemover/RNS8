@@ -54,6 +54,19 @@ consumes a word for inactive cells. Block size is 16x64 for A and 64x16 for B.
 | `dense` | All blocks in both operands |
 | `disjoint` | A retains even K-block indices; B retains odd indices |
 | `mixed` | Output row/column tile index modulo 3 selects all blocks, even A/odd B blocks, or only block0 |
+| `half` | Both operands retain even K blocks; half of an even K-block grid |
+| `diagonal` | Each row/column tile retains K block `tile % K_blocks` |
+| `banded` | Retain the diagonal center above and its clipped immediate neighbors |
+| `skewed` | Every fourth row/column tile retains all K blocks; other tiles retain their diagonal center |
+| `clustered` | Alternating four-K-block clusters, selected by the parity of each pair of row/column tiles |
+
+The diagonal center repeats when the output tile grid exceeds the K-block grid.
+Small/tail K grids can degenerate to dense or empty masks; the observed/modelled
+block counts govern density claims. `patterns-smoke.json` contains all seven
+dense/warm/cold route controls for each added pattern at65x49x513 and reuse1.
+It is an authored case set, not a request to launch or restart a campaign.
+The producer uses a pure checked-index mask helper; the independent collector
+reconstructs each mask/input and audits full-width data and exact intersections.
 
 Mixed cases exercise zero, low and higher intersection counts. Hybrid uses the
 explicit threshold; it never prunes small nonzero values. Non-hybrid modes reject
