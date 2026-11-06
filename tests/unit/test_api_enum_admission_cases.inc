@@ -89,14 +89,16 @@ TEST_CASE("raw backend values reject before context or plan acquisition",
     options.struct_size = sizeof(options);
     options.abi_version = RNS8_ABI_VERSION;
     options.requested_backend = backend;
-    rns8_context* invalid_context = nullptr;
+    auto* const context_canary = reinterpret_cast<rns8_context*>(uintptr_t(1));
+    rns8_context* invalid_context = context_canary;
     CHECK(rns8_create_context(-1, &options, &invalid_context) == RNS8_INVALID_ARGUMENT);
-    CHECK(invalid_context == nullptr);
+    CHECK(invalid_context == context_canary);
     auto desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 1);
     desc.requested_backend = backend;
-    rns8_plan* plan = nullptr;
+    auto* const plan_canary = reinterpret_cast<rns8_plan*>(uintptr_t(1));
+    rns8_plan* plan = plan_canary;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
-    CHECK(plan == nullptr);
+    CHECK(plan == plan_canary);
     rns8_backend_capability_info info{};
     info.struct_size = sizeof(info);
     info.abi_version = RNS8_ABI_VERSION;
@@ -130,6 +132,82 @@ TEST_CASE("raw backend values reject before context or plan acquisition",
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
+TEST_CASE("constructor descriptor rejection precedes poisoned context and output publication",
+          "[api][abi][enum][host]") {
+  rns8_context ctx{};
+  ctx.backend = RNS8_BACKEND_CPU_REFERENCE;
+  ctx.hip_failure_poisoned = true; // Admission control only; no device fault is induced.
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  auto gemm = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 1);
+  auto matrix = bounded_matrix_desc(1, 1, RNS8_BOUNDED_I64);
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+  auto reject = [&](const rns8_context_options& bad_options, const rns8_gemm_desc& bad_gemm,
+                    const rns8_matrix_desc& bad_matrix) {
+    auto* const context_canary = reinterpret_cast<rns8_context*>(uintptr_t(1));
+    auto* const plan_canary = reinterpret_cast<rns8_plan*>(uintptr_t(1));
+    auto* const matrix_canary = reinterpret_cast<rns8_matrix*>(uintptr_t(1));
+    auto* context_out = context_canary;
+    auto* plan_out = plan_canary;
+    auto* matrix_out = matrix_canary;
+    CHECK(rns8_create_context(-1, &bad_options, &context_out) == RNS8_INVALID_ARGUMENT);
+    CHECK(context_out == context_canary);
+    CHECK(rns8_create_plan(&ctx, &bad_gemm, &plan_out) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan_out == plan_canary);
+    CHECK(rns8_create_matrix(&ctx, &bad_matrix, &matrix_out) == RNS8_INVALID_ARGUMENT);
+    CHECK(matrix_out == matrix_canary);
+    CHECK(ctx.hip_failure_poisoned);
+    CHECK(ctx.prepared_references == 0);
+  };
+  for (unsigned malformed = 0; malformed < 5; ++malformed) {
+    auto bad_options = options;
+    auto bad_gemm = gemm;
+    auto bad_matrix = matrix;
+    if (malformed < 3) {
+      bad_options.struct_size = malformed == 0   ? 0
+                                : malformed == 1 ? sizeof(uint64_t)
+                                                 : sizeof(options) - 1;
+      bad_gemm.struct_size = malformed == 0   ? 0
+                             : malformed == 1 ? sizeof(uint32_t)
+                                              : sizeof(gemm) - 1;
+      bad_matrix.struct_size = malformed == 0   ? 0
+                               : malformed == 1 ? sizeof(uint32_t)
+                                                : sizeof(matrix) - 1;
+    } else {
+      bad_options.abi_version = bad_gemm.abi_version = bad_matrix.abi_version =
+          malformed == 3 ? 0 : RNS8_ABI_VERSION + 1;
+    }
+    reject(bad_options, bad_gemm, bad_matrix);
+  }
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000)}) {
+    auto bad_options = options;
+    auto bad_gemm = gemm;
+    auto bad_matrix = matrix;
+    bad_options.flags = bad_gemm.flags = bad_matrix.flags = bits;
+    reject(bad_options, bad_gemm, bad_matrix);
+    bad_gemm = gemm;
+    bad_gemm.flags = RNS8_PLAN_DIRECT_RNS_PARALLEL;
+    bad_gemm.bound_kind = raw_ffi_enum<rns8_bound_kind>(bits);
+    reject(bad_options, bad_gemm, bad_matrix);
+    bad_gemm.bound_kind = gemm.bound_kind;
+    bad_gemm.semantics = raw_ffi_enum<rns8_semantics>(bits);
+    reject(bad_options, bad_gemm, bad_matrix);
+  }
+  // Admitted descriptors still report context failure and clear their output slots.
+  auto* plan_out = reinterpret_cast<rns8_plan*>(uintptr_t(1));
+  auto* matrix_out = reinterpret_cast<rns8_matrix*>(uintptr_t(1));
+  CHECK(rns8_create_plan(&ctx, &gemm, &plan_out) == RNS8_BACKEND_FAILURE);
+  CHECK(plan_out == nullptr);
+  CHECK(rns8_create_matrix(&ctx, &matrix, &matrix_out) == RNS8_BACKEND_FAILURE);
+  CHECK(matrix_out == nullptr);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+}
+
 TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor validators",
           "[api][abi][enum][host]") {
   auto* ctx = create_cpu_context();
@@ -142,9 +220,10 @@ TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor 
         desc.bound_kind = raw_ffi_enum<rns8_bound_kind>(bits);
       if (field == 2)
         desc.flags = bits == 6 ? (UINT32_C(1) << 31) : bits;
-      rns8_plan* plan = nullptr;
+      auto* const canary = reinterpret_cast<rns8_plan*>(uintptr_t(1));
+      rns8_plan* plan = canary;
       CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
-      CHECK(plan == nullptr);
+      CHECK(plan == canary);
     }
   for (unsigned field = 0; field < 4; ++field)
     for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
@@ -160,9 +239,10 @@ TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor 
         desc.logical_layout = raw_ffi_enum<rns8_layout>(bits);
       if (field == 3)
         desc.flags = bits;
-      rns8_matrix* matrix = nullptr;
+      auto* const canary = reinterpret_cast<rns8_matrix*>(uintptr_t(1));
+      rns8_matrix* matrix = canary;
       CHECK(rns8_create_matrix(ctx, &desc, &matrix) == RNS8_INVALID_ARGUMENT);
-      CHECK(matrix == nullptr);
+      CHECK(matrix == canary);
     }
   for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 1u}) {
     rns8_context_options options{};
@@ -170,9 +250,10 @@ TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor 
     options.abi_version = RNS8_ABI_VERSION;
     options.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
     options.flags = bits;
-    rns8_context* rejected = nullptr;
+    auto* const canary = reinterpret_cast<rns8_context*>(uintptr_t(1));
+    rns8_context* rejected = canary;
     CHECK(rns8_create_context(-1, &options, &rejected) == RNS8_INVALID_ARGUMENT);
-    CHECK(rejected == nullptr);
+    CHECK(rejected == canary);
   }
   // Valid descriptors still allocate and destroy through the same validators.
   auto desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 1);

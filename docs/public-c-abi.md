@@ -70,6 +70,15 @@ cover all-bits, high-bit and adjacent invalid backend, semantics, bounds, layout
 and flag values through live CPU owners, alongside valid controls. This extends
 the behavioral corpus without claiming every external enum/flag is covered.
 
+Context, plan and matrix constructors preserve caller handle slots when options
+or descriptor preflight rejects input. After successful preflight they initialize
+the slot to null before checking context health or acquiring backend resources.
+Malformed plan/matrix descriptors therefore remain `INVALID_ARGUMENT` even on a
+poisoned context; valid descriptors still report `BACKEND_FAILURE` there. GEMM
+semantic and bound tags are admitted before flag-specific backend routing, so an
+unsupported accelerator flag cannot mask an unknown tag. Authored canary,
+short-size, wrong-version and poisoned-context controls await the final batch.
+
 Additional authored controls exercise raw streaming schedules through the public
 resource query and raw locality orders through a live CPU context/plan. Known
 locality modes still reach the distinct unsupported CPU-backend outcome.

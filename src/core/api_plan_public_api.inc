@@ -6,9 +6,6 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (!ctx || !desc || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    *out = nullptr;
-    if (ctx->hip_failure_poisoned)
-      return RNS8_BACKEND_FAILURE;
     if (!rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -19,6 +16,10 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (validation != RNS8_SUCCESS) {
       return validation;
     }
+
+    *out = nullptr;
+    if (ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
 
     const rns8_backend_kind requested = effective_backend(desc->requested_backend, ctx->backend);
     if (requested != ctx->backend) {

@@ -245,8 +245,6 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
     if (!out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    *out = nullptr;
-
     rns8_backend_kind requested = RNS8_BACKEND_CPU_REFERENCE;
     bool requested_auto = false;
     if (options) {
@@ -259,6 +257,8 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       requested_auto = options->requested_backend == RNS8_BACKEND_AUTO;
       requested = requested_auto ? RNS8_BACKEND_AUTO : options->requested_backend;
     }
+
+    *out = nullptr;
 
     std::unique_ptr<rns8_context> ctx_owner(new (std::nothrow) rns8_context());
     auto* ctx = ctx_owner.get();

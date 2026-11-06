@@ -298,7 +298,8 @@ rns8_status validate_bound_contract(rns8_semantics semantics, rns8_bound_kind bo
 }
 
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
-  if (!minimum_abi_header(&desc) || !known_backend_kind(desc.requested_backend)) {
+  if (!minimum_abi_header(&desc) || !known_backend_kind(desc.requested_backend) ||
+      !known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
@@ -354,9 +355,6 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
         !valid_zero_mask(desc.zero_b_cols, desc.zero_b_cols_count, desc.n)) {
       return RNS8_INVALID_ARGUMENT;
     }
-  }
-  if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind)) {
-    return RNS8_INVALID_ARGUMENT;
   }
   if (desc.semantics != RNS8_FINITE_RING_U8 && desc.semantics != RNS8_FINITE_FIELD_U8 &&
       desc.finite_modulus != 0) {

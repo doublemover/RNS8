@@ -26,9 +26,6 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     if (!ctx || !desc || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
-    *out = nullptr;
-    if (ctx->hip_failure_poisoned)
-      return RNS8_BACKEND_FAILURE;
     if (!rns8::detail::minimum_abi_header(desc)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -39,6 +36,9 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     if (validation != RNS8_SUCCESS) {
       return validation;
     }
+    *out = nullptr;
+    if (ctx->hip_failure_poisoned)
+      return RNS8_BACKEND_FAILURE;
     if (desc->flags && ctx->backend != RNS8_BACKEND_HIP_DIRECT)
       return RNS8_UNSUPPORTED_BACKEND;
     if (!backend_supports_semantics(ctx->backend, desc->semantics)) {

@@ -1686,6 +1686,10 @@ typedef struct rns8_prepack_cache_info {
  * metadata return RNS8_INVALID_ARGUMENT before backend routing. Valid
  * descriptors that request unavailable or future backend enum values return
  * RNS8_UNSUPPORTED_BACKEND.
+ * Context, plan and matrix construction preserve the caller's output slot on
+ * rejected options/descriptor preflight. After valid preflight, the slot is
+ * initialized to null before backend admission/allocation. Descriptor rejection
+ * takes precedence over a poisoned context in plan/matrix construction.
  */
 RNS8_API rns8_status rns8_create_context(int device_id, const rns8_context_options* options,
                                          rns8_context** out);
