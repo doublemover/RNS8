@@ -85,6 +85,12 @@ range, stale/missing report identity, incomplete timing intervals and repeated
 process identities. Only matched compute+check routes form cost ratios; standalone
 checks retain their different boundary. The existing finite verifier experiment
 separately measures Freivalds projections with its own ring/randomness theorem.
+Its synchronous verifier retains each pageable host challenge with the typed
+device-buffer retry record before upload. Successful trial completion releases
+the attachment; the next trial reattaches it. An uncertain copy/projection keeps
+that source alive alongside the existing matrix reader and scratch custody
+until a safe drain. This source fix and its host lifecycle control are authored;
+the existing tagged HIP exact ring differential remains unexecuted on this revision.
 No captures, cost advantage or target qualification have been produced here.
 
 ## Distributed publication

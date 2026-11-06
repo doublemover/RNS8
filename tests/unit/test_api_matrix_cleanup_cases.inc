@@ -293,6 +293,49 @@ TEST_CASE("device retry records retain pageable DMA sources across unwind and fa
   CHECK(source.reset() == RNS8_SUCCESS);
 }
 
+TEST_CASE("repeated verifier uploads retain the current challenge after any failed trial",
+          "[api][lifetime][finite-verify]") {
+  using Buffer = rns8::detail::basic_hip_device_buffer<MockDeviceBufferOperations>;
+  using Ops = MockDeviceBufferOperations;
+  Ops::fail_pointer = nullptr;
+  Ops::fail_all = false;
+  Ops::deferred_count = 0;
+  for (unsigned failed_trial : {0u, 1u, 2u}) {
+    std::weak_ptr<std::vector<uint8_t>> retained;
+    {
+      Buffer device_challenge;
+      REQUIRE(device_challenge.allocate(0, 3) == RNS8_SUCCESS);
+      auto challenge = std::make_shared<std::vector<uint8_t>>(3);
+      retained = challenge;
+      for (unsigned trial = 0; trial <= failed_trial; ++trial) {
+        (*challenge)[0] = uint8_t(trial);
+        REQUIRE(device_challenge.retain_host_payload(challenge) == RNS8_SUCCESS);
+        device_challenge.mark_pending();
+        CHECK(challenge.use_count() == 2);
+        if (trial != failed_trial) {
+          device_challenge.mark_completed();
+          CHECK(challenge.use_count() == 1);
+        }
+      }
+      // Model unwinding after uncertain H2D/projection completion, without
+      // touching a GPU or releasing a source still needed by a retry record.
+    }
+    REQUIRE(Ops::deferred_count == 1);
+    auto* record = Ops::deferred[0];
+    REQUIRE(record->host_payload);
+    {
+      const auto challenge = retained.lock();
+      REQUIRE(challenge);
+      CHECK((*challenge)[0] == failed_trial);
+    }
+    REQUIRE(Ops::release(record->device_id, record->pointer) == RNS8_SUCCESS);
+    delete record; // A later observed drain can now retire the allocation and source.
+    Ops::deferred[0] = nullptr;
+    Ops::deferred_count = 0;
+    CHECK(retained.expired());
+  }
+}
+
 TEST_CASE("small status readbacks publish only after completion and retain failed destinations",
           "[api][lifetime]") {
   using Slot = rns8::detail::HostReadbackSlot;

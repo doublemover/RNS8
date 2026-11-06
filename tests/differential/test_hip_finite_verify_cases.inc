@@ -1,5 +1,6 @@
 #include "../support/finite_verify_fixture.hpp"
-TEST_CASE("HIP finite Freivalds projections agree with independent ring products") {
+TEST_CASE("HIP finite Freivalds projections agree with independent ring products",
+          "[hip][finite-verify][lifetime]") {
   if (!hip_available())
     SKIP("no HIP device for finite Freivalds");
   rns8_context_options o{};

@@ -488,6 +488,16 @@ zero-size or negative-device replacement preserves the current allocation.
 This cleanup bookkeeping does not authorize freeing resources with live public
 reservations or establish a new asynchronous execution path.
 
+Ordinary exports retain their plan with the matrix read lease. Tiled export
+metadata copies can still read the plan's schedule/bound/zero-mask vectors after
+an uncertain backend return, so plan destruction reports `RNS8_BUSY` until
+completion or a successful failed-work drain releases that hold. This reuses
+the existing owner counters; it adds neither a success-path device fence nor
+duplicate descriptor storage. Counter overflow rejects before reservation.
+The native export's private status readback uses the owned small-readback slot,
+so a failed DMA cannot retain a stack destination. These source repairs and
+host controls are authored; current runtime qualification is pending.
+
 ### Cleanup and retry ownership
 
 Workspace, prepack-cache, result-cache and sparse-matrix destruction consume the

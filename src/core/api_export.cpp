@@ -326,7 +326,7 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
       return export_status;
     }
     size_t token = 0;
-    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token, plan);
     if (reserved != RNS8_SUCCESS)
       return reserved;
     SynchronousLease lease(*ctx, token);
@@ -387,7 +387,7 @@ rns8_status rns8_export_u64(rns8_context* ctx, const rns8_plan* plan, const rns8
       return export_status;
     }
     size_t token = 0;
-    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token, plan);
     if (reserved != RNS8_SUCCESS)
       return reserved;
     SynchronousLease lease(*ctx, token);
@@ -448,7 +448,7 @@ rns8_status rns8_export_wrap_u64(rns8_context* ctx, const rns8_plan* plan, const
       return export_status;
     }
     size_t token = 0;
-    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token, plan);
     if (reserved != RNS8_SUCCESS)
       return reserved;
     SynchronousLease lease(*ctx, token);
@@ -507,7 +507,7 @@ rns8_status rns8_export_finite_u8(rns8_context* ctx, const rns8_plan* plan, uint
       return export_status;
     }
     size_t token = 0;
-    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token, plan);
     if (reserved != RNS8_SUCCESS)
       return reserved;
     SynchronousLease lease(*ctx, token);
@@ -548,7 +548,7 @@ rns8_status rns8_export_exact_wide_signed_limbs(rns8_context* ctx, const rns8_pl
       return export_status;
     }
     size_t token = 0;
-    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token, plan);
     if (reserved != RNS8_SUCCESS)
       return reserved;
     SynchronousLease lease(*ctx, token);
@@ -590,7 +590,7 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(rns8_context* ctx, const rns8_
       return export_status;
     }
     size_t token = 0;
-    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token);
+    const auto reserved = begin_synchronous_read_lease(*ctx, *C, token, plan);
     if (reserved != RNS8_SUCCESS)
       return reserved;
     SynchronousLease lease(*ctx, token);

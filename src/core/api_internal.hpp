@@ -81,7 +81,9 @@ inline rns8_status begin_synchronous_lease(rns8_context& ctx, const rns8_matrix&
                                            bool input_writers = false) {
   return begin_synchronous_lease(ctx, a, b, c, &workspace, token, input_writers);
 }
-rns8_status begin_synchronous_read_lease(rns8_context&, const rns8_matrix&, size_t&);
+// Optional plan custody protects pageable descriptor vectors used by export DMA.
+rns8_status begin_synchronous_read_lease(rns8_context&, const rns8_matrix&, size_t&,
+                                         const rns8_plan* retained_plan = nullptr);
 rns8_status begin_synchronous_output_lease(rns8_context&, rns8_matrix&, size_t&);
 // Private uploads/readers retain real owners without inventing a matrix writer.
 rns8_status begin_synchronous_owner_lease(rns8_context&, size_t&);

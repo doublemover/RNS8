@@ -132,7 +132,7 @@ rns8_status hip_direct_export_native_view(int device_id, const void* residues, v
   if (err != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   int result = 0;
-  err = tracked_sync_copy(&result, flag, 4, hipMemcpyDeviceToHost);
+  err = tracked_status_copy(device_id, &result, flag, sizeof(result));
   if (err != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   if (result != int(RNS8_SUCCESS))

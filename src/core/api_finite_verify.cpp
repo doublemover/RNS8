@@ -82,7 +82,10 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
       const auto dispatched = synchronous_dispatch_checkpoint(*ctx, "finite_verify");
       if (dispatched != RNS8_SUCCESS)
         return dispatched;
-      std::vector<uint8_t> challenge(static_cast<size_t>(n));
+      std::vector<uint8_t> cpu_challenge(gpu ? 0 : static_cast<size_t>(n));
+      auto gpu_challenge =
+          gpu ? std::make_shared<std::vector<uint8_t>>(static_cast<size_t>(n)) : nullptr;
+      auto& challenge = gpu ? *gpu_challenge : cpu_challenge;
       std::vector<uint32_t> projection;
       hip_direct_device_buffer dr, dbr, flag;
       if (gpu) {
@@ -103,11 +106,16 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
           bit = finite_verify::next_bit(state);
         uint32_t flags = 0;
         if (gpu) {
+          // Successful observation releases this attachment. Reattach before
+          // every upload so a later failed trial retains its pageable source.
+          auto status = dr.retain_host_payload(gpu_challenge);
+          if (status != RNS8_SUCCESS)
+            return status;
           dr.mark_pending();
           dbr.mark_pending();
           flag.mark_pending();
-          auto status = hip_direct_copy_host_to_device(ctx->device_id, dr.get(), challenge.data(),
-                                                       challenge.size());
+          status = hip_direct_copy_host_to_device(ctx->device_id, dr.get(), challenge.data(),
+                                                  challenge.size());
           if (status != RNS8_SUCCESS)
             return status;
           status = hip_finite_verify_trial(ctx->device_id, A->hip_residues, B->hip_residues,

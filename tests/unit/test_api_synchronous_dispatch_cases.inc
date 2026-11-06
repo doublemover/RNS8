@@ -193,18 +193,45 @@ TEST_CASE("public exports retain read ownership without invalidating resident va
       }
       if (failure < 2) {
         CHECK(matrix->in_flight_readers == 1);
+        CHECK(plan->prepared_references == 1);
         CHECK(rns8_destroy_matrix(matrix) == RNS8_BUSY);
+        CHECK(rns8_destroy_plan(plan) == RNS8_BUSY);
         fixture.drain_fails = false;
         REQUIRE(rns8_drain_failed_work(ctx) == RNS8_SUCCESS);
         CHECK(ctx->hip_failure_poisoned);
       }
       CHECK(matrix->in_flight_readers == 0);
+      CHECK(plan->prepared_references == 0);
       CHECK(ctx->failed_work_leases.empty());
       ctx->synchronous_test_hooks = nullptr;
       REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
       REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
       REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
     }
+}
+
+TEST_CASE("export plan hold overflow preserves the output and reservation inventory",
+          "[api][export][lifetime]") {
+  auto* ctx = create_cpu_context();
+  auto desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 1);
+  auto md = bounded_matrix_desc(1, 1, RNS8_BOUNDED_I64);
+  rns8_plan* plan = nullptr;
+  rns8_matrix* matrix = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &md, &matrix) == RNS8_SUCCESS);
+  const int64_t input = 1;
+  REQUIRE(rns8_pack_i64(ctx, matrix, &input, 1, 1) == RNS8_SUCCESS);
+  plan->prepared_references = UINT64_MAX;
+  int64_t output = 77;
+  CHECK(rns8_export_i64(ctx, plan, matrix, &output, 1) == RNS8_RANGE_ERROR);
+  CHECK(output == 77);
+  CHECK(plan->prepared_references == UINT64_MAX);
+  CHECK(matrix->in_flight_readers == 0);
+  CHECK(ctx->failed_work_leases.empty());
+  plan->prepared_references = 0;
+  REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
 TEST_CASE("public synchronous dispatch retains every dependency after uncertain completion",

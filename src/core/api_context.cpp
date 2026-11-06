@@ -60,16 +60,21 @@ rns8_status begin_synchronous_matrix_lease(rns8_context& ctx, rns8_matrix& matri
   return RNS8_SUCCESS;
 }
 rns8_status begin_synchronous_read_lease(rns8_context& ctx, const rns8_matrix& matrix,
-                                         size_t& token) {
+                                         size_t& token, const rns8_plan* retained_plan) {
   if (ctx.hip_failure_poisoned)
     return RNS8_BACKEND_FAILURE;
   if (matrix.in_flight_writer)
     return RNS8_BUSY;
-  if (matrix.in_flight_readers == UINT64_MAX)
+  if (matrix.in_flight_readers == UINT64_MAX ||
+      (retained_plan && retained_plan->prepared_references == UINT64_MAX))
     return RNS8_RANGE_ERROR;
   token = ctx.failed_work_leases.size();
   ctx.failed_work_leases.push_back({&matrix, &matrix, nullptr, nullptr, false, true, true});
   ++matrix.in_flight_readers;
+  if (retained_plan) {
+    ctx.failed_work_leases.back().owner_holds[0] = &retained_plan->prepared_references;
+    ++retained_plan->prepared_references;
+  }
   return RNS8_SUCCESS;
 }
 rns8_status begin_synchronous_output_lease(rns8_context& ctx, rns8_matrix& matrix, size_t& token) {
