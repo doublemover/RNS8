@@ -68,6 +68,21 @@ def labels(family: str) -> set[str]:
     return {"rns8.bv." + family + "." + name for name in FAMILIES[family][1]}
 
 
+def command_prefix(selected: dict, model: str, family: str, source: Path) -> list[str]:
+    return [
+        selected["tool_invocations"]["cbmc"],
+        "--cpp11",
+        "--" + model,
+        "--function",
+        "main",
+        "-DRNS8_BV_CBMC=1",
+        f"-DRNS8_BV_FAMILY={FAMILIES[family][0]}",
+        f"-DRNS8_BV_LLP64={int(model == 'LLP64')}",
+        "-I",
+        str(source / "src"),
+    ]
+
+
 def registry() -> dict:
     value = parse_evidence_json(bounded_read(ROOT / "metadata/scalar-proof-pilot.json")[0])
     if (

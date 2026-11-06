@@ -96,6 +96,22 @@ requires the baseline's exact Boost oracle to pass and the mutant's intended
 property to fail. A crash or generic nonzero exit is not a detected mutation.
 No automatic retries occur.
 
+Reconstruct a retained session without launching tools:
+
+```sh
+python tools/review_scalar_proof.py temp/scalar-proof-candidate/scalar-proof.json
+```
+
+The reader shares source inventories, commands, proof/property admission,
+replay recipes and exact-oracle result checks with the producer. It reconstructs
+every verdict from raw process receipts, checks the exact production or reviewed
+mutation bytes and actual retained preprocessing input, and verifies the native
+project/compiler/build/executable custody. Resealing a derived summary cannot
+turn a missing property or failed replay into a passing session. A shared bounded
+document owner retains the report, plan, inventories and raw processes through
+the final publication check; source and binary bookends remain independent.
+These receipts are content custody, not cryptographic execution attestation.
+
 The existing bounded process runner limits each command's duration and combined
 stdout/stderr to 32 MiB, and the owned artifact tree to 512 MiB. Full raw outcomes
 and process elapsed times remain in the ignored output directory. Peak memory is

@@ -29,6 +29,7 @@ from scalar_proof_contract import (
     SOURCES,
     VERSION,
     complete_process,
+    command_prefix,
     proof_result,
     property_inventory,
     registry,
@@ -36,8 +37,7 @@ from scalar_proof_contract import (
 )
 
 
-def plan(args) -> dict:
-    policy = registry()
+def source_inputs() -> list[dict]:
     tool_sources = sorted((ROOT / "tools").rglob("*.py"))
     if (
         not 1 <= len(tool_sources) <= 4096
@@ -65,6 +65,12 @@ def plan(args) -> dict:
         for path in tool_sources
         if str(path.resolve()) not in known
     )
+    return sources
+
+
+def plan(args) -> dict:
+    policy = registry()
+    sources = source_inputs()
     for seed in policy["seeds"]:
         change((ROOT / seed["source"]).read_bytes(), seed)
     if args.out.exists() or not 1 <= args.timeout <= 600:
@@ -111,6 +117,9 @@ def plan(args) -> dict:
             "new accumulator caps",
         ],
         documented_abi_sources=SOURCES,
+        native_host=dict(
+            os=platform.system(), abi="LLP64" if struct.calcsize("@l") == 4 else "LP64"
+        ),
         production_eligible=False,
     )
 
@@ -130,19 +139,7 @@ def snapshot(destination: Path, seed=None):
 def verify(
     session: Session, selected: dict, model: str, name: str, family: str, source: Path, seed=None
 ) -> dict:
-    family_id = FAMILIES[family][0]
-    base = [
-        selected["tool_invocations"]["cbmc"],
-        "--cpp11",
-        "--" + model,
-        "--function",
-        "main",
-        "-DRNS8_BV_CBMC=1",
-        f"-DRNS8_BV_FAMILY={family_id}",
-        f"-DRNS8_BV_LLP64={int(model == 'LLP64')}",
-        "-I",
-        str(source / "src"),
-    ]
+    base = command_prefix(selected, model, family, source)
     row = dict(
         name=name,
         model=model,
@@ -209,12 +206,8 @@ def boundary_inputs():
     )
 
 
-def replay(
-    session: Session, selected: dict, variants: dict[str, tuple[Path, str]], rows: list[dict]
-):
-    host_model = "LLP64" if struct.calcsize("@l") == 4 else "LP64"
-    source = session.output / "native-replay"
-    source.mkdir()
+def replay_cmake(output: Path, rows: list[dict], host_model: str) -> str:
+    source = output / "native-replay"
     cmake = [
         "cmake_minimum_required(VERSION 3.25)",
         "project(rns8_scalar_proof_replay LANGUAGES CXX)",
@@ -225,7 +218,7 @@ def replay(
         raise ValueError("ordinary replay requires the current host ABI in the selected models")
     for row in host_rows:
         name, family = row["name"], row["family"]
-        variant, _ = variants[name]
+        variant = output / name
         # Only reviewed ASCII registry identifiers enter generated CMake syntax.
         relative = os.path.relpath(variant, source).replace("\\", "/")
         cmake.extend(
@@ -237,9 +230,11 @@ def replay(
                 f"target_compile_definitions({name} PRIVATE RNS8_BV_CBMC=0 RNS8_BV_FAMILY={FAMILIES[family][0]} RNS8_BV_LLP64={int(host_model == 'LLP64')})",
             ]
         )
-    cmake_file = source / "CMakeLists.txt"
-    cmake_file.write_text("\n".join(cmake) + "\n", encoding="utf-8")
-    build = session.output / "native-build"
+    return "\n".join(cmake) + "\n"
+
+
+def replay_commands(selected: dict, output: Path) -> tuple[list[str], list[str]]:
+    source, build = output / "native-replay", output / "native-build"
     command = [
         selected["tool_invocations"]["cmake"],
         "-S",
@@ -254,21 +249,26 @@ def replay(
     ]
     if "toolchain" in selected["tools"]:
         command.append("-DCMAKE_TOOLCHAIN_FILE=" + selected["tools"]["toolchain"]["path"])
-    session.run("native-replay-configure", command)
-    session.run(
-        "native-replay-build",
-        [selected["tool_invocations"]["cmake"], "--build", str(build), "--parallel", "2"],
-    )
-    build_inputs = [
-        reference(cmake_file),
-        reference(build / "CMakeCache.txt"),
-        reference(build / "compile_commands.json"),
+    return command, [
+        selected["tool_invocations"]["cmake"],
+        "--build",
+        str(build),
+        "--parallel",
+        "2",
     ]
-    compiler_records = list((build / "CMakeFiles").glob("*/CMakeCXXCompiler.cmake"))
-    if len(compiler_records) != 1:
-        raise ValueError("one native compiler identification record required")
-    build_inputs.append(reference(compiler_records[0]))
-    for row in host_rows:
+
+
+def replay(session: Session, selected: dict, rows: list[dict]):
+    host_model = "LLP64" if struct.calcsize("@l") == 4 else "LP64"
+    source, build = session.output / "native-replay", session.output / "native-build"
+    source.mkdir()
+    cmake_file = source / "CMakeLists.txt"
+    cmake_file.write_text(replay_cmake(session.output, rows, host_model), encoding="utf-8")
+    configure, compile_command = replay_commands(selected, session.output)
+    session.run("native-replay-configure", configure)
+    session.run("native-replay-build", compile_command)
+    build_inputs = replay_build_inputs(session.output)
+    for row in (row for row in rows if row["model"] == host_model):
         exe = build / (row["name"] + (".exe" if platform.system() == "Windows" else ""))
         row["native_executable"] = reference(exe)
         cases = (
@@ -301,6 +301,19 @@ def replay(
     return build_inputs
 
 
+def replay_build_inputs(output: Path) -> list[dict]:
+    build = output / "native-build"
+    compiler_records = list((build / "CMakeFiles").glob("*/CMakeCXXCompiler.cmake"))
+    if len(compiler_records) != 1:
+        raise ValueError("one native compiler identification record required")
+    return [
+        reference(output / "native-replay/CMakeLists.txt"),
+        reference(build / "CMakeCache.txt"),
+        reference(build / "compile_commands.json"),
+        reference(compiler_records[0]),
+    ]
+
+
 def execute(selected: dict) -> dict:
     output = Path(selected["output"])
     output.mkdir(parents=True, exist_ok=False)
@@ -329,12 +342,10 @@ def execute(selected: dict) -> dict:
         )
         if not complete_process(version) or version.get("stdout", "").strip() != VERSION:
             raise ValueError("selected CBMC does not match the reviewed exact version")
-        variants = {}
         for family in FAMILIES:
             name = "baseline_" + family
             source = output / name
             snapshot(source)
-            variants[name] = (source, family)
             for model in selected["models"]:
                 report["rows"].append(verify(session, selected, model, name, family, source))
         if any(row["verdict"] != "proven" for row in report["rows"]):
@@ -344,7 +355,6 @@ def execute(selected: dict) -> dict:
         for seed in selected["policy"]["seeds"]:
             source = output / seed["id"]
             snapshot(source, seed)
-            variants[seed["id"]] = (source, seed["family"])
             for model in selected["models"]:
                 report["rows"].append(
                     verify(session, selected, model, seed["id"], seed["family"], source, seed)
@@ -356,7 +366,7 @@ def execute(selected: dict) -> dict:
             raise ValueError(
                 "negative controls did not all refute their intended arithmetic obligations"
             )
-        report["replay_build_inputs"] = replay(session, selected, variants, report["rows"])
+        report["replay_build_inputs"] = replay(session, selected, report["rows"])
         host_model = "LLP64" if struct.calcsize("@l") == 4 else "LP64"
         if any(
             row["native_replay"] != "matched_exact_oracle"

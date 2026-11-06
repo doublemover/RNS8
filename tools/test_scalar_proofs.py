@@ -5,14 +5,24 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+import platform
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from native_mutation_contract import change
+from host_instrumentation_session import reference, write_json
+from process_progress import capture_succeeded
+from review_receipt import ReviewReceiptReader
+from review_scalar_proof import reviewed_session
 from scalar_proof_contract import (
     FAMILIES,
     ROOT,
+    HARNESS,
+    HEADERS,
+    SAFETY,
+    SCHEMA,
     complete_process,
     labels,
     proof_result,
@@ -71,6 +81,33 @@ def proof(inventory, *, fail=None):
             dict(stepType="failure", property=fail),
         ]
     return [dict(result=rows), dict(cProverStatus="failure" if fail else "success")]
+
+
+def authored_plan(root, output, models):
+    tools = {}
+    for name in ("cbmc", "cmake", "cxx"):
+        tools[name] = root / name
+        tools[name].write_text("authored protocol input; never executed", encoding="utf-8")
+    return dict(
+        schema=SCHEMA,
+        status="planned_not_run",
+        output=str(output),
+        sources=[reference(ROOT / name) for name in (HARNESS, *HEADERS)],
+        timeout_seconds=1,
+        artifact_limit_bytes=1024**2,
+        compiler_environment={},
+        models=models,
+        tool_invocations={name: str(path) for name, path in tools.items()},
+        tools={name: reference(path) for name, path in tools.items()},
+        policy=registry(),
+        safety=list(SAFETY),
+        source_language="c++17",
+        assumptions=[],
+        production_eligible=False,
+        native_host=dict(
+            os=platform.system(), abi="LLP64" if struct.calcsize("@l") == 4 else "LP64"
+        ),
+    )
 
 
 class ScalarProofAdmission(unittest.TestCase):
@@ -240,24 +277,35 @@ class ScalarProofAdmission(unittest.TestCase):
             output = root / "out"
 
             class NoCapability:
-                def __init__(self, *args):
+                def __init__(self, output, *args):
+                    self.output = output
                     self.stages = []
 
                 def run(self, name, argv, **kwargs):
-                    self.stages.append(dict(name=name, command=argv))
                     if name == "cbmc-version":
-                        return process(None) | dict(stdout="6.8.0\n")
-                    return process(None, 6) | dict(stderr="unsupported production source syntax")
+                        result = process(None) | dict(stdout="6.8.0\n")
+                    else:
+                        result = process(None, 6) | dict(
+                            stderr="unsupported production source syntax"
+                        )
+                    result |= dict(command=argv, process_id=41000 + len(self.stages))
+                    receipt = write_json(
+                        self.output / (str(len(self.stages)) + ".process.json"), result
+                    )
+                    self.stages.append(
+                        dict(
+                            name=name,
+                            receipt=receipt,
+                            process_id=result["process_id"],
+                            returncode=result["returncode"],
+                            succeeded=capture_succeeded(result),
+                            interrupted=False,
+                        )
+                    )
+                    return result
 
-            selected = dict(
-                output=str(output),
-                timeout_seconds=1,
-                artifact_limit_bytes=1024**2,
-                compiler_environment={},
-                models=["LP64", "LLP64"],
-                tool_invocations=dict(cbmc="/authored/cbmc"),
-                policy=registry(),
-            )
+            selected = authored_plan(root, output, ["LP64", "LLP64"])
+            inputs = selected["sources"]
             with (
                 patch("scalar_proof_session.Session", NoCapability),
                 patch("scalar_proof_session.compiler_environment", return_value={}),
@@ -269,6 +317,161 @@ class ScalarProofAdmission(unittest.TestCase):
             self.assertFalse(any(row["intended_negative_control"] for row in value["rows"]))
             self.assertTrue((output / "scalar-proof.json").is_file())
             self.assertFalse(value["production_eligible"])
+            report_path = output / "scalar-proof.json"
+            with patch("review_scalar_proof.source_inputs", return_value=inputs):
+                self.assertEqual(reviewed_session(report_path)["status"], "unknown")
+                original = report_path.read_bytes()
+                forged = copy.deepcopy(value)
+                forged["rows"][0]["verdict"] = "proven"
+                report_path.write_text(json.dumps(forged), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    reviewed_session(report_path)
+                report_path.write_bytes(original)
+                forged = copy.deepcopy(value)
+                raw_path = Path(forged["stages"][1]["receipt"]["path"])
+                raw_original = raw_path.read_bytes()
+                raw = json.loads(raw_original)
+                raw["command"].append("--no-signed-overflow-check")
+                raw_path.write_text(json.dumps(raw), encoding="utf-8")
+                forged["stages"][1]["receipt"] = {
+                    key: reference(raw_path)[key] for key in ("path", "sha256")
+                }
+                report_path.write_text(json.dumps(forged), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    reviewed_session(report_path)
+                raw_path.write_bytes(raw_original)
+                report_path.write_bytes(original)
+                finish = ReviewReceiptReader.finish
+
+                def change_after_last_read(owner):
+                    raw_path.write_bytes(raw_original + b"\n")
+                    finish(owner)
+
+                with patch.object(ReviewReceiptReader, "finish", change_after_last_read):
+                    with self.assertRaises(ValueError):
+                        reviewed_session(report_path)
+
+    def test_actual_completed_driver_and_reader_reconstruct_raw_proof_and_replay(self):
+        # This is an authored protocol fixture. No solver, compiler or binary runs.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model = "LLP64" if struct.calcsize("@l") == 4 else "LP64"
+            selected = authored_plan(root, root / "out", [model])
+            seeds = {seed["id"]: seed for seed in selected["policy"]["seeds"]}
+
+            class AuthoredProtocol:
+                def __init__(self, output, *args):
+                    self.output, self.stages = output, []
+
+                def run(self, name, argv, **kwargs):
+                    result = process(None)
+                    if name == "cbmc-version":
+                        result["stdout"] = "6.8.0\n"
+                    elif name.endswith("-preprocess"):
+                        result["stdout"] = "// authored preprocessing protocol only\n"
+                    elif name.endswith(("-properties", "-proof")):
+                        family_id = next(
+                            item for item in argv if item.startswith("-DRNS8_BV_FAMILY=")
+                        )
+                        family = next(
+                            key
+                            for key, value in FAMILIES.items()
+                            if value[0] == int(family_id.split("=")[1])
+                        )
+                        inventory = discovered(family)
+                        if name.endswith("-properties"):
+                            result = process([dict(properties=list(inventory.values()))])
+                        else:
+                            case = name.split("-" + model)[0]
+                            failed = next(
+                                (
+                                    key
+                                    for key, row in inventory.items()
+                                    if case in seeds
+                                    and row["description"] in seeds[case]["intended_properties"]
+                                ),
+                                None,
+                            )
+                            result = process(proof(inventory, fail=failed), 10 if failed else 0)
+                    elif name == "native-replay-configure":
+                        build = self.output / "native-build"
+                        records = build / "CMakeFiles/authored"
+                        records.mkdir(parents=True)
+                        (build / "CMakeCache.txt").write_text(
+                            "authored protocol cache", encoding="utf-8"
+                        )
+                        (build / "compile_commands.json").write_text("[]", encoding="utf-8")
+                        (records / "CMakeCXXCompiler.cmake").write_text(
+                            "authored protocol compiler identity", encoding="utf-8"
+                        )
+                    elif name == "native-replay-build":
+                        suffix = ".exe" if platform.system() == "Windows" else ""
+                        for case in [*("baseline_" + family for family in FAMILIES), *seeds]:
+                            (self.output / "native-build" / (case + suffix)).write_bytes(
+                                b"authored bytes; never executable"
+                            )
+                    else:
+                        case = Path(argv[0]).stem
+                        failures = seeds[case]["intended_properties"][:1] if case in seeds else []
+                        result = process(
+                            dict(exact_reference_passed=not failures, failed_properties=failures),
+                            1 if failures else 0,
+                        )
+                    result |= dict(
+                        command=argv, process_id=41000 + len(self.stages), elapsed_seconds=0.25
+                    )
+                    receipt = write_json(
+                        self.output / (str(len(self.stages)) + ".process.json"), result
+                    )
+                    self.stages.append(
+                        dict(
+                            name=name,
+                            receipt=receipt,
+                            process_id=result["process_id"],
+                            returncode=result["returncode"],
+                            succeeded=capture_succeeded(result),
+                            interrupted=False,
+                        )
+                    )
+                    return result
+
+            with (
+                patch("scalar_proof_session.Session", AuthoredProtocol),
+                patch("scalar_proof_session.compiler_environment", return_value={}),
+            ):
+                value = execute(selected)
+            self.assertEqual(value["status"], "symbolic_properties_and_host_model_replay_complete")
+            path = Path(selected["output"]) / "scalar-proof.json"
+            with patch("review_scalar_proof.source_inputs", return_value=selected["sources"]):
+                reviewed = reviewed_session(path)
+                self.assertEqual(reviewed["status"], value["status"])
+                self.assertFalse(reviewed["production_eligible"])
+                original = path.read_bytes()
+                forged = copy.deepcopy(value)
+                forged["replay_build_inputs"] = []
+                path.write_text(json.dumps(forged), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    reviewed_session(path)
+                path.write_bytes(original)
+                forged = copy.deepcopy(value)
+                target = next(
+                    stage
+                    for stage in forged["stages"]
+                    if stage["name"].startswith("reversed_add_overflow-replay-")
+                )
+                raw_path = Path(target["receipt"]["path"])
+                raw = json.loads(raw_path.read_bytes())
+                raw["stdout"] = json.dumps(dict(exact_reference_passed=True, failed_properties=[]))
+                raw["returncode"] = 0
+                raw_path.write_text(json.dumps(raw), encoding="utf-8")
+                target.update(
+                    receipt={key: reference(raw_path)[key] for key in ("path", "sha256")},
+                    returncode=0,
+                    succeeded=True,
+                )
+                path.write_text(json.dumps(forged), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    reviewed_session(path)
 
 
 if __name__ == "__main__":
