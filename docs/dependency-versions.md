@@ -191,9 +191,11 @@ checks. Matched independent measurements must assess regressions before a
 performance/default promotion. No new GPU or Linux qualification is claimed by
 the lock files.
 
-The Windows Git candidate is the separately published [2.56.0.windows.3 security release](https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.3),
+The Windows Git candidate is the separately published [2.56.0.windows.4 security release](https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.4),
 not merely any binary reporting upstream2.56.0. Its portable artifact hash is
-recorded; installation and qualification remain pending. No successful Git
+recorded and checked against its exact platform patch in policy; the doctor
+retains the selected artifact/source/hash. The prior `.3` candidate is recorded
+separately. Installation and qualification remain pending. No successful Git
 update is claimed.
 
 The workflows pin checkout 7.0.1, setup-python 7.1.0 and upload-artifact 7.0.2 to

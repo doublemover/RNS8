@@ -106,6 +106,50 @@ def validate_policy(value: dict) -> list[str]:
                     name
                     + ": older selected version needs an explicit exception and revisit condition"
                 )
+        platforms = component.get("platform_selections", {})
+        if not isinstance(platforms, dict):
+            errors.append(name + ": platform selections must be an object")
+        else:
+            for host, selection in platforms.items():
+                if host not in {"Windows", "Linux"} or not isinstance(selection, dict):
+                    errors.append(name + ": unsupported/malformed platform selection")
+                    continue
+                version = selection.get("version")
+                if (
+                    not isinstance(version, str)
+                    or not version
+                    or re.search(r"rc|alpha|beta|dev|nightly|preview", version, re.I)
+                    or not isinstance(selection.get("status"), str)
+                    or not selection["status"]
+                    or not isinstance(selection.get("source"), str)
+                    or not selection["source"].startswith("https://")
+                ):
+                    errors.append(name + ": invalid stable platform selection")
+                if name == "git" and host == "Windows":
+                    match = (
+                        re.fullmatch(r"(\d+\.\d+\.\d+)\.windows\.(\d+)", version)
+                        if isinstance(version, str)
+                        else None
+                    )
+                    release = "https://github.com/git-for-windows/git/releases/"
+                    if (
+                        not match
+                        or selection.get("source") != release + "tag/v" + version
+                        or selection.get("portable_artifact")
+                        != release
+                        + "download/v"
+                        + version
+                        + "/PortableGit-"
+                        + match[1]
+                        + "."
+                        + match[2]
+                        + "-64-bit.7z.exe"
+                        or not hexadecimal(selection.get("sha256"), 64)
+                    ):
+                        errors.append(
+                            name
+                            + ": Windows patch version, official artifact and SHA256 must agree"
+                        )
         if role == "ci" and not hexadecimal(component.get("commit"), 40):
             errors.append(name + ": CI action needs immutable commit")
     required = {
@@ -452,7 +496,7 @@ def evaluate_report(root: Path, policy: dict, report: dict, cache_path: Path | N
         host = report.get("dependency_resolution", {}).get("request", {}).get("host")
         platform_selection = component.get("platform_selections", {}).get(host)
         if selected and platform_selection:
-            selected = {**selected, "version": platform_selection["version"]}
+            selected = {**selected, **platform_selection}
         observed = None
         source = "unavailable"
         if name == "python":

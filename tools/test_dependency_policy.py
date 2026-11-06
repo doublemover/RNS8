@@ -285,6 +285,30 @@ class Policy(unittest.TestCase):
         self.assertTrue(ck["matches_selected_version"])
         self.assertFalse(ck["matches_selected_pin"])
 
+    def test_platform_artifact_cannot_disagree_with_its_windows_git_patch(self):
+        mutations = (
+            {"version": "2.56.0"},
+            {"version": "2.56.0.windows.3"},
+            {
+                "source": "https://github.com.invalid/git-for-windows/git/releases/tag/v2.56.0.windows.4"
+            },
+            {
+                "portable_artifact": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.3/PortableGit-2.56.0.3-64-bit.7z.exe"
+            },
+            {"sha256": "bad"},
+            {"status": None},
+        )
+        for mutation in mutations:
+            policy = deepcopy(self.policy)
+            git = next(item for item in policy["components"] if item["name"] == "git")
+            git["platform_selections"]["Windows"].update(mutation)
+            self.assertTrue(p.validate_policy(policy))
+        policy = deepcopy(self.policy)
+        next(item for item in policy["components"] if item["name"] == "git")[
+            "platform_selections"
+        ] = []
+        self.assertTrue(p.validate_policy(policy))
+
     def test_windows_git_security_revision_is_not_dropped(self):
         report = {
             "commands": {"git": {"detail": "git version 2.56.0.windows.1"}},
@@ -295,9 +319,20 @@ class Policy(unittest.TestCase):
             for item in p.evaluate_report(self.root, self.policy, report)["components"]
             if item["name"] == "git"
         )
-        self.assertEqual(git["selected"]["version"], "2.56.0.windows.3")
+        self.assertEqual(git["selected"]["version"], "2.56.0.windows.4")
         self.assertFalse(git["matches_selected_pin"])
+        self.assertEqual(
+            git["selected"]["sha256"],
+            "b1f3e52216e2ed6882d1bebfd4d3fdf319bec40d2edbbf9fd26ec4fd3fce7ed1",
+        )
         report["commands"]["git"]["detail"] = "git version 2.56.0.windows.3"
+        git = next(
+            item
+            for item in p.evaluate_report(self.root, self.policy, report)["components"]
+            if item["name"] == "git"
+        )
+        self.assertFalse(git["matches_selected_pin"])
+        report["commands"]["git"]["detail"] = "git version 2.56.0.windows.4"
         git = next(
             item
             for item in p.evaluate_report(self.root, self.policy, report)["components"]

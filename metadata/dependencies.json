@@ -155,6 +155,18 @@
       },
       "platform_selections": {
         "Windows": {
+          "version": "2.56.0.windows.4",
+          "release_date": "2026-10-26",
+          "source": "https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.4",
+          "portable_artifact": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/PortableGit-2.56.0.4-64-bit.7z.exe",
+          "sha256": "b1f3e52216e2ed6882d1bebfd4d3fdf319bec40d2edbbf9fd26ec4fd3fce7ed1",
+          "authentication": "upstream published SHA256; signature not verified",
+          "status": "candidate_pending_installation_and_qualification"
+        }
+      },
+      "prior_platform_selections": [
+        {
+          "platform": "Windows",
           "version": "2.56.0.windows.3",
           "release_date": "2026-10-22",
           "source": "https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.3",
@@ -163,14 +175,7 @@
           "authentication": "upstream published SHA256; signature not verified",
           "status": "candidate_pending_installation_and_qualification"
         }
-      },
-      "windows_patch_candidate": {
-        "version": "2.56.0.windows.4",
-        "release_date": "2026-10-26",
-        "source": "https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.4",
-        "observed_path_version": "2.52.0.windows.1",
-        "qualification": "not_installed_or_qualified"
-      }
+      ]
     },
     {
       "name": "vcpkg-tool",
