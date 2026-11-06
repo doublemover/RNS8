@@ -34,6 +34,7 @@ from host_instrumentation_session import (
     Session,
     check_bookends,
     invocation_path,
+    installed_consumers,
     reference,
     source_inventory,
     version_number,
@@ -276,9 +277,29 @@ def ordinary_correctness(session: Session, args, report: dict, output: Path) -> 
         report["dynamic_loader_resolution"] = "observed_in_each_selected_test_process"
         report["device_available_memory"] = "native_per_case_entry_admission_and_exit_observations"
         report["qualification"]["device_execution"] = "bounded_ordinary_correctness_passed"
+        report["device_consumers"] = "attempted_incomplete"
+        consumers = installed_consumers(
+            session,
+            args,
+            report,
+            build=output / "build",
+            output=output,
+            compiler=args.compiler,
+            static_library=report["compiled_objects"]["artifacts"]["rns8_static"],
+            runtime_witness=dict(
+                lane="device-address",
+                runtimes=list(report["runtimes"].values()),
+                device_contract=contract,
+            ),
+        )
+        if consumers["status"] != "passed":
+            report["device_consumers"] = "failed"
+            raise ValueError("mandatory installed instrumented CPU/HIP consumers did not pass")
+        report["device_consumers"] = "passed_seven_cpu_cases_two_hip_cases"
+        report["consumer_module_files"] = consumers["application_runtime_module_files"]
         report["pending_qualification"] = [
             "separately authorized device detector sensitivity if required",
-            "external-backend/consumer instrumentation and broader target acceptance",
+            "external-backend instrumentation and broader target acceptance",
             "continuous supported-host CI qualification",
         ]
     finally:
@@ -296,6 +317,7 @@ def observe(args, plan) -> int:
         plan=plan,
         qualification=support(platform.system(), args.release, args.target),
         device_tests="not_run",
+        device_consumers="not_run",
         faults="not_run_not_authorized",
         dynamic_loader_resolution="not_run",
         promotion_eligible=False,

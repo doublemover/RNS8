@@ -50,6 +50,25 @@ CONSUMERS = (
     "rns8-downstream-materialized-product-recipe",
     "rns8-downstream-checked-crt",
 )
+CONSUMER_SOURCES = dict(
+    zip(
+        CONSUMERS,
+        (
+            "main.cpp",
+            "exact_wide_cpu_continuation.cpp",
+            "sparse_finite_ring.cpp",
+            "sparse_bounded_i64.cpp",
+            "stream_bounded_i64.cpp",
+            "materialized_product_recipe.cpp",
+            "checked_crt_export.cpp",
+        ),
+    )
+)
+DEVICE_CONSUMER_CASES = (
+    *CONSUMERS,
+    "rns8-downstream-checked-crt-hip",
+    "rns8-downstream-stream-bounded-i64-hip",
+)
 
 
 def write_json(path: Path, value: object):
@@ -441,6 +460,155 @@ def source_inventory() -> list[dict]:
     return source
 
 
+def installed_consumers(
+    session: Session,
+    args,
+    report: dict,
+    *,
+    build: Path,
+    output: Path,
+    compiler: Path,
+    static_library: dict,
+    runtime_witness: dict,
+) -> dict:
+    lane = runtime_witness["lane"]
+    windows = lane == "windows-address"
+    windows_asan = runtime_witness.get("windows_asan")
+    device_contract = runtime_witness.get("device_contract")
+    if lane not in {"windows-address", "address-undefined", "thread", "device-address"} or (
+        lane == "device-address"
+    ) != (device_contract is not None):
+        raise ValueError("explicit supported installed-consumer runtime contract required")
+    cache = cache_values(build / "CMakeCache.txt")
+    session.run(
+        "install",
+        [str(args.cmake), "--install", str(build), "--prefix", str(output / "prefix")],
+    )
+    installed = list((output / "prefix").rglob(Path(static_library["path"]).name))
+    if len(installed) != 1 or file_digest(installed[0]) != static_library["sha256"]:
+        raise ValueError("installed library is not the exact instrumented static artifact")
+    report["installed_library"] = reference(installed[0])
+    packages = list((output / "prefix").rglob("RNS8Config.cmake"))
+    if len(packages) != 1:
+        raise ValueError("unique actual installed RNS8 package configuration required")
+    report["installed_package_config"] = reference(packages[0])
+    package_files = sorted(packages[0].parent.glob("*.cmake"))
+    if not 1 <= len(package_files) <= 64:
+        raise ValueError("installed package metadata inventory exceeds bounded scope")
+    report["installed_package_files"] = [reference(path) for path in package_files]
+    examples = list((output / "prefix").rglob("downstream-cmake/CMakeLists.txt"))
+    if len(examples) != 1:
+        raise ValueError("unique installed downstream example required")
+    consumer_source = output / "consumer-source"
+    shutil.copytree(examples[0].parent, consumer_source)
+    copied_sources = sorted(path for path in consumer_source.rglob("*") if path.is_file())
+    if (
+        not 1 <= len(copied_sources) <= 64
+        or sum(path.stat().st_size for path in copied_sources) > 16 * 1024**2
+    ):
+        raise ValueError("installed consumer source inventory exceeds bounded package scope")
+    report["consumer_sources"] = [reference(path) for path in copied_sources]
+    consumer = output / "consumer-build"
+    command = [
+        str(args.cmake),
+        "-S",
+        str(consumer_source),
+        "-B",
+        str(consumer),
+        "-G",
+        "Ninja",
+        "-DCMAKE_PREFIX_PATH=" + str(output / "prefix"),
+        "-DRNS8_DIR=" + str(packages[0].parent),
+        "-DCMAKE_CXX_COMPILER=" + str(compiler),
+        "-DCMAKE_BUILD_TYPE=" + cache["CMAKE_BUILD_TYPE"],
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF",
+        "-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
+        "-DRNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT=" + str(ROOT),
+        "-Dnlohmann_json_DIR=" + cache["nlohmann_json_DIR"],
+    ]
+    if lane == "windows-address":
+        command.extend(
+            [
+                "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+                "-DCMAKE_CXX_FLAGS=/Zi /O1 /MT",
+                "-DCMAKE_PROJECT_RNS8DownstreamSmoke_INCLUDE="
+                + str(build / "windows-clang-asan-consumer.cmake"),
+            ]
+        )
+    if device_contract is not None:
+        command.extend(
+            [
+                "-DRNS8_DOWNSTREAM_GPU_TESTS=ON",
+                "-DRNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME="
+                + device_contract["runtimes"]["hsa"]["path"],
+                "-DRNS8_HIP_ROOT=" + cache["RNS8_HIP_ROOT"],
+            ]
+        )
+    session.run("consumer-configure", command)
+    session.run(
+        "consumer-build",
+        [str(args.cmake), "--build", str(consumer), "--parallel", str(args.jobs), "--verbose"],
+    )
+    if lane == "windows-address":
+        copied = consumer / "clang_rt.asan_dynamic-x86_64.dll"
+        if copied.exists():
+            if file_digest(copied) != windows_asan["sha256"]:
+                raise ValueError("consumer ASan DLL differs from selected runtime")
+        else:
+            shutil.copyfile(windows_asan["path"], copied)
+        report["consumer_asan_dll"] = reference(copied)
+    compile_source, report["consumer_compile_commands"] = bounded_read(
+        consumer / "compile_commands.json"
+    )
+    consumer_records = parse_evidence_json(compile_source)
+    if not isinstance(consumer_records, list) or len(consumer_records) != len(CONSUMERS):
+        raise ValueError("installed consumer compilation inventory incomplete")
+    consumer_objects = []
+    expected_sources = {
+        (consumer_source / name).resolve(strict=True) for name in CONSUMER_SOURCES.values()
+    }
+    seen_sources, seen_objects = set(), set()
+    for row in consumer_records:
+        argv = native_argv(row, windows=windows)
+        source = Path(row["file"]).resolve(strict=True)
+        if (
+            source not in expected_sources
+            or source in seen_sources
+            or Path(argv[0]).resolve(strict=True) != compiler.resolve(strict=True)
+        ):
+            raise ValueError(
+                "installed consumer source/compiler inventory differs from selected package"
+            )
+        seen_sources.add(source)
+        selected_flags(argv, lane)
+        artifact = object_path(row, argv, consumer, windows=windows)
+        if artifact in seen_objects:
+            raise ValueError("consumer compile contexts alias one object")
+        seen_objects.add(artifact)
+        consumer_objects.append(reference(artifact))
+    report["consumer_objects"] = consumer_objects
+    consumer_ref, consumer_result = session.tests(
+        "consumer",
+        consumer,
+        args.ctest,
+        required=DEVICE_CONSUMER_CASES if device_contract is not None else CONSUMERS,
+        selection_names=list(DEVICE_CONSUMER_CASES if device_contract is not None else CONSUMERS),
+        runtime_witness=dict(
+            executables=[consumer / (name + (".exe" if windows else "")) for name in CONSUMERS],
+            **{
+                key: value
+                for key, value in runtime_witness.items()
+                if key not in {"executables", "windows_asan"}
+            },
+            windows_asan=Path(report["consumer_asan_dll"]["path"]) if windows else None,
+        ),
+    )
+    report["consumer_inventory"] = consumer_ref
+    check_bookends([report, consumer_result])
+    return consumer_result
+
+
 def execute(args, plan):
     output = Path(plan["output"])
     if output.exists():
@@ -662,90 +830,22 @@ def execute(args, plan):
             ),
         )
         report["application_inventory"] = app_ref
-        session.run(
-            "install",
-            [str(args.cmake), "--install", str(build), "--prefix", str(output / "prefix")],
-        )
-        installed = list((output / "prefix").rglob(Path(binaries["rns8_static"]["path"]).name))
-        if len(installed) != 1 or file_digest(installed[0]) != binaries["rns8_static"]["sha256"]:
-            raise ValueError("installed library is not the exact instrumented static artifact")
-        report["installed_library"] = reference(installed[0])
-        examples = list((output / "prefix").rglob("downstream-cmake/CMakeLists.txt"))
-        if len(examples) != 1:
-            raise ValueError("unique installed downstream example required")
-        consumer_source = output / "consumer-source"
-        shutil.copytree(examples[0].parent, consumer_source)
-        consumer = output / "consumer-build"
-        command = [
-            str(args.cmake),
-            "-S",
-            str(consumer_source),
-            "-B",
-            str(consumer),
-            "-G",
-            "Ninja",
-            "-DCMAKE_PREFIX_PATH=" + str(output / "prefix"),
-            "-DCMAKE_CXX_COMPILER=" + str(compiler),
-            "-DCMAKE_BUILD_TYPE=" + cache["CMAKE_BUILD_TYPE"],
-            "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-            "-DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF",
-            "-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
-            "-DRNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT=" + str(ROOT),
-            "-Dnlohmann_json_DIR=" + cache["nlohmann_json_DIR"],
-        ]
-        if plan["lane"] == "windows-address":
-            command.extend(
-                [
-                    "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
-                    "-DCMAKE_CXX_FLAGS=/Zi /O1 /MT",
-                    "-DCMAKE_PROJECT_RNS8DownstreamSmoke_INCLUDE="
-                    + str(build / "windows-clang-asan-consumer.cmake"),
-                ]
-            )
-        session.run("consumer-configure", command)
-        session.run(
-            "consumer-build",
-            [str(args.cmake), "--build", str(consumer), "--parallel", str(args.jobs), "--verbose"],
-        )
-        if plan["lane"] == "windows-address":
-            copied = consumer / "clang_rt.asan_dynamic-x86_64.dll"
-            if copied.exists():
-                if file_digest(copied) != report["windows_asan_dll"]["sha256"]:
-                    raise ValueError("consumer ASan DLL differs from selected runtime")
-            else:
-                shutil.copyfile(report["windows_asan_dll"]["path"], copied)
-            report["consumer_asan_dll"] = reference(copied)
-        consumer_records = parse_evidence_json(bounded_read(consumer / "compile_commands.json")[0])
-        if not isinstance(consumer_records, list) or len(consumer_records) != len(CONSUMERS):
-            raise ValueError("installed consumer compilation inventory incomplete")
-        consumer_objects = []
-        for row in consumer_records:
-            argv = native_argv(row, windows=plan["system"] == "Windows")
-            selected_flags(argv, plan["lane"])
-            consumer_objects.append(
-                reference(object_path(row, argv, consumer, windows=plan["system"] == "Windows"))
-            )
-        report["consumer_objects"] = consumer_objects
-        consumer_ref, consumer_result = session.tests(
-            "consumer",
-            consumer,
-            args.ctest,
-            required=CONSUMERS,
+        consumer_result = installed_consumers(
+            session,
+            args,
+            report,
+            build=build,
+            output=output,
+            compiler=compiler,
+            static_library=binaries["rns8_static"],
             runtime_witness=dict(
-                executables=[
-                    consumer / (name + (".exe" if plan["system"] == "Windows" else ""))
-                    for name in CONSUMERS
-                ],
                 lane=plan["lane"],
                 runtimes=report["runtime_inventory"]["files"],
-                windows_asan=Path(report["consumer_asan_dll"]["path"])
-                if plan["lane"] == "windows-address"
-                else None,
+                windows_asan=report.get("windows_asan_dll"),
                 openmp=openmp,
                 archer=args.openmp_archer,
             ),
         )
-        report["consumer_inventory"] = consumer_ref
         check_bookends([report, objects, app, consumer_result, session.stages])
         if any(row["status"] != "passed" for row in controls):
             report["blockers"].append("host_detector_sensitivity_failed")

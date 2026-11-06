@@ -7,10 +7,16 @@ frontload adds build selection and sensitivity/concurrency controls under
 under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
 session, native LLVM coverage and separate device-ASan preflight drivers are
 authored. Native test-process and installed-consumer loader bookends are also
-authored; additional launcher/application coverage, device consumer integration
-and continuous CI reporting remain implementation work. A separately opted-in
+authored; additional launcher/application coverage and continuous CI reporting
+remain implementation work. A separately opted-in
 bounded ordinary device-correctness path is authored alongside the preflight.
 Python branch/subprocess collection source is authored.
+
+Host and device sanitizer drivers share the installed-consumer stage. It binds
+the installed archive, actual package configuration/import files, copied sources,
+unique source/object/compiler inventory and explicit mandatory cases. The device
+variant additionally selects the existing two HIP example invocations and the
+native device/runtime witness described in [device ASan](device-asan.md).
 
 | Configure preset | Instrumentation | Initial scope |
 |---|---|---|

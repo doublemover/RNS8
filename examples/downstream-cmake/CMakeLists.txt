@@ -23,6 +23,15 @@ add_executable(rns8-downstream-materialized-product-recipe materialized_product_
 add_executable(rns8-downstream-checked-crt checked_crt_export.cpp)
 option(RNS8_DOWNSTREAM_GPU_TESTS "Run installed direct-HIP examples" OFF)
 set(RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT "" CACHE PATH "Optional source checkout providing host-sanitizer process observations")
+set(RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME "" CACHE FILEPATH "Optional selected native device-ASan HSA runtime for process witnesses")
+if(RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME)
+  if(NOT RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT OR NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT RNS8_ENABLE_HIP
+      OR NOT IS_ABSOLUTE "${RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME}"
+      OR NOT EXISTS "${RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME}"
+      OR IS_DIRECTORY "${RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME}")
+    message(FATAL_ERROR "Device-ASan consumer witnesses require native Linux, the source witness, HIP package and selected HSA runtime")
+  endif()
+endif()
 if(RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT)
   if(NOT EXISTS "${RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT}/tests/support/host_runtime_witness.hpp")
     message(FATAL_ERROR "Runtime witness requires its explicit source checkout")
@@ -42,6 +51,10 @@ foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
       "${RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT}/src"
       "${RNS8_DOWNSTREAM_RUNTIME_WITNESS_ROOT}/tests/support")
     target_link_libraries(${consumer} PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+    if(RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME)
+      target_compile_definitions(${consumer} PRIVATE RNS8_ENABLE_DEVICE_RUNTIME_WITNESS=1)
+      target_link_libraries(${consumer} PRIVATE "${RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME}")
+    endif()
   endif()
   if(MSVC)
     target_compile_options(${consumer} PRIVATE /W4 /WX /permissive-)

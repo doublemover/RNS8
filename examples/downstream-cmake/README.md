@@ -186,3 +186,10 @@ the seven consumers only when the session supplies its execution token. It
 requires the checkout's test-support sources and JSON headers; ordinary package
 consumption leaves the option empty and has no such dependency. Loader snapshots
 do not qualify device instrumentation or production performance.
+
+The separate native Linux device-ASan session can also set
+`RNS8_DOWNSTREAM_DEVICE_ASAN_HSA_RUNTIME` to its inspected HSA library and enable
+`RNS8_DOWNSTREAM_GPU_TESTS`. This compiles the private HSA/HIP witness into the
+seven consumers and adds the existing two HIP invocations to the required
+inventory. It requires the selected instrumented HIP package and native SDK;
+the ordinary installed example configuration leaves these options empty/off.

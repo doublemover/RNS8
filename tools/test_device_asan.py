@@ -185,7 +185,9 @@ class OrdinaryRuntimeCustody(unittest.TestCase):
             _, contract, loaded = device_runtime_fixture(root)
             ctest = root / "ctest"
             ctest.write_bytes(b"inert tool fixture")
-            args = SimpleNamespace(ctest=ctest, target=contract["target"], minimum_free_mib=256)
+            args = SimpleNamespace(
+                ctest=ctest, compiler=ctest, target=contract["target"], minimum_free_mib=256
+            )
             for fail in (False, True):
                 report = dict(
                     cmake_version="cmake version 4.4.5",
@@ -196,6 +198,7 @@ class OrdinaryRuntimeCustody(unittest.TestCase):
                     ),
                     qualification={},
                 )
+                report["compiled_objects"]["artifacts"]["rns8_static"] = loaded["files"][0]
                 owned = session.Session(root, {"ROCR_VISIBLE_DEVICES": "prior-value"}, 60, 1024**2)
                 before = dict(owned.environment)
 
@@ -218,17 +221,29 @@ class OrdinaryRuntimeCustody(unittest.TestCase):
                         owned, "run", return_value=dict(stdout="ctest version 4.4.5")
                     ),
                     mock.patch.object(owned, "tests", side_effect=execute) as run,
+                    mock.patch.object(
+                        session,
+                        "installed_consumers",
+                        return_value=dict(
+                            status="passed", application_runtime_module_files=loaded["files"]
+                        ),
+                    ) as consumer,
                 ):
                     if fail:
                         with self.assertRaisesRegex(ValueError, "first ordinary failure"):
                             session.ordinary_correctness(owned, args, report, root)
                         self.assertEqual(report["device_tests"], "attempted_incomplete")
+                        consumer.assert_not_called()
                     else:
                         session.ordinary_correctness(owned, args, report, root)
                         self.assertEqual(report["device_tests"], "passed_bounded_subset")
                         self.assertEqual(
                             report["qualification"]["device_execution"],
                             "bounded_ordinary_correctness_passed",
+                        )
+                        self.assertEqual(consumer.call_count, 1)
+                        self.assertEqual(
+                            report["device_consumers"], "passed_seven_cpu_cases_two_hip_cases"
                         )
                     self.assertEqual(run.call_count, 1)
                 self.assertEqual(owned.environment, before)

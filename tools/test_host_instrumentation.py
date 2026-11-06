@@ -8,6 +8,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -524,6 +525,168 @@ class ObjectContracts(unittest.TestCase):
 
 
 class SessionControls(unittest.TestCase):
+    def test_shared_installed_stage_binds_archive_package_sources_and_case_inventory(self):
+        for lane, mutation in (
+            ("address-undefined", None),
+            ("device-address", None),
+            ("device-address", "duplicate"),
+            ("address-undefined", "source_change"),
+            ("address-undefined", "archive_change"),
+        ):
+            with (
+                self.subTest(lane=lane, mutation=mutation),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory).resolve()
+                build = root / "build"
+                build.mkdir()
+                compiler = root / "clang++"
+                compiler.write_bytes(b"inert compiler fixture")
+                archive = root / "librns8_static.a"
+                archive.write_bytes(b"synthetic instrumented archive")
+                native = session.Session(root, {}, 60, 1024**2)
+                commands = []
+
+                def invoke(
+                    name,
+                    command,
+                    *,
+                    mutation=mutation,
+                    lane=lane,
+                    commands=commands,
+                    root=root,
+                    archive=archive,
+                    compiler=compiler,
+                ):
+                    commands.append((name, command))
+                    if name == "install":
+                        lib = root / "prefix/lib"
+                        package = lib / "cmake/RNS8"
+                        package.mkdir(parents=True)
+                        (package / "RNS8Config.cmake").write_bytes(b"inert installed configuration")
+                        (lib / archive.name).write_bytes(
+                            b"wrong archive"
+                            if mutation == "archive_change"
+                            else archive.read_bytes()
+                        )
+                        examples = root / "prefix/share/RNS8/examples/downstream-cmake"
+                        examples.mkdir(parents=True)
+                        (examples / "CMakeLists.txt").write_bytes(b"inert consumer configuration")
+                        for name in session.CONSUMER_SOURCES.values():
+                            (examples / name).write_bytes(b"int main() { return 0; }\n")
+                    if name == "consumer-build":
+                        consumer = root / "consumer-build"
+                        consumer.mkdir()
+                        records = []
+                        for name in session.CONSUMER_SOURCES.values():
+                            source = root / "consumer-source" / name
+                            obj = consumer / (name + ".o")
+                            obj.write_bytes(b"synthetic object, not executable")
+                            flags = (
+                                ["-fsanitize=address,undefined", "-fno-sanitize-recover=all"]
+                                if lane == "address-undefined"
+                                else [
+                                    "-fsanitize=address",
+                                    "-fno-sanitize-recover=address",
+                                    "-shared-libsan",
+                                    "-g",
+                                ]
+                            )
+                            records.append(
+                                dict(
+                                    directory=str(consumer),
+                                    file=str(source),
+                                    arguments=[
+                                        str(compiler),
+                                        *flags,
+                                        "-c",
+                                        str(source),
+                                        "-o",
+                                        str(obj),
+                                    ],
+                                )
+                            )
+                        if mutation == "duplicate":
+                            records[-1] = records[0]
+                        (consumer / "compile_commands.json").write_text(json.dumps(records))
+                    return capture()
+
+                def cases(*args, lane=lane, mutation=mutation, root=root, **kwargs):
+                    self.assertEqual(
+                        kwargs["required"],
+                        session.DEVICE_CONSUMER_CASES
+                        if lane == "device-address"
+                        else session.CONSUMERS,
+                    )
+                    self.assertEqual(kwargs["selection_names"], list(kwargs["required"]))
+                    self.assertEqual(len(kwargs["runtime_witness"]["executables"]), 7)
+                    if mutation == "source_change":
+                        (root / "consumer-source/main.cpp").write_bytes(
+                            b"changed source after compilation"
+                        )
+                    return {}, dict(status="passed", application_runtime_module_files=[])
+
+                witness = dict(lane=lane, runtimes=[])
+                if lane == "device-address":
+                    witness["device_contract"] = dict(runtimes=dict(hsa=dict(path=str(archive))))
+                args = SimpleNamespace(cmake=compiler, ctest=compiler, jobs=2)
+                report = {}
+                with (
+                    mock.patch.object(
+                        session,
+                        "cache_values",
+                        return_value=dict(
+                            CMAKE_BUILD_TYPE="Debug",
+                            nlohmann_json_DIR=str(root),
+                            RNS8_HIP_ROOT=str(root),
+                        ),
+                    ),
+                    mock.patch.object(native, "run", side_effect=invoke),
+                    mock.patch.object(native, "tests", side_effect=cases) as test,
+                ):
+                    if mutation:
+                        with self.assertRaises(ValueError):
+                            session.installed_consumers(
+                                native,
+                                args,
+                                report,
+                                build=build,
+                                output=root,
+                                compiler=compiler,
+                                static_library=session.reference(archive),
+                                runtime_witness=witness,
+                            )
+                    else:
+                        result = session.installed_consumers(
+                            native,
+                            args,
+                            report,
+                            build=build,
+                            output=root,
+                            compiler=compiler,
+                            static_library=session.reference(archive),
+                            runtime_witness=witness,
+                        )
+                        self.assertEqual(result["status"], "passed")
+                        self.assertEqual(test.call_count, 1)
+                        self.assertTrue(
+                            any(
+                                arg.startswith("-DRNS8_DIR=")
+                                for _, argv in commands
+                                for arg in argv
+                            )
+                        )
+                        if lane == "device-address":
+                            self.assertTrue(
+                                any(
+                                    arg == "-DRNS8_DOWNSTREAM_GPU_TESTS=ON"
+                                    for _, argv in commands
+                                    for arg in argv
+                                )
+                            )
+                    if mutation in ("duplicate", "archive_change"):
+                        test.assert_not_called()
+
     def test_interrupted_stage_preserves_capture_and_stops_before_following_work(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory).resolve()

@@ -83,13 +83,23 @@ is discovered beside the supplied CMake or selected by `--ctest`; their complete
 versions must agree. There is no arbitrary test filter, campaign, repeat or
 device-fault option.
 
-The seven selected cases cover dispatch/plane tails, minimum legal host spans
+The seven selected library cases cover dispatch/plane tails, minimum legal host spans
 for all integer storage contracts, finite export padding canaries, ragged exact
 materialization, safe-K boundary CPU comparisons, small allocation/move/cleanup
 and hierarchical split-K differential checks. They execute serially through the
 existing bounded native CTest/JUnit inventory reader; every selected case is
 mandatory and a skip cannot pass. No detector fault, allocation exhaustion,
 driver reset or illegal device access is introduced.
+
+The same opt-in then installs the inspected static artifact and runs all seven
+packaged CPU examples plus the existing checked-CRT and streaming HIP
+invocations. Host and device sessions share one install/configure/build/inventory
+stage. It selects the actual installed `RNS8Config.cmake` explicitly, binds the
+archive, package metadata and copied sources, and requires one distinct object
+per expected source under the selected compiler/instrumentation flags. Device
+consumers enable the same native HSA/HIP runtime witness and selected HSA link.
+Every required invocation must pass with the selected physical-device/runtime
+custody; unsupported returns and missing cases do not qualify the package.
 
 Each actual test process emits native entry/exit runtime witnesses. The task's
 child visibility selects the observed rocminfo UUID through `ROCR_VISIBLE_DEVICES`;
@@ -112,8 +122,9 @@ Selected child visibility is restored even when a stage fails.
 
 `bounded_correctness_complete_sensitivity_not_run` records only the mandatory
 ordinary subset and its process/runtime custody. Device detector sensitivity,
-per-access coverage, external kernels, installed consumers, additional platforms
-and continuous CI retain their own gates. Source controls are authored, not run.
+per-access coverage, external kernels, additional platforms and continuous CI
+retain their own gates. The installed-consumer path and its source controls are
+authored, not run.
 The selected local Windows include root lacks `hsa/hsa.h`; the native HSA
 witness needs compilation against the selected native Linux SDK.
 
