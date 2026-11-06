@@ -11,7 +11,11 @@
 #include "tool_common/cli_integer.hpp"
 
 #ifndef RNS8_CONFIGURED_HIP_ENABLED
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+#define RNS8_CONFIGURED_HIP_ENABLED 1
+#else
 #define RNS8_CONFIGURED_HIP_ENABLED 0
+#endif
 #endif
 
 namespace rns8::bench {
@@ -1096,10 +1100,11 @@ Args parse_args(int argc, char** argv) {
     usage_error("--populate-reference-cache requires --reference-cache-dir");
   if ((!args.reference_cache_directory.empty() || args.verify_native_output) &&
       (args.residue_chain_length != 1 || args.host_api_batch_size != 1 ||
-       args.grouped_dispatch_tasks != 1 || args.native_to_rns_bridge || args.vector_to_rns_chain ||
+       args.grouped_dispatch_tasks != 1 || args.native_to_rns_bridge ||
        args.transient_uniform_small_inputs || args.residue_channel_fusion ||
        args.streaming_overlap || args.hip_graph_replay))
-    usage_error("reference cache supports ordinary single-product integer host output only");
+    usage_error(
+        "reference verification supports ordinary single-product or bounded vector-to-RNS chain host output only");
   return args;
 }
 

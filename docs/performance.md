@@ -239,6 +239,15 @@ a physical-board count. Protocol controls distinguish host changes, identical
 GPU names with different identifiers, CPU anchors, failed witnesses and legacy
 captures; these controls are unexecuted.
 
+Vector handoff and host-export/repack chain modes now admit
+`--verify-native-output` and `--reference-cache-dir` through the real command-line
+parser, including optional cache population. Unsupported compound/output modes
+retain explicit rejection until their own complete oracle integration exists.
+The argument-parser controls cover the seven ordinary integer semantics and
+both bounded vector chain approaches without creating GPU contexts. CPU and
+HIP-enabled parser/support/unit frontend checks pass; parser execution, linking
+and end-to-end chain validation remain deferred.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).

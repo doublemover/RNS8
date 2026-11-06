@@ -1127,6 +1127,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set(
     RNS8_TEST_SOURCES
     src/tool_common/execution_environment_json.cpp
+    benchmarks/rns8_bench_args.cpp
+    benchmarks/rns8_bench_modes.cpp
+    benchmarks/rns8_bench_support.cpp
     tests/unit/test_public_abi.cpp
     tests/unit/test_device_identity.cpp
     tests/unit/test_trace_ranges.cpp
@@ -1134,6 +1137,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_execution_environment.cpp
     tests/unit/test_execution_host_identity.cpp
     tests/unit/test_cli_integer.cpp
+    tests/unit/test_benchmark_arguments.cpp
     tests/unit/test_matrix_target.cpp
     tests/unit/test_generated_address.cpp
     tests/unit/test_integer_split.cpp
