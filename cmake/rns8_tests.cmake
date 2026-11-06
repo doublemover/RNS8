@@ -799,6 +799,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME reference_probe_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_reference_probes.py")
   set_tests_properties(reference_probe_self_test PROPERTIES LABELS "tools;dependencies;reference")
+  add_test(NAME ck_target_probe_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ck_target_probes.py")
+  set_tests_properties(ck_target_probe_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
 
   add_test(
     NAME release_tree_self_test

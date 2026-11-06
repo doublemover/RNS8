@@ -76,6 +76,18 @@ if(RNS8_AMDGPU_TARGETS)
   endif()
 endif()
 
+if(RNS8_ENABLE_CK)
+  include("${CMAKE_CURRENT_LIST_DIR}/MatrixTargetContract.cmake")
+  rns8_matrix_target_contract(_rns8_ck_wave CK ${RNS8_AMDGPU_TARGETS})
+  if(_rns8_ck_wave EQUAL 64)
+    set(RNS8_CK_USE_XDL 1)
+    set(RNS8_CK_SHAPE_ALIGNMENT 128)
+  else()
+    set(RNS8_CK_USE_XDL 0)
+    set(RNS8_CK_SHAPE_ALIGNMENT 64)
+  endif()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 rns8_assert_linux_native_discovery_context()
 

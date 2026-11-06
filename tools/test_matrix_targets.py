@@ -12,6 +12,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as directory:
         script = Path(directory) / "target.cmake"
         script.write_text(
+            "cmake_minimum_required(VERSION 3.22)\n"
             f'include("{ROOT.as_posix()}/cmake/RocwmmaTargetContract.cmake")\n'
             "rns8_rocwmma_target_contract(wave ${TARGETS})\n"
             'message(STATUS "wave=${wave}")\n',
@@ -39,6 +40,45 @@ def main() -> int:
                 timeout=10,
             )
             assert result.returncode != 0 and "rocWMMA" in result.stderr
+        for targets in ("gfx1100:xnack+:xnack-", "gfx942:sramecc+:sramecc+"):
+            result = subprocess.run(
+                ["cmake", f"-DTARGETS={targets}", "-P", str(script)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            assert result.returncode != 0 and "Duplicate rocWMMA target feature" in result.stderr
+        script.write_text(
+            "cmake_minimum_required(VERSION 3.22)\n"
+            f'include("{ROOT.as_posix()}/cmake/MatrixTargetContract.cmake")\n'
+            "rns8_matrix_target_contract(wave CK ${TARGETS})\n"
+            'message(STATUS "wave=${wave}")\n',
+            encoding="utf-8",
+        )
+        for targets, wave in (("gfx1100;gfx1201", 32), ("gfx90a;gfx942:xnack-;gfx950", 64)):
+            result = subprocess.run(
+                ["cmake", f"-DTARGETS={targets}", "-P", str(script)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            assert result.returncode == 0 and f"wave={wave}" in result.stdout, result.stderr
+        for targets in (
+            "gfx1100;gfx942",
+            "gfx942;gfx1100",
+            "gfx1030",
+            "gfxfuture",
+            "gfx1100:",
+            "gfx1100:xnack+:xnack-",
+            "",
+        ):
+            result = subprocess.run(
+                ["cmake", f"-DTARGETS={targets}", "-P", str(script)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            assert result.returncode != 0 and "CK" in result.stderr
     header = (ROOT / "src/backend_common/matrix_target.hpp").read_text(encoding="utf-8")
     kernels = (ROOT / "src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip").read_text(
         encoding="utf-8"

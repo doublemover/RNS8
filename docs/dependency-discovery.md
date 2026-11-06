@@ -390,6 +390,22 @@ real fresh-prefix Windows/Linux/WSL runs.
 Filesystem fixtures and a CMake script-mode handoff test do not compile a kernel
 or qualify a GPU, compiler, platform, or supported-release combination.
 
+CK configuration probes every distinct requested target, retaining separate
+compile/link and real INT8 primitive-object logs in a fresh configure-local
+directory. Every target must pass both stages before dependency readiness is
+reported; a later target's failure cannot reuse the first one's result. CMake
+and the Python dependency/bootstrap probes share `tools/probes/ck_primitive.hip`
+for the actual XDL/WMMA DeviceGemm, invocation and centered epilogue types.
+CK's package has one host lowering: wave64 targets use XDL/alignment128 and
+wave32 targets use WMMA/alignment64. Mixed families require separate CK builds;
+direct HIP remains available for mixed packages with optional backends disabled.
+CK and rocWMMA share the finite target/feature validator, including duplicate
+`xnack`/`sramecc` rejection. A listed target still needs the selected compiler
+and dependency to support it; a compiler pass provides no runtime or ISA credit.
+The configure command-recorder and target-contract regressions are authored,
+not executed in this frontload phase. Broader doctor builtin/all-target probe
+integration and native platform qualification remain outstanding.
+
 The [dependency version policy](dependency-versions.md) now supplies exact
 candidate pins and offline consistency/observed-version gates. Filesystem
 resolution still does not establish qualification; source declarations, installed
