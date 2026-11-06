@@ -62,6 +62,10 @@ using `perf.session` and native sample objects. Upstream has removed the older
 embedded callback API; an incompatible or missing native module is an error.
 The module must match the selected Python interpreter's ABI. It is an optional
 profiling dependency, absent from ordinary RNS8 builds and consumers.
+The capability stage checks the exported `sample_event` attribute frontier,
+including native mapping and symbol/source accessors, before the workload stage.
+A module with only callable `session`/`data` is insufficient. Missing accessors
+report unsupported without constructing a native session or sampling workload.
 
 ```sh
 python tools/host_profile_native.py --input temp/host-profile/perf.data --pid 1234 --output temp/host-profile/native-samples.json
@@ -95,6 +99,14 @@ file named by debug information. Callchain modules still have native-path-only
 identity. These boundaries remain explicit even when every leaf ID matches.
 The ELF/native integration controls are source-authored and unexecuted; no
 native profile, source-attributed bottleneck or performance benefit is claimed.
+
+Native sample schema v3 also retains map start/end/file offset. Resolved maps
+must contain their sampled IP and fit the64-bit address ABI. ELF executable
+load segments provide a separate count of samples whose native map translates
+to an executable file extent. That count is distinct from build-ID coverage:
+an ID can match while mapping attribution stays unresolved. The native map
+observation is not an independent raw-MMAP witness or a source-content proof;
+selected-operation and cross-clock joins remain open.
 
 Input, sample, frame and decoded-document limits apply. Changes to the input or
 native module during decode reject the receipt. Existing outputs are not

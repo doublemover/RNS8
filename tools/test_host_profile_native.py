@@ -33,6 +33,9 @@ def sample(pid=41):
         sym_start=4096,
         sym_end=8192,
         sym_offset=3,
+        map_start=4096,
+        map_end=8192,
+        map_pgoff=0,
         dso="librns8.so",
         dso_long_name="/fixture/librns8.so",
         dso_bid="1234abcd",
@@ -103,7 +106,12 @@ class NativePerf(unittest.TestCase):
 
             return SimpleNamespace(process_events=process_events, e_machine=62, is_64_bit=True)
 
-        return SimpleNamespace(__file__=str(self.module), data=lambda path: path, session=session)
+        return SimpleNamespace(
+            __file__=str(self.module),
+            data=lambda path: path,
+            session=session,
+            sample_event=type("SyntheticSampleType", (), dict.fromkeys(native.SAMPLE_ATTRIBUTES)),
+        )
 
     def decode(self, **kwargs):
         self.write_recording()
@@ -180,6 +188,9 @@ class NativePerf(unittest.TestCase):
             ("evsel", "evsel(cycles:u)"),
             ("symbol", "x" * 4097),
             ("sym_start", True),
+            ("map_start", 4100),
+            ("map_end", 4099),
+            ("map_pgoff", 1 << 64),
             ("callchain", [SimpleNamespace(ip=1, symbol=None, dso=None)] * 129),
         ):
             self.rows = copy.deepcopy(original)
@@ -239,6 +250,17 @@ class NativePerf(unittest.TestCase):
             patch.object(native.importlib, "import_module", return_value=self.binding()),
         ):
             self.assertEqual(native.capabilities()["state"], "available")
+            self.assertEqual(self.sessions, 0)
+        missing = self.binding()
+        missing.sample_event = type("MissingSampleFields", (), {})
+        with (
+            patch.object(native.platform, "system", return_value="Linux"),
+            patch.object(native.platform, "python_version", return_value=selected),
+            patch.object(native.importlib, "import_module", return_value=missing),
+        ):
+            value = native.capabilities()
+            self.assertEqual(value["state"], "unsupported")
+            self.assertIn("map_start", value["missing_sample_attributes"])
             self.assertEqual(self.sessions, 0)
         with (
             patch.object(native.platform, "system", return_value="Linux"),

@@ -22,7 +22,7 @@ from perf_recording_contract import (
     validate_decoded_samples,
 )
 
-SCHEMA = "rns8_perf_native_samples_v2"
+SCHEMA = "rns8_perf_native_samples_v3"
 PRODUCER_CONTRACT = "linux_perf_standalone_session_sample_api_v1"
 PRODUCER_SOURCE = (
     "https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-script-python.txt"
@@ -30,6 +30,35 @@ PRODUCER_SOURCE = (
 MAX_SAMPLES = 100_000
 MAX_FRAMES = 128
 MAX_DECODED_BYTES = 64 * 1024**2
+SAMPLE_ATTRIBUTES = (
+    "sample_pid",
+    "sample_tid",
+    "sample_time",
+    "sample_cpu",
+    "sample_period",
+    "sample_ip",
+    "machine_pid",
+    "evsel",
+    "symbol",
+    "sym_start",
+    "sym_end",
+    "sym_offset",
+    "dso",
+    "dso_long_name",
+    "dso_bid",
+    "callchain",
+    "srccode",
+    "map_start",
+    "map_end",
+    "map_pgoff",
+)
+
+
+def sample_interface(module) -> list[str]:
+    sample_type = getattr(module, "sample_event", None)
+    return [
+        name for name in SAMPLE_ATTRIBUTES if sample_type is None or not hasattr(sample_type, name)
+    ]
 
 
 def capabilities() -> dict:
@@ -65,6 +94,14 @@ def capabilities() -> dict:
         ):
             return dict(
                 result, state="unsupported", reason="standalone session/data interface absent"
+            )
+        missing = sample_interface(module)
+        if missing:
+            return dict(
+                result,
+                state="unsupported",
+                reason="native sample interface incomplete",
+                missing_sample_attributes=missing,
             )
         path = Path(module.__file__).resolve(strict=True)
         return dict(
@@ -135,6 +172,18 @@ def sample_record(sample: Any) -> dict:
     # The producer's evsel repr encloses the original event selector.
     if event.startswith("evsel(") and event.endswith(")"):
         event = event[6:-1]
+    mapping = {
+        name: optional_integer(getattr(sample, name), name)
+        for name in ("map_start", "map_end", "map_pgoff")
+    }
+    values = list(mapping.values())
+    if any(value is not None and value >= 1 << 64 for value in values):
+        raise ValueError("native perf mapping exceeds the uint64 address ABI")
+    ip = integer(sample.sample_ip, "IP")
+    start, end, offset = values
+    if start is not None and end is not None and offset is not None:
+        if not start <= ip < end:
+            raise ValueError("native perf leaf IP is outside its resolved mapping")
     return dict(
         pid=integer(sample.sample_pid, "PID", 1),
         tid=integer(sample.sample_tid, "TID", 1),
@@ -142,7 +191,8 @@ def sample_record(sample: Any) -> dict:
         cpu=integer(sample.sample_cpu, "CPU"),
         period=integer(sample.sample_period, "period", 1),
         event=text(event, "event"),
-        ip=integer(sample.sample_ip, "IP"),
+        ip=ip,
+        mapping=mapping,
         machine_pid=integer(sample.machine_pid, "machine PID"),
         symbol=text(sample.symbol, "symbol"),
         symbol_start=optional_integer(sample.sym_start, "symbol start"),

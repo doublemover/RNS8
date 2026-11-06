@@ -17,7 +17,15 @@ def note(value):
     return data + bytes((-len(data)) % 4)
 
 
-def image(value=b"\x01\x23\xab\xcd", *, machine=62, sections=False, extended=False, extra=b""):
+def image(
+    value=b"\x01\x23\xab\xcd",
+    *,
+    machine=62,
+    sections=False,
+    extended=False,
+    extra=b"",
+    executable=False,
+):
     payload = note(value) + extra
     ident = b"\x7fELF\x02\x01\x01" + bytes(9)
     if sections:
@@ -41,12 +49,52 @@ def image(value=b"\x01\x23\xab\xcd", *, machine=62, sections=False, extended=Fal
         null = struct.pack("<IIQQQQIIQQ", 0, 0, 0, 0, 0, 2 if extended else 0, 0, 0, 0, 0)
         entry = struct.pack("<IIQQQQIIQQ", 0, 7, 0, 0, 192, len(payload), 0, 0, 4, 0)
         return header + null + entry + payload
-    header = struct.pack("<16sHHIQQQIHHHHHH", ident, 3, machine, 1, 0, 64, 0, 0, 64, 56, 1, 0, 0, 0)
-    program = struct.pack("<IIQQQQQQ", 4, 0, 120, 0, 0, len(payload), len(payload), 4)
-    return header + program + payload
+    offset = 176 if executable else 120
+    header = struct.pack(
+        "<16sHHIQQQIHHHHHH",
+        ident,
+        3,
+        machine,
+        1,
+        0,
+        64,
+        0,
+        0,
+        64,
+        56,
+        2 if executable else 1,
+        0,
+        0,
+        0,
+    )
+    program = struct.pack("<IIQQQQQQ", 4, 0, offset, 0, 0, len(payload), len(payload), 4)
+    load = (
+        struct.pack("<IIQQQQQQ", 1, 5, offset, 0x4000, 0x4000, len(payload), len(payload), 1)
+        if executable
+        else b""
+    )
+    return header + program + load + payload
 
 
 class ElfCustodyControls(unittest.TestCase):
+    def test_leaf_PC_mapping_requires_current_executable_file_extent(self):
+        self.module.write_bytes(image(executable=True))
+        sample = dict(
+            dso_path=str(self.module),
+            dso_build_id="0123abcd",
+            ip=4275,
+            mapping=dict(map_start=4096, map_end=8192, map_pgoff=0),
+        )
+        value = elf.module_inventory([sample], machine=62)
+        self.assertEqual(value["executable_mapping_samples"], 1)
+        self.assertTrue(value["complete"])
+        outside = {**sample, "ip": 4099}
+        value = elf.module_inventory([outside], machine=62)
+        self.assertEqual(value["executable_mapping_samples"], 0)
+        self.assertTrue(value["complete"])  # Build-ID coverage is a separate field.
+        with self.assertRaises(ValueError):
+            elf.module_inventory([{**sample, "ip": 8192}], machine=62)
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

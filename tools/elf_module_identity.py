@@ -108,13 +108,30 @@ def identity(path: Path, *, max_bytes=512 * 1024**2) -> dict:
             phcount = first[7]
         if not 0 <= phcount <= 4096 or not 0 <= shcount <= 65536:
             raise ModuleBudgetError("ELF header-count budget exhausted")
-        notes, symbol_tables = set(), []
+        notes, symbol_tables, executable_segments = set(), [], []
         if phcount:
             if not phoff or phsize != PROGRAM.size:
                 raise ValueError("unsupported ELF program table")
             for row in PROGRAM.iter_unpack(read(phoff, phcount * phsize)):
                 if row[0] == 4 and row[5]:
                     notes.add((row[2], row[5]))
+                elif row[0] == 1:
+                    if (
+                        row[2] > size
+                        or row[5] > size - row[2]
+                        or row[5] > row[6]
+                        or row[6] > (1 << 64) - row[3]
+                    ):
+                        raise ValueError("ELF load segment has an invalid file/virtual extent")
+                    if row[1] & 1 and row[5]:
+                        executable_segments.append(
+                            dict(
+                                file_offset=row[2],
+                                file_bytes=row[5],
+                                virtual_address=row[3],
+                                memory_bytes=row[6],
+                            )
+                        )
         if shcount:
             for row in SECTION.iter_unpack(read(shoff, shcount * shsize)):
                 if row[1] == 7 and row[5]:
@@ -167,6 +184,7 @@ def identity(path: Path, *, max_bytes=512 * 1024**2) -> dict:
         elf_type=kind,
         gnu_build_id=next(iter(build_ids), None),
         symbol_table_classes=sorted(set(symbol_tables)),
+        executable_load_segments=executable_segments,
         scope="current_ELF_file_and_native_recorded_build_ID_not_transient_loaded_image_history",
         build_id_is_content_checksum=False,
     )
@@ -217,6 +235,8 @@ def module_inventory(
                 samples=0,
                 symbolized_samples=0,
                 source_location_samples=0,
+                executable_mapping_samples=0,
+                unresolved_mapping_samples=0,
                 state="unresolved",
                 reason="missing_native_path_or_build_id",
                 file=None,
@@ -274,6 +294,29 @@ def module_inventory(
         row["source_location_samples"] += bool(
             isinstance(source, dict) and source.get("path") and source.get("line", 0) > 0
         )
+        mapping = sample.get("mapping")
+        mapped = False
+        if row["state"] == "matched" and isinstance(mapping, dict):
+            start, end, offset, ip = (
+                mapping.get("map_start"),
+                mapping.get("map_end"),
+                mapping.get("map_pgoff"),
+                sample.get("ip"),
+            )
+            if all(
+                type(value) is int and 0 <= value < 1 << 64 for value in (start, end, offset, ip)
+            ):
+                if not start <= ip < end:
+                    raise ValueError("native leaf IP is outside its claimed module mapping")
+                file_offset = ip - start + offset
+                mapped = any(
+                    segment["file_offset"]
+                    <= file_offset
+                    < segment["file_offset"] + segment["file_bytes"]
+                    for segment in row["file"]["executable_load_segments"]
+                )
+        row["executable_mapping_samples"] += mapped
+        row["unresolved_mapping_samples"] += not mapped
     matched = sum(row["samples"] for row in records.values() if row["state"] == "matched")
     for row in records.values():
         if row["file"] is not None and Path(row["native_path"]).resolve(strict=True) != Path(
@@ -293,6 +336,10 @@ def module_inventory(
         unresolved_or_mismatched_samples=len(samples) - matched,
         module_file_byte_budget_charged=total,
         complete=bool(samples) and matched == len(samples),
+        executable_mapping_samples=sum(
+            row["executable_mapping_samples"] for row in records.values()
+        ),
+        mapping_scope="native_leaf_map_file_offset_in_current_ELF_executable_segment_not_independent_recorded_mmap_witness",
         matched_leaf_symbolized_samples=sum(
             row["symbolized_samples"] for row in records.values() if row["state"] == "matched"
         ),
