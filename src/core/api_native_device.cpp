@@ -3,6 +3,7 @@
 #include "core/resident_native_import.hpp"
 #include "core/experimental_basis.hpp"
 #include "backend_common/native_device_contract.hpp"
+#include "backend_common/native_transfer_contract.hpp"
 #include <mutex>
 #include <utility>
 using namespace rns8::detail;

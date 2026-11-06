@@ -1,4 +1,5 @@
 #include "../support/native_device_fixture.hpp"
+#include "../support/native_transfer_admission.hpp"
 TEST_CASE("native HIP leases import and export full-width padded views without host payload") {
   if (!hip_available())
     SKIP("no HIP device for native leases");
@@ -410,6 +411,26 @@ TEST_CASE(
     options.max_input_magnitude = 14;
     options.max_total_scratch_bytes = 184;
     rns8_prepared_execution *importer = nullptr, *exporter = nullptr;
+    const auto references = ctx->prepared_references;
+    const auto generation = matrix->content_generation;
+    const auto allocations = hip_direct_allocation_counters_snapshot();
+    const auto acquired = source_owner.acquired, released = source_owner.released;
+    for (bool poisoned : {false, true}) {
+      ctx->hip_failure_poisoned = poisoned;
+      native_transfer_admission::reject_options(options, [&](const auto* invalid, auto** out) {
+        return rns8_prepare_native_transfer_hip(ctx, matrix, read, invalid, out);
+      });
+      ctx->hip_failure_poisoned = false;
+    }
+    CHECK(ctx->prepared_references == references);
+    CHECK(matrix->content_generation == generation);
+    CHECK(source_owner.acquired == acquired);
+    CHECK(source_owner.released == released);
+    const auto rejected = hip_direct_allocation_counters_snapshot();
+    CHECK(rejected.allocate_calls == allocations.allocate_calls);
+    CHECK(rejected.free_calls == allocations.free_calls);
+    CHECK(rejected.h2d_calls == allocations.h2d_calls);
+    CHECK(rejected.d2h_calls == allocations.d2h_calls);
     REQUIRE(rns8_prepare_native_transfer_hip(ctx, matrix, read, &options, &importer) ==
             RNS8_WORKSPACE_TOO_SMALL);
     REQUIRE(!importer);

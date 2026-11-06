@@ -275,10 +275,7 @@ rns8_status rns8_prepare_native_transfer_hip(rns8_context* ctx, rns8_matrix* mat
                                              const rns8_native_transfer_options* options,
                                              rns8_prepared_execution** out) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !matrix || !lease || !options || !out || !minimum_abi_header(options) ||
-        options->import_values > 1 || options->verify_input_bound > 1 || options->flags ||
-        (!options->verify_input_bound && options->max_input_magnitude) ||
-        (!options->import_values && options->verify_input_bound))
+    if (!ctx || !matrix || !lease || !out || !valid_native_transfer_options(options))
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
     std::unique_lock<std::mutex> lock(lease->mutex, std::try_to_lock);

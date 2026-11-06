@@ -1,4 +1,5 @@
 #include "backend_common/pinned_host_contract.hpp"
+#include "../support/native_transfer_admission.hpp"
 TEST_CASE("pinned descriptor raw values reject before output publication or backend routing",
           "[api][abi][enum][host-transfer]") {
   auto* ctx = create_cpu_context();
@@ -179,6 +180,23 @@ TEST_CASE("owned pinned imports and exports share prepared dependency and graph 
     o.max_total_scratch_bytes = UINT64_MAX;
     rns8_prepared_execution *load = nullptr, *load_copy = nullptr, *compute = nullptr,
                             *store = nullptr;
+    const auto references = ctx->prepared_references;
+    const auto generation = a->content_generation;
+    const auto allocations = hip_direct_allocation_counters_snapshot();
+    for (bool poisoned : {false, true}) {
+      ctx->hip_failure_poisoned = poisoned;
+      native_transfer_admission::reject_options(o, [&](const auto* invalid, auto** out) {
+        return rns8_prepare_host_transfer_hip(ctx, a, input, invalid, out);
+      });
+      ctx->hip_failure_poisoned = false;
+    }
+    CHECK(ctx->prepared_references == references);
+    CHECK(a->content_generation == generation);
+    const auto rejected = hip_direct_allocation_counters_snapshot();
+    CHECK(rejected.allocate_calls == allocations.allocate_calls);
+    CHECK(rejected.free_calls == allocations.free_calls);
+    CHECK(rejected.h2d_calls == allocations.h2d_calls);
+    CHECK(rejected.d2h_calls == allocations.d2h_calls);
     o.max_total_scratch_bytes = 751;
     CHECK(rns8_prepare_host_transfer_hip(ctx, a, input, &o, &load) == RNS8_WORKSPACE_TOO_SMALL);
     CHECK(load == nullptr);

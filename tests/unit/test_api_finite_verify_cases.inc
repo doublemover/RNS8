@@ -1,4 +1,89 @@
 #include "../support/finite_verify_fixture.hpp"
+TEST_CASE("finite verifier raw selectors and exact headers preserve live CPU state",
+          "[api][abi][enum][host][finite]") {
+  auto* ctx = create_cpu_context();
+  auto desc = finite_matrix_desc(1, 1, RNS8_FINITE_RING_U8);
+  rns8_matrix* value = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &desc, &value) == RNS8_SUCCESS);
+  const uint8_t zero = 0;
+  REQUIRE(rns8_pack_finite_u8(ctx, value, 6, &zero, 1, 1) == RNS8_SUCCESS);
+  rns8_finite_verify_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.repetition_count = 1;
+  options.sampler = RNS8_VERIFY_SPLITMIX64_BINARY_V1;
+  options.max_workspace_bytes = UINT64_MAX;
+  rns8_finite_verify_report report{};
+  report.struct_size = sizeof(report);
+  report.abi_version = RNS8_ABI_VERSION;
+  report.passed = 71;
+  const auto saved = report;
+  const auto generation = value->content_generation;
+  const auto residues = value->residues;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  auto reject = [&](const auto* invalid) {
+    CHECK(rns8_verify_finite_product(ctx, value, value, value, invalid, &report) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&report, &saved, sizeof(report)) == 0);
+    CHECK(value->content_generation == generation);
+    CHECK(value->residues == residues);
+    CHECK(value->in_flight_readers == 0);
+    CHECK_FALSE(value->in_flight_writer);
+    CHECK(ctx->prepared_references == references);
+  };
+  for (bool poisoned : {false, true}) {
+    ctx->hip_failure_poisoned = poisoned;
+    for (unsigned field = 0; field != 2; ++field)
+      for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 2u}) {
+        CAPTURE(poisoned, field, bits);
+        auto invalid = options;
+        if (field == 0)
+          invalid.sampler = bits;
+        else
+          invalid.flags = bits;
+        reject(&invalid);
+      }
+    for (unsigned mode = 0; mode != 3; ++mode) {
+      auto invalid = options;
+      if (mode == 0)
+        invalid.struct_size = sizeof(invalid) - 1;
+      else if (mode == 1)
+        invalid.struct_size = sizeof(invalid) + 8;
+      else
+        invalid.abi_version = UINT32_MAX;
+      reject(&invalid);
+    }
+    check_short_descriptor<rns8_finite_verify_options>([&](const auto* invalid) {
+      reject(invalid);
+      return RNS8_INVALID_ARGUMENT;
+    });
+    ctx->hip_failure_poisoned = false;
+  }
+  struct Extended {
+    rns8_finite_verify_options options;
+    uint64_t canary;
+  } extended{options, 73};
+  extended.options.struct_size = sizeof(extended);
+  reject(&extended.options);
+  CHECK(extended.canary == 73);
+  const auto rejected = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(rejected.allocate_calls == allocations.allocate_calls);
+  CHECK(rejected.free_calls == allocations.free_calls);
+  CHECK(rejected.h2d_calls == allocations.h2d_calls);
+  CHECK(rejected.d2h_calls == allocations.d2h_calls);
+  for (uint32_t flags : {0u, uint32_t(RNS8_VERIFY_CHECK_GENERATIONS)}) {
+    options.flags = flags;
+    std::fill_n(options.expected_generations, 3, generation);
+    REQUIRE(rns8_verify_finite_product(ctx, value, value, value, &options, &report) ==
+            RNS8_SUCCESS);
+    CHECK(report.passed == 1);
+    CHECK(value->content_generation == generation);
+    CHECK(value->residues == residues);
+  }
+  REQUIRE(rns8_destroy_matrix(value) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
 TEST_CASE("finite Freivalds public replay checks ring products without publication") {
   auto* ctx = create_cpu_context();
   for (uint16_t q : {2, 4, 6, 251, 256})

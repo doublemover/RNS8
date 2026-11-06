@@ -26,6 +26,14 @@ report `INVALID_ARGUMENT`; valid CPU-only creation still reports
 for failures after descriptor admission, including budget rejection. The new
 live CPU constructor/query controls are authored and await the combined batch.
 
+Prepared device and pinned-host transfers use one shared option preflight.
+Unknown Boolean selectors or flags, incompatible import/bound-check choices,
+unused nonzero magnitude bounds and malformed size/version headers reject
+before backend routing or handle changes. An extensible options record accepts
+the complete current prefix and ignores its tail. Authored controls use live
+retained owners and check handles, generations, callbacks and device accounting;
+their execution remains deferred with the final validation batch.
+
 A versioned descriptor names native i64/u64 dtype, read OR write access,
 allocation base/capacity, byte offset, rows/columns/leading dimension, device,
 owner identity, nonzero binding generation, explicit BORROW or COPY_OWNED policy, producer

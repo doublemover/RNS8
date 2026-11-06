@@ -1,6 +1,7 @@
 #include "core/api_internal.hpp"
 #include "core/prepared_transfer.hpp"
 #include "backend_common/pinned_host_contract.hpp"
+#include "backend_common/native_transfer_contract.hpp"
 #include <atomic>
 #include <cstring>
 using namespace rns8::detail;
@@ -402,8 +403,7 @@ static rns8_status prepare_host_transfer(rns8_context* ctx, rns8_matrix* matrix,
                                          const boost::multiprecision::cpp_int* declared = nullptr,
                                          uint32_t declared_prefix = 0) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !matrix || !buffer || !options || !out || !minimum_abi_header(options) ||
-        options->flags || options->import_values > 1 || options->verify_input_bound > 1)
+    if (!ctx || !matrix || !buffer || !out || !valid_native_transfer_options(options))
       return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
     if (ctx->hip_failure_poisoned)
@@ -417,8 +417,6 @@ static rns8_status prepare_host_transfer(rns8_context* ctx, rns8_matrix* matrix,
         sign != (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) ||
         matrix->desc.rows != buffer->desc.rows || matrix->desc.cols != buffer->desc.cols ||
         buffer->desc.access != (importing ? RNS8_NATIVE_DEVICE_READ : RNS8_NATIVE_DEVICE_WRITE) ||
-        (!options->verify_input_bound && options->max_input_magnitude) ||
-        (!importing && (options->verify_input_bound || options->max_input_magnitude)) ||
         (importing && native_device_limb_type(buffer->desc.element_type)))
       return RNS8_INVALID_ARGUMENT;
     if (buffer->prepared_references == UINT64_MAX)
