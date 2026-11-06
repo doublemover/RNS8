@@ -192,6 +192,36 @@ class ProcessObservations(unittest.TestCase):
         )
         self.assertTrue(all(evidence(c)["independent_runs"] == 2 for c in cohorts))
 
+    def test_in_memory_private_verdicts_cannot_supply_measurements(self):
+        from report_comparison import ReportCohorts
+
+        a, b = runs(finite_capture("hip-direct", 100))
+        fake = dict(
+            schema="rns8_process_observations_v1",
+            qualified=True,
+            blockers=[],
+            independent_runs=99,
+            phase_medians_us=dict(end_to_end=1),
+            numerical_observations=[],
+        )
+        for capture in (a, b):
+            capture["_observation_aggregate"] = deepcopy(fake)
+            capture["_other_private_verdict"] = True
+        cohorts = ReportCohorts([a, b])
+        view = cohorts.observations[0]
+        self.assertEqual(phase_median(view), 100)
+        self.assertEqual(evidence(view)["independent_runs"], 2)
+        self.assertTrue(
+            all("_other_private_verdict" not in raw for raw in cohorts.raw_observations(view))
+        )
+        self.assertTrue(
+            all("_observation_aggregate" not in raw for raw in cohorts.raw_observations(view))
+        )
+        singleton = ReportCohorts([a, deepcopy(a)]).observations[0]
+        self.assertFalse(evidence(singleton)["qualified"])
+        self.assertEqual(evidence(singleton)["independent_runs"], 1)
+        self.assertEqual(a["_observation_aggregate"], fake)
+
     def test_duplicate_and_cohort_boundaries(self):
         a, b = runs(finite_capture("hip-direct", 100))
         result = aggregate_captures([a, b, deepcopy(a)])

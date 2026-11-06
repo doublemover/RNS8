@@ -82,6 +82,16 @@ class ReportCohorts:
     """Retain raw evidence and aggregate once before any implementation selection."""
 
     def __init__(self, captures: list[dict], diagnostic_bindings: dict | None = None):
+        # In-memory callers have the same boundary as file readers: derived
+        # private verdicts are never input observations or measured samples.
+        captures = [
+            {
+                key: value
+                for key, value in capture.items()
+                if not key.startswith("_") or key == "_path"
+            }
+            for capture in captures
+        ]
         self._raws = {}
         for capture in captures:
             identity = capture_identity(capture)
