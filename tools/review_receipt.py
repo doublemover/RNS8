@@ -156,6 +156,22 @@ class ReviewReceiptReader:
             self._captures[key] = {**capture, "_path": key}
         return self._captures[key]
 
+    def document(self, reference: dict, parent: Path = Path(".")) -> tuple[Path, dict]:
+        """Read a hash-bound document in this owner's bounded publication snapshot."""
+        if not isinstance(reference, dict) or set(reference) != {"path", "sha256"}:
+            raise ValueError("document reference shape")
+        if not isinstance(reference["path"], str) or not isinstance(reference["sha256"], str):
+            raise ValueError("document reference types")
+        path = (parent / reference["path"]).resolve(strict=True)
+        data = self._document(path)
+        if self._document_hashes[str(path)] != reference["sha256"]:
+            raise ValueError("document content changed: " + str(path))
+        return path, data
+
+    def capture(self, reference: dict, parent: Path = Path(".")) -> dict:
+        path, _ = self.document(reference, parent)
+        return self._capture(path)
+
     def isa_index(self, references: list[dict]) -> dict:
         if not isinstance(references, list) or len(references) > MAX_INPUTS:
             raise ValueError("bounded ISA input inventory required")

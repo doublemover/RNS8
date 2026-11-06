@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from paired_experiment import VerifiedPairedExperiment
 
 from execution_host_identity import hardware_cohort_identity
 
@@ -46,19 +50,26 @@ class ComparisonPolicy:
     require_cpu_anchor: bool = True
     cpu_gpu_comparison: bool = False
     amortize_prepack_setup: bool = False
+    paired_experiment: VerifiedPairedExperiment | None = None
 
     def work(self, capture: dict) -> str:
         return canonical_work(capture, exclude=self.work_exclusions)
 
     def environment(self, capture: dict) -> str:
-        if not self.cpu_gpu_comparison:
-            return comparison_environment(capture)
         identity = json.loads(comparison_environment(capture))
         # CPU/GPU timings can join only an observed OS instance and otherwise
         # identical source/build/host clock policy. Device data is GPU-only.
-        identity["observed_hardware"] = hardware_cohort_identity(capture, cpu_anchor=True)
-        identity.pop("device", None)
+        if self.cpu_gpu_comparison:
+            identity["observed_hardware"] = hardware_cohort_identity(capture, cpu_anchor=True)
+            identity.pop("device", None)
+        if self.paired_experiment is not None:
+            identity = self.paired_experiment.environment(capture, identity)
         return json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+    def pair_blockers(self, candidate: dict, baseline: dict) -> list[str]:
+        if self.paired_experiment is not None:
+            return self.paired_experiment.blockers(candidate, baseline)
+        return []
 
     def processor_pair(self, candidate: dict, baseline: dict) -> bool:
         cpu = ("cpu", "cpu-reference", "wrap64-byte-limb")
@@ -149,6 +160,11 @@ class ReportCohorts:
             row_identity(capture, exclude=policy.work_exclusions),
             capture_sha256=capture_identity(capture),
             comparison_scope=policy.name,
+            **(
+                {"paired_experiment": policy.paired_experiment.metadata(capture)}
+                if policy.paired_experiment is not None
+                else {}
+            ),
             intentional_work_differences=list(policy.work_exclusions),
             cpu_gpu_comparison=policy.cpu_gpu_comparison,
             comparison_environment_contract=policy.environment(capture),
@@ -171,6 +187,7 @@ class ReportCohorts:
                 not policy.processor_pair(candidate, capture)
                 or policy.work(capture) != work
                 or policy.environment(capture) != environment
+                or policy.pair_blockers(candidate, capture)
                 or self.admission(capture, policy)
             ):
                 continue
@@ -195,6 +212,7 @@ class ReportCohorts:
         if baseline is None:
             blockers.append("qualified_baseline_missing")
         else:
+            blockers.extend(policy.pair_blockers(candidate, baseline))
             blockers.extend("baseline:" + value for value in self.admission(baseline, policy))
             if not work_match:
                 blockers.append("comparison_work_contract_mismatch")
@@ -226,6 +244,11 @@ class ReportCohorts:
         blockers = sorted(set(blockers))
         return dict(
             comparison_scope=policy.name,
+            **(
+                {"paired_experiment": policy.paired_experiment.metadata(candidate)}
+                if policy.paired_experiment is not None
+                else {}
+            ),
             intentional_work_differences=list(policy.work_exclusions),
             cpu_gpu_comparison=policy.cpu_gpu_comparison,
             candidate_measurement=candidate_measurement,
