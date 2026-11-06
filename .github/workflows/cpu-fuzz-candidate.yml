@@ -1,0 +1,96 @@
+name: CPU Fuzz Candidate
+
+# Source-only until the consolidated validation batch qualifies sensitivity and
+# cost. Enabling a required PR smoke is a separate release-policy decision.
+on:
+  workflow_dispatch:
+    inputs:
+      llvm_cache:
+        description: Prepared managed host LLVM cache (init_host_llvm --root), verified against the shared lock
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rns8-cpu-fuzz-candidate
+  cancel-in-progress: false
+
+jobs:
+  cpu-fuzz:
+    runs-on: [self-hosted, linux, x64, rns8-host-checks, node24]
+    timeout-minutes: 60
+    env:
+      RNS8_FUZZ_LLVM_CACHE: ${{ inputs.llvm_cache }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+      - name: Verify prepared host compiler from the shared archive lock
+        run: |
+          python - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'tools')
+          from init_host_llvm import discover
+          root = Path(os.environ['RNS8_FUZZ_LLVM_CACHE'])
+          if not root.is_absolute():
+              raise SystemExit('Absolute managed LLVM cache required')
+          tools = discover(root)
+          if tools is None:
+              raise SystemExit('Prepare the reviewed LLVM archive with init_host_llvm first')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as stream:
+              for key, name in [('CXX', 'clang++'), ('NM', 'llvm-nm'), ('SYMBOLIZER', 'llvm-symbolizer')]:
+                  value = tools[name]
+                  if '\n' in value or '\r' in value:
+                      raise SystemExit('Invalid tool path')
+                  stream.write('RNS8_FUZZ_' + key + '=' + value + '\n')
+          PY
+      - name: Select shared locked build tools
+        run: python tools/init_build_tools.py --github-path
+      - name: Check corpus, instrumentation and replay protocols
+        run: |
+          python tools/test_fuzz_cases.py
+          python tools/test_fuzz_discovery.py
+          python tools/test_fuzz_replay.py
+          python tools/test_fuzz_replay_shrink.py
+      - name: Configure a fresh isolated CPU fuzz build
+        run: >-
+          cmake -S . -B temp/cpu-fuzz-build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER="$RNS8_FUZZ_CXX"
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DRNS8_ENABLE_HIP=OFF -DRNS8_BUILD_FUZZERS=ON
+          -DRNS8_ENABLE_HIPBLASLT=OFF -DRNS8_ENABLE_CK=OFF
+          -DRNS8_ENABLE_ROCWMMA=OFF -DRNS8_ENABLE_AMDGPU_BUILTINS=OFF
+          -DRNS8_ENABLE_CPU_PARALLEL=OFF -DRNS8_BUILD_SHARED=OFF
+          -DRNS8_HOST_SANITIZER=none -DRNS8_ENABLE_HOST_COVERAGE=OFF
+          -DRNS8_BUILD_TESTS=OFF -DRNS8_BUILD_TOOLS=OFF
+          -DRNS8_BUILD_BENCHMARKS=OFF -DRNS8_BUILD_EXAMPLES=OFF
+      - name: Build the three real fuzz entrypoints and production objects
+        run: >-
+          cmake --build temp/cpu-fuzz-build --parallel 2 --target
+          rns8_fuzz_plan_descriptor rns8_fuzz_export_contract rns8_fuzz_json_dependency
+      - name: Inspect all production objects, replay named seeds and discover within fixed budgets
+        run: >-
+          python tools/fuzz_discovery.py --build temp/cpu-fuzz-build
+          --nm "$RNS8_FUZZ_NM" --symbolizer "$RNS8_FUZZ_SYMBOLIZER"
+          --out temp/cpu-fuzz-capture --seconds 600 --runs 1000
+          --discovery-seconds 20 --rss-mib 2048 --artifact-mib 512 --execute
+      - name: Retain first failure, corpus and denominator receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cpu-fuzz-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            temp/cpu-fuzz-capture/
+            temp/cpu-fuzz-build/compile_commands.json
+            temp/cpu-fuzz-build/CMakeCache.txt
+            temp/cpu-fuzz-build/rns8-fuzz-instrumentation-*.json
+            temp/cpu-fuzz-build/rns8-analysis-targets-*.json

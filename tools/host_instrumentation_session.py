@@ -206,9 +206,17 @@ class Session:
             max_artifact_bytes=self.artifact_bytes,
             return_on_interrupt=True,
         )
-        receipt = write_json(
-            self.output / (str(len(self.stages)).zfill(4) + "-" + name + ".process.json"), result
-        )
+        try:
+            receipt = write_json(
+                self.output / (str(len(self.stages)).zfill(4) + "-" + name + ".process.json"),
+                result,
+            )
+        except OSError as error:
+            if result.get("interrupted"):
+                raise InterruptedError(
+                    "host session interrupted; capture persistence also failed"
+                ) from error
+            raise
         self.stages.append(
             dict(
                 name=name,

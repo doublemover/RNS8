@@ -178,9 +178,37 @@ distinguishes a bounded local fixed point from budget exhaustion; global
 minimality and hardware qualification are not established. All native replay and
 minimization execution remains deferred; authored controls mock the child owner.
 
-Implementation is in progress under #101. These new controls and harness have
-not run in the deferred validation batch. Production-library instrumentation
-inspection, bounded discovery/replay CI, structured failure reports/shrinking,
-broader descriptor-state controls and explicit GPU/backend replay remain open.
-Neither source registration nor a
-compiled harness establishes exercised library branches or GPU coverage.
+`tools/fuzz_discovery.py` owns bounded CPU discovery against an already built,
+isolated fuzz configuration. It plans without inspecting binaries or creating
+output; add `--execute` to inspect and run. Supply `--build`, matching `--nm`
+and `--symbolizer`, and a fresh `--out temp/NAME`. The default aggregate deadline
+is600seconds, with1000discovery runs or20seconds per target, 2048MiB RSS,
+256MiB per allocation, 512MiB retained artifacts and10seconds per input.
+The parent stops on the first failed child, deadline, interrupted capture,
+missing feedback report or input/artifact drift. It never retries or minimizes
+a crash automatically. [LLVM's file-operand replay](https://llvm.org/docs/LibFuzzer.html#options)
+executes every named seed before directory-based discovery.
+
+The object denominator comes from the real exported compilation database,
+registered first-party targets and generated fuzz-library source inventory.
+Every configured production fuzz TU needs exactly one object with the selected
+compiler, static CRT on Windows and full feedback/sanitizer flags. Each actual
+object is inspected with matching `llvm-nm`; missing feedback sites remain
+listed explicitly, including TUs without instrumentable branches. At least one
+production object must contain feedback sites. These observations establish
+configured flags and object sites; aggregate libFuzzer edge/feature counts do
+not attribute executed branches to individual library functions. External
+dependencies and HIP code are outside this denominator. The JSON target remains
+honestly classified as third-party parser reachability.
+
+The manual [CPU fuzz candidate workflow](../.github/workflows/cpu-fuzz-candidate.yml)
+verifies an already prepared managed LLVM archive against the shared lock,
+builds an isolated HIP-OFF library and all three entrypoints, then retains the
+object denominator, every seed replay, bounded discovery and first failure.
+It has not run. Required PR activation follows qualification of sensitivity and
+cost in the deferred batch; no new push-triggered discovery campaign is enabled.
+
+Implementation remains in progress under #101: source-attributed library branch
+witnesses, production wrong-result/status/stale-state mutation witnesses and
+broader lifecycle/metamorphic interactions remain. The new native replay,
+minimizer, inspection and discovery controls are authored but unexecuted.
