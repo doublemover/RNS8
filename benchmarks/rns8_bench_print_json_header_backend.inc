@@ -1,5 +1,8 @@
 output << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
 output << "  \"process_id\": " << rns8::tools::process_id() << ",\n";
+output << "  \"execution_host_identity\": ";
+execution_host.print(output);
+output << ",\n";
 output << "  \"execution_environment_witness\": ";
 execution_environment.print(output);
 output << ",\n";

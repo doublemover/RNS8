@@ -72,4 +72,24 @@ inline std::string sha256(std::string_view input) {
       result[i * 8 + digit] = hex[(h[i] >> (28 - 4 * digit)) & 15];
   return result;
 }
+// Application-scoped identity derivation shares the portable SHA-256 owner.
+inline std::string hmac_sha256(std::string_view key, std::string_view message) {
+  const auto binary_digest = [](std::string_view hex) {
+    const auto digit = [](char value) { return value <= '9' ? value - '0' : value - 'a' + 10; };
+    std::string bytes(32, '\0');
+    for (std::size_t i = 0; i < bytes.size(); ++i)
+      bytes[i] = static_cast<char>((digit(hex[2 * i]) << 4) | digit(hex[2 * i + 1]));
+    return bytes;
+  };
+  const std::string normalized = key.size() > 64 ? binary_digest(sha256(key)) : std::string(key);
+  std::string inner(64, '\0'), outer(64, '\0');
+  for (std::size_t i = 0; i < 64; ++i) {
+    const auto value = i < normalized.size() ? static_cast<unsigned char>(normalized[i]) : 0u;
+    inner[i] = static_cast<char>(value ^ 0x36u);
+    outer[i] = static_cast<char>(value ^ 0x5cu);
+  }
+  inner.append(message);
+  outer += binary_digest(sha256(inner));
+  return sha256(outer);
+}
 } // namespace rns8::detail

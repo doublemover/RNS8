@@ -34,6 +34,7 @@
 #include "rns8/generated/metadata_registry.hpp"
 #include "tool_common/build_identity.hpp"
 #include "tool_common/process_identity.hpp"
+#include "tool_common/execution_host_identity.hpp"
 #include "tool_common/device_identity_json.hpp"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
@@ -231,6 +232,7 @@ int main(int argc, char** argv) try {
   if (identity_status >= 0)
     return identity_status;
   const Args args = parse_args(argc, argv);
+  const auto execution_host = rns8::tools::ExecutionHostSnapshot::observe();
   rns8::tools::JsonOutput json_output(args.json_output);
   rns8::tools::ExecutionEnvironmentWitness execution_environment(args.record_execution_environment,
                                                                  argc, argv);
@@ -330,7 +332,7 @@ int main(int argc, char** argv) try {
     json_output.emit([&](std::ostream& output) {
       execution_environment.finish();
       print_json(output, args, info, result, effective_bound, cmdline, device_identity,
-                 execution_environment);
+                 execution_environment, execution_host);
     });
     return 0;
   }
@@ -428,7 +430,7 @@ int main(int argc, char** argv) try {
   json_output.emit([&](std::ostream& output) {
     execution_environment.finish();
     print_json(output, args, info, result, effective_bound, cmdline, device_identity,
-               execution_environment);
+               execution_environment, execution_host);
   });
   return 0;
 } catch (const std::exception& error) {

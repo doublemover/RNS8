@@ -219,6 +219,17 @@ bindings remain visible. An identical filename alias cannot erase an intact
 binding or add another independent process. These report controls are authored
 but unexecuted and carry no new performance credit.
 
+Native benchmark startup now records an application-scoped OS-instance identity
+before workload timing. Windows reads the 64-bit native registry view; Linux
+reads a bounded machine-id source. Output contains a derived HMAC-SHA256 value,
+source/status and OS scope. Raw installation identifiers stay out of captures.
+This records an observed OS instance, without claiming hardware attestation.
+The source follows the [Windows registry API](https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-reggetvaluew)
+and [machine-id application-identity guidance](https://www.freedesktop.org/software/systemd/man/latest/machine-id.html).
+RFC 4231 digest vectors and identity normalization/output controls are authored;
+unit and HIP-enabled benchmark frontend compilation passes. Native acquisition,
+link/runtime checks and integration into report qualification remain pending.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).
