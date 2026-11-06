@@ -325,11 +325,14 @@ def qualified(capture: dict | None) -> bool:
 
 
 def comparison_noise_margin(baseline: dict | None, candidate: dict | None) -> float | None:
+    return cohort_noise_margin(evidence(baseline), evidence(candidate))
+
+
+def cohort_noise_margin(baseline: dict, candidate: dict) -> float | None:
     noise = [DEFAULT_MIN_NOISE_SPEEDUP_MARGIN]
-    for capture in (baseline, candidate):
-        if not qualified(capture):
+    for aggregate in (baseline, candidate):
+        if aggregate.get("qualified") is not True:
             return None
-        aggregate = evidence(capture)
         for value in (
             aggregate.get("maximum_observed_within_capture_relative_spread"),
             (aggregate.get("process_spread_us", {}).get("end_to_end") or {}).get("relative_range"),

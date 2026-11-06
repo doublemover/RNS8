@@ -284,6 +284,16 @@ do not serve as GPU performance baselines. Unknown/legacy normalization and
 incompatible evidence retain blockers and omit ratios. The new controls have
 not run during this source pass.
 
+CPU small-shape selector recommendations likewise require actual release
+sampling, independent production processes, complete CPU-reference coverage and
+separate GPU diagnostic companions. They use process-cohort medians rather than
+the fastest file, partition full work/source/device/runtime domains, and retain
+those identities in non-routing threshold recommendations. The promotion margin
+must clear both the selector policy and observed noise. Policy annotations alone
+cannot mark a group reviewed; missing or unqualified evidence yields no ratio
+or recommendation. Supply production captures and `--diagnostic-binding`
+receipts. The new warmup/order/copied-ID/device/companion controls are unexecuted.
+
 ## Promotion boundaries
 
 - CPU success and static/host arithmetic tests do not qualify GPU code.
