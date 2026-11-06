@@ -28,7 +28,8 @@ oracle uses scalar Boost integers without production reduction, CRT, prefix
 selection or cached results. Finite results use mathematical modulo q;
 wrap64 uses modulo 2^64. Signed/unsigned bounded values must fit their declared
 destination and prefix. Wide cases must fit a conservative input/accumulation
-proof within their explicit prefix and use the explicit exact-value-bound
+proof within their explicit prefix, including each operand's independent
+signed/unsigned packing range even when the product is zero, and use the explicit exact-value-bound
 plan contract; three exported limbs include required
 sign extension. Out-of-envelope inputs are not counted as valid arithmetic
 executions. Wrong successful values, unexpected statuses, modified padding,

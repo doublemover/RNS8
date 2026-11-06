@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "../fuzz/arithmetic_case.hpp"
 
 namespace {
 
@@ -484,4 +485,48 @@ TEST_CASE("bounded u64 CPU reference handles accumulation around K block") {
     assert_u64_public_matches_exact(ctx, 1, 1, k, A, k, B, 1);
   }
   rns8_destroy_context(ctx);
+}
+
+TEST_CASE("wide fuzz zero-product admission retains independent input range checks",
+          "[cpu][fuzz][exact][admission]") {
+  auto* ctx = create_cpu();
+  for (uint8_t semantic : {uint8_t(4), uint8_t(5)}) {
+    const uint64_t limit = semantic == 4 ? 127 : 255;
+    for (bool reverse : {false, true}) {
+      rns8_fuzz::ArithmeticCase value;
+      value.semantic = semantic;
+      value.m = value.n = value.k = value.prefix = 1;
+      value.a = {reverse ? 0 : limit + 1};
+      value.b = {reverse ? limit + 1 : 0};
+      const auto rejected = rns8_fuzz::oracle(value);
+      REQUIRE_FALSE(rejected.admitted);
+      REQUIRE(rejected.cells[0] == 0);
+      rns8_matrix_desc desc{};
+      desc.struct_size = sizeof(desc);
+      desc.abi_version = RNS8_ABI_VERSION;
+      desc.semantics = value.semantics();
+      desc.bound_kind = RNS8_BOUND_NONE;
+      desc.rows = desc.cols = desc.logical_ld = 1;
+      desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+      desc.max_prefix = 1;
+      rns8_matrix* matrix = nullptr;
+      REQUIRE(rns8_create_matrix(ctx, &desc, &matrix) == RNS8_SUCCESS);
+      const auto pack = [&](uint64_t input) {
+        const int64_t signed_value = rns8_fuzz::signed_bits(input);
+        return value.signed_input() ? rns8_pack_i64(ctx, matrix, &signed_value, 1, 0)
+                                    : rns8_pack_u64(ctx, matrix, &input, 1, 0);
+      };
+      CHECK(pack(limit) == RNS8_SUCCESS);
+      CHECK(pack(limit + 1) == RNS8_RANGE_ERROR);
+      (reverse ? value.b : value.a)[0] = limit;
+      const auto accepted = rns8_fuzz::oracle(value);
+      CHECK(accepted.admitted);
+      CHECK(accepted.cells[0] == 0);
+      (reverse ? value.b : value.a)[0] = limit + 1;
+      value.prefix = 20;
+      CHECK(rns8_fuzz::oracle(value).admitted);
+      REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+    }
+  }
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }

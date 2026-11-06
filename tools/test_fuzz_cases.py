@@ -4,10 +4,28 @@ from dataclasses import replace
 import struct
 import unittest
 
-from fuzz_cases import Case, HEADER, decode, encode, expected, seeds
+from fuzz_cases import Case, HEADER, admitted, decode, encode, expected, seeds
 
 
 class FuzzCases(unittest.TestCase):
+    def test_wide_zero_product_needs_independently_representable_inputs(self):
+        for semantic, limit in ((4, 127), (5, 255)):
+            for reverse in (False, True):
+                a, b = ((0,), (limit + 1,)) if reverse else ((limit + 1,), (0,))
+                rejected = Case(semantic, 1, 1, 1, a, b, prefix=1)
+                self.assertEqual(expected(rejected), (0,))
+                self.assertFalse(admitted(rejected))
+                self.assertTrue(admitted(replace(rejected, prefix=20)))
+                accepted = replace(
+                    rejected, a=(0,) if reverse else (limit,), b=(limit,) if reverse else (0,)
+                )
+                self.assertTrue(admitted(accepted))
+        # Bounded residue packing has a different contract: inputs need not be
+        # uniquely reconstructible when the declared exact output bound fits.
+        self.assertTrue(admitted(Case(0, 1, 1, 2, (256, -256), (1, 1), prefix=1)))
+        self.assertFalse(admitted(Case(0, 1, 1, 1, (1 << 62,), (4,))))
+        self.assertFalse(admitted(Case(5, 1, 1, 1, (200,), (200,), prefix=1)))
+
     def test_named_seeds_roundtrip_with_explicit_semantics(self):
         self.assertEqual(HEADER.size, 24)
         names, semantics, moduli, prefixes = set(), set(), set(), set()

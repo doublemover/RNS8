@@ -127,6 +127,49 @@ def expected(case: Case) -> tuple[int, ...]:
     return tuple(result)
 
 
+def admitted(case: Case) -> bool:
+    """Independent integer envelope for valid replay, including wide input packs."""
+    cells = expected(case)  # Also validates the complete bounded wire contract.
+    if case.semantic in (2, 3):
+        return True
+    signed = case.semantic in (0, 4)
+    if case.semantic < 4 and any(
+        not (-(1 << 63) if signed else 0) <= cell <= ((1 << 63) - 1 if signed else (1 << 64) - 1)
+        for cell in cells
+    ):
+        return False
+    moduli = (
+        256,
+        255,
+        253,
+        251,
+        247,
+        239,
+        233,
+        229,
+        227,
+        223,
+        217,
+        211,
+        199,
+        197,
+        193,
+        191,
+        181,
+        179,
+        173,
+        167,
+    )
+    product = 1
+    for modulus in moduli[: case.prefix]:
+        product *= modulus
+    factor = 2 if signed else 1
+    if case.semantic >= 4:
+        max_a, max_b = max(map(abs, case.a)), max(map(abs, case.b))
+        return factor * max(max_a, max_b, case.k * max_a * max_b) < product
+    return factor * max(map(abs, cells)) < product
+
+
 def seeds(*, large_k=False):
     for semantic in range(6):
         ring = semantic in (2, 3)

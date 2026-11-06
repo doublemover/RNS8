@@ -135,6 +135,11 @@ inline Expected oracle(const ArithmeticCase& value) {
     cpp_int product = 1;
     for (uint32_t index = 0; index < value.prefix; ++index)
       product *= oracle_moduli[index];
+    // A zero/cancelled product does not certify representability of its inputs.
+    // Exact-wide packing admits each operand independently of the GEMM bound.
+    if (value.wide() && (value.signed_input() ? cpp_int(2) * (std::max)(max_a, max_b)
+                                              : (std::max)(max_a, max_b)) >= product)
+      return result;
     const cpp_int proof = value.wide() ? cpp_int(value.k) * max_a * max_b : bound;
     if ((value.signed_input() ? cpp_int(2) * proof : proof) >= product)
       return result;
