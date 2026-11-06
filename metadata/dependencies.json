@@ -739,6 +739,23 @@
       "last_tested": null,
       "owner": "shared_dependency_policy_issue_60",
       "artifact_lock": "metadata/quality-tools.json"
+    },
+    {
+      "name": "coverage",
+      "role": "ci",
+      "latest_stable": {
+        "version": "7.17.2",
+        "source": "https://pypi.org/project/coverage/7.17.2/",
+        "checked_date_utc": "2026-11-05"
+      },
+      "selected": {
+        "version": "7.17.2",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "Apache-2.0",
+      "last_tested": null,
+      "owner": "shared_dependency_policy_issue_60",
+      "artifact_lock": "metadata/quality-tools.json"
     }
   ],
   "vcpkg": {
@@ -2193,7 +2210,7 @@
   },
   "quality_tools": {
     "lock": "metadata/quality-tools.json",
-    "sha256": "6b261d4f4995750934d0199f7560d7a764e6039ab9c3a21fec6ae3314ea158cf",
+    "sha256": "443b886054aa5981ea27afcaff1b3019ac87297c04f5cf5251b73f95ba24484d",
     "qualification": "source_and_artifact_inventory_pending_tool_validation"
   },
   "candidate_refresh_20261105": {

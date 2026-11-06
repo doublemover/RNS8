@@ -270,5 +270,32 @@
     ],
     "configuration": ".clang-tidy",
     "qualification": "artifact_inventory_source_pending_analyzer_validation"
+  },
+  "coverage": {
+    "checker": "coverage",
+    "requirements": "scripts/requirements-coverage-tools.txt",
+    "scope": "optional Python branch/subprocess coverage, not production timing",
+    "wheels": [
+      {
+        "name": "coverage",
+        "version": "7.17.2",
+        "license": "Apache-2.0",
+        "source": "https://pypi.org/project/coverage/7.17.2/",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "coverage-7.17.2-cp315-cp315-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/86/40/2d4980d3374a023a34c5ea7cd5d2b93c02c5588a324ca7faf8a0a8c7dbac/coverage-7.17.2-cp315-cp315-win_amd64.whl",
+            "sha256": "075566a44289afb634ceaafa7d8d377bb2667a5b4a90fbee2609efdcd015c66e"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "coverage-7.17.2-cp315-cp315-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/f5/c6/4f3931c3ff80a6f2608209181adb00527970a4b43b64c3aa323383c37d51/coverage-7.17.2-cp315-cp315-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+            "sha256": "3bd065e75c077d6de8cd3fe68699a8b47be3ec595af6b66e3629926839094609"
+          }
+        ]
+      }
+    ]
   }
 }

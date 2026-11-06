@@ -155,3 +155,12 @@ bounded job runner. See the [process transport contract](../docs/distributed-pro
 for build flags, arena leases, unknown opaque headroom and the authored runner.
 Native Windows rejects RCCL/rocSHMEM enablement; source checks against upstream
 headers are not installed-library or native Linux GPU qualification.
+## Optional Python coverage tooling
+
+The isolated developer-tool bootstrap also installs hash-locked Coverage.py
+7.17.2 for CPython 3.15 on Windows AMD64 and Linux x86_64. Its wheel identities
+and requirements live in `metadata/quality-tools.json` and
+`scripts/requirements-coverage-tools.txt`, under the shared dependency policy.
+It is optional test tooling, not an RNS8 library/runtime dependency. Installation,
+branch/subprocess tracing and collector qualification remain separate from
+source readiness. Do not enable coverage startup in performance jobs.

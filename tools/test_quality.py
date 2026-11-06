@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import copy
 import json
 import os
 from pathlib import Path
@@ -18,11 +19,36 @@ import zipfile
 from init_quality import archive_executable
 from quality import command_plan, selected_tools
 from quality_inventory import ROOT, SourceFile, batches, classify, inventory
-from quality_policy import load_quality_lock
+from quality_policy import _wheel_closure, load_quality_lock
 from quality_controls import run_controls
 
 
 class Quality(unittest.TestCase):
+    def test_shared_wheel_closure_rejects_missing_and_mutated_coverage_without_tools(self):
+        lock = json.loads((ROOT / "metadata/quality-tools.json").read_text())
+        policy = json.loads((ROOT / "metadata/dependencies.json").read_text())
+        components = {row["name"]: row for row in policy["components"]}
+        expected = dict(
+            key="coverage",
+            checker="coverage",
+            requirements="scripts/requirements-coverage-tools.txt",
+            names={"coverage"},
+        )
+        for edit in (
+            lambda d: d.pop("coverage"),
+            lambda d: d["coverage"].update(wheels=[]),
+            lambda d: d["coverage"]["wheels"][0].update(version="0.0.0"),
+            lambda d: d["coverage"]["wheels"][0]["artifacts"][0].update(platform=[]),
+            lambda d: d["coverage"]["wheels"][0]["artifacts"][0].update(sha256="bad"),
+            lambda d: d["coverage"]["wheels"][0]["artifacts"][0].update(
+                url="http://insecure.invalid/wheel"
+            ),
+        ):
+            changed = copy.deepcopy(lock)
+            edit(changed)
+            with self.assertRaises(ValueError):
+                _wheel_closure(ROOT, changed, components, **expected)
+
     def test_real_checker_control_protocol_is_fail_closed_without_executing_tools(self):
         markers = {
             "cpp-format": "clang-format-violations",
@@ -173,6 +199,7 @@ class Quality(unittest.TestCase):
                 "scripts/requirements-quality-tools.txt",
                 "scripts/requirements-type-tools.txt",
                 "scripts/requirements-analysis-tools.txt",
+                "scripts/requirements-coverage-tools.txt",
             ):
                 destination = root / name
                 destination.parent.mkdir(parents=True, exist_ok=True)

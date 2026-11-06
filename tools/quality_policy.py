@@ -23,6 +23,68 @@ def _check_requirements(root: Path, path: str, expected: dict[str, set[str]], la
         raise ValueError(label + " requirements differ from reviewed versions/hashes")
 
 
+def _wheel_closure(
+    root: Path,
+    lock: dict,
+    components: dict,
+    *,
+    key: str,
+    checker: str,
+    requirements: str,
+    names: set[str],
+) -> None:
+    closure = lock.get(key)
+    if (
+        not isinstance(closure, dict)
+        or closure.get("checker") != checker
+        or closure.get("requirements") != requirements
+        or not isinstance(closure.get("wheels"), list)
+    ):
+        raise ValueError("quality lock has no maintained " + key + " wheel closure")
+    seen, expected = set(), {}
+    for wheel in closure["wheels"]:
+        if not isinstance(wheel, dict):
+            raise ValueError("invalid " + key + " wheel identity")
+        name, version = wheel.get("name"), wheel.get("version")
+        component = components.get(name) if type(name) is str else None
+        selected = component.get("selected") if isinstance(component, dict) else None
+        if (
+            type(name) is not str
+            or name in seen
+            or name not in names
+            or type(version) is not str
+            or not isinstance(selected, dict)
+            or selected.get("version") != version
+        ):
+            raise ValueError(key + " wheel version differs from shared dependency policy")
+        seen.add(name)
+        artifacts = wheel.get("artifacts")
+        if (
+            not isinstance(artifacts, list)
+            or len(artifacts) != 2
+            or any(not isinstance(row, dict) for row in artifacts)
+            or any(type(row.get("platform")) is not str for row in artifacts)
+            or {row.get("platform") for row in artifacts} != {"windows-amd64", "linux-x86_64"}
+        ):
+            raise ValueError(key + " wheel platform inventory is incomplete")
+        for artifact in artifacts:
+            digest, url, filename = (artifact.get(field) for field in ("sha256", "url", "filename"))
+            if (
+                type(digest) is not str
+                or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or type(url) is not str
+                or not url.startswith("https://")
+                or type(filename) is not str
+                or Path(filename).name != filename
+                or not filename.endswith(".whl")
+            ):
+                raise ValueError(key + " wheel lacks immutable HTTPS identity")
+        expected[name + "==" + version] = {row["sha256"] for row in artifacts}
+    if seen != names:
+        raise ValueError("unexpected " + key + " dependency closure")
+    _check_requirements(root, requirements, expected, key)
+
+
 def load_quality_lock(root: Path, *, policy: dict | None = None) -> dict:
     if policy is None:
         policy = json.loads((root / "metadata/dependencies.json").read_text(encoding="utf-8"))
@@ -71,70 +133,38 @@ def load_quality_lock(root: Path, *, policy: dict | None = None) -> dict:
     if lock.get("requirements") != "scripts/requirements-quality-tools.txt":
         raise ValueError("unsupported quality requirements file")
     _check_requirements(root, lock["requirements"], expected, "quality")
-    typing = lock.get("type_checking")
-    if (
-        not isinstance(typing, dict)
-        or typing.get("checker") != "mypy"
-        or typing.get("requirements") != "scripts/requirements-type-tools.txt"
-    ):
-        raise ValueError("quality lock has no maintained Python type-checker closure")
-    expected = {}
-    names = set()
-    for wheel in typing["wheels"]:
-        name, version = wheel["name"], wheel["version"]
-        if name in names or components.get(name, {}).get("selected", {}).get("version") != version:
-            raise ValueError("type-tool version differs from shared dependency policy")
-        names.add(name)
-        if len(wheel["artifacts"]) != 2 or {row["platform"] for row in wheel["artifacts"]} != {
-            "windows-amd64",
-            "linux-x86_64",
-        }:
-            raise ValueError("type-tool wheel platform inventory is incomplete")
-        for artifact in wheel["artifacts"]:
-            if (
-                not re.fullmatch(r"[0-9a-f]{64}", artifact["sha256"])
-                or not artifact["url"].startswith("https://")
-                or not artifact["filename"].endswith(".whl")
-            ):
-                raise ValueError("type-tool wheel lacks immutable HTTPS identity")
-        expected[name + "==" + version] = {row["sha256"] for row in wheel["artifacts"]}
-    if names != {
-        "mypy",
-        "typing_extensions",
-        "mypy_extensions",
-        "pathspec",
-        "librt",
-        "ast-serialize",
-    }:
-        raise ValueError("unexpected type-checker dependency closure")
-    _check_requirements(root, typing["requirements"], expected, "type-tool")
-    analysis = lock.get("analysis")
-    if (
-        not isinstance(analysis, dict)
-        or analysis.get("checker") != "clang-tidy"
-        or analysis.get("requirements") != "scripts/requirements-analysis-tools.txt"
-    ):
-        raise ValueError("quality lock has no maintained native analyzer closure")
-    names, expected = set(), {}
-    for wheel in analysis["wheels"]:
-        name, version = wheel["name"], wheel["version"]
-        if name in names or components.get(name, {}).get("selected", {}).get("version") != version:
-            raise ValueError("analyzer-tool version differs from shared dependency policy")
-        names.add(name)
-        if len(wheel["artifacts"]) != 2 or {row["platform"] for row in wheel["artifacts"]} != {
-            "windows-amd64",
-            "linux-x86_64",
-        }:
-            raise ValueError("analyzer-tool platform inventory is incomplete")
-        for artifact in wheel["artifacts"]:
-            if (
-                not re.fullmatch(r"[0-9a-f]{64}", artifact["sha256"])
-                or not artifact["url"].startswith("https://")
-                or not artifact["filename"].endswith(".whl")
-            ):
-                raise ValueError("analyzer wheel lacks immutable HTTPS identity")
-        expected[name + "==" + version] = {row["sha256"] for row in wheel["artifacts"]}
-    if names != {"clang-tidy", "ruamel.yaml"}:
-        raise ValueError("unexpected analyzer dependency closure")
-    _check_requirements(root, analysis["requirements"], expected, "analyzer")
+    _wheel_closure(
+        root,
+        lock,
+        components,
+        key="type_checking",
+        checker="mypy",
+        requirements="scripts/requirements-type-tools.txt",
+        names={
+            "mypy",
+            "typing_extensions",
+            "mypy_extensions",
+            "pathspec",
+            "librt",
+            "ast-serialize",
+        },
+    )
+    _wheel_closure(
+        root,
+        lock,
+        components,
+        key="analysis",
+        checker="clang-tidy",
+        requirements="scripts/requirements-analysis-tools.txt",
+        names={"clang-tidy", "ruamel.yaml"},
+    )
+    _wheel_closure(
+        root,
+        lock,
+        components,
+        key="coverage",
+        checker="coverage",
+        requirements="scripts/requirements-coverage-tools.txt",
+        names={"coverage"},
+    )
     return lock

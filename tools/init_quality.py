@@ -99,6 +99,8 @@ def install(out: Path) -> Path:
             str(ROOT / lock["type_checking"]["requirements"]),
             "-r",
             str(ROOT / lock["analysis"]["requirements"]),
+            "-r",
+            str(ROOT / lock["coverage"]["requirements"]),
         ],
         cwd=ROOT,
         check=True,

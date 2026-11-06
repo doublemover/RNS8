@@ -34,6 +34,7 @@ class Policy(unittest.TestCase):
             "scripts/requirements-quality-tools.txt",
             "scripts/requirements-type-tools.txt",
             "scripts/requirements-analysis-tools.txt",
+            "scripts/requirements-coverage-tools.txt",
         ):
             target = self.root / filename
             target.parent.mkdir(parents=True, exist_ok=True)
