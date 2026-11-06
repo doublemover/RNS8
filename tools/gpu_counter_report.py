@@ -471,17 +471,13 @@ def load_counter_file(path: Path, top_limit: int) -> dict[str, Any]:
     }
 
 
-def load_isa_summary(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        raise RuntimeError(f"ISA summary does not exist: {path}")
-    data = load_evidence_json(path)
-    if not isinstance(data, dict):
-        raise RuntimeError(f"ISA summary must be a JSON object: {path}")
+def _isa_inventory_summary(path: Path, data: dict, sha256: str) -> dict[str, Any]:
     totals = data.get("instruction_totals")
     if not isinstance(totals, dict):
         totals = {}
     return {
-        "path": str(path),
+        "path": str(path.resolve()),
+        "sha256": sha256,
         "object": data.get("object"),
         "backend": data.get("backend"),
         "target": data.get("target"),
@@ -489,6 +485,21 @@ def load_isa_summary(path: Path) -> dict[str, Any]:
         "instruction_totals": totals,
         "linked_capture": data.get("capture"),
     }
+
+
+def _owned_isa_input(path: Path, store) -> tuple[Path, dict, dict]:
+    reference = dict(path=str(path.resolve()), sha256=file_digest(path))
+    resolved, data = store.json(reference, path.parent)
+    return resolved, data, _isa_inventory_summary(resolved, data, reference["sha256"])
+
+
+def load_isa_summary(path: Path) -> dict[str, Any]:
+    from target_qualification import EvidenceStore
+
+    store = EvidenceStore()
+    _, _, summary = _owned_isa_input(path, store)
+    store.finish()
+    return summary
 
 
 def report_for_capture(
@@ -507,11 +518,12 @@ def report_for_capture(
     )
     validate_capture(capture, capture_path)
     counter_reports = [load_counter_file(path, top_limit) for path in counter_paths]
-    isa_inventory = [load_isa_summary(path) for path in isa_paths]
-    from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
+    isa_inputs = [_owned_isa_input(path, store) for path in isa_paths]
+    isa_inventory = [summary for _, _, summary in isa_inputs]
+    from evidence_database_lib.isa import isa_index_from_reports, lookup_isa_resources
 
     association = lookup_isa_resources(
-        load_isa_index(isa_paths),
+        isa_index_from_reports((path, data) for path, data, _ in isa_inputs),
         capture.get("backend_selected"),
         (capture.get("device") or {}).get("gcn_arch"),
         capture,

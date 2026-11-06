@@ -7,6 +7,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+from collections.abc import Iterable
+from json_evidence import JsonValue, load_evidence_json
 
 from .config import BACKEND_ALIASES, ISA_COUNT_FIELDS, ISA_MAX_FIELDS
 from .io import discover_isa_report_paths, normalized_capture_path
@@ -76,10 +78,12 @@ def summarize_isa_report(path: Path, report: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
-def load_isa_index(paths: list[Path]) -> dict[str, list[dict[str, Any]]]:
+def isa_index_from_reports(
+    reports: Iterable[tuple[Path, JsonValue]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Index one caller-owned snapshot for inventory and selected association."""
     index: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for path in discover_isa_report_paths(paths):
-        report = json.loads(path.read_text(encoding="utf-8"))
+    for path, report in reports:
         if not isinstance(report, dict):
             continue
         backend = normalized_backend(report.get("backend"))
@@ -94,6 +98,12 @@ def load_isa_index(paths: list[Path]) -> dict[str, list[dict[str, Any]]]:
         key: sorted(value, key=lambda item: str(item.get("isa_report_path")))
         for key, value in index.items()
     }
+
+
+def load_isa_index(paths: list[Path]) -> dict[str, list[dict[str, Any]]]:
+    return isa_index_from_reports(
+        (path, load_evidence_json(path)) for path in discover_isa_report_paths(paths)
+    )
 
 
 def lookup_metadata(index: dict[str, dict[str, Any]], capture_path: str) -> dict[str, Any]:

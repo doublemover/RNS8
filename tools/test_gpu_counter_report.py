@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import csv
 import json
+import hashlib
+from unittest.mock import patch
 import tempfile
 from pathlib import Path
 
 import gpu_counter_report
+import evidence_database_lib.isa as isa_reader
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -137,6 +140,11 @@ def main() -> int:
         assert report["counter_inputs"][0]["numeric_metric_average"]["SQ_INSTS_VALU"] == 20.0
         assert report["counter_inputs"][1]["numeric_metric_average"]["LDS_BANK_CONFLICT"] == 3.0
         assert report["isa_summaries"][0]["instruction_totals"]["global_store"] == 4
+        assert report["isa_summaries"][0]["path"] == str(isa_summary.resolve())
+        assert (
+            report["isa_summaries"][0]["sha256"]
+            == hashlib.sha256(isa_summary.read_bytes()).hexdigest()
+        )
         assert report["counter_observation_metrics"]["TCP_TCC_WRITE_REQ"] == 4.0
         assert report["resource_summary"]["memory_pressure_signal"] is None
         assert report["resource_summary"]["global_store_instruction_count"] == 0
@@ -157,6 +165,40 @@ def main() -> int:
         assert report["evidence_status"]["isa_resource_status"] == "missing"
         assert not report["isa_selected_association"]["isa_association"]["qualified"]
         assert report["evidence_status"]["gpu_event_timing_status"] == "present"
+
+        original = isa_summary.read_bytes()
+        original_index = isa_reader.isa_index_from_reports
+        seen = []
+
+        def change_file_after_snapshot(inputs):
+            owned = list(inputs)
+            seen.append(owned[0][1]["instruction_totals"]["global_store"])
+            changed = json.loads(original)
+            changed["instruction_totals"]["global_store"] = 999
+            isa_summary.write_text(json.dumps(changed), encoding="utf-8")
+            return original_index(owned)
+
+        try:
+            with patch.object(
+                isa_reader, "isa_index_from_reports", side_effect=change_file_after_snapshot
+            ):
+                try:
+                    gpu_counter_report.report_for_capture(capture, [], [isa_summary], top_limit=3)
+                except ValueError as error:
+                    assert "changed during review" in str(error)
+                else:
+                    raise AssertionError("ISA drift must prevent counter-report publication")
+            assert seen == [4]
+        finally:
+            isa_summary.write_bytes(original)
+        duplicate_keys = root / "duplicate-isa-summary.json"
+        duplicate_keys.write_text('{"backend":"ck","backend":"hip-direct"}', encoding="utf-8")
+        try:
+            isa_reader.load_isa_index([duplicate_keys])
+        except ValueError as error:
+            assert "duplicate evidence JSON key" in str(error)
+        else:
+            raise AssertionError("ambiguous ISA identities must not be indexed")
 
         json_path = gpu_counter_report.write_json_report(report, out_dir, "self-test")
         md_path = gpu_counter_report.write_markdown_report(report, out_dir, "self-test")

@@ -168,6 +168,13 @@ For multiple captures use per-capture dispatch_receipts entries in the existing
 attachment manifest. Flat CSV/JSON attachments remain diagnostic inventory:
 matching execution/kernel labels alone cannot qualify resource or counter data.
 
+Counter-report ISA inventory and selected-symbol association share one parsed
+snapshot per input. Inventory entries retain absolute source paths and content
+hashes. The report's evidence owner verifies those files again before returning;
+ISA changes during review prevent publication. The shared ISA index reader also
+rejects duplicate JSON keys instead of accepting an ambiguous backend identity.
+These source/control additions have not run through the deferred validation batch.
+
 Native metrics preserve vendor name, description, unit, block, expression,
 value type, dispatch interval and XCC/SE/instance dimensions. A missing unit
 remains unknown; an observed zero stays zero. The report neither evaluates
