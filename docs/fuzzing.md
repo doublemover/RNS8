@@ -230,7 +230,27 @@ three shared-replay assertion cases. An unchanged baseline must pass before
 mutants execute in disposable copies; only the intended public-route assertion
 failure counts as detection. These new witnesses remain unexecuted.
 
-Implementation remains in progress under #101: broader reference-state lifecycle
-histories remain. The source-attributed PC-edge gate is authored but has not
-collected runtime observations. Native replay,
-minimizer, object inspection and discovery qualification are deferred.
+The descriptor corpus can carry an `R8H1` suffix, followed by1–32 operation
+bytes. The low nibble modulo12 selects repack A/B, ordinary GEMM, export,
+prepare/replace, prepared execution, refresh, rejected alias preparation,
+prepared destruction, retained-owner BUSY checks, diagnostic prepack-key
+queries or explicit unsupported CPU accelerator-cache creation. The high nibble
+modulo9 maps a replacement scalar into[-4,4]. All allocations are live owned
+1×1 CPU matrices. A separate state model tracks input generations, prepared
+bindings, old/current output and Boost integer values. Every transition checks
+the complete guarded export against that model. Stale rejection preserves token
+slots and old values; successful completions are queried twice; old instance
+tokens reject after replacement. Invalid cache roles preserve the inspected key;
+zero-source-version CPU keys never advertise an accelerator cache. This is a
+bounded CPU history model, with accelerator-cache reuse and asynchronous work
+covered by their maintained native backend/mock fixtures rather than invented
+CPU support. A named19-transition seed exercises the model from all six valid
+descriptor prefixes. The existing real production stale-generation mutant also
+targets this model's actual public calls.
+
+All #101 source infrastructure is authored. The source-attributed PC-edge gate,
+lifecycle/mutation controls, native replay, minimizer, object inspection and
+discovery remain unexecuted and unqualified. Required PR activation follows the
+deferred CPU sensitivity/cost validation; GPU backend/target parity remains
+separate actual-device qualification. No test score, GPU support or performance
+gain follows from source registration alone.

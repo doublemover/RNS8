@@ -43,7 +43,7 @@ Copied trees remain unknown/dirty for general target provenance, and these
 correctness-only receipts are explicitly non-promotable. They cannot become
 production performance or source-checkout qualification evidence.
 
-Complete discovery and an exact eight-case CTest selection are retained. A filter
+Complete discovery and an exact nine-case CTest selection are retained. A filter
 mismatch stops **before** execution. The baseline must pass every selected case;
 the publication seed requires both the reserved publication assertion and the
 real public CPU concurrency route to fail as expected. A mutant only counts as

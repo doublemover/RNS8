@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <vector>
 #include "rns8/rns8.h"
+#include "lifecycle_case.hpp"
 
 namespace {
 void check(rns8_status actual, rns8_status expected, const char* phase) {
@@ -153,6 +154,8 @@ void fuzz(const uint8_t* data, std::size_t size) {
   check(rns8_destroy_workspace(workspace), RNS8_SUCCESS, "destroy workspace");
   check(rns8_destroy_plan(plan), RNS8_SUCCESS, "destroy plan");
   check(rns8_destroy_context(context), RNS8_SUCCESS, "destroy context");
+  if (input.position < size)
+    rns8_fuzz::history_support::replay(data + input.position, size - input.position);
 }
 } // namespace
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) {

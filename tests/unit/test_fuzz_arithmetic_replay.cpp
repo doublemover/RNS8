@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "../fuzz/arithmetic_replay.hpp"
+#include "../fuzz/lifecycle_case.hpp"
 
 namespace {
 using namespace rns8_fuzz;
@@ -16,6 +17,27 @@ struct FailureScope {
   ~FailureScope() { failure_handler = old; }
 };
 } // namespace
+TEST_CASE("native history models prepared generations publication and retained ownership",
+          "[fuzz][history][cpu]") {
+  FailureScope failures;
+  const uint8_t history[] = {'R', '8', 'H', '1', 3, 4, 9,  0,  5, 3,  6, 5,
+                             3,   7,   8,   4,   5, 3, 10, 11, 1, 10, 11};
+  rns8_fuzz::history_support::Observation observed;
+  REQUIRE_NOTHROW(observed = rns8_fuzz::history_support::replay(history, sizeof(history)));
+  CHECK(observed.transitions == 19);
+  CHECK(observed.stale_rejections == 1);
+  CHECK(observed.successful_executions == 2);
+  CHECK(observed.busy_checks == 1);
+  CHECK(observed.cache_queries == 2);
+  CHECK(observed.unsupported_caches == 2);
+  const uint8_t invalid[] = {'R', '8', 'H', '2', 5};
+  CHECK(rns8_fuzz::history_support::replay(invalid, sizeof(invalid)).transitions == 0);
+  CHECK_FALSE(rns8_fuzz::history_support::admitted(nullptr, 5));
+  CHECK_FALSE(rns8_fuzz::history_support::admitted(history, 4));
+  std::array<uint8_t, 37> oversized{};
+  std::copy_n(history, 4, oversized.begin());
+  CHECK_FALSE(rns8_fuzz::history_support::admitted(oversized.data(), oversized.size()));
+}
 TEST_CASE("native corpus detects production signed result mutations", "[fuzz][replay][mutation]") {
   FailureScope failures;
   ArithmeticCase value;

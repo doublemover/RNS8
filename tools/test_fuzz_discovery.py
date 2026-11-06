@@ -194,6 +194,12 @@ class FuzzDiscoveryControls(unittest.TestCase):
         self.assertEqual(len(descriptors["semantic-0-invalid-14"]), 14)
         self.assertEqual(len(descriptors["semantic-2-invalid-14"]), 6)
         self.assertEqual(len(descriptors["semantic-4-invalid-14"]), 5)
+        for semantic in range(6):
+            raw = descriptors[f"history-semantic-{semantic}"]
+            self.assertEqual(raw[-23:-19], b"R8H1")
+            self.assertEqual(
+                list(raw[-19:]), [3, 4, 9, 0, 5, 3, 6, 5, 3, 7, 8, 4, 5, 3, 10, 11, 1, 10, 11]
+            )
 
     def test_session_preserves_interruption_when_receipt_write_fails(self):
         with tempfile.TemporaryDirectory() as temporary:

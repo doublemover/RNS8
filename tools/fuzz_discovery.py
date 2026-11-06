@@ -55,6 +55,19 @@ def corpus_inputs():
         for semantic in range(6)
         for invalid in range(15)
     ]
+    # Valid descriptor prefix followed by the explicit bounded R8H1 history.
+    # Keep the original descriptor-only seeds as independent regression inputs.
+    history = b"R8H1" + bytes([3, 4, 9, 0, 5, 3, 6, 5, 3, 7, 8, 4, 5, 3, 10, 11, 1, 10, 11])
+    descriptors.extend(
+        (
+            f"history-semantic-{semantic}",
+            bytes([semantic, 0, 0, 0])
+            + (bytes(9) if semantic < 2 else bytes(1) if semantic == 2 else b"")
+            + bytes([0])
+            + history,
+        )
+        for semantic in range(6)
+    )
     metadata = [
         ("empty-object", b"{}"),
         ("object", b'{"schema":"unknown","m":1,"n":1,"k":1}'),
