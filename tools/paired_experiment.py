@@ -254,6 +254,9 @@ class VerifiedPairedExperiment:
     def arm(self, capture: dict) -> str | None:
         if capture is None:
             return None
+        arm = self.membership.get(capture_identity(capture))
+        if arm is None:
+            return None
         records = evidence(capture).get("observations", [])
         identities = (
             [record["capture_sha256"] for record in records]
@@ -261,7 +264,7 @@ class VerifiedPairedExperiment:
             else [capture_identity(capture)]
         )
         arms = {self.membership.get(identity) for identity in identities}
-        return next(iter(arms)) if len(arms) == 1 and None not in arms else None
+        return arm if arms == {arm} else None
 
     def environment(self, capture: dict, identity: dict) -> dict:
         if self.arm(capture) is None:

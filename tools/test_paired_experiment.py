@@ -137,6 +137,15 @@ class PairedExperimentTests(unittest.TestCase):
         fact = cohorts.compare(after, before, ordinary)
         self.assertFalse(fact["qualified"])
         self.assertIn("comparison_environment_mismatch", fact["blockers"])
+        # Retained observation hashes cannot authorize a changed representative.
+        changed = copy.deepcopy(after)
+        changed["build_manifest"]["source_commit"] = "e" * 40
+        self.assertIsNone(experiment.arm(changed))
+        paired = ComparisonPolicy("paired", require_cpu_anchor=False, paired_experiment=experiment)
+        self.assertIn(
+            "paired_experiment_arm_membership_mismatch",
+            cohorts.compare(changed, before, paired)["blockers"],
+        )
         owner.finish()
 
     def test_small_improvement_does_not_become_beneficial(self):
