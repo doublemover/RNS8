@@ -1,9 +1,21 @@
-"""Compiler-affecting environment shared by native build/analysis receipts."""
+"""Compiler invocation and environment shared by native build/analysis receipts."""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from collections.abc import Mapping
+
+
+def invocation_path(path: Path) -> Path:
+    # argv[0] selects clang++ driver behavior and Python virtualenv discovery.
+    # Hash the resolved artifact separately; preserve the invocation name here.
+    path = Path(os.path.abspath(path))
+    if not path.is_file():
+        raise ValueError("regular tool/input invocation required")
+    path.resolve(strict=True)
+    return path
+
 
 COMPILER_ENVIRONMENT = frozenset(
     (

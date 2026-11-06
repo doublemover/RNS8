@@ -15,7 +15,7 @@ import sys
 from analysis_inputs import cache_values, load_inputs, target_artifacts
 from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest, validate_document
-from compiler_context import compiler_environment
+from compiler_context import compiler_environment, invocation_path
 from execution_inventory import bounded_read, discovery, reconcile
 from host_instrumentation_contract import (
     detector_result,
@@ -84,16 +84,6 @@ def reference(path: Path) -> dict:
     if not path.is_file():
         raise ValueError("regular artifact required: " + str(path))
     return dict(path=str(path), sha256=file_digest(path), bytes=path.stat().st_size)
-
-
-def invocation_path(path: Path) -> Path:
-    # argv[0] selects clang++ driver behavior and Python virtualenv discovery.
-    # Resolve artifact references for hashing, but preserve this invocation name.
-    path = Path(os.path.abspath(path))
-    if not path.is_file():
-        raise ValueError("regular tool/input invocation required")
-    path.resolve(strict=True)
-    return path
 
 
 def child_environment(environment: dict[str, str], symbolizer: Path, lane: str) -> dict[str, str]:

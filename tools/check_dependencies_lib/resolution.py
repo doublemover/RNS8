@@ -18,6 +18,7 @@ import re
 import shutil
 import sys
 from typing import Mapping
+from compiler_context import invocation_path
 
 SCHEMA = "rns8_dependency_resolution_v1"
 NATIVE_PACKAGE_POLICY = (
@@ -1097,15 +1098,26 @@ def resolve(
         python_identity = None
     for name in ("cmake", "ninja", "git", "python", "host_cxx"):
         override = request.overrides.get("CMAKE_CXX_COMPILER") if name == "host_cxx" else None
+        origin = "override:CMAKE_CXX_COMPILER"
+        if name == "host_cxx" and not override and env.get("CXX"):
+            override = env["CXX"]
+            origin = "environment:CXX"
         if override:
+            executable = (
+                override[1:-1]
+                if len(override) >= 2 and override[0] == override[-1] == '"'
+                else override
+            )
             path = (
-                canonical(override)
-                if Path(override).is_file()
-                else shutil.which(override, path=env.get("PATH", ""))
+                os.path.abspath(executable)
+                if Path(executable).is_file()
+                else shutil.which(executable, path=env.get("PATH", ""))
             )
             if not path:
                 errors.append(
-                    "explicit CMAKE_CXX_COMPILER does not identify an executable: " + override
+                    origin
+                    + " does not identify one executable (supply compiler flags separately): "
+                    + override
                 )
         elif name == "python":
             path = python_identity["path"] if python_identity else None
@@ -1119,12 +1131,12 @@ def resolve(
                 path=env.get("PATH", ""),
             )
         tools[name] = {
-            "path": canonical(path) if path else None,
-            "origin": "override:CMAKE_CXX_COMPILER"
-            if override
-            else "running_interpreter"
-            if name == "python"
-            else "PATH",
+            "path": str(invocation_path(Path(path)))
+            if path and name == "host_cxx"
+            else canonical(path)
+            if path
+            else None,
+            "origin": origin if override else "running_interpreter" if name == "python" else "PATH",
             "version": None,
             "status": "discovered" if path else "missing",
             "compatibility": "not_run",

@@ -805,6 +805,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME accelerator_target_probe_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_accelerator_target_probes.py")
   set_tests_properties(accelerator_target_probe_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
+  add_test(NAME bootstrap_native_contract_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bootstrap_native_contract.py")
+  set_tests_properties(bootstrap_native_contract_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
 
   add_test(
     NAME release_tree_self_test

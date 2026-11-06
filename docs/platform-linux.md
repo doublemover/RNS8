@@ -68,6 +68,33 @@ AMD compiler used for HIP kernels.
 
 ## Radeon build and first execution
 
+Optional source accelerators use the existing bootstrap with native Linux host
+checks. Select a real compiler/SDK and reviewed target first:
+
+```sh
+python3 tools/bootstrap_rocm_accelerators.py --dry-run --init --probe --target gfx1100 --json
+python3 tools/bootstrap_rocm_accelerators.py --init --probe --target gfx1100 --json
+```
+
+The second command explicitly updates clean pinned repository submodules and
+runs dependency probes; it does not install distribution packages or drivers.
+Dirty/foreign source destinations are preserved. These Linux commands and the
+new native bootstrap branch await platform qualification.
+
+For optional exact references, Ubuntu-family development packages can be
+installed explicitly:
+
+```sh
+sudo apt install libgmp-dev libmpfr-dev libflint-dev
+python3 tools/check_dependencies.py --reference-probes --json
+```
+
+Use the distribution's equivalent native packages or `CMAKE_PREFIX_PATH` and
+`RNS8_GMP_ROOT`/`RNS8_FLINT_ROOT`/`RNS8_MPFR_ROOT` for a custom install. Check
+versions against the selected dependency policy. These optional libraries are
+enabled only with `RNS8_ENABLE_GMP`/`RNS8_ENABLE_FLINT`; discovery and successful
+link probes do not enable them or execute the arithmetic smoke.
+
 Choose the actual ROCm root and one target supported by that compiler/device.
 For an RX 7900 XTX, the target is `gfx1100`:
 

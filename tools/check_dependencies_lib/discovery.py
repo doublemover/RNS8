@@ -95,6 +95,7 @@ def git_text(args: list[str], cwd: Path | None = None) -> tuple[int, str]:
             text=True,
             timeout=20,
             check=False,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
         )
         return completed.returncode, completed.stdout.strip()
     except (OSError, subprocess.TimeoutExpired) as exc:

@@ -520,6 +520,41 @@ class Discovery(unittest.TestCase):
         self.assertEqual(selected["revision"], "a" * 40)
         self.assertIsNone(selected["version"])
 
+    def test_host_compiler_environment_is_authoritative_and_keeps_driver_name(self):
+        chosen = self.put(self.base, "host compiler with spaces/clang++")
+        report = self.resolve(self.request("Linux"), {**self.environment, "CXX": str(chosen)})
+        self.assert_clean(report)
+        self.assertEqual(report["tools"]["host_cxx"]["path"], str(chosen))
+        self.assertEqual(report["tools"]["host_cxx"]["origin"], "environment:CXX")
+        quoted = self.resolve(
+            self.request("Linux"), {**self.environment, "CXX": '"' + str(chosen) + '"'}
+        )
+        self.assert_clean(quoted)
+        self.assertEqual(quoted["tools"]["host_cxx"]["path"], str(chosen))
+        invalid = {**self.environment, "CXX": str(self.base / "missing compiler")}
+        self.assertTrue(self.resolve(self.request("Linux"), invalid)["errors"])
+        explicit = self.resolve(self.request("Linux", {"CMAKE_CXX_COMPILER": str(chosen)}), invalid)
+        self.assert_clean(explicit)
+        self.assertEqual(explicit["tools"]["host_cxx"]["origin"], "override:CMAKE_CXX_COMPILER")
+        self.assertTrue(
+            self.resolve(
+                self.request("Linux"), {**self.environment, "CXX": str(chosen) + " -stdlib=libc++"}
+            )["errors"]
+        )
+
+    @unittest.skipUnless(os.name == "posix", "native Unix compiler driver symlink control")
+    def test_host_compiler_symlink_is_not_replaced_with_the_c_driver(self):
+        binary = self.put(self.base, "compiler/clang")
+        driver = binary.with_name("clang++")
+        driver.symlink_to(binary)
+        for overrides, environment in (
+            ({"CMAKE_CXX_COMPILER": str(driver)}, self.environment),
+            ({}, {**self.environment, "CXX": str(driver)}),
+        ):
+            report = self.resolve(self.request("Linux", overrides), environment)
+            self.assert_clean(report)
+            self.assertEqual(report["tools"]["host_cxx"]["path"], str(driver))
+
     def test_effective_identity_stable_after_cache_materialization_and_changes_with_evidence(self):
         sdk, vcpkg = self.sdk(), self.vcpkg()
         request = self.request(

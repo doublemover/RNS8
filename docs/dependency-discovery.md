@@ -367,6 +367,43 @@ recorder controls are source-authored and await the final validation batch.
 
 ## Installation and remaining gates
 
+The existing submodule bootstrap now uses native host checks: MSVC developer
+discovery on Windows, and the selected native C++ compiler on Linux. It does not
+run `where cl` or require Visual Studio on Linux. A different or absent local
+GPU is diagnostic information, not a toolchain rejection; compilation targets
+come from the explicit request. All bootstrap compile steps keep the same shared
+SDK selection and selected HIP child environment. These changes are source-ready;
+native Windows/Linux installation and target compatibility remain unqualified.
+
+Initialization reuses a clean checkout already at the reviewed pin. It preserves
+dirty/untracked, uninspectable, foreign-URL, nonempty foreign or linked dependency
+destinations and reports why it did not initialize them. Updates never use
+`--force`; a failed attempt retains the existing files and a newly initialized
+checkout must be clean at the reviewed SHA/URL. Read-only Git inventory disables
+optional index locking/refresh writes. The write-free dry run still makes no
+installation, compiler or device probe.
+
+Host selection honors `CMAKE_CXX_COMPILER` before `CXX`, then native PATH. A
+compiler choice must identify one executable; put flags in separate CMake/compiler
+flag inputs. A quoted single path with spaces is accepted. Invalid explicit
+choices fail without PATH fallback. Preserve driver invocation names such as
+`clang++` and virtual-environment interpreter paths; resolved artifacts are hashed
+separately. The shared invocation helper also serves host instrumentation.
+
+| Dependency | Windows setup decision | Native Linux setup decision | Compatibility boundary |
+|---|---|---|---|
+| CK / rocWMMA | Explicit pinned submodule initialization | Same pinned source workflow with native compiler | Per-target primitives, followed by real configured build; no automatic backend enablement |
+| hipBLASLt | Reuse supported AMD SDK/component package; otherwise manual upstream setup | Reuse release-matched native ROCm package or custom installed prefix | Complete exported target and actual API/link checks; unsupported OS/release/target combinations stay unsupported |
+| AMDGPU builtins | Reuse selected HIP compiler; SDK provisioning is a separate explicit action | Reuse selected ROCm/HIP compiler; driver/system installation is manual | Production body object checks; no independently installable builtin library |
+| GMP / FLINT / MPFR | Explicit vcpkg optional feature or manual native prefix, including supported PThreads4W interface | Explicit distribution development packages or manual upstream native prefix; no Windows-vcpkg reuse | Shared production compile/link probe, then separately requested runtime smoke |
+
+The platform setup commands live in [Windows](platform-windows.md) and
+[Linux](platform-linux.md); the [dependency guide](../third_party/README.md) owns
+pins. Automatic source builds of custom hipBLASLt/GMP/FLINT configurations are
+not offered: compiler/CRT/thread/BLAS options and platform packaging require an
+operator-selected supported build. Manual setup is an explicit supported policy
+choice here, not an implicit install or an unobserved platform pass.
+
 The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`.
 Install declared packages explicitly using the existing
 [dependency guide](../third_party/README.md) command. An old cache or deliberately
