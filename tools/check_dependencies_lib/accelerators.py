@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import platform
 import re
+import secrets
+import sys
 from pathlib import Path
 
 
@@ -27,7 +30,11 @@ from check_dependencies_lib.discovery import (
 )
 from check_dependencies_lib.resolution import (
     ACTIVE_RESOLUTION,
+    compiler_environment as selected_hip_environment,
 )
+from compiler_context import compiler_environment
+from process_progress import capture_succeeded, run_capture
+from .probe_artifacts import snapshot, write
 from check_dependencies_lib.system import (
     compact_output,
     find_command,
@@ -365,6 +372,8 @@ def include_roots_for_component(
     header = component.get("header")
     include_root = include_root_for_header(header if isinstance(header, str) else None)
     roots: list[str] = []
+    if name == "amdgpu_builtins":
+        return [str(repo_root() / "src")]
     if name == "ck":
         source_root = (
             Path(include_root).parent if include_root else repo_local_accelerator_roots("ck")[0]
@@ -503,6 +512,37 @@ def compile_accelerator_primitive_probe(
             "no matrix-engine primitive dependency probe is defined for this accelerator",
             False,
         )
+    try:
+        base = _target_base(offload_target)
+    except ValueError as error:
+        return primitive_probe_not_run_fields(
+            name, root, "NOT_RUN_UNSUPPORTED_TARGET", str(error), True
+        )
+    supported = (
+        {"gfx942", "gfx1100", "gfx1101", "gfx1102", "gfx1200", "gfx1201"}
+        if name == "amdgpu_builtins"
+        else {
+            "gfx908",
+            "gfx90a",
+            "gfx940",
+            "gfx941",
+            "gfx942",
+            "gfx950",
+            "gfx1100",
+            "gfx1101",
+            "gfx1102",
+            "gfx1200",
+            "gfx1201",
+        }
+    )
+    if base not in supported:
+        return primitive_probe_not_run_fields(
+            name,
+            root,
+            "NOT_RUN_UNSUPPORTED_TARGET",
+            "No admitted " + name + " primitive body for " + str(offload_target),
+            True,
+        )
     header = component.get("header")
     if not isinstance(header, str) or not header:
         return primitive_probe_not_run_fields(
@@ -521,6 +561,8 @@ def compile_accelerator_primitive_probe(
             True,
         )
 
+    root = root.resolve() / ("primitive-" + name + "-" + secrets.token_hex(12))
+    root.mkdir(parents=True, exist_ok=False)
     source = primitive_probe_source_path(root, name)
     obj = primitive_probe_object_path(root, name)
     source.write_text(ACCELERATOR_PRIMITIVE_PROBE_SOURCES[name], encoding="utf-8")
@@ -543,8 +585,53 @@ def compile_accelerator_primitive_probe(
             "MSVC developer environment could not be discovered automatically",
             True,
         )
-    code, output = run(actual_command, timeout=180, logical_command=command)
-    ok = code == 0
+    environment = dict(os.environ)
+    active = ACTIVE_RESOLUTION.get()
+    if active:
+        environment.update(selected_hip_environment(active))
+    invocation = (
+        command
+        if isinstance(actual_command, list)
+        else [sys.executable, str(repo_root() / "tools/windows_dev.py"), *command]
+    )
+    inputs = {
+        "source": snapshot(source),
+        "compiler_driver": snapshot(Path(hipcc)),
+        "component_header": snapshot(Path(header)),
+    }
+    if name == "amdgpu_builtins":
+        inputs["production_builtin_source"] = snapshot(
+            repo_root() / "src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip"
+        )
+        inputs["target_body_contract"] = snapshot(
+            repo_root() / "src/backend_common/matrix_target.hpp"
+        )
+    process = run_capture(
+        invocation,
+        cwd=repo_root(),
+        label="primitive-probe:" + name + ":" + str(offload_target),
+        env=environment,
+        timeout_seconds=180,
+        max_output_bytes=8 * 1024**2,
+        artifact_roots=(root,),
+        max_artifact_bytes=256 * 1024**2,
+        return_on_interrupt=True,
+    )
+    receipt = write(root / "process.json", process)
+    if process.get("interrupted"):
+        raise InterruptedError("primitive probe interrupted; remaining targets will not run")
+    output = process["stdout"] + process["stderr"]
+    code = process.get("returncode")
+    ok = capture_succeeded(process)
+    artifact = None
+    try:
+        if ok:
+            artifact = snapshot(obj)
+            ok = artifact["bytes"] > 0 and all(
+                value == snapshot(Path(value["path"])) for value in inputs.values()
+            )
+    except (OSError, ValueError):
+        ok = False
     return {
         "primitive_probe_requested": True,
         "primitive_probe_status": "OBJECT_COMPILE_PASS" if ok else "OBJECT_COMPILE_FAIL",
@@ -555,6 +642,10 @@ def compile_accelerator_primitive_probe(
         "primitive_wrapped_command": wrapped_command,
         "primitive_exit_code": code,
         "primitive_output": compact_output(output),
+        "primitive_process_receipt": receipt,
+        "primitive_object_receipt": artifact,
+        "primitive_input_bookends": inputs,
+        "primitive_compiler_environment": compiler_environment(environment),
         "primitive_detail": (
             "object-only int8 matrix-engine primitive probe compiled for the requested target; "
             "this is dependency evidence only, not runtime execution or correctness validation"
@@ -564,13 +655,97 @@ def compile_accelerator_primitive_probe(
     }
 
 
+def _target_base(target: str | None) -> str:
+    if (
+        not isinstance(target, str)
+        or len(target) > 128
+        or not re.fullmatch(r"gfx[0-9a-f]+(?::(?:xnack|sramecc)[+-])*", target)
+    ):
+        raise ValueError("An explicit well-formed AMDGPU target is required for primitive probing")
+    base, *features = target.split(":")
+    if len({feature[:-1] for feature in features}) != len(features):
+        raise ValueError("Duplicate AMDGPU target feature: " + target)
+    return base
+
+
+def requested_probe_targets(offload_target: str | None) -> tuple[str, ...]:
+    active = ACTIVE_RESOLUTION.get()
+    value = active["request"]["overrides"].get("RNS8_AMDGPU_TARGETS") if active else None
+    if value is None:
+        value = active.get("effective_identity", {}).get("targets") if active else None
+    if value is None:
+        value = offload_target
+    if not isinstance(value, str) or len(value) > 2048:
+        raise ValueError("Select AMDGPU probe targets with --set RNS8_AMDGPU_TARGETS=...")
+    targets = tuple(dict.fromkeys(value.split(";")))
+    if not 1 <= len(targets) <= 16:
+        raise ValueError("Primitive probing requires 1..16 distinct targets")
+    for target in targets:
+        _target_base(target)
+    return targets
+
+
+def compile_accelerator_target_probes(
+    name: str, component: dict, root: Path, targets: tuple[str, ...], hipcc: str | None
+) -> dict:
+    if name not in ACCELERATOR_PRIMITIVE_PROBE_SOURCES:
+        return primitive_probe_not_run_fields(
+            name, root, "NOT_APPLICABLE", "No matrix primitive probe for this component", False
+        )
+    if not targets:
+        return primitive_probe_not_run_fields(
+            name, root, "NOT_RUN_UNSUPPORTED_TARGET", "No selected target", True
+        )
+    # Keep independent per-target compile evidence, but reject a package whose
+    # targets need different global host lowerings before reporting readiness.
+    families = {64 if _target_base(target).startswith("gfx9") else 32 for target in targets}
+    compatible = name == "amdgpu_builtins" or len(families) == 1
+    run = root / (name + "-targets-" + secrets.token_hex(12))
+    rows = []
+    for target in targets:
+        directory = run / hashlib.sha256(target.encode()).hexdigest()
+        try:
+            row = compile_accelerator_primitive_probe(name, component, directory, target, hipcc)
+        except (OSError, ValueError) as error:
+            row = primitive_probe_not_run_fields(name, directory, "PROBE_ERROR", str(error), True)
+        rows.append({"target": target, **row})
+    ok = compatible and all(row.get("primitive_probe_ok") is True for row in rows)
+    # Scalar fields describe one target only. Multi-target callers must inspect
+    # the complete denominator instead of attributing one object's pass to all.
+    result = (
+        dict(rows[0])
+        if len(rows) == 1
+        else primitive_probe_not_run_fields(
+            name, root, "NOT_RUN", "Inspect primitive_target_probes", True
+        )
+    )
+    failures = {row["primitive_probe_status"] for row in rows if not row.get("primitive_probe_ok")}
+    failed_status = next(iter(failures)) if len(failures) == 1 else "OBJECT_COMPILE_FAIL"
+    result.update(
+        primitive_probe_requested=True,
+        primitive_probe_status="OBJECT_COMPILE_PASS"
+        if ok
+        else "INCOMPATIBLE_HOST_TARGET_SET"
+        if not compatible
+        else failed_status,
+        primitive_probe_ok=ok,
+        primitive_target_probes=rows,
+        primitive_targets=list(targets),
+        package_host_lowering_compatible=compatible,
+        primitive_detail="Object-only production primitive signatures for every selected target; no runtime, differential, ISA or performance qualification",
+    )
+    return result
+
+
 def accelerator_compile_probes(
     accelerators: dict[str, dict[str, object]],
     requested: bool,
     probe_dir: Path | None,
     offload_target: str | None,
 ) -> dict[str, object]:
-    root = probe_dir or (repo_root() / "temp" / "accelerator-deps" / "check-dependencies")
+    root = (
+        probe_dir or (repo_root() / "temp" / "accelerator-deps" / "check-dependencies")
+    ).resolve()
     items: dict[str, dict[str, object]] = {}
     if not requested:
         for name in ACCELERATOR_NAMES:
@@ -590,18 +765,38 @@ def accelerator_compile_probes(
             "items": items,
         }
 
+    try:
+        targets = requested_probe_targets(offload_target)
+    except ValueError as error:
+        return {
+            "requested": True,
+            "probe_root": str(root),
+            "items": {
+                name: not_run_probe(name, root, "NOT_RUN_INVALID_TARGETS", str(error), True)
+                for name in ACCELERATOR_NAMES
+            },
+            "policy": "Invalid target selection; no probe ran and no feature was enabled",
+            "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+            "candidate_evidence_is_correctness_validation": False,
+        }
     hipcc = find_command("hipcc")
     root.mkdir(parents=True, exist_ok=True)
     for name in ACCELERATOR_NAMES:
         component = accelerators.get(name, {})
         if name == "amdgpu_builtins":
-            items[name] = not_run_probe(
-                name,
-                root,
-                "NOT_RUN_IN_REPO_BUILD_TEST_REQUIRED",
-                "AMDGPU builtin correctness is validated by RNS8_ENABLE_AMDGPU_BUILTINS builds and exact tests, not a shallow dependency probe",
-                False,
-            )
+            primitive = compile_accelerator_target_probes(name, component, root, targets, hipcc)
+            items[name] = {
+                **not_run_probe(
+                    name,
+                    root,
+                    primitive["primitive_probe_status"],
+                    "Production builtin body object probes only; runtime and exact differentials not run",
+                    True,
+                ),
+                **primitive,
+                "compiled_probe_ok": primitive["primitive_probe_ok"],
+                "can_enable_correctness_backend": False,
+            }
             continue
         header = component.get("header") if isinstance(component, dict) else None
         library = component.get("library") if isinstance(component, dict) else None
@@ -641,8 +836,8 @@ def accelerator_compile_probes(
                 )
                 continue
             command = [hipcc, "-std=c++17"]
-            if offload_target:
-                command.append(f"--offload-arch={offload_target}")
+            for target in targets:
+                command.append(f"--offload-arch={target}")
             command.append(str(source))
             for include_root in include_roots:
                 command.extend(["-I", include_root])
@@ -687,14 +882,17 @@ def accelerator_compile_probes(
             status = "COMPILE_LINK_PASS_RUN_PASS"
         else:
             status = "COMPILE_LINK_PASS_RUN_FAIL"
-        primitive_probe = compile_accelerator_primitive_probe(
-            name, component, root, offload_target, hipcc
-        )
+        primitive_probe = compile_accelerator_target_probes(name, component, root, targets, hipcc)
         items[name] = {
             "probe_requested": True,
             "requested": True,
             "status": status,
-            "ok": compiled and runtime_ok,
+            "ok": compiled
+            and runtime_ok
+            and (
+                name not in ACCELERATOR_PRIMITIVE_PROBE_SOURCES
+                or primitive_probe["primitive_probe_ok"]
+            ),
             "compiled_probe_ok": compiled,
             "runtime_probe_ok": runtime_ok,
             "device_capability_ok": False,
@@ -723,7 +921,11 @@ def accelerator_compile_probes(
             "can_enable_correctness_backend": name
             in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
             and compiled
-            and runtime_ok,
+            and runtime_ok
+            and (
+                name not in ACCELERATOR_PRIMITIVE_PROBE_SOURCES
+                or primitive_probe["primitive_probe_ok"]
+            ),
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
             "readiness_effect": "none",

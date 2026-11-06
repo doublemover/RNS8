@@ -229,6 +229,10 @@ def print_human(report: dict[str, object]) -> None:
         print(
             f"  primitive: {item.get('primitive_probe_status')} ok={item.get('primitive_probe_ok')}"
         )
+        for target in item.get("primitive_target_probes", []):
+            print(f"    {target['target']}: {target['primitive_probe_status']}")
+            if target.get("primitive_process_receipt"):
+                print(f"      process log: {target['primitive_process_receipt']['path']}")
         print(f"  backend enablement: {item.get('backend_enablement')}")
         print(f"  enable flag: {item.get('enable_flag')} ({item.get('enable_policy')})")
         print(f"  evidence class: {item.get('evidence_class')}")

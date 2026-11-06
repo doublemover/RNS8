@@ -141,6 +141,12 @@ def accelerator_gate(
         status = "PRIMITIVE_PROBE_PASS"
     elif primitive_probe_status == "OBJECT_COMPILE_FAIL":
         status = "PRIMITIVE_PROBE_FAIL"
+    elif (
+        isinstance(probe, dict)
+        and probe.get("primitive_probe_requested")
+        and not probe.get("primitive_probe_ok")
+    ):
+        status = "PRIMITIVE_PROBE_BLOCKED"
     elif probe_status == "COMPILE_LINK_PASS_RUN_PASS":
         status = "PROBE_PASS"
     elif probe_status == "COMPILE_LINK_PASS_RUN_FAIL":

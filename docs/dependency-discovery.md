@@ -403,8 +403,30 @@ CK and rocWMMA share the finite target/feature validator, including duplicate
 `xnack`/`sramecc` rejection. A listed target still needs the selected compiler
 and dependency to support it; a compiler pass provides no runtime or ISA credit.
 The configure command-recorder and target-contract regressions are authored,
-not executed in this frontload phase. Broader doctor builtin/all-target probe
-integration and native platform qualification remain outstanding.
+not executed in this frontload phase. Native platform qualification remains
+outstanding.
+
+Doctor `--accelerator-probes` now uses the shared selected target list, with an
+explicit `--set RNS8_AMDGPU_TARGETS=...` taking precedence over observed hardware.
+Every distinct CK/rocWMMA/builtin target gets its own fresh primitive object and
+bounded process receipt; aggregate success requires the complete denominator.
+Mixed CK/rocWMMA host lowerings cannot become package readiness. Malformed or
+duplicate feature flags, unsupported bodies, missing compilers and actual compile
+failures retain different states. Object probes have per-target 180-second,
+8MiB output and 256MiB artifact budgets. An interruption stops remaining targets.
+Native Windows wrapping carries the selected HIP environment explicitly.
+
+Builtin probes compile the production kernel translation unit, including its
+target-specific dense and sparse signatures, with a device-pass guard rejecting
+empty specializations. Current builtin bodies are gfx942, gfx1100/1101/1102 and
+gfx1200/1201; other families remain unsupported here even if the SDK accepts
+their target names. This is an object-only basic C++17/O2 compatibility probe,
+not a replacement for the real configured production build/options, exact CPU
+differentials, ISA inspection or runtime hardware qualification. Source/driver/
+selected-header bookends and complete bounded process logs are retained;
+complete transitive compilation provenance still belongs to the build manifest.
+No backend is installed, enabled or promoted by these probes. The inert recorder
+controls and all native probes remain unexecuted in this frontload phase.
 
 The [dependency version policy](dependency-versions.md) now supplies exact
 candidate pins and offline consistency/observed-version gates. Filesystem

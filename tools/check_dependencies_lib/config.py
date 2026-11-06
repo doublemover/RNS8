@@ -114,6 +114,9 @@ int main() {
 }
 
 ACCELERATOR_PRIMITIVE_PROBE_SOURCES = {
+    "amdgpu_builtins": (
+        Path(__file__).resolve().parents[1] / "probes/amdgpu_builtins_primitive.hip"
+    ).read_text(encoding="utf-8"),
     "ck": (Path(__file__).resolve().parents[1] / "probes/ck_primitive.hip").read_text(
         encoding="utf-8"
     ),

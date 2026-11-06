@@ -6,8 +6,6 @@ only a fresh tiny CMake project; it never installs packages or runs its binary.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 from pathlib import Path
 import platform
@@ -18,27 +16,11 @@ import sys
 from compiler_context import compiler_environment
 from json_evidence import parse_evidence_json
 from process_progress import capture_succeeded, run_capture
+from .probe_artifacts import snapshot as _snapshot, write as _write
 from .resolution import ACTIVE_RESOLUTION
 from .system import repo_root
 
 COMPONENTS = {"gmp": ("gmp",), "flint": ("flint", "mpfr", "gmp")}
-
-
-def _snapshot(path: Path) -> dict:
-    path = path.resolve(strict=True)
-    size = path.stat().st_size
-    if not path.is_file() or size > 1024**3:
-        raise ValueError("reference probe input must be a regular file of at most 1 GiB")
-    with path.open("rb") as stream:
-        digest = hashlib.file_digest(stream, "sha256").hexdigest()
-    return {"path": str(path), "bytes": size, "sha256": digest}
-
-
-def _write(path: Path, value: dict) -> dict:
-    with path.open("x", encoding="utf-8") as stream:
-        json.dump(value, stream, indent=2, allow_nan=False)
-        stream.write("\n")
-    return _snapshot(path)
 
 
 def _inputs(resolution: dict, names: tuple[str, ...]) -> dict:
