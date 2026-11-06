@@ -5,8 +5,9 @@ production performance nor HIP device instrumentation. The current source
 frontload adds build selection and sensitivity/concurrency controls under
 [#102](https://github.com/doublemover/RNS8/issues/102) and coverage instrumentation
 under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
-session driver is authored; CI, OpenMP runtime qualification, device-ASan
-preflight and coverage/mutation reporting remain implementation work.
+session and native LLVM coverage drivers are authored; CI, OpenMP runtime
+qualification, device-ASan preflight and Python coverage/mutation reporting
+remain implementation work.
 
 | Configure preset | Instrumentation | Initial scope |
 |---|---|---|
@@ -49,8 +50,10 @@ An RNS8 static library with the dynamic host runtime is a distinct contract.
 [ASan usage](https://clang.llvm.org/docs/AddressSanitizer.html#usage),
 [UBSan usage](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html#usage)
 and [TSan limitations](https://clang.llvm.org/docs/ThreadSanitizer.html#limitations)
-own those compiler/runtime requirements. Matching llvm-profdata/llvm-cov and
-source coverage/mutation reports remain separate implementation work.
+own those compiler/runtime requirements. The separate authored
+[native LLVM coverage lane](host-source-coverage.md) binds its matching tools,
+profiles and source denominator. Python coverage/mutation reports remain
+implementation work.
 
 `tools/host_instrumentation_session.py` prints a plan by default. Adding
 `--execute` configures a fresh build, builds its complete first-party targets,

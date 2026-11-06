@@ -145,14 +145,23 @@ class Session:
         )
         self.stages = []
 
-    def run(self, name: str, command: list[str], *, cwd=ROOT, required=True, timeout=None) -> dict:
+    def run(
+        self,
+        name: str,
+        command: list[str],
+        *,
+        cwd=ROOT,
+        required=True,
+        timeout=None,
+        max_output_bytes=32 * 1024**2,
+    ) -> dict:
         result = run_capture(
             command,
             cwd=cwd,
             label="host-check:" + name,
             env=self.environment,
             timeout_seconds=timeout or self.timeout,
-            max_output_bytes=32 * 1024**2,
+            max_output_bytes=max_output_bytes,
             artifact_roots=(self.output,),
             max_artifact_bytes=self.artifact_bytes,
             return_on_interrupt=True,
@@ -180,11 +189,27 @@ class Session:
         value = parse_evidence_json(result["stdout"])
         return result, value
 
-    def tests(self, name, build, ctest, *, required, allowed=None):
+    def tests(self, name, build, ctest, *, required, allowed=None, selection_names=None):
         command = [str(ctest), "--test-dir", str(build), "--no-tests=error"]
         _, full = self.json(name + "-discovery", [*command, "--show-only=json-v1"])
-        # No filter is used in the initial complete lane; retain both native
-        # invocations so a future selection cannot silently change its scope.
+        selection_ref = None
+        if selection_names is not None:
+            if (
+                not isinstance(selection_names, list)
+                or not selection_names
+                or any(
+                    type(item) is not str or not item or "\n" in item or "\r" in item
+                    for item in selection_names
+                )
+                or len(set(selection_names)) != len(selection_names)
+                or not set(selection_names).issubset(discovery(full))
+            ):
+                raise ValueError("explicit nonempty discovered test selection required")
+            path = self.output / (name + "-selection.txt")
+            with path.open("x", encoding="utf-8") as handle:
+                handle.write("\n".join(selection_names) + "\n")
+            selection_ref = reference(path)
+            command.extend(["--tests-from-file", str(path)])
         _, selected = self.json(name + "-selection", [*command, "--show-only=json-v1"])
         discovery(full)
         discovery(selected)
@@ -212,6 +237,12 @@ class Session:
         source, junit_ref = bounded_read(junit_path)
         value = reconcile(full, selected, source, required=required, allowed_skips=allowed)
         value["inputs"] = dict(discovered=full_ref, selected=selected_ref, junit=junit_ref)
+        if selection_ref:
+            check_bookends(selection_ref)
+            value["inputs"]["selection_names"] = selection_ref
+            if set(discovery(selected)) != set(selection_names):
+                value["blockers"].append("native_selection_differs_from_requested_names")
+                value["status"] = "failed"
         check_bookends(executable_refs)
         value["executables"] = executable_refs
         value["ctest_process_succeeded"] = capture_succeeded(result)
@@ -263,11 +294,14 @@ def configured_inventory(session: Session, build: Path, lane: str, nm: Path) -> 
     target_path = build / ("rns8-analysis-targets-" + inputs.configuration + ".json")
     targets = parse_evidence_json(bounded_read(target_path)[0])["targets"]
     artifacts = {
-        target["name"]: reference(Path(target["artifact"]))
+        target["name"]: {**reference(Path(target["artifact"])), "type": target["type"]}
         for target in targets
         if "artifact" in target
     }
-    for name in ("rns8_static", "rns8_tests", "rns8-host-sanitizer-control"):
+    required = ["rns8_static", "rns8_tests"]
+    if lane != "coverage":
+        required.append("rns8-host-sanitizer-control")
+    for name in required:
         if name not in artifacts:
             raise ValueError("required instrumented target missing: " + name)
     # PE executables need not retain a COFF symbol table. Inspect the actual
@@ -282,6 +316,7 @@ def configured_inventory(session: Session, build: Path, lane: str, nm: Path) -> 
             "address-undefined": {"address", "undefined"},
             "thread": {"thread"},
             "windows-address": {"address"},
+            "coverage": {"profile"},
         }[lane]
         if not expected.issubset(classes):
             raise ValueError("actual target objects lack selected detector symbol classes: " + name)
@@ -291,6 +326,12 @@ def configured_inventory(session: Session, build: Path, lane: str, nm: Path) -> 
         compiler=reference(inputs.compiler),
         configured_inputs=[
             dict(path=path, sha256=digest) for path, digest in inputs.artifact_hashes
+        ],
+        generated_inputs=[
+            reference(path)
+            for path in sorted(
+                {path for context in inputs.contexts for path in context.generated_inputs}
+            )
         ],
         objects=objects,
         artifacts=artifacts,
@@ -310,6 +351,22 @@ def check_bookends(value: object):
     elif isinstance(value, (list, tuple)):
         for child in value:
             check_bookends(child)
+
+
+def source_inventory() -> list[dict]:
+    source = [reference(ROOT / row.path) for row in inventory()]
+    source.extend(
+        reference(ROOT / path)
+        for path in (
+            "CMakeLists.txt",
+            "CMakePresets.json",
+            "metadata/first-party-inventory.json",
+        )
+    )
+    source.extend(
+        reference(path) for path in sorted((ROOT / "cmake").rglob("*.cmake*")) if path.is_file()
+    )
+    return source
 
 
 def execute(args, plan):
@@ -335,18 +392,7 @@ def execute(args, plan):
         args.artifact_mib * 1024**2,
     )
     try:
-        source = [reference(ROOT / row.path) for row in inventory()]
-        source.extend(
-            reference(ROOT / path)
-            for path in (
-                "CMakeLists.txt",
-                "CMakePresets.json",
-                "metadata/first-party-inventory.json",
-            )
-        )
-        source.extend(
-            reference(path) for path in sorted((ROOT / "cmake").rglob("*.cmake*")) if path.is_file()
-        )
+        source = source_inventory()
         report["source_inventory"] = source
         report["tools"] = {
             name: reference(getattr(args, name)) for name in ("cmake", "ctest", "nm", "symbolizer")

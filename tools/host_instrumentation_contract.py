@@ -21,7 +21,7 @@ SYMBOLS = {
     "address-undefined": {"address": r"\b_?__asan_", "undefined": r"\b_?__ubsan_"},
     "thread": {"thread": r"\b_?__tsan_"},
     "windows-address": {"address": r"\b_?__asan_"},
-    "coverage": {"profile": r"\b_?__llvm_pr(?:of|f)_|\b_?__llvm_profile_"},
+    "coverage": {"profile": r"\b_?__llvm_pr(?:of|f)_|\b_?__llvm_profile_|\b_?__prof[cdv]_"},
 }
 
 
