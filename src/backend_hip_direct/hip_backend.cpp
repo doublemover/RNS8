@@ -27,6 +27,7 @@
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
 #include "core/host_readback_slot.hpp"
+#include "core/host_transfer_payload.hpp"
 #include "core/internal.hpp"
 
 #include <algorithm>

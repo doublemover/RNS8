@@ -498,6 +498,15 @@ The native export's private status readback uses the owned small-readback slot,
 so a failed DMA cannot retain a stack destination. These source repairs and
 host controls are authored; current runtime qualification is pending.
 
+Large private native-export readbacks now use shared staging storage and reserve
+its retry record before the synchronous copy. Uncertain returns and exceptions
+retain the actual destination allocation for a later device drain. Signed and
+unsigned exports share this transfer/whole-output bounds/publication path; rows
+are published only after the full copy and bound checks succeed. Staging is
+initialized by that full copy, avoiding a redundant initial zero fill, and no
+second host payload copy is introduced. Lifecycle and padded exact differential
+controls are authored; this change has no measured speedup credit.
+
 ### Cleanup and retry ownership
 
 Workspace, prepack-cache, result-cache and sparse-matrix destruction consume the

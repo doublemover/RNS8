@@ -1,4 +1,5 @@
-TEST_CASE("vector ALU backend keeps native bounded storage through persistent GEMM") {
+TEST_CASE("vector ALU backend keeps native bounded storage through persistent GEMM",
+          "[hip][native-export][lifetime]") {
   if (!hip_available()) {
     SKIP("no HIP device available for vector ALU persistent bounded smoke");
   }
@@ -89,6 +90,14 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
     REQUIRE(rns8_export_i64(vector, plan, c_matrix, vector_c.data(), n) == RNS8_SUCCESS);
     CHECK(vector_c == cpu_c);
+    std::vector<int64_t> padded_signed(size_t(m * (n + 2)), -77);
+    REQUIRE(rns8_export_i64(vector, plan, c_matrix, padded_signed.data(), n + 2) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col)
+        CHECK(padded_signed[size_t(row * (n + 2) + col)] == cpu_c[size_t(row * n + col)]);
+      CHECK(padded_signed[size_t(row * (n + 2) + n)] == -77);
+      CHECK(padded_signed[size_t(row * (n + 2) + n + 1)] == -77);
+    }
     CHECK(c_matrix->hip_export_buffer == nullptr);
     REQUIRE(rns8_get_matrix_storage_info(c_matrix, &storage_info) == RNS8_SUCCESS);
     CHECK(storage_info.device_native_current == 1);
@@ -169,6 +178,14 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
     CHECK_FALSE(c_matrix->device_residues_current);
     REQUIRE(rns8_export_u64(vector, plan, c_matrix, vector_c.data(), n) == RNS8_SUCCESS);
     CHECK(vector_c == cpu_c);
+    std::vector<uint64_t> padded_unsigned(size_t(m * (n + 2)), 77);
+    REQUIRE(rns8_export_u64(vector, plan, c_matrix, padded_unsigned.data(), n + 2) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col)
+        CHECK(padded_unsigned[size_t(row * (n + 2) + col)] == cpu_c[size_t(row * n + col)]);
+      CHECK(padded_unsigned[size_t(row * (n + 2) + n)] == 77);
+      CHECK(padded_unsigned[size_t(row * (n + 2) + n + 1)] == 77);
+    }
 
     rns8_destroy_matrix(c_matrix);
     rns8_destroy_matrix(b_matrix);

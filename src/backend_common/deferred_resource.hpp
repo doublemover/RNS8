@@ -19,7 +19,7 @@ struct hip_deferred_buffer_cleanup {
   int device_id = -1;
   void* pointer = nullptr;
   bool (*release_library_handle)(int, void*) noexcept = nullptr;
-  // Pageable upload sources must outlive an uncertain DMA completion too.
+  // Pageable upload sources/readback destinations outlive uncertain DMA.
   // This ordinary host owner follows the same preallocated retry record.
   std::shared_ptr<const void> host_payload;
   hip_deferred_buffer_cleanup* next = nullptr;

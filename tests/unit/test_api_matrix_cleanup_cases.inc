@@ -1,6 +1,7 @@
 #include "core/matrix_cleanup.hpp"
 #include "core/export_metadata_transaction.hpp"
 #include "core/host_readback_slot.hpp"
+#include "core/host_transfer_payload.hpp"
 #include "backend_common/completed_observation.hpp"
 #include <array>
 #include <memory>
@@ -334,6 +335,60 @@ TEST_CASE("repeated verifier uploads retain the current challenge after any fail
     Ops::deferred_count = 0;
     CHECK(retained.expired());
   }
+}
+
+TEST_CASE("large owned readbacks retain their actual destination through failure and unwind",
+          "[api][lifetime][export]") {
+  using Payload = rns8::detail::HostTransferPayload;
+  using Ops = MockDeviceBufferOperations;
+  Ops::deferred_count = 0;
+  for (bool unwinding : {false, true}) {
+    std::weak_ptr<std::vector<uint64_t>> retained;
+    try {
+      Payload transfer(Ops::defer);
+      auto destination = std::make_shared<std::vector<uint64_t>>(512, 77);
+      retained = destination;
+      REQUIRE(transfer.begin(7, std::shared_ptr<void>(destination, destination->data()),
+                             destination->size() * sizeof(uint64_t)) == RNS8_SUCCESS);
+      CHECK(transfer.data() == destination->data());
+      CHECK(transfer.begin(7, std::shared_ptr<void>(destination, destination->data()), 8) ==
+            RNS8_BUSY);
+      destination.reset();
+      if (unwinding)
+        throw std::bad_alloc();
+    } catch (const std::bad_alloc&) {
+    }
+    REQUIRE(Ops::deferred_count == 1);
+    auto* record = Ops::deferred[0];
+    CHECK(record->device_id == 7);
+    CHECK(record->kind == rns8::detail::hip_deferred_allocation_kind::host_payload);
+    {
+      const auto destination = retained.lock();
+      REQUIRE(destination);
+      REQUIRE(record->pointer == destination->data());
+      // A simulated late DMA writes only the retained allocation, after its
+      // original stack owner and transfer scope have gone away.
+      std::fill_n(static_cast<uint64_t*>(record->pointer), destination->size(), uint64_t(123));
+      CHECK(destination->front() == 123);
+      CHECK(destination->back() == 123);
+    }
+    delete record; // Model a later proven completion; no HIP resource release.
+    Ops::deferred[0] = nullptr;
+    Ops::deferred_count = 0;
+    CHECK(retained.expired());
+  }
+  {
+    Payload transfer(Ops::defer);
+    auto destination = std::make_shared<uint64_t>(9);
+    CHECK(transfer.begin(-1, destination, 8) == RNS8_INVALID_ARGUMENT);
+    CHECK(transfer.begin(7, destination, 0) == RNS8_INVALID_ARGUMENT);
+    CHECK(transfer.begin(7, {}, 8) == RNS8_INVALID_ARGUMENT);
+    REQUIRE(transfer.begin(7, destination, 8) == RNS8_SUCCESS);
+    transfer.complete();
+    CHECK(transfer.data() == nullptr);
+    CHECK(destination.use_count() == 1);
+  }
+  CHECK(Ops::deferred_count == 0);
 }
 
 TEST_CASE("small status readbacks publish only after completion and retain failed destinations",

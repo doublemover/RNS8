@@ -153,6 +153,31 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
 #endif
 }
 
+rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<void> destination,
+                                                 const void* source, std::size_t bytes) {
+  if (!destination || !source || !bytes)
+    return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto selected = set_hip_device(device_id);
+  if (selected != RNS8_SUCCESS)
+    return selected;
+  HostTransferPayload retained(hip_direct_defer_buffer_cleanup);
+  const auto admitted = retained.begin(device_id, std::move(destination), bytes);
+  if (admitted != RNS8_SUCCESS)
+    return admitted;
+  const auto copied = timed_hip_operation("residue_d2h_sync", [&]() {
+    return tracked_sync_copy(retained.data(), source, bytes, hipMemcpyDeviceToHost);
+  });
+  if (copied != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  retained.complete();
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_copy_host_to_device_labeled(int device_id, const char* timing_label,
                                                    void* dst, const void* src, std::size_t bytes) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP

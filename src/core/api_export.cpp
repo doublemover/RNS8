@@ -99,60 +99,40 @@ bool signed_value_within_bound(int64_t value, uint64_t bound) {
   return static_cast<uint64_t>(value) <= bound;
 }
 
+template <typename Integer, typename WithinBound>
+rns8_status export_native_integer(rns8_context& ctx, const rns8_plan& plan, const void* native,
+                                  Integer* dst, int64_t ld, WithinBound within_bound) {
+  const auto rows = static_cast<std::size_t>(plan.desc.m);
+  const auto cols = static_cast<std::size_t>(plan.desc.n);
+  const auto count = rows * cols;
+  // A successful complete DMA initializes every element before validation.
+  // Retain the existing payload itself on failure; no second staging copy.
+  std::shared_ptr<Integer[]> staged(new Integer[count]);
+  const auto status = run_timed_api_status("vector_alu_output_d2h", [&]() {
+    return rns8::detail::hip_direct_copy_device_to_owned_host(
+        ctx.device_id, std::shared_ptr<void>(staged, staged.get()), native,
+        count * sizeof(Integer));
+  });
+  if (status != RNS8_SUCCESS)
+    return status;
+  for (std::size_t row = 0; row < rows; ++row)
+    for (std::size_t col = 0; col < cols; ++col)
+      if (!within_bound(staged[row * cols + col], bound_for_cell(plan, row, col)))
+        return RNS8_RANGE_ERROR;
+  for (std::size_t row = 0; row < rows; ++row)
+    std::copy_n(staged.get() + row * cols, cols, dst + row * static_cast<std::size_t>(ld));
+  return RNS8_SUCCESS;
+}
+
 rns8_status export_native_i64(rns8_context& ctx, const rns8_plan& plan, const rns8_matrix& C,
                               int64_t* dst, int64_t ld) {
-  std::vector<int64_t> staged(
-      static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
-  rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
-    return rns8::detail::hip_direct_copy_device_to_host(
-        ctx.device_id, staged.data(), C.hip_native_i64, staged.size() * sizeof(int64_t));
-  });
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  for (int64_t row = 0; row < plan.desc.m; ++row) {
-    for (int64_t col = 0; col < plan.desc.n; ++col) {
-      const int64_t value = staged[static_cast<std::size_t>(row * plan.desc.n + col)];
-      if (!signed_value_within_bound(value, bound_for_cell(plan, row, col))) {
-        return RNS8_RANGE_ERROR;
-      }
-    }
-  }
-  for (int64_t row = 0; row < plan.desc.m; ++row) {
-    for (int64_t col = 0; col < plan.desc.n; ++col) {
-      const int64_t value = staged[static_cast<std::size_t>(row * plan.desc.n + col)];
-      dst[row * ld + col] = value;
-    }
-  }
-  return RNS8_SUCCESS;
+  return export_native_integer(ctx, plan, C.hip_native_i64, dst, ld, signed_value_within_bound);
 }
 
 rns8_status export_native_u64(rns8_context& ctx, const rns8_plan& plan, const rns8_matrix& C,
                               uint64_t* dst, int64_t ld) {
-  std::vector<uint64_t> staged(
-      static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
-  rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
-    return rns8::detail::hip_direct_copy_device_to_host(
-        ctx.device_id, staged.data(), C.hip_native_u64, staged.size() * sizeof(uint64_t));
-  });
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  for (int64_t row = 0; row < plan.desc.m; ++row) {
-    for (int64_t col = 0; col < plan.desc.n; ++col) {
-      const uint64_t value = staged[static_cast<std::size_t>(row * plan.desc.n + col)];
-      if (value > bound_for_cell(plan, row, col)) {
-        return RNS8_RANGE_ERROR;
-      }
-    }
-  }
-  for (int64_t row = 0; row < plan.desc.m; ++row) {
-    for (int64_t col = 0; col < plan.desc.n; ++col) {
-      const uint64_t value = staged[static_cast<std::size_t>(row * plan.desc.n + col)];
-      dst[row * ld + col] = value;
-    }
-  }
-  return RNS8_SUCCESS;
+  return export_native_integer(ctx, plan, C.hip_native_u64, dst, ld,
+                               [](uint64_t value, uint64_t bound) { return value <= bound; });
 }
 
 rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& plan,

@@ -590,6 +590,10 @@ rns8_status hip_direct_free(int device_id, void* ptr);
 rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes);
 rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src,
                                            std::size_t bytes);
+// Destination aliases shared storage spanning bytes; no extra payload copy.
+// A failed copy retains that owner in the existing device-drain retry queue.
+rns8_status hip_direct_copy_device_to_owned_host(int device_id, std::shared_ptr<void> destination,
+                                                 const void* source, std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src,
                                            std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device_labeled(int device_id, const char* timing_label,
