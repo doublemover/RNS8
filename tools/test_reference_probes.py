@@ -208,6 +208,7 @@ class ReferenceProbes(unittest.TestCase):
             "source",
             "nonobject",
             "missing binary",
+            "empty binary",
         ):
             with self.subTest(mutation=mutation):
 
@@ -239,7 +240,11 @@ class ReferenceProbes(unittest.TestCase):
                         native = []
                     else:
                         suffix = ".exe" if platform.system() == "Windows" else ""
-                        (build / ("rns8-exact-reference-probe" + suffix)).unlink()
+                        binary = build / ("rns8-exact-reference-probe" + suffix)
+                        if mutation == "empty binary":
+                            binary.write_bytes(b"")
+                        else:
+                            binary.unlink()
                     path.write_text(json.dumps(native), encoding="utf-8")
                     return result
 

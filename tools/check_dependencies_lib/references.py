@@ -219,6 +219,8 @@ def reference_compile_probes(requested: bool = False, probe_dir: Path | None = N
                     native=native,
                     binary=_snapshot(binary),
                 )
+                if not row["binary"]["bytes"]:
+                    raise ValueError("native reference probe produced an empty executable")
                 if before != _inputs(resolution, dependencies):
                     raise ValueError("selected probe inputs changed during compilation")
                 row.update(status="COMPILE_LINK_PASS", ok=True)
