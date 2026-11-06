@@ -6089,7 +6089,8 @@
         }
       ],
       "anchors": [
-        "cpu-fuzz-discovery-and-arithmetic-corpus"
+        "cpu-fuzz-discovery-and-arithmetic-corpus",
+        "deterministic-native-replay"
       ]
     },
     {

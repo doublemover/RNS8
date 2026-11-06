@@ -131,6 +131,32 @@ CPU shared-replay controls cover all six domains and lifecycle counts; seeded
 wrong-result/status/no-write controls exercise the same assertion boundary.
 These controls and native CPU/GPU replay remain unexecuted during the source pass.
 
+`tools/fuzz_replay.py` supplies the bounded parent session. Explicit `--case`
+inputs (1–64 distinct byte identities), backend, device, executable and output
+directory are required. It plans by default, reading only bounded case files;
+it does not open the executable, create output or launch a child in plan mode.
+Add `--execute` to query compiled identity and run one owned child per case,
+bounded by `--seconds` (default300, maximum3600), `--case-seconds` (default60),
+8MiB child output and 256MiB owned artifacts. The existing session runner owns
+child termination and interrupted capture. Output must be a fresh directory.
+
+```sh
+python tools/fuzz_replay.py --exe build/rns8-arithmetic-replay --case temp/case.bin --backend hip-direct --device 0 --out temp/replay-plan
+```
+
+The parent rechecks actual executable/adapter/case bytes, retains immutable case
+copies and raw process/native reports, validates executable/library manifests
+against the no-GPU preflight, and requires exact run/PID/work/backend/count
+bindings. Every original and retained case is bookended through session end.
+A native failure, timeout, interruption, input drift or malformed report stops
+further cases and preserves an incomplete receipt. An all-unsupported selection
+returns77 rather than success. Passed counts require complete output checks and
+successful public cleanup; they remain diagnostic evidence, not hardware
+qualification or performance promotion. Semantic failure signatures use the
+existing shrinker's verdict vocabulary, excluding movable cell coordinates.
+Automatic shrinking/retry after a failed GPU child remains disabled; the caller
+must separately authorize and bound any subsequent reproducer campaign.
+
 Implementation is in progress under #101. These new controls and harness have
 not run in the deferred validation batch. Production-library instrumentation
 inspection, bounded discovery/replay CI, structured failure reports/shrinking,
