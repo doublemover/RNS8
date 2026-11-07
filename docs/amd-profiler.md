@@ -41,8 +41,9 @@ individual SQLite values are limited to1MiB and the interval projection to
 Missing or malformed requested tables fail rather than produce empty success.
 Empty tables mean no observation, not zero work or complete capture; instant
 samples and loss counters are outside this interval projection. The capture
-finalizer and dependency/critical-path consumer are not yet connected to it.
-The separate marker/operation consumer below is source-written. Actual-layout database controls are authored and
+finalizer retains it and the receiver reconstructs it from the native database.
+The marker/operation consumer below is connected through an explicit option;
+the dependency/critical-path report still needs implementation. Actual-layout database controls are authored and
 registered, with no database fixture, reader or profiler execution in this pass.
 
 AMD's [rocpd documentation](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocpd-output-format.html)
@@ -163,7 +164,7 @@ python tools/amd_profiler_session.py temp/production.json --capabilities temp/pr
 ```
 
 The session directory must be new and below repository `temp/`. Defaults reserve
-600 seconds including 30 seconds for export, cap each command at 300 seconds,
+600 seconds including 60 seconds for export, cap each command at 300 seconds,
 retain at most 16 MiB of process output, sample a 2 GiB native-artifact budget,
 and require 5 GiB free space. Artifact limits are sampled and may overshoot;
 they are not a filesystem quota. Timeouts, incomplete output, tool/library
@@ -253,7 +254,7 @@ marker identity to match to the numeric sidecar. Returned ROCTx range IDs,
 snapshot slots and SDK internal/external correlations remain separate domains.
 Historical labels without this contract cannot inherit the new join. Formatting
 controls cover zero/full-width slots and short/null buffers; native capture and
-capture finalization still require their separate source and validation steps.
+capture finalization controls still require runtime validation.
 
 `tools/amd_profiler_ranges.py` matches every published slot to one literal native
 marker message with the same phase/process/thread. It shares bounded snapshot,
@@ -275,7 +276,24 @@ is never inferred. Complete literal marker matching still does not prove
 loss-free acquisition or complete work/dependency coverage. These exact native
 table-to-consumer, stale/duplicate marker, unknown/ambiguous correlation and
 overlapping-caller controls remain authored/unexecuted; acquisition publication
-and the dependency/critical-path consumer still need integration.
+is connected to publication and receipt replay; the dependency/critical-path
+consumer remains implementation work.
+
+Add `--operation-ranges` to the timeline plan only for the same production
+binary compiled with `roctx=ON`. The launcher supplies the range opt-in and
+requires the actual active snapshot. Plan version3 binds the option and decoder/
+marker/source inputs. Finalization writes `native-timeline.json` and
+`operation-join.json` outside raw acquisition storage; absent opt-in emits
+`not_requested` rather than implying measured-operation coverage. Publication
+checks each document's64MiB cap, total owned artifact bytes and free-space
+reserve, and exclusively creates its output. The receiver uses its fresh native
+decode to reconstruct both sidecars, so changing a derivation and refreshing
+its file digest cannot authorize it. The native decode is reused by dispatch
+and operation validation instead of querying the database a third time.
+Source-authored collector controls cover native producer→sidecars→receipt,
+feature admission, total artifact budget and resealed derivation drift. SQLite
+fixtures close connections before rename/reopen; none of these controls or
+native acquisition paths has executed in this source pass.
 
 Active/requested tracing is excluded from production timing admission. The
 profiler relation permits the explicitly declared range opt-in environment,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import closing
+
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -14,7 +16,7 @@ from test_target_qualification_support import QualificationFixture
 
 def timeline_database(fixture):
     path = database(fixture)
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db, db:
         db.executescript("""
           ALTER TABLE rocpd_event ADD COLUMN category_id INTEGER;
           ALTER TABLE rocpd_event ADD COLUMN extdata JSONB DEFAULT '{}';
@@ -106,7 +108,7 @@ class NativeTimeline(unittest.TestCase):
         ):
             with self.subTest(sql=sql), tempfile.TemporaryDirectory() as directory:
                 path = timeline_database(QualificationFixture(Path(directory)))
-                with sqlite3.connect(path) as db:
+                with closing(sqlite3.connect(path)) as db, db:
                     db.execute(sql)
                 with self.assertRaises(ValueError):
                     read_process(path, 222, include_timeline=True)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import closing
+
 import copy
 from pathlib import Path
 import sqlite3
@@ -28,7 +30,7 @@ class NativeMarkerJoin(unittest.TestCase):
         scratch = tempfile.TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
         self.path = timeline_database(QualificationFixture(Path(scratch.name)))
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.executescript("""
               INSERT INTO rocpd_string VALUES(8,'authored','rns8.proof#slot=1');
               INSERT INTO rocpd_event(id,guid,stack_id,parent_stack_id,correlation_id,category_id,extdata)
@@ -85,7 +87,7 @@ class NativeMarkerJoin(unittest.TestCase):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 altered = Path(directory) / "altered.db"
                 altered.write_bytes(self.path.read_bytes())
-                with sqlite3.connect(altered) as db:
+                with closing(sqlite3.connect(altered)) as db, db:
                     db.execute(change)
                 with self.assertRaises(ValueError):
                     join(read_process(altered, 222, include_timeline=True)["timeline"], markers())
@@ -121,7 +123,7 @@ class NativeMarkerJoin(unittest.TestCase):
         self.assertEqual(len(join(changed, markers())["outside_measured_dispatches"]), 1)
 
     def test_overlapping_callers_keep_native_threads_and_operation_ids_separate(self):
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.executescript("""
               INSERT INTO rocpd_info_thread VALUES(43,'authored',1,1,43);
               INSERT INTO rocpd_info_queue VALUES(6,'authored',1,1);

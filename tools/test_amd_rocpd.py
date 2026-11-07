@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import closing
+
 import copy
 import sqlite3
 import tempfile
@@ -19,7 +21,7 @@ from gpu_counter_report import report_for_capture
 def database(fixture: QualificationFixture) -> Path:
     """Minimal projections of actual 3.0.4 columns; authored values throughout."""
     path = fixture.root / "authored-native.db"
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db, db:
         db.executescript("""
           CREATE TABLE rocpd_metadata(tag TEXT,value TEXT);
           INSERT INTO rocpd_metadata VALUES('schema_version','3.0.4');
@@ -78,14 +80,14 @@ class RocpdEvidence(unittest.TestCase):
                 (metric["xcc"], metric["shader_engine"], metric["instance"]), (1, 2, 3)
             )
             self.assertEqual(metric["definition_instance"], 2)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("UPDATE rocpd_event SET correlation_id=0,parent_stack_id=NULL")
             actual_zero = read_process(path, 222)["native"]["buffer_records"]["kernel_dispatch"][0]
             self.assertEqual(actual_zero["correlation_id"], dict(internal=71, external=0))
             self.assertIsNone(actual_zero["native_rocpd"]["parent_stack_id"])
             self.assertFalse(value["complete_run_coverage"])
             self.assertTrue(value["loss_status"].startswith("unknown"))
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("UPDATE rocpd_info_pmc SET units=''")
             missing = read_process(path, 222)["metrics"][0]
             self.assertEqual(missing["value"], 0.0)
@@ -170,7 +172,7 @@ class RocpdEvidence(unittest.TestCase):
             ):
                 fixture = QualificationFixture(Path(temporary))
                 path = database(fixture)
-                with sqlite3.connect(path) as db:
+                with closing(sqlite3.connect(path)) as db, db:
                     db.execute(change)
                 with self.assertRaises(ValueError):
                     read_process(path, 222)
@@ -188,7 +190,7 @@ class RocpdEvidence(unittest.TestCase):
             self.assertEqual(path.read_bytes(), before)
             with self.assertRaises(ValueError):
                 read_process(path, 333)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("INSERT INTO rocpd_event VALUES(18,'authored',72,72,778)")
             with self.assertRaises(ValueError):
                 read_process(path, 222, maximum_rows=1)

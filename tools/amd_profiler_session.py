@@ -10,12 +10,15 @@ import math
 import os
 from pathlib import Path
 import platform
+import shutil
 import sys
 import uuid
 
 from amd_profiler_capabilities import validate_preflight
 from amd_profiler_evidence import SCHEMA as DISPATCH_SCHEMA, validate_dispatch_receipt
 from amd_rocpd import read_process
+from amd_profiler_ranges import join as join_native_ranges
+from build_manifest import configuration_options
 from benchmark_request import (
     attach_capture_identity,
     file_digest,
@@ -43,6 +46,31 @@ from profiler_contract import production_profile_input
 from timing_eligibility import capture_identity
 
 SCHEMA = "rns8_amd_profiler_session_v1"
+SOURCE_INPUTS = (
+    "tools/amd_profiler_session.py",
+    "tools/amd_profiler_evidence.py",
+    "tools/amd_profiler_capabilities.py",
+    "tools/amd_rocpd.py",
+    "tools/amd_profiler_ranges.py",
+    "tools/host_range_contract.py",
+    "tools/interval_observations.py",
+    "tools/profiler_contract.py",
+    "tools/execution_observation.py",
+    "tools/execution_environment_contract.py",
+    "tools/benchmark_request.py",
+    "tools/build_manifest.py",
+    "tools/compiled_binary_identity.py",
+    "tools/device_observation.py",
+    "tools/benchmark_schema.py",
+    "tools/evidence_database_lib/isa.py",
+    "tools/timing_eligibility.py",
+    "tools/target_qualification.py",
+    "tools/gpu_qualification.py",
+    "tools/json_evidence.py",
+    "tools/process_progress.py",
+    "src/diagnostics/trace_ranges.cpp",
+    "src/diagnostics/trace_label.hpp",
+)
 TRACE_FLAGS = (
     "--hip-trace",
     "--kernel-trace",
@@ -141,13 +169,16 @@ def plan_capture(
     max_artifact_bytes=2 * 1024**3,
     max_output_bytes=16 * 1024**2,
     minimum_free_bytes=5 * 1024**3,
+    operation_ranges=False,
     _review_existing=False,
 ) -> dict:
     for value in (timeout_seconds, total_seconds):
-        if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
-            raise ValueError("positive finite acquisition time budgets required")
-    if total_seconds <= timeout_seconds + 30:
-        raise ValueError("session budget must include query stages and a 30-second export reserve")
+        if type(value) not in (int, float) or not 0 < value <= 86400 or not math.isfinite(value):
+            raise ValueError("positive finite acquisition time budgets within24hours required")
+    if total_seconds <= timeout_seconds + 60:
+        raise ValueError("session budget must include query stages and a 60-second export reserve")
+    if type(operation_ranges) is not bool:
+        raise ValueError("native operation ranges require explicit Boolean policy")
     for value in (max_artifact_bytes, max_output_bytes, minimum_free_bytes):
         if type(value) is not int or value < 1:
             raise ValueError("positive byte budgets required")
@@ -164,11 +195,21 @@ def plan_capture(
         inspector=reference(inspector),
     )
     capture, preflight, executable, _ = _inputs(inputs, store)
+    if (
+        operation_ranges
+        and configuration_options(capture["build_manifest"]["configuration"], strict=True).get(
+            "roctx"
+        )
+        != "ON"
+    ):
+        raise ValueError("native operation matching needs the same binary compiled with ROCTx")
     inspector = store.reference(inputs["inspector"], ROOT)
     tool = Path(preflight["tools"]["rocprofv3"]["path"]).resolve(strict=True)
     # A bounded explicit single execution must not inherit pass/replay controls.
     baseline = capture["request_identity"]["environment"]
     expected = timeline_environment(baseline, tool, out / "native")
+    if operation_ranges:
+        expected["RNS8_PROFILE_RANGES"] = "1"
     library_receipts = [reference(path) for path in timeline_libraries(tool)]
     arguments = list(capture["request_identity"]["arguments"])
     arguments += ["--json-output", str(out / "native/benchmark.json")]
@@ -248,12 +289,14 @@ def plan_capture(
     )
     plan = dict(
         schema=SCHEMA,
-        schema_version=2,
+        schema_version=3,
         session_kind="amd-profiler-timeline",
         system="Linux",
         command_working_directory=str(ROOT),
         output_directory=str(out),
         **inputs,
+        source_inputs=[reference(ROOT / name) for name in SOURCE_INPUTS],
+        operation_ranges=operation_ranges,
         profiler_tool=reference(tool),
         injection_libraries=library_receipts,
         tool_version_output=version_output,
@@ -266,7 +309,7 @@ def plan_capture(
         profiler_agent_selector=preflight["profiler_agent_selector"],
         budgets=dict(
             total_seconds=total_seconds,
-            export_reserve_seconds=30,
+            export_reserve_seconds=60,
             minimum_free_bytes=minimum_free_bytes,
         ),
         qualification="plan_only",
@@ -294,11 +337,19 @@ def _rebuild(plan: dict, *, review_existing=False) -> dict:
         max_artifact_bytes=plan["commands"][-1]["max_artifact_bytes"],
         max_output_bytes=plan["commands"][-1]["max_output_bytes"],
         minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+        operation_ranges=plan["operation_ranges"],
         _review_existing=review_existing,
     )
 
 
-def validate_acquisition(receipt: dict, capture: dict, store: EvidenceStore, parent: Path) -> dict:
+def validate_acquisition(
+    receipt: dict,
+    capture: dict,
+    store: EvidenceStore,
+    parent: Path,
+    *,
+    native_projection: dict | None,
+) -> dict:
     """Bind acquisition claims to the maintained plan and its actual raw stages."""
     proof = receipt["acquisition_session"]
     manifest_path, plan = store.json(proof["session_manifest"], parent)
@@ -354,10 +405,25 @@ def validate_acquisition(receipt: dict, capture: dict, store: EvidenceStore, par
             raise ValueError("dispatch attachment differs from admitted acquisition input")
     if receipt["tool_executable"] != plan["profiler_tool"]:
         raise ValueError("dispatch tool differs from admitted acquisition tool")
+    if native_projection is None or "timeline" not in native_projection:
+        raise ValueError("acquisition needs the receiver's freshly decoded native timeline")
+    _, retained_timeline = store.json(receipt.get("native_timeline"), parent)
+    timeline = native_projection["timeline"]
+    if not same_evidence_value(retained_timeline, timeline):
+        raise ValueError("retained native timeline differs from the actual database")
+    operation = (
+        join_native_ranges(timeline, profiled.get("profiler_ranges"))
+        if plan["operation_ranges"]
+        else dict(state="not_requested", production_latency=False)
+    )
+    _, retained_operation = store.json(receipt.get("operation_join"), parent)
+    if not same_evidence_value(retained_operation, operation):
+        raise ValueError("retained marker operation join differs from actual native evidence")
     for item in [
         plan["inspector"],
         plan["profiler_tool"],
         *plan["injection_libraries"],
+        *plan["source_inputs"],
     ]:
         store.reference(item, ROOT)
     return dict(
@@ -365,6 +431,8 @@ def validate_acquisition(receipt: dict, capture: dict, store: EvidenceStore, par
         run_id=proof["run_id"],
         native_process_id=row["process_id"],
         physical_device=live.to_json(),
+        native_timeline=receipt["native_timeline"],
+        operation_join=receipt["operation_join"],
         scope="bounded_selected_dispatch_acquisition_not_complete_profile_coverage",
     )
 
@@ -406,6 +474,23 @@ def selected_dispatches(native: dict, symbols: set[str], target: str) -> list[di
     if not result:
         raise ValueError("native capture contains no selected static mangled symbol on the target")
     return result
+
+
+def _write_diagnostic(path: Path, value: dict, plan: dict) -> dict:
+    raw = (
+        json.dumps(value, sort_keys=True, allow_nan=False, separators=(",", ":")) + "\n"
+    ).encode()
+    if len(raw) > 64 * 1024**2:
+        raise ValueError("derived profiler document exceeds64MiB")
+    out = Path(plan["output_directory"])
+    retained = sum(item.stat().st_size for item in owned_artifact_files(out, out.parent))
+    if retained + len(raw) > plan["commands"][-1]["max_artifact_bytes"]:
+        raise ValueError("derived profiler document exceeds total artifact budget")
+    if shutil.disk_usage(out).free < plan["budgets"]["minimum_free_bytes"] + len(raw):
+        raise ValueError("derived profiler document lacks its free-space reserve")
+    with path.open("xb") as stream:
+        stream.write(raw)
+    return reference(path)
 
 
 def finalize(manifest_path: Path) -> dict:
@@ -498,13 +583,22 @@ def finalize(manifest_path: Path) -> dict:
     if len(databases) != 1:
         raise ValueError("one unambiguous finalized native rocpd database required")
     native_path = databases[0]
-    native = read_process(native_path, raw["process_id"])["native"]
+    projection = read_process(native_path, raw["process_id"], include_timeline=True)
+    native = projection["native"]
     selected = selected_dispatches(
         native, set(isa["capture_binding"]["symbols"]), live.architecture.split(":")[0]
     )
     bound_path, receipt_path = out / "profiled.json", out / "dispatch-receipt.json"
-    if bound_path.exists() or receipt_path.exists():
+    timeline_path, operation_path = out / "native-timeline.json", out / "operation-join.json"
+    if any(path.exists() for path in (bound_path, receipt_path, timeline_path, operation_path)):
         raise ValueError("profiler finalization outputs already exist")
+    operation = (
+        join_native_ranges(projection["timeline"], raw.get("profiler_ranges"))
+        if plan["operation_ranges"]
+        else dict(state="not_requested", production_latency=False)
+    )
+    timeline_ref = _write_diagnostic(timeline_path, projection["timeline"], plan)
+    operation_ref = _write_diagnostic(operation_path, operation, plan)
     write_json(bound_path, profiled)
     injection = {
         key: value
@@ -518,6 +612,8 @@ def finalize(manifest_path: Path) -> dict:
         profiled_capture=reference(bound_path),
         native_benchmark_output=raw_reference,
         native_trace=reference(native_path),
+        native_timeline=timeline_ref,
+        operation_join=operation_ref,
         selected_static_isa=plan["selected_static_isa"],
         profiler_environment=injection,
         selected_dispatches=selected,
@@ -562,6 +658,8 @@ def execute_capture(plan: dict, *, environment=None, runner=None) -> int:
         if not relevant_environment_key(key)
     }
     child.update(plan["inherited_environment"])
+    if plan["operation_ranges"]:
+        child["RNS8_PROFILE_RANGES"] = "1"
     out.mkdir(parents=True, exist_ok=False)
     write_json(out / "manifest.json", plan)
     options = {} if runner is None else dict(runner=runner)
@@ -598,6 +696,7 @@ def main(argv=None) -> int:
     parser.add_argument("--max-output-bytes", type=int, default=16 * 1024**2)
     parser.add_argument("--minimum-free-bytes", type=int, default=5 * 1024**3)
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--operation-ranges", action="store_true")
     args = parser.parse_args(argv)
     try:
         plan = plan_capture(
@@ -611,6 +710,7 @@ def main(argv=None) -> int:
             max_artifact_bytes=args.max_artifact_bytes,
             max_output_bytes=args.max_output_bytes,
             minimum_free_bytes=args.minimum_free_bytes,
+            operation_ranges=args.operation_ranges,
         )
         if args.execute:
             return execute_capture(plan)

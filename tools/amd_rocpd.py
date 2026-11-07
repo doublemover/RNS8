@@ -263,7 +263,10 @@ def read_process(
                 nonlocal remaining_rows
                 # Identifiers/conditions are source constants; all input values
                 # are parameters. Bound every materialized table projection.
-                cursor = connection.execute("SELECT " + columns + " FROM " + table + where, values)
+                order = " ORDER BY id" if columns == "id" or columns.startswith("id,") else ""
+                cursor = connection.execute(
+                    "SELECT " + columns + " FROM " + table + where + order, values
+                )
                 result = cursor.fetchmany(remaining_rows + 1)
                 if len(result) > remaining_rows:
                     raise ValueError("native database exceeds the cumulative adapter row limit")

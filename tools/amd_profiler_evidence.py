@@ -271,7 +271,9 @@ def validate_dispatch_receipt(
         from amd_rocpd import read_process
 
         native_path = store.reference(receipt.get("native_trace"), base)
-        native_extension = read_process(native_path, process_id)
+        native_extension = read_process(
+            native_path, process_id, include_timeline=receipt.get("acquisition_session") is not None
+        )
         native = {"rocprofiler-sdk-tool": [native_extension["native"]]}
     else:
         native_path, native = store.json(receipt.get("native_trace"), base)
@@ -436,7 +438,9 @@ def validate_dispatch_receipt(
     if receipt.get("acquisition_session") is not None:
         from amd_profiler_session import validate_acquisition
 
-        acquisition = validate_acquisition(receipt, capture, store, base)
+        acquisition = validate_acquisition(
+            receipt, capture, store, base, native_projection=native_extension
+        )
     return dict(
         schema=SCHEMA,
         acquisition=acquisition,
