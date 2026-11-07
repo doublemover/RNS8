@@ -47,7 +47,6 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx, const rns8_pipeline_quer
         query->output_boundary > 3 || query->retained_operands > 3 || !query->reuse_count)
       return RNS8_INVALID_ARGUMENT;
     const auto& input = query->operation.problem;
-    *required = 0;
     const bool native_producer = query->operation.operation == RNS8_OP_NARROW_NATIVE;
     if (native_producer && input.requested_backend != RNS8_BACKEND_AUTO &&
         input.requested_backend != RNS8_BACKEND_HIP_DIRECT)

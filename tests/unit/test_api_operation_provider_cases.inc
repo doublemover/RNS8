@@ -886,9 +886,13 @@ TEST_CASE(
     }
   }
   q.operation.problem.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+  const auto saved_count = count;
+  std::array<unsigned char, sizeof(candidates)> saved_candidates{};
+  std::memcpy(saved_candidates.data(), candidates, sizeof(candidates));
   CHECK(rns8_plan_pipeline(&target, &q, nullptr, 0, candidates, 7, &count) ==
         RNS8_UNSUPPORTED_BACKEND);
-  CHECK(count == 0);
+  CHECK(count == saved_count);
+  CHECK(std::memcmp(candidates, saved_candidates.data(), sizeof(candidates)) == 0);
 }
 
 TEST_CASE("finite Sparse-A discovery forwards its modulus to the target contract",
