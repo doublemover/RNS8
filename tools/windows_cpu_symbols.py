@@ -13,7 +13,14 @@ import sys
 import time
 
 from benchmark_request import file_digest
-from etl_source_contract import module_points, decode_lookup, source_report
+from etl_source_contract import (
+    module_points,
+    decode_lookup,
+    frame_address_catalog,
+    address_module_candidates,
+    symbolized_report,
+    source_observations,
+)
 from host_instrumentation_session import reference
 from host_profile_windows import read_retained, review_capture, seal, rebuild
 from host_source_attribution import source_inventory
@@ -60,13 +67,14 @@ def plan_symbols(acquisition_plan, helper, dbghelp, modules, out, *, review_exis
     for key, name in (
         ("native_cpu_observations", "native-cpu-observations.json"),
         ("native_image_catalog", "native-image-catalog.json"),
+        ("native_stack_observations", "native-stack-observations.json"),
     ):
         ref, document = read_retained(parent / name, store)
         if not same_evidence_value(summary.get(key), ref):
             raise ValueError("native Windows observation changed after acquisition")
         inputs.append(ref)
         documents.append(document)
-    cpu, images = documents
+    cpu, images, stacks = documents
     if not isinstance(modules, list) or not 1 <= len(modules) <= 32:
         raise ValueError("one to32 explicit local image/PDB/recorded-path triples required")
     pairs = []
@@ -81,9 +89,14 @@ def plan_symbols(acquisition_plan, helper, dbghelp, modules, out, *, review_exis
     ):
         raise ValueError("symbol helper, DbgHelp and PE/PDB pairs need one native architecture")
     candidates = module_points(cpu, images, pairs)
+    frame_addresses = frame_address_catalog(stacks, images)
+    frame_candidates = address_module_candidates(
+        frame_addresses["addresses"], cpu["selected_pid"], images, pairs
+    )
     requested = defaultdict(set)
-    for point in candidates["points"]:
-        requested[point["module_id"]].add(point["rva"])
+    for collection in (candidates["points"], frame_candidates["points"]):
+        for point in collection:
+            requested[point["module_id"]].add(point["rva"])
     if sum(map(len, requested.values())) > 32768:
         raise ValueError("local symbol lookup exceeds32768 unique module/RVA budget")
     batches = []
@@ -110,7 +123,7 @@ def plan_symbols(acquisition_plan, helper, dbghelp, modules, out, *, review_exis
             )
     result = seal(
         dict(
-            schema="rns8_windows_CPU_source_plan_v1",
+            schema="rns8_windows_native_source_plan_v2",
             acquisition_plan=acquisition_ref,
             acquisition=summary_ref,
             inputs=inputs,
@@ -119,6 +132,8 @@ def plan_symbols(acquisition_plan, helper, dbghelp, modules, out, *, review_exis
             source_inputs=[reference(ROOT / p) for p in SOURCE_INPUTS],
             output_directory=str(out),
             candidates=candidates,
+            frame_addresses=frame_addresses,
+            frame_candidates=frame_candidates,
             batches=batches,
             commands=dict(identity=[tools["helper"]["path"], "--build-identity"]),
             budgets=dict(
@@ -244,15 +259,17 @@ def execute_symbols(plan, *, runner=run_capture, clock=time.monotonic):
                 lookups[key] = value
         store = EvidenceStore()
         _, cpu = store.json(plan["inputs"][0], ROOT)
-        report = source_report(cpu, plan["candidates"], lookups)
-        report["current_source_custody"] = source_inventory(report["samples"])
+        report = symbolized_report(
+            cpu, plan["candidates"], plan["frame_addresses"], plan["frame_candidates"], lookups
+        )
+        report["current_source_custody"] = source_inventory(source_observations(report))
         store.finish()
         if not same_evidence_value(plan, rebuild_symbols(plan, review_existing=True)):
             raise ValueError("local PDB/PE/helper/acquisition inputs changed during lookup")
         if clock() > deadline:
             raise ValueError("local symbol lookup deadline exhausted during source/input review")
         report.update(
-            qualification="local_PDB_leaf_lookup_conditional_on_observed_image_identity",
+            qualification="local_PDB_leaf_and_native_fragment_lookup_conditional_on_observed_image_identity",
             acquisition_review=reference(out / "acquisition-review.json"),
             plan=reference(out / "plan.json"),
             stages=stages,

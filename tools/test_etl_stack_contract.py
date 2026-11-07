@@ -10,6 +10,8 @@ from etl_cpu_contract import cpu_catalog
 from etl_heap_contract import heap_catalog
 from etl_schedule_contract import schedule_catalog
 from etl_stack_contract import stack_catalog
+from etl_range_contract import operation_ranges
+from test_etl_range_contract import windows_snapshot
 from test_etl_cpu_contract import cpu_metadata
 from test_etl_heap_contract import heap_metadata
 from test_etl_schedule_contract import schedule_metadata
@@ -38,7 +40,7 @@ def stack_metadata():
     return metadata
 
 
-def read(metadata, *, heap=False, schedule=False):
+def read(metadata, *, heap=False, schedule=False, ranges=False):
     process = process_contract(
         metadata,
         pid=333,
@@ -48,13 +50,21 @@ def read(metadata, *, heap=False, schedule=False):
         source_sha256="a" * 64,
         file_bytes=4096,
     )
-    cpu = cpu_catalog(metadata, process)
+    snapshot = windows_snapshot() if ranges else None
+    native = operation_ranges(metadata, process, snapshot) if ranges else None
+    cpu = cpu_catalog(metadata, process, snapshot=snapshot, native_ranges=native)
     return stack_catalog(
         metadata,
         process,
         cpu,
-        heap=heap_catalog(metadata, process, cpu) if heap else None,
-        schedule=schedule_catalog(metadata, process, cpu) if schedule else None,
+        heap=heap_catalog(metadata, process, cpu, snapshot=snapshot, native_ranges=native)
+        if heap
+        else None,
+        schedule=schedule_catalog(metadata, process, cpu, snapshot=snapshot, native_ranges=native)
+        if schedule
+        else None,
+        snapshot=snapshot,
+        native_ranges=native,
     )
 
 

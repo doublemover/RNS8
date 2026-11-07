@@ -9,7 +9,14 @@ from host_range_contract import range_inventory, measured_roots
 from native_phase_attribution import attribute
 
 
-def select_native_points(points, pid, snapshot, ranges):
+def select_native_points(
+    points, pid, snapshot, ranges, *, identity_field="record_index", result_field="native_record"
+):
+    if (identity_field, result_field) not in {
+        ("record_index", "native_record"),
+        ("source_target_id", "source_target_id"),
+    }:
+        raise ValueError("explicit native/derived point identity namespace required")
     if type(ranges.get("selected_pid")) is not int or ranges["selected_pid"] != pid:
         raise ValueError("native CPU ranges belong to another process")
     index = range_inventory(snapshot, pid, clock_kind="windows_qpc")
@@ -41,7 +48,7 @@ def select_native_points(points, pid, snapshot, ranges):
                 launch_thread_id=point["tid"],
                 api_start_ns=time,
                 api_end_ns=time,
-                native_api_id=point["record_index"],
+                native_api_id=point[identity_field],
             )
         )
     report = attribute(
@@ -53,13 +60,13 @@ def select_native_points(points, pid, snapshot, ranges):
     )
     return dict(
         points=[
-            dict(
-                native_record=row["native_api_id"],
-                measured_root_id=row["host_range_id"],
-                phase=row["launch_phase"],
-                phase_range_id=row["launch_phase_range_id"],
-                tid=row["launch_thread_id"],
-            )
+            {
+                result_field: row["native_api_id"],
+                "measured_root_id": row["host_range_id"],
+                "phase": row["launch_phase"],
+                "phase_range_id": row["launch_phase_range_id"],
+                "tid": row["launch_thread_id"],
+            }
             for row in report["records"]
         ],
         outside_or_unbound_thread_points=outside,

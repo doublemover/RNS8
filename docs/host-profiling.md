@@ -344,7 +344,7 @@ Current PE/PDB agreement cannot attest what bytes were loaded during capture.
 Native ETL/WPR/WPA compatibility and symbol attribution plus all authored
 ownership/cleanup/producer/unit/lifetime controls remain unexecuted. The native
 reader passes a Windows C++17 frontend check, and WPR XML passes the installed
-SDK's schema, as source checks only. Native allocation stack/source,
+SDK's schema, as source checks only. Linux allocation source/phase acceptance,
 cross-tool clock adapters and the full causal critical-path
 report remain implementation work. No ETL decoder, WPR recording, elevation or system profiler has run during
 the source frontload.
@@ -472,12 +472,13 @@ lookup, while per-sample generation and measured-phase identities remain
 separate. Bounds cover modules, unique RVAs, overlap work, batch output,
 retained artifacts and elapsed time, including the fresh ETL review.
 
-The report provides conditional leaf symbols, source-line locations and
-phase-specific sample counts. It binds current first-party source snapshots
-through the shared source inventory; a PDB line does not attest compilation
-source bytes. Unwound/inlined callchains, CPU duration and cross-tool GPU
-causality remain unavailable. Native lookup, CLI/typed controls and real PDB
-compatibility remain unexecuted; no profiling result or speedup is claimed.
+The report provides conditional leaf and native-fragment symbols, source-line
+locations and phase-specific event/frame counts. It binds current first-party
+source snapshots through the shared source inventory; a PDB line does not attest
+compilation source bytes. Complete unwound/inlined callchains, CPU duration and
+cross-tool GPU causality remain unavailable. Native lookup, CLI/typed controls
+and real PDB compatibility remain unexecuted; no profiling result or speedup is
+claimed.
 
 ## Opt-in Windows scheduling observations
 
@@ -583,8 +584,8 @@ operation remain explicit; a native event point does not measure allocator API
 duration. Header loss, unsupported/undecoded records, unbound thread phases and
 empty allocation projections retain their limits. Read-only receipt review
 reconstructs heap reports and validates saved settings journals without opening
-the registry. Native allocation stacks/source association and real version/
-capture compatibility remain pending. All new byte, generation, identity,
+the registry. Native allocation stack/PDB/source integration is written; real
+version/capture compatibility remains pending qualification. All new byte, generation, identity,
 phase, journal and owned failure/publication controls are authored and unexecuted.
 
 ## Native Windows stack association
@@ -605,7 +606,8 @@ The bounded reader consumes the documented
 for descriptor versions0–2 and native32/64-bit frame widths. It preserves the
 original event timestamp, process/thread IDs, native frame order and actual
 descriptor version. Future/unsupported formats remain counted. Limits cover
-8,192 retained fragments,192 frames per fragment and262,144 total addresses.
+8,192 retained fragments,192 frames per fragment,64 fragments per original event
+and262,144 total addresses.
 
 `native-stack-observations.json` joins a fragment only to one observed original
 event matching PID/TID/raw QPC and a closed selected-thread generation. Stack
@@ -616,13 +618,40 @@ switch-out/in and ready-thread roles stay separate. Multiple fragments for one
 event retain their own record IDs and frame sequences; the adapter does not
 concatenate kernel/user fragments or claim complete unwind/inlined coverage.
 
-The Windows owner publishes and replays these associations alongside the raw
-native metadata. PDB lookup currently resolves leaves; extending conditional
-module/PDB/source lookup to the associated native frame sequences remains
-implementation work. Native raw/converted walk ordering and real StackWalk
-compatibility plus authored payload/identity/collision/loss/clock controls remain
-unexecuted. All current source checks are frontend/static checks, with no ETL,
-native decoder, profiler, fixture or runtime test execution.
+The Windows owner publishes and replays these associations alongside raw native
+metadata. The report retains bound original-event targets, aggregate missing-stack
+exposure by role and bounded collision candidates. Derived target IDs select
+measured phases through the shared point helper; original native event IDs keep
+their own namespace.
+
+The local PDB adapter resolves associated CPU, allocator and scheduler frame
+addresses using the same conditional native image join as leaves. Repeated
+addresses share a candidate only within an observed image-map epoch; every
+load/unload boundary starts another epoch. PDB requests deduplicate module/RVA
+pairs across leaves, fragments and epochs. Normalized address, fragment and
+lookup tables preserve native frame slots and module generations without
+duplicating symbol/line strings at every recursion or sample. Return addresses
+stay as recorded; no implicit PC subtraction changes their meaning.
+
+Frame reports distinguish event count, fragment count and frame-slot exposure,
+including recursion. CPU, allocator and scheduler roles and selected versus
+unbound phases stay separate. A missing leaf module does not discard valid
+conditional caller fragments. First-party source snapshot custody streams the
+normalized debug locations without constructing a complete concatenated callchain.
+
+The optional MSVC test build adds an optimized, non-installed source/PDB control
+with compiled source identity, an exported function RVA and a bounded source-line
+interval. The native CLI test can check the real PE/PDB GUID/age, DbgHelp lookup,
+symbol and source interval in addition to early request rejection. This control
+executes no benchmark and does not qualify production costs. The native PDB
+helper bounds fixed-array path termination, compares actual file identity across
+Windows path case, and admits both PDB engines only with opened-file identity
+checks.
+
+Native raw/converted walk ordering, real StackWalk/PDB compatibility and all
+authored payload/identity/collision/loss/clock/source controls remain unexecuted.
+Current checks are frontend/static checks, with no linked build, native control,
+ETL decoder, profiler, fixture or runtime test execution.
 
 ## Separate Linux host allocation capture
 

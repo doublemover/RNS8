@@ -472,7 +472,13 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
             before, after, policy=plan["heap_configuration"], owner_pid=owner_pid
         )
     stacks = stack_catalog(
-        native_metadata, process_identity, native_cpu, heap=heap_observations, schedule=schedule
+        native_metadata,
+        process_identity,
+        native_cpu,
+        heap=heap_observations,
+        schedule=schedule,
+        snapshot=raw.get("profiler_ranges"),
+        native_ranges=ranges,
     )
     profiled = bind_host_profile_output(
         production,

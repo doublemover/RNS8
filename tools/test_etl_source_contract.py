@@ -6,9 +6,20 @@ import copy
 import unittest
 import uuid
 
-from etl_source_contract import module_points, decode_lookup, source_report
+from etl_source_contract import (
+    module_points,
+    decode_lookup,
+    source_report,
+    frame_address_catalog,
+    address_module_candidates,
+    symbolized_report,
+    source_observations,
+)
 from test_etl_cpu_contract import read as read_cpu, cpu_metadata
 from test_etl_image_contract import read as read_images, image
+from test_etl_stack_contract import read as read_stacks, stack_metadata, fragment
+from test_etl_heap_contract import heap_metadata
+from test_etl_schedule_contract import schedule_metadata
 
 GUID = uuid.UUID("e93dca29-156c-43bb-b53b-280622752b35")
 
@@ -165,6 +176,156 @@ class NativeSources(unittest.TestCase):
         del row["source_error"]
         with self.assertRaises(ValueError):
             decode(document)
+
+    def test_native_frames_deduplicate_address_epoch_lookup_but_preserve_recursive_event_counts(
+        self,
+    ):
+        metadata = stack_metadata()
+        metadata["stack_events"][1]["frames"] = [0x180001400]
+        cpu = read_cpu(metadata, ranges=True)
+        stacks = read_stacks(metadata, ranges=True)
+        _, images, modules = inputs()
+        catalog = frame_address_catalog(stacks, images)
+        self.assertEqual(catalog["native_bound_frame_observations"], 3)
+        self.assertEqual(catalog["unique_address_epoch_candidates"], 2)
+        candidates = address_module_candidates(catalog["addresses"], 333, images, modules)
+        leaves = module_points(cpu, images, modules)
+        keys = {
+            (p["module_id"], p["rva"])
+            for group in (leaves["points"], candidates["points"])
+            for p in group
+        }
+        values = {
+            key: dict(
+                rva=key[1],
+                symbol=dict(name="proof", start_rva=key[1], displacement=0),
+                source=dict(
+                    path=r"C:\src\proof.cpp", line=73, start_rva=key[1], displacement=0, text=None
+                ),
+            )
+            for key in keys
+        }
+        report = symbolized_report(cpu, leaves, catalog, candidates, values)
+        self.assertEqual(len(report["native_stack_fragment_sources"]["lookup_table"]), 2)
+        self.assertEqual(report["samples"][0]["stack_fragment_records"], [11, 12])
+        self.assertEqual(len(report["stack_source_sites"]), 1)
+        site = report["stack_source_sites"][0]
+        self.assertEqual(
+            (
+                site["native_event_count"],
+                site["native_fragment_count"],
+                site["native_frame_slot_observations"],
+            ),
+            (1, 2, 3),
+        )
+        self.assertEqual(site["phase"], "proof")
+        self.assertEqual(site["scope"], "native_measured_phase")
+        self.assertFalse(
+            report["native_stack_fragment_sources"]["native_fragment_concatenation_performed"]
+        )
+        observations = list(source_observations(report))
+        self.assertEqual(len(observations), 2)
+        self.assertEqual(len(list(observations[0]["callchain"])), 3)
+        self.assertFalse(report["source_contents_verified"])
+        self.assertFalse(report["loaded_symbols_verified"])
+        with self.assertRaisesRegex(ValueError, "inventory"):
+            symbolized_report(cpu, leaves, catalog, candidates, {})
+
+    def test_address_deduplication_never_crosses_an_observed_module_reuse_boundary(self):
+        metadata = stack_metadata()
+        metadata["stack_events"] = [
+            fragment(11, frames=[0x180001400]),
+            fragment(12, qpc=6500, frames=[0x180001400]),
+        ]
+        metadata["stack_frames"] = 2
+        stacks = read_stacks(metadata)
+        _, _, modules = inputs()
+        images = read_images(
+            [
+                image(image_size=8192),
+                image(2, 500, image_size=8192),
+                image(10, 600, image_size=8192),
+                image(2, 800, image_size=8192),
+            ]
+        )
+        catalog = frame_address_catalog(stacks, images)
+        self.assertEqual(len(catalog["addresses"]), 2)
+        self.assertNotEqual(
+            catalog["addresses"][0]["image_map_epoch"], catalog["addresses"][1]["image_map_epoch"]
+        )
+        candidates = address_module_candidates(catalog["addresses"], 333, images, modules)
+        self.assertEqual([p["image_generation_id"] for p in candidates["points"]], [0, 2])
+
+    def test_unresolved_leaf_keeps_valid_conditional_native_caller_fragments(self):
+        metadata = stack_metadata()
+        metadata["sample_events"][0]["instruction_pointer"] = 0xFFFF800000000000
+        cpu = read_cpu(metadata, ranges=True)
+        stacks = read_stacks(metadata, ranges=True)
+        _, images, modules = inputs()
+        catalog = frame_address_catalog(stacks, images)
+        candidates = address_module_candidates(catalog["addresses"], 333, images, modules)
+        leaves = module_points(cpu, images, modules)
+        self.assertEqual(len(leaves["unresolved"]), 1)
+        keys = {
+            (p["module_id"], p["rva"])
+            for group in (leaves["points"], candidates["points"])
+            for p in group
+        }
+        values = {
+            key: dict(
+                rva=key[1],
+                symbol=dict(name="caller", start_rva=key[1], displacement=0),
+                source=None,
+            )
+            for key in keys
+        }
+        report = symbolized_report(cpu, leaves, catalog, candidates, values)
+        self.assertEqual(len(report["samples"]), 2)
+        self.assertIsNone(report["samples"][0]["symbol"])
+        self.assertEqual(report["samples"][0]["stack_fragment_records"], [11, 12])
+        self.assertTrue(report["native_stack_fragment_symbolization_observed"])
+        self.assertTrue(report["unresolved"])
+        self.assertFalse(report["inlined_or_unwound_stacks_resolved"])
+
+    def test_allocator_and_scheduler_frames_keep_native_role_and_measured_phase(self):
+        for role in ("heap_event", "schedule_out"):
+            metadata = heap_metadata() if role == "heap_event" else schedule_metadata()
+            qpc = 6000 if role == "heap_event" else 3500
+            metadata.update(
+                stack_events=[fragment(20, qpc=qpc, frames=[0x180001400, 0x180001400])],
+                observed_stack_events=1,
+                stack_frames=2,
+            )
+            cpu = read_cpu(metadata, ranges=True)
+            stacks = read_stacks(
+                metadata, heap=role == "heap_event", schedule=role == "schedule_out", ranges=True
+            )
+            _, images, modules = inputs()
+            catalog = frame_address_catalog(stacks, images)
+            frames = address_module_candidates(catalog["addresses"], 333, images, modules)
+            leaves = module_points(cpu, images, modules)
+            keys = {
+                (p["module_id"], p["rva"])
+                for group in (leaves["points"], frames["points"])
+                for p in group
+            }
+            values = {
+                key: dict(
+                    rva=key[1],
+                    symbol=dict(name="native_call", start_rva=key[1], displacement=0),
+                    source=None,
+                )
+                for key in keys
+            }
+            report = symbolized_report(cpu, leaves, catalog, frames, values)
+            with self.subTest(role=role):
+                self.assertEqual(len(report["stack_source_sites"]), 1)
+                site = report["stack_source_sites"][0]
+                self.assertEqual(site["source_kind"], role)
+                self.assertEqual(site["phase"], "public_call")
+                self.assertEqual(site["native_event_count"], 1)
+                self.assertEqual(site["native_frame_slot_observations"], 2)
+                self.assertEqual(len(list(source_observations(report))), 3)
 
 
 if __name__ == "__main__":

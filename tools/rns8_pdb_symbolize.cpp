@@ -117,7 +117,7 @@ json symbolize(const json& request) {
   const DWORD library_chars = GetModuleFileNameW(library.value, loaded_library.data(),
                                                  static_cast<DWORD>(loaded_library.size()));
   if (!library_chars || library_chars >= loaded_library.size() ||
-      std::filesystem::canonical(loaded_library.data()) != dll)
+      !std::filesystem::equivalent(std::filesystem::canonical(loaded_library.data()), dll))
     fail("selected DbgHelp module path differs from loaded library");
   auto options = library.function<decltype(&SymSetOptions)>("SymSetOptions");
   auto initialize = library.function<decltype(&SymInitializeW)>("SymInitializeW");
@@ -142,11 +142,15 @@ json symbolize(const json& request) {
   IMAGEHLP_MODULEW64 module{};
   module.SizeOfStruct = sizeof(module);
   if (!module_info(session.key, base, &module) || module.BaseOfImage != base ||
-      module.ImageSize != size || module.SymType != SymPdb || module.PdbUnmatched ||
-      module.DbgUnmatched)
+      module.ImageSize != size || (module.SymType != SymPdb && module.SymType != SymDia) ||
+      module.PdbUnmatched || module.DbgUnmatched)
     fail("native PDB module identity unavailable or unmatched");
-  const auto loaded = std::filesystem::canonical(module.LoadedPdbName);
-  if (loaded != pdb)
+  // The fixed native array can truncate long paths. Bound termination before
+  // handing it to filesystem APIs; equivalent also handles Windows path case.
+  const auto loaded_name =
+      utf8(module.LoadedPdbName, sizeof(module.LoadedPdbName) / sizeof(wchar_t));
+  const auto loaded = std::filesystem::canonical(std::filesystem::u8path(loaded_name));
+  if (!std::filesystem::equivalent(loaded, pdb))
     fail("DbgHelp opened another PDB");
   json guid = json::array();
   const auto* guid_bytes = reinterpret_cast<const unsigned char*>(&module.PdbSig70);
@@ -163,8 +167,9 @@ json symbolize(const json& request) {
     symbol->MaxNameLen = static_cast<ULONG>(max_names);
     DWORD64 displacement = 0;
     if (from_address(session.key, address, &displacement, symbol)) {
-      if (symbol->NameLen >= max_names || symbol->ModBase != base || symbol->Address < base ||
-          symbol->Address > address || displacement != address - symbol->Address)
+      if (!symbol->NameLen || symbol->NameLen >= max_names || symbol->ModBase != base ||
+          symbol->Address < base || symbol->Address > address ||
+          displacement != address - symbol->Address)
         fail("invalid native symbol extent");
       row["symbol"] = {{"name", utf8(symbol->Name, max_names)},
                        {"start_rva", symbol->Address - base},
@@ -193,7 +198,7 @@ json symbolize(const json& request) {
   return {{"schema", "rns8_native_pdb_symbols_v1"},
           {"process_id", GetCurrentProcessId()},
           {"reader_source_sha256", RNS8_PDB_SYMBOLIZE_SOURCE_SHA256},
-          {"pdb_path", utf8(pdb.c_str(), 32768)},
+          {"pdb_path", utf8(loaded.c_str(), 32768)},
           {"dbghelp_path", utf8(loaded_library.data(), loaded_library.size())},
           {"pdb_guid_bytes_le", guid},
           {"pdb_age", module.PdbAge},

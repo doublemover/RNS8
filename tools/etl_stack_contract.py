@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from bisect import bisect_right
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from etl_process_contract import integer
+from etl_point_phases import select_native_points
 
 BOUND = "raw_QPC_bound_by_native_ordinal_header_context_payload_replay"
 
 
-def stack_catalog(metadata, process, cpu, *, heap=None, schedule=None):
+def stack_catalog(
+    metadata, process, cpu, *, heap=None, schedule=None, snapshot=None, native_ranges=None
+):
     pid = process["selected_pid"]
     if (
         type(pid) is not int
@@ -134,6 +137,7 @@ def stack_catalog(metadata, process, cpu, *, heap=None, schedule=None):
             if identity in targets:
                 raise ValueError("duplicate derived native stack target")
             targets[identity] = dict(
+                source_target_id=len(targets) + 1,
                 native_point_record=ordinal,
                 tid=tid,
                 source_kind=role,
@@ -141,6 +145,7 @@ def stack_catalog(metadata, process, cpu, *, heap=None, schedule=None):
                 time_filetime_100ns=stamp,
                 raw_time_qpc=qpc,
                 stack_records=[],
+                operation_phase=None,
             )
             point_keys[pid, tid, qpc].append(identity)
     seen, parsed_frames, unresolved = set(), 0, []
@@ -190,9 +195,24 @@ def stack_catalog(metadata, process, cpu, *, heap=None, schedule=None):
             else None
         )
         if reason:
-            unresolved.append(dict(stack_record=ordinal, reason=reason))
+            unresolved.append(
+                dict(
+                    stack_record=ordinal,
+                    reason=reason,
+                    candidate_count=len(matches),
+                    candidate_original_events=[
+                        {
+                            key: targets[identity][key]
+                            for key in ("native_point_record", "tid", "source_kind")
+                        }
+                        for identity in matches[:8]
+                    ],
+                )
+            )
         else:
             targets[matches[0]]["stack_records"].append(ordinal)
+            if len(targets[matches[0]]["stack_records"]) > 64:
+                raise ValueError("native original-event fragment association budget exhausted")
     if parsed_frames != frames_total:
         raise ValueError("native stack frame accounting differs")
     if (
@@ -212,6 +232,18 @@ def stack_catalog(metadata, process, cpu, *, heap=None, schedule=None):
         > total
     ):
         raise ValueError("disjoint native providers exceed the complete native event walk")
+    if native_ranges is not None and native_ranges.get("state") == "native_measured_windows_bound":
+        selected = select_native_points(
+            list(targets.values()),
+            pid,
+            snapshot,
+            native_ranges,
+            identity_field="source_target_id",
+            result_field="source_target_id",
+        )
+        phases = {p["source_target_id"]: p for p in selected["points"]}
+        for target in targets.values():
+            target["operation_phase"] = phases.get(target["source_target_id"])
     return dict(
         schema="rns8_etl_native_stack_observations_v1",
         selected_pid=pid,
@@ -221,7 +253,11 @@ def stack_catalog(metadata, process, cpu, *, heap=None, schedule=None):
         source_point_namespace="second_native_event_walk",
         stack_record_namespace="third_native_event_walk",
         raw_binding_state=metadata["raw_binding_state"],
-        targets=list(targets.values()),
+        targets=[r for r in targets.values() if r["stack_records"]],
+        eligible_original_event_targets=len(targets),
+        eligible_target_counts_by_role=dict(
+            sorted(Counter(r["source_kind"] for r in targets.values()).items())
+        ),
         fragments=fragments,
         unresolved=unresolved,
         retained_stack_frames=frames_total,
