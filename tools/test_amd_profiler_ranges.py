@@ -58,6 +58,82 @@ class NativeMarkerJoin(unittest.TestCase):
         self.assertFalse(result["production_latency"])
         self.assertEqual(result["selected_device_intervals"]["interval_union_ns"], 10)
         self.assertEqual(result["measured_native_windows"]["interval_union_ns"], 85)
+        phases = result["phase_attribution"]
+        self.assertEqual(phases["records"][0]["launch_phase"], "proof")
+        self.assertEqual(phases["records"][0]["launch_phase_range_id"], 123)
+        self.assertEqual(
+            phases["threads"][0]["exclusive_phase_wall_ns"], dict(proof=9, public_call=76)
+        )
+        self.assertEqual(phases["threads"][0]["observed_scope_union_ns"], 85)
+        self.assertFalse(phases["thread_totals_add_to_process_wall"])
+
+    def test_overlapping_siblings_remain_ambiguous_instead_of_deepest_name_wins(self):
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executescript("""
+              INSERT INTO rocpd_string VALUES(10,'authored','rns8.dispatch_enqueue#slot=2');
+              INSERT INTO rocpd_event(id,guid,stack_id,parent_stack_id,correlation_id,category_id,extdata)
+                VALUES(210,'authored',1210,0,0,3,'{"message":"rns8.dispatch_enqueue#slot=2"}');
+              INSERT INTO rocpd_region VALUES(210,'authored',1,1,42,7,13,10,210);
+            """)
+        value = markers()
+        value["records"].append(dict(scope(321, 0, start=115, end=135, phase=3), process_id=222))
+        value["claimed"] += 1
+        report = join(self.timeline(), value)["phase_attribution"]
+        self.assertIsNone(report["records"][0]["launch_phase"])
+        self.assertEqual(report["threads"][0]["ambiguous_wall_ns"], 6)
+        self.assertEqual(
+            report["threads"][0]["exclusive_phase_wall_ns"], dict(proof=3, public_call=76)
+        )
+        self.assertEqual(
+            sum(report["threads"][0]["exclusive_phase_wall_ns"].values())
+            + report["threads"][0]["ambiguous_wall_ns"],
+            85,
+        )
+
+    def test_copies_allocations_graphs_and_events_use_their_exact_API_correlations(self):
+        with closing(sqlite3.connect(self.path)) as db, db:
+            for identity, internal, first, last in (
+                (111, 72, 18, 22),
+                (112, 73, 5, 7),
+                (113, 74, 79, 82),
+                (114, 75, 6, 8),
+                (115, 76, 25, 28),
+            ):
+                db.execute(
+                    "INSERT INTO rocpd_event(id,guid,stack_id,parent_stack_id,correlation_id,category_id,extdata) VALUES(?,'authored',?,0,777,4,'{}')",
+                    (identity, internal),
+                )
+                db.execute(
+                    "INSERT INTO rocpd_region VALUES(?,'authored',1,1,42,?,?,2,?)",
+                    (identity, first, last, identity),
+                )
+        report = join(self.timeline(), markers())
+        self.assertEqual(len(report["selected_related_intervals"]), 5)
+        self.assertFalse(report["unresolved_related_intervals"])
+        self.assertFalse(report["outside_measured_related_intervals"])
+        self.assertEqual(
+            {row["kind"] for row in report["selected_related_intervals"]},
+            {"memory_copy", "memory_lifecycle", "hip_event", "graph_launch"},
+        )
+        freed = next(
+            row
+            for row in report["selected_related_intervals"]
+            if row["kind"] == "memory_lifecycle" and row["native_record"]["type"] == "FREE"
+        )
+        self.assertEqual(freed["native_record"]["size"], 0)
+        self.assertEqual(freed["native_api_id"], 113)
+        self.assertEqual(len(report["phase_attribution"]["records"]), 6)
+        self.assertFalse(report["complete_run_coverage"])
+
+    def test_foreign_phase_contract_is_excluded_and_parent_receives_only_observed_wall(self):
+        value = markers()
+        value["records"][1]["operation_id"] = 999
+        report = join(self.timeline(), value)["phase_attribution"]
+        self.assertIsNone(report["records"][0]["launch_phase"])
+        self.assertEqual(report["threads"][0]["exclusive_phase_wall_ns"], dict(public_call=76))
+        self.assertEqual(report["threads"][0]["ambiguous_wall_ns"], 9)
+        self.assertEqual(report["excluded_scopes"][0]["host_range_id"], 123)
+        self.assertIn("contract_differs", report["excluded_scopes"][0]["reason"])
 
     def test_old_labels_or_missing_duplicate_conflicting_slot_metadata_do_not_join(self):
         native = self.timeline()

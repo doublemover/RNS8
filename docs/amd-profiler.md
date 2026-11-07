@@ -62,8 +62,26 @@ Empty tables mean no observation, not zero work or complete capture; instant
 samples and loss counters are outside this interval projection. The capture
 finalizer retains it and the receiver reconstructs it from the native database.
 The marker/operation consumer below is connected through an explicit option;
-the dependency/critical-path report still needs implementation. Actual-layout database controls are authored and
+the full dependency/critical-path report still needs implementation. Actual-layout database controls are authored and
 registered, with no database fixture, reader or profiler execution in this pass.
+
+The operation join also associates copies, allocation lifecycle records, HIP
+events and graph launches through their exact internal API correlation and
+launch thread. Missing or ambiguous APIs, outside-operation records and work
+outliving the completed native window remain separate unresolved observations.
+Raw related records retain queue/stream, addresses, graph/event identities and
+zero free sizes; sharing an event handle does not establish a dependency.
+
+The embedded phase report uses native marker timestamps and explicit snapshot
+ancestry. It reports inclusive phase unions and disjoint per-thread marker wall
+nanoseconds. A sweep handles nested ranges without double-counting parents;
+overlapping siblings and foreign operation/iteration/role scopes remain
+ambiguous. An excluded synchronous interval masks the enclosing phase rather
+than crediting it with unclassified work. Launch phases require the complete
+API interval inside one exact marker ancestry. These are wall intervals, not
+sampled CPU time, blocked-wait attribution or exclusive device service, and
+concurrent thread totals do not add to process wall time. The source and
+actual-table controls are authored; runtime validation remains deferred.
 
 AMD's [rocpd documentation](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocpd-output-format.html)
 recommends retaining the database before converting to other formats. An

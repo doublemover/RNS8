@@ -8,6 +8,7 @@ import re
 
 from host_range_contract import PHASES, range_inventory, measured_roots, uint
 from interval_observations import interval_summary
+from native_phase_attribution import attribute
 
 
 def join(timeline: dict, snapshot: dict) -> dict:
@@ -40,7 +41,7 @@ def join(timeline: dict, snapshot: dict) -> dict:
         if identity in events:
             raise ValueError("native marker event identity is duplicated")
         events[identity] = row
-    slots, api_by_internal, dispatches = {}, defaultdict(list), []
+    slots, api_by_internal, dispatches, related = {}, defaultdict(list), [], []
     identities = set()
     for row in rows:
         if not isinstance(row, dict) or type(row.get("kind")) is not str:
@@ -61,6 +62,8 @@ def join(timeline: dict, snapshot: dict) -> dict:
         if row["kind"] == "kernel_dispatch":
             dispatches.append(row)
             continue
+        if row["kind"] in {"memory_copy", "memory_lifecycle", "hip_event", "graph_launch"}:
+            related.append(row)
         if row["kind"] != "host_region" or event is None:
             continue
         if event.get("category") == "HIP_RUNTIME_API":
@@ -125,46 +128,53 @@ def join(timeline: dict, snapshot: dict) -> dict:
             ):
                 raise ValueError("native host marker escapes its explicit same-thread parent")
     selected, unresolved, outside = [], [], []
-    for dispatch in dispatches:
+    related_selected, related_unresolved, related_outside = [], [], []
+    for dispatch in [*dispatches, *related]:
+        is_kernel = dispatch["kind"] == "kernel_dispatch"
+        accepted = selected if is_kernel else related_selected
+        rejected = unresolved if is_kernel else related_unresolved
+        excluded = outside if is_kernel else related_outside
         event = events.get(dispatch.get("native_event_id"))
         internal = event.get("stack_id") if event else None
         if internal is not None:
             uint(internal, "native dispatch internal correlation")
         candidates = api_by_internal.get(internal, []) if internal not in (None, 0) else []
-        identity = dict(
-            dispatch_id=dispatch["dispatch_id"],
-            agent_id=dispatch["agent_id"],
-            queue_id=dispatch["queue_id"],
-            native_table_id=dispatch["id"],
+        identity = (
+            dict(
+                dispatch_id=dispatch["dispatch_id"],
+                agent_id=dispatch["agent_id"],
+                queue_id=dispatch["queue_id"],
+                native_table_id=dispatch["id"],
+            )
+            if is_kernel
+            else dict(kind=dispatch["kind"], native_table_id=dispatch["id"], native_record=dispatch)
         )
         if len(candidates) != 1:
-            unresolved.append(
-                dict(identity, reason="missing_or_ambiguous_exact_HIP_API_correlation")
-            )
+            rejected.append(dict(identity, reason="missing_or_ambiguous_exact_HIP_API_correlation"))
             continue
         api = candidates[0]
         thread = api.get("thread_id")
         if thread is None or (
             dispatch.get("thread_id") is not None and dispatch["thread_id"] != thread
         ):
-            unresolved.append(dict(identity, reason="native_launch_thread_missing_or_conflicting"))
+            rejected.append(dict(identity, reason="native_launch_thread_missing_or_conflicting"))
             continue
         spans = windows.get(thread, [])
         position = bisect_right(starts.get(thread, []), api["start_ns"]) - 1
         if position < 0 or not spans[position][0] <= api["start_ns"] < spans[position][1]:
-            outside.append(dict(identity, reason="launch_API_outside_selected_measured_markers"))
+            excluded.append(dict(identity, reason="launch_API_outside_selected_measured_markers"))
             continue
         first, last, owner = spans[position]
         if (
             not api["end_ns"] <= last
             or not api["start_ns"] <= dispatch["start_ns"] <= dispatch["end_ns"] <= last
         ):
-            unresolved.append(
+            rejected.append(
                 dict(identity, reason="launch_or_device_work_escapes_completed_operation")
             )
             continue
         scope = roots[owner]
-        selected.append(
+        accepted.append(
             dict(
                 identity,
                 operation_id=scope["operation_id"],
@@ -172,6 +182,7 @@ def join(timeline: dict, snapshot: dict) -> dict:
                 host_range_id=owner,
                 native_marker_id=markers[owner]["id"],
                 native_api_id=api["id"],
+                launch_thread_id=thread,
                 sdk_internal_correlation=internal,
                 api_start_ns=api["start_ns"],
                 api_end_ns=api["end_ns"],
@@ -179,6 +190,7 @@ def join(timeline: dict, snapshot: dict) -> dict:
                 end_ns=dispatch["end_ns"],
             )
         )
+    phases = attribute(index, markers, roots, [*selected, *related_selected])
     return dict(
         schema="rns8_native_marker_operation_join_v1",
         process_id=pid,
@@ -187,6 +199,10 @@ def join(timeline: dict, snapshot: dict) -> dict:
         selected_dispatches=selected,
         unresolved_dispatches=unresolved,
         outside_measured_dispatches=outside,
+        selected_related_intervals=related_selected,
+        unresolved_related_intervals=related_unresolved,
+        outside_measured_related_intervals=related_outside,
+        phase_attribution=phases,
         measured_native_windows=interval_summary(
             [(first, last) for spans in windows.values() for first, last, _ in spans]
         ),

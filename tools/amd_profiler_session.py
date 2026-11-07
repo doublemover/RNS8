@@ -55,6 +55,7 @@ SOURCE_INPUTS = (
     "tools/amd_rocpd.py",
     "tools/amd_profiler_ranges.py",
     "tools/amd_counter_pass.py",
+    "tools/native_phase_attribution.py",
     "tools/native_allocation_lifetimes.py",
     "tools/host_range_contract.py",
     "tools/interval_observations.py",
