@@ -83,6 +83,20 @@ TEST_CASE("experimental ordered bases reject noncoprime descriptors and retain o
   }
   auto* ctx = create_cpu_context();
   auto ordered = experimental_basis_fixture::moduli();
+  d.moduli = ordered.data();
+  d.count = uint32_t(ordered.size());
+  for (unsigned field = 0; field < 2; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), field == 0 ? 2u : 1u}) {
+      auto invalid = d;
+      if (field == 0)
+        invalid.representation = bits;
+      else
+        invalid.flags = bits;
+      auto* const canary = reinterpret_cast<rns8_basis*>(uintptr_t(1));
+      auto* out = canary;
+      CHECK(rns8_create_basis(&invalid, &out) == RNS8_INVALID_ARGUMENT);
+      CHECK(out == canary);
+    }
   auto* owner = experimental_basis_fixture::create(ordered);
   auto* matrix = experimental_basis_fixture::matrix(ctx, owner, RNS8_EXACT_WIDE_SIGNED, 1, 1);
   const auto data = matrix->experimental_basis;
@@ -234,6 +248,76 @@ TEST_CASE("runtime basis selection binds prices to one exact workload and charge
   CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
         RNS8_UNSUPPORTED_BACKEND);
   request.reuse_count = 1;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  auto reject_request = [&](const rns8_basis_selection_desc* input) {
+    const auto before = selection;
+    auto* const canary = reinterpret_cast<rns8_basis_plan*>(uintptr_t(1));
+    plan = canary;
+    CHECK(rns8_select_basis_plan(ctx, input, candidates, 2, &selection) == RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+    CHECK(rns8_create_selected_basis_plan(ctx, input, candidates, 2, &selection, &plan) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(plan == canary);
+    CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+    CHECK(ctx->prepared_references == references);
+  };
+  for (unsigned field = 0; field < 2; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), field == 0 ? 8u : 4u}) {
+      auto invalid = request;
+      if (field == 0)
+        invalid.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      else
+        invalid.flags = bits;
+      reject_request(&invalid);
+    }
+  for (unsigned field = 0; field < 2; ++field) {
+    auto invalid = request;
+    if (field == 0)
+      invalid.struct_size = sizeof(invalid) - 1;
+    else
+      ++invalid.abi_version;
+    reject_request(&invalid);
+  }
+  alignas(rns8_basis_selection_desc) uint64_t short_request = sizeof(uint64_t);
+  reject_request(reinterpret_cast<const rns8_basis_selection_desc*>(&short_request));
+  CHECK(short_request == sizeof(uint64_t));
+  // Valid flag combinations and real extension storage retain the minimum-size contract.
+  struct ExtendedRequest {
+    rns8_basis_selection_desc value;
+    uint64_t canary;
+  } extended_request{request, UINT64_C(0x123456789abcdef0)};
+  extended_request.value.struct_size = sizeof(extended_request);
+  for (uint32_t flags : {0u, 1u, 2u, 3u}) {
+    extended_request.value.flags = flags;
+    REQUIRE(rns8_select_basis_plan(ctx, &extended_request.value, candidates, 2, &selection) ==
+            RNS8_SUCCESS);
+    CHECK(extended_request.canary == UINT64_C(0x123456789abcdef0));
+  }
+  const uint32_t invalid_price_kinds[]{UINT32_MAX, UINT32_C(0x80000000), 3u, 0u};
+  for (unsigned field = 0; field < 7; ++field) {
+    auto invalid = candidates[1];
+    if (field < 4)
+      invalid.cost.kind = invalid_price_kinds[field];
+    else if (field == 4)
+      invalid.cost.build_identity[64] = 'a';
+    else if (field == 5)
+      invalid.cost.cohort_identity[64] = 'a';
+    else
+      std::fill_n(invalid.cost.target_id, sizeof(invalid.cost.target_id), 'a');
+    const auto original = candidates[1];
+    candidates[1] = invalid;
+    for (bool poisoned : {false, true}) {
+      ctx->hip_failure_poisoned = poisoned;
+      reject_request(&request);
+    }
+    ctx->hip_failure_poisoned = false;
+    candidates[1] = original;
+  }
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
   for (unsigned field = 0; field < 5; ++field)
     for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
                           field < 2   ? 10u

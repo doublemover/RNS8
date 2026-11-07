@@ -15,9 +15,12 @@ rns8_status select_basis_plan(const rns8_context* ctx, const rns8_basis_selectio
   // Admit every candidate before prices or context state can hide malformed tags.
   for (uint32_t i = 0; i < count; ++i) {
     const auto& candidate = candidates[i];
+    const auto& price = candidate.cost;
     if (!basis_plan_descriptor_valid(&candidate.plan, basis_modulus_count(candidate.basis)) ||
-        !minimum_abi_header(&candidate.cost) || !known_backend_kind(candidate.cost.backend) ||
-        !known_semantics(candidate.cost.semantics))
+        !minimum_abi_header(&price) || !known_backend_kind(price.backend) ||
+        !known_semantics(price.semantics) || (price.kind != 1 && price.kind != 2) ||
+        !basis_cost_digest(price.build_identity) || !basis_cost_digest(price.cohort_identity) ||
+        !std::memchr(price.target_id, 0, sizeof(price.target_id)))
       return RNS8_INVALID_ARGUMENT;
   }
   if (ctx->hip_failure_poisoned)
@@ -39,11 +42,6 @@ rns8_status select_basis_plan(const rns8_context* ctx, const rns8_basis_selectio
     const auto& candidate = candidates[i];
     const auto& price = candidate.cost;
     const auto& d = candidate.plan;
-    if (!minimum_abi_header(&d) || !minimum_abi_header(&price) ||
-        (price.kind != 1 && price.kind != 2) || !basis_cost_digest(price.build_identity) ||
-        !basis_cost_digest(price.cohort_identity) ||
-        !std::memchr(price.target_id, 0, sizeof(price.target_id)))
-      return RNS8_INVALID_ARGUMENT;
     const auto basis = basis_data(candidate.basis);
     if (d.semantics != request->semantics || d.m != request->m || d.n != request->n ||
         d.k != request->k || std::strcmp(price.cohort_identity, request->cohort_identity) != 0)

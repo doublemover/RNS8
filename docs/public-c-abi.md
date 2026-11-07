@@ -22,6 +22,12 @@ product prefix/execution policies and native-group dispatch policy. New controls
 are authored and await the combined runtime/sanitizer batch; the remaining
 external enum/flag inventory is still under review.
 
+Experimental basis selection admits request flags/semantics and every candidate
+price tag, backend, semantics and identity string before context failure or cost
+filtering. Its source controls cover all raw unknown bits, valid flag combinations,
+genuinely allocated short size prefixes, accepted extension storage and unchanged
+selection/handle outputs. These controls also await the combined sanitizer batch.
+
 Grouped narrow method controls now use two complete live CPU tasks with distinct
 outputs/workspaces, preserving generations, residues and reservations on raw
 all-bits/high-bit/adjacent rejection. Every defined method still reaches the CPU
