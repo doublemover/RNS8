@@ -200,6 +200,23 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
       read = nullptr;
       REQUIRE(rns8_create_native_device_lease(ctx, &bad, &read) == RNS8_BUSY);
       REQUIRE(rejected.released == 0);
+      const auto references = ctx->prepared_references;
+      const auto rejected_before = hip_direct_allocation_counters_snapshot();
+      for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 14u}) {
+        std::memcpy(&rejected.status, &bits, sizeof(bits));
+        auto* const canary = reinterpret_cast<rns8_native_device_lease*>(uintptr_t(1));
+        auto* rejected_lease = canary;
+        CHECK(rns8_create_native_device_lease(ctx, &bad, &rejected_lease) == RNS8_INVALID_ARGUMENT);
+        CHECK(rejected_lease == canary);
+        CHECK(rejected.acquired == 0);
+        CHECK(rejected.released == 0);
+        CHECK(ctx->prepared_references == references);
+      }
+      const auto rejected_after = hip_direct_allocation_counters_snapshot();
+      CHECK(rejected_after.allocate_calls == rejected_before.allocate_calls);
+      CHECK(rejected_after.free_calls == rejected_before.free_calls);
+      CHECK(rejected_after.h2d_calls == rejected_before.h2d_calls);
+      CHECK(rejected_after.d2h_calls == rejected_before.d2h_calls);
       rejected.status = RNS8_SUCCESS;
       bad.allocation_base = values.data();
       REQUIRE(rns8_create_native_device_lease(ctx, &bad, &read) != RNS8_SUCCESS);

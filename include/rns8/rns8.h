@@ -3144,6 +3144,9 @@ typedef enum rns8_native_device_policy RNS8_ENUM_BASE {
   /* Read-only compact D2D snapshot; external lease ends after completed copy. */
   RNS8_NATIVE_DEVICE_COPY_OWNED = 2
 } rns8_native_device_policy;
+/* Return a defined status: SUCCESS grants one owner reference; any failure
+ * grants none. Unknown status bits are rejected as INVALID_ARGUMENT and do not
+ * grant a reference. Callbacks must not throw or reenter the same lease. */
 typedef rns8_status (*rns8_native_owner_acquire)(void* owner);
 typedef void (*rns8_native_owner_release)(void* owner);
 typedef struct rns8_native_device_desc {

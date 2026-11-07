@@ -270,7 +270,7 @@ rns8_status rns8_create_native_device_lease(rns8_context* ctx, const rns8_native
         return RNS8_BUSY;
     }
 
-    status = desc->acquire(desc->owner);
+    status = acquire_native_owner(*desc);
     if (status != RNS8_SUCCESS)
       return status;
     lease->owner_acquired = true;

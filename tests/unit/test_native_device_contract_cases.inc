@@ -1,5 +1,36 @@
 #include <cstring>
+#include "backend_common/native_device_contract.hpp"
 #include "../support/native_device_fixture.hpp"
+
+TEST_CASE("native owner callbacks admit every defined status and reject raw unknown statuses",
+          "[api][abi][enum][native-owner][host]") {
+  using namespace native_device_fixture;
+  alignas(8) uint64_t words[32]{};
+  Owner owner;
+  const auto desc = descriptor(words, sizeof(words), owner);
+  for (auto status : {RNS8_INVALID_ARGUMENT, RNS8_UNSUPPORTED_OS, RNS8_UNSUPPORTED_ARCH,
+                      RNS8_UNSUPPORTED_BACKEND, RNS8_RANGE_ERROR, RNS8_ACCUMULATION_OVERFLOW_RISK,
+                      RNS8_WORKSPACE_TOO_SMALL, RNS8_BACKEND_FAILURE, RNS8_VERIFICATION_FAILED,
+                      RNS8_INTERNAL_ERROR, RNS8_BUSY, RNS8_CANCELED, RNS8_TIMEOUT}) {
+    owner.status = status;
+    CHECK(rns8::detail::public_status_valid(status));
+    CHECK(rns8::detail::acquire_native_owner(desc) == status);
+    CHECK(owner.acquired == 0);
+    CHECK(owner.released == 0);
+  }
+  for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 14u}) {
+    std::memcpy(&owner.status, &bits, sizeof(bits));
+    CHECK_FALSE(rns8::detail::public_status_valid(owner.status));
+    CHECK(rns8::detail::acquire_native_owner(desc) == RNS8_INVALID_ARGUMENT);
+    CHECK(owner.acquired == 0);
+    CHECK(owner.released == 0);
+  }
+  owner.status = RNS8_SUCCESS;
+  CHECK(rns8::detail::acquire_native_owner(desc) == RNS8_SUCCESS);
+  CHECK(owner.acquired == 1);
+  release(&owner);
+  CHECK(owner.released == 1);
+}
 TEST_CASE("native device query checks view spans without touching device or owner") {
   using namespace native_device_fixture;
   alignas(8) uint64_t words[32]{};

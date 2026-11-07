@@ -5,6 +5,7 @@
 #include "backend_common/native_wmma_queue_plan.hpp"
 #include "backend_common/native_locality.hpp"
 #include "backend_common/pinned_host_contract.hpp"
+#include "backend_common/status_contract.hpp"
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -42,7 +43,7 @@ bool valid_recipe_candidate_tags(const rns8_pipeline_recipe_candidate& candidate
   return minimum_abi_header(&candidate) &&
          candidate.method < recipe_method_count(candidate.route) &&
          recipe_execution_mode_valid(candidate.execution_mode) &&
-         candidate.status <= RNS8_TIMEOUT && candidate.reason_code <= RNS8_SUPPORT_TOPOLOGY &&
+         public_status_valid(candidate.status) && candidate.reason_code <= RNS8_SUPPORT_TOPOLOGY &&
          candidate.resource_status <= 3 && candidate.cost_known <= 1 && candidate.pareto <= 1 &&
          (candidate.cost_known ? (candidate.cost_origin == 1 || candidate.cost_origin == 2)
                                : candidate.cost_origin == 0);

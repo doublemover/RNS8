@@ -119,6 +119,16 @@ or reenter this lease, and are never HIP runtime callbacks. Context destruction
 is BUSY while leases exist. This uses existing matrix reservation/context poison
 rules, not a second async completion type.
 
+The acquire callback must return a defined `rns8_status`. `SUCCESS` grants one
+reference and permits the later release callback; a defined failure grants no
+reference and propagates unchanged. Unknown representable status bits return
+`INVALID_ARGUMENT`, preserve the lease handle and do not trigger release. This
+validates the callback result after invocation; descriptor validation still
+precedes invocation. CPU controls call the actual shared acquisition helper for
+every defined status and raw invalid representations. The real HIP lease fixture
+also checks rejected callback results, reference and device-accounting rollback.
+These additions are source-written and await the consolidated validation batch.
+
 This is zero host **payload** round trip, not zero-copy conversion: import writes
 RNS storage, export stages native data and performs a D2D copy, and compact
 status travels to the host. Conversion/reconstruction timings remain separate

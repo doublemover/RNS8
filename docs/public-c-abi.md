@@ -30,6 +30,13 @@ unknown representable values return `unknown status`; it cannot return an API
 error code. Its raw-byte controls retain that behavior. These controls are
 source-written and have not run in the deferred batch.
 
+The native owner-acquire return value is another external status boundary.
+Shared explicit named-status admission now rejects unknown callback values as
+`INVALID_ARGUMENT` without treating them as successful acquisition or releasing
+an unacquired owner. Defined failures still propagate. Whole-route candidate
+admission uses the same named-status predicate; the status formatter retains
+its independent `unknown status` fallback. No public declaration/layout changed.
+
 The registry's Windows x86_64 LLP64 entry is a compiler-front-end candidate,
 not a native-consumer qualification result. Linux LP64 and other supported
 architectures need their own deliberately reviewed native-target entries;

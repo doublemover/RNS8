@@ -1,8 +1,15 @@
 #pragma once
 #include "address_domain.hpp"
 #include "abi_header.hpp"
+#include "status_contract.hpp"
 #include "rns8/rns8.h"
 namespace rns8::detail {
+inline rns8_status acquire_native_owner(const rns8_native_device_desc& desc) {
+  if (!desc.acquire)
+    return RNS8_INVALID_ARGUMENT;
+  const auto status = desc.acquire(desc.owner);
+  return public_status_valid(status) ? status : RNS8_INVALID_ARGUMENT;
+}
 inline bool native_device_limb_type(rns8_native_device_type type) {
   return type == RNS8_NATIVE_DEVICE_SIGNED_LIMBS || type == RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS;
 }
