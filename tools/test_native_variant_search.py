@@ -6,9 +6,17 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
-from native_variant_search import collection_schedule, regression_scope, summarize
+from native_variant_search import (
+    collection_schedule,
+    combination_coverage,
+    regression_scope,
+    summarize,
+)
+from check_generated_native_wmma import load_bound_inspection
+from native_wmma_lowering import fingerprint
 
 A, B, C = (letter * 64 for letter in "abc")
 FAMILY = dict(
@@ -47,6 +55,98 @@ def report(rows=None):
 
 
 class Search(unittest.TestCase):
+    def test_combination_coverage_never_inherits_other_pitches_or_component_qualification(self):
+        manifest = dict(
+            variants=[dict(id=A, kernel_symbol="kernel_a", compatibility=dict(group=1))]
+        )
+        case = dict(m=17, n=19, k=257, prefix=3)
+        configuration = dict(case, lda=257, ldb=19, ldc=19)
+        logical = dict(
+            source_current=True,
+            path="logical.json",
+            sha256="a" * 64,
+            inventory=dict(
+                variants=[
+                    dict(
+                        id=A,
+                        configurations=[
+                            dict(
+                                configuration=configuration,
+                                logical_verdict="proven",
+                                memory_verdict="proven",
+                            )
+                        ],
+                    )
+                ]
+            ),
+        )
+        rows = [dict(variant_id=A, cohort="tail")]
+        value = combination_coverage(manifest, rows, dict(tail=case), logical=logical)
+        variant = value["variants"][0]
+        self.assertEqual(variant["runtime_microcases"][0]["owned_invocations"], 1)
+        self.assertTrue(variant["runtime_microcases"][0]["logical_memory"])
+        self.assertIn("exact_executable_symbol_inspection_not_recorded", variant["coverage_gaps"])
+        self.assertFalse(variant["qualified"])
+        self.assertFalse(value["component_qualification_inherited"])
+        changed = deepcopy(logical)
+        changed["inventory"]["variants"][0]["configurations"][0]["configuration"]["lda"] += 1
+        value = combination_coverage(manifest, rows, dict(tail=case), logical=changed)
+        self.assertIsNone(value["variants"][0]["runtime_microcases"][0]["logical_memory"])
+        self.assertIn(
+            "source_bound_logical_configuration_not_recorded", value["variants"][0]["coverage_gaps"]
+        )
+
+    def test_inspection_join_binds_exact_executable_family_checker_and_negative_verdicts(self):
+        manifest = dict(
+            source_sha256="b" * 64,
+            header_sha256="c" * 64,
+            variants=[dict(id=A, kernel_symbol="kernel_a", spec=dict(target="gfx1100"))],
+        )
+        report = dict(
+            schema="rns8_generated_native_isa_v2",
+            target="gfx1100",
+            generated_manifest_sha256=fingerprint(manifest),
+            generated_source_sha256=manifest["source_sha256"],
+            generated_header_sha256=manifest["header_sha256"],
+            checker_sha256=hashlib.sha256(
+                Path(__file__).with_name("check_generated_native_wmma.py").read_bytes()
+            ).hexdigest(),
+            artifact=dict(host_object_sha256="e" * 64),
+            symbols=[dict(id=A, symbol="kernel_a")],
+            inspection_passed=True,
+            inspection_failures=[],
+            device_differential_executed=False,
+            performance_qualified=False,
+            promotion_eligible=False,
+        )
+        scratch = Path(__file__).resolve().parents[1] / "temp"
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            path = Path(directory) / "inspection.json"
+
+            def load(value):
+                path.write_text(json.dumps(value), encoding="utf-8")
+                return load_bound_inspection(path, manifest, "e" * 64)
+
+            self.assertTrue(load(report)["executable_bound"])
+            failed = dict(
+                report, inspection_passed=False, inspection_failures=["missing_matrix_instruction"]
+            )
+            self.assertFalse(load(failed)["report"]["inspection_passed"])
+            for field, value in (
+                ("checker_sha256", "0" * 64),
+                ("generated_manifest_sha256", "0" * 64),
+                ("generated_header_sha256", "0" * 64),
+                ("target", "gfx942"),
+                ("artifact", dict(host_object_sha256="f" * 64)),
+                ("symbols", [dict(id=A, symbol="sibling")]),
+                ("symbols", []),
+                ("inspection_passed", 1),
+                ("inspection_failures", ["failure"]),
+                ("promotion_eligible", True),
+            ):
+                with self.subTest(field=field), self.assertRaises(ValueError):
+                    load(dict(report, **{field: value}))
+
     def test_coarse_to_fine_preserves_all_controls_and_held_out_repeats(self):
         cases = [
             dict(candidate=name, m=m, n=n, k=257)

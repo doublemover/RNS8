@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+from json_evidence import parse_evidence_json
 
 from generate_native_wmma import Variant, generate
 from gpu_isa_report import (
@@ -46,6 +47,69 @@ def verify_generated_source(directory, root=None):
             if (directory / name).read_bytes() != (regenerated / name).read_bytes():
                 raise ValueError("generated source/header drift")
     return manifest
+
+
+def load_bound_inspection(path, manifest, executable_sha256):
+    """Read diagnostic claims only for the exact executable being collected.
+
+    A separate .o inspection cannot qualify a linked binary by association.
+    Existing extraction supports .hip_fatbin sections in host inputs; inspect
+    the launched executable itself when requesting this join.
+    """
+    with path.open("rb") as stream:
+        raw = stream.read(8 * 1024**2 + 1)
+    if len(raw) > 8 * 1024**2:
+        raise ValueError("native inspection report exceeds byte budget")
+    report = parse_evidence_json(raw.decode("utf-8"))
+    from native_wmma_lowering import fingerprint
+
+    if (
+        not isinstance(report, dict)
+        or report.get("schema") != "rns8_generated_native_isa_v2"
+        or report.get("generated_manifest_sha256") != fingerprint(manifest)
+        or report.get("generated_source_sha256") != manifest["source_sha256"]
+        or report.get("generated_header_sha256") != manifest["header_sha256"]
+        or report.get("checker_sha256") != sha(Path(__file__).read_bytes())
+        or not isinstance(report.get("artifact"), dict)
+        or report["artifact"].get("host_object_sha256") != executable_sha256
+        or type(report.get("inspection_passed")) is not bool
+        or report.get("device_differential_executed") is not False
+        or report.get("performance_qualified") is not False
+        or report.get("promotion_eligible") is not False
+    ):
+        raise ValueError("native inspection source/checker/executable binding mismatch")
+    expected = {entry["id"]: entry for entry in manifest["variants"]}
+    rows, seen = report.get("symbols"), set()
+    if not isinstance(rows, list) or len(rows) != len(expected):
+        raise ValueError("native inspection must cover the exact generated family")
+    for row in rows:
+        if (
+            not isinstance(row, dict)
+            or type(row.get("id")) is not str
+            or row["id"] not in expected
+            or row["id"] in seen
+            or row.get("symbol") != expected[row["id"]]["kernel_symbol"]
+            or report.get("target") != expected[row["id"]]["spec"]["target"]
+        ):
+            raise ValueError("native inspection variant/symbol/target binding mismatch")
+        seen.add(row["id"])
+    failures = report.get("inspection_failures")
+    if (
+        not isinstance(failures, list)
+        or len(failures) > 10000
+        or any(type(item) is not str or not item for item in failures)
+        or report["inspection_passed"] is not (not failures)
+    ):
+        raise ValueError("native inspection verdict contradicts failures")
+    return dict(
+        path=str(path.resolve()),
+        sha256=sha(raw),
+        report=report,
+        source_current=True,
+        executable_bound=True,
+        independently_replayed_during_ingestion=False,
+        promotion_eligible=False,
+    )
 
 
 def inspect(config, directory, logical_report=None, compile_receipt=None):
@@ -172,11 +236,15 @@ def inspect(config, directory, logical_report=None, compile_receipt=None):
     all_sizes_known = len(reports) == len(manifest["variants"]) and all(
         row["reachable_code_bytes"] is not None for row in reports
     )
+    from native_wmma_lowering import fingerprint
+
     return {
         "schema": "rns8_generated_native_isa_v2",
         "target": config.target,
         "artifact": artifact,
         "generated_source_sha256": manifest["source_sha256"],
+        "generated_header_sha256": manifest["header_sha256"],
+        "generated_manifest_sha256": fingerprint(manifest),
         "symbols": reports,
         "logical_assurance": {
             key: value for key, value in logical.items() if key not in ("report", "inventory")

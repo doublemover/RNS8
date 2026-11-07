@@ -106,9 +106,26 @@ randomizes the remaining independent repetitions. Ordinary controls and all
 declared skinny, rectangular and tail cases remain in both stages. A coarse
 sample cannot prune an unqualified variant; the report records zero saved runs
 until complete measured coverage can justify a reviewed reduction. Plan-only
-output exposes this schedule without opening the executable. Complete assurance
-joins and regression/interaction coverage remain source work. Source-authored
+output exposes this schedule without opening the executable. Source-authored
 search/collector controls are registered and unexecuted.
+
+The same report carries a per-variant combination matrix: manifested form/group/
+slab/layout/output recipe, arithmetic and composition certificates, resource
+plan, and actually admitted full-output microcases. Optional
+`--generated-logical-report` reuses the existing source-current logical reader;
+only exact dimensions, pitches and prefix can join a checked configuration.
+Optional `--generated-isa-report` reopens an existing source-current inspection
+whose host input is the exact launched executable. An inspection of a separate
+object cannot acquire that association. Inspect that executable's `.hip_fatbin`
+with the existing checker before supplying its report. Unsupported extraction
+remains a gap. Missing reports and negative native verdicts stay visible; report
+ingestion does not rerun the checker or grant target qualification.
+
+Boundary and metamorphic differential fixtures remain required by the existing
+target-qualification owner; sampled microcases cannot claim they ran. The report
+keeps their missing receipt explicit. The default shipped generated set is empty;
+the opt-in research family remains bounded to six variants and no automatic
+retirement or promotion edits the binary's set.
 
 The compact [known-regression corpus](../metadata/native-known-regressions.json)
 records five CK failure classes described in AMD's

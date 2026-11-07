@@ -134,6 +134,93 @@ def finite(value, *, positive=False):
     return value
 
 
+def combination_coverage(manifest, observations, cohorts, *, logical=None, inspection=None):
+    """Join already-admitted records without inheriting component qualification.
+
+    Logical evidence covers exact pitches/configurations, not every shape of a
+    compiled recipe. Runtime coverage here is the collector's all-output check;
+    it cannot stand in for unexecuted boundary/metamorphic differential cases.
+    """
+    entries = manifest["variants"]
+    if not 1 <= len(entries) <= 6 or len(observations) > 8000 or len(cohorts) > 80:
+        raise ValueError("bounded native combination inventory required")
+    logical_rows = {row["id"]: row for row in logical["inventory"]["variants"]} if logical else {}
+    inspected = {row["id"]: row for row in inspection["report"]["symbols"]} if inspection else {}
+    rows = []
+    for entry in entries:
+        identity = entry["id"]
+        recorded = [row for row in observations if row["variant_id"] == identity]
+        cases = []
+        for cohort in sorted({row["cohort"] for row in recorded}):
+            case = cohorts[cohort]
+            configuration = {axis: case[axis] for axis in ("m", "n", "k", "prefix")}
+            configuration.update(lda=case["k"], ldb=case["n"], ldc=case["n"])
+            matches = [
+                row
+                for row in logical_rows.get(identity, {}).get("configurations", [])
+                if row["configuration"] == configuration
+            ]
+            cases.append(
+                dict(
+                    cohort=cohort,
+                    configuration=configuration,
+                    owned_invocations=sum(row["cohort"] == cohort for row in recorded),
+                    full_output_reference="collector_admitted",
+                    logical_memory=matches or None,
+                    logical_scope="exact_configuration_only_no_shape_or_pitch_extrapolation",
+                    target_qualified=False,
+                )
+            )
+        gaps = []
+        if not cases:
+            gaps.append("no_admitted_runtime_microcase")
+        if not cases or any(case["logical_memory"] is None for case in cases):
+            gaps.append("source_bound_logical_configuration_not_recorded")
+        elif any(
+            row["logical_verdict"] != "proven" or row["memory_verdict"] != "proven"
+            for case in cases
+            for row in case["logical_memory"]
+        ):
+            gaps.append("logical_or_memory_verdict_not_proven")
+        if identity not in inspected:
+            gaps.append("exact_executable_symbol_inspection_not_recorded")
+        elif inspection["report"]["inspection_passed"] is not True:
+            gaps.append("native_inspection_reports_failures")
+        gaps.extend(
+            [
+                "boundary_and_metamorphic_differential_receipt_not_recorded",
+                "independent_target_qualification_not_established",
+            ]
+        )
+        rows.append(
+            dict(
+                variant_id=identity,
+                kernel_symbol=entry["kernel_symbol"],
+                compatibility=entry.get("compatibility"),
+                arithmetic_certificates=entry.get("arithmetic_certificates"),
+                composition_certificates=entry.get("composition_certificates"),
+                resource_plan=entry.get("resource_plan"),
+                runtime_microcases=cases,
+                native_inspection=inspected.get(identity),
+                coverage_gaps=gaps,
+                qualified=False,
+                promotion_allowed=False,
+            )
+        )
+    return dict(
+        schema="rns8_generated_combination_coverage_v1",
+        variants=rows,
+        logical_report={k: v for k, v in logical.items() if k not in {"report", "inventory"}}
+        if logical
+        else None,
+        native_inspection={k: v for k, v in inspection.items() if k != "report"}
+        if inspection
+        else None,
+        component_qualification_inherited=False,
+        promotion_allowed=False,
+    )
+
+
 def summarize(manifest, observations, *, required_cohorts, baseline_ids):
     """Pareto retirement requires full declared coverage and all three objectives.
 

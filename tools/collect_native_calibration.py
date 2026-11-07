@@ -14,6 +14,7 @@ from benchmark_request import file_digest
 from json_evidence import parse_evidence_json as strict_json
 from native_variant_search import (
     collection_schedule,
+    combination_coverage,
     regression_scope,
     summarize as summarize_generated_search,
 )
@@ -1196,6 +1197,16 @@ def main():
         help="required for explicit generated_wmma execution; verify and retain the exact source/header/manifest family",
     )
     parser.add_argument(
+        "--generated-logical-report",
+        type=Path,
+        help="optional source-current existing logical assurance report",
+    )
+    parser.add_argument(
+        "--generated-isa-report",
+        type=Path,
+        help="optional existing inspection of the exact launched executable, not an unlinked object",
+    )
+    parser.add_argument(
         "--cases",
         type=Path,
         required=True,
@@ -1292,6 +1303,20 @@ def main():
             parser.error(str(error))
     exe = args.exe.resolve(strict=True)
     artifact = hashlib.sha256(exe.read_bytes()).hexdigest()
+    logical = inspection = None
+    if args.generated_logical_report or args.generated_isa_report:
+        if generated_manifest is None:
+            parser.error("generated assurance joins require an admitted generated family")
+        if args.generated_logical_report:
+            from check_native_wmma_logic import load_bound_report
+
+            logical = load_bound_report(args.generated_dir, args.generated_logical_report)
+        if args.generated_isa_report:
+            from check_generated_native_wmma import load_bound_inspection
+
+            inspection = load_bound_inspection(
+                args.generated_isa_report, generated_manifest, artifact
+            )
     args.output.mkdir(parents=True, exist_ok=True)
     collector_sources = [
         Path(__file__).resolve(),
@@ -1301,6 +1326,7 @@ def main():
         Path(__file__).with_name("native_dataset.py").resolve(),
         Path(__file__).with_name("native_locality_contract.py").resolve(),
         Path(__file__).with_name("native_variant_search.py").resolve(),
+        Path(__file__).with_name("check_native_wmma_logic.py").resolve(),
         Path(__file__).with_name("evidence_scalars.py").resolve(),
         Path(__file__).with_name("benchmark_request.py").resolve(),
         Path(__file__).with_name("execution_environment_contract.py").resolve(),
@@ -1344,6 +1370,9 @@ def main():
             }
 
     def bookend_sources():
+        for bound in (logical, inspection):
+            if bound and file_digest(Path(bound["path"])) != bound["sha256"]:
+                raise ValueError("generated assurance report changed during collection")
         if any(
             hashlib.sha256(path.read_bytes()).hexdigest() != collector_identity[path.name]
             for path in collector_sources
@@ -1597,6 +1626,17 @@ def main():
                 for case in cases
                 if case["candidate"] in OPTIONAL_GENERATED
             },
+            combination_coverage=combination_coverage(
+                generated_manifest,
+                generated_search_rows,
+                {
+                    generated_cohort(case): case
+                    for case in cases
+                    if case["candidate"] in OPTIONAL_GENERATED
+                },
+                logical=logical,
+                inspection=inspection,
+            ),
             baseline_rule="lowest_admitted_group_per_signedness",
             preparation_scope="host_variant_binding_probe_payload_allocation_and_upload",
             payload_scope="owned_native_inputs_and_guarded_residue_output_not_driver_or_code_storage",
