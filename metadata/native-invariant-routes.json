@@ -1,0 +1,37 @@
+{
+  "schema": "rns8_native_invariant_routes_v1",
+  "owner_issue": 103,
+  "scope": "initial mandatory CPU mutation registry; no device-route or per-test callchain inference",
+  "routes": {
+    "omit-checked-add-overflow-rejection": {
+      "invariant": "checked machine extent rejects overflow without publishing query resources",
+      "entrypoint": "rns8_query_integer_split_i64",
+      "source": "src/core/api_integer_split.cpp"
+    },
+    "omit-signed-crt-centering": {
+      "invariant": "signed reconstruction retains the centered exact value",
+      "entrypoint": "rns8_export_i64",
+      "source": "src/core/api_export.cpp"
+    },
+    "omit-published-value-generation": {
+      "invariant": "public mutation advances the published value generation",
+      "entrypoint": "rns8_pack_i64",
+      "source": "src/core/api_pack.cpp"
+    },
+    "discard-failed-handle-close-owner": {
+      "invariant": "failed close retains the retryable actual host template owner",
+      "entrypoint": null,
+      "source": null
+    },
+    "misclassify-signed-export-preflight": {
+      "invariant": "public export preflight rejects malformed input with the required status",
+      "entrypoint": "rns8_export_i64",
+      "source": "src/core/api_export.cpp"
+    },
+    "omit-prepared-a-generation-admission": {
+      "invariant": "prepared public execution rejects a stale input generation",
+      "entrypoint": "rns8_execute_prepared",
+      "source": "src/core/api_prepared.cpp"
+    }
+  }
+}

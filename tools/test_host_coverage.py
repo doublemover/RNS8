@@ -12,7 +12,7 @@ import unittest
 from unittest import mock
 
 from benchmark_request import file_digest
-from coverage_contract import llvm_export, mapped_sources
+from coverage_contract import invariant_mapping, llvm_export, mapped_sources
 import host_coverage_session as coverage
 
 
@@ -66,6 +66,91 @@ def fixture(root):
 
 
 class NativeCoverage(unittest.TestCase):
+    def test_invariant_mapping_binds_native_public_calls_source_and_real_test_inventories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native, args = fixture(root)
+            source = root / "src/core/range.cpp"
+            source.write_text(
+                "int rns8_query_fixture() { if (value) return 1; return 0; }\n", encoding="utf-8"
+            )
+            args["sources"][0]["sha256"] = file_digest(source)
+            native["data"][0]["functions"][0].update(name="rns8_query_fixture", count=1)
+            summary = llvm_export(native, **args)
+            seed = dict(
+                id="overflow",
+                source="src/core/range.cpp",
+                source_sha256=file_digest(source),
+                anchor="int rns8_query_fixture()",
+                before="if (value)",
+                tests=[
+                    dict(
+                        name="public overflow rejects",
+                        source="tests/unit/fixture.cpp",
+                        assertion_marker="reject",
+                    )
+                ],
+            )
+            routes = dict(
+                schema="rns8_native_invariant_routes_v1",
+                routes=dict(
+                    overflow=dict(
+                        invariant="query extent",
+                        entrypoint="rns8_query_fixture",
+                        source="src/core/range.cpp",
+                    )
+                ),
+            )
+            tests = dict(
+                schema="rns8_native_test_execution_inventory_v1",
+                discovered=[dict(name="public overflow rejects")],
+                selected=[dict(name="public overflow rejects")],
+                executed=["public overflow rejects"],
+                passed=["public overflow rejects"],
+            )
+
+            def map_rows(document=native, inventory=tests, policy=routes):
+                return invariant_mapping(document, summary, [seed], policy, inventory, root=root)
+
+            row = map_rows()["invariants"][0]
+            self.assertEqual(row["native_entrypoint_calls"], 1)
+            self.assertTrue(row["tests"][0]["passed"])
+            self.assertFalse(row["per_test_callchain_proven"])
+            self.assertIn(
+                "uncovered_native_branch_outcomes_in_reviewed_source_prefix", row["coverage_gaps"]
+            )
+            missing_test = copy.deepcopy(tests)
+            missing_test["passed"] = []
+            self.assertIn(
+                "mapped_assertion_case_not_executed_and_passed",
+                map_rows(inventory=missing_test)["invariants"][0]["coverage_gaps"],
+            )
+            absent_api = copy.deepcopy(native)
+            absent_api["data"][0]["functions"][0]["name"] = "unrelated"
+            self.assertIn(
+                "public_entrypoint_not_observed_in_native_suite",
+                map_rows(document=absent_api)["invariants"][0]["coverage_gaps"],
+            )
+            wrong_source = copy.deepcopy(native)
+            wrong_source["data"][0]["functions"][0]["filenames"] = [
+                str(root / "src/core/included.inc")
+            ]
+            with self.assertRaises(ValueError):
+                map_rows(document=wrong_source)
+            helper = copy.deepcopy(routes)
+            helper["routes"]["overflow"].update(entrypoint=None, source=None)
+            self.assertEqual(
+                map_rows(policy=helper)["invariants"][0]["scope"],
+                "host_template_fake_operations_only",
+            )
+            unknown_seed = copy.deepcopy(routes)
+            unknown_seed["routes"]["unreviewed"] = unknown_seed["routes"]["overflow"]
+            with self.assertRaises(ValueError):
+                map_rows(policy=unknown_seed)
+            source.write_text("changed production source", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "source drift"):
+                map_rows()
+
     def test_mapping_discovery_retains_actual_native_spelling_and_rejects_empty_or_duplicate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()

@@ -8,6 +8,11 @@ and stale prepared-input generation admission. The shared native arithmetic
 replay is exercised through actual public CPU calls for wrong-result,
 wrong-status and stale-state sensitivity. These witnesses mutate production
 operations in disposable source copies; their assertions receive no mutant flag.
+The checked-add mutant also faces a real integer-split public query whose
+element product fits but whose final logical extent overflows. Its assertion
+requires both range rejection and an unchanged resource record before a valid
+control query. Native coverage uses the same seed/test registry and a separate
+reviewed public-route map; it cannot turn branch reachability into a mutant kill.
 The ownership case instantiates
 the maintained production template with fake host operations; it does not call
 a HIP driver or qualify a device failure. No source snapshot, compiler, build,
@@ -43,7 +48,7 @@ Copied trees remain unknown/dirty for general target provenance, and these
 correctness-only receipts are explicitly non-promotable. They cannot become
 production performance or source-checkout qualification evidence.
 
-Complete discovery and an exact nine-case CTest selection are retained. A filter
+Complete discovery and an exact ten-case CTest selection are retained. A filter
 mismatch stops **before** execution. The baseline must pass every selected case;
 the publication seed requires both the reserved publication assertion and the
 real public CPU concurrency route to fail as expected. A mutant only counts as

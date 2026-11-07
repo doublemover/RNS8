@@ -27,6 +27,24 @@ rns8_integer_split_i64_info query(const rns8_integer_split_i64_desc& d) {
 }
 } // namespace
 
+TEST_CASE("integer split public query rejects wrapped native extents without publishing resources",
+          "[api][integer-split][overflow][mutation]") {
+  auto valid = descriptor(3, 2, 2);
+  auto info = query(valid);
+  CHECK(info.native_span_bytes == 6 * sizeof(int64_t));
+  const auto before = info;
+  auto overflow = valid;
+  // The first product is UINT64_MAX-1 and fits; adding the two logical
+  // columns must reject before the later byte/product checks can see zero.
+  overflow.native_ld = INT64_MAX;
+  overflow.component_ld = 2;
+  CHECK(rns8_query_integer_split_i64(&overflow, &info) == RNS8_RANGE_ERROR);
+  CHECK(std::memcmp(&info, &before, sizeof(info)) == 0);
+  CHECK(rns8_query_integer_split_i64(&valid, &info) == RNS8_SUCCESS);
+  CHECK(info.native_span_bytes == before.native_span_bytes);
+  CHECK(info.required_component_bytes == before.required_component_bytes);
+}
+
 TEST_CASE("raw integer split formats preserve query and conversion outputs",
           "[api][abi][enum][integer-split]") {
   const auto valid = descriptor(1, 1, 1);

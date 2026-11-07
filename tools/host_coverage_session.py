@@ -12,7 +12,7 @@ import sys
 
 from analysis_inputs import cache_values
 from compiled_binary_identity import canonical_digest, validate_document
-from coverage_contract import llvm_export, mapped_sources
+from coverage_contract import invariant_mapping, llvm_export, mapped_sources
 from execution_inventory import bounded_read, discovery
 from host_instrumentation_session import (
     MANDATORY,
@@ -99,6 +99,23 @@ def execute(args, plan):
     )
     try:
         result["source_inventory"] = source_inventory()
+        from native_mutation_session import registry
+
+        seeds = registry()
+        route_text, route_ref = bounded_read(ROOT / "metadata/native-invariant-routes.json")
+        routes = parse_evidence_json(route_text)
+        result["invariant_inputs"] = [
+            route_ref,
+            *[
+                reference(ROOT / name)
+                for name in (
+                    "metadata/native-production-mutations.json",
+                    "tools/coverage_contract.py",
+                    "tools/native_mutation_session.py",
+                    "tools/native_mutation_contract.py",
+                )
+            ],
+        ]
         result["tools"] = {
             key: reference(getattr(args, key))
             for key in ("cmake", "ctest", "compiler", "nm", "llvm_cov", "llvm_profdata")
@@ -249,6 +266,14 @@ def execute(args, plan):
             compiled_sources={Path(row["source"]["path"]) for row in objects["objects"]},
             generated=generated,
             required_modules=REQUIRED_MODULES,
+        )
+        summary["invariant_coverage"] = invariant_mapping(
+            document,
+            summary,
+            seeds,
+            routes,
+            tests,
+            root=ROOT,
         )
         result["coverage_summary"] = write_json(output / "coverage-summary.json", summary)
         session.run(

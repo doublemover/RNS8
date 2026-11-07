@@ -15,6 +15,11 @@
           "name": "shared checked arithmetic preserves output on overflow and handles aliased results",
           "source": "tests/unit/test_hip_handle_owner.cpp",
           "assertion_marker": "result == 17"
+        },
+        {
+          "name": "integer split public query rejects wrapped native extents without publishing resources",
+          "source": "tests/unit/test_integer_split.cpp",
+          "assertion_marker": "rns8_query_integer_split_i64(&overflow, &info) == RNS8_RANGE_ERROR"
         }
       ],
       "source_sha256": "68d402c1c2fa214d63d0db5ea5935fea6cb743f2a36cab1206e3c5e349fbd833",

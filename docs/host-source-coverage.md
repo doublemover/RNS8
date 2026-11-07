@@ -53,10 +53,29 @@ not evidence it compiled. Native `.inc` locations remain their own source files.
 completed, with real production branches and required core modules observed.
 It does not establish a reviewed coverage baseline or assertion strength.
 No arbitrary percentage threshold, current measured percentage or mutation
-success is invented. Per-invariant entrypoint/test/branch mapping, Python
+success is invented. Python
 broader branch/subprocess qualification, curated production mutations and CI policy
 remain separately tracked work under
 [#103](https://github.com/doublemover/RNS8/issues/103).
+
+The same coverage summary now contains an initial invariant mapping tied to the
+six mandatory native production mutations. The reviewed
+[route map](../metadata/native-invariant-routes.json) must cover exactly that
+registry. It names public integer-split queries, signed export, packing and
+prepared execution; failed-close ownership remains explicitly a host template
+with fake operations. Source hashes and unique operation/anchor spans bind the
+reviewed source prefix and its actual native branch outcomes. Each row retains
+the real discovered/selected/executed/passed assertion inventory, plus the
+matching public C symbol's whole-suite native count and source mapping.
+
+Unmapped or untaken public entrypoints, missing assertions and uncovered branch
+outcomes remain gaps. A source operation without a mapped branch remains
+unresolved, even if its file has coverage. These whole-suite counts do not prove
+a per-test call chain or assertion strength; the separate native mutation lane
+must detect the actual wrong behavior. The new public overflow witness reaches
+checked addition after a valid near-maximum extent product and requires range
+rejection without query-output publication. Mapping/control execution remains
+deferred; no coverage number or mutation kill is claimed.
 
 The authored Python inventory wrapper, `tools/python_test_inventory.py`, uses
 the existing native `unittest` loader/runner and each module's `load_tests`

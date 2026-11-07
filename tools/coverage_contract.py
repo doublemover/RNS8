@@ -3,11 +3,150 @@
 from __future__ import annotations
 
 import math
+import hashlib
 from pathlib import Path
 
 from benchmark_request import file_digest
 
 METRICS = ("functions", "regions", "lines", "branches")
+
+
+def invariant_mapping(native, summary, seeds, routes, tests, *, root: Path):
+    """Locate reviewed operations, native API counts and selected assertions.
+
+    Counts cover the selected suite. A passing test and executed API are not a
+    per-test call-edge proof or evidence that a production mutant was detected.
+    """
+    if (
+        not isinstance(routes, dict)
+        or routes.get("schema") != "rns8_native_invariant_routes_v1"
+        or not isinstance(routes.get("routes"), dict)
+        or set(routes["routes"]) != {seed["id"] for seed in seeds}
+        or not 1 <= len(seeds) <= 16
+        or tests.get("schema") != "rns8_native_test_execution_inventory_v1"
+    ):
+        raise ValueError("complete bounded native invariant/test mapping required")
+    root = root.resolve()
+    files = {row["relative_path"]: row for row in summary["files"]}
+    functions = native["data"][0]["functions"]
+    rows = []
+    test_sets = {key: {row["name"] for row in tests[key]} for key in ("discovered", "selected")}
+    test_sets.update({key: set(tests[key]) for key in ("executed", "passed")})
+    text_cache = {}
+
+    def source_text(name):
+        if name in text_cache:
+            return text_cache[name]
+        reference = files[name]
+        path = (root / name).resolve(strict=True)
+        if not path.is_relative_to(root) or path != Path(reference["path"]).resolve():
+            raise ValueError("native invariant source path differs from coverage")
+        with path.open("rb") as handle:
+            raw = handle.read(16 * 1024**2 + 1)
+        if len(raw) > 16 * 1024**2 or hashlib.sha256(raw).hexdigest() != reference["sha256"]:
+            raise ValueError("native invariant source drift or byte budget exceeded")
+        text_cache[name] = raw.decode("utf-8").replace("\r\n", "\n")
+        return text_cache[name]
+
+    for seed in seeds:
+        route = routes["routes"][seed["id"]]
+        if (
+            not isinstance(route, dict)
+            or set(route) != {"invariant", "entrypoint", "source"}
+            or type(route["invariant"]) is not str
+            or not route["invariant"]
+            or ((route["entrypoint"] is None) != (route["source"] is None))
+            or (
+                route["entrypoint"] is not None
+                and (
+                    type(route["entrypoint"]) is not str
+                    or not route["entrypoint"].startswith("rns8_")
+                    or type(route["source"]) is not str
+                    or route["source"] not in files
+                )
+            )
+        ):
+            raise ValueError("explicit native route or helper-only scope required")
+        reference = files.get(seed["source"])
+        if reference is None or reference["sha256"] != seed["source_sha256"]:
+            raise ValueError("native invariant production source drift")
+        text = source_text(seed["source"])
+        anchor, operation = seed["anchor"], seed["before"]
+        if (
+            text.count(anchor) != 1
+            or text.count(operation) != 1
+            or text.index(operation) < text.index(anchor)
+        ):
+            raise ValueError("native invariant operation/anchor is not uniquely bound")
+        start = text.count("\n", 0, text.index(anchor)) + 1
+        operation_start = text.count("\n", 0, text.index(operation)) + 1
+        end = operation_start + operation.count("\n")
+        branches = [
+            row for row in reference["branches"] if row["line"] <= end and row["end_line"] >= start
+        ]
+        api = []
+        if route["entrypoint"] is not None:
+            target = (root / route["source"]).resolve()
+            source_text(route["source"])
+            for function in functions:
+                if function.get("name") != route["entrypoint"]:
+                    continue
+                names, count = function.get("filenames"), function.get("count")
+                if (
+                    not isinstance(names, list)
+                    or any(type(name) is not str or not Path(name).is_absolute() for name in names)
+                    or type(count) is not int
+                    or count < 0
+                ):
+                    raise ValueError("native invariant function mapping/count missing")
+                if target not in {Path(name).resolve() for name in names}:
+                    raise ValueError("native invariant entrypoint maps to a different source")
+                api.append(count)
+        mapped_tests = [
+            dict(test, **{key: test["name"] in names for key, names in test_sets.items()})
+            for test in seed["tests"]
+        ]
+        gaps = []
+        if not all(all(row[key] for key in test_sets) for row in mapped_tests):
+            gaps.append("mapped_assertion_case_not_executed_and_passed")
+        if not branches:
+            gaps.append("no_native_branch_mapping_in_reviewed_source_prefix")
+        elif any(not row["true_covered"] or not row["false_covered"] for row in branches):
+            gaps.append("uncovered_native_branch_outcomes_in_reviewed_source_prefix")
+        if route["entrypoint"] is not None and (not api or not sum(api)):
+            gaps.append("public_entrypoint_not_observed_in_native_suite")
+        rows.append(
+            dict(
+                seed_id=seed["id"],
+                invariant=route["invariant"],
+                source=reference["path"],
+                source_sha256=reference["sha256"],
+                reviewed_prefix=dict(start_line=start, end_line=end),
+                changed_operation=dict(start_line=operation_start, end_line=end),
+                branches=branches,
+                public_entrypoint=route["entrypoint"],
+                entrypoint_source={
+                    key: files[route["source"]][key] for key in ("path", "sha256", "state")
+                }
+                if route["source"]
+                else None,
+                native_entrypoint_calls=sum(api) if api else None,
+                scope="public_cpu_route"
+                if route["entrypoint"]
+                else "host_template_fake_operations_only",
+                tests=mapped_tests,
+                coverage_gaps=gaps,
+                per_test_callchain_proven=False,
+                mutation_detection="separate_native_mutation_lane",
+            )
+        )
+    return dict(
+        schema="rns8_native_coverage_invariants_v1",
+        invariants=rows,
+        status="gaps" if any(row["coverage_gaps"] for row in rows) else "observed",
+        assertion_strength="not_established_by_coverage",
+        production_latency=False,
+    )
 
 
 def mapped_sources(value, admitted: set[Path]) -> list[str]:
