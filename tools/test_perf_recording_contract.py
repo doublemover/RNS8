@@ -17,8 +17,8 @@ from perf_recording_contract import (
 )
 
 
-def record(kind, payload=b""):
-    return struct.pack("<IHH", kind, 0, len(payload) + 8) + payload
+def record(kind, payload=b"", *, misc=0):
+    return struct.pack("<IHH", kind, misc, len(payload) + 8) + payload
 
 
 def read_value(lost=0, *, read_format=20, identity=1, group=False):
@@ -156,6 +156,45 @@ def recording_bytes(
 
 
 class PerfRecordingContract(unittest.TestCase):
+    def test_native_switches_keep_actual_trailer_identity_and_preempt_bits(self):
+        sample_type = REQUIRED_SAMPLE_FIELDS | SAMPLE_IDENTIFIER
+        flags = (1 << 25) | (1 << 5) | (1 << 10) | (1 << 18) | (1 << 26)
+        records = [sample_record(sample_type=sample_type)]
+        records += [
+            record(14, struct.pack("<IIQIIQ", 41, 42, timestamp, cpu, 0, 1), misc=misc)
+            for timestamp, cpu, misc in ((120, 3, (1 << 13) | (1 << 14)), (170, 4, 0))
+        ]
+        value = self.read(recording_bytes(records=records, sample_type=sample_type, flags=flags))
+        first, last = value["context_switches"]
+        self.assertEqual(
+            (first["pid"], first["tid"], first["time_ns"], first["cpu"]), (41, 42, 120, 3)
+        )
+        self.assertEqual(
+            (first["direction"], first["preempted"], last["direction"], last["cpu"]),
+            ("out", True, "in", 4),
+        )
+        self.assertTrue(value["event_attributes"][0]["context_switch"])
+        for changed in (
+            dict(flags=flags & ~(1 << 26)),
+            dict(flags=flags & ~(1 << 18)),
+        ):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                self.read(recording_bytes(records=records, sample_type=sample_type, **changed))
+        for kind, payload, misc in (
+            (15, struct.pack("<IIQIIQ", 41, 42, 120, 3, 0, 1), 0),
+            (14, struct.pack("<IIQIIQ", 41, 42, 120, 3, 0, 1), 1 << 14),
+            (14, struct.pack("<IIQIIQ", 41, 42, 120, 3, 0, 999), 0),
+            (14, b"", 0),
+        ):
+            with self.subTest(kind=kind, misc=misc), self.assertRaises(ValueError):
+                self.read(
+                    recording_bytes(
+                        records=[records[0], record(kind, payload, misc=misc)],
+                        sample_type=sample_type,
+                        flags=flags,
+                    )
+                )
+
     def setUp(self):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.path = self.root / "perf.data"

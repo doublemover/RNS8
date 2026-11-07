@@ -10,7 +10,8 @@ from host_range_contract import PHASES
 from interval_observations import interval_summary
 
 
-def _segments(identities, index, markers, allowed):
+def exclusive_segments(identities, index, markers, allowed):
+    """Partition one thread's scopes; foreign/non-ancestral overlaps stay masked."""
     events = []
     for identity in identities:
         marker = markers[identity]
@@ -88,7 +89,7 @@ def attribute(index, markers, roots, selected):
         groups[(owner, scope["start_thread_id"])].append(identity)
     segments, starts, summaries = {}, {}, []
     for (owner, thread), identities in sorted(groups.items()):
-        spans = _segments(identities, index, markers, owners)
+        spans = exclusive_segments(identities, index, markers, owners)
         segments[(owner, thread)] = spans
         starts[(owner, thread)] = [row[0] for row in spans]
         inclusive = defaultdict(list)

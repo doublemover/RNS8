@@ -43,6 +43,26 @@ software `cpu-clock:u` samples at 99 Hz, bounded DWARF callchains,
 requested frequency is not proof of achieved sample rate. Record/runtime and
 decoded-artifact limits remain independent.
 
+Optional `--scheduling` adds the pinned perf
+[`--switch-events` option](https://github.com/torvalds/linux/blob/47f05f71ad988c3180bdba807151e6e86ed75aa3/tools/perf/Documentation/perf-record.txt)
+to the same owned-process recording. It does not request system-wide tracing,
+kernel probes or security changes. The raw file auditor retains actual per-thread
+SWITCH trailers, attribute identity, PID/TID, clock, CPU and preemption flag,
+alongside fork/exit/exec boundaries. CPU-wide switch records require a different
+scope and are rejected. Missing pairs, repeated outs, same-time ambiguity and
+task-generation boundaries remain unresolved rather than bridged.
+
+The bound report retains candidate off-CPU pairs and their durations conditional
+on no unobserved intervening switch or task reuse. The native preemption flag
+means TASK_RUNNING **at switch-out**; a nonpreempted switch does not identify a
+blocked wait. Exact blocked duration, wakeup-to-run delay, active-spin duration
+and complete scheduler coverage remain unavailable. Loss observations stay
+attached. With `--operation-ranges`, the same monotonic observations intersect
+exclusive same-thread measured phases using the shared bounded scope partition;
+foreign and ambiguous overlaps stay masked. These thread durations are not
+additive process wall time, CPU sampling exposure or GPU dependency costs.
+Native ABI and phase controls are authored for the deferred validation batch.
+
 The adapter disables persistent build-ID cache writes and debuginfod downloads,
 isolates perf configuration, and retains partial data/logs on failure. The
 benchmark's native argv/environment witness includes `PERF_` variables. Artifact

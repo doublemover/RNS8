@@ -290,6 +290,7 @@ def read_recording(
         witness, counts, read_counters = SampleWitness(), Counter(), {}
         ring_lost = lost_samples = sample_count = record_count = 0
         mappings, boundaries, mapping_bytes = [], [], 0
+        switches, task_boundaries = [], []
 
         def trailer_attribute(payload: bytes) -> dict:
             if len(attributes) == 1:
@@ -306,7 +307,7 @@ def read_recording(
                 raise ValueError("mixed perf record lacks unambiguous trailer identity")
             return event
 
-        def validate_trailer(payload: bytes, event: dict, identity=None):
+        def validate_trailer(payload: bytes, event: dict, identity=None, *, with_task=False):
             """Validate ID-bearing trailers without borrowing the sampling layout."""
             length = event["trailer_size"]
             if not length:
@@ -315,7 +316,7 @@ def read_recording(
                 raise ValueError("truncated perf sample-ID trailer")
             cursor = len(payload) - length
             recorded_ids = []
-            timestamp = None
+            timestamp = pid = tid = cpu = None
             for bit in (2, 4, 64, 512, 128, SAMPLE_IDENTIFIER):
                 if event["sample_type"] & bit:
                     value = struct.unpack_from("<Q", payload, cursor)[0]
@@ -324,6 +325,10 @@ def read_recording(
                         recorded_ids.append(value)
                     if bit == 4:
                         timestamp = value
+                    if bit == 2:
+                        pid, tid = value & 0xFFFFFFFF, value >> 32
+                    if bit == 128:
+                        cpu = value & 0xFFFFFFFF
                     if bit == 128 and value >> 32:
                         raise ValueError("perf trailer CPU reserved bits are nonzero")
             if (
@@ -333,7 +338,10 @@ def read_recording(
                 and any(value != identity for value in recorded_ids)
             ):
                 raise ValueError("perf record and trailer event identities disagree")
-            return dict(time_ns=timestamp, clock_id=event["clock_id"])
+            stamp = dict(time_ns=timestamp, clock_id=event["clock_id"])
+            if with_task:
+                stamp.update(pid=pid, tid=tid, cpu=cpu)
+            return stamp
 
         def read_values(payload: bytes, start: int, pid: int, tid: int, event: dict):
             cursor = start
@@ -386,10 +394,42 @@ def read_recording(
             counts[record_type] += 1
             payload = (
                 read_at(offset + 8, record_size - 8)
-                if record_type in {1, 2, 3, 4, 7, 8, 9, 10, 13}
+                if record_type in {1, 2, 3, 4, 7, 8, 9, 10, 13, 14, 15}
                 else b""
             )
-            if record_type in {1, 10}:
+            if record_type in {14, 15}:
+                # Per-CPU switches expose another task; this owned-process
+                # contract deliberately admits only per-thread SWITCH records.
+                if record_type == 15:
+                    raise ValueError(
+                        "CPU-wide scheduling records require a separate authorized contract"
+                    )
+                event = trailer_attribute(payload)
+                if (
+                    not event["flags"] & (1 << 26)
+                    or not event["flags"] & (1 << 18)
+                    or event["sample_type"] & (SAMPLE_TID | SAMPLE_TIME) != SAMPLE_TID | SAMPLE_TIME
+                    or len(payload) != event["trailer_size"]
+                    or misc & ~(7 | (1 << 13) | (1 << 14))
+                    or misc & (1 << 14)
+                    and not misc & (1 << 13)
+                ):
+                    raise ValueError("unsupported per-thread switch attribute/trailer/flags")
+                stamp = validate_trailer(payload, event, with_task=True)
+                if not stamp["pid"] or not stamp["tid"] or stamp["clock_id"] != clock_id:
+                    raise ValueError("switch process/thread/clock association is unavailable")
+                if len(switches) >= 100_000:
+                    raise ValueError("perf switch record budget exhausted")
+                switches.append(
+                    dict(
+                        record_index=record_count,
+                        attribute_index=event["index"],
+                        **stamp,
+                        direction="out" if misc & (1 << 13) else "in",
+                        preempted=bool(misc & (1 << 14)),
+                    )
+                )
+            elif record_type in {1, 10}:
                 if len(mappings) >= MAX_MAPPINGS or mapping_bytes + record_size > MAX_MAPPING_BYTES:
                     raise ValueError("recorded perf mapping inventory exceeds byte/count budget")
                 event = trailer_attribute(payload)
@@ -423,6 +463,22 @@ def read_recording(
                         record_type == 4 and pid == tid
                     )
                     stamp["time_ns"] = struct.unpack_from("<Q", body, 16)[0]
+                if record_type != 3 or invalidates:
+                    if len(task_boundaries) >= MAX_COUNTERS:
+                        raise ValueError("perf task-lifetime boundary budget exhausted")
+                    task_boundaries.append(
+                        dict(
+                            pid=pid,
+                            tid=pid if record_type == 3 else tid,
+                            kind="exec"
+                            if record_type == 3
+                            else "exit"
+                            if record_type == 4
+                            else "fork",
+                            record_index=record_count,
+                            **stamp,
+                        )
+                    )
                 if invalidates:
                     if len(boundaries) >= MAX_MAPPINGS:
                         raise ValueError("perf process address-space boundary budget exhausted")
@@ -536,6 +592,7 @@ def read_recording(
                 clock_id=event["clock_id"],
                 use_clockid=bool(event["flags"] & (1 << 25)),
                 sample_id_all=bool(event["flags"] & (1 << 18)),
+                context_switch=bool(event["flags"] & (1 << 26)),
                 event_ids=dict(
                     count=len(event["ids"]),
                     payload_sha256=hashlib.sha256(event["ids_bytes"]).hexdigest(),
@@ -551,6 +608,9 @@ def read_recording(
         recorded_mappings=mappings,
         process_mapping_boundaries=boundaries,
         recorded_mapping_bytes=mapping_bytes,
+        context_switches=switches,
+        task_lifetime_boundaries=task_boundaries,
+        context_switch_scope="per_thread_event_not_system_wide_scheduler_trace",
         clock=clock,
         recorded_machine=machine,
         event_ids=dict(count=len(ids), payload_sha256=hashlib.sha256(ids_bytes).hexdigest()),

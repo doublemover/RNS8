@@ -28,6 +28,7 @@ from host_source_attribution import source_inventory, bind_selected_sites
 from json_evidence import parse_evidence_json, same_evidence_value
 from profiler_contract import production_profile_input, bind_host_profile_output
 from profiler_artifacts import write_diagnostic
+from host_schedule_attribution import summarize as schedule_summary
 from process_progress import capture_succeeded
 from target_qualification import EvidenceStore, session_stage
 from timing_eligibility import capture_identity
@@ -56,6 +57,8 @@ SOURCE_INPUTS = (
     "tools/perf_recording_contract.py",
     "tools/perf_mapping_contract.py",
     "tools/host_source_attribution.py",
+    "tools/host_schedule_attribution.py",
+    "tools/native_phase_attribution.py",
     "tools/elf_module_identity.py",
 )
 
@@ -215,10 +218,11 @@ def plan_capture(
     max_output_bytes=16 * 1024**2,
     minimum_free_bytes=1024**3,
     operation_ranges=False,
+    scheduling=False,
     _review_existing=False,
 ) -> dict:
-    if type(operation_ranges) is not bool:
-        raise ValueError("operation range selection must be explicit boolean policy")
+    if type(operation_ranges) is not bool or type(scheduling) is not bool:
+        raise ValueError("operation range/scheduling selection must be explicit boolean policy")
     if (
         any(
             type(value) not in (int, float) or not math.isfinite(value) or value <= 0
@@ -306,6 +310,7 @@ def plan_capture(
             "99",
             "--sample-cpu",
             "--sample-identifier",
+            *(["--switch-events"] if scheduling else []),
             "--timestamp",
             "--period",
             "--call-graph",
@@ -346,7 +351,7 @@ def plan_capture(
     )
     plan = dict(
         schema=SCHEMA,
-        schema_version=3,
+        schema_version=4,
         session_kind="host-perf-cpu-sampling",
         system="Linux",
         command_working_directory=str(ROOT),
@@ -359,6 +364,7 @@ def plan_capture(
         expected_native_environment=expected_environment,
         profiler_environment=profiler_environment,
         operation_ranges=operation_ranges,
+        scheduling=scheduling,
         commands=commands,
         devices=[],
         budgets=dict(
@@ -388,6 +394,7 @@ def rebuild(plan: dict, *, review_existing=False) -> dict:
         max_output_bytes=plan["commands"][3]["max_output_bytes"],
         minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
         operation_ranges=plan["operation_ranges"],
+        scheduling=plan["scheduling"],
         _review_existing=review_existing,
     )
 
@@ -532,6 +539,15 @@ def finalize(manifest_path: Path) -> dict:
         selected_operation_range["selected_source_sites"] = bind_selected_sites(
             selected_operation_range["selected_source_sites"], sources
         )
+    scheduling_report = (
+        schedule_summary(
+            recording,
+            pid=raw["process_id"],
+            snapshot=raw.get("profiler_ranges") if plan["operation_ranges"] else None,
+        )
+        if plan["scheduling"]
+        else "not_requested"
+    )
     # perf forks the benchmark. The launched profiler's PID is intentionally not
     # substituted for the native application PID or used as a sample selector.
     profiled["external_instrumentation"] = dict(
@@ -569,6 +585,7 @@ def finalize(manifest_path: Path) -> dict:
         recorded_frame_custody=frames,
         current_source_custody=sources,
         selected_operation_range=selected_operation_range,
+        scheduling=scheduling_report,
         production_latency=False,
         promotion_allowed=False,
     )
@@ -631,6 +648,11 @@ def main(argv=None) -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument(
+        "--scheduling",
+        action="store_true",
+        help="Collect owned-process switch observations; no system-wide trace or wakeup inference",
+    )
+    parser.add_argument(
         "--operation-ranges",
         action="store_true",
         help="Enable existing ROCTx host scopes and require same-clock measured-operation attribution",
@@ -659,6 +681,7 @@ def main(argv=None) -> int:
             max_output_bytes=args.max_output_mib * 1024**2,
             minimum_free_bytes=args.min_free_mib * 1024**2,
             operation_ranges=args.operation_ranges,
+            scheduling=args.scheduling,
         )
         if args.execute:
             return execute_capture(plan)

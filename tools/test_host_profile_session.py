@@ -225,6 +225,7 @@ class HostSession(unittest.TestCase):
             self.plan()
         self.perf.write_bytes(elf())
         for policy in (
+            dict(scheduling=1),
             dict(timeout_seconds=True),
             dict(total_seconds=20),
             dict(max_artifact_bytes=0),
@@ -233,6 +234,14 @@ class HostSession(unittest.TestCase):
         ):
             with self.subTest(policy=policy), self.assertRaises(ValueError):
                 self.plan(**policy)
+
+    def test_scheduling_is_explicit_process_scoped_and_receipt_reconstructed(self):
+        self.assertNotIn("--switch-events", self.plan()["commands"][3]["argv"])
+        plan = self.plan(scheduling=True)
+        self.assertIn("--switch-events", plan["commands"][3]["argv"])
+        self.assertNotIn("-a", plan["commands"][3]["argv"])
+        with patch.object(session, "production_profile_input", return_value=self.binary):
+            self.assertEqual(plan, session.rebuild(plan))
         self.assertFalse(self.out.exists())
 
     def test_range_selection_is_opt_in_and_rebuild_preserves_its_environment(self):
