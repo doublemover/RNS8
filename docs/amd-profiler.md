@@ -27,6 +27,24 @@ recorded relationship, not an inferred dependency. Native-layout controls use
 different internal, external and event IDs so those namespaces cannot collapse
 unnoticed. The corrected reader and controls remain source-authored/unexecuted.
 
+The optional `read_process(..., include_timeline=True)` projection also reads
+native host regions, copies, allocation lifecycle, HIP events, graph launches
+and dispatch intervals. Their table IDs, real thread IDs, string categories,
+event associations and nullable agent/queue/stream references stay distinct.
+Shared event metadata is stored once, with literal event IDs on records.
+Intervals must belong to the completed native process; every nonnull reference
+needs its matching process/node/GUID inventory. Free size zero is preserved for
+later generation accounting, and unknown JSON metadata remains available.
+All queries share a cumulative row allowance and64MiB decoded-text budget;
+individual SQLite values are limited to1MiB and the interval projection to
+100,000 records. SQL work and final materialization retain the time limit.
+Missing or malformed requested tables fail rather than produce empty success.
+Empty tables mean no observation, not zero work or complete capture; instant
+samples and loss counters are outside this interval projection. The capture
+finalizer, marker/operation association and dependency/critical-path consumer
+are not yet connected to it. Actual-layout database controls are authored and
+registered, with no database fixture, reader or profiler execution in this pass.
+
 AMD's [rocpd documentation](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocpd-output-format.html)
 recommends retaining the database before converting to other formats. An
 export's display name, renamed kernel or temporal proximity cannot establish

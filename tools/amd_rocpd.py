@@ -14,6 +14,8 @@ from pathlib import Path
 import sqlite3
 import time
 
+from json_evidence import parse_evidence_json
+
 VERSION = "3.0.4"
 
 
@@ -55,12 +57,179 @@ def _optional_uint(value, name: str):
     return None if value is None else _uint(value, name)
 
 
+def _read_timeline(rows, indexed, process, *, agents, queues, streams):
+    """Read only real3.0.4 tables; database IDs never become HIP ordinals."""
+    guid, begin, end = process["guid"], process["init"], process["fini"]
+    owners = rows("rocpd_info_process", "id", " WHERE guid=?", (guid,))
+    if len(owners) != 1 or owners[0]["id"] != process["id"]:
+        raise ValueError("native timeline GUID does not have one unambiguous process owner")
+    strings = {}
+    for row in rows("rocpd_string", "id,string", " WHERE guid=?", (guid,)):
+        key = _uint(row["id"], "string ID", positive=True)
+        value = row["string"]
+        if key in strings or type(value) is not str or "\0" in value or len(value.encode()) > 4096:
+            raise ValueError("native rocpd string identity/value invalid or over budget")
+        strings[key] = value
+    threads = indexed("rocpd_info_thread", "id,tid")
+    for thread in threads.values():
+        _uint(thread["tid"], "native thread ID", positive=True)
+    events = {}
+    for row in rows(
+        "rocpd_event",
+        "id,stack_id,parent_stack_id,correlation_id,category_id,json(extdata) AS extdata",
+        " WHERE guid=?",
+        (guid,),
+    ):
+        key = _uint(row["id"], "timeline event ID", positive=True)
+        if key in events:
+            raise ValueError("duplicate native timeline event identity")
+        category = _optional_uint(row.pop("category_id"), "category string ID")
+        if category is not None and category not in strings:
+            raise ValueError("native event category has no same-GUID string")
+        row["category"] = strings.get(category)
+        for field in ("stack_id", "parent_stack_id", "correlation_id"):
+            row[field] = _optional_uint(row[field], field)
+        row["extdata"] = parse_evidence_json(row["extdata"])
+        events[key] = row
+
+    def interval(row):
+        first, last = _uint(row["start"], "timeline start"), _uint(row["end"], "timeline end")
+        if not begin <= first <= last <= end:
+            raise ValueError("native timeline interval is outside its completed process")
+        return first, last
+
+    def name(identifier, field):
+        if identifier is None:
+            return None
+        _uint(identifier, field, positive=True)
+        if identifier not in strings:
+            raise ValueError("native timeline " + field + " has no same-GUID string")
+        return strings[identifier]
+
+    def reference(identifier, inventory, field):
+        if identifier is not None:
+            _uint(identifier, field, positive=True)
+        if identifier is not None and identifier not in inventory:
+            raise ValueError("native timeline " + field + " is outside its process/node/GUID")
+        return identifier
+
+    specifications = (
+        ("host_region", "rocpd_region", "id,tid,start,end,name_id,event_id", ()),
+        (
+            "memory_copy",
+            "rocpd_memory_copy",
+            "id,tid,start,end,name_id,dst_agent_id,dst_address,src_agent_id,src_address,size,queue_id,stream_id,graph_exec_id,graph_node_id,region_name_id,event_id",
+            ("size", "graph_exec_id", "graph_node_id"),
+        ),
+        (
+            "memory_lifecycle",
+            "rocpd_memory_allocate",
+            "id,tid,agent_id,type,level,start,end,address,size,queue_id,stream_id,event_id,json(extdata) AS extdata",
+            ("size",),
+        ),
+        (
+            "hip_event",
+            "rocpd_hip_event",
+            "id,tid,start,end,name_id,agent_id,queue_id,stream_id,hip_event_handle,source_queue_id,event_id",
+            ("hip_event_handle",),
+        ),
+        (
+            "graph_launch",
+            "rocpd_graph_launch",
+            "id,tid,agent_id,queue_id,start,end,graph_exec_id,kernel_dispatch_count,event_id",
+            ("graph_exec_id", "kernel_dispatch_count"),
+        ),
+        (
+            "kernel_dispatch",
+            "rocpd_kernel_dispatch",
+            "id,tid,agent_id,queue_id,stream_id,start,end,dispatch_id,kernel_id,region_name_id,event_id,graph_exec_id,graph_node_id",
+            ("dispatch_id", "kernel_id", "graph_exec_id", "graph_node_id"),
+        ),
+    )
+    records, counts = [], {}
+    for kind, table, columns, numeric in specifications:
+        entries = indexed(table, columns)
+        counts[kind] = len(entries)
+        for row in entries.values():
+            row = dict(row)
+            first, last = interval(row)
+            thread = reference(row.pop("tid"), threads, "thread")
+            event = reference(row.pop("event_id"), events, "event")
+            if kind == "host_region" and (thread is None or event is None):
+                raise ValueError("native host region has no actual thread/event association")
+            for field in numeric:
+                row[field] = _uint(row[field], field)
+            for field in ("address", "dst_address", "src_address"):
+                if field in row:
+                    row[field] = _optional_uint(row[field], field)
+            for field, inventory in (
+                ("agent_id", agents),
+                ("dst_agent_id", agents),
+                ("src_agent_id", agents),
+                ("queue_id", queues),
+                ("source_queue_id", queues),
+                ("stream_id", streams),
+            ):
+                if field in row:
+                    row[field] = reference(row[field], inventory, field)
+            for field in ("name_id", "region_name_id"):
+                if field in row:
+                    row[field.removesuffix("_id")] = name(row.pop(field), field)
+            if kind == "memory_lifecycle":
+                if row["type"] not in {"ALLOC", "FREE", "REALLOC", "RECLAIM"} or row[
+                    "level"
+                ] not in {"REAL", "VIRTUAL", "SCRATCH"}:
+                    raise ValueError("unknown native memory lifecycle type/level")
+                row["extdata"] = parse_evidence_json(row["extdata"])
+            row.update(
+                kind=kind,
+                start_ns=first,
+                end_ns=last,
+                native_thread_table_id=thread,
+                thread_id=threads[thread]["tid"] if thread is not None else None,
+                native_event_id=event,
+            )
+            records.append(row)
+            if len(records) > 100_000:
+                raise ValueError("native interval timeline exceeds its record budget")
+    return dict(
+        schema="rns8_native_rocpd_timeline_v1",
+        process_id=process["pid"],
+        native_process_table_id=process["id"],
+        native_node_id=process["nid"],
+        process_guid=guid,
+        clock="native_ROCprofiler_SDK_timestamp_ns_in_one_process",
+        process_interval_ns=[begin, end],
+        records=records,
+        events=list(events.values()),
+        agents=list(agents.values()),
+        record_identity="kind_and_native_table_id_within_process_node_GUID",
+        record_counts=counts,
+        empty_table_means="no_observation_not_zero_work_or_full_coverage",
+        instant_samples="not_in_this_interval_projection",
+        loss_status="unknown_no_loss_counter_in_this_schema_projection",
+        complete_run_coverage=False,
+        production_latency=False,
+    )
+
+
 def read_process(
-    path: Path, process_id: int, *, maximum_rows=1_000_000, timeout_seconds=20.0
+    path: Path,
+    process_id: int,
+    *,
+    maximum_rows=1_000_000,
+    timeout_seconds=20.0,
+    include_timeline=False,
 ) -> dict:
     path = path.resolve(strict=True)
     _uint(process_id, "process ID", positive=True)
-    if type(maximum_rows) is not int or maximum_rows < 1 or not 0 < timeout_seconds <= 300:
+    if (
+        type(maximum_rows) is not int
+        or not 1 <= maximum_rows <= 1_000_000
+        or type(timeout_seconds) not in (int, float)
+        or not 0 < timeout_seconds <= 300
+        or type(include_timeline) is not bool
+    ):
         raise ValueError("positive bounded native database limits required")
     # An immutable receipt must include a finalized standalone database, never
     # ignore a live WAL or let SQLite create/update sidecars while reading it.
@@ -74,16 +243,31 @@ def read_process(
             connection.execute("PRAGMA query_only=ON")
             connection.execute("PRAGMA trusted_schema=OFF")
             connection.enable_load_extension(False)
+            connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 1024**2)
             connection.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
             connection.row_factory = sqlite3.Row
+            text_bytes = 0
+
+            def bounded_text(raw):
+                nonlocal text_bytes
+                text_bytes += len(raw)
+                if text_bytes > 64 * 1024**2:
+                    raise ValueError("native rocpd cumulative decoded-text budget exhausted")
+                return raw.decode("utf-8")
+
+            connection.text_factory = bounded_text
+
+            remaining_rows = maximum_rows
 
             def rows(table: str, columns: str, where="", values=()):
+                nonlocal remaining_rows
                 # Identifiers/conditions are source constants; all input values
                 # are parameters. Bound every materialized table projection.
                 cursor = connection.execute("SELECT " + columns + " FROM " + table + where, values)
-                result = cursor.fetchmany(maximum_rows + 1)
-                if len(result) > maximum_rows:
-                    raise ValueError("native table exceeds the bounded adapter row limit")
+                result = cursor.fetchmany(remaining_rows + 1)
+                if len(result) > remaining_rows:
+                    raise ValueError("native database exceeds the cumulative adapter row limit")
+                remaining_rows -= len(result)
                 return [dict(row) for row in result]
 
             versions = rows("rocpd_metadata", "value", " WHERE tag='schema_version'")
@@ -288,7 +472,7 @@ def read_process(
                         )
                     )
                 )
-            return dict(
+            result = dict(
                 schema_version=VERSION,
                 process_guid=guid,
                 identity_namespace="rocpd_3.0.4_process_node_GUID_scoped_database_ids",
@@ -320,6 +504,13 @@ def read_process(
                 loss_status="unknown_no_loss_counter_in_this_schema_projection",
                 complete_run_coverage=False,
             )
+            if include_timeline:
+                result["timeline"] = _read_timeline(
+                    rows, indexed, process, agents=agents, queues=queues, streams=streams
+                )
+            if time.monotonic() > deadline:
+                raise ValueError("native rocpd materialization exceeded its time budget")
+            return result
     except sqlite3.Error as error:
         raise ValueError(
             "unsupported, malformed, nonfinalized or over-budget rocpd database: " + str(error)
