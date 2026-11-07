@@ -55,8 +55,10 @@ the existing functional suites. The `self-test` mode takes the same `--tool-bin`
 directory and runs tiny checker controls in ignored scratch space:
 formatting drift, an undefined Python name, an unsafe shell expansion and an
 invalid workflow expression must fail. It never compiles or runs fixture workloads.
-The source gates and controls still need their final qualification batch and
-cold/warm wall-time and memory measurements. Schema and sweep contract modules now
+ShellCheck diagnostics use JSON to preserve Unicode paths on Windows; controls
+bind the diagnostic code and location to their fixture. Current execution and
+cost observations are owned by the [roadmap](docs/roadmap.md#current-validation-and-remaining-work).
+Schema and sweep contract modules now
 run independently through ordinary unittest classes and fresh fixture inputs;
 their aggregate commands retain all mapped cases without shared fragment globals.
 

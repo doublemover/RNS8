@@ -101,6 +101,7 @@ def command_plan(
                         "bash",
                         (
                             tools["shellcheck"],
+                            "--format=json",
                             "--shell=bash",
                             "--external-sources",
                             "--source-path=SCRIPTDIR",

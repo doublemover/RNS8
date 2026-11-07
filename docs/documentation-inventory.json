@@ -4453,6 +4453,10 @@
       "reason": "Current gate/issue checklist; move chronological checkpoints intact to archive.",
       "inbound_links": [
         {
+          "source": "CONTRIBUTING.md",
+          "reference": "docs/roadmap.md#current-validation-and-remaining-work"
+        },
+        {
           "source": "README.md",
           "reference": "docs/roadmap.md"
         },

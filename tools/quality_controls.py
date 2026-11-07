@@ -3,11 +3,29 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 
 from process_progress import capture_succeeded, run_capture
 from quality_inventory import ROOT, SourceFile
+
+
+def _shellcheck_control_matches(output: str, path: Path, marker: str) -> bool:
+    try:
+        diagnostics = json.loads(output)
+    except ValueError:
+        return False
+    return isinstance(diagnostics, list) and any(
+        isinstance(row, dict)
+        and type(row.get("code")) is int
+        and f"SC{row['code']}" == marker
+        and isinstance(row.get("file"), str)
+        and (ROOT / row["file"]).resolve() == path.resolve()
+        and type(row.get("line")) is int
+        and row["line"] == 2
+        for row in diagnostics
+    )
 
 
 def run_controls(tools: dict[str, str], *, plan, runner=run_capture) -> dict:
@@ -123,11 +141,14 @@ def run_controls(tools: dict[str, str], *, plan, runner=run_capture) -> dict:
                 path.write_text(text, encoding="utf-8", newline="\n")
                 before = hashes()
                 result = invoke(commands[role], "quality-negative-" + role)
-                if (
-                    result["returncode"] == 0
-                    or marker not in result["stdout"] + result["stderr"]
-                    or hashes() != before
-                ):
+                # The Windows Haskell runtime cannot always print Unicode paths
+                # as console text. JSON preserves both the filename and code.
+                marker_found = (
+                    _shellcheck_control_matches(result["stdout"], path, marker)
+                    if role == "bash"
+                    else marker in result["stdout"] + result["stderr"]
+                )
+                if result["returncode"] == 0 or not marker_found or hashes() != before:
                     raise ValueError("quality negative control escaped or mutated input: " + role)
                 records.append(
                     dict(

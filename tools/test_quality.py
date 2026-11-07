@@ -71,6 +71,19 @@ class Quality(unittest.TestCase):
                     output = Path(argv[-1]).read_text(encoding="utf-8")
                 if negative:
                     output = markers[label.removeprefix("quality-negative-")]
+                if label == "quality-negative-bash":
+                    diagnostic = dict(file=argv[-1], line=2, code=2086)
+                    if failure == "bash_wrong_file":
+                        diagnostic["file"] = "unrelated.sh"
+                    if failure == "bash_string_code":
+                        diagnostic["code"] = "2086"
+                    if failure == "bash_wrong_line":
+                        diagnostic["line"] = 1
+                    output = json.dumps([diagnostic])
+                    if failure == "bash_text_only":
+                        output = "SC2086"
+                    if failure == "bash_malformed_json":
+                        output = "["
                 if failure == "missing_marker" and negative:
                     output = "unrelated tool failure"
                 if failure == "mutation" and label == "quality-positive-python-lint":
@@ -91,7 +104,17 @@ class Quality(unittest.TestCase):
         result = run_controls(tools, plan=command_plan, runner=runner_for(None))
         self.assertEqual(len(result["records"]), 9)
         self.assertEqual(sum(row["expected"] == "reject" for row in result["records"]), 4)
-        for failure in ("negative_pass", "missing_marker", "timeout", "mutation"):
+        for failure in (
+            "negative_pass",
+            "missing_marker",
+            "timeout",
+            "mutation",
+            "bash_wrong_file",
+            "bash_string_code",
+            "bash_wrong_line",
+            "bash_text_only",
+            "bash_malformed_json",
+        ):
             with self.subTest(failure=failure), self.assertRaises(ValueError):
                 run_controls(tools, plan=command_plan, runner=runner_for(failure))
 
@@ -189,6 +212,7 @@ class Quality(unittest.TestCase):
             "--source-path=SCRIPTDIR",
             next(row.argv for row in check if row.role == "bash"),
         )
+        self.assertIn("--format=json", next(row.argv for row in check if row.role == "bash"))
         self.assertTrue(all(isinstance(row.argv, tuple) for row in check))
 
     def test_lock_rejects_changed_hash_version_and_requirements(self):
