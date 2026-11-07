@@ -1,5 +1,8 @@
 # Generation-bound encoded B
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8_prepare_encoded_b` and `rns8_gemm_encoded_b_exact` are explicit experimental
 synchronous direct-HIP APIs for exact-wide signed/unsigned inputs. Unlike the
 prepared native queue's cached descriptors, this handle stores actual B residues.
@@ -29,7 +32,8 @@ CPU proof allocation and synchronization remain part of the public call.
 
 Authored fixtures cover all prefixes, groups, signedness, full-width values,
 padded source/output pitches, tails, K=65535/65536/65537, source retention and stale
-rejection. These are unexecuted in the current frontload. Calibration must compare
+rejection.
+Current execution scope follows the roadmap. Calibration must compare
 identical shapes/prefixes/native semantics and separate cold encoding+allocation
 from warm reuse, including a setup-inclusive break-even. No measured win is claimed.
 
@@ -50,7 +54,8 @@ forced generic dispatch as a control. Preparation reports the actual uniform
 hint. The prepared ordinary-grid control consumes the same encoded storage.
 The queue caches descriptors; the public encoded-B handle owns the value payload.
 New fixtures cover mixed raw/encoded tasks, groups/signedness, K-slab tails, shared B,
-logical aliases and changed source rejection. They remain unexecuted.
+logical aliases and changed source rejection.
+These fixtures are registered.
 
 Public [prepared native groups](persistent-native-queue.md) also retain optional
 encoded-B bindings through their completion and refresh lifetimes. Automatic

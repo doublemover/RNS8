@@ -1,5 +1,8 @@
 # Direct operation providers
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `backend_common/direct_operation_registry.hpp` is an internal, read-only static
 inventory for ten concrete synchronous direct-HIP operations: residue GEMM,
 exact axpby, exact suffix lift, scalar/byte narrow product, direct/balanced canonical
@@ -77,5 +80,5 @@ target. Missing operation/semantic implementations clear operation inventory.
 Before a resource query has completed, `resource_status=3` marks byte fields as
 unsupported. Their zero initialization is not evidence of a zero-scratch route.
 Known resource results can survive a hard-budget rejection. These changes and
-the authored nine-backend/seven-domain conformance cases await the deferred
-validation batch; existing source-bound arithmetic receipts retain their scope.
+the authored nine-backend/seven-domain conformance cases follow the roadmap's execution scope;
+existing source-bound arithmetic receipts retain their scope.

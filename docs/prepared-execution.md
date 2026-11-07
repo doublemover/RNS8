@@ -1,5 +1,8 @@
 # Prepared execution and completion ownership
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8_prepare_gemm` creates a reusable binding for one ordinary dense GEMM.
 It validates the plan, workspace, operands and output ownership, records input
 instance/generation pairs, and retains the context, plan, workspace and matrices.
@@ -43,7 +46,8 @@ device allocation's existing retry record before issuing a copy. A successful
 copy releases that source without clearing an enclosing device transaction;
 uncertain completion keeps both allocations alive through deferred cleanup.
 This adds host ownership metadata to preparation, without another completion
-state machine. The new ownership controls await the combined validation batch.
+state machine. The new ownership controls follow
+the roadmap's execution scope.
 
 One-shot Gram jobs likewise retain their actual host upload vector with the
 pending device allocation. Capability/status, split-K, fixed-conversion and
@@ -51,7 +55,8 @@ word-mod scratch use the same typed device owner; the duplicate probe-only
 owner has been removed. Capability readbacks keep their source allocation
 pending until the completed copy, alongside the owned host destination.
 Word-mod status initialization uses completed device zeroing instead of copying
-a stack scalar. These source repairs await the same runtime validation batch.
+a stack scalar. These source repairs follow the roadmap's execution
+scope.
 
 Internal scalar status/capability and two/four-word admission-proof reads use a
 reusable32-byte ordinary host slot. Success copies the complete result into the
@@ -546,8 +551,8 @@ to the same typed retry mechanism before H2D. Failure retains that exact source
 allocation through the later drain; successful synchronous completion releases
 it. Upload and readback adapters share admission/retirement while preserving
 their actual direction and phase label. No full host mirror is added to the
-resident matrix. The late-read source control is authored and unexecuted.
-The wrap64 byte-order conversion fallback also retains its canonical source
+resident matrix. The late-read source control is registered. The wrap64 byte-order
+conversion fallback also retains its canonical source
 and readback allocations through these adapters, preserving their timing labels. Native
 little-endian uploads keep their existing representation path.
 
@@ -635,8 +640,8 @@ required packets again. The plan's workspace reservation blocks destruction
 until failed-work drain completes; read-only export failure keeps its source
 current and leaves caller output untouched. Authored CPU/optional direct-HIP
 controls include native signed/unsigned extremes, changed basis order and
-successful retry after recoverable failure. Syntax checks pass; runtime and
-provider qualification remain deferred.
+successful retry after recoverable failure. Current runtime scope follows the
+roadmap; broader provider qualification remains open.
 
 Ordinary RNS, finite, wrap and exact-axpby dispatch share the lease-owned
 prewrite checkpoint. Grouped dispatch checks compute admission before invalidating

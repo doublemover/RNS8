@@ -1,5 +1,8 @@
 # Calibration evidence and planner rates
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `tools/calibration_manifest.py` defines immutable identity, run and quantity
 records for offline calibration. Identity binds target/device, compiler/runtime,
 artifact and ISA hashes, configuration, dataset, clocks/power policy, cache state,
@@ -23,7 +26,7 @@ skip counts lack complete tile-area weights; their representation rate stays
 unavailable, with any maximum-prefix envelope explicitly labeled an upper bound.
 Allocated residue capacity is retained separately from produced work. Mixed
 representation cohorts do not pool normalized rates, and human-readable tables
-show both rate columns. These accounting controls are authored and unexecuted;
+show both rate columns. These accounting controls are registered;
 they supply no new measured throughput or traffic.
 
 Raw validation and rate admission are separate. Rate export requires at least
@@ -58,8 +61,8 @@ The evidence plumbing is accompanied by authored instruction-chain,
 [system/LDS/memory and launch/event/descriptor probes](system-roof-calibration.md),
 conversion, reconstruction and interaction controls. Executing those collectors,
 ISA/resource/counter evidence, sustainable clock verification and qualified
-held-out prediction remain open in #31. The current source and authored controls
-await the combined runtime batch; historical validation does not qualify these
+held-out prediction remain open in #31. The current source and authored controls follow the
+roadmap's execution scope; historical validation does not qualify these
 newer collectors or models.
 
 ## CRT collection executable
@@ -133,9 +136,9 @@ are not measured HBM/PCIe traffic. Mislabelled public `prefix1` rows that actual
 requested prefix3 were removed; catalog loading now checks explicit fixed-prefix
 annotations against the request without weakening range admission.
 
-The new public lanes, regression sources and collection recipes are authored;
-only lightweight syntax/static checks were performed. Test execution, hardware
-collection, performance outcomes and scientific qualification remain deferred.
+The new public lanes, regression sources and collection recipes are authored; execution
+scope follows the roadmap. Hardware collection, performance outcomes and scientific
+qualification remain separate gates.
 
 ### Streaming observations and the matched serial pipeline
 
@@ -176,8 +179,8 @@ pipeline without introducing a per-call host synchronization. It is a matched
 ordinary public reuse-B route. Both diagnostic and hook-disabled captures are
 collected in counterbalanced independent processes; streaming controls use their
 own batch loop rather than the incompatible ordinary sustained-loop option.
-All streaming experiments remain non-promoting. The new regressions are authored
-but unexecuted, and no overlap, latency or allocation result on hardware is claimed.
+All streaming experiments remain non-promoting. The new regressions are registered, and
+no overlap, latency or allocation result on hardware is claimed.
 
 ### hipBLASLt immutable per-call metadata controls
 
@@ -195,8 +198,8 @@ counts and coverage. The schema reconciles them with raw pack samples and the
 measured warmup/repeat counter difference. Historical records with submitted
 packing cannot advertise complete diagnostic timing while omitting its phase.
 Diagnostic companion projection removes only this observation record, keeping
-retention policy and counter contracts. Source-authored policy/reuse,
-first-build/finite/slab, missing-event and projection controls remain unexecuted.
+retention policy and counter contracts. Registered controls cover policy/reuse,
+first-build/finite/slab, missing-event and projection behavior.
 
 Issue #70 is implemented as bounded **within-call** reuse, not a process-global
 raw descriptor cache. The operation and four column-major matrix layouts are
@@ -232,8 +235,7 @@ a one-plane finite-ring control, prefixes9/18/20, padded/skinny/medium/large
 shapes and K65535/65536/65537. The public collector reverses case order between
 independent runs as well as counterbalancing instrumented/production captures.
 Production intervals include host metadata setup and the complete public call;
-GPU event service time alone cannot measure this optimization. Full-output
-oracles and generation-changing regressions are authored, not executed.
+GPU event service time alone cannot measure this optimization. Full-output oracles and generation-changing regressions are registered.
 
 The [official hipBLASLt API reference](https://rocm.docs.amd.com/projects/hipBLASLt/en/latest/reference/api-reference.html)
 describes descriptor creation as host metadata allocation. Its library-context

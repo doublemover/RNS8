@@ -10,10 +10,13 @@ preserves earlier work without duplicating current status.
 
 The [November 4 reevaluation](../metadata/implementation-frontload-20261104.json)
 records all **70 open issues**, including the newer #79–#105 findings and reopened
-address/proof/evidence work. The November7 source pass is written: admission,
+address/proof/evidence work. The November 7 source pass is written: admission,
 ownership/publication, arithmetic/planning, comparison evidence and development
-workflows have no remaining implementation items in that inventory. The combined
-validation batch is next. Source readiness and hardware/performance acceptance
+workflows have no remaining implementation items in that inventory. The [local
+validation record](../metadata/implementation-validation-20261107.json) binds execution
+to source `f60ca277`: CPU Release **733 passed / 64 skipped**; HIP Release **1,401
+passed / 42 skipped / 2 failed**. The two failures are native Gram timing diagnostics
+that reject invalid HIP event timestamps. Source readiness and hardware/performance acceptance
 remain distinct; open issue counts are not implementation-task counts.
 
 The October 27 [implementation audit](../metadata/full-implementation-audit-20261027.json)
@@ -26,8 +29,8 @@ qualification:
 
 | Issue | Implemented extension | Remaining qualification |
 |---|---|---|
-| #32 | Certified additive/joint search, bounded model Pareto and staged-loss reports; ordered-basis transfers/lift, library/distributed providers and opt-in costed basis selection | Authored search/report controls, broader targets, measured complete-pipeline basis/form selection |
-| #43 | Provider streams, finite/wrap token pipelines, multi-body caller graphs, bounded in-flight pools and shared failed-work/allocation/DMA custody | Authored ownership/public-dispatch controls, native Linux/CDNA, real fault recovery, physical overlap and payoff |
+| #32 | Certified additive/joint search, bounded model Pareto and staged-loss reports; ordered-basis transfers/lift, library/distributed providers and opt-in costed basis selection | Broader targets, held-out model and measured complete-pipeline basis/form selection |
+| #43 | Provider streams, finite/wrap token pipelines, multi-body caller graphs, bounded in-flight pools and shared failed-work/allocation/DMA custody | Native Linux/CDNA, real fault recovery, physical overlap and payoff |
 | #45 | Exact caller-owned native radix128 split/merge, gfx942/gfx1201 FP8 and gfx950 FP4/FP6/FP8 fixed/dynamic/mixed recipes | Actual target lane/accumulator behavior, exact execution and complete-route timing |
 | #48 | Coefficient control plus canonical 200-addition/four-halving rank48 SLP, retained/recomputed matrix/direct forms | Large-shape strongest-control performance/memory gates |
 | #50 | All partition axes plus explicit MPI/RCCL/rocSHMEM process transports and exact membership epochs | Actual multi-GPU transport/failure/scaling qualification |
@@ -35,8 +38,9 @@ qualification:
 | #63 | Prime-channel five-product Gram with composite-channel preservation | Broader targets and measured preparation/reuse/export benefit |
 | #67 | Optional installed DLPack1.2 adapter and standalone HIP consumer | Native Linux, real failed drains and matched interoperability timing |
 
-Current source work does not extend the dated CPU/gfx1100 execution receipts.
-Actual unavailable-target instructions and linked cluster execution remain open.
+The current CPU/gfx1100 checks have their own source-bound receipt. Earlier measurements
+retain their original identities. Actual unavailable-target instructions and linked
+cluster execution remain open.
 
 The [replay extension receipt](../metadata/replay-extension-validation-20261027.json)
 separately records lifetime cost models, external packed-B reuse, bound recipes,
@@ -44,14 +48,17 @@ experimental-basis composition and full integer reference caching. Its counts an
 measurements retain their original source identity. Implementation does not close
 an issue's unfulfilled hardware or measured-performance acceptance gates.
 
-## Recorded baseline
+## Local stack and earlier qualification
 
-The October 27 validated stack was TheRock Core10.1 / HIP7.16.26385 / AMDClang24,
-VS2026, Python3.15.1 and Radeon RX7900XTX (`gfx1100`). The current source selects
-Python3.15.2 and pinned development tools through the shared dependency policy;
-its frontend checks do not extend the earlier runtime qualification. Earlier
-Release, Debug, OpenMP-OFF, CPU-ASan and installed-package
-checks remain in the [SDK record](../metadata/hip101-validation-20261026.json),
+The November 7 local stack uses TheRock Core10.1 / HIP7.16.26385 / AMDClang24,
+VS2026,
+Python3.15.2 and Radeon RX7900XTX (`gfx1100`). Fresh Release builds use Boost1.92.0,
+Catch2 3.16.1, JSON3.12.0, GMP6.3.0, MPFR4.2.2 and FLINT3.6.0. Direct HIP, hipBLASLt,
+CK, rocWMMA and AMDGPU builtins compile and are detected; the registered installed
+consumers pass. Pinned lint/format and the staged strict Python slice, including checker
+negative controls, pass. This batch does not provide fresh sanitizer qualification.
+Earlier Debug, OpenMP-OFF, CPU-ASan and package-configuration checks remain in the [SDK
+record](../metadata/hip101-validation-20261026.json),
 [configuration follow-up](platform-windows.md#october-26-configuration-follow-up)
 and [replay receipt](../metadata/replay-extension-validation-20261027.json).
 
@@ -148,9 +155,22 @@ while sustained production-boundary measurements remain unqualified. Documentati
 
 ### Current validation and remaining work
 
-The latest completed broad local receipt is the [October27 implementation validation](../metadata/full-implementation-validation-20261027.json).
-It distinguishes real gfx1100 execution, target-inapplicable skips and compile-only
-AMX/I8MM/FP8 source evidence. Native Linux, multi-GPU, Instinct/CDNA and unavailable
+The [November 7 validation](../metadata/implementation-validation-20261107.json) records
+fresh CPU/gfx1100 execution, shared tooling and installed consumers, target-inapplicable
+skips and the separately carried unchanged universal WMMA checker. The implementation
+ledger has no remaining source items.
+
+The native Gram event diagnostics fail closed on negative elapsed times from
+`hipEventElapsedTime`. A standalone HIP-runtime-only 32-byte device copy also produces
+negative observations while its exact bytes compare successfully; synchronized rereads
+and timing-event flags do not resolve the fault. This is a timing qualification blocker,
+related to the [upstream HIP event
+report](https://github.com/ROCm/rocm-systems/issues/12925). Resolve the SDK/driver clock
+behavior and rerun the two diagnostics before accepting new timing evidence. No invalid
+timestamp is clamped into a pass.
+
+Fresh selected-toolchain sanitizer/analyzer/fuzzer/coverage/mutation execution, native
+Linux, multi-GPU, Instinct/CDNA and unavailable
 instruction families remain separate qualification lanes. The current Windows
 suite cannot establish their behavior.
 
@@ -166,11 +186,12 @@ implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
 paths, with physical cluster/memory-ordering/failure qualification pending. There are 70 open issues;
 child acceptance gates remain the roadmap's retirement criterion. The full audit
-record described its then-requested backlog. The November7 source frontload is
+record described its then-requested backlog. The November 7 source frontload is
 written; the [implementation ledger](../metadata/implementation-frontload-20261104.json)
-tracks source completion separately from pending validation. Dated receipts
-retain their applicable local passes, unchanged carried evidence, stopped lanes
-and unavailable-target boundaries; they do not qualify the current head.
+tracks source completion separately from remaining qualification. Dated receipts
+retain their applicable source identities, carried evidence, stopped lanes
+and unavailable-target
+boundaries.
 
 ## Stop conditions for hardware work
 

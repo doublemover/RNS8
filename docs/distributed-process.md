@@ -1,5 +1,8 @@
 # Explicit process and network transports
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `ProcessSession` in `src/core/distributed_process.hpp` implements the separately
 admitted M3 process path. One MPI process owns each selected GPU. It executes
 the same real native-to-residue shard kernels, modular K-fragment reduction and
@@ -139,8 +142,7 @@ multi-GPU test. CPU fixtures cover node-local identity, envelope corruption,
 stale epochs, complete/duplicate membership, rank acknowledgments, byte budgets
 and opaque-headroom rejection; those CPU checks pass the
 [October 27 local batch](../metadata/remaining-code-validation-20261027.json).
-Later source changes await the consolidated runtime batch.
-The source also has CPU/MSVC, Linux
+Later source changes follow the roadmap's execution scope. The source also has CPU/MSVC, Linux
 OpenMPI/RCCL-header and rocSHMEM-header syntax checks; real linked Linux ROCm
 execution and memory-ordering/fault litmus qualification remain outstanding.
 

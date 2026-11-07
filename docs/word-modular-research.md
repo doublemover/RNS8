@@ -1,5 +1,8 @@
 # Word-size modular research baseline
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 This opt-in private path accepts canonical uint64 values and an explicit modulus
 from 2 through UINT64_MAX. Ring and prime-field domains are separate; the field
 request checks primality using deterministic 64-bit Miller-Rabin. A prime power
@@ -35,7 +38,8 @@ modular scaling without division by residues, including composite moduli.
 Authored fixtures cover full-width boundary arithmetic, prime and composite
 moduli, rejection and output preservation, padding, swapped decompositions,
 and complete Boost GEMM comparisons at bit widths 8, 16, 23, 26, 27, 31, 35,
-39, 42, 48, 50, 52 and 64. They remain unexecuted during development frontload.
+39, 42, 48, 50, 52 and 64.
+Their current execution scope follows the roadmap.
 
 Still required before promotion: compiled scalar/MFMA qualification, executed
 matched cold/reused/resident calibration, resource/ISA receipts and target-specific
@@ -113,7 +117,8 @@ It introduces no automatic selection or decomposition cache. The coefficient
 arrays may spill; register pressure, emitted instructions and useful throughput
 need actual compiler/device evidence. CPU bound/weight fixtures and complete
 Boost HIP comparisons cover asymmetric pairs and slab tails with padding and
-rejected-output preservation. All remain unexecuted in the development frontload.
+rejected-output preservation.
+Current execution scope follows the roadmap.
 
 
 The opt-in canonical-width dot4 sibling now specializes B=1..8 from the checked
@@ -169,5 +174,6 @@ Full Boost/tail/padding/domain/budget/layout regressions and cold, repeated-B,
 resident, swapped-pair, slab±1 and sustained comparison fixtures are authored.
 The selected ISA adapter binds the exact arithmetic/layout recipe and captured
 artifact to explicit symbols, without asserting observed dynamic execution.
-HIP compilation, all regression execution, physical FP64 mapping/exactness and
-profitable-cohort or negative performance reports remain deferred.
+Supported-target FP64 mapping/exactness and matched profitable-cohort or negative
+performance reports remain
+unqualified.

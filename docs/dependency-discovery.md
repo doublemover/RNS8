@@ -1,5 +1,8 @@
 # Shared dependency selection
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The existing dependency checker and the pre-project CMake hook use
 `tools/check_dependencies_lib/resolution.py` to select installations. Selection
 is a filesystem operation: it does not run a compiler, package manager,
@@ -365,7 +368,7 @@ remain unproven. `optional_cpp_references` distinguishes that result from packag
 inventory. Optional probe outcomes do not change host readiness, feature policy
 or default dispatch. Interrupted probes stop without retries. Ordinary discovery,
 `--resolve-only` and `--check-lock` never execute this path. The registered inert
-recorder controls are source-authored and await the final validation batch.
+recorder controls are source-authored and follow the roadmap's execution scope.
 
 ## Installation and remaining gates
 
@@ -416,7 +419,8 @@ receipts, installed package policy, archive/bootstrap planning and interrupted
 installation controls. CTest keeps the named denominator, per-case failures and
 JUnit/log artifacts. It requires no SDK, GPU, privileged package installation or
 first-party library build. The workflow is authored and linted, not dispatched;
-required CI activation awaits the deferred validation batch. Filesystem mocks
+required CI activation awaits its native sensitivity/cost qualification.
+Filesystem mocks
 and command recorders never qualify native dependency binaries.
 
 | Lane | Source readiness | Observed acceptance for these new changes |
@@ -496,8 +500,10 @@ not a replacement for the real configured production build/options, exact CPU
 differentials, ISA inspection or runtime hardware qualification. Source/driver/
 selected-header bookends and complete bounded process logs are retained;
 complete transitive compilation provenance still belongs to the build manifest.
-No backend is installed, enabled or promoted by these probes. The inert recorder
-controls and all native probes remain unexecuted in this frontload phase.
+No backend is installed, enabled or promoted by these probes. Inert
+recorder
+controls are registered; native probe qualification is specific to the selected
+SDK/backend/target.
 
 The [dependency version policy](dependency-versions.md) now supplies exact
 candidate pins and offline consistency/observed-version gates. Filesystem

@@ -1,5 +1,8 @@
 # Runtime product arena
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8_create_product_recipe` owns a synchronous CPU/direct-HIP executor for a
 fixed topologically ordered exact-wide product DAG. It accepts current public
 matrix inputs and publishes a final public matrix through `rns8_execute_product_recipe`,
@@ -76,8 +79,8 @@ Authored CPU cases cover linear and diamond reuse, all overlapping live interval
 budget boundaries, lifetime/currentness and replay. A HIP diamond uses independent
 Boost full-output comparison. Applicable cases passed the
 [October 27 CPU/direct-HIP batch](../metadata/branch-code-audit-validation-20261027.json)
-at `2c713a1`; later source changes await the consolidated validation batch.
-No speedup or global allocation optimality is claimed.
+at `2c713a1`; later source changes follow the roadmap's execution scope. No speedup or
+global allocation optimality is claimed.
 
 ## Consumer-driven exact prefix materialization
 
@@ -148,7 +151,7 @@ when draining or freeing fails, so callers can retry destruction safely. Private
 RAII destruction cannot report errors and retains a failed owner instead of freeing
 possibly active storage. Applicable execution, cleanup and preservation fixtures
 have [dated local validation](../metadata/branch-code-audit-validation-20261027.json);
-later source changes await the consolidated batch. Real device-failure
+later source changes follow the roadmap's execution scope. Real device-failure
 qualification remains open.
 
 
@@ -206,16 +209,16 @@ workspace during replay; this is a source allocation count, not a hardware
 measurement. Regression coverage checks positive replay and compatible-rebind
 allocation/free deltas, every prefix pair, status reuse after rejected proofs,
 full output residues and exact budget boundaries. The earlier synchronous-wrapper
-regressions passed in the October27 validation; the new policy and lifetime cases
-remain deferred. Ordered preparation adds four device bytes to this example's
+regressions passed in the October27 validation; current policy and lifetime execution is recorded in
+the roadmap. Ordered preparation adds four device bytes to this example's
 `lift_scratch_bytes`, plus four pinned host bytes reported separately.
 
 Uniform primitive cost tables retain version2: HIP lift entries must price the retained
 workspace implementation, including reset/check and staged copy, while CPU
 entries price inline host extension. Version1 profiles are rejected instead of
 silently relabeling old one-shot preparation costs. Unknown estimates remain
-unknown; retaining memory does not make the lift free. Full hardware compilation,
-complete-call/sustained measurements and failure qualification remain deferred.
+unknown; retaining memory does not make the lift free. Broader-target compilation,
+complete-call/sustained measurements and failure qualification remain open.
 
 Explicit packed-B replay retention and lifetime cost accounting are described in
 [materialized replay lifetimes](materialized-replay-lifetimes.md). Ragged inputs

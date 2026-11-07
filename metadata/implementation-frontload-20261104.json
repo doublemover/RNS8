@@ -3,8 +3,8 @@
   "date": "2026-11-04",
   "base_commit": "910a4b2ce8347682d57a577404b80a363b93a354",
   "open_issue_count": 70,
-  "phase": "implementation_written_validation_pending",
-  "validation": "Implementation source is written for all70 reviewed open issues. The consolidated runtime/source-quality/native validation batch is next; no stopped benchmark or hardware-fault campaign is resumed by source completion.",
+  "phase": "implementation_written_local_validation_recorded",
+  "validation": "All 70 reviewed open issues have no remaining source items. Fresh source-bound CPU and gfx1100 Release, shared-tooling and installed-consumer validation is recorded in metadata/implementation-validation-20261107.json. CPU: 733 passed, 64 skipped, 0 failed. HIP: 1401 passed, 42 skipped, 2 native timing diagnostics failed on independently reproduced negative HIP event timestamps. Broader platform, selected-toolchain sanitizer and measured-performance qualification remains open; stopped campaigns remain stopped.",
   "execution": "solo",
   "clusters": [
     {
@@ -93,7 +93,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/18",
       "requirements_sha256": "831033f53b32d94a5041a2c569d8e2977b267ed267bcac5f029a3826054a384b",
       "comments_reviewed": 3,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Finite grouped operands and batch reservations preflight before invalidation; preparation rejection preserves old values",
         "Shared reservation-aware output invalidation and exception-safe synchronous lease authored",
@@ -109,7 +109,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/20",
       "requirements_sha256": "25568917ae5999aadcf3ab84425b46a60a0b61880021bcb38bdd78e64483310a",
       "comments_reviewed": 2,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Prepared GEMM/Axpby cache an immutable ExactOperationProof keyed by the actual plan contract, prefix/product/policy, coefficients and input object/instance/generation. Fixed-value admission and submission share one eager proof; synchronous dispatch carries an explicit checked certificate into ordinary storage/lease execution. Per-call structural and stream checks and pending-producer proofs remain separate. Private counters account constructions/reuse and retained metadata; signed/unsigned/scalar/eager/epilogue/mutation/range/BUSY/fidelity fixtures authored.",
         "Resident DAGs retain immutable generation/plan-bound mathematical output certificates, reusable metadata maps and publication staging. Warm per-node structural/currentness/coverage/transfer checks skip dense exact traversal; refresh replaces proofs only after full admission. Prepared synchronous HIP uses one submission proof pass, and CPU exact nodes borrow admitted certificates with per-edge generation validation. Shared metadata-only values replace matrix owners in DAG and pending-producer proof propagation; counters, memory accounting and mutation/reuse fixtures authored.",
@@ -126,7 +126,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/24",
       "requirements_sha256": "95fc85acb8fef1185d56eb26d287ddefeeb9e126d5b7e650c86a9dd7b1c60f36",
       "comments_reviewed": 6,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Shared CK and rocWMMA generated pack/output address admission in public resources, provider queries and all ordinary/prepacked/tiled/async layout derivation",
         "Overflow-free direct-HIP scalar/quad/grouped/scheduled export launch geometry using observed device grid limits",
@@ -140,7 +140,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/27",
       "requirements_sha256": "e0af0198983bc6180b872ca8251a63287d9b028f8839ca0ce9b80ff03179e0ee",
       "comments_reviewed": 14,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Reconcile the stale same-key installer acceptance comment with current source. Add one shared canonical full cache-entry digest excluding only publication timestamp, bounded content-addressed versioned promotion receipts, per-ledger hash reuse and unchanged-evidence validation before installation. Ledger authoring derives the exact expected runtime payload from the current reviewed capture rather than testing key membership; bind supplied reports, independent capture files, baseline references and embedded/explicit diagnostic source files. Reject conflicting source/destination payloads, preserve identical/timestamp-only entry idempotency, and keep ready legacy ledgers non-authorizing. Repair the adjacent last-capture counter attachment bug by indexing each ledger row by its own path. Author payload/receipt/evidence drift, file-hash reuse, no-replacement, legacy/conflict, actual synthetic review-to-variance-to-ledger-to-installer and multi-entry counter controls; register the new CTest. Necessary seven-module Python AST/pinned Ruff/format/diff checks only. No fixture, report producer, installer, CMake or runtime test executed. Generic writer and complete fourteen-comment consumer reconciliation remain open.",
         "Remove the generic sweep cache writer bypass: factor reviewed candidate extraction from publication and route both file-based and in-memory entries through one strict receipt/variance/target/selector admission and atomic installer. Add explicit non-runtime candidate export with a separate schema and no runtime root version, readable only as a candidate source for ledger/install; constrain CLI exports to their review output root and require promotion ledgers for actual generic installation. Strengthen shared variance-row admission with real capture/execution/cohort binding and at least two distinct processes even when an input report used descriptive single-run settings. Required direct/additional baseline captures need their own matching independent variance rows and clear their variance margin; reject conflicting same-capture review/variance reports. Extend actual synthetic producer-chain controls through candidate export, generic publication, missing ledger, ready singleton, missing baseline rerun and stale independent evidence; add source CLI controls and a C++ AUTO candidate-schema rejection control. Eight Python AST/pinned Ruff/format/diff checks and C++ cache-fixture MSVC C++17 frontend pass. No fixture, parser CLI, report producer, CMake, installer, runtime or hardware execution. The full fourteen-comment specialized-consumer reconciliation remains open.",
@@ -198,7 +198,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/29",
       "requirements_sha256": "0f2494e89ce4463c74e0cc016afee521c19c0c477bb449edd2c45f4a32f1a6da",
       "comments_reviewed": 5,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Checker v4 proves initial instruction/recombination carry nodes and all partial-length interval hulls; independent mirrored boundary fixtures authored",
         "Shared typed CK WMMA/XDL signed/canonical unsigned descriptor drives host metadata, pack encoding, workspace admission, and versioned selected kernels",
@@ -218,7 +218,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/30",
       "requirements_sha256": "05f0e5c687ed92bfc3e05dbbe07553f99d5fd6498fb904dae78b75c2029e37a9",
       "comments_reviewed": 5,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Reconcile public planner admission: hoist operation/execution/proof/domain/orientation/source-prefix tag envelope into one allocation-free predicate used by operation provider, public discovery and analytical pipeline planning. Reject unknown analytical problem/profile backends and problem semantics before route selection; publish required counts only on successful shortlist completion. Extend explicit whole-route candidate validation to recognized status/reason/resource tags, Boolean fields and coherent modeled/measured/unknown cost origin. Later malformed candidates cannot publish an earlier winner; known failed statuses remain ineligible. Author live CPU planner/count/candidate/counter preservation controls, raw all-bits/high-bit/adjacent tags, late-row status and valid failure-status selection controls, and extend actual CPU/HIP recipe rejection rows. CPU and HIP-enabled host MSVC /Zs pass for api_plan.cpp, api_pipeline_recipe.cpp and the full actual test_api.cpp TU. Formatting/diff only otherwise; no API/control, CMake configure/build/link, sanitizer, GPU or benchmark executed. Full external enum/flag and sized-descriptor inventory still requires reconciliation.",
         "Author context-owned immutable reviewed-cache snapshots with complete bounded-byte SHA256 refresh and exact-key/cohort indexes. Reuse parsing/admission only for unchanged absolute path/content; observe missing/created/removed, malformed, same-timestamp content changes, atomic replacement and environment-selected path changes. Bound regular files to16MiB,65536 entries and128 nesting levels while retaining duplicate member/key rejection. Definite backend/semantics/modulus/shape/target cohort misses skip runtime preparation, lazy library creation and candidate plan copying; surviving candidates retain arithmetic/runtime/exact-key/workspace admission. Add explicit not_evaluated disposition3 and additive public reason14, update benchmark schema and canonically regenerate the41-enum/109-record/296-symbol public ABI source inventory using TheRock Clang24 C17/C++17 frontends. Author index-versus-reference, identity refresh/immutability/budget, metadata-only actual selector zero-work and forged skipped-observation controls. No executable test, install, GPU or benchmark ran. Complete original planner/provider acceptance reconciliation remains open. CPU and HIP-enabled MSVC C++17 /Zs production/control checks pass, including the final combined-index refinement and compiled public ABI TU; pinned Ruff/format, two-file AST, canonical formatting, documentation inventory and diff checks pass. No object/link or executable validation ran.",
@@ -232,7 +232,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/31",
       "requirements_sha256": "4b3a3bbc4ead78ad20d4b0eebc945b3c15cfccaee0214a48b9a8943fc7e2ba7a",
       "comments_reviewed": 8,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Bilinear capture ABI2 binds physical eligible/fallback planes, actual moduli, compact scratch, and product-plane GEMMs; reject mixed physical implementation versions.",
         "Bilinear capture ABI3 binds the ordered single-terminal schedule independently of historical per-stage completion captures; actual-stream diagnostic matrix events are preserved.",
@@ -250,7 +250,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/32",
       "requirements_sha256": "6c2628af3e2451c0dfc37c5b4d33ea5ac6d09cb84ded61a8f7b699571efc4680",
       "comments_reviewed": 3,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Shared exact-form predicate in additive/joint optimizer, typed recipe admission and direct analytical predictor, with integer/floating positive and insufficient-precision negative fixtures",
         "Shared modulus-search schema-v3 strict-product validator for producer/writer/reader and direct report consumer; legacy files explicitly nonqualifying; on-disk roundtrip/corruption fixtures authored",
@@ -266,7 +266,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/34",
       "requirements_sha256": "e25ef2a06540b7b574d1bb50bed0431c0005acb6ecfe54702289618119e182e7",
       "comments_reviewed": 4,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -276,7 +276,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/35",
       "requirements_sha256": "eb8c1d1e47ec163c72ee4f5cd3b5cdf029e0ac47bf698e2bc4a96054760e2f11",
       "comments_reviewed": 2,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -286,7 +286,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/36",
       "requirements_sha256": "8b60e553ce6f01403476c0f56129dfaf5ca878905df38386d1203fed9749f1b1",
       "comments_reviewed": 1,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -296,7 +296,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/37",
       "requirements_sha256": "f89181b1b74ad558bcd9740f0245e9a761386c591b1f8369b6513b48b398161b",
       "comments_reviewed": 2,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -306,7 +306,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/38",
       "requirements_sha256": "988c661b3aed0aea0e1d69bb8c4d9fdcf8d0e643e9eb5cdc1ca60959ba2b0428",
       "comments_reviewed": 3,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Prepare native unique-reader/multiplicity tables and retained proof-array shells before replacement publication. A stack-scoped admission capability validates each actual borrowed stream once per batch while preserving per-child mutable proof/epoch/reservation checks and existing events. Metadata charges retained table/proof objects; host mock overflow, shared-reader and stream-admission fixtures authored.",
         "Add explicit fair rank/select mode3 with header ABI2, preserving old fair-scan controls. Equal-count phases select directly without directory storage; sparse phases use binary prefix-rank selection plus five bit subdivisions. Canonical admission, uploads and physical host/device peak accounting include O(phases*tasks) directory bytes. Authored exact sequence/corruption/budget/CPU work diagnostics and extended raw/public GPU differentials; compact512/4096 equal/skew and public64 shared-B controls, selected decoder identities and independent shared Python resource accounting are ready.",
@@ -321,7 +321,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/39",
       "requirements_sha256": "fcc5a3feda87144ebf2ff5eeb63991e39ff109185c322dcb787ac0394b0a0c70",
       "comments_reviewed": 3,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -331,7 +331,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/40",
       "requirements_sha256": "1bf6bcce762fdcb2cad5dfaefb110b0995c695516cab6ed360098f41ec651f1b",
       "comments_reviewed": 6,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -341,7 +341,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/41",
       "requirements_sha256": "d29d4d864c2f0a7f77bc43f3377957c7c49b842900dd7762994cda7414645612",
       "comments_reviewed": 1,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -351,7 +351,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/42",
       "requirements_sha256": "ad4cab3e1eaa6166c408560a237ae0290fa6637b103a120304d7ee1cb5fda88f",
       "comments_reviewed": 3,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Prime-channel five-product Gram transforms, explicit-basis or matrix products, maintained classical bucket, recombine and final commit share one retained stream with terminal completion; timing helper accepts actual stream",
         "Bilinear coefficient and retained/recompute DAG routes now compose transforms, default/indexed matrix batches, classical fallback, recombination and commit on one retained nondefault stream with one terminal observation; general pipeline recipes remain separate source work.",
@@ -367,7 +367,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/43",
       "requirements_sha256": "22265adfdc80afc083f548ae554d36cdac07e4d9b7c0b17f82cbb99d6d7d0c4a",
       "comments_reviewed": 5,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Grouped pointer-table/slab ownership migrated to shared retryable device-buffer owner with pending-work retirement",
         "Synchronous grouped dispatcher retains operand/output/workspace leases through failures",
@@ -435,7 +435,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/45",
       "requirements_sha256": "9b6b0bc93acf47afd5d7c6b22ec3dcc14300cba20760c0207abd33e3d43ac136",
       "comments_reviewed": 2,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Reconciled existing fixed/dynamic/mixed floating candidate owners and integer split/merge implementation against the October 29 credit; unavailable target qualification remains separate",
         "Oracle v2 compiles the actual pairwise carry-forward tree to one validated postorder program, uses it in both evaluators and derives the largest proper-subtree guard from that program",
@@ -450,7 +450,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/46",
       "requirements_sha256": "9b1d573fc660b6000b045c231631a397c994739d6c7cf4feb0a78ecbcc1601a4",
       "comments_reviewed": 1,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -460,7 +460,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/47",
       "requirements_sha256": "47b359f3a5821fac725978e8cb3f8d49c97041f2493f49cdfb6b9b62a5512e8d",
       "comments_reviewed": 2,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -470,7 +470,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/48",
       "requirements_sha256": "9d0373055680c30ae51f2910ef842f7f900a00b71791a10d5a539929584db01a",
       "comments_reviewed": 3,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Shared compact indexed-plane adapter authored and integrated in prime-channel Gram; odd-channel rank48 resource/kernel integration remains next",
         "Shared explicit-basis AMDGPU matrix batch provider preserves compact plane moduli and up to64 batches; synchronous and pure-enqueue forms retain existing checked batch spans and K cap; Gram uses five matrix launches instead of per-plane dispatch",
@@ -485,7 +485,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/49",
       "requirements_sha256": "3cf73ea482cd941024e636b2fbec2010a423729867207548f17671b40ebe871c",
       "comments_reviewed": 1,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -495,7 +495,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/50",
       "requirements_sha256": "c341adb006b836e78edc932a383d8d5c0df22ec3b380cb0f510592990d5f2a56",
       "comments_reviewed": 1,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Irreversible closing lifecycle before destructive cleanup; submit/borrow/materialization reject retired owners",
         "Actual-owner per-stage safe cleanup-failure seam and idle/published/BUSY/quarantine regressions authored",
@@ -509,7 +509,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/51",
       "requirements_sha256": "c85d68d1498e9fc12479fde3b791a926d658587d54e523ef4000e2bfd99036c0",
       "comments_reviewed": 3,
-      "implementation_status": "implemented_validation_pending",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Move block-sparse public construction onto the common read/owner/buffer lease across native download, host packing, payload upload and publication. Retain signed/unsigned snapshots and packed upload vectors with the whole unpublished owner on uncertain drain; keep source/context references until retry succeeds. Preserve failed-free handles instead of deleting their owner, reject cleanup-started execution and hold actual prepared payload buffers during GEMM. Integrate allocation-free intrusive unpublished cleanup into existing explicit drain/context teardown, without another completion authority. Author actual public constructor controls for busy writer, early/upload/publication returned failure or unwind, failed/successful drain, preserved output handle/generation and later cleanup. CPU and HIP context/epilogue/API-test MSVC syntax pass; no fixture or workload ran.",
         "Retain immutable CSR/CSC device directories with each block-sparse public operand and pass a constant-time typed view bound to role, dimensions, basis/prefix, source identity/generation, device and exact directory extents. Validate sorted structure during preparation, not every warm GEMM. Probe the actual compiled matrix capability once per context, with explicit supported/unsupported results, target and process-local loaded-provider binding; failed probes do not become negative cache entries. Share arithmetic launch/alias admission between prepared and private unprepared paths; keep the private baseline source snapshots alive on failed uploads. Warm public scalar/WMMA/hybrid calls use no transient directory scratch, allocations, uploads or repeated probe; zero scratch is explicitly admitted. Charge native/packed/directory capacities, device allocations and owner/retry/probe requests to a conservative preparation bound, and expose an immutable public storage query. Add portable view-tamper controls, constructor directory/capability failure seams and real HIP zero-scratch/counter/target/resource differential source. Refresh the C17/C++17 compiler-front-end ABI candidate (41 enums, 107 records, 293 functions), not native consumer qualification. CPU/generated-ABI and HIP backend/context/epilogue/API/differential syntax checks pass; no fixture, GPU workload or benchmark ran.",
@@ -530,7 +530,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/52",
       "requirements_sha256": "1948e684314a66a0500c15f602dbb11196fb7404ae2e3b7332e0f87e2bcebe22",
       "comments_reviewed": 1,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Positive TDM fixture uses shared complete descriptor factory with width-derived pitches and resource admission before host allocation/fill",
         "Host enumeration covers K/slab tails, signedness, groups, compute and cluster axes; differential oracle checks every logical column and owned padding",
@@ -544,7 +544,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/53",
       "requirements_sha256": "16bcb7d2a10281b34287a4362b7aaaff5ca7752a966773ff9472cb272c4ac99b",
       "comments_reviewed": 5,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Narrow fused/native owners and adaptive/auto publication retain authority through proof publication; local bound-scan/product temporaries now track uncertain completion. This slice does not yet remove repeated native admission scans or allocations.",
         "Retain typed signed/unsigned native extrema from the existing exact host-pack row scan without another native traversal. Stamp a certificate only after successful retained-native publication, bound to common NativeSummaryIdentity instance/generation, actual owned native pointer/extent, device, shape/stride and signedness; publication/native invalidation retire it. Hoist the same guarded identity constructor into adaptive summaries rather than creating a pointer/source-version cache. Keep signed -128 versus +128 distinct and preserve INT64_MIN/UINT64_MAX magnitudes. Author portable extrema/merge/domain/identity controls, independent Boost/padded native moment comparisons and actual HIP pack-certificate checks. CPU pack/storage/unit and HIP exact-epilogue/differential MSVC syntax passed; no fixture or GPU workload ran. This metadata slice does not yet remove narrow dispatch scans.",
@@ -568,7 +568,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/54",
       "requirements_sha256": "cc7352bd12a8d7b6e17a5fea941434ffeddde1e5031734b0bdc82ad8f0dd61ad",
       "comments_reviewed": 2,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "I8MM publication now uses its owned reservation rather than generic writability checks; host commit/exception/metadata regression authored",
         "Unavailable positive AMX hardware tests now skip rather than report passes",
@@ -583,7 +583,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/55",
       "requirements_sha256": "9c8ecc5f578e6e37fe561f5a2b9a395d9ceb683da5b0be7052a33ee8338268ce",
       "comments_reviewed": 2,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Default and indexed dense matrix entry points share architecture-specific inlined bodies and common store/batch admission helpers; default kernel signatures and arithmetic are preserved",
         "Authored malformed-packet preflight controls and exact GPU differential controls for reordered moduli, 48 batches, padding, K65536 and both submission modes; HIP host/gfx1100 device syntax passed, runtime deferred",
@@ -607,7 +607,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/56",
       "requirements_sha256": "b38db36c2ba718d60eb1cfb344d95b8dc32359c0e0bbe0cc84ea27630dad1a28",
       "comments_reviewed": 4,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Read the complete current umbrella body and all four follow-through comments, including the pinned 910a4b2 repair order. Reconcile its 34 research owners and cross-owner integrations with the existing per-issue source ledger; do not duplicate the child proof/provider/lifetime/cache/evidence implementations or mistake obsolete historical absence descriptions for new tasks. The umbrella has no independent new algorithm implementation: current remaining child acceptance reconciliation is tracked explicitly rather than leaving a pending row with an empty source list. No tests, hardware work, new performance claim or issue closure follows from this source review.",
         "Complete umbrella reconciliation after its remaining source children27/57/58/60/61 are written. The ledger now has no remaining implementation items across all70 open issues; each owner retains independent runtime, hardware, measured-profitability and release acceptance. This does not close issues, promote backends/caches or transfer historical qualification to the current branch."
@@ -623,7 +623,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/57",
       "requirements_sha256": "e58880d0af72140d69826427976e4c69770ddab0426d8bde03000c8c153091a9",
       "comments_reviewed": 4,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Use shared ranked HIP selection for automatic SDK reuse, with explicit exact Core-release and lower-priority managed-receipt inputs. Invalid explicit roots/releases and equally eligible ambiguity fail before provisioning; canonical aliases deduplicate. Share managed receipt parsing between reuse/provisioning, preserve inconsistent destinations, and report deliberate CLI/archive-pin environment overrides. Doctor HIP probes carry original compiler argv through MSVC wrapping and bind the selected environment by compiler identity for direct and wrapped calls. Offline positive/negative/alias/receipt/pin/environment fixtures authored; syntax only, no SDK download/compiler/runtime execution.",
         "Share hipBLASLt config-package resolution across build and installed consumers. Require the complete upstream roc::hipblaslt target for enabled linkage; raw files remain evidence-only. Remove unreachable find_dependency/raw-target fallback and producer LT include/library path embedding, honor coherent consumer package/root choices, reject partial-import reuse, and forward parent SDK/component/package bindings to installed workload qualification. Add compiler-free configure fixtures for spaces, moved RNS8 prefix, raw-only/missing config, required/quiet and conflicting roots, partial imports and CPU-only packages. Earlier configure-only accelerator wrapper implementation already iterates all presets and records actual stages. Only Python/CMake module syntax checks in this phase; configure fixtures not executed.",
@@ -651,7 +651,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/58",
       "requirements_sha256": "9f1f6190508b5957c74feae066b8558cd5df082d0d15503e748c753e5dd0f3cb",
       "comments_reviewed": 2,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Read complete original session issue and both current comments. Add a read-only native Linux resource/access stage before configure/build, including CPU-only preparation and environment-only modes. Resolve current unified cgroup mount/root and visible ancestors; retain native CPU quota and memory-current/max observations, reconstruct limiting headroom with affinity/MemAvailable, and enforce requested jobs plus explicit measured per-job/floor/reserve models and available disk/inodes. GPU sessions additionally check loaded driver, actual character-device KFD/render access and positive native gfx942 KFD producer fields without converting node IDs to HIP ordinals or claiming HBM/device-count/driver-tuple qualification. Use pinned actual kernel mapping90402 rather than deriving architecture from hardware-IP digits. Preserve actionable blocked/unknown states and source-bind actual preflight process/policy in the existing session runner; no settings or installations changed. Register nested hierarchy/quota/memory, malformed/raw-versus-derived, missing access/target/disk, pre-probe policy and plan/consumer controls; update preparation/environment expectations. Four AST/pinned Ruff/static docs checks only, no proc/sys/device observation, fixture, project import, CLI, session or test executed.",
         "Repair the current CK bounded-u64 positive-plan mismatch using one versioned source inventory compiled into native backend semantic/name admission and read directly by the Python session planner. Hoist duplicated native semantic/name switches into enum-slot-checked constant-time immutable tables; preserve all existing source semantics, finite2..256 bounds, explicit target/provider detection obligations and compiled/runtime availability separation. Source-derived cases exclude unsupported positives and manifest their exact expected unsupported status/native rejection owner; retain later supported CK work and ordinary nonzero-error stopping. Bind source digest/version to manifests and each positive case, including graph control; reconstruct source decisions and backend/semantic/modulus argv before campaign launch and receipt admission. Extend the existing independent native operation-provider/source/compiled/runtime inventory checks and raw unknown/AUTO bounds; register strict parser, signed/unsigned/wrap/finite, both-target isolated/all-enabled and resealed decision/argv controls. Three Python AST/pinned Ruff, clang-format, actual C++17 /Zs native owner and unit-source frontend checks pass. Existing standalone frontend warnings remain, including missing DLL-build defines and older unit diagnostics; no library link, parser/plan/fixture/control, test, CLI or GPU execution. Target, compiler and supported capture qualification remain deferred.",
@@ -670,7 +670,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/59",
       "requirements_sha256": "27847b613c7ec23a2bfba112d1458122e9e948e694c876783825cae803dbdfcd",
       "comments_reviewed": 2,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -680,7 +680,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/60",
       "requirements_sha256": "c9e1fdeb0869dc2ffb174e977280a84840aafbbaf15e3a5b2f665af140bb3b6e",
       "comments_reviewed": 1,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Refresh the selected interpreter to official stable CPython3.15.2, preserving dated3.15.1 observations/qualification. Verify the downloaded NuGet repository signature with dotnet nuget verify --all, record archive/executable hashes, and install side by side in the initializer existing managed location. Select pip26.3 and Ruff0.17.4 from publisher metadata, update universal/Windows/Linux wheel hash locks, required-version config and shared policy digest, and install a fresh3152 isolated quality/type/analyzer environment. Fresh quality initialization now includes the shared hash-locked build tools rather than leaving bundled seed pip selected implicitly. Update current setup docs and preserve historical runtime results. Source AST, full pinned Ruff lint/format and tool version/integrity checks only; no project tests, protocol/fixture self-tests, analyzer campaign, CMake configure/build, GPU or benchmark executed. Record upstream CMake4.4.5 vs published4.4.4 wheel, GitWindows2.56.0.windows.4 vs observed2.52.0.windows.1, and hostLLVM23.1.5 as visible separate upgrade candidates.",
         "Select official native CMake4.4.5 Windows AMD64 ZIP and Linux x86_64 tarball with exact upstream release SHA256 identities; retain prior4.4.4 wheel records separately. Add explicit bounded native-prefix bootstrap, atomic staged publication, cooperating-install lock, complete-prefix file/link/directory integrity receipt, required CMake/CTest/CPack/module discovery, unsupported-host rejection and opt-in CI PATH export. Hoist the real SDK tar extractor and archive-path admission into a shared helper, add bounded regular-only ZIP extraction and no-overlay admission for both formats. SDK build initialization automatically selects the managed native CMake/CTest and selected-interpreter Ninja while dry-run/no-build remains installation-free. Update exact-lock validation, CI provisioning, bootstrap error handling and current dependency/setup docs; register offline archive, publication, receipt, tamper, unsupported-platform, origin/hash, CI PATH and SDK-discovery controls without running them. Necessary Python AST and pinned Ruff source checks only; no installer, project configure/build, tests, probes, GPU or benchmark execution.",
@@ -701,7 +701,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/61",
       "requirements_sha256": "fa11c7f7a3eca4296a9ca8ad026cd50baa90928ea764bb9477b7498d53380b66",
       "comments_reviewed": 3,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Reconcile current documentation navigation against the complete Git-backed inventory: add explicit audience/purpose/disposition/canonical/evidence owners for14 new ABI/instrumentation/profiling/proof/calibration guides, link them from the task index, move dated implementation notes out of the newcomer entry point, and regenerate inbound links/anchors across159 first-party documents. Restore the exact current main-branch doublemover GitHub funding file with its own preservation record. Update README/readiness to link actual Core10.1 correctness evidence alongside older HIP7.1 measurements, and distinguish the historical Python3.15.1 qualification from current selected3.15.2 source work. Existing static documentation lint passed159 records with zero local errors; no documentation self-test, external-link sweep, command execution, configure/build or GPU work ran. Full issue61 editorial/dependency/body acceptance still needs reconciliation; no runtime qualification transferred.",
         "Repair the documentation option scanner found during Windows profiling documentation: require a complete benchmark executable token, so an rns8-bench.pdb symbol-file argument does not turn a Python adapter --out option into an invented benchmark CLI error. Preserve detection for ordinary/.exe benchmark invocations and author both positive and negative static controls. AST/Ruff and static159-document local inventory lint pass; protocol controls and runtime checks remain deferred.",
@@ -719,7 +719,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/63",
       "requirements_sha256": "d4241680c3a47755cad29223a602315ec7c42a54828f3080589d98b737cbae64",
       "comments_reviewed": 1,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Shared indexed channel partition binds compact positions to original logical plane IDs and actual moduli; Gram panels/products exclude all composite channels",
         "CPU and HIP composite buckets reuse maintained tiled triangular Gram/mirror producers; empty eligible sets reject before algebraic allocation",
@@ -744,7 +744,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/64",
       "requirements_sha256": "8049226a6734369031bc3a856bed03bce83b9b1db9d03d55a276388fecfb98cc",
       "comments_reviewed": 1,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -754,7 +754,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/65",
       "requirements_sha256": "89aa06dd65a8e9fa8ef58d9a0d228c3f421b15c6c1fa06ce1b486334b4dd8a9e",
       "comments_reviewed": 3,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Shared complete-domain stable import predicate covers identity/generation/device/layout, full initialized prefix, exact proof and required native width/capacity; hits precede source scans and publication",
         "Canonical wrap64 host transfers elide device staging and identity kernels, with compiler-checked GPU byte layout and explicit conversion for incompatible host byte order; unused staging parameters/benchmark allocations removed",
@@ -769,7 +769,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/66",
       "requirements_sha256": "1a391a177191a07d81e081f25f52a2841fe0ba25bb2d3eaceaaa91e1a208099b",
       "comments_reviewed": 2,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -779,7 +779,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/67",
       "requirements_sha256": "dd126bc6c42b25f8d2828ff1ebbed5015ce2bcc373cf0760f8266d29f0e214cb",
       "comments_reviewed": 1,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Remove redundant successful device-wide waits from the three synchronous native interop copy boundaries (owned snapshot, retained native import and export commit). Reuse the existing tracked 2D copy helper that already observes default-stream completion; share only conservative failed-copy cleanup and preserve its original error. Kernel/proof completion and diagnostic timing remain unchanged. Extend the real signed/unsigned retained/unretained padded full-width export differential to consume results immediately on an independent nonblocking stream with owned pinned readback and pending device/host custody. CPU and HIP-enabled host MSVC /Zs pass for hip_backend.cpp; full enabled-HIP differential TU frontend check is recorded with this slice. No runtime control, GPU fault, copy campaign or benchmark executed; no performance credit. Other raw-copy/allocation and full issue43 acceptance reconciliation remains open."
       ],
@@ -791,7 +791,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/68",
       "requirements_sha256": "80010ebb5df75128bec846c4d0e8ad69835b63ee3e0efd322536c4814b24504d",
       "comments_reviewed": 2,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Share streaming descriptor tag admission across query/constructor/panel shortlist, rejecting unknown semantics/schedules and reserved bits before backend routing. Validate complete constructor range/resources before owner allocation and context-health routing. Admit profile size before forming nested rate references, reject unknown rate backend tags, and validate profiles before CPU backend rejection. Preserve valid stale calibration as unknown cost and per-choice invalid schedule rows as explicit rejected candidates. Author live CPU query/constructor/planner canaries, poisoned-context, short-prefix and raw semantics/schedule/reserved/calibration controls with no-acquisition counters; extend synthetic HIP inventory shortlist choices with raw invalid schedule controls. CPU and HIP-enabled host MSVC /Zs pass for actual api_stream_gemm.cpp and full test_api.cpp. Formatting/diff/JSON only otherwise; no runtime API/control, CMake build/link, GPU or benchmark ran. Complete issue93 external tag/flag and sized-descriptor acceptance remains under reconciliation."
       ],
@@ -803,7 +803,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/69",
       "requirements_sha256": "2735c26d3506ea4ea1171b1e183c3c06d620fbc7d713b95197b25c58979fa4cd",
       "comments_reviewed": 3,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -813,7 +813,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/71",
       "requirements_sha256": "2abf0232598c13d336f51c0c70ad39d73f0024b345a99ee8af24464cfc9e4b24",
       "comments_reviewed": 2,
-      "implementation_status": "prior_source_implemented_qualification_remaining",
+      "implementation_status": "source_written",
       "completed_slices": [],
       "remaining_source_items": []
     },
@@ -823,7 +823,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/79",
       "requirements_sha256": "a35bdf1940514c297baeb71a3e0d93d2b1da4984c0038bfc55abcaf9918d47db",
       "comments_reviewed": 0,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Descriptor GPU kernel reduces once per certified 65536-term slab/tail using shared centered reducer and host-prepared ordered-basis reciprocal packet",
         "Packed and unpacked CPU recipes share one blocked descriptor GEMM with contiguous B-row fast path, explicit tiled adapters and bounded stack accumulators",
@@ -838,7 +838,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/80",
       "requirements_sha256": "9286edfc07c8a62e092124d710cb4e0972f204a6caaa3e5d8490b4da939d1e83",
       "comments_reviewed": 0,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Exact builtin target/body/code-object admission",
         "Operation query rejects unsupported exact target bodies through the same pure predicate"
@@ -851,7 +851,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/81",
       "requirements_sha256": "7a238a3ad202dbe00d7bf50b6192a00fa99ae01880637c12b1ae4314a2120de4",
       "comments_reviewed": 0,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Immutable complete-ladder products/centering thresholds shared with modulus_product and checked reconstruction contracts prepared once per uniform/tile region",
         "All four public host integer exporters use one strided traversal with per-worker scratch and deterministic same-worker exception handling; removed per-cell residue vectors/status storage",
@@ -865,7 +865,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/82",
       "requirements_sha256": "825ca61a134f8965a42d2d8de04538a7fabdfad4c0b8305caff12ca39074db77",
       "comments_reviewed": 0,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Shared checked logical host-row transfer plan with compact device strides and tracked contiguous/2D copies",
         "Signed, unsigned, finite, wrap64, retained-native and direct native one-shot consumers migrated; removed trailing-pitch reads and retained-native host staging",
@@ -880,7 +880,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/83",
       "requirements_sha256": "48aad45e52d8fa34c2d2051f9d94b38ef415a513dcd51759d14db055dcd922f0",
       "comments_reviewed": 1,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Share a candidate-independent versioned native reuse work contract across per-capture dataset/input/output/batch validation and encoded-B comparison grouping. Bind effective profile/seed and versioned dataset identity alongside shape, prefix, group, signedness, residue boundary and immutable input semantics; keep preparation strategy and reuse count as axes. Emit comparison schema2 with explicit work contracts. Different inputs remain incomplete with no win/break-even; implicit and explicitly equivalent defaults join. Author multiple-repeat/reuse, profile/seed mismatch and mocked valid-child final-summary integration regressions without broadening encoded dataset support. Reconcile encoded queue dispatch/completion documentation; preserve credit for documented default-dataset cohorts. Python3.15 AST syntax and diff checks pass; no regressions or campaigns executed."
       ],
@@ -892,7 +892,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/84",
       "requirements_sha256": "a148d800e6562bbae349b1d9a8e782bb04bae1ecb977f2759331470d2e0cafc9",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Emit build manifest3 with package-manager-neutral selected dependency content: explicit native/vcpkg resolution, shared selected tree/file identities, ABI/configuration inputs and actual dependency-policy/build-tool/vcpkg-status receipts. CMake records HIP headers/compiler/runtime, concrete selected hipBLASLt link/runtime artifacts, explicit runtime DLLs, transport/MPI/OpenMP and enabled reference files; hashes refresh at build time. Remove empty-root/cwd vcpkg lookups. Validate canonical digest/types/declared sets, lock/resolution evidence, clean known source, experimental policy and selected backend flags; preserve explicit diagnostic shape separately without synthetic digests or configuration rewrites. Keep legacy manifest2 admission but reject cross-version pooling; allow differing optional selected sets only with matching shared content/receipts. Add strict host-only manifest-file/build admission after every qualification build, before inspectors/GPU work and CPU preparation tests. Author native/vcpkg generator-to-real-collector, mutation/missing/stale/tampered/dirty/legacy/optional-set/ambient-cwd and CLI/preflight-order fixtures. Python3.15 AST and definition-only CMake syntax parsing pass. Runtime fixtures, native Linux rehearsal and target qualification remain deferred; no configure/build/probe/benchmark executed."
       ],
@@ -904,7 +904,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/85",
       "requirements_sha256": "48b1e441146dcced79f952323794178dbb3a34e738509f760443acad53aeb453",
       "comments_reviewed": 0,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Order-independent same-wave configuration, all-target probes and runtime launch-width admission"
       ],
@@ -916,7 +916,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/86",
       "requirements_sha256": "912eabe304f04127d5f5e8cb7e70327432d7548b46081c3589d3bc02bda274f8",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Repair all four full-path graph owners with a shared typed caller transaction: stage A/B on every warmup/replay, include status validation and caller delivery before the outer timer ends, preserve failed outputs, and retain first/steady observations. Production keeps two outer clock reads; independent graph diagnostics can record staging/replay/delivery clocks without claiming HIP-event/ISA evidence. Record additional pinned/private preparation as a disjoint parent minus separately measured capture/instantiate/stream/common matrix allocation; time local owner teardown and publish payload/cadence/setup receipts. Shared graph contracts gate schema, immutable production/diagnostic companions, generic review and specialized reports; legacy prepared-pinned outputs have a distinct normalized completion identity. Compare hook-disabled production operands with all-process bindings, independent-process cohort qualification and setup-inclusive medians; reject incomplete/instrumented boundaries and suppress classified ratios/break-even until qualified. Author injectable-clock, zero-warmup, changing-input, repeated-delivery/failure controls plus four-family actual-loader bindings and metadata payload/setup/clock/legacy mismatch fixtures. Preserve and qualify historical rank58/rank68 ratios without invented corrections or changes to resident-chain/compiled-DAG evidence. CPU/HIP-host benchmark and unit MSVC syntax plus Python3.15 AST/undefined-name lint pass; runtime fixtures and target qualification remain deferred."
       ],
@@ -928,7 +928,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/87",
       "requirements_sha256": "d8763286bd55b7f3b3cd3911bae95c434ae2a5fd891a01661c897c0485f87d32",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Emit a versioned disjoint fresh first-call setup inventory for ordinary persistent products. Share one accounting/admission helper across the collector, schema and review; add one-time prepack exactly once, preserve the accurately named narrower prepared-input invocation sum, and explicitly exclude context/caller-buffer allocation/input generation/oracle. Require the current supported inventory; reject known composed graph/pipeline/specialized owners before collection or from their unsupported producer inventory. Preserve fresh zero-warmup one-call identity and separate steady/sustained cohorts; fingerprint the helper in collection receipts. Author ordinary/A/B/A+B, zero/positive/missing/nonfinite prepack, duplicate/unknown inventory and unsupported-owner controls. CPU/HIP-host benchmark MSVC syntax, Python3.15 AST and undefined-name lint pass; no executable, fixture or benchmark execution. Historical ordinary October25 first-call observations are not recalculated or declared contaminated."
       ],
@@ -940,7 +940,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/88",
       "requirements_sha256": "40c05b02d83d5cfc1f587a64b958e083c29b59176ee595f7827af34e8492daa2",
       "comments_reviewed": 1,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Move public-native-queue observation JSON construction out of sustained callbacks; callbacks now return a typed scalar Observation, with serialization and Boost audit outside measured intervals. Host-control diagnostics run separately and identify instrumented builds. Other harness/report/document follow-through remains under review.",
         "Repair all eight affected calibration callbacks: shared fixed-size PhaseObservation and gated CallClock, JSON only after completed-call/outer sustained intervals, no phase clocks in warmup/sustained callbacks, and one shared bounded completed-call loop preserving the real prepare/repack/proof/completion/export/cleanup boundaries and intentional CPU reference policy. Hoist fixed manual-prefix reports to setup; retain only dynamic AUTO prefix writes in preallocated slots. Preserve exact integer nanosecond observations for host-transfer captures. Add strict shared boundary identities to all eight collectors/cohort keys, retaining historical JSON-bearing and prior typed intervals separately. Author injectable-clock, completion/failure, integer serialization and malformed boundary/receipt regressions. Qualify historical3532e57/72c55c2 receipts and9.83/28.39,1.016/1.013 and1.288 comparisons without altering numeric observations or inferring bias amounts/corrected gains; preserve exact output credits and unaffected direct CRT. Runtime validation and matched target remeasurement remain deferred."
@@ -953,7 +953,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/89",
       "requirements_sha256": "396e6ed236a3601b7eced8f4837ccbd65ecb5f39868d986746fdcd9e34dd04ff",
       "comments_reviewed": 6,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Add shared typed numerical ReferenceVerdict and raw/cohort observation facts. Require explicit uint64 checksum fields, mathematical/input-key identities and complete input-bound native integer postflight coverage; checksum equality or CPU names alone never imply full output comparison. Preserve known mismatches, reference conflicts, partial/missing proof, all-process coverage and content binding independently of timing qualification or promotion policy. Cohort views retain deduplicated numerical facts for every submitted raw content hash; shared report loading drops saved/injected private verdicts before schema admission. Author metadata-only checksum0/extrema/type/alias, known mismatch/conflict, pending/partial/cache/input identity, padding-independent comparison, cohort coverage and forged-private-input regressions. Register reference verdict self-test. Python3.15 AST syntax passes; no module/fixture execution. Report-adapter integration and producer input-key/status updates remain source work.",
         "Bind uncached bounded/finite/wrap and exact-wide postflight observations to actual integer input keys; compose streaming task keys in order with checked coverage/time accumulation and no fictitious aggregate cache file. Publish completed exact-comparison policy status only for a valid complete receipt covering all logical cells/tasks; checksum0 remains recorded evidence rather than missing-reference inference. Record existing uncached exact-wide comparisons without adding production-loop oracle work. Ordinary qualification smoke explicitly requests full postflight verification; graph capture retains its separate unsupported reference envelope. Author metadata geometry/order/overflow/cache/time controls. CPU/HIP benchmark and reference-unit MSVC syntax plus Python3.15 runner/test ASTs pass; no runtime tests or benchmarks executed.",
@@ -971,7 +971,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/90",
       "requirements_sha256": "474d0208821f17349c17c2c064211ee6cd2f6ebcd119b050daced516649e9f42",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Introduce typed versioned companion observation projection and v2 binding receipts. Remove only explicitly reviewed top-level/nested reuse measurements, setup breakdown leaves, reference/oracle timers, graph timers and streaming/sustained duration leaves; preserve requested budgets, policy/scope, reuse roles, repeats, cache/source/output/kernel/environment/artifact identity and unknown future fields. Strict type-aware comparisons and strict binding JSON retain fail-closed behavior. Raw file/content hashes still bind every original observation. Author real-loader reused A/B/A+B controls with independent setup observations, review/ledger integration, post-binding mutation and contract/unknown-field rejection controls. Python3.15 AST and undefined-name lint only; no fixtures or benchmarks executed."
       ],
@@ -983,7 +983,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/91",
       "requirements_sha256": "b58bb91666262dfc4b93e5b6c12b398148afd2ef40989d57a133f2df0ec9e0af",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Add separately named generation-bound retained GMP/FLINT input cohorts and matched native64/native128/Boost materialization cohorts while retaining original conversion/serialization-per-product controls. Split prepare/compute/materialize; charge initial converted inputs to setup, refresh only changed A/B/T dataset/address/length/generations, invalidate partial failures before import and reject stale arithmetic until retry completes. Recompute every R expression/GEMM while following each/once output materialization on CPU and RNS8. Native signed64 matched rows expose a retained typed output view without redundant serialization storage/copies; checked wider serialization remains explicit. Publish v2 source/conversion generations, conversion passes/cells, real products, materialized outputs and retained static memory, and extend collector identities, strict legacy/current schemas and operation-count verification for cold/steady/sustained/changed calls. Author extrema/cancellation/>128-bit full-output tests, changed A/B/T and storage identities, failed-refresh retry, batch recomputation/native-view controls, synthetic old/new optional availability and malformed lifecycle fixtures; existing compiled producer-to-collector coverage consumes the new contracts. Native/Boost six-program MSVC syntax and Python3.15 AST/undefined-name lint pass. GMP/FLINT headers are absent from the selected vcpkg includes, so their compiled lanes and all runtime/target measurements remain deferred; no performance claim. Bind recomputation to a compiler memory boundary after each complete CPU expression so identical final-only products cannot be hoisted out of R; record this policy independently of data-copy/materialization counts."
       ],
@@ -995,7 +995,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/92",
       "requirements_sha256": "59f65609b9ff4cf6cc6d239022cd3aa394d69a6a857a494d52789e8199649a60",
       "comments_reviewed": 0,
-      "implementation_status": "written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Ordinary full/tail call slots retain immutable algorithms and observation indices; global directory consulted only for newly prepared geometry",
         "Shared sync/async selector uses a fixed-capacity 256-value four-way directory with complete geometry/workspace/library/runtime/driver/device/context configuration keys; no callbacks or heuristics under its mutex",
@@ -1011,7 +1011,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/93",
       "requirements_sha256": "2a000274423fe3897f3a9ad9d2b8ab4112720af1ba6211889c4d483473d380c4",
       "comments_reviewed": 1,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Fixed uint32 representation on every named public enum; raw native/Gram/schedule/locality negative coverage authored",
         "Compiler-derived complete C/C++ declaration and per-target layout registry; immutable actual-library ABI metrics/digest/compiler/CRT query; installed static/shared native consumers, export checks, compiler/flag receipts, seeded packing/enum/member/export negatives and optional pinned Linux complete-type abidiff adapter authored",
@@ -1052,7 +1052,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/94",
       "requirements_sha256": "72ddbb2dcb1f0e6c1281fd62df1eb4eff99d588942c5b6cb545aed44383bffbd",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "CPU-only executable/actual-library compiled-manifest queries for benchmark, verifier, inspector and tests; bounded session queries/immutable receipts before device work; shared capture request/artifact binding and child-PATH-resolved launch",
         "Candidate/artifact/backend/kernel/work/runtime/driver/environment-bound phase receipts over immutable existing session manifests/results; explicit run IDs, same-artifact cross-process conflict retention, supersession, unskipped GPU/JUnit and fresh output gates; report schema3 separates historical inventory; ledger and installer reload/recompute raw candidate qualification; offline emitter and producer/consumer regressions authored",
@@ -1067,7 +1067,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/95",
       "requirements_sha256": "7346417cb52b9aa99020d5a05901d0d7bb728b368933d4c45bf0e48fb38bbe09",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Replace every waived/lenient pass in sweep case modules with real argv, visibility, shard name/path, manifest, family, checksum isolation and variant predicates. Share strict scenario command assertions for shape, semantics, actual backend, exclusive reuse, bridge/vector/oneshot/fusion/graph modes and relevant option operands. Remove obsolete fused-transient branch assumptions while checking current oneshot/baseline contracts; retain explicit production catalog inventory separately. Author a tiny synthetic catalog with controls that reject dropped masks, aliased shard outputs, removed reuse flags and contradictory bridge/backend metadata; register the future batch test and source guard against reinstated pass placeholders. Keep historical assertion counts and explicitly inventory assertions moved to shared command helpers. AST, focused Ruff and diff checks pass; no case, fixture, subprocess workload or mutation control executed."
       ],
@@ -1079,7 +1079,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/96",
       "requirements_sha256": "d055f689810308f25b2be643f71dfe155cafb7aa77d1a36ec4fdd89d38877543",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Public process-local HIP PCI-BDF/opaque-UUID inquiry with transactional preflight, explicit availability and native status; canonical CPU-observable validation; inspector snapshots and benchmark before/after witness outside timing; native-query error cleanup and CPU/real-HIP test source authored",
         "Bind actual launched query/inspection/benchmark process IDs, isolated visibility and rank/world environment to raw session manifests/results, immutable executable identities and capture bytes. Reuse shared evidence-store bookends and exact-work contracts in versioned observation receipts; separate native observations from expected labels in standalone reporter v2; reject unknown/stale/contradictory/copied associations and per-case contract changes. Author four-rank seed/modulus, checksum, environment, artifact/PID/target/availability and inventory regression source; register final-batch tests and document the offline adapter. Static checks only; no fixture or hardware execution."
@@ -1092,7 +1092,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/97",
       "requirements_sha256": "cfe920a3a6026dc3c4a18ae0beaf45703138906f39adfaf1dfeb425401330181",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Share allocation-free nonthrowing from_chars integer/device parsing across inspector and benchmark. Require nonempty complete decimal tokens, reject overflow before any narrowing, and admit only -1 or nonnegative int ordinals while preserving omitted defaults. All benchmark parse_i64 consumers inherit strict conversion; move host-clock calibration after argument validation. Author unit canary/boundary/overflow coverage and actual CLI parse-only fixtures using final --help for malformed/valid/omitted/missing device and shape/padding controls before backend/context access. Update help/docs and register tests. Syntax checks only; CLI subprocess and runtime tests deferred."
       ],
@@ -1104,7 +1104,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/98",
       "requirements_sha256": "a0bb2676c52139ccf4f9cf714ff489deb34ac2ebdb444d15f9812c2c64a5c575",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Define a tracked NUL-delimited first-party role inventory, explicit generated/vendor exclusions, bounded argument batches, conservative C++/HIP and Ruff configuration, self-hosted workflow labels, and a single check/format-only fix entrypoint. Lock Windows/Linux artifact hashes for Ruff 0.17.3, clang-format 23.1.5, actionlint 1.7.12 and ShellCheck 0.11.0 through the existing dependency-policy owner; add opt-in fresh local developer-tool initialization with bounded HTTPS downloads and regular-member-only archive extraction. Source implementation only; baseline formatting, tool execution controls, lint repairs and CI gate integration remain pending.",
         "Author offline controls for Unicode/space/NUL inventory, empty roles, bounded argv batches, non-mutating check versus format-only fix plans, lock/requirement drift, missing/wrong versions and exact regular native archive members including link/duplicate/expansion rejection. Register the future batch test; document developer commands and isolated dependency ownership. AST/focused Ruff only; do not claim baseline or runtime checks passed.",
@@ -1128,7 +1128,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/99",
       "requirements_sha256": "6eb42fd6a3012921fb398c47a83254a2d193ca30e53099e6096efc335b5dee6a",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Centralize PRIVATE first-party host warning options for owned library, executable and object targets while excluding imported/vendor/interface targets and exported consumer policy. Preserve the existing HIP anonymous-union exception and add opt-in host warnings-as-errors. Construct custom HIP compilation and its JSON inventory from one argv list, retaining explicit SDK environment, target list, configuration and generated manifest/overlay dependencies. Keep record JSON out of CMake list storage so literal semicolons survive; identify inventory as configured commands rather than executed receipts. Author CPU-only configure controls for warning isolation and whitespace/Unicode/quote/semicolon argv handling; register for the deferred batch. Source inspection, Python AST/Ruff and diff checks only; no CMake configure, fixture or analyzer execution.",
         "Add dedicated non-unity Windows/Linux CPU analysis presets. Resolve custom HIP generated-header and configuration expressions during CMake generation, with per-configuration inventories; retain a single-config convenience file. Emit the configured first-party target/source denominator and a generated-input preparation target that does not depend on HIP objects. Add immutable host/HIP context admission preserving native argv or command strings without cross-shell reparsing, distinguishing multiple static/shared/tool preprocessing contexts and checking complete registered source-pair counts. Reject changed root, unsupported generators, unity, missing exports, duplicate/omitted contexts, contradictory HIP backend/architecture records and ambiguous environment overrides. Preserve generated-input requirements without pretending absent headers exist. Author source/configuration controls; AST/focused Ruff/diff only, no configure, fixture or analyzer execution.",
@@ -1152,7 +1152,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/100",
       "requirements_sha256": "fc76fd75ce070ad69262f8dd64a3eb8590d64196754c1560d5db690760fc0def",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Replace schema and sweep exec/compile fragments and wildcard fixture facade with 11 independently runnable unittest case modules, normal explicit owner imports and fresh local baseline/command/cohort factories. Preserve all 651 original assertion nodes and map named cases in a durable source inventory. Split the grouped fixture leaf to keep primitive/metadata/chain imports acyclic; migrate every schema facade consumer directly to actual helper owners and delete the loader facade. Preserve runtime get_type_hints coverage in a named aggregate case; aggregates reject changed/empty case counts. Author loader, assertion-retention, import-cycle and mutable-factory isolation controls for the deferred batch. AST and focused undefined-name/import checks passed; no case or fixture executed.",
         "Remove common primitive ownership from the finite-verifier collector. Route every former scalar, strict JSON and exact-structure consumer directly to evidence_scalars/json_evidence, move diagnostic checksum/budget/structural provenance into verification_contract and reuse the existing streaming file-digest owner. Update native-calibration strict-loader consumers to import the JSON owner directly. Preserve bool-versus-int and null/missing/zero distinctions; central parsing also rejects overflowing numeric exponents, and positive timing predicates reject unsupported huge integers without OverflowError. Author shared parser/scalar/checksum boundary controls and register the deferred batch test. AST/focused Ruff/diff checks only; no fixtures or collectors executed.",
@@ -1170,7 +1170,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/101",
       "requirements_sha256": "f1b96c70c193fd5fd98f02b32dde50a6be46809043ddc3a9be0f248dfe93cb87",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Create a separate non-installed CPU fuzz library from the actual configured first-party sources, with fuzzer-no-link/ASan and native Unix nonrecovering UBSan; fuzz entrypoints alone link the engine runtime. Keep ordinary release libraries, unity/IPO and HIP discovery separate. Emit a configured source/compiler/archive inventory and author a real compile-command/archive-symbol control. Replace the output-discarding export harness with a bounded versioned six-semantic literal case codec and independent scalar Boost arithmetic, destination/CRT envelope admission, minimal-row/guard/padding comparisons, invalid-LD no-write checks, repeat execution and prepared repack/stale rejection/refresh. Add an independent Python wire/integer codec and deterministic named seed expansion for all supported prefixes and byte moduli, native extremes, cancellation, rectangular padding and opt-in skinny K boundaries. Keep expanded corpus/manifest ignored. Author codec/oracle/ladder controls and document the exact wire format. MSVC syntax check passed for the arithmetic harness; Python AST/focused Ruff/diff checks only. No unit control, configure, archive inspection, fuzzer, corpus expansion or GPU replay executed.",
         "Replace permissive descriptor probing with explicit valid six-semantic plan/backend/schedule/workspace expectations, correct signed/unsigned per-tile contracts and 15 individually specified invalid mutations requiring INVALID_ARGUMENT/null output while preserving the live plan. Retire the metadata-named C++ JSON harness in favor of an honestly named dependency-only target, remove unchecked typed field conversion and stop linking the production library into that third-party adapter. Select the explicit exact-value-bound plan mode for small-prefix wide arithmetic cases rather than assuming the full-native-width plan accepts them. MSVC syntax-only checks passed for descriptor and dependency sources; runtime remains deferred.",
@@ -1194,7 +1194,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/102",
       "requirements_sha256": "621c4094c71c50396d4a40875dcb9c3252930fa8fc21c25b692ae77af39d6b96",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Add explicit separate native Linux Clang address-undefined/thread host instrumentation selection, nonrecovering ASan/UBSan flags, complete first-party compile/link scope and matching exported consumer interface flags; reject cross/native-platform, HIP, combined coverage and incompatible fuzzer lanes. Reuse existing Windows clang-cl runtime/STL implementation and enable separate detector controls there. Add debug/optimized ASan/UBSan and OpenMP-OFF TSan configure/build/test presets with no-empty-test and serial execution intent. Record actual selectors/instrumentation flags in compiled provenance. Build disposable host capability/valid/heap-overread/signed-overflow/race and OpenMP sensitivity controls outside ordinary CTest PASS counts; report actual address/thread compiler features and host-only scope. Add real public CPU legal-concurrency tests over independent owners and externally mutex-serialized shared handles, complete Boost values/publication generations/global matrix ID uniqueness/cleanup, and one shared deterministic test/control start gate. Add typed compiled-build instrumentation reader and production timing/profile-baseline guards, including legacy recorded sanitizer/profile flags, plus authored negative controls and docs. Necessary MSVC C++17/OpenMP source syntax, Python AST/pinned Ruff/format/whitespace only; no CMake configure/build, detector, concurrency test, runtime, profiler or project validation executed.",
         "Add a shared bounded native CTest JSON/JUnit inventory reader with exact command/property binding, full discovered/selected/excluded/executed/pass/fail/skip/disabled denominators, mandatory named tests and reviewed exact-name skip policy. Bind actual configured skip codes and native markers; classify startup/fixture/resource omissions as blockers. Preserve immutable input digests and exclusive ignored reports. Author malformed producer, missing/extra case, changed command/property, disabled/skip and mandatory-test controls, registered with CTest. Python AST/Ruff source checks only; no discovery, test, detector or qualification executed.",
@@ -1224,7 +1224,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/103",
       "requirements_sha256": "8214072de7c23a250b2193ad36e2ab7d09c22a00b1faedd731df133bcdcb0386",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Add a separate native Linux Clang source-coverage selector and dedicated CPU preset, compiler/source-mapping and final-link flags, matching installed consumer flags, compile-command export and collision-safe per-module/per-process profile naming in its test preset. Record coverage in compiled provenance and reject coverage/sanitizer artifacts from production timing baselines through shared typed readers. No profile, coverage tool, build, test or mutation executed; this is instrumentation foundation only.",
         "Add a shared bounded native CTest JSON/JUnit inventory reader with exact command/property binding, full discovered/selected/excluded/executed/pass/fail/skip/disabled denominators, mandatory named tests and reviewed exact-name skip policy. Bind actual configured skip codes and native markers; classify startup/fixture/resource omissions as blockers. Preserve immutable input digests and exclusive ignored reports. Author malformed producer, missing/extra case, changed command/property, disabled/skip and mandatory-test controls, registered with CTest. Python AST/Ruff source checks only; no discovery, test, detector or qualification executed.",
@@ -1257,7 +1257,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/104",
       "requirements_sha256": "47913207ca089eb82a307a409b73471a69ded47a0d5435216dd1c680dd128450",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "First strict ROCprofiler-SDK native JSON dispatch reader joins actual benchmark PID/agent/queue/dispatch/correlation IDs, mangled selected ISA symbols and loaded file-URI code-object bytes; explicit instrumented capture relation and production-latency rejection; typed geometry, separate raw artifact hashes/freshness and offline negative controls authored",
         "Add explicit plan-only and bounded read-only AMD profiler preflight using existing dependency resolution/owned-process runner, separate RDP controller/service discovery, conservative OS/target/feature matrix, native availability parser and retained probe artifacts/states. Add immutable bounded read-only rocpd 3.0.4 adapter against pinned ROCm 10.1/SDK1.4.1 schema; join process/node/GUID-scoped inventories into existing dispatch/static-ISA/artifact validation; retain native graph/stream/event relationships and per-instance vendor metric definitions/units/missingness. Connect raw-bound native receipts to existing counter report and hypothesis review, remove flat-column resource/occupancy/wait/memory heuristics, separate interval service/union/overlap per pass, and share safe Markdown cells. Author/register protocol regressions and canonical profiler guide. AST/Ruff only; no probes, SQL fixtures, tests, GPU jobs or benchmarks run.",
@@ -1293,7 +1293,7 @@
       "url": "https://github.com/doublemover/RNS8/issues/105",
       "requirements_sha256": "6f245891d036cb986c00689c66538fb41478587c3c08c111c8be0e182193dbec",
       "comments_reviewed": 0,
-      "implementation_status": "source_written_pending_batch_validation",
+      "implementation_status": "source_written",
       "completed_slices": [
         "Hoist duplicated CK/rocWMMA/hipBLASLt HIP-event/retry/host-fallback timing into one shared real implementation, retaining distinct CK integer, HIP runtime and hipBLASLt library status mappings; preserve hipBLASLt explicitly synchronized pre-stop diagnostic boundary and zero-instrumentation nondefault-stream enqueue paths. Repair ignored synchronization failures: failed fallback/retry drains record the runtime phase/error, publish no timing sample and propagate backend failure. Reject nonfinite elapsed event values. Use a portable completed-observation gate in the actual fallback and author failure-before-success/late-failure publication controls. Source-only compiler/format/whitespace checks; no controls, timers, device jobs or performance campaign executed. The first optional HIP frontend command omitted required CK implementation macros; the corrected source-only command supplies an explicit canonical-u8 WMMA contract and is recorded separately from target qualification. Corrected gfx1100 CK canonical-u8 WMMA and rocWMMA full optional translation-unit frontend syntax passed; enabled HIP/hipBLASLt host implementation, shared HIP/integer-status instantiations and the complete API fixture source also pass MSVC C++17 syntax. No object generation, linking, portable-control execution, timing capture or kernel execution occurred.",
         "Implement an explicit bounded native Linux perf.data CPU sample decoder against current upstream standalone perf.session/sample attributes, after producer-source inspection confirmed the legacy embedded Python API was removed. Preserve native PID/TID/timestamp/software-CPU-clock period, DSO build ID, symbol/source and bounded callchains; exclude other PIDs explicitly, reject guest/wrong-event/malformed data and retain unresolved attribution as missing. Bind raw recording and native module hashes before/after decode, decoder identity and exact byte/sample/frame budgets; recording SHA remains the same across copies/renames. Preserve unknown native loss and process-total scope, with acquisition_verified/production_latency/promotion false. Add explicit CLI no-overlay output, authored synthetic producer-object, thread/missing-source, budget, mutation, unsupported-module and output controls, CTest registration and source-cited host-profile documentation. AST, pinned Ruff and whitespace source checks only; no module import, fixture, native decoder, acquisition, profiler or project validation executed.",
@@ -1338,5 +1338,8 @@
     }
   ],
   "updated_date": "2026-11-07",
-  "source_completion_date_utc": "2026-11-07"
+  "source_completion_date_utc": "2026-11-07",
+  "implementation_source_commit": "f60ca27709c7eae67b4dcf256460e324bad10714",
+  "validation_receipt": "metadata/implementation-validation-20261107.json",
+  "validation_requirements_note": "Per-issue acceptance/deferred lists and completed-slice notes preserve the source-pass checklist and authorship history. The linked validation receipt and docs/roadmap.md own current execution status and remaining qualification."
 }

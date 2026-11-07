@@ -1,5 +1,8 @@
 # Persistent native WMMA queue
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private HIP research entry point `hip_direct_gemm_native_wmma_queue`
 accepts up to 4096 independent native 64-bit matrix products. Each descriptor
 selects signed or unsigned inputs, shape, pitches, the default RNS prefix,
@@ -174,7 +177,7 @@ count admitted owner packets separately from range-helper calls. Clock reads
 occur only with both the diagnostic build and an active observer. New prepared
 and diamond-DAG controls require one cold traversal per node and no warm range
 traversal while preserving exact outputs and refreshed-input behavior. These
-source additions and v2 collector controls await the deferred validation batch.
+source additions and v2 collector controls follow the roadmap's execution scope.
 
 Diagnostic configuration participates in the compiled manifest. Its timings
 are identified as ineligible for release-build latency claims even while the
@@ -234,13 +237,12 @@ specifies the fixed-frequency wall clock/rate query and warns against using
 `clock64()` for RDNA3. Ordinary grids have no synthetic per-task queue telemetry,
 and this private synchronous owner has no supported graph-replay control.
 
-The new CPU property/mutation/budget/4096-task/counter-bound fixtures and GPU
-full-reference/telemetry/replacement fixtures are **authored, not executed**.
-Host-only syntax checking does not compile the HIP kernels. Compilation on the
-supported target, differential execution, independent latency/fairness collection
-and ISA/resource qualification remain deferred. Public generation/read-write
-reservation integration remains distinct work: the private harness explicitly
-owns every borrowed buffer and synchronously rebuilds changed encoded B.
+CPU property/mutation/budget/4096-task/counter-bound and GPU
+full-reference/telemetry/replacement fixtures are registered. Current compilation and
+differential scope follows the roadmap; independent latency/fairness collection
+and ISA/resource qualification remain separate gates. The private harness owns every
+borrowed buffer and synchronously rebuilds changed encoded B. The public
+generation/read-write reservation owner is described below.
 
 ## Public generation-owned queue and graph opt-in
 

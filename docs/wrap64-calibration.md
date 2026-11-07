@@ -1,10 +1,14 @@
 # Matched canonical wrap64 calibration
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8-wrap64-calibrate` compares private routes on identical canonical
 compact byte-limb inputs and output: signed carry-recoded WMMA, native unsigned
 IU8 WMMA, ordinary direct-HIP v4, and corrected rocWMMA on RDNA, a separate signed-INT8 MFMA route on CDNA,
 and a native-U64 vector-ALU control on both. Source, fixtures and
-case sets are authored and unexecuted. This is not public matrix ownership,
+case sets are
+registered. This is not public matrix ownership,
 AUTO routing, ISA verification or production promotion. The
 [recoding guide](wrap64-signed-radix.md) owns the arithmetic and current kernel
 schedule. Strict wrap64 equality is checked without odd-modulus CRT.

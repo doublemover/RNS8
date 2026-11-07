@@ -1,12 +1,15 @@
 # Research topics and application context
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](../roadmap.md#current-validation-and-remaining-work).
+
 [Public ragged calibration](../ragged-calibration.md) compares matched host
 exports and reports preparation, retained storage and reconstruction-only timing
 separately. Source-only fixtures do not establish measured traffic or a speedup.
 
 [Public split-K calibration](../split-k-calibration.md) separates ordinary,
 full-scratch and bounded-window public calls, setup, unchanged reuse and changed
-input recreation. Its authored fixtures await the consolidated validation batch.
+input recreation. Its authored fixtures follow the roadmap's execution scope.
 
 Topic guides preserve concrete arithmetic contracts, source boundaries and
 remaining acceptance work. A private candidate can be implemented and tested
@@ -62,7 +65,7 @@ keeps their retirement and production criteria.
 - [Floating rewrite oracle](../floating-rewrite-oracle.md): host rational/binary32 checks and separate proof verdicts; no hardware qualification, #29/#45
 - [Generated native WMMA family](../generated-native-wmma.md), #55
 - [Calibration identities/rates](../calibration.md) and [native microcases](../native-calibration.md), #31
-- [System/LDS/memory probes](../system-roof-calibration.md), #31; source counts and real transport/launch/event/graph operations, unexecuted
+- [System/LDS/memory probes](../system-roof-calibration.md), #31; source counts and real transport/launch/event/graph operations; execution scope follows the roadmap
 
 Models, supplied resource costs and synthetic fixtures are distinguishable from
 compiled instructions and measured hardware. Representation/certificate identities

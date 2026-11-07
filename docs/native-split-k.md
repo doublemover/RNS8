@@ -1,5 +1,8 @@
 # Native matrix-engine split-K
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private `hip_direct_gemm_native_wmma_split_k_device` combines the persistent
 native WMMA queue with the existing exact modular merge tree. It partitions K
 into 1-4096 nonempty fragments, assigns each fragment a disjoint residue-byte
@@ -104,7 +107,8 @@ merge format/policy and validates source-byte/launch accounting. Complete-call,
 cold ownership, diagnostic events and sustained uninstrumented boundaries are
 unchanged. CPU fixtures exhaust every valid centered byte for moduli 2..256 and
 multi-level fragment sequences; signed/unsigned GPU fixtures compare both routes
-including odd strides and K tails. These additions have only host syntax checks;
-GPU compilation, regressions and same-contract measurement remain deferred.
-Historical native split-K observations used standalone canonicalization and do
+including odd strides and K tails.
+Current GPU compilation and regression scope follows the roadmap; same-contract
+measurement remains unqualified. Historical native split-K observations used standalone
+canonicalization and do
 not qualify this fused variant.

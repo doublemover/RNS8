@@ -1,5 +1,8 @@
 # Independent native-product integrity sentinel
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The opt-in HIP checker recomputes each dot product from original native
 i64/u64 inputs modulo 257 and 263. It separately reconstructs the candidate's
 default-basis value, applies explicit signed/unsigned centering and a supplied
@@ -59,8 +62,8 @@ residues, insufficient bounds, full-width native operands, and an explicitly
 undetectable 257*263 error. These are authored data changes, not device fault
 injection. Public transaction fixtures additionally author mismatching native/residue
 representations, sync/stream/graph publication failures, stale epochs and native
-prepared-group composition. Host syntax is checked; HIP compilation, execution,
-fault-model qualification and cost measurement remain deferred under #49.
+prepared-group composition. Broader target execution,
+fault-model qualification and cost measurement remain open under #49.
 
 
 ## Matched cost experiments (not executed)
@@ -89,9 +92,8 @@ Its synchronous verifier retains each pageable host challenge with the typed
 device-buffer retry record before upload. Successful trial completion releases
 the attachment; the next trial reattaches it. An uncertain copy/projection keeps
 that source alive alongside the existing matrix reader and scratch custody
-until a safe drain. This source fix and its host lifecycle control are authored;
-the existing tagged HIP exact ring differential remains unexecuted on this revision.
-No captures, cost advantage or target qualification have been produced here.
+until a safe drain. The host lifecycle control and tagged HIP exact ring differential are
+registered. No captures, cost advantage or target qualification have been produced here.
 
 ## Distributed publication
 

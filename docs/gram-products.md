@@ -1,12 +1,16 @@
 # Explicit single-source Gram products
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Prepared constructors run the shared Gram contract before owner allocation or
 caller-handle changes. Unknown orientation/method/input-policy values and invalid
 five-product matrix selectors preserve the caller handle and prior matrix value;
 post-admission budget/unsupported preparation keeps its existing null-output
 behavior. The five-product adapter uses the same orientation validator as the
 ordinary entrypoints. New raw-representation and poison-priority controls are
-authored and await the combined runtime batch.
+authored and follow
+the roadmap's execution scope.
 
 `rns8_gram_residues(ctx, X, C, orientation, method, budget)` computes either
 X-transpose times X or X times X-transpose from one resident matrix instance and
@@ -136,8 +140,8 @@ tails, retained lifetimes, budgets and stale-generation rejection. The
 [October27 validation](../metadata/implementation-closeout-20261027.json)
 qualifies the earlier implementation. New compact-schedule fixtures cover every
 prefix1–20, the prefix4 single-prime bucket, reordered modulus identities,
-omitted-storage canaries and exact region sizes. Current runtime validation and
-performance measurements remain deferred during source frontloading.
+omitted-storage canaries and exact region sizes. Runtime coverage follows the roadmap;
+matched performance measurements remain unqualified.
 
 The source pass additionally seeds five actual CPU production mutations for
 wrong-triangle/omitted-diagonal directories, duplicate ownership, mirror indexing
@@ -147,8 +151,8 @@ orientations, inline/separate mirrors, three composite/even channels, tile edges
 and poisoned padding. The shared prepared CPU/HIP fixture now also changes X to
 a sparse unit cell, rather than only reuploading identical values, and checks
 every exported limb and padding byte after refresh. Native mutation source
-locations retain the real test/header/fragment filename. These source-authored
-controls and mutants have not run; CPU mutations do not qualify GPU stores.
+locations retain the real test/header/fragment filename. These controls and mutants are
+registered; CPU mutations do not qualify GPU stores.
 
 ## Independent prepared input and output ablations
 

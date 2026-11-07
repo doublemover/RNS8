@@ -1,5 +1,8 @@
 # Retained Gram computation and reconstruction cohorts
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The public workload `integer-cross-product --gram` computes `XᵀX`, with K
 observations and M=N integer features. Its explicit batch controls separate
 repeated computation on retained inputs from repeated output materialization.
@@ -135,7 +138,7 @@ completed synchronous HIP wrappers. Async commit traffic is represented by its
 native event and queried staging extent, not misreported as synchronous copy
 bytes. The collector requires warm algebraic replay to avoid allocation/free
 and uploads. Event collection, separate-batch correctness and each/once HIP
-registrations are authored and remain unexecuted.
+registrations are registered.
 
 ```powershell
 python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-five.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size modest --m 33 --k 65 --wide --bits 40 --gram --gram-reuse 8 --gram-five-product --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
@@ -219,7 +222,7 @@ batch still performs R computations and its declared RNS export count.
 `median_gram_product_ns` is the batch median divided by R, not an isolated
 kernel latency. Mathematical work fields count R times the dense-equivalent
 `M*N*K` products and, for triangular candidates, R times
-`N*(N+1)/2*K` independent products. Residue planes are implementation work.
+`N*(N+1)/2*K` independent products. Per-plane RNS operations are reported separately as representation work.
 
 The existing aggregate memory envelope retains all comparator buffers,
 references, matrices and workspace simultaneously, plus a bounded preparation

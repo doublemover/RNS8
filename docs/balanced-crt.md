@@ -1,5 +1,8 @@
 # Balanced CRT device baseline
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private canonical export candidate builds a pairwise tree for each default
 basis prefix 1 through 20. Successive levels merge adjacent subtrees, carrying
 an unmatched final subtree forward. Its dependency depth is ceil(log2(prefix)),
@@ -112,9 +115,9 @@ retains its source reader and buffers, poisons the context, and permits checked
 cleanup retry; failed cleanup never drops ownership. Public padding is untouched.
 Regression sources cover every prefix, +/-quarter extrema, quotient agreement
 with Boost, corrupted constants, carries/borrows, narrowing, stale generations,
-public ownership, tail padding and authored HIP differentials. They remain
-**unexecuted**; only host syntax was checked. No default selection or speedup is
-claimed, and target execution qualification remains not-run.
+public ownership, tail padding and authored HIP differentials. Current execution scope
+follows the roadmap. Default
+selection and speedup require separate qualification.
 
 The existing `rns8-crt-calibrate` and v3 collector now include matched quarter
 cohorts, rather than comparing them with out-of-contract random canonical tuples.
@@ -195,8 +198,8 @@ shows creation, padded publication and rebinding. CPU/Boost and real-HIP
 fixtures are authored for every prefix, all five policies, signed/unsigned and
 canonical roots, 1/3/4/32-limb output, canaries and allocation reuse. Dedicated
 CPU allocation-failure sweeps cover staged publication and quarter-export reader
-unwinding. Focused MSVC and HIP syntax checks pass; execution and matched public
-export/whole-GEMM measurements remain deferred. Existing stage-only gains retain
+unwinding. Matched public
+export/whole-GEMM measurements remain unqualified. Existing stage-only gains retain
 their original artifacts and do not qualify this new owner.
 
 
@@ -219,7 +222,7 @@ retained host/device/group payload, source identity, certificate and completed
 export counts. A separate untimed cold owner supplies cold metadata; it is not
 reported as an owner retained across timed calls. Logical envelopes charge the
 new root/output/group payload, and exclude opaque owner/driver metadata. These
-controls are authored and unexecuted; there are no new performance results.
+controls are registered; there are no new performance results.
 
 
 ### Complete GEMM and export calls
@@ -254,16 +257,16 @@ budget models buffers and retained payload; opaque metadata and physical process
 memory are separate. The existing collector seals K into commands and pairing
 keys, and refuses raw-stage candidates or non-square output shapes in these
 scopes. Production bursts contain public calls only; reference/source audits and
-metadata serialization stay outside their intervals. These cases are authored,
-unexecuted, and carry no new gain or qualification claims.
-
+metadata serialization stay outside their intervals. These cases are registered and
+carry no new gain or qualification claims.
 
 Quarter export can consume ordinary uniform residues produced by CPU reference,
 CPU AMX, direct HIP, hipBLASLt, CK, rocWMMA or the builtin backend. Discovery and
 the concrete owner share that source predicate; compilation, exact semantic
 support, current 4B<=M certificate and device binding remain independent gates.
 No native-vector or byte-limb storage is treated as centered residues. Broader
-producer correctness cases are authored but unexecuted in this development pass.
+producer correctness cases are
+registered in this development pass.
 
 Both prepared CRT constructors preserve the caller's handle on failure and
 publish it only after preparation succeeds. Descriptor header, algorithm/mode,
@@ -273,4 +276,4 @@ when its requested backend is unavailable; a valid unsupported route retains
 `UNSUPPORTED_BACKEND`. Authored CPU controls cover raw unknown algorithm bits,
 short backing allocations, malformed scalar windows, unchanged source state and
 handle canaries, plus all five checked algorithms and quarter-range exports.
-Their execution remains part of the deferred validation batch.
+Their execution status is recorded in the roadmap.

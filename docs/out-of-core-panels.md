@@ -1,5 +1,8 @@
 # Bounded out-of-core panel planning
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `RNS8_STREAM_GEMM_OVERLAPPED` explicitly selects a second bounded schedule.
 It uses two native/RNS input slots and two output/status slots with three owned
 nonblocking streams and eight reusable events. The query charges the complete
@@ -56,8 +59,8 @@ semantics, schedule masks and backend tags also reject before backend routing,
 preserving caller handles/counts/candidates. Short profiles are rejected from
 their size prefix before accessing nested rates. Valid but mismatched calibration
 continues to mean unknown cost. Invalid panel choices remain explicit rejected
-candidate rows, preserving their original choice index. Raw CPU controls and
-synthetic inventory controls are authored for the deferred validation batch.
+candidate rows, preserving their original choice index. Raw CPU and
+synthetic inventory controls are registered.
 
 `StreamPanelProblem` is an internal versioned contract for one host-backed
 bounded i64/u64 product, with explicit M/N/K panels and one uniform prefix.
@@ -162,7 +165,8 @@ An installed public-header consumer is available as
 budget queries without a device; explicit `--hip` performs two full products,
 checks padding and generation/coverage receipts, and verifies BUSY ownership
 and preflight rejection. Installed CTest GPU execution is opt-in via
-`RNS8_DOWNSTREAM_GPU_TESTS`. This authored example is awaiting the final batch.
+`RNS8_DOWNSTREAM_GPU_TESTS`. Current
+installed-consumer execution is recorded in the roadmap.
 
 ## Public serial panel calibration
 

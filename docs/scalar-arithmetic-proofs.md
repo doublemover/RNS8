@@ -1,5 +1,8 @@
 # Scalar arithmetic proof pilot
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The optional `tools/scalar_proof_session.py` workflow checks a small fixed-width
 implementation layer under the existing arithmetic-certificate owner (#29).
 It does not replace the integer/rational certificate checker or qualify a GPU
@@ -7,7 +10,7 @@ instruction. Ordinary certificate results explicitly leave
 `fixed_width_implementation` at `not_run`; a scalar receipt is not inherited by
 an unrelated representation, kernel or target.
 
-The source pass is authored and unexecuted. No CBMC capability, proof, negative
+Native solver qualification remains open. No CBMC capability, proof, negative
 control, native replay, timing or peak-memory result is claimed.
 
 ## Source and tool boundary
@@ -135,8 +138,9 @@ Unavailable counters remain `not_observed` with a reason; missing or mismatched
 child custody makes the proof receipt unknown. The reader reconstructs units,
 scope, child/worker identity, exit and elapsed bounds from the retained resource
 document. Solver statistics or polling are never relabeled as exact allocation
-peaks. These OS paths and their authored mocked controls have not run in this
-source pass. No solver enters ordinary plan creation or an output-element
+peaks. Mocked
+OS-path controls are registered; native solver/OS execution requires separate
+qualification. No solver enters ordinary plan creation or an output-element
 path, and no result changes backend eligibility, safe K caps or AUTO promotion.
 
 The pilot excludes wrap64 convolution, address admission, CRT, layout/wave

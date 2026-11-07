@@ -2117,8 +2117,7 @@ hierarchical K4096 native partials, and independent grouped fused dispatch.
 Its full-K magnitude envelope bounds every native partial; the complete CRT
 range proof remains independent. Grouped tasks retain distinct outputs and
 admit every task before any output write, with retained task directories and
-completion leases. These newer implementations remain source-only pending the
-combined runtime/ISA/performance batch; they do not enter AUTO. See
+completion leases. Current runtime execution scope is recorded in the [roadmap](roadmap.md#current-validation-and-remaining-work). Target-specific ISA and measured performance remain qualification gates; these routes do not enter AUTO. See
 [narrow owner and budgets](narrow-native-owner.md).
 
 Synchronous exports retain read reservations for all public output formats.

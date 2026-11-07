@@ -1,5 +1,8 @@
 # Experimental ordered runtime bases
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The opt-in C API in `rns8/experimental_basis.h` owns an explicit ordered basis
 and executes exact-wide signed or unsigned products on the CPU reference or
 direct HIP provider. It does not replace the default ladder or select a basis
@@ -41,8 +44,8 @@ payload fields. Unknown semantic/backend tags and reserved flag bits reject with
 distinct. Plan construction and capability/resource queries preserve caller
 outputs on malformed preflight. The selector admits every candidate's plan and
 price tags before cohort filtering, so an ineligible price cannot hide malformed
-input. These raw-representation and short-allocation controls are authored but
-await the final runtime/sanitizer batch.
+input. These raw-representation and short-allocation controls are authored but follow
+the roadmap's execution scope.
 
 The native packing functions accept explicit signedness, padded host inputs and
 optional stable source versions. They verify the exact maximum magnitude before

@@ -1,5 +1,8 @@
 # Adaptive native product with complete residue output
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private synchronous `hip_direct_gemm_adaptive_native_device` composes fresh
 device bound discovery, native grouped RDNA3 WMMA, and exact suffix completion.
 Each 16-by-16 output tile selects its strict minimal default-basis prefix using
@@ -87,7 +90,8 @@ residue inputs as well as retaining native values; that setup cost belongs in
 cold/end-to-end measurements. New CPU rejection and signed/unsigned Boost GPU
 fixtures cover descriptor admission, padded source packing, native mutation,
 staged rejection, full-width tails, export and retirement/repack after ordinary
-resident GEMM. They await the consolidated validation batch.
+resident GEMM. They follow the roadmap's
+execution scope.
 
 ## Workspace-owned summary reuse
 
@@ -257,7 +261,7 @@ matrix generation/proof ownership are checked at their respective dispatch
 boundaries. The query launches nothing and does not mutate routing or evidence.
 CPU fixtures cover exact budget boundaries, malformed parameters, panel-count
 limits, padded address overflow and invariant scratch across launch policies;
-they await the final batch.
+they follow the roadmap's execution scope.
 
 ### Single owned native upload
 

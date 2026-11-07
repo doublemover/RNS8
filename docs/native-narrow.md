@@ -1,5 +1,8 @@
 # Proof-admitted native narrow candidates
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private direct-HIP signed-i64 candidate scans actual device magnitudes and
 admits only `K*max_abs(A)*max_abs(B) <= INT64_MAX`. The common host admission
 helper checks division before multiplication, including INT64_MIN magnitudes,
@@ -30,8 +33,8 @@ fallbacks. The [public narrow owner](narrow-native-owner.md) now binds input
 generations and cached extrema, supports staged/fused RNS output and explicit
 planner recipes, a signed hierarchical split-K candidate and explicit batched
 scalar/byte-WMMA/split-K dispatch with independent task proofs and outputs.
-Measured one-shot/resident break-even remains open under #53; these newer
-sources are unexecuted. Output transaction owners invalidate a destination if
+Measured one-shot/resident break-even remains open under #53; current execution scope
+follows the roadmap. Output transaction owners invalidate a destination if
 a launched output write fails.
 
 Authored CPU/Boost and HIP fixtures cover partial-sum cap boundaries, signed and

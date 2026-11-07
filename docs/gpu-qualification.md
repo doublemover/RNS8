@@ -1,5 +1,8 @@
 # Hardware qualification: MI300X and RX 7900 XTX
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The preparation tool is [tools/gpu_qualification.py](../tools/gpu_qualification.py).
 Default behavior is **plan-only**. It records current source kernel definitions,
 source locations, commit/diff identity, backend builds, exact correctness/capture
@@ -127,7 +130,7 @@ still binds each selected runtime device. Missing hierarchy/permission/target
 facts stop the dependent build with operator guidance; no permissions, driver,
 affinity or cgroup settings are changed. The runner checks the preflight's actual
 PID and reconstructs its policy decisions from retained observations. New native
-resource, cgroup and orchestration controls remain authored and unexecuted.
+resource, cgroup and orchestration controls are registered.
 
 Execution rejects inherited `HIP_VISIBLE_DEVICES`, `ROCR_VISIBLE_DEVICES`,
 `GPU_DEVICE_ORDINAL` and `CUDA_VISIBLE_DEVICES`, including empty masks. It also
@@ -291,8 +294,9 @@ unresolved register-indirect calls, recursive graphs and exceeded attribution
 budgets remain unqualified. Static instruction counts and forbidden-instruction
 checks cover that attributed set. They establish instruction presence, not
 arithmetic execution, dynamic reachability or measured performance. New native-
-text controls are authored for both target families; their batch execution and
-real compiled-object checks remain deferred in the current implementation pass.
+text controls are authored for both target families; their
+current execution scope is recorded in the roadmap, while real target-specific
+compiled-object qualification remains separate.
 
 Generated native WMMA inspection uses the same per-entry/resolved-helper
 attribution. Each generated variant requires its own IU8 WMMA instructions and
@@ -471,7 +475,8 @@ raw tool logs lack private details. Review and sanitize a separate shareable
 copy before public submission. The export receipt includes a shutdown/release
 checklist; this tool does not remove local evidence, terminate allocations or
 assert that billing stopped. Native transfer, interruption and platform controls
-are source-authored and await the consolidated validation batch.
+are source-authored and follow the
+roadmap's execution scope.
 
 The existing session runner accepts `--artifact-inventory inventory.json
 --artifact-cache /path/to/cache`. It checks every declared artifact before session
@@ -505,8 +510,8 @@ publishes it exclusively and atomically, and performs final readback. Existing
 mismatched destinations are preserved. A second run reuses verified files without
 copying. Interrupted copies remove their private temporary files; complete earlier
 files remain resumable. `artifact-staging.json` distinguishes complete, interrupted
-and incomplete preparation. These source additions and fixtures await the final
-validation batch; no preparation or hardware qualification has run here.
+and incomplete preparation. These source additions and fixtures follow the roadmap's execution scope;
+no preparation or hardware qualification has run here.
 
 ### Combined accelerator lane
 

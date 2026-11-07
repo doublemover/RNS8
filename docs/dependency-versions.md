@@ -1,5 +1,8 @@
 # Dependency versions and upgrade gates
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 [metadata/dependencies.json](../metadata/dependencies.json) is the dated version
 policy. It distinguishes the latest stable release checked against primary
 sources, the exact selected candidate, observations from a particular machine,
@@ -42,9 +45,9 @@ Optional source-quality tools have their own hash lock under this same policy:
 clang-format 23.1.5, actionlint 1.7.12 and ShellCheck 0.11.0 for Windows AMD64
 and Linux x86_64. The formatter is independent of both host compiler selection
 and AMDClang. Registry/release artifact identities are recorded; native archives
-were retrieved and hashed without executing tools. Tool behavior and the
-repository formatting baseline still require the deferred validation batch.
-The same lock includes mypy 2.4.1 and its exact six-package CPython 3.15 wheel
+were retrieved and hashed without executing tools. Current tool behavior and formatting
+results are recorded in the
+roadmap. The same lock includes mypy 2.4.1 and its exact six-package CPython 3.15 wheel
 closure. The five explicitly migrated evidence-boundary modules pass the narrow
 Windows source type-check; checker controls and cross-platform gate validation
 remain pending. This does not qualify the rest of the Python tree.

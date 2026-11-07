@@ -1,5 +1,8 @@
 # Resident DAG execution
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8_create_resident_graph` accepts an ordered list of 1-4096 typed
 `rns8_resident_node` records on CPU or direct HIP. MatMul supports bounded i64/u64, exact-wide, strict wrap64 and explicit finite
 ring/field semantics; other node kinds remain exact-wide.
@@ -156,8 +159,8 @@ On failure an external source retains its original proven prefix and value.
 Arithmetic outputs retain whole-graph invalidation rules. Preparation freezes
 source-prefix capacity and the complete uniquely representable source envelope;
 compatible proof changes need no recapture, while a smaller source prefix rejects
-before submission. These adapters and regression fixtures are authored; execution
-and measurements remain deferred.
+before submission. These adapters and regression fixtures are implemented; matched
+measurements remain unqualified.
 
 The graph reserves each distinct external input once, each output as a writer,
 and each distinct workspace once. A workspace shared by serial nodes is legal.
@@ -391,7 +394,7 @@ The CPU byte-limb graph admits only wrap64 MatMul nodes; exact-wide, finite and
 conversion nodes retain their existing backend requirements.
 
 
-## Shared lift/recipe cost harness (authored, not executed)
+## Shared lift/recipe cost harness
 
 Ordinary, multi-output, ragged and materialized public recipe entry points share
 constant-size descriptor admission before copying input/output-ID arrays or

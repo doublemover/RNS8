@@ -1,5 +1,8 @@
 # Canonical word-modular calibration
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8-word-mod-calibrate` compares the private direct-HIP binary double/add
 baseline, opt-in packed-dot4 and byte-WMMA lowerings, and explicit scalar binary64 asymmetric
 schedule from [word-modular research](word-modular-research.md). All compute the
@@ -7,8 +10,8 @@ same complete canonical uint64 product in an explicit ring or prime field.
 The binary64 candidate has explicit digit/slab admission; it is not a WMMA
 schedule. This driver does not measure public finite-u8 storage, a default route
 or a decomposition cache. Source,
-fixtures and manifests are authored; compilation, execution and measurements
-await the consolidated batch.
+fixtures and manifests are authored; compilation, execution and measurements follow the
+roadmap's execution scope.
 
 ## Explicit contract
 

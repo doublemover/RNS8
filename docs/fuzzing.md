@@ -1,5 +1,8 @@
 # CPU fuzz discovery and arithmetic corpus
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `RNS8_BUILD_FUZZERS=ON` creates `rns8_fuzz_library`, a separate static copy of
 the configured first-party CPU sources. Its objects receive libFuzzer feedback
 and ASan; native Unix Clang also receives UBSan with nonrecovering checks.
@@ -88,8 +91,8 @@ Replay count and wall deadline are bounded; the callback must separately bound
 its own native process. Exhaustion retains the best reproducer and does not
 claim minimality. A completed pass is a local fixed point, not a global minimum.
 This component launches nothing and does not attest native execution; wiring
-the bounded session adapter and qualifying native replay remain open.
-Authored minimizer controls use synthetic callbacks only and remain unexecuted.
+the bounded session adapter and qualifying native replay remain open. Minimizer controls
+use synthetic callbacks only.
 
 ## Deterministic native replay
 
@@ -128,8 +131,9 @@ work; it does not demonstrate device recovery. A parent must bound/retain each
 child and stop on unexplained failures. No GPU fault campaign is enabled.
 
 CPU shared-replay controls cover all six domains and lifecycle counts; seeded
-wrong-result/status/no-write controls exercise the same assertion boundary.
-These controls and native CPU/GPU replay remain unexecuted during the source pass.
+wrong-result/status/no-write controls exercise the same assertion boundary. Synthetic
+controls are registered; instrumented native CPU/GPU replay requires separate
+qualification.
 
 `tools/fuzz_replay.py` supplies the bounded parent session. Explicit `--case`
 inputs (1–64 distinct byte identities), backend, device, executable and output
@@ -212,7 +216,7 @@ verifies an already prepared managed LLVM archive against the shared lock,
 builds an isolated HIP-OFF library and all three entrypoints, then retains the
 object denominator, every seed replay, bounded discovery and first failure.
 It has not run. Required PR activation follows qualification of sensitivity and
-cost in the deferred batch; no new push-triggered discovery campaign is enabled.
+cost in a native pilot; no new push-triggered discovery campaign is enabled.
 
 The named corpus also includes row/column and common-K permutations, legal zero
 K padding, physical-padding changes, zero/identity operands, independently
@@ -228,7 +232,9 @@ The [native production mutation registry](native-production-mutations.md) binds
 real signed CRT, export rejection-status and prepared generation mutations to
 three shared-replay assertion cases. An unchanged baseline must pass before
 mutants execute in disposable copies; only the intended public-route assertion
-failure counts as detection. These new witnesses remain unexecuted.
+failure counts as detection. These witnesses are registered; real mutation detection
+requires the qualifying native
+lane.
 
 The descriptor corpus can carry an `R8H1` suffix, followed by1–32 operation
 bytes. The low nibble modulo12 selects repack A/B, ordinary GEMM, export,
@@ -249,8 +255,8 @@ descriptor prefixes. The existing real production stale-generation mutant also
 targets this model's actual public calls.
 
 All #101 source infrastructure is authored. The source-attributed PC-edge gate,
-lifecycle/mutation controls, native replay, minimizer, object inspection and
-discovery remain unexecuted and unqualified. Required PR activation follows the
+lifecycle/mutation and minimizer controls are registered; native replay, object inspection and
+discovery remain unqualified. Required PR activation follows the
 deferred CPU sensitivity/cost validation; GPU backend/target parity remains
 separate actual-device qualification. No test score, GPU support or performance
 gain follows from source registration alone.

@@ -1,5 +1,8 @@
 # Performance evidence and promotion
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Inspector and benchmark integer controls require complete decimal tokens with
 an optional minus sign: no whitespace, trailing text, base prefixes, plus signs,
 empty strings or overflow. `--device` accepts only `-1` or an ordinal representable
@@ -191,8 +194,8 @@ Final verification metadata reports `exact_cpu_reference_compared` only for a
 complete input-bound receipt; a recorded checksum, including zero, remains pending
 without that coverage. Ordinary bounded smoke commands request full verification
 explicitly. Existing uncached exact-wide comparisons record the work they already
-perform. All oracle, input-hash and cache work remains outside production timers.
-These producer changes are source-only pending the deferred validation batch.
+perform. All oracle, input-hash and cache work remains outside production timers. Registered controls cover
+these producer changes.
 
 The [cache validation](../metadata/native-reference-cache-validation-20261027.json)
 records three reviewed fixtures, 14 GPU cache-hit cases, a non-populating miss,
@@ -212,8 +215,8 @@ one row of scratch; a hit compares the bound final payload. Verification runs
 after timed iterations and GPU-owner cleanup. The plain GEMM cache format and
 keys are preserved through a shared output/cache comparison helper. New chain
 padding, three-input invalidation, signed/unsigned boundaries, intermediate
-overflow, cache-hit and streaming-budget controls are authored but unexecuted;
-CPU and HIP-enabled benchmark frontend compilation passes.
+overflow, cache-hit and streaming-budget controls are registered; CPU and HIP-enabled
+benchmark frontend compilation passes.
 
 Vector/native-to-RNS chain recommendations now use qualified process medians
 and matching complete work/source/device/timing domains. Both approaches need
@@ -225,8 +228,8 @@ and diagnostic captures. Recommendations must clear the policy threshold and
 observed noise; legacy/singleton/unstable evidence keeps descriptive phase values
 with unavailable ratios. Submitted implementation views and selected process
 bindings remain visible. An identical filename alias cannot erase an intact
-binding or add another independent process. These report controls are authored
-but unexecuted and carry no new performance credit.
+binding or add another independent process. These report controls are registered and
+carry no new performance credit.
 
 Native benchmark startup now records an application-scoped OS-instance identity
 before workload timing. Windows reads the 64-bit native registry view; Linux
@@ -246,7 +249,7 @@ UUID/PCI observation and runtime properties. Missing, changed or malformed
 identities leave captures descriptive and unqualified. OS scope does not prove
 a physical-board count. Protocol controls distinguish host changes, identical
 GPU names with different identifiers, CPU anchors, failed witnesses and legacy
-captures; these controls are unexecuted.
+captures; these controls are registered.
 
 Vector handoff and host-export/repack chain modes now admit
 `--verify-native-output` and `--reference-cache-dir` through the real command-line
@@ -254,8 +257,8 @@ parser, including optional cache population. Unsupported compound/output modes
 retain explicit rejection until their own complete oracle integration exists.
 The argument-parser controls cover the seven ordinary integer semantics and
 both bounded vector chain approaches without creating GPU contexts. CPU and
-HIP-enabled parser/support/unit frontend checks pass; parser execution, linking
-and end-to-end chain validation remain deferred.
+Parser/support/unit and end-to-end chain controls are registered;
+current execution scope follows the roadmap.
 
 Bounded and exact-wide residue chains now also admit complete references and
 read-only caching through the native parser and collectors. The independent
@@ -282,7 +285,7 @@ OS instance, source/build, host clock and threading policy. GPU-only device
 fields differ in that policy; it cannot compare two GPU devices or two CPU
 implementations. Complete final mathematical references can cross continuation
 boundaries, while timing contracts retain those boundaries. Source controls are
-authored and await the consolidated validation batch.
+authored and follow the roadmap's execution scope.
 
 Shared report comparisons can also request setup-inclusive reuse measurements.
 Each independent process contributes its own steady median plus observed
@@ -317,7 +320,7 @@ process record, with individual content identities retained in the report.
 The representative capture cannot supply missing custody for a different run.
 Incomplete lifetime/source metadata suppresses the affected ratio even when
 timing, full-output and companion evidence otherwise qualify. These controls
-are authored and remain unexecuted.
+are registered.
 
 Reuse-contract and delegated Direct-HIP reuse reports now use the same cohort,
 original-input reference, production-companion and per-process setup readers.
@@ -395,7 +398,7 @@ payload with `--emit-candidate-cache temp/my-review/candidates.json` and matchin
 Use it as the ledger's `--cache` and as an explicit installer source; only
 successful shared admission publishes the runtime format. Candidate export
 never merges into an installed cache. Runtime/generic-writer/CLI and C++ AUTO
-rejection controls are authored and remain unexecuted.
+rejection controls are registered.
 
 The strict wrap64 tuning report now uses shared independent-process cohorts,
 full-output CPU-reference verdicts and production/diagnostic binding for every
@@ -405,7 +408,7 @@ device/build/runtime contracts, with an observed noise margin. Physical tiling
 and K-slab variants may differ; reuse and graph output cadences are retained as
 distinct work. Missing or incompatible evidence leaves descriptive phase values
 and blockers, without a performance ratio. Order, filename, copied-ID,
-high-spread and companion controls are authored but unexecuted. No historical
+high-spread and companion controls are registered. No historical
 capture or archived classification has been remeasured or reclassified.
 
 Host API batching is an explicit per-task throughput comparison, rather than
@@ -427,7 +430,8 @@ those identities in non-routing threshold recommendations. The promotion margin
 must clear both the selector policy and observed noise. Policy annotations alone
 cannot mark a group reviewed; missing or unqualified evidence yields no ratio
 or recommendation. Supply production captures and `--diagnostic-binding`
-receipts. The new warmup/order/copied-ID/device/companion controls are unexecuted.
+receipts. Warmup/order/copied-ID/device/companion
+controls are registered.
 
 The many-small grouped report uses the same production and numerical gates.
 Its uniform-task adapter preserves input recipe, arithmetic, output completion
@@ -439,8 +443,8 @@ physical pointer-table placement does not change numerical work. Heterogeneous
 task descriptors and compact-slab completion remain visible with blockers and
 cannot borrow scalar or uniform host-output timings. Supply production captures
 and `many_small_grouped_report.py --diagnostic-binding` receipts. The new loader,
-order, copied-ID, filename, noise, warmup and companion controls are authored but
-unexecuted; these source changes establish no new measured gain.
+order, copied-ID, filename, noise, warmup and companion controls are
+registered; these source changes establish no new measured gain.
 
 Result-cache recommendations now use the shared report-facing comparison
 reader. Named cache-contract groups are partitioned by complete work, source
@@ -451,7 +455,7 @@ the observed noise margin. Excluded optional comparisons remain visible without
 changing a qualified pair; missing or incompatible required evidence yields no
 ratio. Dirty-region composition and cache policy remain distinct implementation
 identities. Supply `incremental_result_cache_report.py --diagnostic-binding`
-receipts. New parser controls remain unexecuted.
+receipts. Parser controls are registered.
 
 Pending-validation summaries now consume versioned generic-review receipts
 bound to the complete capture, work/environment identity, required baseline
@@ -462,9 +466,9 @@ a refreshed observation. Unchanged content can be located under a new filename;
 copied files do not add independent runs. Historical reviewed flags and declared
 review ratios remain descriptive. This local disposition does not install an
 AUTO cache entry. The generic review producer's existing duplicate-backend
-policy remains separate from receipt qualification; reconciling that producer
-with the complete report migration is still implementation work. New producer
-round-trip and stale-evidence controls are authored but unexecuted.
+policy remains separate from receipt qualification; producer/report
+migration is implemented under the shared receipt contract. New producer
+round-trip and stale-evidence controls are registered.
 
 ## Promotion boundaries
 
@@ -671,8 +675,8 @@ interpretation or measured acceleration. Actual launch counts remain unknown wit
 profiler receipt. The existing arithmetic slab certificate is unchanged:
 `65536*128*128+128 < INT32_MAX`; numerical-zero tails never read inactive bytes.
 
-All authored regressions and experiments remain unexecuted; no target is newly
-qualified and no default is promoted by these source-level update counts.
+Registered regressions follow the roadmap execution scope. Target qualification and
+default promotion require their separate evidence gates.
 
 ## Unavailable diagnostic timing
 
@@ -882,7 +886,8 @@ historical data and cannot authorize the current estimator.
 One-time prepack charges use each process's own observed setup and repeat count.
 Graph setup observations are also retained per process, while generic graph rows
 remain non-promoting; the dedicated graph report owns setup-qualified graph
-comparisons. This source cutover and its authored controls remain unexecuted.
+comparisons.
+Registered controls cover this source cutover.
 
 
 Independent exact-wide export/repack chains use a compact private limb window
@@ -900,7 +905,6 @@ This covers canonical CRT representatives. It does not replace the separate
 chained-magnitude admission certificate or the full final-output CPU reference.
 The new CPU/HIP controls are authored and frontend-checked, with execution deferred.
 
-
 Generic HIP readback applies the existing private staging transaction above the
 small status slot as well as to public matrix exports. Borrowed destinations are
 published only after a successful copy; uncertain DMA retains its private payload
@@ -910,4 +914,4 @@ already quarantine the actual storage. This preserves their preparation payload
 budgets without adding a second copy. Queue completion telemetry likewise retains
 its device source across readback, even after the kernel has completed. Staging
 publication takes diagnostic clock samples only when timing hooks are enabled.
-The new size-boundary GPU controls are authored/frontend-checked and unexecuted.
+The new size-boundary GPU controls are registered.

@@ -1,5 +1,8 @@
 # Grouped narrow complete-call calibration
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The source-only `rns8-narrow-group-calibrate` target compares actual public
 grouped fused scalar/byte-WMMA/split-K dispatch with a loop of the corresponding
 public single-product calls and ordinary public RNS GEMM. Every task retains
@@ -66,5 +69,5 @@ the [single narrow calibration](narrow-native-owner.md); their different output
 contracts and binaries cannot silently enter these resident-RNS cohorts.
 
 CPU/HIP frontend and Python source checks are recorded in the implementation
-ledger. Protocol controls, case expansion, real builds, native execution and all
-measurements remain deferred to the combined validation batch.
+ledger. Protocol controls and case expansion are registered. Native measurement campaigns remain
+unqualified.

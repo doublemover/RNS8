@@ -1,5 +1,8 @@
 # Native conversion and scheduling calibration
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The [larger RX 7900 XTX collection](7900xtx-large-throughput-2026-10-23.md)
 covers native-output and resident-residue comparisons at 512³/1024³, with five
 independent processes, paired instrumented/uninstrumented calls and sustained
@@ -77,8 +80,8 @@ separate from the smaller shape diversity checks. Materialize cases through
 against current source/proof dependencies before execution, retains the source,
 header and manifest, and checks those files and their dependencies around every
 child. A mismatched ID, symbol, target or changed source is rejected. Plan-only
-does not regenerate, open the executable or run the GPU. This opt-in route is
-authored and unexecuted; it establishes no qualification or dispatch promotion.
+does not regenerate, open the executable or run the GPU. This opt-in route requires its own target-specific
+execution qualification; it establishes no qualification or dispatch promotion.
 
 M/N are at most 1024, K at most 65537, and
 M*N*K at most 1073741824 to bound the independent CPU reference (up to 1024³). A fixed seed and
@@ -549,5 +552,5 @@ algebra. Its separate LDS model admits explicit aligned scalar b32 phases on
 32 four-byte banks, accounts for read broadcasts, rejects ambiguous write
 aliases and reports unknown instruction contracts as unsupported. This model
 does not certify compiler-selected LDS instructions or measured conflicts.
-CPU mapping/model regressions and HIP exact-output fixtures are authored;
-runtime validation and performance qualification remain deferred.
+CPU mapping/model regressions and HIP exact-output fixtures are
+registered; matched performance qualification remains open.

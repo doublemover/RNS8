@@ -1,5 +1,8 @@
 # Offline typed recipe admission
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 ## Layout-aware materialization primitives
 
 The private CPU/direct-HIP residue consumer accepts explicit uniform or tiled
@@ -303,8 +306,7 @@ outer operation/execution/proof/domain/orientation/prefix tag check. Analytical
 planning also rejects unknown problem and profile backend tags before route
 selection. Rejected requests preserve candidate storage and the required-count
 slot; only a successful shortlist publishes its count. Known unsupported routes
-remain distinct from malformed tags. Raw-value CPU controls are authored for
-the deferred validation batch.
+remain distinct from malformed tags. Raw-value CPU controls are registered.
 
 Memory admission uses a conservative **simultaneous live payload sum**, not the
 peak of optimistic/slow endpoint schedules. This remains sound for interior
@@ -441,9 +443,9 @@ even when every default/quarter rate is populated. No other policy borrows a
 Garner coefficient or becomes a zero-time winner. Existing default/quarter cost
 profiles and public struct layouts remain unchanged. Authored CPU cases bind
 every returned checked policy to an actual GEMM/export owner across signed,
-unsigned and canonical output; installed consumers also inspect these routes.
-Only syntax checks have run for this addition; execution and measured pricing
-remain deferred.
+unsigned and canonical output; installed consumers also inspect these routes. Current
+execution scope follows the roadmap; measured pricing remains
+unqualified.
 
 
 ### Export-provider parity and resource lower bounds
@@ -463,7 +465,7 @@ resident residues. It remains synchronous; producer compilation, source semantic
 support, current quarter-range proof, device affinity and actual preparation
 still apply independently. Native-vector and byte-limb producers are excluded.
 The shortlist charges quarter host staging as well as device output storage.
-Optional producer cases are authored and unexecuted; this inventory is not a
+Optional producer cases are registered; this inventory is not a
 qualification claim for any unavailable architecture.
 
 A default signed limb export publishes centered integers and cannot implement a
@@ -498,8 +500,8 @@ HIP runtime internals or arbitrary proof/publication histories.
 Authored allocation-fault cases target small-proof, full-prefix CPU single and
 multi-output calls, including shared-to-distinct-to-shared inputs, all-plane
 oracles, duplicate-output rejection, and every preparation allocation failure.
-Their steady-call assertions require zero intercepted host allocations; they
-have not run yet. Existing CPU/HIP rebind fixtures also exercise growth from one
+Their steady-call assertions require zero intercepted host allocations. Existing CPU/HIP
+rebind fixtures also exercise growth from one
 unique source to two without resizing retained device arenas. This is source
 work, not a measured latency gain or a broader materialization-route promotion.
 
@@ -538,9 +540,9 @@ Authored mock-target cases check all methods, proof/stride/signedness rejection,
 method-specific identities, budgets and unknown costs without touching a GPU.
 The existing real-HIP narrow differential now creates the returned candidate's
 plan and checks the actual public execution against every independent Boost
-output, including source mutation and invalid-value/currentness rejection.
-Those additions are syntax checked only; target execution and cross-route
-profitability remain deferred.
+output, including source mutation and invalid-value/currentness rejection. Current target execution scope
+follows the roadmap; cross-route
+profitability remains unqualified.
 
 ## Bound runtime routes
 

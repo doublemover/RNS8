@@ -1,5 +1,8 @@
 # Bounded generated native WMMA family
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=ON` compiles six explicit research
 variants: signed/unsigned native 64-bit inputs crossed with groups of one, two,
 or four default-basis channels. The default is OFF and no public dispatcher
@@ -107,7 +110,8 @@ declared skinny, rectangular and tail cases remain in both stages. A coarse
 sample cannot prune an unqualified variant; the report records zero saved runs
 until complete measured coverage can justify a reviewed reduction. Plan-only
 output exposes this schedule without opening the executable. Source-authored
-search/collector controls are registered and unexecuted.
+search/collector controls are
+registered.
 
 The same report carries a per-variant combination matrix: manifested form/group/
 slab/layout/output recipe, arithmetic and composition certificates, resource

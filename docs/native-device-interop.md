@@ -1,5 +1,8 @@
 # Native HIP buffer leases and prepared transfers
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The experimental public C boundary provides `rns8_query_native_device`,
 `rns8_create_native_device_lease`, `rns8_import_native_device`,
 `rns8_import_native_device_verified`, `rns8_export_native_device`, and `rns8_destroy_native_device_lease`.
@@ -24,7 +27,8 @@ dtype/access/policy values, flags or reserved bits preserve the caller output an
 report `INVALID_ARGUMENT`; valid CPU-only creation still reports
 `UNSUPPORTED_BACKEND`. Pinned creation retains its existing null-handle behavior
 for failures after descriptor admission, including budget rejection. The new
-live CPU constructor/query controls are authored and await the combined batch.
+live CPU constructor/query controls are authored and follow the
+roadmap's execution scope.
 
 Prepared device and pinned-host transfers use one shared option preflight.
 Unknown Boolean selectors or flags, incompatible import/bound-check choices,
@@ -32,7 +36,8 @@ unused nonzero magnitude bounds and malformed size/version headers reject
 before backend routing or handle changes. An extensible options record accepts
 the complete current prefix and ignores its tail. Authored controls use live
 retained owners and check handles, generations, callbacks and device accounting;
-their execution remains deferred with the final validation batch.
+their execution status is recorded in the
+roadmap.
 
 A versioned descriptor names native i64/u64 dtype, read OR write access,
 allocation base/capacity, byte offset, rows/columns/leading dimension, device,
@@ -127,7 +132,8 @@ validates the callback result after invocation; descriptor validation still
 precedes invocation. CPU controls call the actual shared acquisition helper for
 every defined status and raw invalid representations. The real HIP lease fixture
 also checks rejected callback results, reference and device-accounting rollback.
-These additions are source-written and await the consolidated validation batch.
+These additions are source-written and follow
+the roadmap's execution scope.
 
 This is zero host **payload** round trip, not zero-copy conversion: import writes
 RNS storage, export stages native data and performs a D2D copy, and compact

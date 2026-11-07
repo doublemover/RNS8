@@ -1,5 +1,8 @@
 # Mixed-radix exact suffix candidate
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The HIP lift wrapper accepts an explicit mixed-radix candidate. Ordinary
 synchronous CPU/HIP entrypoints retain their existing default; the prepared HIP
 owner selects wide Garner or shared digits explicitly. Both routes
@@ -94,7 +97,7 @@ second-input-failure, no-allocation replay, padded export and ownership regressi
 have not been executed.
 
 
-## Shared lift/recipe cost harness (authored, not executed)
+## Shared lift/recipe cost harness
 
 `rns8-lift-recipe-calibrate` and `tools/collect_lift_recipe.py` bind identical
 integer/output boundaries across full-prefix manual execution, transactional

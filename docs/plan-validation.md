@@ -1,5 +1,8 @@
 # Immutable plan validation
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Plan construction now performs exhaustive structural/lowering validation before
 publishing the opaque handle. It creates a shared const contract containing the
 workspace fingerprint, canonical structural key and active tile counts for each
@@ -125,4 +128,5 @@ plan back to the resident owner when prefix nine is inapplicable. A selected
 minimal prefix stays minimal; the fallback no longer destroys/seals the same
 plan twice. Success/error paths retain ordinary single ownership. Authored CPU
 ownership and HIP low-prefix/fixed-nine controls check sealing counts and exact
-outputs. Their execution and one-shot latency measurement remain deferred.
+outputs. Current execution scope follows the
+roadmap; one-shot latency measurement remains unqualified.

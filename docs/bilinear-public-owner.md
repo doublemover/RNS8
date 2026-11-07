@@ -1,5 +1,8 @@
 # Public bilinear exact products
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8_gemm_bilinear_exact` exposes explicit one-level direct-HIP methods:
 Strassen, rank23 coefficient and retained/recomputed straight-line programs,
 and the mixed-channel rank48 dyadic coefficient program. The existing Strassen research entrypoint delegates to
@@ -93,8 +96,8 @@ payload budget. The204-operation count describes the canonical logical program;
 recomputation and modular reduction add actual work. CPU and gfx1100 HIP fixtures and collector controls pass the
 [October27 consolidated batch](../metadata/remaining-code-validation-20261027.json)
 for the earlier full-prefix schedule. Compact-channel fixtures are authored;
-their execution is deferred to the final development validation batch.
-Measured large-shape benefit and broader targets remain unqualified.
+their execution status is
+recorded in the roadmap. Measured large-shape benefit and broader targets remain unqualified.
 
 Methods16/17 (October55) and18/19 (rank48) add explicit dependency-pruned
 recompute routes with direct/matrix subproducts. They select each output's

@@ -1,5 +1,8 @@
 # Exact block-sparse research baseline
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private block-sparse packer detects zeros in native signed or unsigned
 64-bit values. A block whose stored residues are all zero remains present when
 its native values are nonzero. This distinction is necessary before treating
@@ -46,7 +49,8 @@ through download, packing, upload and publication. Failed drains keep host sourc
 vectors and device payloads on the context's existing retry cleanup path. Failed
 destruction preserves the handle and its source/context references for retry;
 cleanup-started handles cannot execute. These ownership controls are authored
-and await the final validation batch.
+and follow the roadmap's
+execution scope.
 
 The preparation budget covers the native snapshot, packed host/device bytes,
 actual host directory capacities, retained device directories, owner/retry
@@ -72,8 +76,9 @@ the handle has an independent packed payload.
 
 New public fixtures cover full-width signed/unsigned values, tails, Boost export,
 source lifetime, stale generation rejection, empty sparse payloads and output
-zero-scratch warm calls and preservation on BUSY/stale errors. These additions are authored and unexecuted;
-the older private baseline receipt above does not qualify this owner. The authored
+zero-scratch warm calls and preservation on BUSY/stale errors. These additions are
+registered; the older private baseline receipt above does not qualify this owner. The
+authored
 WMMA/hybrid extension below also needs fresh qualification and end-to-end
 break-even measurements under issue #51.
 
@@ -114,7 +119,8 @@ Authored differentials cover all block-intersection masks, zero payloads, odd
 M/N/K tails, padded destinations, prefixes1/9/20, signed full-width products and
 K=65535/65536/65537. Public signed/unsigned owners exercise both added modes with
 independent Boost export checks and the existing failure/lifetime cases. These
-fixtures have not run during frontloaded development.
+fixtures
+are registered.
 
 The authored [public block-sparse calibration](block-sparse-calibration.md)
 compares the dense ordinary control, warm prepared owners and measured cold

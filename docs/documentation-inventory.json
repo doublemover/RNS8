@@ -3150,7 +3150,7 @@
         "direct-hip-automatic-prefix-transaction",
         "mixed-radix-exact-suffix-candidate",
         "prepared-stream-and-graph-ownership",
-        "shared-liftrecipe-cost-harness-authored-not-executed"
+        "shared-liftrecipe-cost-harness"
       ]
     },
     {
@@ -4440,7 +4440,7 @@
         "generation-bound-ragged-recipe-inputs",
         "paired-complex-nodes",
         "resident-dag-execution",
-        "shared-liftrecipe-cost-harness-authored-not-executed"
+        "shared-liftrecipe-cost-harness"
       ]
     },
     {
@@ -4467,6 +4467,18 @@
         {
           "source": "docs/RNS8_RESEARCH_SPEC.md",
           "reference": "roadmap.md"
+        },
+        {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/adaptive-native-product.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/amd-profiler.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
         },
         {
           "source": "docs/archive/README.md",
@@ -4525,20 +4537,224 @@
           "reference": "../roadmap.md"
         },
         {
+          "source": "docs/backend-notes.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/balanced-crt.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/bilinear-public-owner.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/block-sparse-calibration.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/block-sparse.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/bound-pipeline-recipes.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/calibration.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/conversion-calibration.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/correctness.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/dependency-discovery.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/dependency-versions.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/device-integrity.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/device-observation.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/direct-operation-providers.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/distributed-hip.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/distributed-mock.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/distributed-process.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "roadmap.md"
+        },
+        {
+          "source": "docs/encoded-b-native.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/experimental-bases.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/fuzzing.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/generated-native-wmma.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/gpu-qualification.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/gram-prepared-reuse.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/gram-products.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/host-instrumentation.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/host-profiling.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/mixed-radix-lift.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/narrow-group-calibration.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/narrow-native-owner.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/native-calibration.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/native-device-interop.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/native-narrow.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/native-split-k.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/out-of-core-panels.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/performance.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/persistent-native-queue.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/plan-validation.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/planning-recipes.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
         },
         {
           "source": "docs/platform-windows.md",
           "reference": "roadmap.md"
         },
         {
+          "source": "docs/prepared-execution.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/public-c-abi.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/public-c-abi.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/rank23-device.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../roadmap.md#current-validation-and-remaining-work"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../roadmap.md"
         },
         {
+          "source": "docs/resident-graphs.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/runtime-product-arena.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/scalar-arithmetic-proofs.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
           "source": "docs/selected-implementation-20261026.md",
           "reference": "roadmap.md"
+        },
+        {
+          "source": "docs/target-qualification.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/word-modular-calibration.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/word-modular-research.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/wrap64-calibration.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
+        },
+        {
+          "source": "docs/wrap64-signed-radix.md",
+          "reference": "roadmap.md#current-validation-and-remaining-work"
         },
         {
           "source": "docs/documentation-inventory.json",
@@ -4554,9 +4770,9 @@
         "current-materialization-and-provider-boundary",
         "current-roadmap-and-release-gates",
         "current-validation-and-remaining-work",
+        "local-stack-and-earlier-qualification",
         "october-23-issue-repair-qualification",
         "pending-issue-batch-qualification-2026-10-23",
-        "recorded-baseline",
         "research-and-integration-gaps",
         "setup-and-examples-dependencies",
         "stop-conditions-for-hardware-work",

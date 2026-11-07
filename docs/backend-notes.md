@@ -1,5 +1,8 @@
 # Backend implementation and selection
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Select a backend explicitly in `rns8_context_options.requested_backend`, or use
 `AUTO` with the policy below. The benchmark accepts the names in this table;
 the [public enum](../include/rns8/semantics.h) defines C API identities.
@@ -132,8 +135,8 @@ or executed-symbol list. Compiled inventory, matching-context runtime observatio
 and receipt-bound differential/performance qualification remain separate per
 row. The unbound block-sparse query covers its scalar operation; explicit
 WMMA/hybrid owners retain their native compiled capability probe and dynamic
-structure/range checks. New profile controls and CLI execution remain unexecuted
-in the current frontload phase.
+structure/range checks.
+Profile controls and CLI coverage are registered.
 
 ## AUTO and reviewed caches
 
@@ -153,7 +156,8 @@ runtime, exact-key and workspace admission. The trace retains every candidate;
 empty key, false hit flags and zero workspace mean those facts were unobserved,
 not that an exact-key lookup or resource query failed. These rows are excluded
 from the rejected-candidate projection. Source-authored refresh, identity,
-shortlist and actual selector controls await the final batch; no planning or
+shortlist and actual selector controls follow the roadmap's execution scope;
+no planning or
 one-shot latency benefit has been measured.
 
 An AUTO context probes direct HIP and can use CPU when HIP is unavailable.
@@ -175,8 +179,8 @@ samples require a successful drain. Failed completion records the runtime error
 and returns the provider's backend failure instead of publishing timing evidence.
 Host fallback labels remain distinct from GPU-event labels; nondefault-stream
 enqueue paths bypass this instrumentation. These repairs and their portable
-publication controls still await the combined runtime validation batch.
-hipBLASLt retains its explicitly synchronized pre-stop boundary only inside
+publication controls follow the
+roadmap's execution scope. hipBLASLt retains its explicitly synchronized pre-stop boundary only inside
 diagnostic timing; a failed synchronization now prevents sample publication.
 
 `rns8_get_backend_capability_info` reports compiled/source metadata;
@@ -277,6 +281,7 @@ Fixtures cover tails, all slab boundaries and multiple slabs; authored regressio
 cover every finite nibble alphabet, packed tails, stale generations and full
 public output. Applicable gfx1100 regressions passed the
 [October 27 local batch](../metadata/remaining-code-validation-20261027.json);
-later source changes await the consolidated batch, and
+later source changes follow
+the roadmap's execution scope, and
 no new campaign or speedup (including the specification's 1.25x gate) follows.
 Public reachability does not qualify other targets.

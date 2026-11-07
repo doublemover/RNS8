@@ -1,5 +1,8 @@
 # One-level rank-23 modular prototype
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private `hip_direct_gemm_rank23_device` evaluates a division-free 3x3 block
 bilinear program. Its original-coordinate coefficients come from Stapleton and
 Perminov's [public certificate](https://github.com/Joshua-Stapleton/51-addition-alt-basis-3x3-rank23/blob/473661e52ea9d6db7988e038212b4de9f34aa6e1/3x3x3_m23_cr51_alt_basis_certificate.json)
@@ -170,8 +173,8 @@ complete-expression range proof together, including exceptions during publishing
 
 Host C++ syntax/constexpr checks passed; generated data and metadata were refreshed.
 Regressions for all byte rings, signs, altered coefficients, recomputation budgets,
-and public signed/unsigned routes are authored but unexecuted. HIP compilation,
-real-device failure paths and matched performance campaigns remain deferred. The
+and public signed/unsigned routes are registered. Broader-target compilation,
+real-device failure paths and matched performance campaigns remain unqualified. The
 one-level N≥16384 / ≥1.15× / ≤2.2× total-memory promotion gates are unchanged.
 
 ### Matched matrix-engine and public measurement controls

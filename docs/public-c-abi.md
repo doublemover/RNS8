@@ -1,5 +1,8 @@
 # Public C ABI review
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The public C ABI uses fixed uint32 C++ enums and the platform's normal
 32-bit C enum representation. Global short-enum and nondefault packing flags
 are unsupported. New public symbols use the rns8_ namespace. C++ wrappers
@@ -19,13 +22,13 @@ CPU dispatcher controls separately exercise raw all-bits, high-bit and adjacent
 invalid values against live handles, with valid-mode and unsupported-backend
 controls. The current source pass extends those checks to prepared CRT options,
 product prefix/execution policies and native-group dispatch policy. New controls
-are authored and await the combined runtime/sanitizer batch.
+are authored and follow the roadmap's execution scope.
 
 Experimental basis selection admits request flags/semantics and every candidate
 price tag, backend, semantics and identity string before context failure or cost
 filtering. Its source controls cover all raw unknown bits, valid flag combinations,
 genuinely allocated short size prefixes, accepted extension storage and unchanged
-selection/handle outputs. These controls also await the combined sanitizer batch.
+selection/handle outputs. These controls also follow the roadmap's execution scope.
 
 The declaration inventory and behavioral corpus serve different purposes. The
 following source map accounts for the public enum families, including selectors
@@ -60,8 +63,7 @@ outputs/workspaces, preserving generations, residues and reservations on raw
 all-bits/high-bit/adjacent rejection. Every defined method still reaches the CPU
 unsupported-provider distinction. The status formatter has a separate contract:
 unknown representable values return `unknown status`; it cannot return an API
-error code. Its raw-byte controls retain that behavior. These controls are
-source-written and have not run in the deferred batch.
+error code. Its raw-byte controls retain that behavior. These controls are registered.
 
 The native owner-acquire return value is another external status boundary.
 Shared explicit named-status admission now rejects unknown callback values as
@@ -114,8 +116,9 @@ accepted, only current fields are accessed, and extension bytes remain untouched
 Exact-size contracts, including native-device, pinned-host, locality, runtime
 device identity, public ABI and narrow summary records, reject larger sizes.
 No API can discover that a caller lied about the actual backing allocation.
-Raw header-prefix and canary controls are authored for the deferred sanitizer
-batch; frontend compilation does not qualify those runtime checks.
+Raw header-prefix and canary controls cover these contracts.
+Current runtime and sanitizer evidence is owned by the
+[roadmap](roadmap.md#current-validation-and-remaining-work).
 
 Context and GEMM plan admission share the explicit backend-value validator.
 Unknown backend representations return `INVALID_ARGUMENT` before allocating a
@@ -131,8 +134,7 @@ provider and preserves count/candidate outputs on rejection. Explicit whole-rout
 selection/preparation reject unknown status/reason/resource tags and inconsistent
 cost-origin/Boolean metadata, including malformed later candidates after an
 eligible earlier entry. Known unsuccessful statuses remain ineligible rather
-than malformed. Raw status and count-preservation controls are authored; native
-runtime and sanitizer validation remains deferred.
+than malformed. Raw status and count-preservation controls exercise these outcomes.
 
 Context, plan and matrix constructors preserve caller handle slots when options
 or descriptor preflight rejects input. After successful preflight they initialize
@@ -140,8 +142,9 @@ the slot to null before checking context health or acquiring backend resources.
 Malformed plan/matrix descriptors therefore remain `INVALID_ARGUMENT` even on a
 poisoned context; valid descriptors still report `BACKEND_FAILURE` there. GEMM
 semantic and bound tags are admitted before flag-specific backend routing, so an
-unsupported accelerator flag cannot mask an unknown tag. Authored canary,
-short-size, wrong-version and poisoned-context controls await the final batch.
+unsupported accelerator flag cannot mask an unknown tag. Canary, short-size,
+wrong-version and poisoned-context controls
+cover these rejection paths.
 
 Sparse-A descriptor admission also validates bound tags explicitly, including
 bounded semantics where a nonzero unknown tag previously passed the sparse
@@ -150,7 +153,8 @@ and constructor handle slots before context health checks. Result-cache
 construction admits reserved bits and the complete explicit flag contract before
 CPU-provider rejection; FP8 preparation preserves handle slots on malformed
 header/method/flag/scale preflight. Their valid unsupported-provider outcomes
-remain distinct. The new real-entrypoint controls have not run yet.
+remain distinct. Registered controls exercise the real
+entrypoints.
 
 Resident graph construction admits every node header/kind/complex-method tag
 before allocating graph owners or preparing native inputs; malformed tags in a
@@ -158,14 +162,15 @@ later node preserve the graph handle slot. Prepack construction similarly reject
 unknown operand roles before context health and handle publication. Authored live
 CPU controls also exercise resident/operand role queries and narrow, adaptive,
 bilinear and complex arithmetic method rejection, checking output generations,
-residue bytes, ownership counters and device traffic. Execution remains deferred.
+residue bytes, ownership counters and device traffic.
 
 Additional authored controls exercise raw streaming schedules through the public
 resource query and raw locality orders through a live CPU context/plan. Known
 locality modes still reach the distinct unsupported CPU-backend outcome.
 Malformed prepared-Gram method/orientation/policy tags reject before owner
-allocation and preserve the owner-output canary and matrix generation. These
-source additions remain unexecuted until the combined validation batch.
+allocation and preserve the owner-output canary and matrix generation. Registered
+controls preserve those distinct
+outcomes.
 
 ## Installed native checks
 
@@ -196,8 +201,7 @@ Installed consumer configuration preserves the C/C++ driver invocation names,
 including Unix `clang++` symlinks. Resolving that name to `clang` before CMake
 selection can change default C++ linking. The native compiler profile records
 both the invocation path and resolved binary/hash; layout and linkage checks
-still use the actual installed package. The driver-symlink regression is
-source-authored and awaits the deferred validation batch.
+still use the actual installed package. A driver-symlink regression covers this distinction.
 
 The native smoke exercises the CPU context/matrix owner/deleter boundary and
 native-device contract query without accessing GPU memory. Its nine raw enum
@@ -213,7 +217,8 @@ execution reuses its full-output result instead of rescanning the array.
 Malformed requests preserve matrices, reservations and cache diagnostics. CPU
 host-preflight controls retain a genuine unsupported-cache distinction; the
 separate direct-HIP fixture uses a real created cache and exact recomputation.
-These added controls are source-authored and await the combined validation batch.
+Registered CPU and direct-HIP controls cover
+these rejection and recomputation paths.
 
 ## Optional Linux ELF types
 

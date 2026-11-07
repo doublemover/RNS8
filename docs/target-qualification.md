@@ -1,5 +1,8 @@
 # Candidate target qualification
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Target report schema 3 keeps platform/architecture/toolchain history as
 descriptive inventory. Its phase counts and historical_inventory_readiness
 are not a cache admission decision. Candidate verdicts identify an exact
@@ -96,10 +99,11 @@ created for that acquisition; stale files with a recycled process ID are not
 accepted.
 
 These readers establish selected dispatch identity, not complete-run counter
-coverage, occupancy, measured traffic or a performance gain. Native acquisition,
-capability discovery, additional vendor formats and Windows RDP/RGP dispatch
-exports remain implementation work under #104. Raw RGP and unsupported formats
-remain inventory-only; Linux traces do not qualify a Windows target. All native
-reader/runtime validation is still pending the final validation batch. The
+coverage, occupancy, measured traffic or a performance gain. Native acquisition and
+capability discovery are implemented under #104. Supported machine formats and Windows
+export capabilities are limited to the explicit contracts in the profiler guide. Raw RGP
+and unsupported formats
+remain inventory-only; Linux traces do not qualify a Windows target. Current native
+reader/runtime execution scope is recorded in the roadmap. The
 [profiler guide](amd-profiler.md) owns supported contracts, feature-level
-preflight, database metric interpretation and remaining integration work.
+preflight, database metric interpretation and remaining qualification.

@@ -1,5 +1,8 @@
 # Distributed exact-product plan and CPU mock
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The [experimental HIP executor](distributed-hip.md) now consumes this shared
 plan/input contract for real device work. This page describes the independent
 CPU mock; its observations remain mock evidence.
@@ -130,9 +133,7 @@ cancel/deadline/quarantine, retained readers, cancellation arithmetic and adapti
 materialization followed by a changed-identity chain. Their classical Boost
 oracle is independent of the modular producer and CRT.
 
-The M0 fixtures ran in the earlier consolidated local suites. The subsequent
-shared resource/window changes and real HIP owner have syntax checks only;
-earlier passes do not qualify those changed sources.
+M0 fixtures and the shared resource/window controls are registered. Current CPU and single-device HIP execution scope is recorded in the roadmap; physical multi-device execution retains its separate qualification gate.
 
 The [HIP owner](distributed-hip.md) now implements selected devices, immutable
 generation-bound native snapshots, reusable packing windows, maintained local

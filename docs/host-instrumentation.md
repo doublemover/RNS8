@@ -1,14 +1,18 @@
 # Host dynamic checks and source coverage
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Host instrumentation is a separate build identity. It is neither ordinary
 production performance nor HIP device instrumentation. The current source
 frontload adds build selection and sensitivity/concurrency controls under
 [#102](https://github.com/doublemover/RNS8/issues/102) and coverage instrumentation
-under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
-session, native LLVM coverage and separate device-ASan preflight drivers are
-authored. Native test-process and installed-consumer loader bookends are also
-authored; additional launcher/application coverage and native CI qualification
-remain implementation work. A separately opted-in
+under [#103](https://github.com/doublemover/RNS8/issues/103). The native host session,
+LLVM coverage and separate device-ASan preflight drivers are implemented. Loader
+bookends cover rns8_tests, the allocation-fault executable and seven installed
+consumers; other CTest launchers retain outcomes without inheriting loader credit.
+Native detector/runtime sensitivity, measured cost and CI activation remain
+qualification gates. A separately opted-in
 bounded ordinary device-correctness path is authored alongside the preflight.
 Python branch/subprocess collection source is authored.
 
@@ -86,7 +90,7 @@ monotonic deadline caps later children to the remaining allowance and prevents
 new child launches after exhaustion. Plans retain the selected budget; omitted
 values preserve the existing per-child policy. Bounded process termination and
 report publication remain outside that child allowance, so CI leaves an explicit
-artifact-upload reserve. The deadline controls are authored and unexecuted.
+artifact-upload reserve. The deadline controls are registered.
 
 ```sh
 python tools/host_instrumentation_session.py --preset cpu-tsan-release \

@@ -1,5 +1,8 @@
 # Exactness contract and tests
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 All named public enums use explicit 32-bit C++ backing through `RNS8_ENUM_BASE`.
 This makes arbitrary C/FFI bit patterns representable before validation; unknown
 values still reject through the actual descriptor/operation checks. C consumers
@@ -342,5 +345,6 @@ remaining multiprecision exceptions are caught by the originating worker and
 resolved in deterministic cell order before any caller bytes are published.
 Per-value range/width checks, zero-tile proofs, limb widths and row padding remain
 part of the contract. Source changes and authored cold-table/all-prefix/limb and
-public worker-failure regressions await the deferred validation batch; allocation
+public worker-failure regressions follow the roadmap's
+execution scope; allocation
 and timing improvements have not yet been measured.

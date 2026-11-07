@@ -1,5 +1,8 @@
 # Runtime device observations
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 rns8_query_runtime_device_identity queries an ordinal in the calling process's
 current HIP visibility namespace. Ordinal zero inside an isolated process is
 not automatically parent ordinal zero or a physical board number.
@@ -72,6 +75,5 @@ critical. Explicit dry runs remain plans. These smoke reports always retain
 nonpromotion status; device association does not establish numerical correctness,
 release qualification or a performance gain.
 
-Native query/witness and authored loader/report regression execution are
-deferred to the final validation batch. No new multi-GPU hardware result is
+Native query/witness and loader/report regression controls are registered. No new multi-GPU hardware result is
 claimed.

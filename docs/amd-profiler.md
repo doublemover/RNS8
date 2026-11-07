@@ -1,5 +1,8 @@
 # AMD profiler evidence
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Profiling explains an already admitted workload. It cannot replace exact output
 checks or provide unprofiled production latency. Raw captures stay in ignored
 temporary storage; derived report files describe their actual evidence scope.
@@ -37,7 +40,7 @@ instances. Absent counters and unavailable values or units remain partial;
 they never become zeros or cross-instance totals. Receipt replay reconstructs
 the report from the retained database. Complete selected measurements do not
 establish loss-free acquisition, complete run coverage or production latency.
-The acquisition and tampered-report controls are authored and unexecuted.
+The acquisition and tampered-report controls are registered.
 
 AMD and host-profile publishers share an exclusive diagnostic writer. It
 encodes arrays/maps incrementally, enforces the64MiB document limit and the
@@ -86,7 +89,7 @@ the opaque file or qualify dispatches, device identity, counters, loss state or
 production latency. A supported native decoder/export or manual review remains
 necessary. This implements the issue's raw-RGP fallback without inventing a
 machine-export CLI. The registered ownership, replay, cancellation, drift and
-failure controls remain authored and unexecuted.
+failure controls are registered.
 
 The rocpd reader follows AMD's pinned
 [schema source](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/share/rocprofiler-sdk-rocpd/rocpd_tables.sql).
@@ -117,7 +120,7 @@ caller value in `correlation_id`. The reader preserves both, including an
 observed external zero, plus an optional native parent stack. The parent is a
 recorded relationship, not an inferred dependency. Native-layout controls use
 different internal, external and event IDs so those namespaces cannot collapse
-unnoticed. The corrected reader and controls remain source-authored/unexecuted.
+unnoticed. The corrected reader and controls are registered.
 
 The optional `read_process(..., include_timeline=True)` projection also reads
 native host regions, copies, allocation lifecycle, HIP events, graph launches
@@ -293,10 +296,11 @@ mangled symbols select native dispatches; the existing validator then joins
 their actual loaded code objects. Selected-dispatch qualification establishes
 neither complete trace/counter coverage nor a production timing improvement.
 
-This collector is source-implemented with authored offline controls; the final
-validation batch and a supported Linux hardware run remain pending. The
-Windows raw-RGP lane is described above. Native converter/export orchestration
-and ATT/sampling sessions remain separate implementation work.
+The collector and capability-gated native acquisition/export orchestration are
+implemented with registered offline controls. Supported Linux hardware and Windows
+command/finalization compatibility remain qualification gates. Raw RGP retains the
+manual-review path described above; unsupported machine formats and optional
+ATT/sampling decoders remain explicit capability limits.
 
     python tools/gpu_counter_report.py temp/production.json --dispatch-receipt temp/dispatch-receipt.json --out-dir temp/counter-review
 
@@ -309,7 +313,8 @@ snapshot per input. Inventory entries retain absolute source paths and content
 hashes. The report's evidence owner verifies those files again before returning;
 ISA changes during review prevent publication. The shared ISA index reader also
 rejects duplicate JSON keys instead of accepting an ambiguous backend identity.
-These source/control additions have not run through the deferred validation batch.
+Registered controls cover these
+source and admission changes.
 
 Native metrics preserve vendor name, description, unit, block, expression,
 value type, dispatch interval and XCC/SE/instance dimensions. A missing unit
@@ -385,7 +390,7 @@ start before its launch API returns, so an API-completion-to-kernel-start edge
 is never inferred. Complete literal marker matching still does not prove
 loss-free acquisition or complete work/dependency coverage. These exact native
 table-to-consumer, stale/duplicate marker, unknown/ambiguous correlation and
-overlapping-caller controls remain authored/unexecuted. Capture publication
+overlapping-caller controls remain registered. Capture publication
 and receipt replay are connected; the dependency/critical-path
 consumer retains the unresolved boundaries described below.
 
@@ -396,8 +401,7 @@ epoch or rate. Missing brackets and conflicting order remain unavailable or
 inconsistent. This records actual paired observations; it does not establish
 GPU timestamp normalization or authorize GPU duration/dependency claims. The
 original native timestamps and their uncertainty remain visible, and receipt
-replay reconstructs the observation. These controls are source-authored and
-unexecuted.
+replay reconstructs the observation. These controls are registered.
 
 The embedded dependency report records exact API-entry/native-start launch
 relationships, with elapsed time left unattributed to submission, driver or
@@ -418,7 +422,7 @@ never become qualified causal edges. Temporal adjacency and API-return-to-GPU-
 start dependencies are not inferred. Without complete scheduler, clock and
 dependency evidence the report returns an unresolved critical path and an honest
 no-resolved-host-bottleneck conclusion, followed by the smallest resolving
-collection. Actual-table graph/event/overlap controls are authored and unexecuted.
+collection. Actual-table graph/event/overlap controls are registered.
 
 Add `--operation-ranges` to the timeline plan only for the same production
 binary compiled with `roctx=ON`. The launcher supplies the range opt-in and
@@ -454,10 +458,10 @@ peak. Whole-domain physical peak stays unavailable. CPU/GPU agent association,
 REAL allocation, VIRTUAL reservation and SCRATCH remain separate source labels;
 none establishes pinned-host classification or physical commitment. Sampled
 RSS and the separate host-heap interception lane are not added to these bytes.
-Actual-table free-zero/reuse, uncertain peaks, mixed domains, unmatched frees,
-ambiguous transitions and partial realloc controls are authored and registered,
-but have not executed. Allocation-generation source/phase integration and
-the critical-path report remain separate implementation work.
+Actual-table free-zero/reuse, uncertain peaks, mixed domains, unmatched frees, ambiguous
+transitions and partial realloc controls are registered. Allocation-generation
+projections, phase association and the bounded critical-path report are implemented;
+unresolved clocks and missing causal edges remain explicit unknowns.
 
 Active/requested tracing is excluded from production timing admission. The
 profiler relation permits the explicitly declared range opt-in environment,

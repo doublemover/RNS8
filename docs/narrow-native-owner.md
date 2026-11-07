@@ -1,5 +1,8 @@
 # Public narrow native products
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8_gemm_narrow_exact` is an experimental synchronous direct-HIP operation
 with an explicit method and ordinary exact-wide signed or unsigned semantics.
 It consumes current matrix-owned native inputs retained by
@@ -132,8 +135,7 @@ range/status checks are unchanged. At N=2, declared shared arrays shrink from
 columns shrink from eight to N. These are source counts, not occupancy, emitted
 ISA or speedup measurements. Both flags are explicit-backend research controls
 and are part of plan/cache identity; existing reviewed records cannot silently
-qualify a changed route. Host route/metadata and array-contract regressions are
-authored, not executed.
+qualify a changed route. Host route/metadata and array-contract regressions are registered.
 
 ## Explicit fused native-accumulator to RNS variants
 
@@ -232,5 +234,6 @@ outputs and padding are checked outside observations; a post-timing public
 product audits every RNS plane. Counterbalanced collectors bind independent
 process/artifact/build/environment cohorts and cannot promote AUTO. Signed
 full-width cancellation and unsigned overflow-status fixtures separately cover
-the UInt192 control; those are not byte-domain narrow workloads. All execution,
-device compilation, ISA/resources and performance qualification remain deferred.
+the UInt192 control; those are not byte-domain narrow workloads.
+Current local execution follows the roadmap; target-specific ISA/resource and
+performance qualification remain separate gates.

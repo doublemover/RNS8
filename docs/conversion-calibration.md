@@ -1,5 +1,8 @@
 # Exact import and CRT conversion calibration
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8-crt-calibrate` exposes matched raw-buffer conversion and public exact-export controls. It uses direct
 HIP on explicitly recorded device0; there is no CPU or accelerator fallback.
 The underlying paths retain their source-bound local correctness qualification.
@@ -90,8 +93,8 @@ preservation. Every verified minimal call still compares the complete logical
 output with Boost; its metadata explicitly excludes per-call device guard checks.
 The original diagnostic `cold` and resident controls remain available, and the
 collector keeps all three scopes separate. `minimal-cold.json` supplies a small
-matched import/CRT control set. These additions are source-authored and unexecuted.
-For `public_*` cold cases, context/plan creation, actual input packing, optional
+matched import/CRT control set. These additions are
+registered. For `public_*` cold cases, context/plan creation, actual input packing, optional
 export-owner preparation, checked export and owner destruction are inside the
 call. Their resident counterparts retain those owners and report setup
 separately. These public boundaries are not pooled with raw-buffer cold or

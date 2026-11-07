@@ -1,5 +1,8 @@
 # Bound whole-route recipes
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8/pipeline_recipe.h` supplies explicit C enumeration, selection, preparation
 and execution over current matrix-owned values. This closes the execution gap
 between the [offline planner](planning-recipes.md) and its existing operation
@@ -19,7 +22,8 @@ handles. Preparation also rejects stale identities or a candidate execution tag
 inconsistent with its bound request before changing the handle. Admitted
 preparation retains its existing null-handle behavior for later resource failures.
 Raw-value and sized-record controls use
-real CPU/HIP query candidates; they are authored and await the combined batch.
+real CPU/HIP query candidates; they are authored and follow
+the roadmap's execution scope.
 
 Uniform recipes accept bounded i64/u64, exact-wide signed/unsigned, finite
 ring/field and strict wrap64 plans with current inputs. Representation-specific
@@ -113,5 +117,4 @@ Price record headers, origin/known-bit selectors, text termination, finite
 positive intervals and duplicate identities are admitted before operand proofs
 or build-identity construction. Malformed prices preserve candidate bytes and
 the required-count output without host staging allocation. Dedicated CPU
-first-allocation controls cover this order; they remain authored and unexecuted
-in the current source phase.
+first-allocation controls cover this order; they are registered in the current source phase.

@@ -1,8 +1,11 @@
 # Public block-sparse cost and reuse controls
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `rns8-block-sparse-calibrate` compares complete public direct-HIP calls on the
 same signed exact-wide inputs and output shape. The target, collector, case sets
-and fixtures are authored; they have not run. No speedup, hardware qualification
+and fixtures are implemented; matched campaign qualification remains open. No speedup, hardware qualification
 or default dispatch change is claimed. The [block-sparse owner](block-sparse.md)
 owns the arithmetic, generation binding and WMMA/hybrid contracts.
 
@@ -207,7 +210,7 @@ ordinal, original case index, independent repeat, matched block and position.
 Its SHA256 and seed accompany every raw receipt and the summary; each receipt
 also records its actual attempt start time. Schedule/case/executable changes
 reject the campaign. Missing/cohort-mismatched data still cannot become a reuse
-win. Scheduling/receipt regressions are authored but unexecuted.
+win. Scheduling/receipt regressions are registered.
 
 Structured Sparse-A event families are separately centralized in
 `metadata/event_phases.yaml`. The generated C++ helper is consumed by actual

@@ -1,12 +1,16 @@
 # Host CPU and allocation diagnostics
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 Host profiles explain a completed exact call; they do not replace its
 uninstrumented end-to-end measurements. Acquisition, native decoding, operation
 range selection, symbol/module association, loss assessment and production
 comparison are distinct evidence steps. The source adapters under
 [#105](https://github.com/doublemover/RNS8/issues/105) are written; their authored
 controls and native Windows/Linux acquisition, format, symbol and clock
-qualification await the combined validation batch and supported environments.
+qualification
+follow the roadmap's execution scope and supported environments.
 Missing native identity, clock or causality remains unresolved in the report.
 
 ## Native Linux CPU sample decoding
@@ -30,8 +34,7 @@ Generic permission text and policy warnings remain unclassified; interruptions,
 timeouts, capture/budget errors and failed startup have separate reasons.
 This is stderr attribution, not an observed syscall errno, proof of a particular
 sysctl setting, successful recording or profile qualification. No retry or system
-configuration change occurs. New denial/checkpoint controls are authored and
-remain unexecuted with the source batch.
+configuration change occurs. New denial/checkpoint controls are registered with the source batch.
 
 ```sh
 python tools/host_profile_session.py --production temp/production.json --out temp/host-profile/session
@@ -64,7 +67,7 @@ attached. With `--operation-ranges`, the same monotonic observations intersect
 exclusive same-thread measured phases using the shared bounded scope partition;
 foreign and ambiguous overlaps stay masked. These thread durations are not
 additive process wall time, CPU sampling exposure or GPU dependency costs.
-Native ABI and phase controls are authored for the deferred validation batch.
+Native ABI and phase controls are registered.
 
 The adapter disables persistent build-ID cache writes and debuginfod downloads,
 isolates perf configuration, and retains partial data/logs on failure. The
@@ -76,8 +79,8 @@ numerical output, artifact/module identities, physical GPU and matching
 work/proof/output/reuse contract, and labels the bound capture externally
 instrumented. The file audit independently observes its event clock and optional
 resolution/wall-clock anchor. Cross-clock and selected-operation joins remain
-unbound; a single anchor does not establish calibration or an error bound. These source controls are authored
-and unexecuted; no new acquisition or attribution result is claimed.
+unbound; a single anchor does not establish calibration or an error bound. These source
+controls are registered; no new acquisition or attribution result is claimed.
 
 The explicit decoder consumes an existing `perf.data` through Linux perf's
 [standalone Python interface](https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-script-python.txt),
@@ -120,7 +123,7 @@ so it is retained alongside SHA256. Matching the native ID to a current file doe
 not establish transient loaded-image history or the source bytes used at
 compilation. Separate recorded-mapping and current-source checks below extend
 attribution without borrowing those claims from leaf build-ID coverage.
-The ELF/native integration controls are source-authored and unexecuted; no
+The ELF/native integration controls are registered; no
 native profile, source-attributed bottleneck or performance benefit is claimed.
 
 Native sample schema v4 retains map start/end/file offset. Resolved maps
@@ -157,8 +160,8 @@ opened by this check. These are current source snapshots and native debug-line
 observations, not compilation source checksums. Both mapping/ELF and source
 inventories are independently reconstructed by acquisition finalization, so
 editing and resealing their counts cannot supply missing evidence. Their binary,
-source, substitution and budget controls are authored; runtime execution remains
-deferred with the final batch.
+source, substitution and budget controls are authored; runtime execution
+status is recorded in the roadmap.
 
 The existing optional Linux ROCTx producer now adds a versioned host-clock
 extension to its range records: actual process/start-thread/stop-thread IDs and
@@ -194,9 +197,9 @@ SHA256 values. Callchain-only lines cannot supply missing leaf credit, and
 selected counts cannot exceed the recorded leaf population. Mixed native text
 observations remain visible. These links identify current source context rather
 than compilation-source contents, exact CPU duration, wait causes or a proven
-critical path. The controls are authored and await the combined validation batch.
-Active Linux compilation, scope/cross-thread controls, pure join controls and
-the integrated native acquisition remain deferred to the final validation batch.
+critical path. The controls are authored and follow the roadmap's execution
+scope. Scope/cross-thread and pure-join controls are registered. Active Linux
+compilation and integrated native acquisition retain their platform qualification gates.
 
 Input, sample, frame and decoded-document limits apply. Changes to the input or
 native module during decode reject the receipt. Existing outputs are not
@@ -231,8 +234,8 @@ resolution, and optional versioned `CLOCK_DATA` supplies one clock/wall anchor.
 The ABI owners are the pinned Linux sources recorded in
 `tools/perf_recording_contract.py`. Process totals still do not establish
 complete operation coverage, cross-clock attribution, production latency or
-performance eligibility. Offline synthetic file/API controls are authored and
-registered but have not run; native Linux decoding remains unexecuted locally.
+performance eligibility. Offline synthetic file/API controls are registered; native
+Linux decoding remains unexecuted locally.
 
 ## Windows acquisition boundary
 
@@ -245,9 +248,9 @@ must be bounded, disjoint, outside reserved pages and allocated in the active
 free-page map. Only documented 512/1,024/2,048/4,096-byte MSF blocks and the
 VC70 info layout are admitted; each file is limited to 512 MiB and directories
 to 8 MiB. GUID/age agreement identifies the selected symbol file; it does not
-establish usable function/source coverage or compilation-source checksums.
-The authored byte-layout, mismatch, extent, alias, format and hash controls remain
-unexecuted. Native Windows symbolization remains a separate qualification step.
+establish usable function/source coverage or compilation-source checksums. Byte-layout,
+mismatch, extent, alias, format and hash controls are registered. Native Windows
+symbolization remains a separate qualification step.
 
 `tools/host_profile_windows.py` now authors the bounded acquisition/export path:
 
@@ -344,13 +347,14 @@ The Windows result remains partial: loaded file-byte/PDB identity and API/GPU
 clock alignment are not established by the current tables. Native CPU points
 can select same-file measured ETW windows; WPA-relative samples remain unbound.
 Current PE/PDB agreement cannot attest what bytes were loaded during capture.
-Native ETL/WPR/WPA compatibility and symbol attribution plus all authored
-ownership/cleanup/producer/unit/lifetime controls remain unexecuted. The native
+Ownership/cleanup/producer/unit/lifetime controls are registered. Native ETL/WPR/WPA
+compatibility and symbol attribution require separate qualification. The native
 reader passes a Windows C++17 frontend check, and WPR XML passes the installed
-SDK's schema, as source checks only. Linux allocation source/phase acceptance,
-cross-tool clock adapters and the full causal critical-path
-report remain implementation work. No ETL decoder, WPR recording, elevation or system profiler has run during
-the source frontload.
+SDK's schema, as source checks only. Linux allocation/source/phase adapters and the
+bounded dependency report are implemented. Missing clock alignment or causal edges
+preserve an unresolved or no-resolved-host-bottleneck result with a bounded resolving
+experiment. Real acquisition, clock compatibility and production-profile qualification
+remain separate gates.
 
 ## Native Windows operation markers
 
@@ -386,8 +390,8 @@ Raw traces and marker
 receipts never become production latency or loss-free qualification.
 
 The native provider/decoder and exception controls pass C++17 frontend checks;
-the typed association and full synthetic collector controls are authored for the
-deferred validation batch. No provider, ETL fixture, WPR or WPA process ran.
+the typed association and full synthetic collector controls are registered. No provider,
+ETL fixture, WPR or WPA process ran.
 
 After acquisition, `python tools/host_profile_windows.py --review-plan
 temp/host-profile/session/plan.json` is the separate receipt-review path. It
@@ -401,7 +405,8 @@ bookended around review. No WPR, exporter, workload, symbol server or recording
 configuration is invoked. The review has its own identity and does not create
 another production execution or resolve outstanding symbol/clock attribution.
 Rejection controls cover resealed stage commands/status, owner, derived samples,
-tool changes and disagreement with fresh native decoding. They remain unexecuted.
+tool changes and disagreement with fresh native decoding. Their current execution scope
+follows the roadmap.
 
 ## Native Windows CPU points
 
@@ -479,8 +484,8 @@ The report provides conditional leaf and native-fragment symbols, source-line
 locations and phase-specific event/frame counts. It binds current first-party
 source snapshots through the shared source inventory; a PDB line does not attest
 compilation source bytes. Complete unwound/inlined callchains, CPU duration and
-cross-tool GPU causality remain unavailable. Native lookup, CLI/typed controls
-and real PDB compatibility remain unexecuted; no profiling result or speedup is
+cross-tool GPU causality remain unavailable. Native lookup and CLI/typed controls are registered; broader
+real-capture PDB compatibility remains unqualified; no profiling result or speedup is
 claimed.
 
 ## Opt-in Windows scheduling observations
@@ -517,8 +522,8 @@ clock. Thread durations are not additive process wall time. Wait reason codes
 do not establish a lock object/owner, and ReadyThread header IDs do not prove a
 waker or GPU dependency. Active spin and complete schedule coverage remain
 unavailable. Raw stack walking/source attribution and actual native capture
-compatibility are separate qualification work; authored byte, typed scheduling,
-phase and synthetic publication controls remain unexecuted.
+compatibility are separate qualification work; byte, typed scheduling,
+phase and synthetic publication controls are registered.
 
 ## Windows host allocation capture
 
@@ -557,8 +562,8 @@ reported separately: deleting it could erase values added concurrently by
 another writer. The tracing value is restored; an unchanged empty container is
 not reported as an exact restoration of prior container presence. These are
 observed state checks, not an atomic transaction with arbitrary registry
-writers. Authored in-memory recovery/interruption controls remain unexecuted;
-no registry or mutex has been opened during source work.
+writers. In-memory recovery/interruption controls are
+registered; live registry/mutex configuration retains its separate qualification gate.
 
 The file-only inspector retains native HeapTrace v0 Create/Alloc/ReAlloc/
 Destroy/Free records with exact version, pointer width and payload-size checks.
@@ -589,7 +594,7 @@ empty allocation projections retain their limits. Read-only receipt review
 reconstructs heap reports and validates saved settings journals without opening
 the registry. Native allocation stack/PDB/source integration is written; real
 version/capture compatibility remains pending qualification. All new byte, generation, identity,
-phase, journal and owned failure/publication controls are authored and unexecuted.
+phase, journal and owned failure/publication controls are registered.
 
 ## Native Windows stack association
 
@@ -651,10 +656,10 @@ helper bounds fixed-array path termination, compares actual file identity across
 Windows path case, and admits both PDB engines only with opened-file identity
 checks.
 
-Native raw/converted walk ordering, real StackWalk/PDB compatibility and all
-authored payload/identity/collision/loss/clock/source controls remain unexecuted.
-Current checks are frontend/static checks, with no linked build, native control,
-ETL decoder, profiler, fixture or runtime test execution.
+Payload/identity/collision/loss/clock/source controls and the optimized native PE/PDB
+CLI control are registered. Current local execution is recorded in the roadmap;
+raw/converted real-capture walk ordering, production StackWalk/PDB compatibility and
+native acquisition remain separate qualification gates.
 
 ## Separate Linux host allocation capture
 

@@ -1,5 +1,8 @@
 # Experimental distributed HIP execution
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 `src/core/distributed_hip.hpp` implements one exact product across explicitly
 selected runtime devices. It extends the [shared plan and CPU mock](distributed-mock.md)
 with real allocations, streams, events, source replication, per-modulus GEMM,
@@ -223,5 +226,4 @@ basis packet alongside pointer and prefix; ordinary default-basis consumers must
 not infer compatibility from those bytes. Materialization uses the same owned
 basis and checks its requested prefix range. Host metadata budgets include the
 packet and ordered channels. New CPU/Boost and HIP fixtures cover every axis,
-small composite channels, full-width inputs and basis reordering; execution is
-deferred to the combined batch.
+small composite channels, full-width inputs and basis reordering; execution status is recorded in the roadmap.

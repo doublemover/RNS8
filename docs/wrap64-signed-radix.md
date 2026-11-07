@@ -1,5 +1,8 @@
 # Carry-recoded wrap64 matrix candidate
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
 The private direct-HIP entry `hip_direct_wrap_radix_wmma_device` admits compact
 canonical byte-limb inputs/output for strict modulo 2^64 multiplication only.
 It has two explicit candidates: signed carry-recode and native unsigned IU8.
@@ -40,7 +43,8 @@ fixtures cover tails, canaries, aliases, budgets and K around tile, 4096,
 33025, 65536 and 131071 boundaries. Applicable host and RDNA3 cases were
 included in the [October 27 CPU-ASan/direct-HIP batch](../metadata/branch-code-audit-validation-20261027.json)
 at source `2c713a1`; the distinct CDNA MFMA cases were target-inapplicable skips.
-Later source changes await the consolidated validation batch. That dated
+Later source changes follow the
+roadmap's execution scope. That dated
 correctness record supplies no emitted-ISA or performance qualification.
 
 This first implementation deliberately folds after every 16-term MMA. It does
@@ -53,8 +57,8 @@ end-to-end benchmark evidence remain required before any measured integration.
 The authored [matched calibration driver](wrap64-calibration.md) supplies
 resident, roundtrip and cold-input controls with common canonical byte limbs,
 hook-disabled production timing and complete outside references. Its long-K
-cases explicitly omit rocWMMA above that existing control's K32768 cap.
-The new driver, collector, case sets and fixtures have not run.
+cases explicitly omit rocWMMA above that existing control's K32768 cap. Driver, collector, case-set and
+fixture execution scope follows the roadmap.
 
 ## Separate CDNA signed-INT8 MFMA implementation
 
