@@ -4,22 +4,7 @@
   "groups": [
     {
       "root": "object",
-      "keys": [
-        "schema",
-        "mode",
-        "input_policy",
-        "encoded_b",
-        "schedule",
-        "chunk",
-        "workers",
-        "reuse",
-        "warmups",
-        "repeats",
-        "seed",
-        "padding",
-        "tasks",
-        "locality_order"
-      ],
+      "keys": ["schema", "mode", "input_policy", "encoded_b", "schedule", "chunk", "workers", "reuse", "warmups", "repeats", "seed", "padding", "tasks", "locality_order"],
       "defaults": {
         "schema": "public_native_group_case_v1",
         "schedule": 0,
@@ -33,333 +18,58 @@
         "tasks": {
           "$rns8_records": {
             "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
+              ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
             ],
             "defaults": {
               "prefix": 3
             },
             "rows": [
-              [
-                0,
-                16,
-                17,
-                257,
-                1,
-                false,
-                0
-              ],
-              [
-                0,
-                17,
-                17,
-                257,
-                4,
-                false,
-                0
-              ],
-              [
-                0,
-                2,
-                19,
-                17,
-                2,
-                true,
-                1
-              ]
+              [0, 16, 17, 257, 1, false, 0],
+              [0, 17, 17, 257, 4, false, 0],
+              [0, 2, 19, 17, 2, true, 1]
             ]
           }
         }
       },
-      "columns": [
-        "mode",
-        "input_policy",
-        "encoded_b",
-        "locality_order"
-      ],
+      "columns": ["mode", "input_policy", "encoded_b", "locality_order"],
       "rows": [
-        [
-          "locality-graph-encoded-mutated-b-modulus.json",
-          "ef52630ee7bb7913baa802da5e707061550973578326a7227f96849d3a36bff2",
-          "graph",
-          "mutated-b",
-          true,
-          "modulus"
-        ],
-        [
-          "locality-graph-encoded-mutated-b-ordinary.json",
-          "e42cbf3e8358b79e7e354d5f8fddb1e6a850fb7abd55c13f49bbd3ddf91326f0",
-          "graph",
-          "mutated-b",
-          true,
-          "ordinary"
-        ],
-        [
-          "locality-graph-encoded-mutated-b-output-neighbor.json",
-          "6a7c473589c939166e24561d14c65a2b322f3748e999e02656cbe5bb782d8023",
-          "graph",
-          "mutated-b",
-          true,
-          "output-neighbor"
-        ],
-        [
-          "locality-graph-encoded-mutated-b-same-output.json",
-          "4ab184e9664a29e5c03aa47caeaaab451cb93d7cca1bb2553eac61f61155edd0",
-          "graph",
-          "mutated-b",
-          true,
-          "same-output"
-        ],
-        [
-          "locality-graph-encoded-resident-modulus.json",
-          "a6282a965aa2fcb014bec52f6153dc73f29427dad7758af4130987640ed1ffab",
-          "graph",
-          "resident",
-          true,
-          "modulus"
-        ],
-        [
-          "locality-graph-encoded-resident-ordinary.json",
-          "17535ab637dbf59611274ad3e80d03770e4593e4d35aabd6deb17967d233f1e5",
-          "graph",
-          "resident",
-          true,
-          "ordinary"
-        ],
-        [
-          "locality-graph-encoded-resident-output-neighbor.json",
-          "7926c106c975f2892234f92a9cacbd98e4a22d74af9884d585fe5b3d90f4866e",
-          "graph",
-          "resident",
-          true,
-          "output-neighbor"
-        ],
-        [
-          "locality-graph-encoded-resident-same-output.json",
-          "3d3d972c05ae5a74b2365b0ea487b4ab645f477ab762e8f6dad9813030f85c5e",
-          "graph",
-          "resident",
-          true,
-          "same-output"
-        ],
-        [
-          "locality-graph-raw-mutated-b-modulus.json",
-          "4121e5c3162541f7ac1472dddf75b1715eda99262050577eb65e194a4249af31",
-          "graph",
-          "mutated-b",
-          false,
-          "modulus"
-        ],
-        [
-          "locality-graph-raw-mutated-b-ordinary.json",
-          "0b9344ae63014b897d56a89657b2a261b9bb089c8294bcfba33ebbe39a50f12b",
-          "graph",
-          "mutated-b",
-          false,
-          "ordinary"
-        ],
-        [
-          "locality-graph-raw-mutated-b-output-neighbor.json",
-          "0a461be975985866ee3987eedc4d546a6c678814d68db01a865ae559ca36a212",
-          "graph",
-          "mutated-b",
-          false,
-          "output-neighbor"
-        ],
-        [
-          "locality-graph-raw-mutated-b-same-output.json",
-          "9c4c1aa16d5eb984619b3ed214a638cee41810161c24991b79ca5ef8cb57b4f8",
-          "graph",
-          "mutated-b",
-          false,
-          "same-output"
-        ],
-        [
-          "locality-graph-raw-resident-modulus.json",
-          "c29b41edd321bea1e254957268659c40b977563d7f925a6e2a632cb62bcf85c0",
-          "graph",
-          "resident",
-          false,
-          "modulus"
-        ],
-        [
-          "locality-graph-raw-resident-ordinary.json",
-          "c82f5d3910dc5eb331608f9fc50c61b786e7fa5d20c2c6e4648b194f8960fd30",
-          "graph",
-          "resident",
-          false,
-          "ordinary"
-        ],
-        [
-          "locality-graph-raw-resident-output-neighbor.json",
-          "e4dbd3a57edac2eb76f5e37519fad8949b900f7e9d074dc88b1989d68a9b4259",
-          "graph",
-          "resident",
-          false,
-          "output-neighbor"
-        ],
-        [
-          "locality-graph-raw-resident-same-output.json",
-          "f76a92e0014a9ac7dd4b2bdf5fab7697c8d5672b60270cdceae8829145a5936a",
-          "graph",
-          "resident",
-          false,
-          "same-output"
-        ],
-        [
-          "locality-persistent-encoded-mutated-b-modulus.json",
-          "a88e7024ae4782180d1725e1a7b562316ea15ef8896ae1537efe50f7f0cd86a1",
-          "persistent",
-          "mutated-b",
-          true,
-          "modulus"
-        ],
-        [
-          "locality-persistent-encoded-mutated-b-ordinary.json",
-          "6e44a96b0e0216db18e9c77b54b8bc9440303208a214b31fecc66f8a25052174",
-          "persistent",
-          "mutated-b",
-          true,
-          "ordinary"
-        ],
-        [
-          "locality-persistent-encoded-mutated-b-output-neighbor.json",
-          "ee894eeae8159984c8f4d2fbabe60a6089d6dab2c745e2488032b72d5c36cc5f",
-          "persistent",
-          "mutated-b",
-          true,
-          "output-neighbor"
-        ],
-        [
-          "locality-persistent-encoded-mutated-b-same-output.json",
-          "559979f0683eecd76af95d6b76521ea4f0a6d75db06231e774561b32c9228778",
-          "persistent",
-          "mutated-b",
-          true,
-          "same-output"
-        ],
-        [
-          "locality-persistent-encoded-resident-modulus.json",
-          "c3c55d27ca0382e0303b0b125df3adb0fb34683fd18174d8ba04dbdc4c1261cc",
-          "persistent",
-          "resident",
-          true,
-          "modulus"
-        ],
-        [
-          "locality-persistent-encoded-resident-ordinary.json",
-          "f008b289bdb94c81c35a7608d8edc3af6ceb03a72535e4dcfa4c57a79eb6b06b",
-          "persistent",
-          "resident",
-          true,
-          "ordinary"
-        ],
-        [
-          "locality-persistent-encoded-resident-output-neighbor.json",
-          "1ebe4ea8771a2e715bd90ff25e1b48a2f146d5457cfddc9ac934b905b809d81a",
-          "persistent",
-          "resident",
-          true,
-          "output-neighbor"
-        ],
-        [
-          "locality-persistent-encoded-resident-same-output.json",
-          "6108b8eb0f0af61828b272e97dc0b61767a854971f3f78210a3b88d0ad154bc7",
-          "persistent",
-          "resident",
-          true,
-          "same-output"
-        ],
-        [
-          "locality-persistent-raw-mutated-b-modulus.json",
-          "8b978e47f58cb4381e5033100647e896f4295c5ea5d2369ce5b703b769db36e6",
-          "persistent",
-          "mutated-b",
-          false,
-          "modulus"
-        ],
-        [
-          "locality-persistent-raw-mutated-b-ordinary.json",
-          "cec2dbda98e7a3b5a2a0e867a68db780ad4446997d62a541dd5934797e564373",
-          "persistent",
-          "mutated-b",
-          false,
-          "ordinary"
-        ],
-        [
-          "locality-persistent-raw-mutated-b-output-neighbor.json",
-          "32302ac0e6da0191108ecf70393937a483f1f5f53322451948b47816a037c870",
-          "persistent",
-          "mutated-b",
-          false,
-          "output-neighbor"
-        ],
-        [
-          "locality-persistent-raw-mutated-b-same-output.json",
-          "c5ef4c3449049b20c8be54af1e1dbb2dfe55793f3e2e987bb0e49a93cb437f1d",
-          "persistent",
-          "mutated-b",
-          false,
-          "same-output"
-        ],
-        [
-          "locality-persistent-raw-resident-modulus.json",
-          "b60b92739d49ab5fda4e65b921f37c29f1233055ff13852057fcbc65a9866234",
-          "persistent",
-          "resident",
-          false,
-          "modulus"
-        ],
-        [
-          "locality-persistent-raw-resident-ordinary.json",
-          "490bbc7bf39ab7d61b510befd78263d4896ad97b7607ba9e3749bbcb42af7743",
-          "persistent",
-          "resident",
-          false,
-          "ordinary"
-        ],
-        [
-          "locality-persistent-raw-resident-output-neighbor.json",
-          "ba25483c4c5225d545389e6a7eadab707a7b9a551bf548fe37763f58f7f9fd9f",
-          "persistent",
-          "resident",
-          false,
-          "output-neighbor"
-        ],
-        [
-          "locality-persistent-raw-resident-same-output.json",
-          "43a553139478a29ab5fb743fa8b42c0e4f05ea28b8ceaa17b42302e72426fccd",
-          "persistent",
-          "resident",
-          false,
-          "same-output"
-        ]
+        ["locality-graph-encoded-mutated-b-modulus.json", "ef52630ee7bb7913baa802da5e707061550973578326a7227f96849d3a36bff2", "graph", "mutated-b", true, "modulus"],
+        ["locality-graph-encoded-mutated-b-ordinary.json", "e42cbf3e8358b79e7e354d5f8fddb1e6a850fb7abd55c13f49bbd3ddf91326f0", "graph", "mutated-b", true, "ordinary"],
+        ["locality-graph-encoded-mutated-b-output-neighbor.json", "6a7c473589c939166e24561d14c65a2b322f3748e999e02656cbe5bb782d8023", "graph", "mutated-b", true, "output-neighbor"],
+        ["locality-graph-encoded-mutated-b-same-output.json", "4ab184e9664a29e5c03aa47caeaaab451cb93d7cca1bb2553eac61f61155edd0", "graph", "mutated-b", true, "same-output"],
+        ["locality-graph-encoded-resident-modulus.json", "a6282a965aa2fcb014bec52f6153dc73f29427dad7758af4130987640ed1ffab", "graph", "resident", true, "modulus"],
+        ["locality-graph-encoded-resident-ordinary.json", "17535ab637dbf59611274ad3e80d03770e4593e4d35aabd6deb17967d233f1e5", "graph", "resident", true, "ordinary"],
+        ["locality-graph-encoded-resident-output-neighbor.json", "7926c106c975f2892234f92a9cacbd98e4a22d74af9884d585fe5b3d90f4866e", "graph", "resident", true, "output-neighbor"],
+        ["locality-graph-encoded-resident-same-output.json", "3d3d972c05ae5a74b2365b0ea487b4ab645f477ab762e8f6dad9813030f85c5e", "graph", "resident", true, "same-output"],
+        ["locality-graph-raw-mutated-b-modulus.json", "4121e5c3162541f7ac1472dddf75b1715eda99262050577eb65e194a4249af31", "graph", "mutated-b", false, "modulus"],
+        ["locality-graph-raw-mutated-b-ordinary.json", "0b9344ae63014b897d56a89657b2a261b9bb089c8294bcfba33ebbe39a50f12b", "graph", "mutated-b", false, "ordinary"],
+        ["locality-graph-raw-mutated-b-output-neighbor.json", "0a461be975985866ee3987eedc4d546a6c678814d68db01a865ae559ca36a212", "graph", "mutated-b", false, "output-neighbor"],
+        ["locality-graph-raw-mutated-b-same-output.json", "9c4c1aa16d5eb984619b3ed214a638cee41810161c24991b79ca5ef8cb57b4f8", "graph", "mutated-b", false, "same-output"],
+        ["locality-graph-raw-resident-modulus.json", "c29b41edd321bea1e254957268659c40b977563d7f925a6e2a632cb62bcf85c0", "graph", "resident", false, "modulus"],
+        ["locality-graph-raw-resident-ordinary.json", "c82f5d3910dc5eb331608f9fc50c61b786e7fa5d20c2c6e4648b194f8960fd30", "graph", "resident", false, "ordinary"],
+        ["locality-graph-raw-resident-output-neighbor.json", "e4dbd3a57edac2eb76f5e37519fad8949b900f7e9d074dc88b1989d68a9b4259", "graph", "resident", false, "output-neighbor"],
+        ["locality-graph-raw-resident-same-output.json", "f76a92e0014a9ac7dd4b2bdf5fab7697c8d5672b60270cdceae8829145a5936a", "graph", "resident", false, "same-output"],
+        ["locality-persistent-encoded-mutated-b-modulus.json", "a88e7024ae4782180d1725e1a7b562316ea15ef8896ae1537efe50f7f0cd86a1", "persistent", "mutated-b", true, "modulus"],
+        ["locality-persistent-encoded-mutated-b-ordinary.json", "6e44a96b0e0216db18e9c77b54b8bc9440303208a214b31fecc66f8a25052174", "persistent", "mutated-b", true, "ordinary"],
+        ["locality-persistent-encoded-mutated-b-output-neighbor.json", "ee894eeae8159984c8f4d2fbabe60a6089d6dab2c745e2488032b72d5c36cc5f", "persistent", "mutated-b", true, "output-neighbor"],
+        ["locality-persistent-encoded-mutated-b-same-output.json", "559979f0683eecd76af95d6b76521ea4f0a6d75db06231e774561b32c9228778", "persistent", "mutated-b", true, "same-output"],
+        ["locality-persistent-encoded-resident-modulus.json", "c3c55d27ca0382e0303b0b125df3adb0fb34683fd18174d8ba04dbdc4c1261cc", "persistent", "resident", true, "modulus"],
+        ["locality-persistent-encoded-resident-ordinary.json", "f008b289bdb94c81c35a7608d8edc3af6ceb03a72535e4dcfa4c57a79eb6b06b", "persistent", "resident", true, "ordinary"],
+        ["locality-persistent-encoded-resident-output-neighbor.json", "1ebe4ea8771a2e715bd90ff25e1b48a2f146d5457cfddc9ac934b905b809d81a", "persistent", "resident", true, "output-neighbor"],
+        ["locality-persistent-encoded-resident-same-output.json", "6108b8eb0f0af61828b272e97dc0b61767a854971f3f78210a3b88d0ad154bc7", "persistent", "resident", true, "same-output"],
+        ["locality-persistent-raw-mutated-b-modulus.json", "8b978e47f58cb4381e5033100647e896f4295c5ea5d2369ce5b703b769db36e6", "persistent", "mutated-b", false, "modulus"],
+        ["locality-persistent-raw-mutated-b-ordinary.json", "cec2dbda98e7a3b5a2a0e867a68db780ad4446997d62a541dd5934797e564373", "persistent", "mutated-b", false, "ordinary"],
+        ["locality-persistent-raw-mutated-b-output-neighbor.json", "32302ac0e6da0191108ecf70393937a483f1f5f53322451948b47816a037c870", "persistent", "mutated-b", false, "output-neighbor"],
+        ["locality-persistent-raw-mutated-b-same-output.json", "c5ef4c3449049b20c8be54af1e1dbb2dfe55793f3e2e987bb0e49a93cb437f1d", "persistent", "mutated-b", false, "same-output"],
+        ["locality-persistent-raw-resident-modulus.json", "b60b92739d49ab5fda4e65b921f37c29f1233055ff13852057fcbc65a9866234", "persistent", "resident", false, "modulus"],
+        ["locality-persistent-raw-resident-ordinary.json", "490bbc7bf39ab7d61b510befd78263d4896ad97b7607ba9e3749bbcb42af7743", "persistent", "resident", false, "ordinary"],
+        ["locality-persistent-raw-resident-output-neighbor.json", "ba25483c4c5225d545389e6a7eadab707a7b9a551bf548fe37763f58f7f9fd9f", "persistent", "resident", false, "output-neighbor"],
+        ["locality-persistent-raw-resident-same-output.json", "43a553139478a29ab5fb743fa8b42c0e4f05ea28b8ceaa17b42302e72426fccd", "persistent", "resident", false, "same-output"]
       ]
     },
     {
       "root": "object",
-      "keys": [
-        "schema",
-        "mode",
-        "input_policy",
-        "encoded_b",
-        "schedule",
-        "chunk",
-        "workers",
-        "reuse",
-        "warmups",
-        "repeats",
-        "seed",
-        "padding",
-        "tasks"
-      ],
+      "keys": ["schema", "mode", "input_policy", "encoded_b", "schedule", "chunk", "workers", "reuse", "warmups", "repeats", "seed", "padding", "tasks"],
       "defaults": {
         "schema": "public_native_group_case_v1",
         "chunk": 4,
@@ -369,14 +79,7 @@
         "seed": 3838,
         "padding": 3
       },
-      "columns": [
-        "mode",
-        "input_policy",
-        "encoded_b",
-        "schedule",
-        "reuse",
-        "tasks"
-      ],
+      "columns": ["mode", "input_policy", "encoded_b", "schedule", "reuse", "tasks"],
       "rows": [
         [
           "skewed-shared-graph-encoded-reuse1-mutated-b.json",
@@ -389,47 +92,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -445,47 +116,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -501,47 +140,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -557,47 +164,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -613,47 +188,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -669,47 +212,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -725,47 +236,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -781,47 +260,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -837,47 +284,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -893,47 +308,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -949,47 +332,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1005,47 +356,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1061,47 +380,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1117,47 +404,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1173,47 +428,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1229,47 +452,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1285,47 +476,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1341,47 +500,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1397,47 +524,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1453,47 +548,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1509,47 +572,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1565,47 +596,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1621,47 +620,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1677,47 +644,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1733,47 +668,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1789,47 +692,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1845,47 +716,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1901,47 +740,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  19,
-                  17,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  129,
-                  19,
-                  17,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  7,
-                  257,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
               ]
             }
           }
@@ -1957,15 +764,7 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "n": 3,
@@ -1975,16 +774,8 @@
                 "b_slot": 0
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  1
-                ],
-                [
-                  0,
-                  2,
-                  4
-                ]
+                [0, 1, 1],
+                [0, 2, 4]
               ]
             }
           }
@@ -2000,15 +791,7 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "n": 3,
@@ -2018,16 +801,8 @@
                 "b_slot": 0
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  1
-                ],
-                [
-                  0,
-                  2,
-                  4
-                ]
+                [0, 1, 1],
+                [0, 2, 4]
               ]
             }
           }
@@ -2043,15 +818,7 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "n": 3,
@@ -2061,16 +828,8 @@
                 "b_slot": 0
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  1
-                ],
-                [
-                  0,
-                  2,
-                  4
-                ]
+                [0, 1, 1],
+                [0, 2, 4]
               ]
             }
           }
@@ -2086,15 +845,7 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "n": 3,
@@ -2104,16 +855,8 @@
                 "b_slot": 0
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  1
-                ],
-                [
-                  0,
-                  2,
-                  4
-                ]
+                [0, 1, 1],
+                [0, 2, 4]
               ]
             }
           }
@@ -2129,15 +872,7 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "n": 3,
@@ -2147,16 +882,8 @@
                 "b_slot": 0
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  1
-                ],
-                [
-                  0,
-                  2,
-                  4
-                ]
+                [0, 1, 1],
+                [0, 2, 4]
               ]
             }
           }
@@ -2172,15 +899,7 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "n": 3,
@@ -2190,16 +909,8 @@
                 "b_slot": 0
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  1
-                ],
-                [
-                  0,
-                  2,
-                  4
-                ]
+                [0, 1, 1],
+                [0, 2, 4]
               ]
             }
           }
@@ -2215,15 +926,7 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "n": 3,
@@ -2233,16 +936,8 @@
                 "b_slot": 0
               },
               "rows": [
-                [
-                  0,
-                  1,
-                  1
-                ],
-                [
-                  0,
-                  2,
-                  4
-                ]
+                [0, 1, 1],
+                [0, 2, 4]
               ]
             }
           }
@@ -2258,47 +953,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2314,47 +977,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2370,47 +1001,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2426,47 +1025,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2482,47 +1049,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2538,47 +1073,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2594,47 +1097,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2650,47 +1121,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2706,47 +1145,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2762,47 +1169,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2818,47 +1193,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2874,47 +1217,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2930,47 +1241,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -2986,47 +1265,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3042,47 +1289,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3098,47 +1313,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3154,47 +1337,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3210,47 +1361,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3266,47 +1385,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3322,47 +1409,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3378,47 +1433,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3434,47 +1457,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3490,47 +1481,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3546,47 +1505,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3602,47 +1529,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3658,47 +1553,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3714,47 +1577,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3770,47 +1601,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3826,47 +1625,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -3882,47 +1649,15 @@
           {
             "$rns8_records": {
               "layouts": [
-                [
-                  "m",
-                  "n",
-                  "k",
-                  "prefix",
-                  "group",
-                  "unsigned_inputs",
-                  "b_slot"
-                ]
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
               ],
               "defaults": {
                 "prefix": 3
               },
               "rows": [
-                [
-                  0,
-                  16,
-                  17,
-                  257,
-                  1,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  17,
-                  17,
-                  257,
-                  4,
-                  false,
-                  0
-                ],
-                [
-                  0,
-                  2,
-                  19,
-                  17,
-                  2,
-                  true,
-                  1
-                ]
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
               ]
             }
           }
@@ -4221,17 +1956,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -4255,90 +1980,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-1-distinct-persistent-resident-integrity0.json",
-          "fd995449866e0d1814ce1f4766faec1feea52ad107dcc5162b2d208c1f0e91d7",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-1-distinct-persistent-resident-integrity1.json",
-          "69e53ed7b81c40b93f2c0c32c7b33b2f7bec1b8b996039dd0ca281790eee2fc7",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-1-distinct-persistent-mutated-b-integrity0.json",
-          "705f9c7f3b1f76c89f78ddb35060d79975c5e2c0e67e1e1d40cd71698dc76ada",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-1-distinct-persistent-mutated-b-integrity1.json",
-          "2e4ba3035af6552bc30ef262aa94ca4915a20d7c8f030cac10d4d49d92964d38",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-1-distinct-ordinary-resident-integrity0.json",
-          "f3da269121ce6a79720ab9f656faf2c237e01f929f5215caf7f8f923a433aab1",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-1-distinct-ordinary-resident-integrity1.json",
-          "8bbbd8079b12bf25e8cfa98154c366d8587716f86e133a159b4e3a0909289f15",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-1-distinct-ordinary-mutated-b-integrity0.json",
-          "57527e9ba675f9c50418891e18c32cbf1a9c9b560a47da634b969d5af4b19964",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-1-distinct-ordinary-mutated-b-integrity1.json",
-          "d8f16f1ba5067a96dbb49c31f882e398788b2ff21d0d6573e15f67560836a275",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-1-distinct-graph-resident-integrity0.json",
-          "7cca8850d5d2848cf15032f1d667d6b5d9ac7418704532eaac376e5294f36c4a",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-1-distinct-graph-resident-integrity1.json",
-          "293e8e5b6e1141e2a432f7dc7b97d8cdffd72eee7d22dae7527e394fe7c423fc",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-1-distinct-graph-mutated-b-integrity0.json",
-          "5b43ade51415cd937b3e37fd5e03a396c7ce568337234fa5800a664b9d0c170d",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-1-distinct-graph-mutated-b-integrity1.json",
-          "c54d55d2296a0aa44f19938bca48ed941658f863f10a802ac200bc4ad973f632",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-1-distinct-persistent-resident-integrity0.json", "fd995449866e0d1814ce1f4766faec1feea52ad107dcc5162b2d208c1f0e91d7", "persistent", "resident", false],
+        ["host-control-1-distinct-persistent-resident-integrity1.json", "69e53ed7b81c40b93f2c0c32c7b33b2f7bec1b8b996039dd0ca281790eee2fc7", "persistent", "resident", true],
+        ["host-control-1-distinct-persistent-mutated-b-integrity0.json", "705f9c7f3b1f76c89f78ddb35060d79975c5e2c0e67e1e1d40cd71698dc76ada", "persistent", "mutated-b", false],
+        ["host-control-1-distinct-persistent-mutated-b-integrity1.json", "2e4ba3035af6552bc30ef262aa94ca4915a20d7c8f030cac10d4d49d92964d38", "persistent", "mutated-b", true],
+        ["host-control-1-distinct-ordinary-resident-integrity0.json", "f3da269121ce6a79720ab9f656faf2c237e01f929f5215caf7f8f923a433aab1", "ordinary", "resident", false],
+        ["host-control-1-distinct-ordinary-resident-integrity1.json", "8bbbd8079b12bf25e8cfa98154c366d8587716f86e133a159b4e3a0909289f15", "ordinary", "resident", true],
+        ["host-control-1-distinct-ordinary-mutated-b-integrity0.json", "57527e9ba675f9c50418891e18c32cbf1a9c9b560a47da634b969d5af4b19964", "ordinary", "mutated-b", false],
+        ["host-control-1-distinct-ordinary-mutated-b-integrity1.json", "d8f16f1ba5067a96dbb49c31f882e398788b2ff21d0d6573e15f67560836a275", "ordinary", "mutated-b", true],
+        ["host-control-1-distinct-graph-resident-integrity0.json", "7cca8850d5d2848cf15032f1d667d6b5d9ac7418704532eaac376e5294f36c4a", "graph", "resident", false],
+        ["host-control-1-distinct-graph-resident-integrity1.json", "293e8e5b6e1141e2a432f7dc7b97d8cdffd72eee7d22dae7527e394fe7c423fc", "graph", "resident", true],
+        ["host-control-1-distinct-graph-mutated-b-integrity0.json", "5b43ade51415cd937b3e37fd5e03a396c7ce568337234fa5800a664b9d0c170d", "graph", "mutated-b", false],
+        ["host-control-1-distinct-graph-mutated-b-integrity1.json", "c54d55d2296a0aa44f19938bca48ed941658f863f10a802ac200bc4ad973f632", "graph", "mutated-b", true]
       ]
     },
     {
@@ -4374,17 +2027,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -4411,90 +2054,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-1-shared-persistent-resident-integrity0.json",
-          "fd995449866e0d1814ce1f4766faec1feea52ad107dcc5162b2d208c1f0e91d7",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-1-shared-persistent-resident-integrity1.json",
-          "69e53ed7b81c40b93f2c0c32c7b33b2f7bec1b8b996039dd0ca281790eee2fc7",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-1-shared-persistent-mutated-b-integrity0.json",
-          "705f9c7f3b1f76c89f78ddb35060d79975c5e2c0e67e1e1d40cd71698dc76ada",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-1-shared-persistent-mutated-b-integrity1.json",
-          "2e4ba3035af6552bc30ef262aa94ca4915a20d7c8f030cac10d4d49d92964d38",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-1-shared-ordinary-resident-integrity0.json",
-          "f3da269121ce6a79720ab9f656faf2c237e01f929f5215caf7f8f923a433aab1",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-1-shared-ordinary-resident-integrity1.json",
-          "8bbbd8079b12bf25e8cfa98154c366d8587716f86e133a159b4e3a0909289f15",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-1-shared-ordinary-mutated-b-integrity0.json",
-          "57527e9ba675f9c50418891e18c32cbf1a9c9b560a47da634b969d5af4b19964",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-1-shared-ordinary-mutated-b-integrity1.json",
-          "d8f16f1ba5067a96dbb49c31f882e398788b2ff21d0d6573e15f67560836a275",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-1-shared-graph-resident-integrity0.json",
-          "7cca8850d5d2848cf15032f1d667d6b5d9ac7418704532eaac376e5294f36c4a",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-1-shared-graph-resident-integrity1.json",
-          "293e8e5b6e1141e2a432f7dc7b97d8cdffd72eee7d22dae7527e394fe7c423fc",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-1-shared-graph-mutated-b-integrity0.json",
-          "5b43ade51415cd937b3e37fd5e03a396c7ce568337234fa5800a664b9d0c170d",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-1-shared-graph-mutated-b-integrity1.json",
-          "c54d55d2296a0aa44f19938bca48ed941658f863f10a802ac200bc4ad973f632",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-1-shared-persistent-resident-integrity0.json", "fd995449866e0d1814ce1f4766faec1feea52ad107dcc5162b2d208c1f0e91d7", "persistent", "resident", false],
+        ["host-control-1-shared-persistent-resident-integrity1.json", "69e53ed7b81c40b93f2c0c32c7b33b2f7bec1b8b996039dd0ca281790eee2fc7", "persistent", "resident", true],
+        ["host-control-1-shared-persistent-mutated-b-integrity0.json", "705f9c7f3b1f76c89f78ddb35060d79975c5e2c0e67e1e1d40cd71698dc76ada", "persistent", "mutated-b", false],
+        ["host-control-1-shared-persistent-mutated-b-integrity1.json", "2e4ba3035af6552bc30ef262aa94ca4915a20d7c8f030cac10d4d49d92964d38", "persistent", "mutated-b", true],
+        ["host-control-1-shared-ordinary-resident-integrity0.json", "f3da269121ce6a79720ab9f656faf2c237e01f929f5215caf7f8f923a433aab1", "ordinary", "resident", false],
+        ["host-control-1-shared-ordinary-resident-integrity1.json", "8bbbd8079b12bf25e8cfa98154c366d8587716f86e133a159b4e3a0909289f15", "ordinary", "resident", true],
+        ["host-control-1-shared-ordinary-mutated-b-integrity0.json", "57527e9ba675f9c50418891e18c32cbf1a9c9b560a47da634b969d5af4b19964", "ordinary", "mutated-b", false],
+        ["host-control-1-shared-ordinary-mutated-b-integrity1.json", "d8f16f1ba5067a96dbb49c31f882e398788b2ff21d0d6573e15f67560836a275", "ordinary", "mutated-b", true],
+        ["host-control-1-shared-graph-resident-integrity0.json", "7cca8850d5d2848cf15032f1d667d6b5d9ac7418704532eaac376e5294f36c4a", "graph", "resident", false],
+        ["host-control-1-shared-graph-resident-integrity1.json", "293e8e5b6e1141e2a432f7dc7b97d8cdffd72eee7d22dae7527e394fe7c423fc", "graph", "resident", true],
+        ["host-control-1-shared-graph-mutated-b-integrity0.json", "5b43ade51415cd937b3e37fd5e03a396c7ce568337234fa5800a664b9d0c170d", "graph", "mutated-b", false],
+        ["host-control-1-shared-graph-mutated-b-integrity1.json", "c54d55d2296a0aa44f19938bca48ed941658f863f10a802ac200bc4ad973f632", "graph", "mutated-b", true]
       ]
     },
     {
@@ -4530,17 +2101,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -4592,90 +2153,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-8-distinct-persistent-resident-integrity0.json",
-          "8186e2f1ae18bd8626aadae0b920481dc8147204e194676140fc8eb8b1a12d60",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-8-distinct-persistent-resident-integrity1.json",
-          "3b9d37b1f3ee7e5115d91ae7e9063d7581d62e3ef7cfa1672ff43510a2387c11",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-8-distinct-persistent-mutated-b-integrity0.json",
-          "8bc7af66f724546226ff1415f5fb19d5d469da731bb1625ab3823466e7b449b8",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-8-distinct-persistent-mutated-b-integrity1.json",
-          "0d8e2f3f93b73c78c420099820de8f30a7df9596edc2ba86499ab3f143331258",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-8-distinct-ordinary-resident-integrity0.json",
-          "a685e3293ae189974e2f4595c99c461e52298c4197accdc844a181679e86ef87",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-8-distinct-ordinary-resident-integrity1.json",
-          "d0b4095a7175cd47af77cc0b20324c187ca2c60b3f382ec97ca56b8442341cf4",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-8-distinct-ordinary-mutated-b-integrity0.json",
-          "ac85c93b586a0dfdbb10436073c81b2f21a4778715adee301f92ed00354ff370",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-8-distinct-ordinary-mutated-b-integrity1.json",
-          "4ceacb780ae4911ad62097bfeb76bb6557ed9a9158ae50122208c7d4f14e4912",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-8-distinct-graph-resident-integrity0.json",
-          "de3a6934893c289c85fc4600ec2eff0ac3e81df569d8ccc4bc32e0932c03ef4d",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-8-distinct-graph-resident-integrity1.json",
-          "c99d40a902951c9b4534ef3cf22c2e9461363d646d8cc165ca9b0ba9efdd43f4",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-8-distinct-graph-mutated-b-integrity0.json",
-          "b3f2e2b9e5a76aad6bf869566497b9871bf220b5db82e3d1db05649ff3f7f410",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-8-distinct-graph-mutated-b-integrity1.json",
-          "6a179918d4ee25de4c2ec5edb48161af5ee4b336ca0bf1dad87079bb1c73a433",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-8-distinct-persistent-resident-integrity0.json", "8186e2f1ae18bd8626aadae0b920481dc8147204e194676140fc8eb8b1a12d60", "persistent", "resident", false],
+        ["host-control-8-distinct-persistent-resident-integrity1.json", "3b9d37b1f3ee7e5115d91ae7e9063d7581d62e3ef7cfa1672ff43510a2387c11", "persistent", "resident", true],
+        ["host-control-8-distinct-persistent-mutated-b-integrity0.json", "8bc7af66f724546226ff1415f5fb19d5d469da731bb1625ab3823466e7b449b8", "persistent", "mutated-b", false],
+        ["host-control-8-distinct-persistent-mutated-b-integrity1.json", "0d8e2f3f93b73c78c420099820de8f30a7df9596edc2ba86499ab3f143331258", "persistent", "mutated-b", true],
+        ["host-control-8-distinct-ordinary-resident-integrity0.json", "a685e3293ae189974e2f4595c99c461e52298c4197accdc844a181679e86ef87", "ordinary", "resident", false],
+        ["host-control-8-distinct-ordinary-resident-integrity1.json", "d0b4095a7175cd47af77cc0b20324c187ca2c60b3f382ec97ca56b8442341cf4", "ordinary", "resident", true],
+        ["host-control-8-distinct-ordinary-mutated-b-integrity0.json", "ac85c93b586a0dfdbb10436073c81b2f21a4778715adee301f92ed00354ff370", "ordinary", "mutated-b", false],
+        ["host-control-8-distinct-ordinary-mutated-b-integrity1.json", "4ceacb780ae4911ad62097bfeb76bb6557ed9a9158ae50122208c7d4f14e4912", "ordinary", "mutated-b", true],
+        ["host-control-8-distinct-graph-resident-integrity0.json", "de3a6934893c289c85fc4600ec2eff0ac3e81df569d8ccc4bc32e0932c03ef4d", "graph", "resident", false],
+        ["host-control-8-distinct-graph-resident-integrity1.json", "c99d40a902951c9b4534ef3cf22c2e9461363d646d8cc165ca9b0ba9efdd43f4", "graph", "resident", true],
+        ["host-control-8-distinct-graph-mutated-b-integrity0.json", "b3f2e2b9e5a76aad6bf869566497b9871bf220b5db82e3d1db05649ff3f7f410", "graph", "mutated-b", false],
+        ["host-control-8-distinct-graph-mutated-b-integrity1.json", "6a179918d4ee25de4c2ec5edb48161af5ee4b336ca0bf1dad87079bb1c73a433", "graph", "mutated-b", true]
       ]
     },
     {
@@ -4711,17 +2200,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -4748,90 +2227,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-8-shared-persistent-resident-integrity0.json",
-          "75af5a0c8cdedbcabc99eed35aa0d3286839db5a0b4dc022edfd4c194a91ad32",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-8-shared-persistent-resident-integrity1.json",
-          "4ff7c8b5d07108fc789b9a62e849cde188580209a923dc3ae7a32387331e57a4",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-8-shared-persistent-mutated-b-integrity0.json",
-          "98811868bb26b79eb81357c5584bd2bf61aa478278d1f6b846420e48b2b42567",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-8-shared-persistent-mutated-b-integrity1.json",
-          "0f0a1aaa43fce2802f97b39edfba8a36aca170bd57f32e8c88851fe671b35c51",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-8-shared-ordinary-resident-integrity0.json",
-          "d8e12286ceb263d64fc475a4231a513e2b9822423d933fbc26174e5096bbb193",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-8-shared-ordinary-resident-integrity1.json",
-          "c8e18017c1dd66cbb0d2a8a9ffa350fb9fb4884bd5010c168fe169398dbc63a7",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-8-shared-ordinary-mutated-b-integrity0.json",
-          "337a87f3ed738211f50d36c5aed5bfa2c5288ca82a9a60946e916fa22f0df338",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-8-shared-ordinary-mutated-b-integrity1.json",
-          "bd099d3bd81ca562a19d9ccc38490d60c61e7be377b56eea62aed0468aeacbd1",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-8-shared-graph-resident-integrity0.json",
-          "2a12af48717d2eb0281857aad1cc3f8c823cd635d5b89850aee3eb1f62de7bfd",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-8-shared-graph-resident-integrity1.json",
-          "a4ff7d3283964b8663fe468a6884284be0da330d179c3479436a5d2251203d6f",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-8-shared-graph-mutated-b-integrity0.json",
-          "62fb4c3a58c654c6c5127705c62f1533c411d958b32bfcc25d9eb148689d6df3",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-8-shared-graph-mutated-b-integrity1.json",
-          "10f358504f323e3bf1716c84c137ddc0a6d4cd3d7e7a6296a34e5de6ddd0bceb",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-8-shared-persistent-resident-integrity0.json", "75af5a0c8cdedbcabc99eed35aa0d3286839db5a0b4dc022edfd4c194a91ad32", "persistent", "resident", false],
+        ["host-control-8-shared-persistent-resident-integrity1.json", "4ff7c8b5d07108fc789b9a62e849cde188580209a923dc3ae7a32387331e57a4", "persistent", "resident", true],
+        ["host-control-8-shared-persistent-mutated-b-integrity0.json", "98811868bb26b79eb81357c5584bd2bf61aa478278d1f6b846420e48b2b42567", "persistent", "mutated-b", false],
+        ["host-control-8-shared-persistent-mutated-b-integrity1.json", "0f0a1aaa43fce2802f97b39edfba8a36aca170bd57f32e8c88851fe671b35c51", "persistent", "mutated-b", true],
+        ["host-control-8-shared-ordinary-resident-integrity0.json", "d8e12286ceb263d64fc475a4231a513e2b9822423d933fbc26174e5096bbb193", "ordinary", "resident", false],
+        ["host-control-8-shared-ordinary-resident-integrity1.json", "c8e18017c1dd66cbb0d2a8a9ffa350fb9fb4884bd5010c168fe169398dbc63a7", "ordinary", "resident", true],
+        ["host-control-8-shared-ordinary-mutated-b-integrity0.json", "337a87f3ed738211f50d36c5aed5bfa2c5288ca82a9a60946e916fa22f0df338", "ordinary", "mutated-b", false],
+        ["host-control-8-shared-ordinary-mutated-b-integrity1.json", "bd099d3bd81ca562a19d9ccc38490d60c61e7be377b56eea62aed0468aeacbd1", "ordinary", "mutated-b", true],
+        ["host-control-8-shared-graph-resident-integrity0.json", "2a12af48717d2eb0281857aad1cc3f8c823cd635d5b89850aee3eb1f62de7bfd", "graph", "resident", false],
+        ["host-control-8-shared-graph-resident-integrity1.json", "a4ff7d3283964b8663fe468a6884284be0da330d179c3479436a5d2251203d6f", "graph", "resident", true],
+        ["host-control-8-shared-graph-mutated-b-integrity0.json", "62fb4c3a58c654c6c5127705c62f1533c411d958b32bfcc25d9eb148689d6df3", "graph", "mutated-b", false],
+        ["host-control-8-shared-graph-mutated-b-integrity1.json", "10f358504f323e3bf1716c84c137ddc0a6d4cd3d7e7a6296a34e5de6ddd0bceb", "graph", "mutated-b", true]
       ]
     },
     {
@@ -4867,17 +2274,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -5025,90 +2422,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-32-distinct-persistent-resident-integrity0.json",
-          "8bfde656484c2e2d8664baf40ca7fe63f6826f8e48910d69a3c75901189d12e6",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-32-distinct-persistent-resident-integrity1.json",
-          "f99a74db9dbabe17812aa83b5c3771e79fa0884cde3f2e38b1702bce43102af1",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-32-distinct-persistent-mutated-b-integrity0.json",
-          "9ab80f26fe3532e4e31563835fc775fdfe7db5ba8262e0fc36ff60835a458ae8",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-32-distinct-persistent-mutated-b-integrity1.json",
-          "a501d802dcb2f3dddc1b86e02e775f4c28156a6e503c7f50c492633446b37026",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-32-distinct-ordinary-resident-integrity0.json",
-          "8dd2c691bbd72e11ab2d7f45ff5facb234f0213933422b5fb8640a4e2875ead8",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-32-distinct-ordinary-resident-integrity1.json",
-          "7534b2c0d93eb98f2888107de5e5a14cb8dbe5c9ca1ad3131e47140b77916123",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-32-distinct-ordinary-mutated-b-integrity0.json",
-          "3e1b00945e7e9919c0243f57f0651e52bf02056eb825e4c8bcf05c97c96c9436",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-32-distinct-ordinary-mutated-b-integrity1.json",
-          "9d88cf8839a36819d8dc9ec9f998a5e7dca87d371827459fc102418acf71612d",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-32-distinct-graph-resident-integrity0.json",
-          "d9af8d4b119bb3c60f64ba8e7cde4f4653306bb915ea7da5372291efe7372c4f",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-32-distinct-graph-resident-integrity1.json",
-          "7d280fd751bfc26c3f4bd02a3d18e28b83897af60e7df89802394a98a8632364",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-32-distinct-graph-mutated-b-integrity0.json",
-          "81a6f9c80ff299c6eae86ecc79e1fc6868a46229780a31794e868e2bb9e3d339",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-32-distinct-graph-mutated-b-integrity1.json",
-          "837a0987d5a5cdbbd9d596d8f1b8bbc98aa519dcf8fa54baaeb71019db18ceb8",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-32-distinct-persistent-resident-integrity0.json", "8bfde656484c2e2d8664baf40ca7fe63f6826f8e48910d69a3c75901189d12e6", "persistent", "resident", false],
+        ["host-control-32-distinct-persistent-resident-integrity1.json", "f99a74db9dbabe17812aa83b5c3771e79fa0884cde3f2e38b1702bce43102af1", "persistent", "resident", true],
+        ["host-control-32-distinct-persistent-mutated-b-integrity0.json", "9ab80f26fe3532e4e31563835fc775fdfe7db5ba8262e0fc36ff60835a458ae8", "persistent", "mutated-b", false],
+        ["host-control-32-distinct-persistent-mutated-b-integrity1.json", "a501d802dcb2f3dddc1b86e02e775f4c28156a6e503c7f50c492633446b37026", "persistent", "mutated-b", true],
+        ["host-control-32-distinct-ordinary-resident-integrity0.json", "8dd2c691bbd72e11ab2d7f45ff5facb234f0213933422b5fb8640a4e2875ead8", "ordinary", "resident", false],
+        ["host-control-32-distinct-ordinary-resident-integrity1.json", "7534b2c0d93eb98f2888107de5e5a14cb8dbe5c9ca1ad3131e47140b77916123", "ordinary", "resident", true],
+        ["host-control-32-distinct-ordinary-mutated-b-integrity0.json", "3e1b00945e7e9919c0243f57f0651e52bf02056eb825e4c8bcf05c97c96c9436", "ordinary", "mutated-b", false],
+        ["host-control-32-distinct-ordinary-mutated-b-integrity1.json", "9d88cf8839a36819d8dc9ec9f998a5e7dca87d371827459fc102418acf71612d", "ordinary", "mutated-b", true],
+        ["host-control-32-distinct-graph-resident-integrity0.json", "d9af8d4b119bb3c60f64ba8e7cde4f4653306bb915ea7da5372291efe7372c4f", "graph", "resident", false],
+        ["host-control-32-distinct-graph-resident-integrity1.json", "7d280fd751bfc26c3f4bd02a3d18e28b83897af60e7df89802394a98a8632364", "graph", "resident", true],
+        ["host-control-32-distinct-graph-mutated-b-integrity0.json", "81a6f9c80ff299c6eae86ecc79e1fc6868a46229780a31794e868e2bb9e3d339", "graph", "mutated-b", false],
+        ["host-control-32-distinct-graph-mutated-b-integrity1.json", "837a0987d5a5cdbbd9d596d8f1b8bbc98aa519dcf8fa54baaeb71019db18ceb8", "graph", "mutated-b", true]
       ]
     },
     {
@@ -5144,17 +2469,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -5181,90 +2496,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-32-shared-persistent-resident-integrity0.json",
-          "d4e1952e4c2f5751ee8aa9ccb0c4b83b1a8c834b44518518f6e054dc54c818d1",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-32-shared-persistent-resident-integrity1.json",
-          "c7092fbb1eed5e58a0c74679475a7fd676739385e1e7682e841e3f2ecbd06e5c",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-32-shared-persistent-mutated-b-integrity0.json",
-          "359ef1c77284f0c702fdeb5490267bfae873709cf03a4baf9a50faf54624c118",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-32-shared-persistent-mutated-b-integrity1.json",
-          "eac0d58c342dc832611cda41820d1921002969aa29fa097f0d73124affba2435",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-32-shared-ordinary-resident-integrity0.json",
-          "4d6e3faa9cf642684343fa58858ca11a648f291b08ad0b180a9f848d244365bc",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-32-shared-ordinary-resident-integrity1.json",
-          "634abbbd130d730f4d5a1f845bcad944853bcc25f4d9242b15391dda15a28312",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-32-shared-ordinary-mutated-b-integrity0.json",
-          "e039dd67a9ac76389397a9f295125d5e0dfad86c1caf37e10faa7cd73f3b27a7",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-32-shared-ordinary-mutated-b-integrity1.json",
-          "c34a76fc44ebd71408555811b7ba6cba1a5e4b902802c88adad7faa000ffd7ab",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-32-shared-graph-resident-integrity0.json",
-          "3fb56dce22412b0e806b7d7538d2d821bd34d10617bd600175fc2174fed0269a",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-32-shared-graph-resident-integrity1.json",
-          "f531b03f1ca0ec3294e8e77cc055e2b7f104e12ccd54bb87df7ab3a42e28533f",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-32-shared-graph-mutated-b-integrity0.json",
-          "2c9090bf007e4b69062c3675a02b7e2154cd501dad765abee76e3843e53dd546",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-32-shared-graph-mutated-b-integrity1.json",
-          "25d4e4e30da5f2946ab8ef318fa163d0287828d1c947c827ea04b9a258ce3e0a",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-32-shared-persistent-resident-integrity0.json", "d4e1952e4c2f5751ee8aa9ccb0c4b83b1a8c834b44518518f6e054dc54c818d1", "persistent", "resident", false],
+        ["host-control-32-shared-persistent-resident-integrity1.json", "c7092fbb1eed5e58a0c74679475a7fd676739385e1e7682e841e3f2ecbd06e5c", "persistent", "resident", true],
+        ["host-control-32-shared-persistent-mutated-b-integrity0.json", "359ef1c77284f0c702fdeb5490267bfae873709cf03a4baf9a50faf54624c118", "persistent", "mutated-b", false],
+        ["host-control-32-shared-persistent-mutated-b-integrity1.json", "eac0d58c342dc832611cda41820d1921002969aa29fa097f0d73124affba2435", "persistent", "mutated-b", true],
+        ["host-control-32-shared-ordinary-resident-integrity0.json", "4d6e3faa9cf642684343fa58858ca11a648f291b08ad0b180a9f848d244365bc", "ordinary", "resident", false],
+        ["host-control-32-shared-ordinary-resident-integrity1.json", "634abbbd130d730f4d5a1f845bcad944853bcc25f4d9242b15391dda15a28312", "ordinary", "resident", true],
+        ["host-control-32-shared-ordinary-mutated-b-integrity0.json", "e039dd67a9ac76389397a9f295125d5e0dfad86c1caf37e10faa7cd73f3b27a7", "ordinary", "mutated-b", false],
+        ["host-control-32-shared-ordinary-mutated-b-integrity1.json", "c34a76fc44ebd71408555811b7ba6cba1a5e4b902802c88adad7faa000ffd7ab", "ordinary", "mutated-b", true],
+        ["host-control-32-shared-graph-resident-integrity0.json", "3fb56dce22412b0e806b7d7538d2d821bd34d10617bd600175fc2174fed0269a", "graph", "resident", false],
+        ["host-control-32-shared-graph-resident-integrity1.json", "f531b03f1ca0ec3294e8e77cc055e2b7f104e12ccd54bb87df7ab3a42e28533f", "graph", "resident", true],
+        ["host-control-32-shared-graph-mutated-b-integrity0.json", "2c9090bf007e4b69062c3675a02b7e2154cd501dad765abee76e3843e53dd546", "graph", "mutated-b", false],
+        ["host-control-32-shared-graph-mutated-b-integrity1.json", "25d4e4e30da5f2946ab8ef318fa163d0287828d1c947c827ea04b9a258ce3e0a", "graph", "mutated-b", true]
       ]
     },
     {
@@ -5300,17 +2543,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -5586,90 +2819,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-64-distinct-persistent-resident-integrity0.json",
-          "031f2b179f1a6830597747f9be635eab0d2dd8c941d264500fca28c797ad81e7",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-64-distinct-persistent-resident-integrity1.json",
-          "327109935e5181f54dbc1dd535a391a7c1b1a410a848c5cc5e9b372a1b967200",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-64-distinct-persistent-mutated-b-integrity0.json",
-          "9f96af9b521e51fd9747df67402431ecc93c89ff6d6654a86f1de31973628650",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-64-distinct-persistent-mutated-b-integrity1.json",
-          "f2f01d28974d46382c6b6258641ee19a00d934a02319c48723fca96913f5690a",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-64-distinct-ordinary-resident-integrity0.json",
-          "305e388175a586bbe8883f81b9e9a1541e253e14b1f81b04fece9f007b10f6e3",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-64-distinct-ordinary-resident-integrity1.json",
-          "ffc096e0383544221bce945b028cea70ee94a3f73adb0c389c206756048222c4",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-64-distinct-ordinary-mutated-b-integrity0.json",
-          "e5bb326cbcdacbc2645a69e3263b88a556c8c552de17e580ea03c188daa023b0",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-64-distinct-ordinary-mutated-b-integrity1.json",
-          "bf937512b06fa1a0647a9bd92c6d82c84d84ac782aeea2eeba8ab1228c041533",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-64-distinct-graph-resident-integrity0.json",
-          "d6ef265376a66659e986d68fbf0fbd97dcea9556b26eb14318d5d9cdf73888b1",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-64-distinct-graph-resident-integrity1.json",
-          "f082573af36c1bff003744108716b998bb26895a21cc9e2b5c3997e90748bb66",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-64-distinct-graph-mutated-b-integrity0.json",
-          "098d16be047f592e4fe708f488e17316a507a3ced543b2ee245d56c1f55b987a",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-64-distinct-graph-mutated-b-integrity1.json",
-          "3c3bb1ef703c5dd5b93ef8f946df89143be7235f2b91f56b88000f1ff6b0a717",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-64-distinct-persistent-resident-integrity0.json", "031f2b179f1a6830597747f9be635eab0d2dd8c941d264500fca28c797ad81e7", "persistent", "resident", false],
+        ["host-control-64-distinct-persistent-resident-integrity1.json", "327109935e5181f54dbc1dd535a391a7c1b1a410a848c5cc5e9b372a1b967200", "persistent", "resident", true],
+        ["host-control-64-distinct-persistent-mutated-b-integrity0.json", "9f96af9b521e51fd9747df67402431ecc93c89ff6d6654a86f1de31973628650", "persistent", "mutated-b", false],
+        ["host-control-64-distinct-persistent-mutated-b-integrity1.json", "f2f01d28974d46382c6b6258641ee19a00d934a02319c48723fca96913f5690a", "persistent", "mutated-b", true],
+        ["host-control-64-distinct-ordinary-resident-integrity0.json", "305e388175a586bbe8883f81b9e9a1541e253e14b1f81b04fece9f007b10f6e3", "ordinary", "resident", false],
+        ["host-control-64-distinct-ordinary-resident-integrity1.json", "ffc096e0383544221bce945b028cea70ee94a3f73adb0c389c206756048222c4", "ordinary", "resident", true],
+        ["host-control-64-distinct-ordinary-mutated-b-integrity0.json", "e5bb326cbcdacbc2645a69e3263b88a556c8c552de17e580ea03c188daa023b0", "ordinary", "mutated-b", false],
+        ["host-control-64-distinct-ordinary-mutated-b-integrity1.json", "bf937512b06fa1a0647a9bd92c6d82c84d84ac782aeea2eeba8ab1228c041533", "ordinary", "mutated-b", true],
+        ["host-control-64-distinct-graph-resident-integrity0.json", "d6ef265376a66659e986d68fbf0fbd97dcea9556b26eb14318d5d9cdf73888b1", "graph", "resident", false],
+        ["host-control-64-distinct-graph-resident-integrity1.json", "f082573af36c1bff003744108716b998bb26895a21cc9e2b5c3997e90748bb66", "graph", "resident", true],
+        ["host-control-64-distinct-graph-mutated-b-integrity0.json", "098d16be047f592e4fe708f488e17316a507a3ced543b2ee245d56c1f55b987a", "graph", "mutated-b", false],
+        ["host-control-64-distinct-graph-mutated-b-integrity1.json", "3c3bb1ef703c5dd5b93ef8f946df89143be7235f2b91f56b88000f1ff6b0a717", "graph", "mutated-b", true]
       ]
     },
     {
@@ -5705,17 +2866,7 @@
         "host_diagnostics": true,
         "tasks": {
           "$rns8_records": {
-            "layouts": [
-              [
-                "m",
-                "n",
-                "k",
-                "prefix",
-                "group",
-                "unsigned_inputs",
-                "b_slot"
-              ]
-            ],
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
             "defaults": {
               "m": 17,
               "n": 19,
@@ -5742,90 +2893,18 @@
         "integrity"
       ],
       "rows": [
-        [
-          "host-control-64-shared-persistent-resident-integrity0.json",
-          "d5424b6023080b09902ef9bb64f9cfadb6bfa68a6ffd6e32a381e26020bafa46",
-          "persistent",
-          "resident",
-          false
-        ],
-        [
-          "host-control-64-shared-persistent-resident-integrity1.json",
-          "acbf6e893e82e9ac6ded37193df0de172aaff933ca3817f25d3e81c279064e69",
-          "persistent",
-          "resident",
-          true
-        ],
-        [
-          "host-control-64-shared-persistent-mutated-b-integrity0.json",
-          "9c42d57451fcffda32970fdc4c8f346ed8643f748302345a7d55277eca7b178a",
-          "persistent",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-64-shared-persistent-mutated-b-integrity1.json",
-          "094d058255db497d6e788f97d2b89c552da041df8536a87f4f5a5c4935635824",
-          "persistent",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-64-shared-ordinary-resident-integrity0.json",
-          "afcf04599395eb60f8fbbc2ed76c3f7f5b6a004e1e8f1e2cecce943254c38589",
-          "ordinary",
-          "resident",
-          false
-        ],
-        [
-          "host-control-64-shared-ordinary-resident-integrity1.json",
-          "07fb81bcf6278f2d867aa295bffb333292f63a9054809e41d1ff11c08a119735",
-          "ordinary",
-          "resident",
-          true
-        ],
-        [
-          "host-control-64-shared-ordinary-mutated-b-integrity0.json",
-          "85cffa4ea57c9f02d957247e67a0e5fb26c8ae9804444016f5bee21a8aa015b8",
-          "ordinary",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-64-shared-ordinary-mutated-b-integrity1.json",
-          "2e631eddcd131e4f7a67bd1aa6df742dabb6af9335c70ff453ddb7a1dee7591b",
-          "ordinary",
-          "mutated-b",
-          true
-        ],
-        [
-          "host-control-64-shared-graph-resident-integrity0.json",
-          "a040d413eb7fbc122ccd6e702c929efc9ad6fcc32174e37bf6139a23b6414e78",
-          "graph",
-          "resident",
-          false
-        ],
-        [
-          "host-control-64-shared-graph-resident-integrity1.json",
-          "3f509a87a6c3b264e23da7a82c273910ea816cda5d9e8270d6f042aa6697d455",
-          "graph",
-          "resident",
-          true
-        ],
-        [
-          "host-control-64-shared-graph-mutated-b-integrity0.json",
-          "d5f97eaf9f57cdb2bf8d84162b8dae6b659b3bcaade1daa15de5d9d148634102",
-          "graph",
-          "mutated-b",
-          false
-        ],
-        [
-          "host-control-64-shared-graph-mutated-b-integrity1.json",
-          "5896dac5ca7fa6b6e20ef7dc3aeea868ca55952a6deefc4358f6010e6486c61d",
-          "graph",
-          "mutated-b",
-          true
-        ]
+        ["host-control-64-shared-persistent-resident-integrity0.json", "d5424b6023080b09902ef9bb64f9cfadb6bfa68a6ffd6e32a381e26020bafa46", "persistent", "resident", false],
+        ["host-control-64-shared-persistent-resident-integrity1.json", "acbf6e893e82e9ac6ded37193df0de172aaff933ca3817f25d3e81c279064e69", "persistent", "resident", true],
+        ["host-control-64-shared-persistent-mutated-b-integrity0.json", "9c42d57451fcffda32970fdc4c8f346ed8643f748302345a7d55277eca7b178a", "persistent", "mutated-b", false],
+        ["host-control-64-shared-persistent-mutated-b-integrity1.json", "094d058255db497d6e788f97d2b89c552da041df8536a87f4f5a5c4935635824", "persistent", "mutated-b", true],
+        ["host-control-64-shared-ordinary-resident-integrity0.json", "afcf04599395eb60f8fbbc2ed76c3f7f5b6a004e1e8f1e2cecce943254c38589", "ordinary", "resident", false],
+        ["host-control-64-shared-ordinary-resident-integrity1.json", "07fb81bcf6278f2d867aa295bffb333292f63a9054809e41d1ff11c08a119735", "ordinary", "resident", true],
+        ["host-control-64-shared-ordinary-mutated-b-integrity0.json", "85cffa4ea57c9f02d957247e67a0e5fb26c8ae9804444016f5bee21a8aa015b8", "ordinary", "mutated-b", false],
+        ["host-control-64-shared-ordinary-mutated-b-integrity1.json", "2e631eddcd131e4f7a67bd1aa6df742dabb6af9335c70ff453ddb7a1dee7591b", "ordinary", "mutated-b", true],
+        ["host-control-64-shared-graph-resident-integrity0.json", "a040d413eb7fbc122ccd6e702c929efc9ad6fcc32174e37bf6139a23b6414e78", "graph", "resident", false],
+        ["host-control-64-shared-graph-resident-integrity1.json", "3f509a87a6c3b264e23da7a82c273910ea816cda5d9e8270d6f042aa6697d455", "graph", "resident", true],
+        ["host-control-64-shared-graph-mutated-b-integrity0.json", "d5f97eaf9f57cdb2bf8d84162b8dae6b659b3bcaade1daa15de5d9d148634102", "graph", "mutated-b", false],
+        ["host-control-64-shared-graph-mutated-b-integrity1.json", "5896dac5ca7fa6b6e20ef7dc3aeea868ca55952a6deefc4358f6010e6486c61d", "graph", "mutated-b", true]
       ]
     }
   ]
