@@ -94,13 +94,13 @@ def append_roofline_priority_table(
             "",
             heading,
             "",
-            "| rank | target | scenario | semantics | target id | captures | bottleneck us | e2e us | median share | median GOP/s | median AI ops/B | backends | hint |",
-            "|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|",
+            "| rank | target | scenario | semantics | target id | captures | bottleneck us | e2e us | median share | useful GOP/s | representation GOP/s | useful AI ops/B | backends | hint |",
+            "|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
         ]
     )
     for item in priority:
         lines.append(
-            "| {rank} | {target} | {scenario} | {semantics} | {target_id} | {captures} | {bottleneck_us} | {e2e_us} | {share} | {gops} | {ai} | {backends} | {hint} |".format(
+            "| {rank} | {target} | {scenario} | {semantics} | {target_id} | {captures} | {bottleneck_us} | {e2e_us} | {share} | {gops} | {representation_gops} | {ai} | {backends} | {hint} |".format(
                 rank=item.get("rank"),
                 target=item.get("roofline_target"),
                 scenario=item.get("scenario_family"),
@@ -110,8 +110,9 @@ def append_roofline_priority_table(
                 bottleneck_us=format_number(item.get("total_bottleneck_us")),
                 e2e_us=format_number(item.get("total_end_to_end_us")),
                 share=format_number(item.get("median_bottleneck_share")),
-                gops=format_number(item.get("median_measured_gops")),
-                ai=format_number(item.get("median_arithmetic_intensity_ops_per_byte")),
+                gops=format_number(item.get("median_useful_gops")),
+                representation_gops=format_number(item.get("median_representation_gops")),
+                ai=format_number(item.get("median_useful_arithmetic_intensity_ops_per_byte")),
                 backends=",".join(item.get("backends") or []),
                 hint=item.get("optimization_hint"),
             )
@@ -278,8 +279,8 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
             "",
             "## Rows",
             "",
-            "| scenario | semantics | backend | kernel | shape | bottleneck | pack split | e2e us | GOP/s | AI ops/B | ISA | blockers |",
-            "|---|---|---|---|---|---|---|---:|---:|---:|---|---|",
+            "| scenario | semantics | backend | kernel | shape | bottleneck | pack split | e2e us | work model | useful GOP/s | representation GOP/s | useful AI ops/B | ISA | blockers |",
+            "|---|---|---|---|---|---|---|---:|---|---:|---:|---:|---|---|",
         ]
     )
     rows = sorted(
@@ -294,7 +295,7 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         shape = f"{row.get('m')}x{row.get('n')}x{row.get('k')}"
         blockers = ",".join(str(item) for item in row.get("promotion_blockers") or [])
         lines.append(
-            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {pack_split} | {e2e} | {gops} | {ai} | {isa} | {blockers} |".format(
+            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {pack_split} | {e2e} | {work_model} | {gops} | {representation_gops} | {ai} | {isa} | {blockers} |".format(
                 scenario=row.get("scenario_family"),
                 semantics=row.get("semantics"),
                 backend=row.get("backend"),
@@ -303,8 +304,10 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 bottleneck=row.get("bottleneck_class"),
                 pack_split=row.get("pack_split_dominant_operand") or "",
                 e2e=format_number(row.get("median_end_to_end_us")),
-                gops=format_number(row.get("measured_gops")),
-                ai=format_number(row.get("arithmetic_intensity_ops_per_byte")),
+                work_model=row.get("representation_kind", "unavailable"),
+                gops=format_number(row.get("useful_gops")),
+                representation_gops=format_number(row.get("representation_gops")),
+                ai=format_number(row.get("useful_arithmetic_intensity_ops_per_byte")),
                 isa=format_isa_brief(row),
                 blockers=blockers or "",
             )

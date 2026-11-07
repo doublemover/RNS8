@@ -226,13 +226,17 @@
       "url": "https://github.com/doublemover/RNS8/issues/31",
       "requirements_sha256": "4b3a3bbc4ead78ad20d4b0eebc945b3c15cfccaee0214a48b9a8943fc7e2ba7a",
       "comments_reviewed": 8,
-      "implementation_status": "pending",
+      "implementation_status": "in_progress",
       "completed_slices": [
         "Bilinear capture ABI2 binds physical eligible/fallback planes, actual moduli, compact scratch, and product-plane GEMMs; reject mixed physical implementation versions.",
         "Bilinear capture ABI3 binds the ordered single-terminal schedule independently of historical per-stage completion captures; actual-stream diagnostic matrix events are preserved.",
-        "Pruned bilinear captures include actual per-side binary/halving/input-block work and lowered schedule SHA-256, independently checked against pinned expression DAGs; retained/full/pruned controls remain separate modes."
+        "Pruned bilinear captures include actual per-side binary/halving/input-block work and lowered schedule SHA-256, independently checked against pinned expression DAGs; retained/full/pruned controls remain separate modes.",
+        "Repair representation-aware roofline accounting rather than multiply every bounded backend by its plan prefix. Native-vector useful GEMM work and native result bytes are prefix-invariant; residue/byte-product and software-limb instruction counts remain unavailable rather than invented. Adaptive public records currently lack complete tile-area/prefix/zero weights, so representation counts/rates stay unavailable and a typed maximum-prefix envelope remains only an upper bound; allocated residue capacity is distinct from work. Publish useful and representation rates separately in database JSON/CSV/Markdown and native-counter diagnostic summaries; suppress pooled normalized rates for mixed representations. Author real signed/unsigned native fixture, unused-prefix invariance, adaptive legacy scope and mixed-representation aggregation controls. Five-file stdlib AST and pinned Ruff/format checks only; no fixture, report CLI, project module/control/test, profiler or benchmark executed."
       ],
-      "remaining_source_items": []
+      "remaining_source_items": [
+        "Repair hipBLASLt internal retained/transient pack producer-to-event/schema coverage independently of public residue reuse, including first-build/finite/K-block cases.",
+        "Finish complete original calibration/control/planner-input acceptance reconciliation. Native timings, held-out prediction/resource/counter qualification remain deferred."
+      ]
     },
     {
       "issue": 32,

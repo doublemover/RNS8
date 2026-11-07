@@ -13,7 +13,7 @@ from .isa import normalized_backend, normalized_target, safe_float, sorted_strin
 def selected_residue_planes(capture: dict[str, Any]) -> int:
     for key in ("residue_planes_selected", "selected_prefix", "prefix"):
         value = capture.get(key)
-        if isinstance(value, int) and value > 0:
+        if type(value) is int and value > 0:
             return value
     semantics = capture.get("semantics")
     if semantics in {"finite_ring_u8", "finite_field_u8", "wrap_u64_mod_2_64"}:
@@ -38,7 +38,7 @@ def output_bytes_per_element(capture: dict[str, Any]) -> int:
     return 8
 
 
-def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
+def estimate_work(capture: dict[str, Any]) -> dict[str, Any]:
     m = int(capture.get("m", 0) or 0)
     n = int(capture.get("n", 0) or 0)
     k = int(capture.get("k", 0) or 0)
@@ -70,28 +70,65 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
             "pack_a_bandwidth_gbs",
             "pack_b_bandwidth_gbs",
             "export_bandwidth_gbs",
+            "useful_integer_gemm_ops",
+            "estimated_residue_or_byte_limb_ops",
+            "useful_gops",
+            "representation_gops",
+            "useful_arithmetic_intensity_ops_per_byte",
+            "representation_ops_upper_bound",
+            "estimated_residue_capacity_bytes",
+            "estimated_native_result_bytes",
         )
         return {
             **{key: None for key in keys},
             "work_estimate_available": False,
             "work_estimate_reason": "dependent_or_heterogeneous_stage_shapes_not_described",
             "work_observation_unit": "unavailable",
+            "representation_kind": "unavailable",
+            "throughput_numerator": "unavailable",
         }
     planes = selected_residue_planes(capture)
-    if semantics == "wrap_u64_mod_2_64":
+    native_vector = (
+        normalized_backend(capture.get("backend_selected") or capture.get("backend_requested"))
+        == "hip-vector-alu-int64"
+    )
+    schedule = capture.get("schedule_metadata") or {}
+    adaptive = schedule.get("adaptive_execution_applied") is True
+    useful_ops = 2 * m * n * k * tasks
+    native_result_bytes = m * n * 8 * tasks if native_vector else 0
+    representation_ops_upper_bound = None
+    if native_vector:
+        # UInt192 native arithmetic has no per-modulus plane loop. Its machine
+        # limb instruction count is deliberately not inferred from useful MACs.
+        logical_ops, residue_bytes = None, 0
+        representation = "native_integer_software_limbs_unmodeled"
+    elif semantics == "wrap_u64_mod_2_64":
         logical_ops = 2 * m * n * k * 36
         residue_bytes = m * n * 8
+        representation = "modeled_wrap64_byte_products"
     elif semantics in {"finite_ring_u8", "finite_field_u8"}:
         logical_ops = 2 * m * n * k
         residue_bytes = m * n
+        representation = "modeled_finite_scalar_products"
     else:
         logical_ops = 2 * m * n * k * max(planes, 1)
         residue_bytes = m * n * max(planes, 1)
+        representation = "modeled_rns_residue_products"
+        if adaptive:
+            # Current public captures carry extrema/counts, not the complete
+            # area-weighted per-tile prefixes/zero masks. Extrema cannot recover
+            # executed work, even when their maximum is a known safe envelope.
+            maximum = schedule.get("max_selected_prefix")
+            if type(maximum) is int and 0 <= maximum <= 20:
+                representation_ops_upper_bound = useful_ops * maximum
+            logical_ops = None
+            representation = "adaptive_rns_work_missing_tile_weights"
     input_a_bytes = m * k * native_input_bytes_per_element(capture)
     input_b_bytes = k * n * native_input_bytes_per_element(capture)
     input_a_bytes *= tasks
     input_b_bytes *= tasks
-    logical_ops *= tasks
+    if logical_ops is not None:
+        logical_ops *= tasks
     residue_bytes *= tasks
     mode = capture.get(
         "pack_mode",
@@ -105,31 +142,50 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
     output_bytes = m * n * output_bytes_per_element(capture) * tasks
     if capture.get("residue_output_mode", "host_export") != "host_export":
         output_bytes = 0
-    estimated_bytes = input_bytes + output_bytes + residue_bytes
+    estimated_bytes = input_bytes + output_bytes + residue_bytes + native_result_bytes
+    # Preserve legacy fields with an explicit numerator; new output columns
+    # never pool native useful work with representation-normalized work.
+    legacy_ops = useful_ops if native_vector else logical_ops
     gemm_us = median_phase(capture, "rns_gemm")
     pack_us = median_phase(capture, "pack")
     pack_a_us = median_phase(capture, "pack_a")
     pack_b_us = median_phase(capture, "pack_b")
     export_us = median_phase(capture, "crt_export")
     return {
-        "work_estimate_available": True,
-        "work_estimate_reason": "homogeneous_independent_tasks_actual_pack_export_boundary",
+        "work_estimate_available": native_vector or logical_ops is not None,
+        "work_estimate_reason": "adaptive_tile_weights_unavailable_useful_work_and_capacity_only"
+        if adaptive and not native_vector
+        else "homogeneous_independent_tasks_actual_pack_export_boundary",
         "work_observation_unit": "one_measured_batch" if tasks > 1 else "one_measured_call",
         "tasks_per_work_observation": tasks,
         "traffic_kind": "modeled_logical_payload_not_measured_hbm_or_pcie",
-        "useful_integer_gemm_ops": 2 * m * n * k * tasks,
+        "representation_kind": representation,
+        "throughput_numerator": "useful_integer_gemm_ops" if native_vector else representation,
+        "useful_integer_gemm_ops": useful_ops,
         "estimated_residue_or_byte_limb_ops": logical_ops,
-        "estimated_ops": logical_ops,
+        "representation_ops_upper_bound": representation_ops_upper_bound,
+        "estimated_ops": legacy_ops,
         "estimated_input_a_bytes": input_a_bytes,
         "estimated_input_b_bytes": input_b_bytes,
         "estimated_input_bytes": input_bytes,
         "estimated_output_bytes": output_bytes,
         "estimated_residue_bytes": residue_bytes,
+        "estimated_residue_capacity_bytes": residue_bytes,
+        "estimated_native_result_bytes": native_result_bytes,
         "estimated_bytes": estimated_bytes,
-        "arithmetic_intensity_ops_per_byte": (logical_ops / estimated_bytes)
+        "arithmetic_intensity_ops_per_byte": (legacy_ops / estimated_bytes)
+        if estimated_bytes and legacy_ops is not None
+        else None,
+        "useful_arithmetic_intensity_ops_per_byte": useful_ops / estimated_bytes
         if estimated_bytes
         else None,
-        "measured_gops": (logical_ops / (gemm_us * 1000.0)) if gemm_us and gemm_us > 0 else None,
+        "useful_gops": useful_ops / (gemm_us * 1000.0) if gemm_us and gemm_us > 0 else None,
+        "representation_gops": logical_ops / (gemm_us * 1000.0)
+        if logical_ops is not None and gemm_us and gemm_us > 0
+        else None,
+        "measured_gops": (legacy_ops / (gemm_us * 1000.0))
+        if legacy_ops is not None and gemm_us and gemm_us > 0
+        else None,
         "pack_bandwidth_gbs": (input_bytes / (pack_us * 1000.0))
         if pack_us and pack_us > 0
         else None,
@@ -339,6 +395,20 @@ def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> l
             for value in (safe_float(row.get("measured_gops")) for row in grouped_rows)
             if value is not None
         ]
+        representation_kinds = sorted(
+            {str(row.get("representation_kind", "unavailable")) for row in grouped_rows}
+        )
+        one_representation = len(representation_kinds) == 1
+        rates = {
+            name: median_or_none(
+                [value for row in grouped_rows if (value := safe_float(row.get(name))) is not None]
+            )
+            for name in (
+                "useful_gops",
+                "representation_gops",
+                "useful_arithmetic_intensity_ops_per_byte",
+            )
+        }
         pack_bw_values = [
             value
             for value in (safe_float(row.get("pack_bandwidth_gbs")) for row in grouped_rows)
@@ -373,8 +443,18 @@ def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> l
                 "total_bottleneck_us": sum(bottleneck_values),
                 "median_end_to_end_us": median_or_none(end_to_end_values),
                 "median_bottleneck_share": median_or_none(share_values),
-                "median_arithmetic_intensity_ops_per_byte": median_or_none(ai_values),
-                "median_measured_gops": median_or_none(gops_values),
+                "representation_kinds": representation_kinds,
+                "median_arithmetic_intensity_ops_per_byte": median_or_none(ai_values)
+                if one_representation
+                else None,
+                "median_measured_gops": median_or_none(gops_values) if one_representation else None,
+                "median_useful_gops": rates["useful_gops"],
+                "median_representation_gops": rates["representation_gops"]
+                if one_representation
+                else None,
+                "median_useful_arithmetic_intensity_ops_per_byte": rates[
+                    "useful_arithmetic_intensity_ops_per_byte"
+                ],
                 "median_pack_bandwidth_gbs": median_or_none(pack_bw_values),
                 "median_pack_a_bandwidth_gbs": median_or_none(pack_a_bw_values),
                 "median_pack_b_bandwidth_gbs": median_or_none(pack_b_bw_values),

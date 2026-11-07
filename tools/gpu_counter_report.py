@@ -47,6 +47,8 @@ RESOURCE_SIGNAL_FIELDS = [
     "sparse_integer_matrix_instruction_count",
     "arithmetic_intensity_ops_per_byte",
     "measured_gops",
+    "useful_gops",
+    "representation_gops",
     "pack_bandwidth_gbs",
     "export_bandwidth_gbs",
 ]
@@ -325,6 +327,13 @@ def _counter_resource_summary(
         "roofline_target": roofline_target_for_row(row),
         "arithmetic_intensity_ops_per_byte": work.get("arithmetic_intensity_ops_per_byte"),
         "measured_gops": work.get("measured_gops"),
+        "useful_gops": work.get("useful_gops"),
+        "representation_gops": work.get("representation_gops"),
+        "representation_kind": work.get("representation_kind"),
+        "throughput_numerator": work.get("throughput_numerator"),
+        "useful_integer_gemm_ops": work.get("useful_integer_gemm_ops"),
+        "estimated_residue_or_byte_limb_ops": work.get("estimated_residue_or_byte_limb_ops"),
+        "representation_ops_upper_bound": work.get("representation_ops_upper_bound"),
         "pack_bandwidth_gbs": work.get("pack_bandwidth_gbs"),
         "export_bandwidth_gbs": work.get("export_bandwidth_gbs"),
     }

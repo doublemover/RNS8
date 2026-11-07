@@ -15,6 +15,17 @@ actual bytes, residue/encoded-plane evaluations, temporary reads/writes and fina
 bytes separately. The existing `evidence_database_lib.work_model` estimates
 remain modeled counts; elapsed time cannot turn them into hardware counters.
 
+Reports expose useful integer GEMM rates separately from modeled residue or
+byte-product rates. Native-vector GEMM has no residue-plane loop: its useful
+work and native output payload are prefix-invariant, and software-limb machine
+work stays unmodeled. Adaptive captures with only prefix extrema and aggregate
+skip counts lack complete tile-area weights; their representation rate stays
+unavailable, with any maximum-prefix envelope explicitly labeled an upper bound.
+Allocated residue capacity is retained separately from produced work. Mixed
+representation cohorts do not pool normalized rates, and human-readable tables
+show both rate columns. These accounting controls are authored and unexecuted;
+they supply no new measured throughput or traffic.
+
 Raw validation and rate admission are separate. Rate export requires at least
 five unique independent process runs with identical work counts, no censored
 samples, exact-reference and ISA checks, and uninstrumented timing. Within-run

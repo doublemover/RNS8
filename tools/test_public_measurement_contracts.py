@@ -7,7 +7,11 @@ from benchmark_schema import validate_capture
 from benchmark_schema.public_timing import validate_sustained
 from collect_public_calibration import commands
 from evidence_database_lib.event_cover import disjoint_event_cover
-from evidence_database_lib.work_model import estimate_work, classify_bottleneck
+from evidence_database_lib.work_model import (
+    estimate_work,
+    classify_bottleneck,
+    build_roofline_priority,
+)
 from measurement_contract import host_instrumentation, output_completion_boundary
 from result_compare import contract_value
 
@@ -61,6 +65,49 @@ def main():
     chain = deepcopy(roc)
     chain["residue_chain_length"] = 2
     assert estimate_work(chain)["estimated_ops"] is None
+    for domain in ("i64", "u64"):
+        native = json.loads(
+            (
+                root / f"tests/fixtures/benchmark_schema/v4_bounded_{domain}_vector_alu.json"
+            ).read_text()
+        )
+        validate_capture(native)
+        expected = 2 * native["m"] * native["n"] * native["k"]
+        rates = []
+        for prefix in (1, 9, 20):
+            # An unused plan-prefix annotation cannot manufacture native work.
+            value = deepcopy(native)
+            value["prefix"] = prefix
+            model = estimate_work(value)
+            assert model["estimated_ops"] == model["useful_integer_gemm_ops"] == expected
+            assert model["estimated_residue_or_byte_limb_ops"] is None
+            assert model["estimated_residue_capacity_bytes"] == 0
+            assert model["estimated_native_result_bytes"] == native["m"] * native["n"] * 8
+            assert model["representation_gops"] is None
+            rates.append(model["useful_gops"])
+        assert len(set(rates)) == 1
+    adaptive = json.loads(
+        (root / "tests/fixtures/benchmark_schema/v4_bounded_i64_adaptive_hip.json").read_text()
+    )
+    validate_capture(adaptive)
+    missing_weights = estimate_work(adaptive)
+    assert not missing_weights["work_estimate_available"]
+    assert missing_weights["estimated_ops"] is None
+    assert missing_weights["representation_gops"] is None
+    assert (
+        missing_weights["representation_ops_upper_bound"]
+        == missing_weights["useful_integer_gemm_ops"] * 4
+    )
+    assert missing_weights["estimated_residue_capacity_bytes"] == adaptive["m"] * adaptive["n"] * 9
+    mixture = build_roofline_priority(
+        [
+            dict(estimate_work(native), semantics="bounded_i64"),
+            dict(estimate_work(roc), semantics="bounded_i64"),
+        ]
+    )[0]
+    assert mixture["median_measured_gops"] is None
+    assert mixture["median_representation_gops"] is None
+    assert mixture["median_useful_gops"] is not None
     assert host_instrumentation(roc) == "diagnostic_gpu_events"
     production = deepcopy(roc)
     production["timing_metadata"]["gpu_event_timing"] = False
