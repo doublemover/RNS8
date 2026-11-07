@@ -57,7 +57,9 @@ drift. Matching repository packages take precedence; other ambiguous matches
 fail. No package manager is run implicitly. All child build/test commands get
 the chosen SDK/LLVM/tool paths; CTest also loads the VS/Windows SDK environment.
 Windows builds stage the selected HIP runtime and its SDK-owned `rocm_kpack`
-loader beside executables, with hashes in the build manifest. This is necessary
+loader and `amd_comgr` compiler library beside executables when supplied, with
+hashes in the build manifest. COMGR is loaded dynamically during GPU discovery;
+omitting it can make a complete SDK report no devices. Staging is necessary
 because System32 precedes PATH in ordinary DLL loading. Installed packages
 include those selected files; the shipped consumers call
 `rns8_copy_runtime_dependencies(target)` to stage them beside each executable.

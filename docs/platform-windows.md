@@ -171,7 +171,8 @@ display driver is 32.0.31041.5005. HIP's API driver version is a separate value.
 
 Windows System32 DLL search precedence initially loaded HIP71626384 despite
 the selected SDK being on PATH. That partial run was stopped. Build/install
-runtime staging now places the selected HIP DLL and `rocm_kpack.dll` beside
+runtime staging now places the selected HIP DLL, `rocm_kpack.dll` and SDK-supplied
+`amd_comgr.dll` beside
 executables; a loaded-module regression requires their exact SDK hashes.
 The final complete rerun and sampled hipBLASLt/compiler modules use the selected
 SDK. Earlier failures, their repairs and the stopped run remain in the record.

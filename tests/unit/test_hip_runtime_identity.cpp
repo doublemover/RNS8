@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <memory>
+#include <type_traits>
 #include <catch2/catch_test_macros.hpp>
 #include "backend_common/sha256.hpp"
 
@@ -36,5 +38,14 @@ TEST_CASE("loaded HIP runtime matches the selected app-local SDK artifacts",
   require_selected_runtime(RNS8_TEST_HIP_DLL_NAME, RNS8_TEST_HIP_DLL_SHA256);
 #ifdef RNS8_TEST_KPACK_SHA256
   require_selected_runtime("rocm_kpack.dll", RNS8_TEST_KPACK_SHA256);
+#endif
+#ifdef RNS8_TEST_COMGR_SHA256
+  const auto comgr_path = module_path(nullptr).parent_path() / "amd_comgr.dll";
+  std::unique_ptr<std::remove_pointer_t<HMODULE>, decltype(&FreeLibrary)> comgr(
+      LoadLibraryExW(comgr_path.c_str(), nullptr,
+                     LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS),
+      &FreeLibrary);
+  REQUIRE(comgr != nullptr);
+  require_selected_runtime("amd_comgr.dll", RNS8_TEST_COMGR_SHA256);
 #endif
 }

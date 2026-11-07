@@ -11,6 +11,36 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RuntimeStaging(unittest.TestCase):
+    def test_sdk_runtime_selection_includes_dynamic_comgr_without_unrelated_libraries(self):
+        cmake = shutil.which("cmake")
+        self.assertIsNotNone(cmake)
+        scratch = ROOT / "temp/runtime-staging-tests"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as folder:
+            root = Path(folder)
+            sdk = root / "SDK with spaces"
+            sdk.mkdir()
+            names = ("amdhip64_7.dll", "rocm_kpack.dll", "amd_comgr.dll")
+            for name in (*names, "unrelated.dll"):
+                (sdk / name).write_bytes(b"authored selection fixture; never loaded")
+            selected = root / "selected.txt"
+            script = root / "selection.cmake"
+            script.write_text(
+                f'include("{(ROOT / "cmake/RNS8Runtime.cmake").as_posix()}")\n'
+                f'rns8_collect_hip_runtime_dlls("{(sdk / names[0]).as_posix()}" selected)\n'
+                f'file(WRITE "{selected.as_posix()}" "${{selected}}")\n',
+                encoding="utf-8",
+            )
+            subprocess.run([cmake, "-P", str(script)], capture_output=True, text=True, check=True)
+            self.assertEqual(
+                selected.read_text().split(";"), [(sdk / name).as_posix() for name in names]
+            )
+            (sdk / "amd_comgr.dll").unlink()
+            subprocess.run([cmake, "-P", str(script)], capture_output=True, text=True, check=True)
+            self.assertEqual(
+                selected.read_text().split(";"), [(sdk / name).as_posix() for name in names[:2]]
+            )
+
     def test_ctest_binds_resolved_sdk_without_changing_the_parent_environment(self):
         import os
 
