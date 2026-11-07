@@ -96,6 +96,84 @@ class NativeMarkerJoin(unittest.TestCase):
         self.assertEqual(len(report["marker_clock_observation"]["missing"]), 4)
         self.assertTrue(report["native_marker_identity_complete"])
 
+    def test_exact_graph_membership_does_not_double_count_summary_service_or_API_time(self):
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("UPDATE rocpd_event SET stack_id=71 WHERE id=105")
+            db.execute("UPDATE rocpd_graph_launch SET start=9")
+        report = join(self.timeline(), markers())["dependency_report"]
+        (membership,) = report["graph_memberships"]
+        self.assertEqual(
+            (membership["graph_exec_id"], membership["graph_node_id"], membership["native_api_id"]),
+            (42, 12, 71),
+        )
+        self.assertFalse(membership["complete_graph_coverage"])
+        (operation,) = report["operations"]
+        self.assertEqual(operation["selected_kernel_copy_intervals"]["interval_union_ns"], 10)
+        self.assertEqual(operation["selected_API_intervals"]["interval_union_ns"], 4)
+        self.assertEqual(operation["selected_API_intervals"]["count"], 1)
+        self.assertEqual(operation["native_window_outside_selected_service_ns"], 75)
+        self.assertFalse(operation["host_and_device_times_additive"])
+        self.assertIsNone(report["critical_path"]["longest_path_ns"])
+        self.assertFalse(report["temporal_adjacency_dependency_inferred"])
+        self.assertTrue(
+            all(
+                not row["API_return_to_device_start_edge"] for row in report["launch_relationships"]
+            )
+        )
+
+    def add_native_event_wait(self):
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.executescript("""
+              INSERT INTO rocpd_info_queue VALUES(6,'authored',1,1);
+              INSERT INTO rocpd_info_stream VALUES(10,'authored',1,1);
+              INSERT INTO rocpd_string VALUES(11,'authored','HIP_EVENT_WAIT');
+              INSERT INTO rocpd_event(id,guid,stack_id,parent_stack_id,correlation_id,category_id,extdata)
+                VALUES(115,'authored',76,0,777,4,'{}'),(116,'authored',86,0,777,4,'{}'),
+                (117,'authored',86,86,777,4,'{}');
+              INSERT INTO rocpd_region VALUES(115,'authored',1,1,42,25,28,2,115),
+                (116,'authored',1,1,42,38,39,2,116);
+              INSERT INTO rocpd_hip_event VALUES(2,'authored',1,1,42,40,41,11,3,6,10,65536,5,117);
+            """)
+
+    def test_observed_record_wait_candidate_never_grants_event_generation_or_causal_credit(self):
+        self.add_native_event_wait()
+        report = join(self.timeline(), markers())["dependency_report"]
+        (candidate,) = report["event_generation_candidates"]
+        self.assertEqual((candidate["record_native_id"], candidate["wait_native_id"]), (1, 2))
+        self.assertEqual((candidate["source_queue_id"], candidate["destination_queue_id"]), (5, 6))
+        self.assertFalse(candidate["usable_as_causal_dependency"])
+        self.assertIn("unverified", candidate["state"])
+        self.assertEqual(report["critical_path"]["state"], "unresolved")
+
+    def test_reused_event_handles_and_conflicting_queues_remain_unresolved(self):
+        self.add_native_event_wait()
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("UPDATE rocpd_hip_event SET source_queue_id=6 WHERE id=2")
+        report = join(self.timeline(), markers())["dependency_report"]
+        self.assertFalse(report["event_generation_candidates"])
+        self.assertTrue(
+            any(
+                row["reason"] == "event_record_source_queue_conflicts"
+                for row in report["unresolved_relationships"]
+            )
+        )
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("UPDATE rocpd_hip_event SET source_queue_id=5 WHERE id=2")
+            db.execute(
+                "INSERT INTO rocpd_event(id,guid,stack_id,parent_stack_id,correlation_id,category_id,extdata) VALUES(118,'authored',87,87,777,4,'{}')"
+            )
+            db.execute(
+                "INSERT INTO rocpd_hip_event SELECT 3,guid,nid,pid,tid,30,31,name_id,agent_id,queue_id,stream_id,hip_event_handle,source_queue_id,118 FROM rocpd_hip_event WHERE id=1"
+            )
+        report = join(self.timeline(), markers())["dependency_report"]
+        self.assertFalse(report["event_generation_candidates"])
+        self.assertTrue(
+            any(
+                row["reason"] == "missing_or_multiple_observed_event_record_generations"
+                for row in report["unresolved_relationships"]
+            )
+        )
+
     def test_overlapping_siblings_remain_ambiguous_instead_of_deepest_name_wins(self):
         with closing(sqlite3.connect(self.path)) as db, db:
             db.executescript("""

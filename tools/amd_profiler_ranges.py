@@ -10,6 +10,7 @@ from host_range_contract import PHASES, range_inventory, measured_roots, uint
 from interval_observations import interval_summary
 from native_phase_attribution import attribute
 from native_marker_clock import observe as observe_marker_clock
+from native_dependency_report import build as build_dependencies
 
 
 def join(timeline: dict, snapshot: dict) -> dict:
@@ -206,6 +207,9 @@ def join(timeline: dict, snapshot: dict) -> dict:
         phase_attribution=phases,
         marker_clock_observation=observe_marker_clock(
             index, markers, [*selected, *related_selected]
+        ),
+        dependency_report=build_dependencies(
+            timeline, [*selected, *related_selected], roots, markers
         ),
         measured_native_windows=interval_summary(
             [(first, last) for spans in windows.values() for first, last, _ in spans]

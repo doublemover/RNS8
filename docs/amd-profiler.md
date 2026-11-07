@@ -97,7 +97,7 @@ Empty tables mean no observation, not zero work or complete capture; instant
 samples and loss counters are outside this interval projection. The capture
 finalizer retains it and the receiver reconstructs it from the native database.
 The marker/operation consumer below is connected through an explicit option;
-the full dependency/critical-path report still needs implementation. Actual-layout database controls are authored and
+the full causal critical-path report still needs broader native evidence. Actual-layout database controls are authored and
 registered, with no database fixture, reader or profiler execution in this pass.
 
 The operation join also associates copies, allocation lifecycle records, HIP
@@ -349,7 +349,7 @@ loss-free acquisition or complete work/dependency coverage. These exact native
 table-to-consumer, stale/duplicate marker, unknown/ambiguous correlation and
 overlapping-caller controls remain authored/unexecuted. Capture publication
 and receipt replay are connected; the dependency/critical-path
-consumer remains implementation work.
+consumer retains the unresolved boundaries described below.
 
 An additional marker-clock observation retains each exact native marker
 endpoint beside the host brackets around its ROCTx call. Prefix/suffix order
@@ -360,6 +360,27 @@ GPU timestamp normalization or authorize GPU duration/dependency claims. The
 original native timestamps and their uncertainty remain visible, and receipt
 replay reconstructs the observation. These controls are source-authored and
 unexecuted.
+
+The embedded dependency report records exact API-entry/native-start launch
+relationships, with elapsed time left unattributed to submission, driver or
+queue causes. Exact graph instance plus launch-API identity can establish a
+recorded membership, while missing/ambiguous membership and incomplete graph
+coverage remain explicit. Graph summary intervals are excluded from kernel/copy
+service totals, and a shared launch API is counted once. Per-operation native
+marker windows, selected service unions and selected API unions remain separate.
+Time outside selected service includes unselected or missing work and is not
+reported as host launch overhead.
+
+The pinned SDK emits `HIP_EVENT_RECORD` and `HIP_EVENT_WAIT` operation names.
+Handle, agent, source queue and observed API order support a record/wait
+candidate only; missing or multiple observed generations, conflicting queues
+and impossible observed completion order remain unresolved. The native schema
+lacks a complete create/destroy/generation/loss witness, so these candidates
+never become qualified causal edges. Temporal adjacency and API-return-to-GPU-
+start dependencies are not inferred. Without complete scheduler, clock and
+dependency evidence the report returns an unresolved critical path and an honest
+no-resolved-host-bottleneck conclusion, followed by the smallest resolving
+collection. Actual-table graph/event/overlap controls are authored and unexecuted.
 
 Add `--operation-ranges` to the timeline plan only for the same production
 binary compiled with `roctx=ON`. The launcher supplies the range opt-in and

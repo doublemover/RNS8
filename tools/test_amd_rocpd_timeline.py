@@ -27,7 +27,7 @@ def timeline_database(fixture):
           INSERT INTO rocpd_string VALUES(1,'authored','rns8.public_call#slot=0'),
             (2,'authored','hipLaunchKernel'),(3,'authored','MARKER_CORE_RANGE_API'),
             (4,'authored','HIP_RUNTIME_API'),(5,'authored','MEMORY_COPY'),
-            (6,'authored','MEMORY_ALLOCATION'),(7,'authored','hipEventRecord');
+            (6,'authored','MEMORY_ALLOCATION'),(7,'authored','HIP_EVENT_RECORD');
           UPDATE rocpd_event SET category_id=4;
           INSERT INTO rocpd_event(id,guid,stack_id,parent_stack_id,correlation_id,category_id,extdata)
             VALUES(100,'authored',201,0,0,3,'{"message":"rns8.public_call#slot=0"}'),
