@@ -11,6 +11,7 @@
 #include "native_reference_cache.hpp"
 #include "graph_caller_transaction.hpp"
 #include "streaming_measurement.hpp"
+#include "hipblaslt_pack_events.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "backend_rocwmma/rocwmma_packing_policy.hpp"
@@ -175,6 +176,7 @@ struct GpuEventSamples {
   std::vector<GpuEventFailureDiagnostic> failure_diagnostics;
   bool failure_observer_complete = true;
   std::map<std::string, std::vector<double>> timings_us;
+  std::vector<rns8::bench::HipblasLtPackEventWork> hipblaslt_pack_work;
 };
 
 enum class PrepackReuseStrategy {

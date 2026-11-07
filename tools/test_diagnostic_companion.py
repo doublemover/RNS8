@@ -304,6 +304,26 @@ class DiagnosticCompanion(unittest.TestCase):
             bad["gpu_event_timings_us"] = diagnostic["gpu_event_timings_us"]
             self.assertTrue(any("must be null" in error for error in validation_errors(bad)))
 
+    def test_pack_event_observations_do_not_erase_retention_policy_or_counters(self):
+        with tempfile.TemporaryDirectory() as temp:
+            production, diagnostic, _ = authored_pair(Path(temp))
+            for value in (production, diagnostic):
+                value["hipblaslt_operand_prepack"] = dict(
+                    policy="both", after_warmups=dict(a_retained_planes_packed=9), event_work=None
+                )
+            diagnostic["hipblaslt_operand_prepack"]["event_work"] = dict(
+                schema="rns8_hipblaslt_pack_event_work_v1", complete=True, per_gemm=[]
+            )
+            self.assertEqual(common_identity(production), common_identity(diagnostic))
+            for key, value in (
+                ("policy", "none"),
+                ("after_warmups", dict(a_retained_planes_packed=0)),
+                ("future_control", 1),
+            ):
+                changed = copy.deepcopy(diagnostic)
+                changed["hipblaslt_operand_prepack"][key] = value
+                self.assertNotEqual(common_identity(production), common_identity(changed))
+
     def test_raw_files_and_all_bound_contracts_are_immutable(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

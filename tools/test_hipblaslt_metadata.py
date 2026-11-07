@@ -17,6 +17,92 @@ from benchmark_schema.wide_magnitude import MODULI
 
 
 class MetadataContracts(unittest.TestCase):
+    def test_first_build_and_finite_or_blocked_transient_pack_receipts(self):
+        for mode, counts in (
+            ("first_build", (9, 9, 0, 0)),
+            ("finite", (0, 0, 9, 9)),
+            ("two_k_slabs", (0, 0, 18, 18)),
+        ):
+            capture = self.prepack_fixture("both")
+            capture.update(
+                warmups=0,
+                repeats=1,
+                prepack_reuse_operands=["A", "B"],
+                timing_metadata=dict(gpu_event_timing=True),
+                gpu_event_timings_us=dict(hipblaslt_pack_transpose_centered=[10.0]),
+            )
+            meta = capture["hipblaslt_operand_prepack"]
+            meta["after_warmups"] = dict.fromkeys(PREPACK_FIELDS, 0)
+            meta["after_measured_repeats"] = dict.fromkeys(PREPACK_FIELDS, 0)
+            fields = ("a_retained", "b_retained", "a_transient", "b_transient")
+            row = dict(zip(fields, counts))
+            row["submitted_planes"] = row["timed_samples"] = sum(counts)
+            for field, count in zip(fields, counts):
+                meta["after_measured_repeats"][field + "_planes_packed"] = count
+            if mode == "first_build":
+                for operand in ("a", "b"):
+                    meta["after_measured_repeats"][operand + "_retained_builds"] = 1
+            meta["event_work"] = dict(
+                schema="rns8_hipblaslt_pack_event_work_v1", complete=True, per_gemm=[row]
+            )
+            with self.subTest(mode=mode):
+                self.assertEqual(validate_hipblaslt_prepack(capture), [])
+
+    def test_pack_events_follow_retained_and_transient_submissions_not_public_reuse(self):
+        for policy in ("none", "a", "b", "both"):
+            for reuse in (["A"], ["B"], ["A", "B"]):
+                capture = self.prepack_fixture(policy)
+                capture.update(
+                    prepack_reuse_operands=reuse, timing_metadata=dict(gpu_event_timing=True)
+                )
+                meta = capture["hipblaslt_operand_prepack"]
+                row = dict(
+                    a_retained=0,
+                    b_retained=0,
+                    a_transient=0 if policy in ("a", "both") else 9,
+                    b_transient=0 if policy in ("b", "both") else 9,
+                )
+                row["submitted_planes"] = row["timed_samples"] = sum(row.values())
+                meta["event_work"] = dict(
+                    schema="rns8_hipblaslt_pack_event_work_v1",
+                    complete=True,
+                    per_gemm=[dict(row) for _ in range(9)],
+                )
+                capture["gpu_event_timings_us"] = dict(
+                    hipblaslt_pack_transpose_centered=[10.0 if row["submitted_planes"] else 0.0] * 9
+                )
+                self.assertEqual(validate_hipblaslt_prepack(capture), [])
+                for mutation in (
+                    "omitted_event",
+                    "missed_sample",
+                    "wrong_total",
+                    "partial",
+                    "invented_zero",
+                    "boolean",
+                ):
+                    bad = copy.deepcopy(capture)
+                    work = bad["hipblaslt_operand_prepack"]["event_work"]
+                    if mutation == "omitted_event":
+                        bad["gpu_event_timings_us"].clear()
+                    elif mutation == "missed_sample":
+                        work["per_gemm"][0]["timed_samples"] += 1
+                    elif mutation == "wrong_total":
+                        work["per_gemm"].pop()
+                    elif mutation == "partial":
+                        work["complete"] = False
+                    elif mutation == "boolean":
+                        work["per_gemm"][0]["a_retained"] = False
+                    else:
+                        bad["gpu_event_timings_us"]["hipblaslt_pack_transpose_centered"][0] = 1.0
+                        if row["submitted_planes"]:
+                            continue
+                    with self.subTest(policy=policy, reuse=reuse, mutation=mutation):
+                        self.assertTrue(validate_hipblaslt_prepack(bad))
+                if row["submitted_planes"]:
+                    del meta["event_work"]
+                    capture["gpu_event_timings_us"].clear()
+                    self.assertTrue(validate_hipblaslt_prepack(capture))
+
     def test_fresh_first_call_is_separate_from_steady_and_instrumented_programs(self):
         cases = [
             dict(name=n, arguments=["--backend", "hipblaslt", "--hipblaslt-metadata-policy", n])

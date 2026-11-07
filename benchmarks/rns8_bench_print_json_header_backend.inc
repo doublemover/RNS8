@@ -270,6 +270,23 @@ output << "    \"after_warmups\":";
 print_prepack_counters(result.prepack_after_warmups);
 output << ",\n    \"after_measured_repeats\":";
 print_prepack_counters(result.prepack_after_repeats);
+output << ",\n    \"event_work\":";
+if (result.gpu_events.requested &&
+    selected_backend_for_events(args, result) == RNS8_BACKEND_HIPBLASLT) {
+  output << "{\"schema\":\"rns8_hipblaslt_pack_event_work_v1\",\"complete\":"
+         << (gpu_event_timing_available(args, result) ? "true" : "false") << ",\"per_gemm\":[";
+  bool first = true;
+  for (const auto& work : result.gpu_events.hipblaslt_pack_work) {
+    output << (first ? "" : ",") << "{\"a_retained\":" << work.a_retained
+           << ",\"b_retained\":" << work.b_retained << ",\"a_transient\":" << work.a_transient
+           << ",\"b_transient\":" << work.b_transient
+           << ",\"submitted_planes\":" << work.submitted_planes
+           << ",\"timed_samples\":" << work.timed_samples << '}';
+    first = false;
+  }
+  output << "]}";
+} else
+  output << "null";
 output << "\n  },\n";
 
 output

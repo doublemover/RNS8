@@ -1,3 +1,5 @@
+thread_local rns8::detail::HipblasLtPrepackCounters hipblaslt_phase_prepack_before{};
+
 bool backend_supports_gpu_event_capture(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT ||
          backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
@@ -567,19 +569,28 @@ void collect_bounded_native_b_reuse_a_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_hipblaslt_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
+void collect_hipblaslt_gemm_gpu_events(const Args&, GpuEventSamples& events) {
   const auto samples = collect_timing_samples(events);
-  const bool expect_pack_transpose = expects_hipblaslt_pack_transpose_event(args);
-  const double pack = expect_pack_transpose ? sum_event_label(events, samples, "rns_gemm",
-                                                              "hipblaslt_pack_transpose_centered")
-                                            : 0.0;
+  rns8::bench::HipblasLtPackEventWork work;
+  if (!rns8::bench::hipblaslt_pack_event_work(hipblaslt_phase_prepack_before,
+                                              rns8::detail::hipblaslt_prepack_counters_snapshot(),
+                                              work))
+    add_unavailable_reason(events, "hipBLASLt pack submission counters reset or overflowed");
+  for (const auto& sample : samples)
+    if (sample.label == "hipblaslt_pack_transpose_centered")
+      ++work.timed_samples;
+  if (work.timed_samples != work.submitted_planes)
+    add_unavailable_reason(events, "hipBLASLt timed pack samples differ from submitted planes");
+  if (events.hipblaslt_pack_work.size() < 100000)
+    events.hipblaslt_pack_work.push_back(work);
+  else
+    add_unavailable_reason(events, "hipBLASLt pack receipt budget exceeded");
+  const double pack = optional_event_label(samples, "hipblaslt_pack_transpose_centered");
   const double matmul = sum_event_label(events, samples, "rns_gemm", "hipblaslt_int8_i32_matmul");
   const double reduce =
       sum_event_label(events, samples, "rns_gemm", "hipblaslt_i32_to_residue_reduce");
   if (events.complete) {
-    if (expect_pack_transpose) {
-      push_gpu_event_value(events, "hipblaslt_pack_transpose_centered", pack);
-    }
+    push_gpu_event_value(events, "hipblaslt_pack_transpose_centered", pack);
     push_gpu_event_value(events, "hipblaslt_int8_i32_matmul", matmul);
     push_gpu_event_value(events, "hipblaslt_i32_to_residue_reduce", reduce);
     push_gpu_event_value(events, "rns_gemm", pack + matmul + reduce);
@@ -914,6 +925,7 @@ void begin_gpu_event_phase(bool collect) {
   if (!collect) {
     return;
   }
+  hipblaslt_phase_prepack_before = rns8::detail::hipblaslt_prepack_counters_snapshot();
   rns8::detail::hip_direct_timing_set_enabled(true);
   rns8::detail::hip_direct_timing_reset();
 }

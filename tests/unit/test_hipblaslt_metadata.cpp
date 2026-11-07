@@ -4,8 +4,50 @@
 #include "backend_common/bounded_algorithm_directory.hpp"
 #include "backend_hipblaslt/matmul_metadata_plan.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
+#include "../../benchmarks/hipblaslt_pack_events.hpp"
 #include <catch2/catch_test_macros.hpp>
 using namespace rns8::detail;
+TEST_CASE("hipBLASLt pack event work follows actual submitted planes and preserves rejected deltas",
+          "[measurement][hipblaslt][cpu]") {
+  using rns8::bench::HipblasLtPackEventWork;
+  using rns8::bench::hipblaslt_pack_event_work;
+  for (unsigned policy = 0; policy < 4; ++policy)
+    for (bool first_call : {false, true})
+      for (bool transient_only : {false, true}) {
+        HipblasLtPrepackCounters before{}, after{};
+        before.a_retained_planes_packed = after.a_retained_planes_packed = 9;
+        before.b_transient_planes_packed = after.b_transient_planes_packed = 27;
+        const bool retain_a = !transient_only && (policy & 1),
+                   retain_b = !transient_only && (policy & 2);
+        if (retain_a)
+          after.a_retained_planes_packed += first_call ? 9 : 0;
+        else
+          after.a_transient_planes_packed += 9;
+        if (retain_b)
+          after.b_retained_planes_packed += first_call ? 9 : 0;
+        else
+          after.b_transient_planes_packed += 9;
+        HipblasLtPackEventWork work;
+        REQUIRE(hipblaslt_pack_event_work(before, after, work));
+        CHECK(work.a_retained == (retain_a && first_call ? 9 : 0));
+        CHECK(work.b_retained == (retain_b && first_call ? 9 : 0));
+        CHECK(work.a_transient == (retain_a ? 0 : 9));
+        CHECK(work.b_transient == (retain_b ? 0 : 9));
+        CHECK(work.submitted_planes ==
+              work.a_retained + work.b_retained + work.a_transient + work.b_transient);
+      }
+  HipblasLtPackEventWork preserved;
+  preserved.submitted_planes = 71;
+  HipblasLtPrepackCounters before{}, after{};
+  before.a_transient_planes_packed = 1;
+  CHECK_FALSE(hipblaslt_pack_event_work(before, after, preserved));
+  CHECK(preserved.submitted_planes == 71);
+  before = {};
+  after.a_retained_planes_packed = UINT64_MAX;
+  after.b_transient_planes_packed = 1;
+  CHECK_FALSE(hipblaslt_pack_event_work(before, after, preserved));
+  CHECK(preserved.submitted_planes == 71);
+}
 TEST_CASE("hipBLASLt algorithm observations retain physical identities and explicit overflow") {
   HipblasLtAlgorithmInventory inventory;
   HipblasLtMetadataKey key{0, 16, 32, 64, 32, 4096};

@@ -193,11 +193,14 @@ def main() -> int:
         assert capture["prepack_reuse_strategy"] == "persistent_matrix_residency"
         if capture["timing_metadata"]["gpu_event_timing"] is True:
             phase_order = capture["timing_metadata"]["gpu_event_phase_order"]
-            assert "hipblaslt_pack_transpose_centered" not in phase_order
+            assert "hipblaslt_pack_transpose_centered" in phase_order
             assert "hipblaslt_int8_i32_matmul" in phase_order
             assert "hipblaslt_i32_to_residue_reduce" in phase_order
             assert "rns_gemm" in phase_order
-            assert "hipblaslt_pack_transpose_centered" not in capture["gpu_event_timings_us"]
+            work = capture["hipblaslt_operand_prepack"]["event_work"]
+            assert work["complete"] is True
+            assert all(row["submitted_planes"] == 0 for row in work["per_gemm"])
+            assert capture["gpu_event_timings_us"]["hipblaslt_pack_transpose_centered"] == [0.0]
             assert capture["gpu_event_timings_us"]["pack"] == [0.0]
         else:
             assert is_censored_gpu_event_capture(capture)

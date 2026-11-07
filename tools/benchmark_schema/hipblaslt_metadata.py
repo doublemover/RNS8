@@ -26,6 +26,76 @@ PREPACK_FIELDS = (
     "b_transient_planes_packed",
 )
 
+PACK_EVENT_FIELDS = ("a_retained", "b_retained", "a_transient", "b_transient")
+
+
+def validate_pack_event_work(capture, meta):
+    work = meta.get("event_work")
+    timing = capture.get("timing_metadata")
+    gpu = isinstance(timing, dict) and timing.get("gpu_event_timing") is True
+    events = capture.get("gpu_event_timings_us")
+    raw = events.get("hipblaslt_pack_transpose_centered") if isinstance(events, dict) else None
+    if work is None:
+        if gpu and capture.get("backend_selected") == "hipblaslt":
+            submitted = sum(
+                meta["after_measured_repeats"][key + "_planes_packed"]
+                - meta["after_warmups"][key + "_planes_packed"]
+                for key in PACK_EVENT_FIELDS
+            )
+            if submitted and (not isinstance(raw, list) or not raw):
+                return ["submitted hipBLASLt pack work lacks diagnostic events"]
+            if not submitted and isinstance(raw, list) and any(value != 0 for value in raw):
+                return ["hipBLASLt zero-work counters contradict diagnostic pack events"]
+        return []  # Historical captures have no per-GEMM work witness.
+    if (
+        not isinstance(work, dict)
+        or set(work) != {"schema", "complete", "per_gemm"}
+        or work.get("schema") != "rns8_hipblaslt_pack_event_work_v1"
+        or type(work.get("complete")) is not bool
+        or not isinstance(work.get("per_gemm"), list)
+        or len(work["per_gemm"]) > 100000
+        or capture.get("backend_selected") != "hipblaslt"
+    ):
+        return ["invalid hipBLASLt pack event work contract"]
+    rows = work["per_gemm"]
+    for row in rows:
+        if (
+            not isinstance(row, dict)
+            or set(row) != {*PACK_EVENT_FIELDS, "submitted_planes", "timed_samples"}
+            or any(type(value) is not int or not 0 <= value < 1 << 64 for value in row.values())
+            or sum(row[key] for key in PACK_EVENT_FIELDS) != row["submitted_planes"]
+        ):
+            return ["invalid hipBLASLt pack event work row"]
+    if not work["complete"]:
+        return ["incomplete hipBLASLt pack event work advertised complete timing"] if gpu else []
+    if not gpu or not rows:
+        return ["complete hipBLASLt pack event work lacks diagnostic events"]
+    if (
+        not isinstance(raw, list)
+        or len(raw) != len(rows)
+        or any(type(value) not in (int, float) or not 0 <= value < 1 << 64 for value in raw)
+    ):
+        return ["hipBLASLt pack events lack complete per-GEMM coverage"]
+    for row, elapsed in zip(rows, raw):
+        if row["timed_samples"] != row["submitted_planes"] or (
+            not row["submitted_planes"] and elapsed != 0
+        ):
+            return ["hipBLASLt pack events contradict successful submission receipts"]
+    for key in PACK_EVENT_FIELDS:
+        counter = key + "_planes_packed"
+        before, after = (
+            meta.get(label, {}).get(counter)
+            for label in ("after_warmups", "after_measured_repeats")
+        )
+        if (
+            type(before) is not int
+            or type(after) is not int
+            or before > after
+            or sum(row[key] for row in rows) != after - before
+        ):
+            return ["hipBLASLt per-GEMM pack work differs from measured counter deltas"]
+    return []
+
 
 def validate_hipblaslt_prepack(capture):
     meta = capture.get("hipblaslt_operand_prepack")
@@ -50,7 +120,10 @@ def validate_hipblaslt_prepack(capture):
         if (
             not isinstance(snapshot, dict)
             or set(snapshot) != set(PREPACK_FIELDS)
-            or any(type(snapshot[k]) is not int or snapshot[k] < 0 for k in PREPACK_FIELDS)
+            or any(
+                type(snapshot[k]) is not int or not 0 <= snapshot[k] < 1 << 64
+                for k in PREPACK_FIELDS
+            )
         ):
             errors.append("invalid hipBLASLt operand prepack snapshot")
             continue
@@ -71,7 +144,7 @@ def validate_hipblaslt_prepack(capture):
                 errors.append("hipBLASLt retained build lacks packed planes")
         if capture.get("backend_selected") != "hipblaslt" and any(snapshot.values()):
             errors.append("non-hipBLASLt capture recorded hipBLASLt pack work")
-    return errors
+    return errors if errors else validate_pack_event_work(capture, meta)
 
 
 def validate_hipblaslt_metadata(capture):

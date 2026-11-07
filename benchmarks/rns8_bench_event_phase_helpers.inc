@@ -75,10 +75,8 @@ void append_accelerator_deep_event_phases(std::vector<std::string>& phases, cons
   }
 }
 
-void append_hipblaslt_gemm_event_phases(std::vector<std::string>& phases, const Args& args) {
-  if (expects_hipblaslt_pack_transpose_event(args)) {
-    phases.push_back("hipblaslt_pack_transpose_centered");
-  }
+void append_hipblaslt_gemm_event_phases(std::vector<std::string>& phases, const Args&) {
+  phases.push_back("hipblaslt_pack_transpose_centered");
   phases.push_back("hipblaslt_int8_i32_matmul");
   phases.push_back("hipblaslt_i32_to_residue_reduce");
   phases.push_back("rns_gemm");

@@ -698,10 +698,6 @@ void capture_workspace_arena_info(const rns8_workspace* workspace, BenchmarkResu
   result.workspace_arena_policy = workspace->hip_workspace_arena_policy;
 }
 
-bool expects_hipblaslt_pack_transpose_event(const Args& args) {
-  return !reuses_all_packed_inputs(args);
-}
-
 template <typename PackA, typename PackB>
 void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA& pack_a,
                          const PackB& pack_b) {

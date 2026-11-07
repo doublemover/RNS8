@@ -181,6 +181,23 @@ but unexecuted, and no overlap, latency or allocation result on hardware is clai
 
 ### hipBLASLt immutable per-call metadata controls
 
+Internal transpose packing is accounted independently from public A/B residue
+reuse. Every diagnostic GEMM snapshots the existing successful retained and
+transient pack counters and requires one observed native pack event per
+submitted plane. A stable pack phase is emitted even for zero work, whose zero
+is justified by the counter delta. Retained first-call builds, finite operands
+and slab-transient packing therefore remain visible and enter the GEMM event
+total once. Counter reset/overflow, missing events and receipt-budget exhaustion
+make timing incomplete rather than silently dropping work.
+
+`hipblaslt_operand_prepack.event_work` retains per-GEMM counts, event sample
+counts and coverage. The schema reconciles them with raw pack samples and the
+measured warmup/repeat counter difference. Historical records with submitted
+packing cannot advertise complete diagnostic timing while omitting its phase.
+Diagnostic companion projection removes only this observation record, keeping
+retention policy and counter contracts. Source-authored policy/reuse,
+first-build/finite/slab, missing-event and projection controls remain unexecuted.
+
 Issue #70 is implemented as bounded **within-call** reuse, not a process-global
 raw descriptor cache. The operation and four column-major matrix layouts are
 owned by the complete GEMM call and indexed by device, padded M/N/K, scratch

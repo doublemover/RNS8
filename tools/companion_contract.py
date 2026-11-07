@@ -55,6 +55,7 @@ TOP_LEVEL_OBSERVATIONS = frozenset(
 )
 
 OBSERVATION_SECTIONS = (
+    ObservationSection(("hipblaslt_operand_prepack",), frozenset(("event_work",))),
     ObservationSection(
         ("hip_graph_replay", "caller_transaction"),
         frozenset(
