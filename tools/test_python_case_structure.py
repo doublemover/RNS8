@@ -95,6 +95,31 @@ class PythonCaseStructure(unittest.TestCase):
             cls, method = row["case"].split(".")
             identifier = getattr(module, cls)(method).id()
             self.assertIn(identifier, loaded)
+            for control in row.get("replacement_controls", []):
+                tree = ast.parse((ROOT / "tools" / (control["module"] + ".py")).read_text())
+                owner, method_name = control["case"].split(".")
+                cls_node = next(
+                    node
+                    for node in tree.body
+                    if isinstance(node, ast.ClassDef) and node.name == owner
+                )
+                method_node = next(
+                    node
+                    for node in cls_node.body
+                    if isinstance(node, ast.FunctionDef) and node.name == method_name
+                )
+                self.assertTrue(
+                    any(
+                        isinstance(node, ast.Assert)
+                        or (
+                            isinstance(node, ast.Call)
+                            and isinstance(node.func, ast.Attribute)
+                            and node.func.attr.startswith("assert")
+                        )
+                        for node in ast.walk(method_node)
+                    )
+                )
+                self.assertIn(control["ctest"], (ROOT / "cmake/rns8_tests.cmake").read_text())
             self.assertNotIn(identifier, identifiers)
             identifiers.add(identifier)
         self.assertEqual(len(identifiers), 11)

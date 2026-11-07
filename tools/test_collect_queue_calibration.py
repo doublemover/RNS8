@@ -120,12 +120,17 @@ class QueueCollectionTests(unittest.TestCase):
         for path in cases:
             validate_case(json.loads(path.read_text()))
         plan = commands(Path("binary"), cases, Path("output"), 4, 38, "collection")
-        self.assertEqual(len(plan), len(cases) * len(MODES) * 4)
+        expected = {
+            path: set(MODES)
+            - ({"ordinary"} if json.loads(path.read_text()).get("dispatch_policy", 0) else set())
+            for path in cases
+        }
+        self.assertEqual(len(plan), sum(map(len, expected.values())) * 4)
         self.assertEqual(len({e["run_id"] for e in plan}), len(plan))
         for path in cases:
             own = [e for e in plan if e["command"][1] == str(path)]
             for run in range(4):
-                self.assertEqual({e["mode"] for e in own if e["run"] == run}, set(MODES))
+                self.assertEqual({e["mode"] for e in own if e["run"] == run}, expected[path])
             self.assertGreater(
                 len({tuple(e["mode"] for e in own if e["run"] == run) for run in range(4)}), 1
             )

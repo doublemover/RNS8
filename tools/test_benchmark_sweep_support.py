@@ -218,6 +218,11 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_mode"] = "resident_device_buffers"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+        if capture["finite_modulus"] in (251, 255, 256):
+            metadata["isa_evidence"] = "rns8_hip_direct_finite_specialized_isa_gate"
+        capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+            "direct_hip_default_stream_backend_operation_groups"
+        )
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = (
             metadata["autotune_key"]
@@ -387,6 +392,9 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_mode"] = "resident_device_buffers"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+        capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+            "direct_hip_default_stream_backend_operation_groups"
+        )
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = (
             metadata["autotune_key"]

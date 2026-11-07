@@ -23,7 +23,13 @@ import gpu_counter_report
 
 
 def runs(capture, count=2):
-    return synthetic_independent_runs([capture], count)
+    observations = synthetic_independent_runs([capture], count)
+    # Preserve the explicit environment mutation being tested; the general
+    # identity builder supplies a fresh default manifest for raw fixtures.
+    if "build_manifest" in capture:
+        for observation in observations:
+            observation["build_manifest"] = deepcopy(capture["build_manifest"])
+    return observations
 
 
 def write_all(root, captures):
@@ -281,7 +287,7 @@ class ProcessObservations(unittest.TestCase):
 
     def test_setup_inclusive_estimator_sums_each_process_first(self):
         observations = []
-        for end, setup in ((100, 50), (120, 10), (140, 0)):
+        for end, setup in ((100, 46), (120, 28), (140, 1)):
             capture = bounded_capture("hip-direct", end)
             capture["timing_summary_us"]["global_bound_scan"] = {
                 "avg": setup,
@@ -291,7 +297,7 @@ class ProcessObservations(unittest.TestCase):
             observations.extend(runs(capture, 1))
         combined = aggregate_captures(observations)[0]
         self.assertEqual(phase_median(combined), 120)
-        self.assertEqual(compound_median(combined, ["end_to_end", "global_bound_scan"]), 140)
+        self.assertEqual(compound_median(combined, ["end_to_end", "global_bound_scan"]), 146)
 
     def test_finite_map_aggregates_before_selecting_and_self_ratio_is_one(self):
         captures = runs(finite_map_capture("cpu-reference", 2000))
@@ -359,6 +365,9 @@ class ProcessObservations(unittest.TestCase):
             return value
 
         gpu = rewrite(gpu)
+        from test_review_reference_support import add_synthetic_full_reference
+
+        add_synthetic_full_reference(gpu)
         with tempfile.TemporaryDirectory() as directory:
             paths = write_all(Path(directory), runs(cpu) + runs(gpu))
             report = fhe_workload_report.build_report(paths)

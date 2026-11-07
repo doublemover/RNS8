@@ -23,7 +23,19 @@ def add_output_padding_fields(capture: dict, padding: int) -> dict:
 
 
 def add_target_variant_fields(capture: dict, target_id: str = "gfx1100") -> dict:
-    namespace = "gfx1100" if target_id == "gfx1100" else "unknown"
+    namespace = (
+        "cpu"
+        if target_id == "cpu"
+        else "gfx1100"
+        if target_id == "gfx1100"
+        else "gfx11xx"
+        if target_id.startswith("gfx11")
+        else "gfx12xx"
+        if target_id.startswith("gfx12")
+        else "gfx9xx_gfx94x"
+        if target_id.startswith("gfx9")
+        else "unknown"
+    )
     device = capture.get("device", {})
     device_name = device.get("name", "")
     hip_toolchain = capture.get("hip_toolchain", {})

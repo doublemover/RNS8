@@ -101,10 +101,10 @@ class CatalogTests(unittest.TestCase):
             output = Path(folder) / "cases"
             report = materialize(output)
             self.assertEqual(
-                (report["cases"], report["catalogs"], report["retained_files"]), (2331, 25, 38)
+                (report["cases"], report["catalogs"], report["retained_files"]), (2371, 27, 50)
             )
             files = sorted(output.rglob("*.json"))
-            self.assertEqual(len(files), 2331)
+            self.assertEqual(len(files), 2371)
             before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
             materialize(output)
             self.assertEqual(before, {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files})
