@@ -309,6 +309,9 @@ def heap_catalog(metadata, process, cpu, *, snapshot=None, native_ranges=None):
         else "no_resolved_native_allocation_generations",
         memory_domain="native_Windows_heap_reported_payload_not_RSS_device_or_pinned_storage",
         allocations=allocations,
+        admitted_native_record_indices=sorted(
+            r["record_index"] for values in groups.values() for r in values
+        ),
         unresolved=unresolved,
         summary=dict(
             allocation_events=counts[33],

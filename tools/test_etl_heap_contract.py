@@ -17,6 +17,7 @@ def event(opcode, stamp, ordinal, words, *, tail=1):
         wire_contract="windows_kernel_HeapTrace_v0",
         opcode=opcode,
         time_filetime_100ns=stamp,
+        raw_time_qpc=stamp * 10,
         record_index=ordinal,
         pointer_bytes=8,
         native_header_pid=333,
@@ -32,6 +33,8 @@ def heap_metadata():
         observed_events=40,
         sample_walk_events=40,
         observed_heap_events=7,
+        raw_walk_events=40,
+        raw_source_point_count=9,
         heap_events=[
             event(32, 300, 11, [0x80]),
             event(33, 350, 12, [0x80, 64, 0x1000]),

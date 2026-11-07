@@ -9,6 +9,7 @@
 #include <tdh.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <climits>
 #include <cstdint>
@@ -47,7 +48,20 @@ constexpr GUID profile_provider = {
     0xce1dbfb4, 0x137e, 0x4da6, {0x87, 0xb0, 0x3f, 0x59, 0xaa, 0x10, 0x2c, 0xbc}};
 constexpr GUID heap_provider = {
     0x222962ab, 0x6180, 0x4b88, {0xa8, 0x25, 0x34, 0x6b, 0x75, 0xf2, 0xa2, 0x4a}};
+constexpr GUID stack_provider = {
+    0xdef2fe46, 0x7bd6, 0x4b80, {0xbd, 0x94, 0xf5, 0x7f, 0xe2, 0x0d, 0x0c, 0xe3}};
 enum class EventFamily : uint32_t { process, image, thread };
+enum class PointFamily { sample, schedule, heap };
+
+struct PointSource {
+  EVENT_HEADER header{};
+  ETW_BUFFER_CONTEXT context{};
+  std::array<BYTE, 44> payload{};
+  size_t payload_size = 0;
+  uint64_t record_index = 0;
+  PointFamily family = PointFamily::sample;
+  size_t position = 0;
+};
 
 struct Property {
   USHORT type = 0;
@@ -74,6 +88,11 @@ struct State {
   uint32_t selected_pid = 0;
   bool stopped = false;
   bool sample_pass = false;
+  bool raw_pass = false;
+  bool bind_raw_points = false;
+  uint64_t raw_walk_events = 0, stack_events = 0, undecoded_stack_events = 0,
+           excluded_stack_events = 0, unsupported_stack_events = 0;
+  size_t stack_frames = 0;
   const char* error = nullptr;
   json selected = json::array();
   json selected_images = json::array();
@@ -81,6 +100,9 @@ struct State {
   json selected_threads = json::array(), selected_samples = json::array();
   json selected_schedule = json::array();
   json selected_heap = json::array();
+  json selected_stacks = json::array();
+  std::vector<PointSource> point_sources;
+  size_t raw_next = 0;
   std::map<uint32_t, std::pair<uint64_t, uint64_t>> sample_thread_windows;
   std::map<std::tuple<EventFamily, USHORT, UCHAR, UCHAR, USHORT, bool>, Schema> schemas;
 };
@@ -248,6 +270,93 @@ size_t selected_observations(const State& state) {
          state.selected_schedule.size();
 }
 
+void remember_point(EVENT_RECORD* event, State& state, PointFamily family, size_t position) {
+  if (!state.bind_raw_points)
+    return;
+  if (event->UserDataLength > 44 ||
+      (!state.point_sources.empty() &&
+       state.point_sources.back().record_index >= state.sample_walk_events))
+    fail("selected native event payload/order exceeds replay contract");
+  PointSource value;
+  value.header = event->EventHeader;
+  value.header.TimeStamp.QuadPart = 0;
+  value.context = event->BufferContext;
+  value.payload_size = event->UserDataLength;
+  std::memcpy(value.payload.data(), event->UserData, value.payload_size);
+  value.record_index = state.sample_walk_events;
+  value.family = family;
+  value.position = position;
+  state.point_sources.push_back(std::move(value));
+}
+
+void raw_event(EVENT_RECORD* event, State& state) noexcept {
+  if (++state.raw_walk_events > max_events) {
+    state.stopped = true;
+    state.error = "ETL raw event walk budget exhausted";
+    return;
+  }
+  try {
+    if (state.raw_next < state.point_sources.size() &&
+        state.point_sources[state.raw_next].record_index == state.raw_walk_events) {
+      auto header = event->EventHeader;
+      header.TimeStamp.QuadPart = 0;
+      auto& saved = state.point_sources[state.raw_next++];
+      if (std::memcmp(&header, &saved.header, sizeof(header)) ||
+          std::memcmp(&event->BufferContext, &saved.context, sizeof(saved.context)) ||
+          event->UserDataLength != saved.payload_size || !event->UserData ||
+          std::memcmp(event->UserData, saved.payload.data(), saved.payload_size) ||
+          event->EventHeader.TimeStamp.QuadPart < 0)
+        fail("raw/native converted event ordinal or header/payload identity differs");
+      auto& rows = saved.family == PointFamily::sample ? state.selected_samples
+                   : saved.family == PointFamily::heap ? state.selected_heap
+                                                       : state.selected_schedule;
+      rows.at(saved.position)["raw_time_qpc"] = event->EventHeader.TimeStamp.QuadPart;
+    }
+    if (!IsEqualGUID(event->EventHeader.ProviderId, stack_provider))
+      return;
+    ++state.stack_events;
+    if (event->EventHeader.EventDescriptor.Opcode != 32) {
+      ++state.unsupported_stack_events;
+      return;
+    }
+    const bool is32 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0;
+    const bool is64 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_64_BIT_HEADER) != 0;
+    const uint32_t width = is32 ? 4u : 8u;
+    rns8::detail::trace::EtwStackWalk payload;
+    if (is32 == is64 || !rns8::detail::trace::decode_etw_stack_walk(
+                            event->UserData, event->UserDataLength,
+                            event->EventHeader.EventDescriptor.Version, width, payload)) {
+      ++state.undecoded_stack_events;
+      return;
+    }
+    if (payload.pid != state.selected_pid) {
+      ++state.excluded_stack_events;
+      return;
+    }
+    if (state.selected_stacks.size() >= 8192 || payload.frame_count > 262144 - state.stack_frames)
+      fail("selected native stack record/frame budget exhausted");
+    state.stack_frames += payload.frame_count;
+    json frames = json::array();
+    for (uint32_t i = 0; i < payload.frame_count; ++i)
+      frames.push_back(payload.frames[i]);
+    state.selected_stacks.push_back(
+        json{{"record_index", state.raw_walk_events},
+             {"wire_contract", "windows_kernel_StackWalk_prefix_versions_0_to_2"},
+             {"event_version", event->EventHeader.EventDescriptor.Version},
+             {"event_time_qpc", payload.event_timestamp},
+             {"pid", payload.pid},
+             {"tid", payload.tid},
+             {"pointer_bytes", width},
+             {"frames", std::move(frames)}});
+  } catch (const std::exception&) {
+    state.stopped = true;
+    state.error = "native raw event/stack decode failed identity or resource admission";
+  } catch (...) {
+    state.stopped = true;
+    state.error = "native raw event/stack decode allocation failed";
+  }
+}
+
 void heap_event(EVENT_RECORD* event, State& state) noexcept {
   ++state.heap_events;
   const auto& header = event->EventHeader;
@@ -295,6 +404,7 @@ void heap_event(EVENT_RECORD* event, State& state) noexcept {
              {"pointer_bytes", width},
              {"payload_words", std::move(words)},
              {"tail", opcode == 35 ? json(nullptr) : json(payload.tail)}});
+    remember_point(event, state, PointFamily::heap, state.selected_heap.size() - 1);
   } catch (...) {
     state.stopped = true;
     state.error = "ETL heap decoder allocation failed";
@@ -350,6 +460,7 @@ void schedule_event(EVENT_RECORD* event, State& state) noexcept {
       row["control_bytes"] = ready.control;
     }
     state.selected_schedule.push_back(std::move(row));
+    remember_point(event, state, PointFamily::schedule, state.selected_schedule.size() - 1);
   } catch (...) {
     state.stopped = true;
     state.error = "ETL scheduler decoder allocation failed";
@@ -426,6 +537,7 @@ void sample_event(EVENT_RECORD* event, State& state) noexcept {
              {"processor_index_mode", processor_index},
              {"record_index", state.sample_walk_events},
              {"wire_contract", "windows_kernel_SampledProfile_v2"}});
+    remember_point(event, state, PointFamily::sample, state.selected_samples.size() - 1);
   } catch (...) {
     state.stopped = true;
     state.error = "ETL sample decoder allocation failed";
@@ -436,6 +548,10 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
   auto& state = *static_cast<State*>(event->UserContext);
   if (state.stopped)
     return;
+  if (state.raw_pass) {
+    raw_event(event, state);
+    return;
+  }
   if (state.sample_pass) {
     sample_event(event, state);
     return;
@@ -612,6 +728,8 @@ TRACE_LOGFILE_HEADER decode_log(std::wstring& filename, State& state) {
   EVENT_TRACE_LOGFILEW logfile{};
   logfile.LogFileName = filename.data();
   logfile.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
+  if (state.raw_pass)
+    logfile.ProcessTraceMode |= PROCESS_TRACE_MODE_RAW_TIMESTAMP;
   logfile.Context = &state;
   logfile.EventRecordCallback = event_callback;
   logfile.BufferCallback = buffer_callback;
@@ -628,6 +746,14 @@ TRACE_LOGFILE_HEADER decode_log(std::wstring& filename, State& state) {
     fail(state.error ? state.error : "native ProcessTrace did not finish the complete file");
   trace.close();
   return logfile.LogfileHeader;
+}
+
+bool same_native_header(const TRACE_LOGFILE_HEADER& left, const TRACE_LOGFILE_HEADER& right) {
+  return left.StartTime.QuadPart == right.StartTime.QuadPart &&
+         left.EndTime.QuadPart == right.EndTime.QuadPart &&
+         left.PerfFreq.QuadPart == right.PerfFreq.QuadPart &&
+         left.ReservedFlags == right.ReservedFlags && left.PointerSize == right.PointerSize &&
+         left.EventsLost == right.EventsLost && left.BuffersLost == right.BuffersLost;
 }
 
 void select_sample_windows(State& state) {
@@ -703,17 +829,19 @@ int wmain(int argc, wchar_t** argv) {
       fail("ETL file byte budget exceeded");
     std::wstring filename = path.wstring();
     const auto header = decode_log(filename, state);
+    state.bind_raw_points = header.ReservedFlags == 1 && header.PerfFreq.QuadPart > 0;
     select_sample_windows(state);
     state.sample_pass = true;
     const auto sample_header = decode_log(filename, state);
-    if (state.sample_walk_events != state.events ||
-        sample_header.StartTime.QuadPart != header.StartTime.QuadPart ||
-        sample_header.EndTime.QuadPart != header.EndTime.QuadPart ||
-        sample_header.PerfFreq.QuadPart != header.PerfFreq.QuadPart ||
-        sample_header.ReservedFlags != header.ReservedFlags ||
-        sample_header.EventsLost != header.EventsLost ||
-        sample_header.BuffersLost != header.BuffersLost)
+    if (state.sample_walk_events != state.events || !same_native_header(header, sample_header))
       fail("native ETL metadata and sample walks disagree");
+    if (state.bind_raw_points && !state.point_sources.empty()) {
+      state.raw_pass = true;
+      const auto raw_header = decode_log(filename, state);
+      if (state.raw_walk_events != state.events || !same_native_header(header, raw_header) ||
+          state.raw_next != state.point_sources.size())
+        fail("native raw/converted walks or source event inventory disagree");
+    }
     if (std::filesystem::file_size(path) != before ||
         std::filesystem::last_write_time(path) != modified)
       fail("ETL file changed during native decoding");
@@ -761,6 +889,19 @@ int wmain(int argc, wchar_t** argv) {
         {"heap_filter",
          "known_selected_header_PID_or_unique_selected_thread_Start_End_for_unknown_header_PID"},
         {"heap_record_namespace", "second_native_event_walk"},
+        {"raw_binding_state", state.raw_pass
+                                  ? "raw_QPC_bound_by_native_ordinal_header_context_payload_replay"
+                              : state.bind_raw_points ? "no_selected_native_points"
+                                                      : "unsupported_non_QPC_clock"},
+        {"raw_walk_events", state.raw_walk_events},
+        {"raw_source_point_count", state.raw_pass ? state.point_sources.size() : 0},
+        {"raw_record_namespace", "third_native_event_walk"},
+        {"observed_stack_events", state.stack_events},
+        {"undecoded_stack_events", state.undecoded_stack_events},
+        {"excluded_stack_events", state.excluded_stack_events},
+        {"unsupported_stack_events", state.unsupported_stack_events},
+        {"stack_events", std::move(state.selected_stacks)},
+        {"stack_frames", state.stack_frames},
         {"header",
          {{"pointer_bytes", header.PointerSize},
           {"clock_type", header.ReservedFlags},

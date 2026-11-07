@@ -16,6 +16,7 @@ def switched(stamp, ordinal, *, old=42, new=7, state=5):
     return dict(
         record_index=ordinal,
         time_filetime_100ns=stamp,
+        raw_time_qpc=stamp * 10,
         native_header_pid=999,
         native_header_tid=999,
         processor_index_mode=True,
@@ -33,6 +34,7 @@ def readied(stamp=550, ordinal=12, *, flags=0):
     return dict(
         record_index=ordinal,
         time_filetime_100ns=stamp,
+        raw_time_qpc=stamp * 10,
         native_header_pid=777,
         native_header_tid=999,
         processor_index_mode=True,
@@ -49,6 +51,8 @@ def schedule_metadata():
         observed_events=30,
         sample_walk_events=30,
         observed_schedule_events=3,
+        raw_walk_events=30,
+        raw_source_point_count=5,
         schedule_events=[switched(350, 11), readied(), switched(750, 13, old=7, new=42)],
     )
     return value

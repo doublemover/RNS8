@@ -33,6 +33,7 @@ def sample(ordinal, stamp, *, header_pid=2**32 - 1, tid=42, flags=0):
         native_header_tid=2**32 - 1,
         time_filetime_100ns=stamp,
         instruction_pointer=0x180001234,
+        raw_time_qpc=stamp * 10,
         pointer_bytes=8,
         packed_count_flags_rank=1 + (flags << 16),
         count=1,
@@ -54,6 +55,9 @@ def cpu_metadata():
         thread_events=[thread(1, 250, 7), thread(2, 850, 8)],
         observed_sample_events=2,
         sample_events=[sample(9, 450), sample(10, 650)],
+        raw_binding_state="raw_QPC_bound_by_native_ordinal_header_context_payload_replay",
+        raw_walk_events=20,
+        raw_source_point_count=2,
     )
     return value
 

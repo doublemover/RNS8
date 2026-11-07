@@ -152,6 +152,16 @@ class WindowsHostProfile(unittest.TestCase):
                     "heap_events",
                     "heap_filter",
                     "heap_record_namespace",
+                    "raw_binding_state",
+                    "raw_walk_events",
+                    "raw_source_point_count",
+                    "raw_record_namespace",
+                    "observed_stack_events",
+                    "undecoded_stack_events",
+                    "excluded_stack_events",
+                    "unsupported_stack_events",
+                    "stack_events",
+                    "stack_frames",
                 ):
                     metadata[key] = markers[key]
             result["stdout"] = json.dumps(metadata)

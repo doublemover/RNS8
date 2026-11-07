@@ -123,3 +123,44 @@ TEST_CASE("native ETW heap v0 layouts preserve pointer domains and reject unsupp
       CHECK(output.tail == previous.tail);
     }
 }
+
+TEST_CASE(
+    "native ETW StackWalk prefixes bound unaligned native frames and preserve rejected output",
+    "[cpu][trace]") {
+  using namespace rns8::detail::trace;
+  for (const uint32_t width : {4u, 8u}) {
+    std::array<unsigned char, 16 + 192 * 8 + 1> storage{};
+    auto* raw = storage.data() + 1;
+    const uint64_t stamp = UINT64_C(0xf123456789abcdef);
+    const uint32_t pid = 0xf1234567, tid = 0xe1234567;
+    std::memcpy(raw, &stamp, 8);
+    std::memcpy(raw + 8, &pid, 4);
+    std::memcpy(raw + 12, &tid, 4);
+    const uint64_t ip = width == 4 ? UINT64_C(0xf1234567) : UINT64_C(0xf123456789abcdef);
+    for (size_t i = 0; i < 192; ++i)
+      std::memcpy(raw + 16 + i * width, &ip, width);
+    for (const uint32_t version : {0u, 1u, 2u})
+      for (const size_t count : {size_t(0), size_t(1), size_t(192)}) {
+        EtwStackWalk output;
+        REQUIRE(decode_etw_stack_walk(raw, 16 + count * width, version, width, output));
+        CHECK(output.pid == pid);
+        CHECK(output.tid == tid);
+        CHECK(output.event_timestamp == stamp);
+        CHECK(output.frame_count == count);
+        if (count)
+          CHECK(output.frames[count - 1] == ip);
+        const auto previous = output;
+        CHECK_FALSE(decode_etw_stack_walk(nullptr, 16, version, width, output));
+        CHECK_FALSE(decode_etw_stack_walk(raw, 15, version, width, output));
+        CHECK_FALSE(decode_etw_stack_walk(raw, 17, version, width, output));
+        CHECK_FALSE(decode_etw_stack_walk(raw, 16 + 193 * width, version, width, output));
+        CHECK_FALSE(decode_etw_stack_walk(raw, SIZE_MAX, version, width, output));
+        CHECK_FALSE(decode_etw_stack_walk(raw, 16, 3, width, output));
+        CHECK_FALSE(decode_etw_stack_walk(raw, 16, version, 16, output));
+        CHECK(output.pid == previous.pid);
+        CHECK(output.event_timestamp == previous.event_timestamp);
+        CHECK(output.frame_count == previous.frame_count);
+        CHECK(output.frames == previous.frames);
+      }
+  }
+}

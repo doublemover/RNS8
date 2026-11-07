@@ -587,6 +587,43 @@ the registry. Native allocation stacks/source association and real version/
 capture compatibility remain pending. All new byte, generation, identity,
 phase, journal and owned failure/publication controls are authored and unexecuted.
 
+## Native Windows stack association
+
+For a QPC-clock recording with selected CPU, scheduler or heap points, the
+inspector makes a third file-only native walk with
+[`PROCESS_TRACE_MODE_RAW_TIMESTAMP`](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilew).
+It checks complete walk/header agreement and matches each retained original
+event's ordinal, normalized native header, processor context and exact payload
+against the converted-time walk. The replay cache uses a compact ordered vector
+and fixed-size payload storage, with no per-point lookup or payload allocation.
+Each source point retains both its native raw QPC time and converted FILETIME;
+no guessed affine conversion or QPC-to-WPA offset is introduced. Other clocks
+and captures with no selected native points have explicit unbound states.
+
+The bounded reader consumes the documented
+[StackWalk event prefix](https://learn.microsoft.com/en-us/windows/win32/etw/stackwalk-event)
+for descriptor versions0–2 and native32/64-bit frame widths. It preserves the
+original event timestamp, process/thread IDs, native frame order and actual
+descriptor version. Future/unsupported formats remain counted. Limits cover
+8,192 retained fragments,192 frames per fragment and262,144 total addresses.
+
+`native-stack-observations.json` joins a fragment only to one observed original
+event matching PID/TID/raw QPC and a closed selected-thread generation. Stack
+arrival time and a context switch's header actor cannot substitute for original
+event identity. CPU/heap timestamp collisions, empty fragments, missing original
+events and undecoded source-family candidates remain unresolved. CPU, allocator,
+switch-out/in and ready-thread roles stay separate. Multiple fragments for one
+event retain their own record IDs and frame sequences; the adapter does not
+concatenate kernel/user fragments or claim complete unwind/inlined coverage.
+
+The Windows owner publishes and replays these associations alongside the raw
+native metadata. PDB lookup currently resolves leaves; extending conditional
+module/PDB/source lookup to the associated native frame sequences remains
+implementation work. Native raw/converted walk ordering and real StackWalk
+compatibility plus authored payload/identity/collision/loss/clock controls remain
+unexecuted. All current source checks are frontend/static checks, with no ETL,
+native decoder, profiler, fixture or runtime test execution.
+
 ## Separate Linux host allocation capture
 
 `tools/host_heap_session.py` authors a bounded Linux recipe against an explicit

@@ -26,6 +26,7 @@ from etl_range_contract import operation_ranges as bind_operation_ranges
 from etl_cpu_contract import cpu_catalog
 from etl_schedule_contract import schedule_catalog
 from etl_heap_contract import heap_catalog
+from etl_stack_contract import stack_catalog
 from windows_heap_settings import (
     configuration as heap_configuration,
     temporary_configuration,
@@ -67,6 +68,7 @@ SOURCE_INPUTS = (
     "tools/etl_cpu_contract.py",
     "tools/etl_schedule_contract.py",
     "tools/etl_heap_contract.py",
+    "tools/etl_stack_contract.py",
     "tools/etl_point_phases.py",
     "tools/windows_heap_settings.py",
     "tools/host_interval_phases.py",
@@ -469,6 +471,9 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         heap_settings = settings_receipt(
             before, after, policy=plan["heap_configuration"], owner_pid=owner_pid
         )
+    stacks = stack_catalog(
+        native_metadata, process_identity, native_cpu, heap=heap_observations, schedule=schedule
+    )
     profiled = bind_host_profile_output(
         production,
         raw,
@@ -517,6 +522,7 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         publish("native-schedule-observations.json", schedule)
     if heap_observations is not None:
         publish("native-heap-observations.json", heap_observations)
+    publish("native-stack-observations.json", stacks)
     if ranges is not None:
         publish("native-operation-ranges.json", ranges)
     publish("profiled.json", profiled)
@@ -539,6 +545,7 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         if heap_observations is not None
         else None,
         heap_settings=heap_settings,
+        native_stack_observations=reference(out / "native-stack-observations.json"),
         selected_process_identity=process_identity,
         sample_loss=process_identity["header_loss"],
         clock_join="unbound",
