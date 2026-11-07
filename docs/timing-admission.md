@@ -8,6 +8,18 @@ Censored, fused, elided, unsupported and absent phases do not establish measured
 speedups. Batch-amortized and single-operation results are not interchangeable.
 Legacy descriptive statistics remain readable and are not silently promoted.
 
+CPU arithmetic anchors and CPU timing baselines have separate environment
+contracts. An arithmetic anchor verifies the complete mathematical result; it
+does not establish a speedup. CPU/GPU timing comparisons retain the observed OS
+instance, source/build, compiler, toolchain, configuration, clock policy and host
+timer contract. Only GPU-specific device identity is omitted for this explicit
+comparison. Same-device GPU comparisons retain it. Report partitions and baseline
+selection apply this contract before selecting the best aggregated implementation.
+The adaptive scheduler report also requires hook-disabled production cohorts and
+`--diagnostic-binding` receipts for their separate GPU-event captures. Its CPU
+rows verify arithmetic only; they do not supply CPU timing ratios. Local scheduler
+decisions require a completed-output gain above both cohorts' observed noise.
+
 Sweep reviews record the actual baseline path and canonical digests of both
 captures for their end-to-end timing comparison. Private loader path annotations
 are excluded from content digests. The ledger requires that binding even if a

@@ -33,6 +33,11 @@ class ExecutionHostIdentities(unittest.TestCase):
         self.assertFalse(policy.processor_pair(cpu, cpu))
         self.assertFalse(ordinary.processor_pair(gpu, cpu))
         self.assertEqual(policy.environment(cpu), policy.environment(gpu))
+        self.assertEqual(
+            policy.environment(cpu), comparison_environment(cpu, cpu_gpu_comparison=True)
+        )
+        with self.assertRaises(ValueError):
+            comparison_environment(cpu, cpu_anchor=True, cpu_gpu_comparison=True)
         self.assertNotEqual(ordinary.environment(cpu), ordinary.environment(gpu))
         for change in ("host", "build", "clock", "thread_policy", "compiler"):
             changed = deepcopy(cpu)
@@ -47,6 +52,12 @@ class ExecutionHostIdentities(unittest.TestCase):
             else:
                 changed["compiler"] = {"name": "other"}
             self.assertNotEqual(policy.environment(changed), policy.environment(gpu), change)
+            if change not in ("host", "build"):
+                self.assertEqual(
+                    comparison_environment(changed, cpu_anchor=True),
+                    comparison_environment(gpu, cpu_anchor=True),
+                    change,
+                )
 
     def test_native_envelope_and_observed_scope(self):
         capture = bounded_capture("hip-direct", 100)

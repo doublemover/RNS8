@@ -10,12 +10,15 @@ import tempfile
 from pathlib import Path
 
 from benchmark_schema import load_capture, validate_capture
+from diagnostic_companion import build_binding
+from test_diagnostic_companion import authored_capture_pair
 
 import adaptive_grouped_scheduler_report
 from test_capture_identity_support import write_independent_fixture_pair, independent_fixture_paths
 
 
 FIXTURE = Path("tests") / "fixtures" / "benchmark_schema" / "v4_bounded_i64_adaptive_hip.json"
+BINDINGS = {}
 
 
 def _summary(values: list[float]) -> dict[str, float]:
@@ -161,11 +164,20 @@ def _capture(backend: str, end_to_end_us: int, *, candidate: bool = False) -> di
 
 
 def build_report(paths):
-    return adaptive_grouped_scheduler_report.build_report(independent_fixture_paths(paths))
+    return adaptive_grouped_scheduler_report.build_report(
+        independent_fixture_paths(paths), diagnostic_bindings=BINDINGS
+    )
 
 
 def _write(path: Path, capture: dict) -> Path:
     write_independent_fixture_pair(path, capture)
+    for run, destination in enumerate(independent_fixture_paths([path])):
+        lane = path.parent / f"{path.stem}-pair-{run}"
+        lane.mkdir()
+        _, _, pair = authored_capture_pair(lane, load_capture(destination))
+        destination.write_bytes(pair[0].read_bytes())
+        if capture["backend_selected"] == "hip-direct":
+            BINDINGS[str(destination.resolve())] = build_binding(destination, pair[1])
     return path
 
 
@@ -180,6 +192,23 @@ with tempfile.TemporaryDirectory() as tmp_name:
     assert row["speedup_vs_direct_hip"] and row["speedup_vs_direct_hip"] > 1.2
     assert row["launch_reduction_ratio"] == 16.0
     assert row["blockers"] == []
+    assert row["comparison"]["qualified"] is True
+    assert row["gpu_event_evidence_scope"] == "matched_diagnostic_companions"
+    assert row["cpu_baseline_median_us"] is None
+    assert row["cpu_anchor_capture_sha256"]
+    unbound = adaptive_grouped_scheduler_report.build_report(
+        independent_fixture_paths([cpu, direct, candidate])
+    )["rows"][0]
+    assert unbound["decision"] == "keep experimental"
+    assert unbound["speedup_vs_direct_hip"] is None
+    assert "matched_diagnostic_companion_missing" in unbound["blockers"]
+
+    # Distinct filenames with one process UUID cannot supply a production cohort.
+    singleton = adaptive_grouped_scheduler_report.build_report(
+        [cpu, direct, candidate, candidate], diagnostic_bindings=BINDINGS
+    )["rows"][0]
+    assert singleton["decision"] == "keep experimental"
+    assert "insufficient_independent_processes" in singleton["blockers"]
 
 with tempfile.TemporaryDirectory() as tmp_name:
     tmp = Path(tmp_name)

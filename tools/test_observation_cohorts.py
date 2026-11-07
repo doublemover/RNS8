@@ -342,6 +342,58 @@ class ProcessObservations(unittest.TestCase):
             )
             self.assertIn("cpu_reference_baseline_missing", gpu_group["blockers"])
 
+    def test_cpu_timing_partitions_preserve_build_and_timer_policy(self):
+        from observation_cohorts import best_implementation, row_identity, partition_rows
+
+        cpu = finite_map_capture("cpu-reference", 2000)
+        gpu = finite_map_capture("hip-direct", 900)
+        for change in ("matched", "compiler", "configuration", "clock", "clock_policy", "host"):
+            changed = deepcopy(cpu)
+            if change == "compiler":
+                changed["compiler"]["version"] = "different compiler version"
+            elif change == "configuration":
+                changed["build_manifest"]["configuration"] += "\nother_policy=ON"
+            elif change == "clock":
+                changed["timing_metadata"]["clock_period_denominator"] = 1000000
+            elif change == "clock_policy":
+                changed["clock_policy"] = {"mode": "other"}
+            elif change == "host":
+                changed["execution_host_identity"]["os_instance_sha256"] = "b" * 64
+            observations = aggregate_captures(runs(changed) + runs(gpu))
+            rows = [dict(row_identity(c), backend=c["backend_selected"]) for c in observations]
+            partitions = partition_rows(rows)
+            device = next(c for c in observations if c["backend_selected"] == "hip-direct")
+            cpus = [c for c in observations if c["backend_selected"] == "cpu-reference"]
+            selected = best_implementation(cpus, candidate=device, cpu_gpu_comparison=True)
+            self.assertEqual(selected is not None, change == "matched", change)
+            device_rows = next(
+                members
+                for _, members in partitions
+                if any(r["backend"] == "hip-direct" for r in members)
+            )
+            self.assertEqual(
+                any(r["backend"] == "cpu-reference" for r in device_rows),
+                change == "matched",
+                change,
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                paths = write_all(Path(directory), runs(changed) + runs(gpu))
+                report = finite_modulus_map_report.build_report(
+                    paths,
+                    expected_shapes=[gpu["m"]],
+                    expected_ring_moduli=[255],
+                    expected_field_moduli=[],
+                    expected_backends=["cpu-reference", "hip-direct"],
+                )
+                device_group = next(
+                    group for group in report["groups"] if "hip-direct" in group["present_backends"]
+                )
+                self.assertEqual(
+                    device_group["winner"]["speedup_vs_cpu"] is not None,
+                    change == "matched",
+                    change,
+                )
+
 
 class CounterObservations(unittest.TestCase):
     def test_uneven_partition_missing_metrics_and_kernel_identity(self):

@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from reference_verdict import CPUReferenceIndex
-
 import argparse
 import json
 import math
@@ -12,20 +10,20 @@ from pathlib import Path
 from typing import Any
 
 from report_capture_inputs import load_report_capture
-from observation_cohorts import (
-    aggregate_captures,
-    canonical_work,
-    phase_median,
-    evidence,
-    qualified,
-    best_implementation,
-)
+from observation_cohorts import phase_median, evidence
+from report_comparison import ComparisonPolicy, ReportCohorts
+from diagnostic_companion import file_digest, load_bindings
+from timing_eligibility import capture_identity
 
 
 DEFAULT_OUT_DIR = Path("temp") / "adaptive-grouped-scheduler-reports"
 DIRECT_GROUPED_KERNEL = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
 RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
+SCHEDULER_POLICY = ComparisonPolicy(
+    "same_work_nonadaptive_vs_grouped_scheduler_v1",
+    work_exclusions=("adaptive_grouped_scheduler.requested", "adaptive_grouped_scheduler.strategy"),
+)
 
 
 def _backend(capture: dict[str, Any]) -> str:
@@ -37,12 +35,7 @@ def _median(capture: dict[str, Any], phase: str = "end_to_end") -> float | None:
 
 
 def _same_contract_key(capture: dict[str, Any]) -> tuple[Any, ...]:
-    return (
-        canonical_work(
-            capture,
-            exclude=("adaptive_grouped_scheduler.requested", "adaptive_grouped_scheduler.strategy"),
-        ),
-    )
+    return (SCHEDULER_POLICY.work(capture),)
 
 
 def _gpu_events_available(capture: dict[str, Any]) -> bool:
@@ -90,8 +83,8 @@ def _candidate(capture: dict[str, Any]) -> bool:
 
 def _baseline_map(
     captures: list[dict[str, Any]],
-) -> dict[tuple[Any, ...], dict[str, dict[str, Any]]]:
-    baselines: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = {}
+) -> dict[tuple[Any, ...], dict[str, list[dict[str, Any]]]]:
+    baselines: dict[tuple[Any, ...], dict[str, list[dict[str, Any]]]] = {}
     for capture in captures:
         if _candidate(capture):
             continue
@@ -105,32 +98,32 @@ def _baseline_map(
     return baselines
 
 
-def _speedup(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> float | None:
-    if not qualified(candidate) or not qualified(baseline):
-        return None
-    candidate_median = _median(candidate)
-    baseline_median = _median(baseline) if baseline is not None else None
-    if candidate_median is None or baseline_median is None or candidate_median <= 0:
-        return None
-    return baseline_median / candidate_median
+def _diagnostic_events(candidate: dict, cohorts: ReportCohorts) -> bool:
+    """GPU phases describe matched diagnostics, never production host timings."""
+    receipts = cohorts.production.receipts(candidate)
+    if len(receipts) != evidence(candidate).get("independent_runs") or not receipts:
+        return False
+    for receipt in receipts:
+        binding = receipt.get("diagnostic_companion") or {}
+        try:
+            path = Path(binding["diagnostic_capture"])
+            diagnostic = _load(path)
+            if (
+                binding.get("diagnostic_kind") != "hip_events"
+                or file_digest(path) != binding["diagnostic_file_sha256"]
+                or capture_identity(diagnostic) != binding["diagnostic_capture_sha256"]
+                or not _gpu_events_available(diagnostic)
+            ):
+                return False
+        except (KeyError, OSError, TypeError, ValueError):
+            return False
+    return True
 
 
-def _row(
-    candidate: dict[str, Any], baselines: dict[str, dict[str, Any]], references: CPUReferenceIndex
-) -> dict[str, Any]:
-    adaptive = _adaptive_metadata(candidate)
-    schedule = (
-        candidate.get("schedule_metadata")
-        if isinstance(candidate.get("schedule_metadata"), dict)
-        else {}
-    )
-    cpu = best_implementation(baselines.get("cpu", []), candidate=candidate, cpu_anchor=True)
-    direct = best_implementation(baselines.get("direct_hip", []), candidate=candidate)
-    numerical = references.verdict(candidate)
-    direct_numerical = references.verdict(direct) if direct is not None else None
-    blockers: list[str] = list(evidence(candidate)["blockers"]) + list(numerical.blockers)
-    if direct_numerical is not None:
-        blockers.extend("direct:" + item for item in direct_numerical.blockers)
+def _scheduler_blockers(capture: dict) -> list[str]:
+    adaptive = _adaptive_metadata(capture)
+    schedule = capture.get("schedule_metadata") or {}
+    blockers = []
     if adaptive.get("capture_status") != "executed":
         blockers.append("adaptive_grouped_scheduler_not_executed")
     if adaptive.get("promotion_eligible") is not False:
@@ -141,30 +134,61 @@ def _row(
         blockers.append("missing_active_entry_count")
     if int(adaptive.get("aggregate_launch_count_model") or 0) != 1:
         blockers.append("missing_aggregate_launch_model")
-    if not _gpu_events_available(candidate):
+    ratio = adaptive.get("launch_reduction_ratio")
+    if type(ratio) not in (int, float) or not math.isfinite(ratio):
+        blockers.append("missing_launch_reduction_ratio")
+    elif ratio <= 1:
+        blockers.append("no_launch_reduction_model")
+    return blockers
+
+
+def _row(
+    candidate: dict[str, Any], baselines: dict[str, list[dict]], cohorts: ReportCohorts
+) -> dict[str, Any]:
+    adaptive = _adaptive_metadata(candidate)
+    schedule = (
+        candidate.get("schedule_metadata")
+        if isinstance(candidate.get("schedule_metadata"), dict)
+        else {}
+    )
+    # CPU rows are arithmetic anchors here, not independently qualified timing
+    # baselines. A CPU timing ratio would need the explicit CPU/GPU policy.
+    numerical = cohorts.numerical(candidate)
+    direct = cohorts.best(baselines.get("direct_hip", []), candidate, SCHEDULER_POLICY)
+    comparison = cohorts.compare(candidate, direct, SCHEDULER_POLICY)
+    direct_numerical = cohorts.numerical(direct) if direct is not None else None
+    blockers: list[str] = list(comparison["blockers"])
+    scheduler_observations = [
+        dict(capture_sha256=capture_identity(raw), blockers=_scheduler_blockers(raw))
+        for raw in cohorts.raw_observations(candidate)
+    ]
+    if not scheduler_observations:
+        blockers.append("scheduler_process_observations_missing")
+    blockers.extend(reason for item in scheduler_observations for reason in item["blockers"])
+    gpu_events = _diagnostic_events(candidate, cohorts)
+    if not gpu_events:
         blockers.append("missing_required_gpu_events")
     if not _release_reviewed(candidate):
         blockers.append("not_release_reviewed")
-    if cpu is None:
+    if not numerical.reference_capture_sha256:
         blockers.append("missing_cpu_baseline")
     if direct is None:
         blockers.append("missing_direct_hip_baseline")
-    direct_speedup = _speedup(candidate, direct)
+    direct_speedup = comparison["speedup"]
+    margin = comparison["required_speedup_margin"]
     if direct is not None and direct_speedup is None:
         blockers.append("missing_direct_hip_timing")
     launch_reduction_ratio = adaptive.get("launch_reduction_ratio")
-    if not isinstance(launch_reduction_ratio, (int, float)) or not math.isfinite(
+    if type(launch_reduction_ratio) not in (int, float) or not math.isfinite(
         float(launch_reduction_ratio)
     ):
-        blockers.append("missing_launch_reduction_ratio")
         launch_reduction_ratio = None
-    elif float(launch_reduction_ratio) <= 1.0:
-        blockers.append("no_launch_reduction_model")
+    blockers = sorted(set(blockers))
     if blockers:
         decision = "keep experimental"
-    elif direct_speedup is not None and direct_speedup > 1.02:
+    elif direct_speedup is not None and margin is not None and direct_speedup > margin:
         decision = "promote locally"
-    elif direct_speedup is not None and direct_speedup < 0.98:
+    elif direct_speedup is not None and margin is not None and direct_speedup < 1 / margin:
         decision = "drop/deprioritize"
     else:
         decision = "keep experimental"
@@ -178,6 +202,9 @@ def _row(
             name: [evidence(c) for c in values] for name, values in baselines.items()
         },
         "selected_direct_cohort": evidence(direct),
+        "comparison": comparison,
+        "required_speedup_margin": margin,
+        "scheduler_process_observations": scheduler_observations,
         "semantics": candidate.get("semantics"),
         "shape": [candidate.get("m"), candidate.get("n"), candidate.get("k")],
         "backend": _backend(candidate),
@@ -190,26 +217,29 @@ def _row(
         "launch_reduction_ratio": launch_reduction_ratio,
         "event_scope": adaptive.get("event_scope"),
         "candidate_median_us": _median(candidate),
-        "cpu_baseline_path": cpu.get("_path") if cpu else None,
-        "cpu_baseline_median_us": _median(cpu) if cpu else None,
+        "cpu_baseline_path": None,
+        "cpu_baseline_median_us": None,
+        "cpu_anchor_capture_sha256": list(numerical.reference_capture_sha256),
+        "cpu_baseline_role": "arithmetic_anchor_only_no_cpu_timing_ratio",
         "direct_hip_baseline_path": direct.get("_path") if direct else None,
         "direct_hip_baseline_median_us": _median(direct) if direct else None,
         "speedup_vs_direct_hip": direct_speedup,
         "release_reviewed": _release_reviewed(candidate),
-        "required_gpu_events": _gpu_events_available(candidate),
+        "required_gpu_events": gpu_events,
+        "gpu_event_evidence_scope": "matched_diagnostic_companions",
         "blockers": blockers,
         "decision": decision,
     }
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
     raw = [_load(path) for path in paths]
-    captures = aggregate_captures(raw)
+    cohorts = ReportCohorts(raw, diagnostic_bindings)
+    captures = cohorts.observations
     candidates = [capture for capture in captures if _candidate(capture)]
     baselines = _baseline_map(captures)
-    references = CPUReferenceIndex(captures)
     rows = [
-        _row(candidate, baselines.get(_same_contract_key(candidate), {}), references)
+        _row(candidate, baselines.get(_same_contract_key(candidate), {}), cohorts)
         for candidate in candidates
     ]
     return {
@@ -225,7 +255,8 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         "policy": (
             "adaptive grouped scheduler evidence requires schema-valid captures, direct-HIP grouped kernel execution, "
             "CPU and non-requested direct-HIP baselines, required GPU events, release review warmups/repeats, "
-            "and setup-inclusive end-to-end wins before local promotion"
+            "and matched hook-disabled independent production processes with completed-output wins "
+            "above their observed noise before local promotion. CPU rows are arithmetic anchors only."
         ),
     }
 
@@ -264,8 +295,9 @@ def main() -> int:
     parser.add_argument("captures", nargs="+", type=Path)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--diagnostic-binding", action="append", type=Path, default=[])
     args = parser.parse_args()
-    report = build_report(args.captures)
+    report = build_report(args.captures, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     args.out_dir.mkdir(parents=True, exist_ok=True)
     json_path = args.out_dir / "adaptive-grouped-scheduler-report.json"
     markdown_path = args.out_dir / "adaptive-grouped-scheduler-report.md"

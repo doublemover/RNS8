@@ -46,11 +46,24 @@ def canonical_work(capture: dict, *, exclude: Iterable[str] = ()) -> str:
 
 
 def comparison_environment(
-    capture: dict, *, cpu_anchor: bool = False, task_scaling: bool = False
+    capture: dict,
+    *,
+    cpu_anchor: bool = False,
+    cpu_gpu_comparison: bool = False,
+    task_scaling: bool = False,
 ) -> str:
+    """Separate arithmetic anchors from same-host CPU/GPU timing comparisons.
+
+    An arithmetic anchor need not share a compiler or timer. Timing comparisons
+    may omit GPU-only identity, but retain every build and host timing field.
+    """
+    if cpu_anchor and cpu_gpu_comparison:
+        raise ValueError("arithmetic-anchor and CPU/GPU timing scopes are exclusive")
     manifest = capture.get("build_manifest") or {}
     identity = {
-        "observed_hardware": hardware_cohort_identity(capture, cpu_anchor=cpu_anchor),
+        "observed_hardware": hardware_cohort_identity(
+            capture, cpu_anchor=cpu_anchor or cpu_gpu_comparison
+        ),
         "source_commit": manifest.get("source_commit"),
         "source_digest": manifest.get("source_digest"),
         "environment_identity": request_environment_identity(capture.get("request_identity"))[0],
@@ -104,6 +117,8 @@ def comparison_environment(
                 ("ck=", "rocwmma=", "hipblaslt=", "builtins=", "dependency_tree.")
             )
         )
+        if cpu_gpu_comparison:
+            identity.pop("device", None)
     return json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
@@ -484,7 +499,7 @@ class ProductionCohortIndex:
 
 
 def best_implementation(
-    captures: Iterable[dict], *, candidate: dict | None = None, cpu_anchor: bool = False
+    captures: Iterable[dict], *, candidate: dict | None = None, cpu_gpu_comparison: bool = False
 ) -> dict | None:
     valid = [
         c
@@ -493,8 +508,8 @@ def best_implementation(
         and phase_median(c) is not None
         and (
             candidate is None
-            or comparison_environment(c, cpu_anchor=cpu_anchor)
-            == comparison_environment(candidate, cpu_anchor=cpu_anchor)
+            or comparison_environment(c, cpu_gpu_comparison=cpu_gpu_comparison)
+            == comparison_environment(candidate, cpu_gpu_comparison=cpu_gpu_comparison)
         )
     ]
     return min(
@@ -512,13 +527,13 @@ def row_identity(capture: dict, *, exclude: Iterable[str] = ()) -> dict:
         "work_contract": json.loads(work),
         "work_contract_key": digest(work),
         "comparison_environment": digest(comparison_environment(capture)),
-        "source_identity": digest(comparison_environment(capture, cpu_anchor=True)),
+        "source_identity": digest(comparison_environment(capture, cpu_gpu_comparison=True)),
         "measurement_cohort": evidence(capture),
     }
 
 
 def partition_rows(rows: list[dict]) -> list[tuple[tuple[str, str, str], list[dict]]]:
-    """Share same-source CPU anchors only with identical arithmetic/work contracts."""
+    """Share CPU timings only within the same host/build/timing/work contract."""
     work_groups = defaultdict(list)
     for row in rows:
         work_groups[(row["work_contract_key"], row["source_identity"])].append(row)

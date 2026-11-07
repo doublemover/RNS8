@@ -201,8 +201,12 @@ def select_best_static(
         and setup_inclusive_median_us(capture) is not None
         and (
             candidate is None
-            or comparison_environment(capture, cpu_anchor=not gpu_backend(capture))
-            == comparison_environment(candidate, cpu_anchor=not gpu_backend(capture))
+            or comparison_environment(
+                capture, cpu_gpu_comparison=gpu_backend(capture) != gpu_backend(candidate)
+            )
+            == comparison_environment(
+                candidate, cpu_gpu_comparison=gpu_backend(capture) != gpu_backend(candidate)
+            )
         )
     ]
     if not valid:

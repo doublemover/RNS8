@@ -339,8 +339,8 @@ def build_report_from_captures(
                 (
                     value
                     for value in by_role.get("cpu_byte_limb_reference", [])
-                    if comparison_environment(value, cpu_anchor=True)
-                    == comparison_environment(item, cpu_anchor=True)
+                    if comparison_environment(value, cpu_gpu_comparison=True)
+                    == comparison_environment(item, cpu_gpu_comparison=True)
                 ),
                 None,
             )

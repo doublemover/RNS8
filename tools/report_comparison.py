@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from paired_experiment import VerifiedPairedExperiment
 
-from execution_host_identity import hardware_cohort_identity
-
 from observation_cohorts import (
     ProductionCohortIndex,
     aggregate_captures,
@@ -56,12 +54,9 @@ class ComparisonPolicy:
         return canonical_work(capture, exclude=self.work_exclusions)
 
     def environment(self, capture: dict) -> str:
-        identity = json.loads(comparison_environment(capture))
-        # CPU/GPU timings can join only an observed OS instance and otherwise
-        # identical source/build/host clock policy. Device data is GPU-only.
-        if self.cpu_gpu_comparison:
-            identity["observed_hardware"] = hardware_cohort_identity(capture, cpu_anchor=True)
-            identity.pop("device", None)
+        identity = json.loads(
+            comparison_environment(capture, cpu_gpu_comparison=self.cpu_gpu_comparison)
+        )
         if self.paired_experiment is not None:
             identity = self.paired_experiment.environment(capture, identity)
         return json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False)
