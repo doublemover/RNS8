@@ -25,10 +25,20 @@ bool grouped_source_versions_available(uint64_t first_source_version, uint32_t t
 
 bool matrix_matches_descriptor(const rns8_matrix* matrix, rns8_semantics semantics, int64_t rows,
                                int64_t cols, uint32_t prefix) {
-  return matrix && matrix->backend == RNS8_BACKEND_HIP_DIRECT && matrix->desc.rows == rows &&
+  if (!matrix)
+    return false;
+  // An active grouped prefix can consume a larger persistent allocation. The
+  // shared storage checks bind its full capacity and reject alternate bases.
+  const bool storage_matches =
+      api::uses_rns_storage(semantics)
+          ? prefix > 0 && api::rns_matrix_storage_matches(*matrix, RNS8_BACKEND_HIP_DIRECT, rows,
+                                                          cols, prefix)
+          : matrix->prefix == prefix &&
+                api::finite_matrix_storage_matches(*matrix, RNS8_BACKEND_HIP_DIRECT, rows, cols);
+  return matrix->backend == RNS8_BACKEND_HIP_DIRECT && matrix->desc.rows == rows &&
          matrix->desc.cols == cols && matrix->desc.logical_ld == cols &&
          matrix->desc.logical_layout == RNS8_LAYOUT_ROW_MAJOR &&
-         matrix->desc.semantics == semantics && matrix->prefix == prefix && matrix->hip_residues &&
+         matrix->desc.semantics == semantics && storage_matches && matrix->hip_residues &&
          matrix->hip_device_id >= 0;
 }
 

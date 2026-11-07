@@ -79,6 +79,9 @@ Result caches track source versions and explicitly dirty output regions; they
 are not general automatic incremental computation.
 
 The ordinary public grouped GEMM calls accept compatible current resident tasks.
+They use the plan's active prefix and validate the complete persistent allocation;
+larger default-basis storage is allowed. Output publication records the prefix
+actually written, so unused capacity does not become a current residue value.
 [Prepared execution](prepared-execution.md) retains resources and generation
 bindings. Explicit fixed-prefix direct-HIP submission and owned capture/replay
 use caller streams, completion tokens and read/write reservations. Same-device

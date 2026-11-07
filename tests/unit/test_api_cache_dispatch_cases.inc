@@ -285,6 +285,20 @@ TEST_CASE("public grouped GEMM preserves unissued outputs and retains shared rea
                           : rns8_gemm_rns_grouped(ctx, plan, tasks, 2);
           };
           REQUIRE(execute() == RNS8_SUCCESS);
+          if (!finite) {
+            REQUIRE(plan->prefix < a->prefix);
+            for (auto* output : {c0, c1}) {
+              CHECK(output->materialized_rns_prefix == plan->prefix);
+              std::array<uint64_t, 3> words{};
+              REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, output, words.data(), 1, 3) ==
+                      RNS8_SUCCESS);
+              CHECK(words == std::array<uint64_t, 3>{1, 0, 0});
+            }
+            const auto materialized = a->materialized_rns_prefix;
+            a->materialized_rns_prefix = plan->prefix - 1;
+            CHECK(execute() == RNS8_RANGE_ERROR);
+            a->materialized_rns_prefix = materialized;
+          }
           const uint64_t generations[]{c0->content_generation, c1->content_generation};
           SynchronousDispatchFixture state;
           state.readers = {a, b};

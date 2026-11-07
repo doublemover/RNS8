@@ -2751,6 +2751,8 @@ RNS8_API rns8_status rns8_gemm_rns_incremental(rns8_context* ctx, const rns8_pla
  * grouped descriptor path. Inputs must already be packed/current resident
  * matrices for this plan; the grouped call does not perform host packing,
  * native-to-RNS conversion, final host export, or AUTO routing.
+ * Default-basis storage may have more capacity than the plan's active prefix;
+ * inputs must cover that prefix and output publication records the written prefix.
  * Read-only input handles may be shared, including A == B. Every output must
  * be distinct from all inputs and other outputs; workspaces must be unique.
  */
