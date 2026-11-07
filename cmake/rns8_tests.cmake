@@ -1284,6 +1284,10 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     DEPENDS tools/generate_encoding_test_fixtures.py tools/encoding_catalogue.py tools/arithmetic_certificate.py
     VERBATIM)
   add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}" "${_rns8_encoding_header}")
+  if(MSVC)
+    # The complete public-API corpus exceeds ordinary COFF's section count.
+    target_compile_options(rns8_tests PRIVATE /bigobj)
+  endif()
   find_package(Threads REQUIRED)
   target_link_libraries(rns8_tests PRIVATE Threads::Threads)
   if(RNS8_BUILD_SANITIZER_CONTROLS OR RNS8_ENABLE_DEVICE_ASAN)

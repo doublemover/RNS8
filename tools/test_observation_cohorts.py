@@ -29,6 +29,10 @@ def runs(capture, count=2):
     if "build_manifest" in capture:
         for observation in observations:
             observation["build_manifest"] = deepcopy(capture["build_manifest"])
+    for observation in observations:
+        for field in ("clock_period_numerator", "clock_period_denominator"):
+            if field in capture.get("timing_metadata", {}):
+                observation["timing_metadata"][field] = capture["timing_metadata"][field]
     return observations
 
 
@@ -399,7 +403,7 @@ class ProcessObservations(unittest.TestCase):
             elif change == "configuration":
                 changed["build_manifest"]["configuration"] += "\nother_policy=ON"
             elif change == "clock":
-                changed["timing_metadata"]["clock_period_denominator"] = 1000000
+                changed["timing_metadata"]["clock_period_denominator"] = 500000000
             elif change == "clock_policy":
                 changed["clock_policy"] = {"mode": "other"}
             elif change == "host":

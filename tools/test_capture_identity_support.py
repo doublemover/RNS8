@@ -127,6 +127,14 @@ def synthetic_host_measurements(capture: dict) -> None:
         phase: ("measured" if samples and min(samples) > 0.2 else "below_resolution")
         for phase, samples in capture.get("raw_timings_us", {}).items()
     }
+    if (
+        "avg_per_modulus_gemm_estimate_us" in capture
+        and capture.get("per_modulus_gemm_estimate_applicable") is not False
+    ):
+        values = (capture.get("raw_timings_us") or {}).get("rns_gemm")
+        prefix = capture.get("selected_prefix", capture.get("prefix"))
+        if values and type(prefix) is int:
+            capture["avg_per_modulus_gemm_estimate_us"] = sum(values) / len(values) / max(prefix, 1)
 
 
 def synthetic_static_isa_report(capture: dict, counts: dict) -> dict:
@@ -214,9 +222,6 @@ def synthetic_independent_runs(captures: list[dict], count: int = 2) -> list[dic
             summary.update(avg=value, median=value, p95=value)
             base[f"avg_{phase}_us"] = value
         synthetic_host_measurements(base)
-        if "avg_per_modulus_gemm_estimate_us" in base:
-            prefix = base.get("selected_prefix") or base.get("prefix") or 1
-            base["avg_per_modulus_gemm_estimate_us"] = base["avg_rns_gemm_us"] / prefix
         for ordinal in range(count):
             capture = deepcopy(base)
             capture["execution_id"] = str(uuid.uuid4())

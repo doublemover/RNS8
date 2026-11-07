@@ -11,6 +11,7 @@ import argparse
 from pathlib import Path
 
 from benchmark_schema import load_capture
+from benchmark_schema.core_shared import DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE
 from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
 from test_benchmark_schema_support_metadata import add_target_variant_fields
 from execution_host_identity import is_gpu_capture
@@ -219,7 +220,7 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
         if capture["finite_modulus"] in (251, 255, 256):
-            metadata["isa_evidence"] = "rns8_hip_direct_finite_specialized_isa_gate"
+            metadata["isa_evidence"] = DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE
         capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
             "direct_hip_default_stream_backend_operation_groups"
         )
