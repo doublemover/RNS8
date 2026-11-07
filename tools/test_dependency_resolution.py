@@ -27,6 +27,62 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Discovery(unittest.TestCase):
+    def test_windows_developer_relay_preserves_literal_arguments_and_exit_status(self):
+        if os.name != "nt" or not msvc_env.find_vsdevcmd():
+            self.skipTest("requires a native Windows Visual Studio installation")
+        literals = [
+            "^(documentation_links|documentation_self_test)$",
+            "a&b",
+            "<in>out",
+            "%PATH%",
+            "!literal!",
+            'a"quoted"value',
+            "space and trailing\\",
+            "two\nlines",
+            "caf\u00e9",
+            "",
+        ]
+        with patch.object(msvc_env, "has_developer_environment", return_value=False):
+            result = msvc_env.run_in_msvc_environment(
+                [
+                    sys.executable,
+                    "-c",
+                    "import json,sys; print(json.dumps(sys.argv[1:])); sys.exit(7)",
+                    *literals,
+                ],
+                timeout=45,
+                capture_output=True,
+            )
+        self.assertEqual(result.returncode, 7, result.stdout)
+        self.assertEqual(json.loads(result.stdout), literals)
+
+    def test_windows_environment_capture_is_complete_and_preserves_equals_in_values(self):
+        environment = (
+            "VCINSTALLDIR=vs\r\nINCLUDE=inc\r\nLIB=lib\r\nPath=bin\r\nVALUE=a=b\r\n=C:=hidden\r\n"
+        )
+        with patch.object(
+            msvc_env.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, environment.encode("utf-16-le"), b""),
+        ) as execute:
+            result = msvc_env._developer_environment(
+                Path("VS with spaces/VsDevCmd.bat"), "x64", "x64"
+            )
+        self.assertEqual(result["PATH"], "bin")
+        self.assertEqual(result["VALUE"], "a=b")
+        self.assertNotIn("", result)
+        self.assertFalse(execute.call_args.kwargs["shell"])
+        for text in ("PATH=bin\r\n", ""):
+            with (
+                patch.object(
+                    msvc_env.subprocess,
+                    "run",
+                    return_value=subprocess.CompletedProcess([], 0, text.encode("utf-16-le"), b""),
+                ),
+                self.assertRaisesRegex(RuntimeError, "incomplete"),
+            ):
+                msvc_env._developer_environment(Path("VsDevCmd.bat"), "x64", "x64")
+
     def test_host_environment_does_not_transfer_native_linux_scope_to_wsl(self):
         request = self.request("Linux")
         for release, environment, kind in (
@@ -93,7 +149,7 @@ class Discovery(unittest.TestCase):
                     self.assertEqual(environment[key], value)
                 self.assertEqual(environment["UNRELATED"], "retained")
                 self.assertEqual(execute.call_args.args[0], actual)
-                self.assertEqual(execute.call_args.kwargs["shell"], not developer_loaded)
+                self.assertFalse(execute.call_args.kwargs["shell"])
         # Linux/direct argv needs the same selected environment. A non-compiler
         # command is not reclassified just because shell text mentions hipcc.
         with (
