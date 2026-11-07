@@ -34,7 +34,8 @@ class ExecutionHostIdentities(unittest.TestCase):
         self.assertFalse(ordinary.processor_pair(gpu, cpu))
         self.assertEqual(policy.environment(cpu), policy.environment(gpu))
         self.assertEqual(
-            policy.environment(cpu), comparison_environment(cpu, cpu_gpu_comparison=True)
+            policy.environment(cpu),
+            comparison_environment(cpu, cpu_gpu_comparison=True, dependency_identity=False),
         )
         with self.assertRaises(ValueError):
             comparison_environment(cpu, cpu_anchor=True, cpu_gpu_comparison=True)

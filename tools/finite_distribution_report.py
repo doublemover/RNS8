@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase, selected_kernel
-from benchmark_sweep_lib.config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
+from review_contract import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
 from report_capture_inputs import load_report_captures
 from observation_cohorts import aggregate_captures, row_identity, partition_rows, best_row
 from reference_verdict import CPUReferenceIndex

@@ -20,6 +20,7 @@ from test_capture_identity_support import (
     synthetic_static_isa_report,
 )
 from test_review_reference_support import add_synthetic_full_reference
+from test_benchmark_schema_support_metadata import add_target_variant_fields
 
 
 def write(path: Path, value) -> Path:
@@ -49,6 +50,7 @@ class QualificationFixture:
             self.capture["seed"] = seed
         self.capture["device"].update(gcn_arch=target, name="synthetic " + target)
         self.capture["configured_amdgpu_targets"] = target
+        add_target_variant_fields(self.capture, target)
         self.capture["compiler"] = dict(id="clang", version="synthetic")
         self.capture["hip_toolchain"].update(
             hip_root="/synthetic/rocm", hipcc_path="/synthetic/rocm/bin/hipcc"

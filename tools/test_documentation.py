@@ -226,7 +226,7 @@ class RepositoryTest(unittest.TestCase):
                     self.assertRegex(artifact["build_commit"], r"^[0-9a-f]{7,40}$")
                     self.assertRegex(artifact["sha256"], r"^[0-9a-f]{64}$")
         self.assertIn("[narrow native products](docs/narrow-native-owner.md)", text)
-        self.assertIn("Public AMDGPU builtins", text)
+        self.assertIn("| AMDGPU builtins | Opt-in public path;", text)
         self.assertIn("examples/workloads/README.md", text)
         self.assertIn("application performance and other", text)
 

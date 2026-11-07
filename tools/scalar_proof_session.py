@@ -285,7 +285,9 @@ def replay(session: Session, selected: dict, rows: list[dict]):
     source, build = session.output / "native-replay", session.output / "native-build"
     source.mkdir()
     cmake_file = source / "CMakeLists.txt"
-    cmake_file.write_text(replay_cmake(session.output, rows, host_model), encoding="utf-8")
+    cmake_file.write_text(
+        replay_cmake(session.output, rows, host_model), encoding="utf-8", newline="\n"
+    )
     configure, compile_command = replay_commands(selected, session.output)
     session.run("native-replay-configure", configure)
     session.run("native-replay-build", compile_command)

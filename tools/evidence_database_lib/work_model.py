@@ -90,7 +90,7 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, Any]:
     planes = selected_residue_planes(capture)
     native_vector = (
         normalized_backend(capture.get("backend_selected") or capture.get("backend_requested"))
-        == "hip-vector-alu-int64"
+        == "vector-alu"
     )
     schedule = capture.get("schedule_metadata") or {}
     adaptive = schedule.get("adaptive_execution_applied") is True

@@ -1385,16 +1385,11 @@ class CollectorTest(unittest.TestCase):
         self.assertFalse(self.output.exists())
 
     def records(self):
+        records = [json.loads(p.read_text(encoding="utf-8")) for p in self.output.glob("*.json")]
         return [
-            json.loads(p.read_text(encoding="utf-8"))
-            for p in self.output.glob("*.json")
-            if not p.name.startswith(
-                (
-                    "encoded-b-reuse-comparison-",
-                    "conversion-comparison-",
-                    "generated-family-search-",
-                )
-            )
+            record
+            for record in records
+            if isinstance(record, dict) and record.get("schema") == "rns8_native_collection_v2"
         ]
 
     def test_all_modes_end_to_end_and_distinct_worker_identity(self):
@@ -1420,9 +1415,12 @@ class CollectorTest(unittest.TestCase):
             import hashlib
 
             for name, digest in record["collector_sources_sha256"].items():
-                self.assertEqual(
-                    digest, hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
+                source = (
+                    Path(__file__).resolve().parents[1] / "metadata" / name
+                    if name == "native-known-regressions.json"
+                    else Path(__file__).with_name(name)
                 )
+                self.assertEqual(digest, hashlib.sha256(source.read_bytes()).hexdigest())
             self.assertEqual(
                 record["collector_sha256"],
                 record["collector_sources_sha256"]["collect_native_calibration.py"],

@@ -12,6 +12,8 @@ from pathlib import Path
 
 from benchmark_schema import load_capture
 from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
+from test_benchmark_schema_support_metadata import add_target_variant_fields
+from execution_host_identity import is_gpu_capture
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -21,6 +23,8 @@ def attach_test_provenance(capture):
     # Synthetic evidence only; these fixtures never represent a measured build.
     synthetic_identity(capture, commit="a" * 40)
     synthetic_host_measurements(capture)
+    if is_gpu_capture(capture) and "target_variant" not in capture:
+        add_target_variant_fields(capture, capture["device"]["gcn_arch"].split(":")[0])
 
 
 def set_phase(capture: dict, end_to_end: int) -> None:
@@ -199,8 +203,13 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
             "global_mem_bytes": 0,
         }
     elif backend == "hip-direct":
-        capture["selected_kernel"] = "direct_hip_tiled_finite_u8_gemm_v1"
-        metadata["selected_kernel"] = "direct_hip_tiled_finite_u8_gemm_v1"
+        previous_kernel = capture["selected_kernel"]
+        kernel = (
+            "direct_hip_tiled_finite_u8_gemm_mod255_v1"
+            if capture["finite_modulus"] == 255
+            else "direct_hip_tiled_finite_u8_gemm_v1"
+        )
+        capture["selected_kernel"] = metadata["selected_kernel"] = kernel
         metadata["accelerator_backend"] = False
         metadata["matrix_engine_backend"] = False
         metadata["accelerator_library"] = "HIP runtime"
@@ -210,8 +219,10 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
-        metadata["autotune_key"] = metadata["autotune_key"].replace(
-            "backend=ck", "backend=hip-direct"
+        metadata["autotune_key"] = (
+            metadata["autotune_key"]
+            .replace("backend=ck", "backend=hip-direct")
+            .replace("kernel=" + previous_kernel, "kernel=" + kernel)
         )
     metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     set_phase(capture, end_to_end)

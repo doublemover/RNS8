@@ -220,7 +220,7 @@ def inspect(session, build: Path, nm: Path, *, windows: bool) -> dict:
     for row in rows:
         context, path = row["context"], row["object"]
         before = reference(path)
-        symbols = session.run("fuzz-object-" + str(len(objects)), [str(nm), "--all", str(path)])
+        symbols = session.run("fuzz-object-" + str(len(objects)), [str(nm), str(path)])
         if before != reference(path):
             raise ValueError("production fuzz object changed during inspection")
         objects.append(

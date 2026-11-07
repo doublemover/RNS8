@@ -172,9 +172,7 @@ def contract(case, run_id, repeats, warmups):
         "schema": "rns8_block_sparse_microcase_v3",
         "promotion_eligible": False,
         "run_id": run_id,
-        "backend_requested": "amdgpu-builtins"
-        if case["mode"] == "dense_builtins"
-        else "hip-direct",
+        "backend_requested": DENSE_BACKENDS.get(case["mode"], "hip-direct"),
         "backend_actual": DENSE_BACKENDS.get(case["mode"], "hip-direct"),
         "selected_dense_compiled": True,
         "selected_dense_matrix_engine": case["mode"] in DENSE_MODES and case["mode"] != "dense",

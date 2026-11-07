@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from python_test_inventory import cases
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -87,9 +88,13 @@ class PythonCaseStructure(unittest.TestCase):
             self.assertTrue(set(row.get("contract_helpers", [])).issubset(references))
             module = importlib.import_module(row["module"])
             suite = unittest.defaultTestLoader.loadTestsFromModule(module)
-            self.assertEqual(suite.countTestCases(), 1)
+            loaded = [test.id() for test in cases(suite)]
+            self.assertTrue(loaded)
+            self.assertEqual(len(loaded), len(set(loaded)))
+            self.assertTrue(all(name.startswith(module.__name__ + ".") for name in loaded))
             cls, method = row["case"].split(".")
             identifier = getattr(module, cls)(method).id()
+            self.assertIn(identifier, loaded)
             self.assertNotIn(identifier, identifiers)
             identifiers.add(identifier)
         self.assertEqual(len(identifiers), 11)

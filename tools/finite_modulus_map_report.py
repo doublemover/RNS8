@@ -13,7 +13,7 @@ from typing import Any
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
 from observation_cohorts import aggregate_captures, row_identity, partition_rows, best_row
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase, selected_kernel
-from benchmark_sweep_lib.config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
+from review_contract import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
 from reference_verdict import CPUReferenceIndex
 from measurement_contract import host_instrumentation
 
