@@ -19,6 +19,13 @@ It reads a finalized standalone database in immutable read-only mode, rejects
 live journal/WAL sidecars, unsupported/mixed versions and ambiguous process
 identities, and bounds SQL execution and materialized rows. Database IDs,
 profiler logical selectors and HIP ordinals are distinct namespaces.
+The pinned [native writer](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/lib/output/generateRocpd.cpp)
+stores the internal SDK correlation in `rocpd_event.stack_id` and the external
+caller value in `correlation_id`. The reader preserves both, including an
+observed external zero, plus an optional native parent stack. The parent is a
+recorded relationship, not an inferred dependency. Native-layout controls use
+different internal, external and event IDs so those namespaces cannot collapse
+unnoticed. The corrected reader and controls remain source-authored/unexecuted.
 
 AMD's [rocpd documentation](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocpd-output-format.html)
 recommends retaining the database before converting to other formats. An

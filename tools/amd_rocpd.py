@@ -137,7 +137,12 @@ def read_process(
             )
             if not dispatches:
                 raise ValueError("native database has no executed dispatch")
-            events = rows("rocpd_event", "id,correlation_id", " WHERE guid=?", (guid,))
+            events = rows(
+                "rocpd_event",
+                "id,stack_id,parent_stack_id,correlation_id",
+                " WHERE guid=?",
+                (guid,),
+            )
             event_ids = {}
             for event in events:
                 identifier = _uint(event["id"], "event ID", positive=True)
@@ -200,14 +205,19 @@ def read_process(
                         start_timestamp=start,
                         end_timestamp=stop,
                         correlation_id=dict(
-                            internal=_uint(event["correlation_id"], "correlation ID"),
-                            external=0,
+                            # generateRocpd stores SDK internal identity in stack_id;
+                            # correlation_id is the distinct caller/external value.
+                            internal=_uint(event["stack_id"], "internal stack correlation ID"),
+                            external=_uint(event["correlation_id"], "external correlation ID"),
                         ),
                         native_rocpd=dict(
                             guid=guid,
                             node_id=nid,
                             stream_id=dispatch["stream_id"],
                             event_id=dispatch["event_id"],
+                            parent_stack_id=_optional_uint(
+                                event["parent_stack_id"], "parent stack ID"
+                            ),
                             graph_exec_id=dispatch["graph_exec_id"],
                             graph_node_id=dispatch["graph_node_id"],
                         ),

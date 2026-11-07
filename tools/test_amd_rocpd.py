@@ -34,8 +34,8 @@ def database(fixture: QualificationFixture) -> Path:
           INSERT INTO rocpd_info_queue VALUES(5,'authored',1,1);
           CREATE TABLE rocpd_info_stream(id INTEGER,guid TEXT,nid INTEGER,pid INTEGER);
           INSERT INTO rocpd_info_stream VALUES(9,'authored',1,1);
-          CREATE TABLE rocpd_event(id INTEGER,guid TEXT,correlation_id INTEGER);
-          INSERT INTO rocpd_event VALUES(17,'authored',17);
+          CREATE TABLE rocpd_event(id INTEGER,guid TEXT,stack_id INTEGER,parent_stack_id INTEGER,correlation_id INTEGER);
+          INSERT INTO rocpd_event VALUES(17,'authored',71,71,777);
           CREATE TABLE rocpd_kernel_dispatch(id INTEGER,guid TEXT,nid INTEGER,pid INTEGER,
             agent_id INTEGER,kernel_id INTEGER,dispatch_id INTEGER,queue_id INTEGER,stream_id INTEGER,
             start INTEGER,end INTEGER,event_id INTEGER,grid_size_x INTEGER,grid_size_y INTEGER,
@@ -67,6 +67,9 @@ class RocpdEvidence(unittest.TestCase):
             value = read_process(path, 222)
             self.assertEqual(value["native"]["agents"][0]["id"]["handle"], 3)
             self.assertIn("database_ids", value["identity_namespace"])
+            dispatch = value["native"]["buffer_records"]["kernel_dispatch"][0]
+            self.assertEqual(dispatch["correlation_id"], dict(internal=71, external=777))
+            self.assertEqual(dispatch["native_rocpd"]["parent_stack_id"], 71)
             metric = value["metrics"][0]
             self.assertEqual(metric["unit"], "requests")
             self.assertEqual(metric["value"], 0.0)
@@ -75,6 +78,11 @@ class RocpdEvidence(unittest.TestCase):
                 (metric["xcc"], metric["shader_engine"], metric["instance"]), (1, 2, 3)
             )
             self.assertEqual(metric["definition_instance"], 2)
+            with sqlite3.connect(path) as db:
+                db.execute("UPDATE rocpd_event SET correlation_id=0,parent_stack_id=NULL")
+            actual_zero = read_process(path, 222)["native"]["buffer_records"]["kernel_dispatch"][0]
+            self.assertEqual(actual_zero["correlation_id"], dict(internal=71, external=0))
+            self.assertIsNone(actual_zero["native_rocpd"]["parent_stack_id"])
             self.assertFalse(value["complete_run_coverage"])
             self.assertTrue(value["loss_status"].startswith("unknown"))
             with sqlite3.connect(path) as db:
@@ -147,6 +155,9 @@ class RocpdEvidence(unittest.TestCase):
             "UPDATE rocpd_info_code_object SET agent_id=8",
             "UPDATE rocpd_info_queue SET guid='other'",
             "UPDATE rocpd_kernel_dispatch SET event_id=999",
+            "UPDATE rocpd_event SET stack_id=NULL",
+            "UPDATE rocpd_event SET correlation_id=-1",
+            "UPDATE rocpd_event SET parent_stack_id=-1",
             "INSERT INTO rocpd_kernel_dispatch SELECT 2,guid,nid,pid,agent_id,kernel_id,dispatch_id,queue_id,stream_id,start,end,event_id,grid_size_x,grid_size_y,grid_size_z,workgroup_size_x,workgroup_size_y,workgroup_size_z,graph_exec_id,graph_node_id,group_segment_size,private_segment_size FROM rocpd_kernel_dispatch",
             "UPDATE rocpd_kernel_dispatch SET start=0",
             "UPDATE rocpd_kernel_dispatch SET workgroup_size_x=0",
@@ -178,7 +189,7 @@ class RocpdEvidence(unittest.TestCase):
             with self.assertRaises(ValueError):
                 read_process(path, 333)
             with sqlite3.connect(path) as db:
-                db.execute("INSERT INTO rocpd_event VALUES(18,'authored',18)")
+                db.execute("INSERT INTO rocpd_event VALUES(18,'authored',72,72,778)")
             with self.assertRaises(ValueError):
                 read_process(path, 222, maximum_rows=1)
 
