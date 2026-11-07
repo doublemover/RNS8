@@ -187,6 +187,9 @@ class ProfilerSession(unittest.TestCase):
         self.assertEqual(summary["facts"]["acquisition"]["native_process_id"], 222)
         self.assertFalse(summary["facts"]["complete_run_coverage"])
         self.assertTrue((self.out / "native-timeline.json").is_file())
+        generations = json.loads((self.out / "native-allocations.json").read_text())
+        self.assertEqual(generations["domains"][0]["matched_free_bytes"], 64)
+        self.assertIsNone(generations["domains"][0]["whole_domain_peak_bytes"])
         self.assertEqual(
             json.loads((self.out / "operation-join.json").read_text())["state"], "not_requested"
         )

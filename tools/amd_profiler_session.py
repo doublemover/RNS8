@@ -18,6 +18,7 @@ from amd_profiler_capabilities import validate_preflight
 from amd_profiler_evidence import SCHEMA as DISPATCH_SCHEMA, validate_dispatch_receipt
 from amd_rocpd import read_process
 from amd_profiler_ranges import join as join_native_ranges
+from native_allocation_lifetimes import summarize as summarize_allocations
 from build_manifest import configuration_options
 from benchmark_request import (
     attach_capture_identity,
@@ -52,6 +53,7 @@ SOURCE_INPUTS = (
     "tools/amd_profiler_capabilities.py",
     "tools/amd_rocpd.py",
     "tools/amd_profiler_ranges.py",
+    "tools/native_allocation_lifetimes.py",
     "tools/host_range_contract.py",
     "tools/interval_observations.py",
     "tools/profiler_contract.py",
@@ -419,6 +421,9 @@ def validate_acquisition(
     _, retained_operation = store.json(receipt.get("operation_join"), parent)
     if not same_evidence_value(retained_operation, operation):
         raise ValueError("retained marker operation join differs from actual native evidence")
+    _, retained_allocations = store.json(receipt.get("native_allocations"), parent)
+    if not same_evidence_value(retained_allocations, summarize_allocations(timeline)):
+        raise ValueError("retained allocation generations differ from actual native evidence")
     for item in [
         plan["inspector"],
         plan["profiler_tool"],
@@ -433,6 +438,7 @@ def validate_acquisition(
         physical_device=live.to_json(),
         native_timeline=receipt["native_timeline"],
         operation_join=receipt["operation_join"],
+        native_allocations=receipt["native_allocations"],
         scope="bounded_selected_dispatch_acquisition_not_complete_profile_coverage",
     )
 
@@ -590,7 +596,11 @@ def finalize(manifest_path: Path) -> dict:
     )
     bound_path, receipt_path = out / "profiled.json", out / "dispatch-receipt.json"
     timeline_path, operation_path = out / "native-timeline.json", out / "operation-join.json"
-    if any(path.exists() for path in (bound_path, receipt_path, timeline_path, operation_path)):
+    allocation_path = out / "native-allocations.json"
+    if any(
+        path.exists()
+        for path in (bound_path, receipt_path, timeline_path, operation_path, allocation_path)
+    ):
         raise ValueError("profiler finalization outputs already exist")
     operation = (
         join_native_ranges(projection["timeline"], raw.get("profiler_ranges"))
@@ -599,6 +609,9 @@ def finalize(manifest_path: Path) -> dict:
     )
     timeline_ref = _write_diagnostic(timeline_path, projection["timeline"], plan)
     operation_ref = _write_diagnostic(operation_path, operation, plan)
+    allocation_ref = _write_diagnostic(
+        allocation_path, summarize_allocations(projection["timeline"]), plan
+    )
     write_json(bound_path, profiled)
     injection = {
         key: value
@@ -614,6 +627,7 @@ def finalize(manifest_path: Path) -> dict:
         native_trace=reference(native_path),
         native_timeline=timeline_ref,
         operation_join=operation_ref,
+        native_allocations=allocation_ref,
         selected_static_isa=plan["selected_static_isa"],
         profiler_environment=injection,
         selected_dispatches=selected,

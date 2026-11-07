@@ -295,6 +295,29 @@ feature admission, total artifact budget and resealed derivation drift. SQLite
 fixtures close connections before rename/reopen; none of these controls or
 native acquisition paths has executed in this source pass.
 
+Finalization also retains `native-allocations.json` and reconstructs it during
+receipt replay. `tools/native_allocation_lifetimes.py` groups observed records
+by process/node/GUID, agent, REAL/VIRTUAL/SCRATCH level and address. Generation
+identity uses the native allocation record, with a separate resolved ordinal.
+Only a resolved live generation supplies a zero-size free's requested bytes.
+Unknown frees, missing identities, overlapping same-pointer effect intervals,
+unobserved frees before reuse and incomplete realloc/reclaim relations remain
+named unresolved records. Raw allocation counts/requested sizes stay visible.
+
+Allocation/free timestamps bound when the effect could occur inside the native
+interval; they are not exact allocation instants. The shared weighted-interval
+helper produces minimum/maximum payload peaks for the resolved observed
+subtrace, with explicit endpoint overlap. These bounds assume that subtrace's
+matched/retained sequence; unknown or missing events can change the actual
+peak. Whole-domain physical peak stays unavailable. CPU/GPU agent association,
+REAL allocation, VIRTUAL reservation and SCRATCH remain separate source labels;
+none establishes pinned-host classification or physical commitment. Sampled
+RSS and the separate host-heap interception lane are not added to these bytes.
+Actual-table free-zero/reuse, uncertain peaks, mixed domains, unmatched frees,
+ambiguous transitions and partial realloc controls are authored and registered,
+but have not executed. Per-operation allocation phase/source attribution and
+the critical-path report remain separate implementation work.
+
 Active/requested tracing is excluded from production timing admission. The
 profiler relation permits the explicitly declared range opt-in environment,
 retains its own capture identity, and still requires a matching exact result.

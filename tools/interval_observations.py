@@ -36,3 +36,32 @@ def interval_summary(intervals):
         uncovered_span_ns=span - union,
         overlap_service_ns=service - union,
     )
+
+
+def weighted_peak(intervals, *, include_endpoints=False):
+    """Peak simultaneous weight in one clock; endpoint overlap is explicit."""
+    if (
+        type(include_endpoints) is not bool
+        or not isinstance(intervals, list)
+        or len(intervals) > 100000
+    ):
+        raise ValueError("bounded weighted intervals and explicit endpoint policy required")
+    events = []
+    for row in intervals:
+        if (
+            not isinstance(row, (tuple, list))
+            or len(row) != 3
+            or any(type(value) is not int or value < 0 for value in row)
+            or row[1] < row[0]
+        ):
+            raise ValueError("ordered nonnegative weighted interval required")
+        first, last, weight = row
+        if first == last and not include_endpoints:
+            continue
+        events.append((first, 0 if include_endpoints else 1, weight))
+        events.append((last, 1 if include_endpoints else 0, -weight))
+    live = peak = 0
+    for _, _, delta in sorted(events):
+        live += delta
+        peak = max(peak, live)
+    return peak
