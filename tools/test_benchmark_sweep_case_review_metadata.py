@@ -1024,10 +1024,16 @@ class ReviewMetadataCases(unittest.TestCase):
             [bounded_ck, bounded_direct, bounded_cpu, bounded_vector],
             review_mode="release",
         )
-        assert implementation_split_report["group_count"] == 1
+        # The vector row explicitly requests a different continuation boundary;
+        # it cannot share a completed-output timing group with final export.
+        assert implementation_split_report["group_count"] >= 2
         implementation_split_group = implementation_group(implementation_split_report)
-        assert implementation_split_group["missing_required_baselines"] == []
-        assert {candidate["backend"] for candidate in implementation_split_group["candidates"]} == {
+        assert implementation_split_group["missing_required_baselines"] == ["hip-vector-alu-int64"]
+        assert {
+            candidate["backend"]
+            for group in implementation_split_report["groups"]
+            for candidate in group["candidates"]
+        } == {
             "ck",
             "cpu-reference",
             "hip-direct",
