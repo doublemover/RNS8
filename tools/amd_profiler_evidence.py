@@ -28,6 +28,8 @@ from evidence_database_lib.isa import (
 from json_evidence import JsonValue, same_evidence_value
 from reference_verdict import numerical_observation
 from timing_eligibility import capture_identity
+from amd_profiler_device import bind_agent
+from execution_host_identity import hardware_pair_blockers
 
 SCHEMA = "rns8_amd_profiler_dispatch_receipt_v1"
 ADAPTERS = {
@@ -265,6 +267,11 @@ def validate_dispatch_receipt(
     _profile_pair(
         capture, profiled, receipt.get("profiler_environment"), native_output=native_output
     )
+    physical_blockers = hardware_pair_blockers(capture, profiled)
+    if physical_blockers:
+        raise ValueError(
+            "profiled host/device observation binding failed: " + ",".join(physical_blockers)
+        )
     process_id = _integer(profiled.get("process_id"))
     if process_id == 0:
         raise ValueError("profiled benchmark must emit its actual OS process ID")
@@ -347,6 +354,7 @@ def validate_dispatch_receipt(
     executable = Path(str(_object(profiled.get("artifact_capture")).get("executable_path")))
     executable_sha = profiled["artifact_capture"]["executable_sha256"]
     seen, observations, object_hashes = set(), [], {}
+    physical_agents = {}
     for selection in selected:
         selection = _object(selection)
         key = tuple(
@@ -365,6 +373,10 @@ def validate_dispatch_receipt(
         agent = agents.get(key[0])
         if agent is None or agent.get("name") != target:
             raise ValueError("executed native agent architecture does not match the capture")
+        if key[0] not in physical_agents:
+            physical_agents[key[0]] = bind_agent(
+                agents, key[0], profiled, rocpd=native_extension is not None
+            )
         code = objects.get(_integer(kernel.get("code_object_id")))
         if (
             code is None
@@ -447,6 +459,7 @@ def validate_dispatch_receipt(
         schema=SCHEMA,
         acquisition=acquisition,
         qualified_selected_dispatches=True,
+        physical_device_associations=list(physical_agents.values()),
         observations=observations,
         native_trace_sha256=receipt["native_trace"]["sha256"],
         profiled_capture=str((base / receipt["profiled_capture"]["path"]).resolve(strict=True)),

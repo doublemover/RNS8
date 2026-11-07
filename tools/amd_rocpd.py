@@ -310,8 +310,23 @@ def read_process(
 
             agents = indexed(
                 "rocpd_info_agent",
-                "id,name,type,uuid,absolute_index,logical_index,type_index",
+                "id,name,type,uuid,absolute_index,logical_index,type_index,json(extdata) AS extdata",
             )
+            for agent in agents.values():
+                agent["native_agent_metadata"] = parse_evidence_json(agent.pop("extdata"))
+                if not isinstance(agent["native_agent_metadata"], dict):
+                    raise ValueError("native rocpd agent extdata must be an object")
+                device_id = agent["native_agent_metadata"].get("device_id")
+                if device_id is not None and (
+                    type(device_id) is not int
+                    or not 0 <= device_id <= 0xFFFF
+                    or type(agent["uuid"]) is not int
+                    or agent["uuid"] != device_id
+                ):
+                    raise ValueError(
+                        "native rocpd uuid column differs from its actual device_id semantics"
+                    )
+                agent["uuid_column_semantics"] = "native_device_id_not_unique_GPU_uuid"
             objects = indexed("rocpd_info_code_object", "id,agent_id,uri,storage_type")
             symbols = indexed("rocpd_info_kernel_symbol", "id,code_object_id,kernel_name")
             queues = indexed("rocpd_info_queue", "id")
@@ -482,7 +497,12 @@ def read_process(
                 native=dict(
                     metadata=dict(pid=process_id, init_time=begin, fini_time=end),
                     agents=[
-                        dict(id=dict(handle=key), name=row["name"]) for key, row in agents.items()
+                        dict(
+                            id=dict(handle=key),
+                            name=row["name"],
+                            native_agent_metadata=row["native_agent_metadata"],
+                        )
+                        for key, row in agents.items()
                     ],
                     code_objects=[
                         dict(

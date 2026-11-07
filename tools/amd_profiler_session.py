@@ -51,6 +51,7 @@ SCHEMA = "rns8_amd_profiler_session_v1"
 SOURCE_INPUTS = (
     "tools/amd_profiler_session.py",
     "tools/amd_profiler_evidence.py",
+    "tools/amd_profiler_device.py",
     "tools/amd_profiler_capabilities.py",
     "tools/amd_rocpd.py",
     "tools/amd_profiler_ranges.py",
@@ -63,6 +64,7 @@ SOURCE_INPUTS = (
     "tools/interval_observations.py",
     "tools/profiler_contract.py",
     "tools/execution_observation.py",
+    "tools/execution_host_identity.py",
     "tools/execution_environment_contract.py",
     "tools/benchmark_request.py",
     "tools/build_manifest.py",

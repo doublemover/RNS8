@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 import uuid
 
@@ -100,6 +101,21 @@ class QualificationFixture:
         self.make_profiler()
 
     def make_profiler(self):
+        witness = self.capture.get("device_identity_witness", {}).get("before", {})
+        bdf = witness.get("pci_bdf")
+        match = (
+            re.fullmatch(r"([0-9a-f]{4}):([0-9a-f]{2}):([01][0-9a-f])\.([0-7])", bdf)
+            if isinstance(bdf, str)
+            else None
+        )
+        pci = (
+            dict(
+                domain=int(match[1], 16),
+                location_id=(int(match[2], 16) << 8) | (int(match[3], 16) << 3) | int(match[4]),
+            )
+            if match
+            else dict(domain=None, location_id=None)
+        )
         self.profiled = copy.deepcopy(self.capture)
         self.profiled["process_id"] = 222
         self.profiled["execution_id"] = str(uuid.uuid4())
@@ -127,7 +143,9 @@ class QualificationFixture:
             "rocprofiler-sdk-tool": [
                 dict(
                     metadata=dict(pid=222, init_time=1, fini_time=100),
-                    agents=[dict(id=dict(handle=3), name=self.capture["device"]["gcn_arch"])],
+                    agents=[
+                        dict(id=dict(handle=3), name=self.capture["device"]["gcn_arch"], **pci)
+                    ],
                     code_objects=[
                         dict(
                             code_object_id=7,

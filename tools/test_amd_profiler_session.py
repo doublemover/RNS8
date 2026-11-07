@@ -195,6 +195,10 @@ class ProfilerSession(unittest.TestCase):
             self.assertEqual(execute_capture(plan, environment={}, runner=self.runner), 0)
         summary = json.loads((self.out / "profile-summary.json").read_text())
         self.assertTrue(summary["facts"]["qualified_selected_dispatches"])
+        self.assertEqual(
+            summary["facts"]["physical_device_associations"][0]["pci_bdf"],
+            self.fixture.capture["device_identity_witness"]["before"]["pci_bdf"],
+        )
         self.assertEqual(summary["facts"]["acquisition"]["native_process_id"], 222)
         self.assertFalse(summary["facts"]["complete_run_coverage"])
         self.assertTrue((self.out / "native-timeline.json").is_file())

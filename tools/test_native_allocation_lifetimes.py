@@ -63,7 +63,7 @@ class AllocationLifetimes(unittest.TestCase):
 
     def test_agent_real_virtual_scratch_and_unknown_pinned_state_remain_separate(self):
         self.sql("""
-          INSERT INTO rocpd_info_agent VALUES(4,'authored',1,1,'cpu','CPU',NULL,0,0,0);
+          INSERT INTO rocpd_info_agent VALUES(4,'authored',1,1,'cpu','CPU',NULL,0,0,0,'{}');
           INSERT INTO rocpd_memory_allocate VALUES(3,'authored',1,1,42,4,'ALLOC','REAL',30,31,4096,16,NULL,NULL,103,'{}'),
             (4,'authored',1,1,42,3,'ALLOC','VIRTUAL',32,33,4096,1024,5,9,103,'{}'),
             (5,'authored',1,1,42,3,'ALLOC','SCRATCH',34,35,4096,8,5,9,103,'{}');

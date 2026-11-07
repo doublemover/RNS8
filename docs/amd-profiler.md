@@ -73,6 +73,23 @@ It reads a finalized standalone database in immutable read-only mode, rejects
 live journal/WAL sidecars, unsupported/mixed versions and ambiguous process
 identities, and bounds SQL execution and materialized rows. Database IDs,
 profiler logical selectors and HIP ordinals are distinct namespaces.
+
+Selected dispatch admission also requires the native agent's serialized PCI
+`domain` and `location_id` to identify the same observed runtime device in the
+same OS instance. The pinned [agent definition](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/include/rocprofiler-sdk/agent.h)
+and [serializer](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/include/rocprofiler-sdk/cxx/serialization/save.hpp)
+supply those fields. ROCpd retains the original agent object from `extdata`;
+its database ID does not replace the original SDK handle. Missing, malformed,
+ambiguous or conflicting PCI observations reject qualification. Architecture
+names, ordinal equality and caller labels cannot supply the binding.
+
+The pinned ROCpd writer populates its `uuid` column from the agent's
+`device_id`, a vendor device identifier rather than a unique GPU UUID. The
+reader labels that literal meaning and rejects contradictory values. It never
+expands that column into a HIP UUID. Raw-SDK JSON reads the actual top-level
+PCI fields, so an invented nested metadata alias cannot substitute for them.
+These admission and actual-format controls are authored; runtime validation
+and native target qualification remain pending.
 The pinned [native writer](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/lib/output/generateRocpd.cpp)
 stores the internal SDK correlation in `rocpd_event.stack_id` and the external
 caller value in `correlation_id`. The reader preserves both, including an

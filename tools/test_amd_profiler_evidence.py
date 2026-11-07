@@ -16,6 +16,62 @@ from compiled_binary_identity import canonical_digest
 
 
 class NativeProfilerEvidence(unittest.TestCase):
+    def test_native_PCI_binding_uses_observed_device_and_distinct_agent_ordinal_namespaces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            store = EvidenceStore()
+            facts = validate_dispatch_receipt(
+                reference(fixture.dispatch_path),
+                capture=fixture.capture,
+                store=store,
+                parent=fixture.root,
+            )
+            store.finish()
+            (physical,) = facts["physical_device_associations"]
+            expected = fixture.capture["device_identity_witness"]["before"]
+            self.assertEqual(physical["pci_bdf"], expected["pci_bdf"])
+            self.assertEqual(physical["runtime_ordinal"], expected["runtime_ordinal"])
+            self.assertEqual(physical["native_agent_id"], 3)
+            self.assertFalse(physical["ordinal_namespaces_equated"])
+            self.assertFalse(physical["native_uuid_inferred_from_device_id"])
+
+    def test_architecture_UUID_labels_or_ordinals_cannot_replace_unique_native_PCI_observations(
+        self,
+    ):
+        for mode in ("different", "missing", "boolean", "ambiguous", "nested_alias", "ordinal"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                fixture = QualificationFixture(Path(directory))
+                native = copy.deepcopy(fixture.native)
+                agents = native["rocprofiler-sdk-tool"][0]["agents"]
+                agent = agents[0]
+                if mode == "different":
+                    agent["domain"] = (agent["domain"] + 1) & 0xFFFF
+                elif mode == "missing":
+                    agent.pop("location_id")
+                    agent["uuid"] = fixture.capture["device_identity_witness"]["before"]["uuid"]
+                elif mode == "boolean":
+                    agent["domain"] = False
+                elif mode == "ambiguous":
+                    agents.append(dict(agent, id=dict(handle=7)))
+                elif mode == "nested_alias":
+                    agent["native_agent_metadata"] = dict(agent)
+                    agent.pop("domain")
+                else:
+                    agent["location_id"] = fixture.capture["device_identity_witness"]["before"][
+                        "runtime_ordinal"
+                    ]
+                write(fixture.native_path, native)
+                receipt = copy.deepcopy(fixture.dispatch)
+                receipt["native_trace"] = reference(fixture.native_path)
+                write(fixture.dispatch_path, receipt)
+                with self.assertRaises(ValueError):
+                    validate_dispatch_receipt(
+                        reference(fixture.dispatch_path),
+                        capture=fixture.capture,
+                        store=EvidenceStore(),
+                        parent=fixture.root,
+                    )
+
     def test_only_native_observed_and_declared_profiler_injection_can_match(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = QualificationFixture(Path(directory))

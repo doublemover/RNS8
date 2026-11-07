@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import closing
 
 import copy
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -27,8 +28,8 @@ def database(fixture: QualificationFixture) -> Path:
           INSERT INTO rocpd_metadata VALUES('schema_version','3.0.4');
           CREATE TABLE rocpd_info_process(id INTEGER,guid TEXT,nid INTEGER,pid INTEGER,init INTEGER,fini INTEGER);
           INSERT INTO rocpd_info_process VALUES(1,'authored',1,222,1,100);
-          CREATE TABLE rocpd_info_agent(id INTEGER,guid TEXT,nid INTEGER,pid INTEGER,name TEXT,type TEXT,uuid INTEGER,absolute_index INTEGER,logical_index INTEGER,type_index INTEGER);
-          INSERT INTO rocpd_info_agent VALUES(3,'authored',1,1,'gfx942','GPU',888,4,7,0);
+          CREATE TABLE rocpd_info_agent(id INTEGER,guid TEXT,nid INTEGER,pid INTEGER,name TEXT,type TEXT,uuid INTEGER,absolute_index INTEGER,logical_index INTEGER,type_index INTEGER,extdata JSONB DEFAULT '{}');
+          INSERT INTO rocpd_info_agent VALUES(3,'authored',1,1,'gfx942','GPU',888,4,7,0,'{}');
           CREATE TABLE rocpd_info_code_object(id INTEGER,guid TEXT,nid INTEGER,pid INTEGER,agent_id INTEGER,uri TEXT,storage_type TEXT);
           CREATE TABLE rocpd_info_kernel_symbol(id INTEGER,guid TEXT,nid INTEGER,pid INTEGER,code_object_id INTEGER,kernel_name TEXT);
           INSERT INTO rocpd_info_kernel_symbol VALUES(13,'authored',1,1,7,'synthetic_selected_symbol');
@@ -54,6 +55,12 @@ def database(fixture: QualificationFixture) -> Path:
           INSERT INTO rocpd_pmc_event VALUES(1,'authored',17,NULL,19,0.0,1,2,3);
         """)
         uri = fixture.native["rocprofiler-sdk-tool"][0]["code_objects"][0]["uri"]
+        agent = dict(
+            fixture.native["rocprofiler-sdk-tool"][0]["agents"][0],
+            id=dict(handle=333),
+            device_id=888,
+        )
+        db.execute("UPDATE rocpd_info_agent SET extdata=? WHERE id=3", (json.dumps(agent),))
         db.execute(
             "INSERT INTO rocpd_info_code_object VALUES(7,'authored',1,1,3,?,'FILE')",
             (uri,),
@@ -68,6 +75,9 @@ class RocpdEvidence(unittest.TestCase):
             path = database(fixture)
             value = read_process(path, 222)
             self.assertEqual(value["native"]["agents"][0]["id"]["handle"], 3)
+            self.assertEqual(
+                value["native"]["agents"][0]["native_agent_metadata"]["id"]["handle"], 333
+            )
             self.assertIn("database_ids", value["identity_namespace"])
             dispatch = value["native"]["buffer_records"]["kernel_dispatch"][0]
             self.assertEqual(dispatch["correlation_id"], dict(internal=71, external=777))
@@ -112,6 +122,10 @@ class RocpdEvidence(unittest.TestCase):
             )
             store.finish()
             self.assertTrue(value["qualified_selected_dispatches"])
+            self.assertEqual(
+                value["physical_device_associations"][0]["pci_bdf"],
+                fixture.capture["device_identity_witness"]["before"]["pci_bdf"],
+            )
             self.assertEqual(value["native_schema_version"], "3.0.4")
             self.assertEqual(value["observations"][0]["native_relationships"]["graph_exec_id"], 42)
             self.assertEqual(value["native_metrics"][0]["raw_name"], "AUTHORED_REQUESTS")
@@ -124,6 +138,40 @@ class RocpdEvidence(unittest.TestCase):
                 report["native_profiler_review"]["passes"][0]["intervals"]["service_ns"],
                 10,
             )
+
+    def test_rocpd_agent_device_id_column_and_PCI_metadata_cannot_be_substituted(self):
+        for mode in ("device_id", "domain", "boolean", "unknown_alias"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                fixture = QualificationFixture(Path(temporary))
+                path = database(fixture)
+                with closing(sqlite3.connect(path)) as db, db:
+                    if mode == "device_id":
+                        db.execute("UPDATE rocpd_info_agent SET uuid=999")
+                    else:
+                        metadata = json.loads(
+                            db.execute("SELECT extdata FROM rocpd_info_agent").fetchone()[0]
+                        )
+                        if mode == "domain":
+                            metadata["domain"] += 1
+                        elif mode == "boolean":
+                            metadata["location_id"] = False
+                        else:
+                            metadata["native_agent_metadata"] = dict(metadata)
+                            metadata.pop("location_id")
+                        db.execute("UPDATE rocpd_info_agent SET extdata=?", (json.dumps(metadata),))
+                receipt = copy.deepcopy(fixture.dispatch)
+                receipt["adapter"] = "rocprofiler-sdk-rocpd-3.0.4-kernel-dispatch-v1"
+                receipt["native_trace"] = reference(path)
+                command = receipt["acquisition_command"]
+                command[command.index("--output-format") + 1] = "rocpd"
+                write(fixture.dispatch_path, receipt)
+                with self.assertRaises(ValueError):
+                    validate_dispatch_receipt(
+                        reference(fixture.dispatch_path),
+                        capture=fixture.capture,
+                        store=EvidenceStore(),
+                        parent=fixture.root,
+                    )
 
     def test_overlap_union_and_passes_are_not_summed_as_production_time(self):
         observations = [
