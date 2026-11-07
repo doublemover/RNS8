@@ -373,7 +373,9 @@ def source_content_digest(source: Path) -> str:
             and "__pycache__" not in p.relative_to(source).parts
             and p.suffix != ".pyc"
         )
-    for path in sorted(paths):
+    # Native Path ordering folds case on Windows. Identity must depend only on
+    # relative source names and bytes, not the OS computing it.
+    for path in sorted(paths, key=lambda item: item.relative_to(source).as_posix()):
         digest.update(path.relative_to(source).as_posix().encode() + b"\0")
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024**2), b""):

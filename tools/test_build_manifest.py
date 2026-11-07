@@ -18,6 +18,7 @@ from build_manifest import (
     manifest_provenance_complete,
     manifest_dependencies_compatible,
     manifest_diagnostic_shape_valid,
+    source_content_digest,
     main as manifest_main,
 )
 from json_evidence import load_evidence_json
@@ -90,6 +91,24 @@ def dependency_scratch():
 
 
 class BuildManifestTest(unittest.TestCase):
+    def test_source_digest_uses_case_sensitive_relative_name_order(self):
+        with dependency_scratch() as directory:
+            root = Path(directory)
+            (root / "src").mkdir()
+            files = {
+                "CMakeLists.txt": b"project(fixture)\n",
+                "src/Z.hpp": b"upper\n",
+                "src/a.hpp": b"lower\n",
+            }
+            for name, content in files.items():
+                (root / name).write_bytes(content)
+            expected = hashlib.sha256()
+            for name, content in sorted(files.items()):
+                expected.update(name.encode() + b"\0" + content + b"\0")
+            self.assertEqual(source_content_digest(root), expected.hexdigest())
+            (root / "src/Z.hpp").write_bytes(b"changed\n")
+            self.assertNotEqual(source_content_digest(root), expected.hexdigest())
+
     def test_nested_source_copy_cannot_borrow_parent_git_identity(self):
         with dependency_scratch() as directory:
             root = Path(directory).resolve()
