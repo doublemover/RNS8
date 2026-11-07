@@ -192,6 +192,24 @@ class NativeMutationControls(unittest.TestCase):
             self.assertEqual(value["baseline_builds"], 1)
             self.assertIn("-DRNS8_ENABLE_HIP=OFF", value["configure_example"])
             self.assertIn("-DRNS8_ENABLE_DISTRIBUTED_MPI=OFF", value["configure_example"])
+            with (
+                mock.patch.object(session, "ROOT", root),
+                mock.patch.object(session, "registry", return_value=seeds),
+                mock.patch.object(session.platform, "system", return_value="Linux"),
+                mock.patch.object(session.platform, "release", return_value="native-fixture"),
+                mock.patch.object(session.Session, "run") as run,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                self.assertEqual(
+                    session.main(
+                        [*args, "--mull-runner", str(executable), "--mull-plugin", str(executable)]
+                    ),
+                    0,
+                )
+                run.assert_not_called()
+            self.assertTrue(json.loads(stdout.getvalue())["optional_mull"]["requested"])
+            self.assertEqual(json.loads(stdout.getvalue())["baseline_builds"], 2)
+            self.assertFalse((root / "temp/planned").exists())
 
 
 if __name__ == "__main__":

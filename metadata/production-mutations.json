@@ -53,7 +53,7 @@
       "required_test": "test_build_instrumentation.InstrumentationAdmission.test_declared_and_actual_flags_never_supply_production_latency",
       "assertion_marker": "is not true",
       "source": "tools/build_instrumentation.py",
-      "source_sha256": "cdb9a2074ff1004bd73c81dfb0b314852584c3dc65e925a1a9a7c0147c16848c",
+      "source_sha256": "0ebb3971c1d5ce04013dd42396e18d15fa741670b47cba3eeef17a2320821cb6",
       "mandatory": true
     }
   ]

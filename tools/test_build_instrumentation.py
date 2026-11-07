@@ -28,6 +28,8 @@ class InstrumentationAdmission(unittest.TestCase):
             "exe_linker_flags=-fsanitize=thread",
             "flags=-fprofile-arcs -ftest-coverage",
             "flags=-fsanitize-coverage=trace-pc-guard",
+            "flags=-g -fpass-plugin=/installed/mull-ir-frontend-23",
+            "flags='-fpass-plugin=/installed prefix/mull-ir-frontend-23' -g",
             "host_sanitizer=none\nhost_sanitizer=thread",
         ):
             with self.subTest(configuration=configuration):

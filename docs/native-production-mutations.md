@@ -60,7 +60,36 @@ interrupt stops the batch and preserves existing process records.
 
 These curated native seeds and the separate
 [Python production gate mutations](production-mutations.md) are source-authored.
-Actual execution, reviewed coverage/kill baselines, compatible optional Mull and
+Actual execution, reviewed coverage/kill baselines and
 continuous CI integration remain work under
 [#103](https://github.com/doublemover/RNS8/issues/103). No mutation score or GPU
 qualification is inferred from this implementation.
+
+The same driver accepts an optional `--mull-runner` and `--mull-plugin` pair on
+native Linux. The authored pilot pins
+[Mull0.37.0](https://github.com/mull-project/mull/releases/tag/0.37.0) and checks
+the runner's observed plugin path/full LLVM version against the selected Clang.
+The release's packaged LLVM23 plugin is for macOS; a matching native Linux pair
+must be supplied explicitly. This does not replace the selected host LLVM or
+install another compiler. Windows and HIP mutation are outside this pilot.
+
+After the ordinary baseline and mandatory curated mutations pass, the existing
+snapshot/build owner creates a separate unchanged instrumented CPU baseline.
+Only checked arithmetic and the integer-split production TU admit boundary and
+comparison mutants. Tests/third-party sources are excluded, compilation records
+must contain the selected plugin/debug flags, and compilation and execution use
+the same retained config. The driver explicitly runs the actual Catch binary
+with the selected literal cases, one worker and bounded time/artifacts; ordinary
+CTest execution alone cannot run Mull. See the upstream
+[setup](https://mull-project.com/getting-started/setup/) and
+[CTest contract](https://mull.readthedocs.io/en/latest/tutorials/CTestIntegration.html).
+
+The read-only native SQLite adapter follows the pinned producer's actual
+[schema](https://github.com/mull-project/mull/blob/04f5c409878d602e1527ffae4c8d21c61a33d8ea/rust/mull-reporters/src/sqlite_reporter.rs).
+It preserves failures, survivors, timeouts, crashes, abnormal exits, dry runs,
+fail-fast omissions and uncovered mutants separately. A native failure remains
+pending assertion review; no optional pilot result earns an intended-assertion
+kill or a mutation score. Partial/live databases, unknown versions/schemas,
+duplicate mutants and out-of-scope source locations reject. Compiler-plugin
+builds and `MULL_` injection cannot supply production profiling baselines. The
+pilot and its controls are source-written and unexecuted.

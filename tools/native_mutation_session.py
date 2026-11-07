@@ -188,7 +188,7 @@ def compiled_inputs(session, args, source, build, seed):
     return reference(database)
 
 
-def variant(session, args, inputs, *, name, tests, seed=None):
+def variant(session, args, inputs, *, name, tests, seed=None, compiler_flags=None):
     directory = session.output / name
     directory.mkdir()
     source = directory / "source"
@@ -219,7 +219,11 @@ def variant(session, args, inputs, *, name, tests, seed=None):
     ]
     if changed:
         row["mutation"] = changed
-    session.run(name + "-configure", configure_command(args, source, build))
+    configure = configure_command(args, source, build)
+    if compiler_flags is not None:
+        configure.append("-DCMAKE_CXX_FLAGS=" + compiler_flags)
+        row["compiler_transform_flags"] = compiler_flags
+    session.run(name + "-configure", configure)
     cache = cache_values(build / "CMakeCache.txt")
     if (
         any(cache.get(key, "OFF").upper() not in {"OFF", "FALSE", "NO", "0", ""} for key in OFF)
@@ -321,7 +325,7 @@ def execute(args, plan, seeds):
             ("GIT_", "COVERAGE_", "ASAN_", "UBSAN_", "TSAN_", "LSAN_", "LLVM_PROFILE_")
         )
     }
-    if any(
+    if any(key.startswith("MULL_") for key in environment) or any(
         environment.get(key)
         for key in (
             "LD_PRELOAD",
@@ -331,6 +335,7 @@ def execute(args, plan, seeds):
             "CLANG_CONFIG_FILE_SYSTEM_DIR",
             "CL",
             "_CL_",
+            "MULL_CONFIG",
         )
     ):
         raise ValueError("native mutation build rejects hidden compiler/runtime injection")
@@ -358,6 +363,10 @@ def execute(args, plan, seeds):
             for key in ("cmake", "ctest", "compiler", "ninja", "python")
         }
         result["registry"] = reference(REGISTRY)
+        if args.mull_runner is not None:
+            from mull_pilot import inspect_installation
+
+            result["mull_admission"] = inspect_installation(session, args)
         if args.toolchain:
             result["toolchain"] = reference(args.toolchain)
         versions = {
@@ -420,6 +429,10 @@ def execute(args, plan, seeds):
                         + ":"
                         + row["classification"]
                     )
+        if args.mull_runner is not None and not result["blockers"]:
+            from mull_pilot import collect
+
+            result["mull"] = collect(session, args, inputs, tests, result["mull_admission"])
         check_bookends([result, inputs, session.stages])
         result["status"] = "failed" if result["blockers"] else "passed"
     except (OSError, ValueError, TypeError, KeyError) as error:
@@ -458,6 +471,12 @@ def main(argv=None):
     parser.add_argument("--ninja", type=Path)
     parser.add_argument("--toolchain", type=Path)
     parser.add_argument("--vcpkg-installed", type=Path)
+    parser.add_argument(
+        "--mull-runner", type=Path, help="optional installed native Mull0.37 runner"
+    )
+    parser.add_argument(
+        "--mull-plugin", type=Path, help="exact matching installed native LLVM plugin"
+    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
@@ -471,7 +490,22 @@ def main(argv=None):
             if not found:
                 raise ValueError("native Ninja required; supply --ninja")
             args.ninja = Path(found)
-        for key in ("cmake", "ctest", "compiler", "python", "ninja", "toolchain"):
+        if (args.mull_runner is None) != (args.mull_plugin is None):
+            raise ValueError("optional Mull pilot requires both --mull-runner and --mull-plugin")
+        if args.mull_runner is not None and (
+            platform.system() != "Linux" or "microsoft" in platform.release().lower()
+        ):
+            raise ValueError("optional Mull pilot is native Linux only; no Windows or HIP mutation")
+        for key in (
+            "cmake",
+            "ctest",
+            "compiler",
+            "python",
+            "ninja",
+            "toolchain",
+            "mull_runner",
+            "mull_plugin",
+        ):
             value = getattr(args, key)
             if value is not None:
                 setattr(args, key, invocation_path(value))
@@ -499,7 +533,7 @@ def main(argv=None):
             schema="rns8_native_production_mutation_plan_v1",
             output=str(output),
             seed_ids=[seed["id"] for seed in seeds],
-            baseline_builds=1,
+            baseline_builds=1 + int(args.mull_runner is not None),
             mutant_builds=len(seeds),
             build_target="rns8_tests",
             gpu_enabled=False,
@@ -510,6 +544,11 @@ def main(argv=None):
             production_latency=False,
             configure_example=configure_command(
                 args, output / "baseline/source", output / "baseline/build"
+            ),
+            optional_mull=dict(
+                requested=args.mull_runner is not None,
+                scope="two_native_cpu_production_files_diagnostic_only",
+                runtime_validation_executed=False,
             ),
         )
         if not args.execute:

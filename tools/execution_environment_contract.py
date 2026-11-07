@@ -12,6 +12,7 @@ ENVIRONMENT_PREFIXES = (
     "HSA_",
     "KMP_",
     "PERF_",
+    "MULL_",
 )
 ENVIRONMENT_KEYS = frozenset(("CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD"))
 

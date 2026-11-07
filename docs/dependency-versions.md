@@ -89,6 +89,13 @@ are integrity inputs; release signatures and project compatibility remain
 unqualified. The retained clang-tidy23.1.4 analysis wheel remains a separate
 native-analysis selection.
 
+The separate optional native mutation pilot pins Mull0.37.0 in
+[mull-pilot.json](../metadata/mull-pilot.json). It consumes an explicitly prepared
+Linux compiler/plugin pair, verifies their full LLVM version and file identities,
+and installs nothing. The selected host LLVM remains unchanged. See the
+[native mutation guide](native-production-mutations.md) for its two-file scope,
+native result classifications and pending qualification.
+
 Fresh quality environments install the shared hashed build-tool requirements
 as well as formatter/type/analyzer locks, including selected pip26.3. The
 November5 managed CPython3.15.2 and isolated quality environment are installed

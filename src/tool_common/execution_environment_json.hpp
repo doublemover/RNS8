@@ -20,7 +20,7 @@ namespace rns8::tools {
 namespace environment_observation_detail {
 inline bool relevant(std::string_view key) noexcept {
   constexpr std::string_view prefixes[]{"RNS8_",   "OMP_", "HIP_", "ROCR_", "ROCP_",
-                                        "ROCPROF", "HSA_", "KMP_", "PERF_"};
+                                        "ROCPROF", "HSA_", "KMP_", "PERF_", "MULL_"};
   const auto matches = [&](std::string_view name, bool exact) {
     if (key.size() < name.size() || (exact && key.size() != name.size()))
       return false;

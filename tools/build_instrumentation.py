@@ -6,7 +6,8 @@ import re
 
 _FLAGS = re.compile(
     r"(?:^|[\s;\"'])(?:-fsanitize(?:=|-)|/fsanitize[:=]|-fprofile-instr-generate(?:=|\s|$)|"
-    r"-fcoverage-mapping(?:\s|$)|--coverage(?:\s|$)|-fprofile-arcs(?:\s|$)|-ftest-coverage(?:\s|$))",
+    r"-fcoverage-mapping(?:\s|$)|--coverage(?:\s|$)|-fprofile-arcs(?:\s|$)|-ftest-coverage(?:\s|$)|"
+    r"-fpass-plugin(?:=|\s|$))",
     re.IGNORECASE,
 )
 
