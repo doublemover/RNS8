@@ -202,6 +202,19 @@ registered but have not run; native Linux decoding remains unexecuted locally.
 
 ## Windows acquisition boundary
 
+`tools/pe_symbol_identity.py` supplies bounded local symbol custody for the
+Windows adapter. It reads actual PE32+ RSDS and MSF7 PDB info records, requires
+matching GUID and age, retains complete file hashes and repeats content checks.
+Section/RVA/raw-file disagreement, contradictory CodeView records, unsupported
+legacy formats and missing info streams are errors. MSF directory/stream blocks
+must be bounded, disjoint, outside reserved pages and allocated in the active
+free-page map. Only documented512/1,024/2,048/4,096-byte MSF blocks and the
+VC70 info layout are admitted; each file is limited to512MiB and directories
+to8MiB. GUID/age agreement identifies the selected symbol file; it does not
+establish usable function/source coverage or compilation-source checksums.
+The authored byte-layout, mismatch, extent, alias, format and hash controls remain
+unexecuted. Native Windows symbolization remains a separate qualification step.
+
 The maintained source workflow will use uniquely named WPR instances and a
 reviewed WPA export profile. Microsoft requires `-instancename` last on all
 commands affecting that instance; an unnamed stop/cancel must never affect
