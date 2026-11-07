@@ -85,6 +85,29 @@ register-use, occupancy, throughput or compile-time improvement is claimed.
 
 ## Source-bound bounded logical assurance
 
+The existing native collector now writes a source-bound experimental-family
+search summary beside its raw records. It retains the declared arithmetic/reuse
+cohorts, explicit lowest-group baseline per signedness, captured batch latencies
+and missing objectives. Conditional retirement requires five distinct owned
+invocations, strict process-range latency separation and no worse payload or
+preparation interval across every required cohort. Missing shapes or costs keep
+a variant; overlapping ranges do not establish dominance. This report edits no
+shipped set and grants no promotion or ISA qualification.
+
+The current native producer does not record variant-specific preparation and
+payload observations, so those objectives remain null and retirement stays
+blocked. Their native bridge, coarse-to-fine collection and complete regression/
+interaction coverage remain source work. Source-authored search/collector
+controls are registered and unexecuted.
+
+The compact [known-regression corpus](../metadata/native-known-regressions.json)
+records five CK failure classes described in AMD's
+[ROCm10.1/CK1.3 changelog](https://rocm.docs.amd.com/en/docs-10.1.0/release/changelog.html#composable-kernel-1-3-0).
+It keeps unknown affected-version ranges and unreported targets unknown. A
+reported fixed release requires actual replay; current direct-HIP WMMA cannot
+inherit a CK fix or qualification. Component, path and target scope remain
+separate from execution, logical proof and synchronization evidence.
+
 `native_wmma_lowering.py` now owns a small expression/loop/lifetime IR. The
 emitted HIP body—not a wrapper around an independently modeled tile—takes its
 operand addresses, predicates, plane selection, store ownership, K/slab loops,

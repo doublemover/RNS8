@@ -1325,6 +1325,13 @@ class CollectorTest(unittest.TestCase):
                 Path(receipt["path"]).read_bytes(), (self.generated / name).read_bytes()
             )
         self.assertFalse(record["comparison_identity"]["generated_variant"]["qualified"])
+        (search_path,) = self.output.glob("generated-family-search-*.json")
+        search = json.loads(search_path.read_text(encoding="utf-8"))
+        self.assertFalse(search["automatic_retirement"])
+        self.assertFalse(search["promotion_allowed"])
+        self.assertTrue(search["coverage_gaps"])
+        self.assertTrue(search["partial_objective_points"])
+        self.assertTrue(all(not row["qualified"] for row in search["regression_scope"]["records"]))
 
     def test_generated_family_drift_during_child_is_retained_and_stops(self):
         def child(command, capture):
@@ -1360,7 +1367,13 @@ class CollectorTest(unittest.TestCase):
         return [
             json.loads(p.read_text(encoding="utf-8"))
             for p in self.output.glob("*.json")
-            if not p.name.startswith(("encoded-b-reuse-comparison-", "conversion-comparison-"))
+            if not p.name.startswith(
+                (
+                    "encoded-b-reuse-comparison-",
+                    "conversion-comparison-",
+                    "generated-family-search-",
+                )
+            )
         ]
 
     def test_all_modes_end_to_end_and_distinct_worker_identity(self):

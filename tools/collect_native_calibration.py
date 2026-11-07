@@ -11,7 +11,9 @@ import subprocess
 import time
 import uuid
 from build_manifest import manifest_diagnostic_shape_valid, manifest_provenance_complete
+from benchmark_request import file_digest
 from json_evidence import parse_evidence_json as strict_json
+from native_variant_search import regression_scope, summarize as summarize_generated_search
 from modulus_set_search import DEFAULT_MODULI
 from native_locality_contract import (
     private_contract as native_locality_contract,
@@ -1255,6 +1257,11 @@ def main():
         Path(__file__).with_name("modulus_set_search.py").resolve(),
         Path(__file__).with_name("native_dataset.py").resolve(),
         Path(__file__).with_name("native_locality_contract.py").resolve(),
+        Path(__file__).with_name("native_variant_search.py").resolve(),
+        Path(__file__).with_name("evidence_scalars.py").resolve(),
+        Path(__file__).with_name("benchmark_request.py").resolve(),
+        Path(__file__).with_name("execution_environment_contract.py").resolve(),
+        Path(__file__).resolve().parents[1] / "metadata/native-known-regressions.json",
     ]
     collector_identity = {
         path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in collector_sources
@@ -1317,6 +1324,14 @@ def main():
     campaign_identity = None
     reuse_observations = []
     conversion_observations = []
+    generated_search_rows = []
+
+    def generated_cohort(case):
+        work = {key: value for key, value in case.items() if key not in ("candidate", "group")}
+        return hashlib.sha256(
+            json.dumps(work, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
     for ordinal, (case, independent) in enumerate(jobs):
         if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
             raise RuntimeError("native executable changed during collection")
@@ -1486,10 +1501,81 @@ def main():
             record.update(reason="contract/reference mismatch", validation_error=str(error))
             failure = f"native microcase contract/reference mismatch: {error}"
         record.setdefault("validated", False)
-        with (args.output / (run_id + ".json")).open("x", encoding="utf-8") as stream:
+        record_path = args.output / (run_id + ".json")
+        with record_path.open("x", encoding="utf-8") as stream:
             json.dump(record, stream, indent=2)
         if failure:
             raise RuntimeError(f"{failure}; retained {run_id}")
+        if case["candidate"] in OPTIONAL_GENERATED:
+            generated_search_rows.append(
+                dict(
+                    variant_id=capture["generated_variant"]["id"],
+                    cohort=generated_cohort(case),
+                    run_id=run_id,
+                    latency_ns=capture["sustained"]["mean_call_ns"],
+                    payload_bytes=None,
+                    prepare_ns=None,
+                    capture=dict(path=str(record_path.resolve()), sha256=file_digest(record_path)),
+                )
+            )
+    if generated_manifest:
+        variants = generated_manifest["variants"]
+        required = {
+            generated_cohort(case): {
+                entry["id"]
+                for entry in variants
+                if entry["spec"]["unsigned_inputs"] is case["unsigned_inputs"]
+            }
+            for case in cases
+            if case["candidate"] in OPTIONAL_GENERATED
+        }
+        baselines = {
+            min(
+                (entry for entry in variants if entry["spec"]["unsigned_inputs"] is sign),
+                key=lambda entry: entry["spec"]["group"],
+            )["id"]
+            for sign in {entry["spec"]["unsigned_inputs"] for entry in variants}
+        }
+        search = summarize_generated_search(
+            generated_manifest,
+            generated_search_rows,
+            required_cohorts=required,
+            baseline_ids=baselines,
+        )
+        corpus_path = Path(__file__).resolve().parents[1] / "metadata/native-known-regressions.json"
+        corpus = strict_json(corpus_path.read_text(encoding="utf-8"))
+        search.update(
+            generated_family_binding=generated_binding,
+            cohort_contracts={
+                generated_cohort(case): {
+                    key: value for key, value in case.items() if key not in ("candidate", "group")
+                }
+                for case in cases
+                if case["candidate"] in OPTIONAL_GENERATED
+            },
+            baseline_rule="lowest_admitted_group_per_signedness",
+            objective_missingness="native_payload_and_variant_preparation_observations_not_yet_recorded",
+            known_regression_corpus=dict(
+                path=str(corpus_path), sha256=hashlib.sha256(corpus_path.read_bytes()).hexdigest()
+            ),
+            regression_scope=regression_scope(
+                corpus,
+                component="rns8_direct_hip",
+                target=variants[0]["spec"]["target"],
+                features={"native64_inputs", "direct_iu8_wmma", "masked_global_loads"},
+                version="generator-sha256:" + variants[0]["generator_sha256"],
+            ),
+        )
+        bookend_sources()
+        for observed in generated_search_rows:
+            if file_digest(Path(observed["capture"]["path"])) != observed["capture"]["sha256"]:
+                raise ValueError(
+                    "retained generated native capture changed before search publication"
+                )
+        with (args.output / ("generated-family-search-" + campaign + ".json")).open(
+            "x", encoding="utf-8"
+        ) as stream:
+            json.dump(search, stream, indent=2, allow_nan=False)
     if any(case["candidate"] in ENCODED for case in cases):
         comparison = {
             "schema": "rns8_encoded_b_reuse_comparison_v2",
