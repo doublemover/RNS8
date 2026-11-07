@@ -11,6 +11,15 @@ ordinal still needs actual device admission. Parser-only CLI checks use a final
 
 ## Current evidence boundary
 
+Timing comparisons retain dependency content as well as source, host and timer
+identity. Explicit comparison policies allow different optional backend sets
+only when the shared manifest policy confirms that every dependency selected by
+both builds agrees. Equality-only summary partitions conservatively require the
+complete dependency-set digest. Arithmetic-only CPU anchors remain separate:
+one exact reference can check an output, but cannot supply a qualified CPU timing
+baseline. Wrap64 reports show a CPU reference median only for an independently
+qualified production cohort.
+
 The [SDK10.1 local follow-up](../metadata/sdk101-followup-20261026.json) records
 clean compiled source `72c55c2` on RX7900XTX/gfx1100, Core SDK10.1.0 /
 HIP7.16.26385 / AMDClang24, with unchanged Windows driver 32.0.31041.5005.

@@ -375,7 +375,15 @@ class ProcessObservations(unittest.TestCase):
 
         cpu = finite_map_capture("cpu-reference", 2000)
         gpu = finite_map_capture("hip-direct", 900)
-        for change in ("matched", "compiler", "configuration", "clock", "clock_policy", "host"):
+        for change in (
+            "matched",
+            "compiler",
+            "configuration",
+            "clock",
+            "clock_policy",
+            "host",
+            "dependency",
+        ):
             changed = deepcopy(cpu)
             if change == "compiler":
                 changed["compiler"]["version"] = "different compiler version"
@@ -387,6 +395,8 @@ class ProcessObservations(unittest.TestCase):
                 changed["clock_policy"] = {"mode": "other"}
             elif change == "host":
                 changed["execution_host_identity"]["os_instance_sha256"] = "b" * 64
+            elif change == "dependency":
+                changed["build_manifest"]["dependency_digest"] = "e" * 64
             observations = aggregate_captures(runs(changed) + runs(gpu))
             rows = [dict(row_identity(c), backend=c["backend_selected"]) for c in observations]
             partitions = partition_rows(rows)

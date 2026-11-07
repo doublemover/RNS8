@@ -31,6 +31,7 @@ from timing_eligibility import capture_identity, phase_blockers
 from reference_verdict import numerical_observation
 from benchmark_request import request_environment_identity
 from execution_host_identity import hardware_cohort_identity
+from build_manifest import manifest_dependencies_compatible
 
 
 def canonical_work(capture: dict, *, exclude: Iterable[str] = ()) -> str:
@@ -51,6 +52,7 @@ def comparison_environment(
     cpu_anchor: bool = False,
     cpu_gpu_comparison: bool = False,
     task_scaling: bool = False,
+    dependency_identity: bool = True,
 ) -> str:
     """Separate arithmetic anchors from same-host CPU/GPU timing comparisons.
 
@@ -79,6 +81,15 @@ def comparison_environment(
             aggregate_units=scaling["aggregate_units"], normalized_units=scaling["normalized_units"]
         )
     if not cpu_anchor:
+        if dependency_identity:
+            # Equality-only consumers conservatively require the complete set.
+            # Explicit pair comparisons use the shared manifest compatibility
+            # policy so optional backend sets may differ without hiding changes
+            # to any dependency selected by both builds.
+            identity["dependency_content"] = {
+                key: manifest.get(key)
+                for key in ("version", "dependency_digest", "linkage", "identity_scope")
+            }
         identity.update(
             {
                 key: capture.get(key)
@@ -120,6 +131,12 @@ def comparison_environment(
         if cpu_gpu_comparison:
             identity.pop("device", None)
     return json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def comparison_dependencies_compatible(candidate: dict, baseline: dict) -> bool:
+    return manifest_dependencies_compatible(
+        [candidate.get("build_manifest") or {}, baseline.get("build_manifest") or {}]
+    )
 
 
 def task_scaling_work(capture: dict) -> str:
@@ -508,8 +525,15 @@ def best_implementation(
         and phase_median(c) is not None
         and (
             candidate is None
-            or comparison_environment(c, cpu_gpu_comparison=cpu_gpu_comparison)
-            == comparison_environment(candidate, cpu_gpu_comparison=cpu_gpu_comparison)
+            or (
+                comparison_environment(
+                    c, cpu_gpu_comparison=cpu_gpu_comparison, dependency_identity=False
+                )
+                == comparison_environment(
+                    candidate, cpu_gpu_comparison=cpu_gpu_comparison, dependency_identity=False
+                )
+                and comparison_dependencies_compatible(candidate, c)
+            )
         )
     ]
     return min(

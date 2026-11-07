@@ -289,6 +289,7 @@ def select_best_static(
             and setup_inclusive_median_us(capture) is not None
             and workload_key(capture) == work
             and policy.environment(capture) == environments[scope]
+            and not policy.pair_blockers(candidate, capture)
             and not policy.pair_numerical_blockers(candidate, capture)
         ):
             valid.append(capture)

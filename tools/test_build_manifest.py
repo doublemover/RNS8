@@ -265,6 +265,14 @@ class BuildManifestTest(unittest.TestCase):
             self.assertEqual(first["source_digest"], changed["source_digest"])
             self.assertNotEqual(first["dependency_digest"], changed["dependency_digest"])
             self.assertFalse(manifest_dependencies_compatible([first, changed]))
+            from report_comparison import ComparisonPolicy
+
+            policy = ComparisonPolicy("authored_dependency_content_control")
+            before, after = {"build_manifest": first}, {"build_manifest": changed}
+            self.assertEqual(policy.environment(before), policy.environment(after))
+            self.assertIn(
+                "comparison_dependency_content_mismatch", policy.pair_blockers(before, after)
+            )
             library = Path(options["dependency_file.HIP_RUNTIME"])
             library.write_text("changed selected runtime", encoding="utf-8")
             runtime = clean_fixture_generate(source, config)
@@ -327,6 +335,12 @@ class BuildManifestTest(unittest.TestCase):
             self.assertTrue(manifest_provenance_complete(selected, "ck"))
             self.assertNotEqual(selected["dependency_digest"], manifest["dependency_digest"])
             self.assertTrue(manifest_dependencies_compatible([manifest, selected]))
+            from report_comparison import ComparisonPolicy
+
+            policy = ComparisonPolicy("authored_optional_backend_set_control")
+            cpu, accelerated = {"build_manifest": manifest}, {"build_manifest": selected}
+            self.assertEqual(policy.environment(cpu), policy.environment(accelerated))
+            self.assertEqual(policy.pair_blockers(cpu, accelerated), [])
 
     def test_source_identity_changes_without_committing(self):
         with tempfile.TemporaryDirectory() as directory:

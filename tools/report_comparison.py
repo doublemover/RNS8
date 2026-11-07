@@ -15,6 +15,7 @@ from observation_cohorts import (
     aggregate_captures,
     canonical_work,
     comparison_environment,
+    comparison_dependencies_compatible,
     comparison_noise_margin,
     evidence,
     phase_median,
@@ -57,16 +58,23 @@ class ComparisonPolicy:
 
     def environment(self, capture: dict) -> str:
         identity = json.loads(
-            comparison_environment(capture, cpu_gpu_comparison=self.cpu_gpu_comparison)
+            comparison_environment(
+                capture, cpu_gpu_comparison=self.cpu_gpu_comparison, dependency_identity=False
+            )
         )
         if self.paired_experiment is not None:
             identity = self.paired_experiment.environment(capture, identity)
         return json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
     def pair_blockers(self, candidate: dict, baseline: dict) -> list[str]:
+        blockers = (
+            []
+            if comparison_dependencies_compatible(candidate, baseline)
+            else ["comparison_dependency_content_mismatch"]
+        )
         if self.paired_experiment is not None:
-            return self.paired_experiment.blockers(candidate, baseline)
-        return []
+            blockers.extend(self.paired_experiment.blockers(candidate, baseline))
+        return blockers
 
     def processor_pair(self, candidate: dict, baseline: dict) -> bool:
         cpu = ("cpu", "cpu-reference", "wrap64-byte-limb")

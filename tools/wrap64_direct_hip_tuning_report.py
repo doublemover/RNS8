@@ -15,7 +15,6 @@ from observation_cohorts import (
     aggregate_captures,
     best_implementation,
     canonical_work,
-    comparison_environment,
     comparison_noise_margin,
     evidence,
     phase_median,
@@ -295,6 +294,7 @@ def _comparison(
             "speedup_vs_direct_hip_v4": speedup,
             "required_speedup_margin": required_margin,
             "direct_hip_v4_median_end_to_end_us": direct_median,
+            "wrap64_reference_timing_qualified": reference is not None,
             "wrap64_reference_median_end_to_end_us": _median(reference, "end_to_end")
             if reference
             else None,
@@ -335,14 +335,14 @@ def build_report_from_captures(
             key=lambda capture: (_role(capture), _backend_id(capture), str(capture.get("_path"))),
         ):
             direct = best_implementation(qualified_direct, candidate=item)
-            reference = next(
+            reference = best_implementation(
                 (
                     value
                     for value in by_role.get("cpu_byte_limb_reference", [])
-                    if comparison_environment(value, cpu_gpu_comparison=True)
-                    == comparison_environment(item, cpu_gpu_comparison=True)
+                    if not production.blockers(value) and references.verdict(value).passed
                 ),
-                None,
+                candidate=item,
+                cpu_gpu_comparison=True,
             )
             row = _comparison(item, direct, reference, references, production)
             candidate_rows.append(row)

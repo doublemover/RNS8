@@ -184,6 +184,10 @@ def production_cohort_controls():
         assert expected["median_end_to_end_us"] == 705
         assert expected["direct_hip_v4_median_end_to_end_us"] == 1015
         assert expected["numerical_reference"]["passed"]
+        cpu_single = candidate_row(build(captures[1:]))
+        assert cpu_single["numerical_reference"]["passed"]
+        assert not cpu_single["wrap64_reference_timing_qualified"]
+        assert cpu_single["wrap64_reference_median_end_to_end_us"] is None
         # Exhaust every ordering of the three two-process implementation blocks.
         blocks = [captures[:2], captures[2:4], captures[4:]]
         for ordering in permutations(blocks):
