@@ -48,6 +48,9 @@ class NativeHeaptrack(unittest.TestCase):
             self.assertIsNone(result[field])
         self.assertFalse(result["production_latency"])
         self.assertFalse(result["complete_interception_proven"])
+        self.assertIn(
+            "frees_without_observed_allocation_generation", result["partial_observations"]
+        )
 
     def test_retained_payload_and_final_unbounded_time_do_not_become_zero_lifetime(self):
         result = self.read(raw_fixture("+ 0 1 aa\n+ 30 1 bb\n") + "+ 1 1 cc\n- cc\n")
@@ -55,11 +58,19 @@ class NativeHeaptrack(unittest.TestCase):
         self.assertIsNone(result["allocations"][0]["lifetime_bounds_ns"])
         self.assertIsNone(result["allocations"][2]["lifetime_bounds_ns"])
         self.assertIsNone(result["time_buckets"][-1]["upper_ns"])
+        self.assertIn(
+            "allocation_or_free_after_last_native_clock_bracket", result["partial_observations"]
+        )
 
     def test_native_trace_tree_and_module_generations_do_not_guess_symbol_ownership(self):
-        result = self.read(raw_fixture("t 1020 1\n+ 10 2 aa\nm 1 -\nt 2020 0\n+ 10 3 bb\n"))
+        result = self.read(
+            raw_fixture("t 1020 1\n+ 10 2 aa\nm 1 -\nt 2020 0\n+ 10 3 bb\n+ 10 2 cc\n")
+        )
         self.assertEqual([row["parent"] for row in result["trace_nodes"]], [0, 1, 0])
         self.assertEqual([row["module_generation"] for row in result["trace_nodes"]], [1, 1, 2])
+        self.assertEqual(
+            [row["allocated_module_generation"] for row in result["allocations"]], [1, 2, 2]
+        )
         self.assertEqual(
             result["symbol_attribution"], "raw_addresses_only_no_loaded_symbol_identity"
         )
@@ -88,7 +99,12 @@ class NativeHeaptrack(unittest.TestCase):
                 self.read(source)
 
     def test_record_trace_and_module_budgets_and_hash_bookends_fail_closed(self):
-        for name, limit in (("MAX_RECORDS", 3), ("MAX_TRACES", 0), ("MAX_MODULES", 0)):
+        for name, limit in (
+            ("MAX_RECORDS", 3),
+            ("MAX_TRACES", 0),
+            ("MAX_MODULES", 0),
+            ("MAX_SEGMENTS", 0),
+        ):
             with mock.patch.object(native, name, limit), self.assertRaises(ValueError):
                 self.read(raw_fixture("+ 1 1 aa\n"))
         reader = native.bounded_read

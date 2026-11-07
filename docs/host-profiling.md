@@ -328,10 +328,16 @@ logs and partial files; elapsed time, output and artifacts are bounded.
 `tools/heaptrack_native.py` reads only the reviewed1.5.0 raw-format3
 [producer records](https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/libheaptrack.cpp).
 It retains allocation pointer generations, parent trace nodes and module-cache
-generations; matched frees recover requested size from their live allocation.
+generations at allocation as well as trace-node creation. A reused trace ID
+after a module reset cannot inherit its original image mapping. Matched frees
+recover requested size from their live allocation.
 Duplicate live pointers, future trace parents, mixed processes, unknown record
 formats, reversed clocks, truncated strings and exhausted budgets fail closed.
 Unmatched frees retain unknown pre-capture lifetime instead of subtracting zero.
+Unmatched frees and events after the last clock bracket are named partial
+observations. The native format has no complete-finalization marker; a valid
+record walk cannot prove complete allocator interception. Total retained module
+segments have their own budget in addition to file/record/trace/module limits.
 The summary includes count/size/trace distributions, observed live high water,
 retained requested payload and adjacent allocation/free pairs. Native free/new
 pairs do not identify a realloc call, so the realloc count stays unavailable.

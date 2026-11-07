@@ -14,6 +14,7 @@ PRODUCER = "https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/libheaptrack.
 MAX_RECORDS = 100_000
 MAX_TRACES = 32_768
 MAX_MODULES = 16_384
+MAX_SEGMENTS = 65_536
 MS = 1_000_000
 
 
@@ -71,6 +72,7 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
     current_bytes = peak_bytes = total_bytes = frees = temporary = suppressions = 0
     last_pointer = None
     module_generation = 0
+    module_segments = 0
     for line_number, line in enumerate(lines, 1):
         if not 2 <= len(line.encode("utf-8")) <= 16_384 or line[1:2] != " ":
             raise ValueError("unsupported or over-budget native heaptrack record")
@@ -124,6 +126,9 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
                 if len(values) < 3 or len(values) % 2 != 1 or len(modules) >= MAX_MODULES:
                     raise ValueError("native heaptrack module extent/budget differs")
                 base, *segments = values
+                module_segments += len(segments) // 2
+                if module_segments > MAX_SEGMENTS:
+                    raise ValueError("native heaptrack total module-segment budget exhausted")
                 if any(
                     base + first + size >= 1 << 64
                     for first, size in zip(segments[::2], segments[1::2])
@@ -150,6 +155,7 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
                 generation=generations[pointer],
                 bytes=size,
                 trace=trace,
+                allocated_module_generation=module_generation,
                 allocated_bucket=len(buckets) - 1,
                 freed_bucket=None,
                 allocation_record=line_number,
@@ -201,6 +207,15 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
     _, after = bounded_read(path)
     if before != after:
         raise ValueError("native heaptrack data changed during decoding")
+    partial = []
+    if unknown:
+        partial.append("frees_without_observed_allocation_generation")
+    if any(
+        buckets[row["allocated_bucket"]]["upper_ns"] is None
+        or (row["freed_bucket"] is not None and buckets[row["freed_bucket"]]["upper_ns"] is None)
+        for row in allocations
+    ):
+        partial.append("allocation_or_free_after_last_native_clock_bracket")
     return dict(
         schema=SCHEMA,
         input=before,
@@ -233,12 +248,14 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
         rss_observations=rss,
         sampled_rss_max_bytes=max((row["bytes"] for row in rss), default=None),
         suppression_records=suppressions,
+        partial_observations=partial,
         phase_attribution="unbound_native_trace_has_no_operation_or_thread_markers",
         symbol_attribution="raw_addresses_only_no_loaded_symbol_identity",
         pre_capture_live_bytes=None,
         exact_process_peak_bytes=None,
         device_or_pinned_bytes=None,
         complete_interception_proven=False,
+        native_complete_finalization_marker_available=False,
         production_latency=False,
         promotion_allowed=False,
     )
