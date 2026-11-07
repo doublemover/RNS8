@@ -896,6 +896,69 @@ TEST_CASE("raw semantics bounds layouts and flag bits reach real CPU descriptor 
   REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
+TEST_CASE("raw grouped narrow methods preserve two complete live CPU task owners",
+          "[api][abi][enum][host][narrow][group]") {
+  auto* ctx = create_cpu_context();
+  auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 1);
+  desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_workspace* workspaces[2]{};
+  for (auto*& workspace : workspaces)
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  const auto md = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+  rns8_matrix *a = nullptr, *b = nullptr, *outputs[2]{};
+  const int64_t input = 3, old_output = 11;
+  for (auto** matrix : {&a, &b, &outputs[0], &outputs[1]}) {
+    REQUIRE(rns8_create_matrix(ctx, &md, matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx, *matrix, matrix == &a || matrix == &b ? &input : &old_output, 1,
+                          1) == RNS8_SUCCESS);
+  }
+  rns8_grouped_gemm_task tasks[2]{};
+  for (unsigned i = 0; i < 2; ++i)
+    tasks[i] = {sizeof(tasks[i]), RNS8_ABI_VERSION, a, b, outputs[i], workspaces[i]};
+  const auto residues0 = outputs[0]->residues, residues1 = outputs[1]->residues;
+  const auto generation0 = outputs[0]->content_generation,
+             generation1 = outputs[1]->content_generation;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  for (bool poisoned : {false, true}) {
+    ctx->hip_failure_poisoned = poisoned;
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), 5u})
+      CHECK(rns8_gemm_narrow_exact_grouped(ctx, plan, tasks, 2,
+                                           raw_ffi_enum<rns8_narrow_product_method>(bits),
+                                           UINT64_MAX) == RNS8_INVALID_ARGUMENT);
+    ctx->hip_failure_poisoned = false;
+  }
+  // Valid tags reach the real CPU backend distinction using the same owners.
+  for (auto method : {RNS8_NARROW_SCALAR_I64, RNS8_NARROW_BYTE_WMMA, RNS8_NARROW_SCALAR_FUSED_RNS,
+                      RNS8_NARROW_BYTE_WMMA_FUSED_RNS, RNS8_NARROW_SPLIT_K_I64_FUSED_RNS})
+    CHECK(rns8_gemm_narrow_exact_grouped(ctx, plan, tasks, 2, method, UINT64_MAX) ==
+          RNS8_UNSUPPORTED_BACKEND);
+  CHECK(outputs[0]->residues == residues0);
+  CHECK(outputs[1]->residues == residues1);
+  CHECK(outputs[0]->content_generation == generation0);
+  CHECK(outputs[1]->content_generation == generation1);
+  for (const auto* matrix : {a, b, outputs[0], outputs[1]}) {
+    CHECK_FALSE(matrix->in_flight_writer);
+    CHECK(matrix->in_flight_readers == 0);
+  }
+  for (const auto* workspace : workspaces)
+    CHECK_FALSE(workspace->in_flight);
+  CHECK(ctx->prepared_references == references);
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.free_calls == allocations.free_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  for (auto* matrix : {outputs[1], outputs[0], b, a})
+    REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+  for (auto* workspace : workspaces)
+    REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("stream descriptor and calibration tags reject before CPU routing or acquisition",
           "[api][abi][enum][host][stream]") {
   auto* ctx = create_cpu_context();

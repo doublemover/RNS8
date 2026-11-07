@@ -23,5 +23,6 @@ TEST_CASE("public status strings cover every ABI status") {
   for (const Case& item : cases) {
     CHECK(std::string(rns8_status_string(item.status)) == item.text);
   }
-  CHECK(std::string(rns8_status_string(static_cast<rns8_status>(0x7fff))) == "unknown status");
+  for (uint32_t bits : {14u, UINT32_C(0x7fff), UINT32_C(0x80000000), UINT32_MAX})
+    CHECK(std::string(rns8_status_string(raw_ffi_enum<rns8_status>(bits))) == "unknown status");
 }

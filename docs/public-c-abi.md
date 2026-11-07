@@ -22,6 +22,14 @@ product prefix/execution policies and native-group dispatch policy. New controls
 are authored and await the combined runtime/sanitizer batch; the remaining
 external enum/flag inventory is still under review.
 
+Grouped narrow method controls now use two complete live CPU tasks with distinct
+outputs/workspaces, preserving generations, residues and reservations on raw
+all-bits/high-bit/adjacent rejection. Every defined method still reaches the CPU
+unsupported-provider distinction. The status formatter has a separate contract:
+unknown representable values return `unknown status`; it cannot return an API
+error code. Its raw-byte controls retain that behavior. These controls are
+source-written and have not run in the deferred batch.
+
 The registry's Windows x86_64 LLP64 entry is a compiler-front-end candidate,
 not a native-consumer qualification result. Linux LP64 and other supported
 architectures need their own deliberately reviewed native-target entries;
