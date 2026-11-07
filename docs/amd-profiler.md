@@ -226,6 +226,18 @@ complete semantic-to-dispatch coverage. More detailed/long-lived correlation
 must use retained native traces. No file I/O or JSON formatting occurs inside
 the range path.
 
+New enabled captures declare `marker_label_contract=rns8_phase_slot_v1`.
+Native labels use `rns8.<phase>#slot=<decimal index>`, generated in a bounded
+stack buffer with `to_chars` and no heap allocation. The slot is claimed before
+the provider call; a complete snapshot with no unpublished/dropped records
+retains the same array order. This gives the native timeline reader a literal
+marker identity to match to the numeric sidecar. Returned ROCTx range IDs,
+snapshot slots and SDK internal/external correlations remain separate domains.
+Historical labels without this contract cannot inherit the new join. Formatting
+controls cover zero/full-width slots and short/null buffers; native capture and
+the complete ROCTx-to-dispatch consumer still require their separate source and
+validation steps.
+
 Active/requested tracing is excluded from production timing admission. The
 profiler relation permits the explicitly declared range opt-in environment,
 retains its own capture identity, and still requires a matching exact result.

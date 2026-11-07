@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "diagnostics/trace_ranges.hpp"
+#include "diagnostics/trace_label.hpp"
 
 namespace {
 nlohmann::json range_snapshot() {
@@ -13,6 +14,21 @@ nlohmann::json range_snapshot() {
   return nlohmann::json::parse(out.str());
 }
 } // namespace
+
+TEST_CASE("native marker labels bind exact snapshot slots without allocation",
+          "[cpu][trace][identity]") {
+  char label[80]{};
+  using rns8::detail::trace::format_marker_label;
+  REQUIRE(format_marker_label(label, sizeof(label), "rns8.public_call", 0));
+  CHECK(std::string(label) == "rns8.public_call#slot=0");
+  REQUIRE(format_marker_label(label, sizeof(label), "rns8.completion", UINT64_MAX));
+  CHECK(std::string(label) == "rns8.completion#slot=18446744073709551615");
+  char small[] = "unchanged";
+  CHECK_FALSE(format_marker_label(small, sizeof(small), "rns8.proof", 0));
+  CHECK(std::string(small) == "unchanged");
+  CHECK_FALSE(format_marker_label(nullptr, sizeof(label), "rns8.proof", 0));
+  CHECK_FALSE(format_marker_label(label, sizeof(label), {}, 0));
+}
 
 TEST_CASE("profiler ranges distinguish disabled and unavailable providers", "[cpu][trace]") {
   const auto snapshot = range_snapshot();
@@ -50,6 +66,7 @@ TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops",
   worker.join();
   const auto after = range_snapshot();
   REQUIRE(after.at("claimed") == before + 3);
+  CHECK(after.at("marker_label_contract") == "rns8_phase_slot_v1");
   const auto& records = after.at("records");
   REQUIRE(records.size() >= before + 3);
   CHECK(records.at(before).at("stop_state") == 1); // host scope closure

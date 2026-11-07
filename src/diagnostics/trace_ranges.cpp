@@ -2,6 +2,7 @@
 #define _GNU_SOURCE 1
 #endif
 #include "diagnostics/trace_ranges.hpp"
+#include "diagnostics/trace_label.hpp"
 #include <ostream>
 
 #if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
@@ -146,11 +147,14 @@ Token begin(Phase phase, Tag metadata, Parent parent) noexcept {
   if (!api.start)
     return {};
   Token result;
+  const uint64_t index = claimed.fetch_add(1, std::memory_order_relaxed);
+  char marker[80];
+  if (!format_marker_label(marker, sizeof(marker), label(phase), index))
+    return {}; // A missing claimed record remains unpublished, never a full join.
   const auto start_before = monotonic_stamp();
-  result.range = api.start(label(phase));
+  result.range = api.start(marker);
   const auto start_after = monotonic_stamp();
   result.active = true; // Range ID zero is valid; availability has its own bit.
-  const uint64_t index = claimed.fetch_add(1, std::memory_order_relaxed);
   if (index < capacity) {
     result.slot = static_cast<uint32_t>(index);
     auto& record = records[result.slot];
@@ -188,6 +192,7 @@ void write_snapshot(std::ostream& out) {
   out << "{\"schema\":\"rns8_profiler_ranges_v1\",\"provider_status\":\"" << provider_status()
       << "\",\"capacity\":" << capacity << ",\"claimed\":" << count
       << ",\"dropped\":" << (count > capacity ? count - capacity : 0)
+      << ",\"marker_label_contract\":\"rns8_phase_slot_v1\""
       << ",\"scope\":\"host_ranges_not_inferred_GPU_dependencies\",\"host_clock\":{"
          "\"schema\":\"rns8_linux_host_range_clock_v1\",\"clock_id\":"
       << int(CLOCK_MONOTONIC) << ','
