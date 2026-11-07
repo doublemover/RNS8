@@ -270,7 +270,31 @@ inline void check_gram_prepared_ablations(rns8_backend_kind backend) {
             REQUIRE(rns8_execute_prepared_gram(owner) == RNS8_SUCCESS);
             REQUIRE(rns8_export_prepared_gram_limbs(owner, out.data(), n + 2) == RNS8_SUCCESS);
             CHECK(out == preserved);
+            // A fresh generation with equal values cannot expose a stale cached
+            // transpose. Change the logical matrix to one nonzero source cell.
+            auto changed = values;
+            for (int r = 0; r < rows; ++r)
+              for (int col = 0; col < cols; ++col)
+                changed[r * ld + col] = 0;
+            changed[0] = 1;
+            REQUIRE(rns8_pack_i64(ctx, x, changed.data(), ld, 3) == RNS8_SUCCESS);
+            CHECK(rns8_execute_prepared_gram(owner) == RNS8_INVALID_ARGUMENT);
+            REQUIRE(rns8_refresh_prepared_gram(owner) == RNS8_SUCCESS);
+            CHECK(rns8_export_prepared_gram_limbs(owner, out.data(), n + 2) ==
+                  RNS8_INVALID_ARGUMENT);
+            REQUIRE(rns8_execute_prepared_gram(owner) == RNS8_SUCCESS);
+            REQUIRE(rns8_export_prepared_gram_limbs(owner, out.data(), n + 2) == RNS8_SUCCESS);
+            CHECK(out != preserved);
+            for (int r = 0; r < n; ++r)
+              for (int col = 0; col < n + 2; ++col)
+                for (int limb = 0; limb < 3; ++limb) {
+                  const uint64_t expected =
+                      col >= n ? poison : uint64_t(r == 0 && col == 0 && limb == 0);
+                  const auto index = (r * (n + 2) + col) * 3 + limb;
+                  CHECK(out[index] == expected);
+                }
             REQUIRE(rns8_destroy_prepared_gram(owner) == RNS8_SUCCESS);
+            REQUIRE(rns8_pack_i64(ctx, x, values.data(), ld, 4) == RNS8_SUCCESS);
           }
         REQUIRE(rns8_destroy_matrix(c) == RNS8_SUCCESS);
         REQUIRE(rns8_destroy_matrix(x) == RNS8_SUCCESS);

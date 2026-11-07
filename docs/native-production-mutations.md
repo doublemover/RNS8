@@ -1,7 +1,7 @@
 # Native production mutations
 
 The authored `tools/native_mutation_session.py` lane builds real CPU library/test
-variants for six exact-source seeds in `metadata/native-production-mutations.json`:
+variants for eleven exact-source seeds in `metadata/native-production-mutations.json`:
 checked unsigned addition, signed CRT correction, published value generations
 and retry ownership after failed handle close, signed export rejection status
 and stale prepared-input generation admission. The shared native arithmetic
@@ -18,6 +18,14 @@ the maintained production template with fake host operations; it does not call
 a HIP driver or qualify a device failure. No source snapshot, compiler, build,
 Catch discovery/test, baseline or mutant has run in this source pass.
 
+Five Gram seeds mutate the actual production tile directory (wrong triangle,
+omitted diagonal and duplicate ownership), CPU mirror address and prepared
+transpose-cache reset. The directory and CPU stores face independent ownership
+counts and full Boost residue checks. The refresh witness changes X to a sparse
+unit cell and checks every exported value and padding; reuploading equal values
+alone cannot expose a stale adapter. Assertion locations retain their real
+`.cpp`/`.hpp`/`.inc` files. No seeded GPU mutation is run by this CPU lane.
+
 ```sh
 python tools/native_mutation_session.py --cmake /path/to/cmake \
   --ctest /path/to/ctest --compiler /path/to/cxx --ninja /path/to/ninja \
@@ -33,7 +41,7 @@ and prints the commands without creating snapshots or launching subprocesses.
 `--execute` first requires the actual clean committed source worktree. It copies
 bounded tracked regular files into fresh owned source trees; Git metadata,
 external gitlinks, SDKs and old build objects are excluded. One unchanged CPU
-baseline precedes six separate fresh mutant builds of `rns8_tests`. HIP,
+baseline precedes eleven separate fresh mutant builds of `rns8_tests`. HIP,
 accelerators, transports, OpenMP, optional CPU instructions, sanitizers, coverage,
 shared libraries, tools and benchmarks are explicitly disabled. Every source
 copy and test input is content-bound; mutations preserve unaffected file bytes
@@ -48,7 +56,7 @@ Copied trees remain unknown/dirty for general target provenance, and these
 correctness-only receipts are explicitly non-promotable. They cannot become
 production performance or source-checkout qualification evidence.
 
-Complete discovery and an exact ten-case CTest selection are retained. A filter
+Complete discovery and an exact twelve-case CTest selection are retained. A filter
 mismatch stops **before** execution. The baseline must pass every selected case;
 the publication seed requires both the reserved publication assertion and the
 real public CPU concurrency route to fail as expected. A mutant only counts as

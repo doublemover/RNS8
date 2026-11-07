@@ -59,11 +59,12 @@ remain separately tracked work under
 [#103](https://github.com/doublemover/RNS8/issues/103).
 
 The same coverage summary now contains an initial invariant mapping tied to the
-six mandatory native production mutations. The reviewed
+eleven mandatory native production mutations. The reviewed
 [route map](../metadata/native-invariant-routes.json) must cover exactly that
 registry. It names public integer-split queries, signed export, packing and
 prepared execution; failed-close ownership remains explicitly a host template
-with fake operations. Source hashes and unique operation/anchor spans bind the
+with fake operations, while Gram directory/mirror checks name their real CPU
+helper scope. Source hashes and unique operation/anchor spans bind the
 reviewed source prefix and its actual native branch outcomes. Each row retains
 the real discovered/selected/executed/passed assertion inventory, plus the
 matching public C symbol's whole-suite native count and source mapping.

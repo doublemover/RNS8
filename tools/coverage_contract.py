@@ -19,7 +19,7 @@ def invariant_mapping(native, summary, seeds, routes, tests, *, root: Path):
     """
     if (
         not isinstance(routes, dict)
-        or routes.get("schema") != "rns8_native_invariant_routes_v1"
+        or routes.get("schema") != "rns8_native_invariant_routes_v2"
         or not isinstance(routes.get("routes"), dict)
         or set(routes["routes"]) != {seed["id"] for seed in seeds}
         or not 1 <= len(seeds) <= 16
@@ -52,10 +52,17 @@ def invariant_mapping(native, summary, seeds, routes, tests, *, root: Path):
         route = routes["routes"][seed["id"]]
         if (
             not isinstance(route, dict)
-            or set(route) != {"invariant", "entrypoint", "source"}
+            or set(route) != {"invariant", "entrypoint", "source", "scope"}
             or type(route["invariant"]) is not str
             or not route["invariant"]
             or ((route["entrypoint"] is None) != (route["source"] is None))
+            or route["scope"]
+            not in {
+                "public_cpu_route",
+                "host_template_fake_operations_only",
+                "production_cpu_helper",
+            }
+            or (route["entrypoint"] is not None) != (route["scope"] == "public_cpu_route")
             or (
                 route["entrypoint"] is not None
                 and (
@@ -131,9 +138,7 @@ def invariant_mapping(native, summary, seeds, routes, tests, *, root: Path):
                 if route["source"]
                 else None,
                 native_entrypoint_calls=sum(api) if api else None,
-                scope="public_cpu_route"
-                if route["entrypoint"]
-                else "host_template_fake_operations_only",
+                scope=route["scope"],
                 tests=mapped_tests,
                 coverage_gaps=gaps,
                 per_test_callchain_proven=False,

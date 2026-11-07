@@ -92,10 +92,11 @@ class NativeCoverage(unittest.TestCase):
                 ],
             )
             routes = dict(
-                schema="rns8_native_invariant_routes_v1",
+                schema="rns8_native_invariant_routes_v2",
                 routes=dict(
                     overflow=dict(
                         invariant="query extent",
+                        scope="public_cpu_route",
                         entrypoint="rns8_query_fixture",
                         source="src/core/range.cpp",
                     )
@@ -138,7 +139,9 @@ class NativeCoverage(unittest.TestCase):
             with self.assertRaises(ValueError):
                 map_rows(document=wrong_source)
             helper = copy.deepcopy(routes)
-            helper["routes"]["overflow"].update(entrypoint=None, source=None)
+            helper["routes"]["overflow"].update(
+                entrypoint=None, source=None, scope="host_template_fake_operations_only"
+            )
             self.assertEqual(
                 map_rows(policy=helper)["invariants"][0]["scope"],
                 "host_template_fake_operations_only",

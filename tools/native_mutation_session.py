@@ -96,7 +96,9 @@ def registry():
                     or "\r" in item
                     for item in test.values()
                 )
-                or not re.fullmatch(r"tests/unit/[A-Za-z0-9_]+\.cpp", test["source"])
+                or not re.fullmatch(
+                    r"tests/(?:unit|support)/[A-Za-z0-9_]+\.(?:cpp|hpp|inc)", test["source"]
+                )
             ):
                 raise ValueError("native required test/source/assertion mapping invalid")
         change((ROOT / seed["source"]).read_bytes(), seed)

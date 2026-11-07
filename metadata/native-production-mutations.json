@@ -119,6 +119,86 @@
         }
       ],
       "mandatory": true
+    },
+    {
+      "id": "gram-wrong-triangle-directory",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline std::vector<GramTile> gram_tiles(",
+      "before": "for (uint32_t col = row; col < q; ++col)",
+      "after": "for (uint32_t col = 0; col < row; ++col)",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "jobs.size() == expected_jobs"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-omit-diagonal-directory",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline std::vector<GramTile> gram_tiles(",
+      "before": "for (uint32_t col = row; col < q; ++col)",
+      "after": "for (uint32_t col = row + 1; col < q; ++col)",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "jobs.size() == expected_jobs"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-duplicate-tile-owner",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline std::vector<GramTile> gram_tiles(",
+      "before": "jobs.push_back({row, col});",
+      "after": "jobs.insert(jobs.end(), 2, GramTile{row, col});",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "count == 1"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-wrong-cpu-mirror-index",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline void gram_residues_cpu(",
+      "before": "c[(int64_t(plane) * n + col) * p.output_ld + row] = int8_t(sum);",
+      "after": "c[(int64_t(plane) * n + row) * p.output_ld + col] = int8_t(sum);",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "== expected_residue"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-reuse-stale-transpose-after-refresh",
+      "source": "src/core/api_prepared_gram.cpp",
+      "source_sha256": "3037312fbcd9b40de13cd7051fd4b3b9ef2d78e3a6717d2922ebdcc3ae32f025",
+      "anchor": "rns8_status rns8_refresh_prepared_gram(",
+      "before": "owner->adapter_ready = false;",
+      "after": "static_cast<void>(owner->adapter_ready);",
+      "tests": [
+        {
+          "name": "Gram native, retained transpose and reconstruction-once compose without stale publication",
+          "source": "tests/support/gram_fixture.hpp",
+          "assertion_marker": "out[index] == expected"
+        }
+      ],
+      "mandatory": true
     }
   ]
 }

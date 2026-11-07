@@ -139,6 +139,17 @@ prefix1–20, the prefix4 single-prime bucket, reordered modulus identities,
 omitted-storage canaries and exact region sizes. Current runtime validation and
 performance measurements remain deferred during source frontloading.
 
+The source pass additionally seeds five actual CPU production mutations for
+wrong-triangle/omitted-diagonal directories, duplicate ownership, mirror indexing
+and stale transpose reuse after refresh. The registered directory/store control
+counts independent writers and compares every residue with Boost for both
+orientations, inline/separate mirrors, three composite/even channels, tile edges
+and poisoned padding. The shared prepared CPU/HIP fixture now also changes X to
+a sparse unit cell, rather than only reuploading identical values, and checks
+every exported limb and padding byte after refresh. Native mutation source
+locations retain the real test/header/fragment filename. These source-authored
+controls and mutants have not run; CPU mutations do not qualify GPU stores.
+
 ## Independent prepared input and output ablations
 
 `rns8_prepare_gram_ex` retains the same symmetry certificate and offers three
