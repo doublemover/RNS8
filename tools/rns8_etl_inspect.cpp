@@ -20,6 +20,7 @@
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 #include <nlohmann/json.hpp>
 
@@ -34,6 +35,8 @@ constexpr uint64_t max_events = 1000000;
 constexpr size_t max_process_events = 16384;
 constexpr GUID process_provider = {
     0x3d6fa8d0, 0xfe05, 0x11d0, {0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c}};
+constexpr GUID image_provider = {
+    0x2cb15d1d, 0x5fc1, 0x11d2, {0xab, 0xe1, 0x00, 0xa0, 0xc9, 0x11, 0xf5, 0x18}};
 
 struct Property {
   USHORT type = 0;
@@ -47,10 +50,14 @@ struct State {
   uint64_t events = 0;
   uint64_t undecoded_process_events = 0;
   uint64_t process_events = 0;
+  uint64_t image_events = 0;
+  uint64_t undecoded_image_events = 0;
+  size_t image_text_bytes = 0;
   uint32_t selected_pid = 0;
   bool stopped = false;
   const char* error = nullptr;
   json selected = json::array();
+  json selected_images = json::array();
   std::map<uint32_t, Schema> schemas;
 };
 
@@ -77,30 +84,32 @@ std::wstring bounded_name(const std::vector<BYTE>& bytes, ULONG offset) {
   fail("TDH property name is unterminated or exceeds budget");
 }
 
-const Schema& schema(EVENT_RECORD* event, State& state) {
+const Schema& schema(EVENT_RECORD* event, State& state, bool image_event) {
   const auto& descriptor = event->EventHeader.EventDescriptor;
-  const uint32_t key = uint32_t(descriptor.Version) | (uint32_t(descriptor.Opcode) << 8) |
-                       (uint32_t(event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) << 16);
+  const uint32_t key =
+      uint32_t(descriptor.Version) | (uint32_t(descriptor.Opcode) << 8) |
+      (uint32_t(event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) << 16) |
+      (uint32_t(image_event) << 24);
   const auto found = state.schemas.find(key);
   if (found != state.schemas.end()) {
     if (!found->second.valid)
-      fail("cached native process TDH schema is unsupported");
+      fail("cached native ETL TDH schema is unsupported");
     return found->second;
   }
   if (state.schemas.size() >= 32)
-    throw DecoderBudgetExceeded{"TDH process schema budget exhausted"};
+    throw DecoderBudgetExceeded{"TDH schema budget exhausted"};
   Schema& value = state.schemas.emplace(key, Schema{}).first->second;
   ULONG size = 0;
   if (TdhGetEventInformation(event, 0, nullptr, nullptr, &size) != ERROR_INSUFFICIENT_BUFFER ||
       size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray))
-    fail("native process TDH schema unavailable");
+    fail("native ETL TDH schema unavailable");
   if (size > (1u << 20))
-    throw DecoderBudgetExceeded{"native process TDH schema byte budget exhausted"};
+    throw DecoderBudgetExceeded{"native ETL TDH schema byte budget exhausted"};
   value.bytes.resize(size);
   auto* info = reinterpret_cast<TRACE_EVENT_INFO*>(value.bytes.data());
   if (TdhGetEventInformation(event, 0, nullptr, info, &size) != ERROR_SUCCESS ||
       size > value.bytes.size())
-    fail("native process TDH schema read failed");
+    fail("native ETL TDH schema read failed");
   if (info->TopLevelPropertyCount > info->PropertyCount || info->PropertyCount > 128 ||
       offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) +
               size_t(info->PropertyCount) * sizeof(EVENT_PROPERTY_INFO) >
@@ -109,15 +118,20 @@ const Schema& schema(EVENT_RECORD* event, State& state) {
   for (ULONG i = 0; i < info->TopLevelPropertyCount; ++i) {
     const auto& field = info->EventPropertyInfoArray[i];
     const std::wstring name = bounded_name(value.bytes, field.NameOffset);
-    if (name != L"ProcessId" && name != L"ParentId" && name != L"UniqueProcessKey" &&
-        name != L"ImageFileName")
+    const bool selected =
+        name == L"ProcessId" ||
+        (image_event
+             ? (name == L"ImageBase" || name == L"ImageSize" || name == L"ImageChecksum" ||
+                name == L"TimeDateStamp" || name == L"FileName")
+             : (name == L"ParentId" || name == L"UniqueProcessKey" || name == L"ImageFileName"));
+    if (!selected)
       continue;
     const auto unsupported =
         PropertyStruct | PropertyParamCount | PropertyWBEMXmlFragment | PropertyHasCustomSchema;
     if (field.Flags & unsupported || field.count != 1)
-      fail("native process identity property is not a supported scalar");
+      fail("native ETL scalar property is not a supported scalar");
     if (!value.fields.emplace(name, Property{field.nonStructType.InType}).second)
-      fail("native process identity schema has duplicate fields");
+      fail("native ETL scalar schema has duplicate fields");
   }
   value.valid = true;
   return value;
@@ -127,26 +141,57 @@ std::vector<BYTE> property(EVENT_RECORD* event, const Schema& schema, const wcha
                            USHORT expected, ULONG maximum) {
   const auto field = schema.fields.find(name);
   if (field == schema.fields.end() || field->second.type != expected)
-    fail("native process identity property type is unsupported");
+    fail("native ETL scalar property type is unsupported");
   PROPERTY_DATA_DESCRIPTOR descriptor{};
   descriptor.PropertyName = reinterpret_cast<ULONGLONG>(name);
   descriptor.ArrayIndex = ULONG_MAX;
   ULONG size = 0;
   if (TdhGetPropertySize(event, 0, nullptr, 1, &descriptor, &size) != ERROR_SUCCESS || !size ||
       size > maximum)
-    fail("native process identity property size is invalid");
+    fail("native ETL scalar property size is invalid");
   std::vector<BYTE> bytes(size);
   if (TdhGetProperty(event, 0, nullptr, 1, &descriptor, size, bytes.data()) != ERROR_SUCCESS)
-    fail("native process identity property read failed");
+    fail("native ETL scalar property read failed");
   return bytes;
 }
 
-uint32_t pid_property(EVENT_RECORD* event, const Schema& schema, const wchar_t* name) {
+uint32_t uint32_property(EVENT_RECORD* event, const Schema& schema, const wchar_t* name) {
   const auto bytes = property(event, schema, name, TDH_INTYPE_UINT32, 4);
   if (bytes.size() != sizeof(uint32_t))
-    fail("native process PID property is not uint32");
+    fail("native ETL scalar property is not uint32");
   uint32_t result = 0;
   std::memcpy(&result, bytes.data(), sizeof(result));
+  return result;
+}
+
+uint64_t pointer_property(EVENT_RECORD* event, const Schema& fields, const wchar_t* name,
+                          size_t width) {
+  const auto bytes = property(event, fields, name, TDH_INTYPE_POINTER, 8);
+  if (bytes.size() != width)
+    fail("native ETL pointer field width differs from its recorded event header");
+  uint64_t value = 0;
+  std::memcpy(&value, bytes.data(), width);
+  return value;
+}
+
+std::string unicode_image(const std::vector<BYTE>& bytes) {
+  if (bytes.size() % sizeof(wchar_t))
+    fail("native image path has a partial UTF16 unit");
+  std::vector<wchar_t> wide(bytes.size() / sizeof(wchar_t));
+  std::memcpy(wide.data(), bytes.data(), bytes.size());
+  const auto end = std::find(wide.begin(), wide.end(), wchar_t(0));
+  if (end == wide.end() || end == wide.begin() ||
+      std::any_of(wide.begin(), end, [](wchar_t c) { return c < 32; }))
+    fail("native image path is empty, unterminated or contains controls");
+  const int count = static_cast<int>(end - wide.begin());
+  const int required = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), count,
+                                           nullptr, 0, nullptr, nullptr);
+  if (required <= 0 || required > 16384)
+    fail("native image path has invalid or oversized UTF16");
+  std::string result(static_cast<size_t>(required), '\0');
+  if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), count, result.data(),
+                          required, nullptr, nullptr) != required)
+    fail("native image path UTF8 conversion failed");
   return result;
 }
 
@@ -176,39 +221,70 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
     state.error = "ETL event budget exhausted";
     return;
   }
-  if (!IsEqualGUID(event->EventHeader.ProviderId, process_provider))
+  const bool image_event = IsEqualGUID(event->EventHeader.ProviderId, image_provider);
+  if (!image_event && !IsEqualGUID(event->EventHeader.ProviderId, process_provider))
     return;
   const UCHAR opcode = event->EventHeader.EventDescriptor.Opcode;
-  if (opcode != 1 && opcode != 2 && opcode != 3 && opcode != 4 && opcode != 39)
+  if (opcode != 2 && opcode != 3 && opcode != 4 &&
+      !(image_event ? opcode == 10 : opcode == 1 || opcode == 39))
     return;
-  ++state.process_events;
+  if (image_event)
+    ++state.image_events;
+  else
+    ++state.process_events;
   try {
-    const Schema& fields = schema(event, state);
-    const uint32_t pid = pid_property(event, fields, L"ProcessId");
+    const Schema& fields = schema(event, state, image_event);
+    const uint32_t pid = uint32_property(event, fields, L"ProcessId");
     if (pid != state.selected_pid)
       return;
-    if (state.selected.size() >= max_process_events)
-      throw DecoderBudgetExceeded{"selected ETL process event budget exhausted"};
     const bool is32 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0;
     const bool is64 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_64_BIT_HEADER) != 0;
     if (is32 == is64)
-      fail("native process event has no unique recorded pointer width");
-    const auto key_bytes = property(event, fields, L"UniqueProcessKey", TDH_INTYPE_POINTER, 8);
-    if (key_bytes.size() != (is32 ? 4u : 8u))
-      fail("native process key width differs from its recorded event header");
-    uint64_t key = 0;
-    std::memcpy(&key, key_bytes.data(), key_bytes.size());
-    if (!key || event->EventHeader.TimeStamp.QuadPart < 0)
+      fail("native ETL event has no unique recorded pointer width");
+    const size_t width = is32 ? 4u : 8u;
+    if (event->EventHeader.TimeStamp.QuadPart < 0)
+      fail("native ETL converted timestamp is invalid");
+    if (image_event) {
+      if (state.selected_images.size() >= 4096)
+        throw DecoderBudgetExceeded{"selected ETL image event budget exhausted"};
+      const uint64_t base = pointer_property(event, fields, L"ImageBase", width);
+      const uint64_t size = pointer_property(event, fields, L"ImageSize", width);
+      if (!base || !size || size > std::numeric_limits<uint64_t>::max() - base)
+        fail("native image span is empty or overflows");
+      if (width == 4 && size > (uint64_t(1) << 32) - base)
+        fail("native image span exceeds its recorded pointer domain");
+      auto name =
+          unicode_image(property(event, fields, L"FileName", TDH_INTYPE_UNICODESTRING, 8192));
+      if (name.size() > (1u << 20) - state.image_text_bytes)
+        throw DecoderBudgetExceeded{"selected ETL image path byte budget exhausted"};
+      state.image_text_bytes += name.size();
+      state.selected_images.push_back(
+          json{{"pid", pid},
+               {"opcode", opcode},
+               {"time_filetime_100ns", event->EventHeader.TimeStamp.QuadPart},
+               {"image_base", base},
+               {"image_size", size},
+               {"image_checksum", uint32_property(event, fields, L"ImageChecksum")},
+               {"image_timestamp", uint32_property(event, fields, L"TimeDateStamp")},
+               {"image_path_utf8", std::move(name)},
+               {"event_version", event->EventHeader.EventDescriptor.Version},
+               {"pointer_bytes", width}});
+      return;
+    }
+    if (state.selected.size() >= max_process_events)
+      throw DecoderBudgetExceeded{"selected ETL process event budget exhausted"};
+    const uint64_t key = pointer_property(event, fields, L"UniqueProcessKey", width);
+    if (!key)
       fail("native process key or converted timestamp is invalid");
     const auto image = property(event, fields, L"ImageFileName", TDH_INTYPE_ANSISTRING, 4096);
     state.selected.push_back(json{{"pid", pid},
-                                  {"parent_pid", pid_property(event, fields, L"ParentId")},
+                                  {"parent_pid", uint32_property(event, fields, L"ParentId")},
                                   {"process_key", key},
                                   {"opcode", opcode},
                                   {"time_filetime_100ns", event->EventHeader.TimeStamp.QuadPart},
                                   {"image_basename_ascii", ascii_image(image)},
                                   {"event_version", event->EventHeader.EventDescriptor.Version},
-                                  {"pointer_bytes", key_bytes.size()}});
+                                  {"pointer_bytes", width}});
   } catch (const DecoderBudgetExceeded& budget) {
     // Do not scan the rest of a large file after an enforceable resource limit.
     // The buffer callback stops ProcessTrace; no completed metadata is emitted.
@@ -216,11 +292,14 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
     state.error = budget.message;
   } catch (const std::bad_alloc&) {
     state.stopped = true;
-    state.error = "ETL process decoder allocation failed";
+    state.error = "ETL native decoder allocation failed";
   } catch (...) {
     // An undecodable process event can hide PID reuse, including a record whose
     // PID property itself was unavailable. Keep the whole identity scope partial.
-    ++state.undecoded_process_events;
+    if (image_event)
+      ++state.undecoded_image_events;
+    else
+      ++state.undecoded_process_events;
   }
 }
 
@@ -323,6 +402,9 @@ int wmain(int argc, wchar_t** argv) {
                 {"observed_process_events", state.process_events},
                 {"undecoded_process_events", state.undecoded_process_events},
                 {"process_events", std::move(state.selected)},
+                {"observed_image_events", state.image_events},
+                {"undecoded_image_events", state.undecoded_image_events},
+                {"image_events", std::move(state.selected_images)},
                 {"header",
                  {{"pointer_bytes", header.PointerSize},
                   {"clock_type", header.ReservedFlags},

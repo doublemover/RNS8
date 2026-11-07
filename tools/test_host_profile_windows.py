@@ -19,6 +19,7 @@ from test_pe_symbol_identity import executable, symbols
 from test_target_qualification_support import QualificationFixture, write
 from test_wpa_sample_reader import sample_fields
 from test_etl_process_contract import native_metadata
+from test_etl_image_contract import image
 from wpa_sample_reader import HEADERS
 
 
@@ -92,15 +93,21 @@ class WindowsHostProfile(unittest.TestCase):
             )
         elif name == "inspect_etl":
             self.assertEqual(command[-2:], ["--pid", "333"])
-            result["stdout"] = json.dumps(
-                native_metadata(
-                    parent_pid=host.os.getpid(),
-                    decoder_pid=333,
-                    image=self.binary.name,
-                    source_sha256=file_digest(host.ROOT / "tools/rns8_etl_inspect.cpp"),
-                    file_bytes=(self.out / "raw/profile.etl").stat().st_size,
-                )
+            metadata = native_metadata(
+                parent_pid=host.os.getpid(),
+                decoder_pid=333,
+                image=self.binary.name,
+                source_sha256=file_digest(host.ROOT / "tools/rns8_etl_inspect.cpp"),
+                file_bytes=(self.out / "raw/profile.etl").stat().st_size,
             )
+            metadata.update(
+                observed_image_events=2,
+                image_events=[
+                    image(image_path_utf8=str(self.binary)),
+                    image(2, 800, image_path_utf8=str(self.binary)),
+                ],
+            )
+            result["stdout"] = json.dumps(metadata)
         elif name == "status":
             result.update(returncode=1, stderr="Error code: 0xc5583000")
         elif name == "workload":
@@ -157,6 +164,10 @@ class WindowsHostProfile(unittest.TestCase):
         self.assertEqual(result["recording_cleanup"], "stop_completed")
         self.assertFalse(result["promotion_allowed"])
         self.assertTrue(result["selected_process_identity"]["process_identity_complete"])
+        images = json.loads(Path(result["native_image_catalog"]["path"]).read_text())
+        self.assertEqual(images["selected_image_events"], 2)
+        self.assertEqual(images["generations"][0]["observed_lifetime_100ns"], 590)
+        self.assertFalse(images["loaded_PDB_identity_verified"])
         self.assertEqual([name for name, _, _ in self.calls][-1], "export")
 
     def test_failed_workload_stops_only_owned_instance_and_never_exports(self):

@@ -20,6 +20,7 @@ from check_dependencies_lib.system import find_command
 from compiled_binary_identity import bind_document, canonical_digest, validate_document
 from execution_environment_contract import relevant_environment_key
 from etl_process_contract import process_contract
+from etl_image_contract import image_catalog
 from gpu_qualification import owned_artifact_files
 from host_instrumentation_session import reference, write_json
 from json_evidence import load_evidence_json, parse_evidence_json, same_evidence_value
@@ -34,6 +35,7 @@ SCHEMA = "rns8_windows_host_profile_plan_v2"
 SOURCE_INPUTS = (
     "tools/host_profile_windows.py",
     "tools/etl_process_contract.py",
+    "tools/etl_image_contract.py",
     "tools/rns8_etl_inspect.cpp",
     "tools/pe_symbol_identity.py",
     "tools/wpa_sample_reader.py",
@@ -271,6 +273,7 @@ def completed_capture(plan, stages):
         source_sha256=reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"],
         file_bytes=(out / "raw/profile.etl").stat().st_size,
     )
+    images = image_catalog(native_metadata, process_identity)
     profiled = bind_host_profile_output(
         production,
         raw,
@@ -314,6 +317,7 @@ def completed_capture(plan, stages):
     store.finish()
     write_json(out / "samples.json", samples)
     write_json(out / "native-process-metadata.json", native_metadata)
+    write_json(out / "native-image-catalog.json", images)
     write_json(out / "profiled.json", profiled)
     return dict(
         qualification="native_capture_export_bound_attribution_partial",
@@ -324,6 +328,7 @@ def completed_capture(plan, stages):
         profiled_capture=reference(out / "profiled.json"),
         symbols=plan["symbols"],
         native_process_metadata=reference(out / "native-process-metadata.json"),
+        native_image_catalog=reference(out / "native-image-catalog.json"),
         selected_process_identity=process_identity,
         sample_loss=process_identity["header_loss"],
         clock_join="unbound",

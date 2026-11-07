@@ -282,7 +282,7 @@ native argv and relevant environment relation to production.
 
 After owned stop, the inspector opens only the finalized ETL file through native
 `OpenTrace`/`ProcessTrace` and uses TDH's actual property names/types for classic
-process records. It never opens a live logger or controls a recording. The
+process and image-loader records. It never opens a live logger or controls a recording. The
 native [log header](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-trace_logfile_header)
 supplies recorded clock/frequency and separate lost-event/lost-buffer counters;
 these overlapping observations are not summed. Native process records retain
@@ -300,6 +300,22 @@ classification. It emits no command lines or SIDs. Decoder/source/PID
 and ETL content bookends are checked before retaining its metadata alongside
 the WPA export. The late-bound inspector argument is the exact completed
 benchmark PID, not the profiler launcher's or a selected display name.
+
+The native [image-loader provider](https://learn.microsoft.com/en-us/windows/win32/etw/image-load)
+also supplies selected-PID Load/Unload/DCStart/DCEnd records with pointer-width
+checked base/size, checksum, native TimeDateStamp and validated UTF16-to-UTF8
+path. Process and image TDH schemas have separate cache identities. Image storage
+is bounded to4,096 selected records and1MiB of UTF8 path bytes, in addition to
+the existing file/event/schema limits. Unsupported loader formats stay partial;
+resource exhaustion stops decoding.
+
+`native-image-catalog.json` preserves observed load/unload generations at each
+base, native record indices and explicit lifetime intervals. Rundown records
+are snapshots, not invented load/free pairs. Reuse without unload, conflicting
+metadata, unmatched unloads and equal-timestamp order remain unresolved. This
+establishes native module observations rather than loaded file-byte or PDB
+identity; the WPA module/IP join remains unbound. Native decoder/typed-catalog
+and full synthetic publication controls are authored and await runtime validation.
 
 The Windows result still remains partial: actually loaded PDB identity,
 measured-operation selection and API/GPU clock alignment are not established by
