@@ -28,29 +28,6 @@ private:
   void* ptr_ = nullptr;
 };
 
-class HipScratchBuffer {
-public:
-  ~HipScratchBuffer() {
-    if (ptr_) {
-      (void)hipSetDevice(default_visible_hip_test_device());
-      (void)hipFree(ptr_);
-    }
-  }
-
-  HipScratchBuffer(const HipScratchBuffer&) = delete;
-  HipScratchBuffer& operator=(const HipScratchBuffer&) = delete;
-
-  HipScratchBuffer() = default;
-
-  void** ptr_address() { return &ptr_; }
-
-  std::size_t* bytes_address() { return &bytes_; }
-
-private:
-  void* ptr_ = nullptr;
-  std::size_t bytes_ = 0;
-};
-
 rns8_context* create_backend_context(rns8_backend_kind backend) {
   rns8_context_options options{};
   options.struct_size = sizeof(options);
@@ -319,29 +296,22 @@ void require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(
   HipBuffer b_limbs(b_limb_bytes);
   HipBuffer direct_limbs(c_limb_bytes);
   HipBuffer rocwmma_limbs(c_limb_bytes);
-  HipScratchBuffer upload_buffer;
-  HipScratchBuffer export_buffer;
-
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(device_id, A.data(), upload_buffer.ptr_address(),
-                                                   upload_buffer.bytes_address(), a_limbs.get(),
-                                                   shape.m, shape.k, lda) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(device_id, B.data(), upload_buffer.ptr_address(),
-                                                   upload_buffer.bytes_address(), b_limbs.get(),
-                                                   shape.k, shape.n, ldb) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(device_id, A.data(), a_limbs.get(), shape.m,
+                                                   shape.k, lda) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(device_id, B.data(), b_limbs.get(), shape.k,
+                                                   shape.n, ldb) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
               device_id, a_limbs.get(), b_limbs.get(), direct_limbs.get(), shape.m, shape.n,
               shape.k) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::rocwmma_wrap64_gemm_byte_limbs_candidate_device(
               device_id, a_limbs.get(), b_limbs.get(), rocwmma_limbs.get(), shape.m, shape.n,
               shape.k) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              device_id, direct_limbs.get(), export_buffer.ptr_address(),
-              export_buffer.bytes_address(), shape.m, shape.n, direct_out.data(),
-              ldc) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              device_id, rocwmma_limbs.get(), export_buffer.ptr_address(),
-              export_buffer.bytes_address(), shape.m, shape.n, rocwmma_out.data(),
-              ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(device_id, direct_limbs.get(), shape.m,
+                                                     shape.n, direct_out.data(),
+                                                     ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(device_id, rocwmma_limbs.get(), shape.m,
+                                                     shape.n, rocwmma_out.data(),
+                                                     ldc) == RNS8_SUCCESS);
 
   for (int64_t row = 0; row < shape.m; ++row) {
     for (int64_t col = shape.n; col < ldc; ++col) {
