@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import tempfile
+from json_evidence import parse_evidence_json
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
@@ -26,6 +27,185 @@ KINDS = {
 def digest(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def export_session(source: Path, destination: Path, *, maximum_bytes: int = 8 * 1024**3) -> dict:
+    """Copy declared session evidence to an explicit local/mounted destination.
+
+    Raw tool logs may contain operator-specific details: this is a private
+    evidence bundle, not automatic public publication or a sanitation claim.
+    No local evidence, allocation or unrelated process is removed on success.
+    """
+    source = source.resolve(strict=True)
+    destination = destination.resolve()
+    if (
+        destination.is_relative_to(source)
+        or source.is_relative_to(destination)
+        or type(maximum_bytes) is not int
+        or not 0 < maximum_bytes <= 64 * 1024**3
+    ):
+        raise ValueError("separate explicit export destination and bounded byte allowance required")
+
+    def document(name):
+        path = contained_path(source, name)
+        with path.open("rb") as stream:
+            payload = stream.read(16 * 1024**2 + 1)
+        if len(payload) > 16 * 1024**2:
+            raise ValueError("session receipt exceeds 16MiB: " + name)
+        value = parse_evidence_json(payload.decode("utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError("typed session receipt required: " + name)
+        return value, hashlib.sha256(payload).hexdigest()
+
+    manifest, manifest_hash = document("manifest.json")
+    results, results_hash = document("results.json")
+    manifest_identity = hashlib.sha256(
+        json.dumps(
+            {
+                key: value
+                for key, value in manifest.items()
+                if key not in {"generated_utc", "status", "identity_sha256"}
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    if (
+        manifest.get("schema_version") != 2
+        or results.get("schema") != "rns8_gpu_session_results_v2"
+        or manifest.get("identity_sha256") != manifest_identity
+        or results.get("manifest_identity_sha256") != manifest["identity_sha256"]
+        or results.get("status")
+        not in {
+            "blocked",
+            "interrupted",
+            "budget_exhausted",
+            "cpu_preparation_passed_hardware_pending",
+            "smoke_passed_release_qualification_pending",
+            "environment_receipt_only_not_hardware_qualified",
+        }
+    ):
+        raise ValueError("matching stopped/completed session manifest and results required")
+    expected = {"manifest.json": manifest_hash, "results.json": results_hash}
+    omitted = []
+    rows = results.get("results")
+    if not isinstance(rows, list) or len(rows) > 10000:
+        raise ValueError("bounded session result inventory required")
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("artifacts"), dict):
+            raise ValueError("typed result artifact inventory required")
+        for name, sha in row["artifacts"].items():
+            if (
+                not isinstance(name, str)
+                or not isinstance(sha, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", sha)
+            ):
+                raise ValueError("exact artifact path and SHA256 required")
+            path = Path(name)
+            if not path.is_absolute():
+                raise ValueError("session artifact identity must use an absolute path")
+            if not path.is_relative_to(source):
+                omitted.append(dict(path=name, sha256=sha, reason="external_input_identity_only"))
+                if len(expected) + len(omitted) > 10000:
+                    raise ValueError("export inventory exceeds 10000 file identities")
+                continue
+            relative = path.relative_to(source).as_posix()
+            if relative in expected and expected[relative] != sha:
+                raise ValueError("contradictory artifact identities: " + relative)
+            expected[relative] = sha
+            if len(expected) + len(omitted) > 10000:
+                raise ValueError("export inventory exceeds 10000 file identities")
+    for name in (
+        "dependency-resolution.json",
+        "environment-allowlist.json",
+        "artifact-cache.json",
+        "artifact-staging.json",
+    ):
+        if (source / name).exists():
+            expected[name] = digest(contained_path(source, name))
+    if len(expected) > 10000:
+        raise ValueError("export inventory exceeds 10000 files")
+    inventory, total = [], 0
+    for name, sha in sorted(expected.items()):
+        path = contained_path(source, name)
+        if not path.is_file():
+            raise ValueError("declared session artifact missing: " + name)
+        size = path.stat().st_size
+        total += size
+        if total > maximum_bytes:
+            raise ValueError("export inventory exceeds its byte allowance")
+        if digest(path) != sha:
+            raise ValueError("session artifact changed before export: " + name)
+        inventory.append(dict(path=name, bytes=size, sha256=sha))
+    receipt = dict(
+        schema="rns8_session_export_v1",
+        manifest_identity_sha256=manifest["identity_sha256"],
+        source_results_sha256=results_hash,
+        session_status=results.get("status"),
+        artifacts=inventory,
+        omitted_external_inputs=omitted,
+        total_bytes=total,
+        private_bundle_requires_operator_review_before_public_sharing=True,
+        source_cleanup_performed=False,
+        hardware_qualification_inferred=False,
+        operator_closeout=[
+            "Review bundle logs before public sharing.",
+            "Verify destination receipt and retained evidence.",
+            "Stop or release the allocation through its provider when finished.",
+            "Confirm provider billing has stopped; this tool does not release hardware.",
+        ],
+    )
+    encoded = json.dumps(receipt, sort_keys=True, indent=2).encode() + b"\n"
+    key = hashlib.sha256(encoded).hexdigest()
+    destination.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(destination).free < total + len(encoded):
+        raise ValueError("insufficient destination space for session evidence")
+    target = destination / ("rns8-session-" + key)
+
+    def verify(root):
+        if contained_path(root, "export.json").read_bytes() != encoded:
+            raise ValueError("export manifest differs from expected evidence")
+        for row in inventory:
+            path = contained_path(root, row["path"])
+            if path.stat().st_size != row["bytes"] or digest(path) != row["sha256"]:
+                raise ValueError("destination readback failed: " + row["path"])
+
+    if target.exists():
+        if target.is_symlink() or (hasattr(target, "is_junction") and target.is_junction()):
+            raise ValueError("existing export bundle cannot be a link")
+        verify(target)
+    else:
+        staging = Path(tempfile.mkdtemp(prefix=".rns8-export-", dir=destination))
+        try:
+            for row in inventory:
+                original = contained_path(source, row["path"])
+                output = staging / row["path"]
+                output.parent.mkdir(parents=True, exist_ok=True)
+                with original.open("rb") as input_stream, output.open("xb") as stream:
+                    _copy_payload(input_stream, stream, row["bytes"])
+                if digest(output) != row["sha256"]:
+                    raise ValueError("source changed during export: " + row["path"])
+            (staging / "export.json").write_bytes(encoded)
+            verify(staging)
+            # Receipt files may not advance during an export of a stopped run.
+            if (
+                digest(source / "manifest.json") != manifest_hash
+                or digest(source / "results.json") != results_hash
+            ):
+                raise ValueError("session advanced during export")
+            staging.rename(target)
+        finally:
+            if staging.exists():
+                if staging.resolve().parent != destination or not staging.name.startswith(
+                    ".rns8-export-"
+                ):
+                    raise ValueError("export staging cleanup escaped its owned destination")
+                shutil.rmtree(staging)
+        verify(target)
+    return dict(
+        **receipt, destination=str(target), export_manifest_sha256=key, readback_verified=True
+    )
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict:

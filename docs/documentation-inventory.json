@@ -2538,6 +2538,14 @@
         },
         {
           "source": "docs/platform-linux.md",
+          "reference": "gpu-qualification.md#frozen-native-linux-tuple"
+        },
+        {
+          "source": "docs/platform-linux.md",
+          "reference": "gpu-qualification.md#verified-private-export"
+        },
+        {
+          "source": "docs/platform-linux.md",
           "reference": "gpu-qualification.md"
         },
         {
@@ -2567,6 +2575,7 @@
         "compiled-binary-association",
         "existing-kernel-families-and-remaining-target-checks",
         "external-accelerator-build-identity",
+        "frozen-native-linux-tuple",
         "generate-the-manifests-anywhere",
         "hardware-qualification-mi300x-and-rx-7900-xtx",
         "native-linux-session-receipts",
@@ -2574,6 +2583,7 @@
         "offline-artifact-cache-and-explicit-staging",
         "prerequisites-and-execution",
         "required-arithmetic-cases",
+        "verified-private-export",
         "what-the-runner-actually-checks"
       ]
     },

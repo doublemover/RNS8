@@ -405,6 +405,73 @@ artifact export and hardware qualification still require their own receipts.
 
 ## Offline artifact cache and explicit staging
 
+### Frozen native Linux tuple
+
+Live Linux GPU execution requires `--platform-lock PATH`. Plan-only and CPU-only
+preparation remain useful without that input. An operator selects the exact
+tuple from AMD's **versioned** compatibility matrix; the runner does not choose
+an image, driver or supported tuple from version numbers. The strict
+`rns8_linux_platform_lock_v1` format is defined by
+[`session_platform_contract.py`](../tools/session_platform_contract.py):
+
+| Field | Required content |
+|---|---|
+| `target` | `gfx942` for this initial native Linux lane |
+| `matrix_url`, `reviewed_date_utc` | Versioned official AMD compatibility-matrix URL and ISO review date |
+| `image_digest` | Exact `sha256:` image identity, or null for a host installed without an image |
+| `expected` | Exact `os_id`, `os_version`, `kernel`, `machine`, `glibc`, `driver_version` and `driver_srcversion`; one driver identity may be null, but at least one must be observed |
+| `files` | 1–256 absolute native paths, each with `role`, exact positive `bytes` and lowercase `sha256` |
+
+File roles distinguish host/HIP compilers, C++ standard library, OpenMP, HIP
+runtime, device library, references, firmware and native package inventories.
+Host compiler, standard library, HIP compiler/runtime and device-library roles
+are mandatory. Include every selected optional/runtime input in the maintained
+lock. Per-file and total limits are 2GiB and 16GiB. Loaded firmware and complete
+transitive ABI correctness cannot be inferred from files on disk.
+
+Native preflight compares OS/kernel/glibc/module observations and hashes actual
+regular files before configure. The child process identity and exact lock bytes
+are checked in its receipt. Closeout repeats this bounded check; resume rechecks
+the native inputs before reusing successful stages. Changed or missing inputs
+stop dependents. Image identity stays operator-declared; matching the lock is
+reproducibility evidence, never a platform-support or hardware certificate.
+
+```bash
+bash scripts/cdna_first_pass.sh --target mi300x --devices 4 \
+  --platform-lock /approved/linux-platform-lock.json \
+  --set RNS8_HIP_ROOT=/selected/rocm --out-dir temp/cdna-live
+```
+
+Review the plan and add `--execute` only on the intended allocation. The lock
+does not admit arbitrary prebuilt binaries: sessions still configure and build
+fresh owned trees with compiled content provenance.
+
+### Verified private export
+
+After a completed, failed or interrupted session, use the separate export mode:
+
+```bash
+python tools/gpu_qualification.py --target mi300x --out-dir temp/cdna-live \
+  --export-session --export-dir /approved/mounted-artifacts
+```
+
+This command performs no discovery, install, build or GPU work. It validates
+the stopped manifest/result association and every declared session-owned file,
+then streams an atomic content-addressed bundle to the explicit local or mounted
+destination and verifies destination readback. External executables remain
+hashed input identities rather than copied system installations. The default
+8GiB export limit is explicit through `--export-maximum-bytes` (maximum64GiB).
+Active sessions, changed/missing artifacts, links, conflicting existing bundles
+and insufficient destination space fail without deleting source evidence.
+Identical exports verify and reuse the existing bundle.
+
+The bundle is private: allowlisted environment capture does not guarantee that
+raw tool logs lack private details. Review and sanitize a separate shareable
+copy before public submission. The export receipt includes a shutdown/release
+checklist; this tool does not remove local evidence, terminate allocations or
+assert that billing stopped. Native transfer, interruption and platform controls
+are source-authored and await the consolidated validation batch.
+
 The existing session runner accepts `--artifact-inventory inventory.json
 --artifact-cache /path/to/cache`. It checks every declared artifact before session
 execution and records all missing, corrupt or unsafe entries in `artifact-cache.json`.

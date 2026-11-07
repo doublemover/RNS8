@@ -179,6 +179,10 @@ Review `manifest.json`, `dependency-resolution.json` and the allowlisted
 environment receipt before adding `--execute` on the actual host. Select
 `--total-seconds`, `--timeout-seconds`, `--jobs` and `--min-free-gib` for that
 allocation. `--accelerators` explicitly selects optional backend lanes.
+Live Linux GPU execution also requires the operator-reviewed
+[`--platform-lock`](gpu-qualification.md#frozen-native-linux-tuple).
+Use the separate [verified private export](gpu-qualification.md#verified-private-export)
+mode after the session to preserve destination readback and failed-run evidence.
 Inherited visibility masks and diagnostic HSA overrides block execution; a
 scheduler's device namespace requires explicit integration rather than guessing
 or blindly clearing its mask. Logical device 0 is used only inside the child

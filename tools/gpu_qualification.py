@@ -21,7 +21,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from process_progress import run_capture, capture_succeeded
-from session_artifacts import load_inventory, inspect_cache, stage_cache
+from session_artifacts import load_inventory, inspect_cache, stage_cache, export_session
+from session_platform_contract import load_lock as load_platform_lock
+from session_platform_contract import evaluate as evaluate_platform_lock
+from session_platform_contract import observe as observe_platform
 from session_budget import plan_budget, replay_budget, stage_fits
 from source_gemm_contract import (
     CONTRACT as SOURCE_GEMM_CONTRACT,
@@ -101,6 +104,7 @@ def command_plan(
     preset_override: str | None = None,
     all_enabled: bool = False,
     resource_policy: dict | None = None,
+    platform_lock: dict | None = None,
 ) -> list[dict]:
     arch, system, preset = TARGETS[target]
     if session_kind != "prepare" and (
@@ -155,6 +159,12 @@ def command_plan(
         if policy["architecture"] is not None:
             resource_args += ["--architecture", policy["architecture"]]
         add("linux-resource-access-preflight", resource_args, host_resources=policy)
+        if platform_lock is not None:
+            add(
+                "linux-platform-lock-preflight",
+                [python, "tools/session_platform_contract.py", "--lock", platform_lock["path"]],
+                platform_lock=platform_lock,
+            )
     if session_kind == "environment":
         return commands
 
@@ -531,6 +541,21 @@ def validate_source_case(item):
 
 def validate_result(item: dict, result: dict, parent_info: dict | None = None) -> list[str]:
     errors = []
+    if "platform_lock" in item:
+        try:
+            value = parse_evidence_json(result["stdout"])
+            expected = evaluate_platform_lock(item["platform_lock"], value["observed"])
+            if type(value.get("process_id")) is not int or value["process_id"] != result.get(
+                "process_id"
+            ):
+                raise ValueError("platform preflight process mismatch")
+            expected["process_id"] = value["process_id"]
+            if load_platform_lock(Path(item["platform_lock"]["path"])) != item["platform_lock"]:
+                raise ValueError("platform lock input changed")
+            if not same_evidence_value(value, expected) or expected["blockers"]:
+                raise ValueError("platform lock observations missing, mismatched or inconsistent")
+        except (OSError, ValueError, KeyError, TypeError):
+            errors.append("native Linux platform lock preflight failed")
     try:
         validate_source_case(item)
     except (KeyError, ValueError, TypeError):
@@ -727,6 +752,7 @@ def source_receipt(exclude: Path | None = None) -> dict:
         "runner_sha256": sha256(Path(__file__)),
         "environment_helper_sha256": sha256(ROOT / "tools/session_environment.py"),
         "artifact_helper_sha256": sha256(ROOT / "tools/session_artifacts.py"),
+        "platform_helper_sha256": sha256(ROOT / "tools/session_platform_contract.py"),
         "dependency_policy_sha256": sha256(ROOT / "metadata/dependencies.json"),
     }
 
@@ -946,6 +972,15 @@ def execute_plan(
 
     checkpoint("in_progress")
     try:
+        locked = manifest.get("platform_lock")
+        if locked is not None:
+            if load_platform_lock(Path(locked["path"])) != locked:
+                raise ValueError("frozen platform lock changed")
+            if (
+                resume
+                and evaluate_platform_lock(locked, observe_platform(locked["lock"]))["blockers"]
+            ):
+                raise ValueError("native platform or locked file changed before resume")
         forecast = {}
         if manifest.get("session_budget") is not None:
             budget = replay_budget(manifest["session_budget"], manifest["commands"])
@@ -1224,6 +1259,20 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True, choices=TARGETS)
     parser.add_argument(
+        "--platform-lock",
+        type=Path,
+        help="operator-reviewed exact Linux tuple/file lock; required for live Linux GPU execution",
+    )
+    parser.add_argument(
+        "--export-session",
+        action="store_true",
+        help="export stopped session evidence only; no discovery or execution",
+    )
+    parser.add_argument(
+        "--export-dir", type=Path, help="explicit private local/mounted evidence destination"
+    )
+    parser.add_argument("--export-maximum-bytes", type=int, default=8 * 1024**3)
+    parser.add_argument(
         "--devices",
         type=device_list,
         help="explicit unmasked parent HIP runtime ordinals; never inferred physical ids",
@@ -1318,6 +1367,46 @@ def main(argv=None) -> int:
         help="copy verified local artifacts into out-dir/artifacts, without running the session",
     )
     args = parser.parse_args(argv)
+    if args.export_session:
+        if (
+            args.out_dir is None
+            or args.export_dir is None
+            or args.execute
+            or args.resume
+            or args.dry_run
+            or args.stage_artifacts
+            or args.artifact_inventory
+            or args.artifact_cache
+            or args.devices is not None
+            or args.backend
+            or args.accelerators
+            or args.all_enabled
+            or args.platform_lock
+            or args.set
+            or args.stage_forecast
+            or args.price_per_hour is not None
+        ):
+            parser.error(
+                "export requires --out-dir/--export-dir and cannot run a session, discovery or staging"
+            )
+        try:
+            receipt = export_session(
+                args.out_dir, args.export_dir, maximum_bytes=args.export_maximum_bytes
+            )
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
+        print(json.dumps(receipt, sort_keys=True, indent=2))
+        return 0
+    if args.export_dir is not None:
+        parser.error("--export-dir requires the separate --export-session mode")
+    locked_platform = None
+    if args.platform_lock:
+        if TARGETS[args.target][1] != "Linux":
+            parser.error("--platform-lock currently requires the native Linux target")
+        try:
+            locked_platform = load_platform_lock(args.platform_lock)
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
     if bool(args.artifact_inventory) != bool(args.artifact_cache):
         parser.error("--artifact-inventory and --artifact-cache must be supplied together")
     if args.stage_artifacts and (
@@ -1426,6 +1515,10 @@ def main(argv=None) -> int:
     resolution = resolve(request, discovery_env)
     environment.update({key: value for key, value in discovery_env.items() if key in REQUEST_KEYS})
     blockers = readiness_blockers(args, resolution, os.environ)
+    if TARGETS[args.target][1] == "Linux" and not preparation and locked_platform is None:
+        blockers.append(
+            "live Linux GPU execution requires --platform-lock from an operator-reviewed tuple"
+        )
     if artifact_receipt and not artifact_receipt["complete"]:
         blockers += [
             "artifact " + row["id"] + ": " + row["status"]
@@ -1457,7 +1550,23 @@ def main(argv=None) -> int:
             peak_job_memory_bytes=int(args.peak_build_job_memory_gib * 1024**3),
             memory_reserve_bytes=int(args.host_memory_reserve_gib * 1024**3),
         ),
+        platform_lock=locked_platform,
     )
+    if locked_platform is not None and args.session_kind != "environment":
+        commands.append(
+            dict(
+                name="linux-platform-lock-closeout",
+                argv=[
+                    commands[0]["argv"][0],
+                    "tools/session_platform_contract.py",
+                    "--lock",
+                    locked_platform["path"],
+                ],
+                depends_on=[commands[-1]["name"]],
+                timeout_seconds=args.timeout_seconds,
+                platform_lock=locked_platform,
+            )
+        )
     for item in commands:
         for index, value in enumerate(item["argv"]):
             if value == "cmake" and resolution["tools"]["cmake"]["path"]:
@@ -1516,6 +1625,7 @@ def main(argv=None) -> int:
         "physical_identity_verified": False,
         "session_kind": args.session_kind,
         "dependency_resolution_sha256": resolution["identity_sha256"],
+        "platform_lock": locked_platform,
         "session_budget": session_budget,
         "artifact_inventory": artifacts,
         "artifact_cache_receipt": artifact_receipt,

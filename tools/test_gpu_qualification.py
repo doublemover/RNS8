@@ -47,6 +47,98 @@ def result(stdout="", **changes):
 
 
 class ArtifactCacheTests(unittest.TestCase):
+    def session_evidence(self, root):
+        source = root / "session"
+        source.mkdir()
+        log = source / "failure.stderr.log"
+        log.write_bytes(b"bounded failure evidence\n")
+        manifest = dict(schema_version=2, target="mi300x", commands=[], status="planned")
+        manifest["identity_sha256"] = q.identity(
+            {k: v for k, v in manifest.items() if k != "status"}
+        )
+        results = dict(
+            schema="rns8_gpu_session_results_v2",
+            status="blocked",
+            manifest_identity_sha256=manifest["identity_sha256"],
+            results=[
+                dict(name="fixture-failure", artifacts={str(log.resolve()): artifacts.digest(log)})
+            ],
+        )
+        (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (source / "results.json").write_text(json.dumps(results), encoding="utf-8")
+        return source
+
+    def test_stopped_session_export_verifies_readback_and_preserves_failure_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.session_evidence(root)
+            before = {p.name: p.read_bytes() for p in source.iterdir()}
+            receipt = artifacts.export_session(source, root / "private exports")
+            self.assertTrue(receipt["readback_verified"])
+            self.assertEqual(receipt["session_status"], "blocked")
+            self.assertFalse(receipt["source_cleanup_performed"])
+            self.assertFalse(receipt["hardware_qualification_inferred"])
+            self.assertTrue(
+                receipt["private_bundle_requires_operator_review_before_public_sharing"]
+            )
+            self.assertEqual({p.name: p.read_bytes() for p in source.iterdir()}, before)
+            with patch.object(
+                artifacts, "_copy_payload", side_effect=AssertionError("unexpected recopy")
+            ):
+                self.assertEqual(
+                    artifacts.export_session(source, root / "private exports"), receipt
+                )
+            copied = Path(receipt["destination"]) / "failure.stderr.log"
+            copied.write_bytes(b"tampered destination")
+            with self.assertRaisesRegex(ValueError, "readback"):
+                artifacts.export_session(source, root / "private exports")
+
+    def test_export_rejects_changed_oversize_and_active_sessions_before_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.session_evidence(root)
+            destination = root / "exports"
+            with self.assertRaisesRegex(ValueError, "byte allowance"):
+                artifacts.export_session(source, destination, maximum_bytes=1)
+            self.assertFalse(destination.exists())
+            with self.assertRaisesRegex(ValueError, "separate explicit"):
+                artifacts.export_session(source, source / "nested")
+            (source / "failure.stderr.log").write_bytes(b"changed source")
+            with self.assertRaisesRegex(ValueError, "changed before export"):
+                artifacts.export_session(source, destination)
+            self.assertFalse(destination.exists())
+            results_path = source / "results.json"
+            results = json.loads(results_path.read_text())
+            results["status"] = "in_progress"
+            results_path.write_text(json.dumps(results))
+            with self.assertRaisesRegex(ValueError, "stopped/completed"):
+                artifacts.export_session(source, destination)
+
+    def test_export_cli_never_enters_discovery_or_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.session_evidence(root)
+            with (
+                patch.object(q, "resolve", side_effect=AssertionError("discovery forbidden")),
+                patch.object(q, "execute_plan", side_effect=AssertionError("execution forbidden")),
+                contextlib.redirect_stdout(io.StringIO()) as output,
+            ):
+                self.assertEqual(
+                    q.main(
+                        [
+                            "--target",
+                            "mi300x",
+                            "--out-dir",
+                            str(source),
+                            "--export-session",
+                            "--export-dir",
+                            str(root / "exports"),
+                        ]
+                    ),
+                    0,
+                )
+            self.assertTrue(json.loads(output.getvalue())["readback_verified"])
+
     def inventory(self, root):
         root.mkdir(parents=True, exist_ok=True)
         rows = []
