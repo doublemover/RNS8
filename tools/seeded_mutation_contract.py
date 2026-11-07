@@ -4,9 +4,63 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import keyword
 import re
 
 from process_progress import capture_succeeded
+
+
+def valid_function_scope(name: str) -> bool:
+    parts = name.split(".")
+    return len(parts) in (1, 2) and all(
+        part.isidentifier() and not keyword.iskeyword(part) for part in parts
+    )
+
+
+def production_function(tree: ast.Module, name: str) -> ast.FunctionDef:
+    if not valid_function_scope(name):
+        raise ValueError("one module function or exact Class.method required")
+    parts = name.split(".")
+    body = tree.body
+    if len(parts) == 2:
+        classes = [
+            node for node in body if isinstance(node, ast.ClassDef) and node.name == parts[0]
+        ]
+        if len(classes) != 1:
+            raise ValueError("unique production class required")
+        body = classes[0].body
+    functions = [
+        node for node in body if isinstance(node, ast.FunctionDef) and node.name == parts[-1]
+    ]
+    if len(functions) != 1:
+        raise ValueError("unique exact production function required")
+    return functions[0]
+
+
+def owned_nodes(function: ast.FunctionDef):
+    pending = list(ast.iter_child_nodes(function))
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            continue
+        yield node
+        pending.extend(ast.iter_child_nodes(node))
+
+
+def return_keyword(function: ast.FunctionDef, text: str, line: int, operation: str):
+    # Only a complete named argument of a directly returned call is eligible.
+    # Arbitrary assignments, nested calls and extra same-line arguments stay out.
+    for node in owned_nodes(function):
+        if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Call):
+            continue
+        for argument in node.value.keywords:
+            if (
+                argument.arg is not None
+                and argument.lineno == argument.end_lineno == line
+                and ast.get_source_segment(text, argument) == operation.removesuffix(",")
+            ):
+                return argument.arg
+    return None
 
 
 def transform(source: bytes, seed: dict) -> dict:
@@ -14,31 +68,42 @@ def transform(source: bytes, seed: dict) -> dict:
         raise ValueError("mutation source changed; re-review the exact seed")
     text = source.decode("utf-8").replace("\r\n", "\n")
     tree = ast.parse(text)
-    functions = [
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == seed["function"]
-    ]
+    function = production_function(tree, seed["function"])
     before, after = seed["before"], seed["after"]
-    if len(functions) != 1 or not before or before == after or text.count(before) != 1:
+    lines = text.splitlines(keepends=True)
+    scope = "".join(lines[function.lineno - 1 : function.end_lineno])
+    if not before or before == after or scope.count(before) != 1:
         raise ValueError("unique exact production function/operation required")
-    function = functions[0]
-    start = text.index(before)
+    start = sum(map(len, lines[: function.lineno - 1])) + scope.index(before)
     line = 1 + text.count("\n", 0, start)
     if not function.lineno < line <= function.end_lineno:
         raise ValueError("mutation operation is outside the declared production function")
+    argument = return_keyword(function, text, line, before)
     if (
         "\n" in before
         or "\n" in after
         or text.splitlines()[line - 1].strip() != before
-        or not any(
-            isinstance(node, (ast.If, ast.Return)) and node.lineno == line
-            for node in ast.walk(function)
+        or not (
+            argument
+            or any(
+                isinstance(node, (ast.If, ast.Return)) and node.lineno == line
+                for node in owned_nodes(function)
+            )
         )
     ):
-        raise ValueError("mutation must replace one complete production guard/return statement")
+        raise ValueError(
+            "mutation requires one complete guard, return or named return-call argument"
+        )
     changed = text[:start] + after + text[start + len(before) :]
-    ast.parse(changed)
+    changed_tree = ast.parse(changed)
+    if (
+        argument
+        and return_keyword(
+            production_function(changed_tree, seed["function"]), changed, line, after
+        )
+        != argument
+    ):
+        raise ValueError("mutation must preserve the exact named return-call argument")
     return dict(
         baseline=text,
         mutant=changed,

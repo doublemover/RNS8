@@ -120,6 +120,39 @@ class MutationControls(unittest.TestCase):
         with self.assertRaises(SyntaxError):
             transform(source, {**seed, "after": "if :"})
 
+    def test_exact_class_method_scope_does_not_admit_nested_or_ambiguous_names(self):
+        source = b"class Store:\n    def gate(self, value):\n        if value:\n            return False\n        return True\n"
+        seed = {**seed_fixture(source), "function": "Store.gate"}
+        self.assertEqual(transform(source, seed)["line"], 3)
+        for scope in ("gate", "Other.gate", "Store.missing", "Store.gate.nested", "class.gate"):
+            with self.subTest(scope=scope), self.assertRaises(ValueError):
+                transform(source, {**seed, "function": scope})
+        duplicated = source + source
+        with self.assertRaises(ValueError):
+            transform(duplicated, {**seed, "source_sha256": hashlib.sha256(duplicated).hexdigest()})
+        repeated = source + b"\ndef other(value):\n    if value:\n        return False\n"
+        self.assertEqual(
+            transform(repeated, {**seed, "source_sha256": hashlib.sha256(repeated).hexdigest()})[
+                "line"
+            ],
+            3,
+        )
+        nested = b"def gate(value):\n    def nested():\n        if value:\n            return False\n    return True\n"
+        with self.assertRaises(ValueError):
+            transform(nested, seed_fixture(nested))
+
+    def test_named_return_argument_is_exact_and_cannot_change_other_arguments(self):
+        source = b"def gate(value):\n    return dict(\n        covered=bool(value),\n        detail=value,\n    )\n"
+        seed = {**seed_fixture(source), "before": "covered=bool(value),", "after": "covered=True,"}
+        changed = transform(source, seed)
+        self.assertEqual(changed["line"], 3)
+        self.assertIn("covered=True,", changed["mutant"])
+        for after in ("other=True,", "covered=True, detail=False,", "**value,"):
+            with self.subTest(after=after), self.assertRaises(ValueError):
+                transform(source, {**seed, "after": after})
+        with self.assertRaises(ValueError):
+            transform(source, {**seed, "before": "bool(value)", "after": "True"})
+
     def test_only_required_reached_assertion_after_passing_baseline_is_a_kill(self):
         seed = seed_fixture(b"fixture")
         baseline = inventory_fixture(seed)

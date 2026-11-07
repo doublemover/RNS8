@@ -10,20 +10,27 @@
     "tools/execution_inventory.py",
     "tools/json_evidence.py",
     "tools/observation_cohorts.py",
-    "tools/perf_variance_report.py"
+    "tools/perf_variance_report.py",
+    "tools/reference_verdict.py",
+    "tools/target_qualification.py"
   ],
   "test_modules": [
     "test_build_instrumentation",
     "test_compiled_binary_identity",
     "test_execution_environment_identity",
     "test_execution_inventory",
-    "test_host_coverage"
+    "test_host_coverage",
+    "test_reference_verdict",
+    "test_target_qualification"
   ],
   "all_selected_cases_must_pass": true,
   "required_test_ids": [
     "test_compiled_binary_identity.CompiledBinaryIdentity.test_manifests_must_be_real_complete_and_equal",
     "test_execution_environment_identity.EnvironmentIdentity.test_tampering_and_unbound_claimed_digest_cannot_override_actual_object",
-    "test_execution_inventory.NativeInventory.test_missing_extra_failed_disabled_and_mandatory_are_blockers"
+    "test_execution_inventory.NativeInventory.test_missing_extra_failed_disabled_and_mandatory_are_blockers",
+    "test_reference_verdict.ReferenceVerdictTest.test_partial_unbound_unknown_or_timed_reference_claims_remain_pending",
+    "test_target_qualification.TargetQualification.test_stale_result_and_forged_ready_snapshot_are_rejected_at_consumption",
+    "test_target_qualification.TargetQualification.test_historical_pass_cannot_erase_current_failure_or_qualify_an_unrelated_build"
   ],
   "invariants": [
     {
@@ -43,6 +50,24 @@
       "source": "tools/execution_inventory.py",
       "function": "reconcile",
       "test_id": "test_execution_inventory.NativeInventory.test_missing_extra_failed_disabled_and_mandatory_are_blockers"
+    },
+    {
+      "name": "complete-exact-reference-admission",
+      "source": "tools/reference_verdict.py",
+      "function": "reference_verdict",
+      "test_id": "test_reference_verdict.ReferenceVerdictTest.test_partial_unbound_unknown_or_timed_reference_claims_remain_pending"
+    },
+    {
+      "name": "current-candidate-qualification",
+      "source": "tools/target_qualification.py",
+      "function": "candidate_verdict",
+      "test_id": "test_target_qualification.TargetQualification.test_stale_result_and_forged_ready_snapshot_are_rejected_at_consumption"
+    },
+    {
+      "name": "target-and-build-qualification-admission",
+      "source": "tools/target_qualification.py",
+      "function": "candidate_verdict",
+      "test_id": "test_target_qualification.TargetQualification.test_historical_pass_cannot_erase_current_failure_or_qualify_an_unrelated_build"
     }
   ],
   "percentage_threshold": null,

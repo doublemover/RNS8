@@ -55,6 +55,32 @@
       "source": "tools/build_instrumentation.py",
       "source_sha256": "0ebb3971c1d5ce04013dd42396e18d15fa741670b47cba3eeef17a2320821cb6",
       "mandatory": true
+    },
+    {
+      "id": "admit-incomplete-exact-reference",
+      "module": "reference_verdict",
+      "function": "numerical_observation",
+      "before": "full_output_reference_covered=bool(coverage),",
+      "after": "full_output_reference_covered=True,",
+      "test_module": "test_reference_verdict",
+      "required_test": "test_reference_verdict.ReferenceVerdictTest.test_partial_unbound_unknown_or_timed_reference_claims_remain_pending",
+      "assertion_marker": "is not false",
+      "source": "tools/reference_verdict.py",
+      "source_sha256": "9b2cba629b267b980af128d49a48a99ca3123ff182aae391f773fcd072b809a7",
+      "mandatory": true
+    },
+    {
+      "id": "admit-stale-qualification-artifact",
+      "module": "target_qualification",
+      "function": "EvidenceStore.verify",
+      "before": "if file_digest(path) != expected:",
+      "after": "if file_digest(path) != file_digest(path):",
+      "test_module": "test_target_qualification",
+      "required_test": "test_target_qualification.TargetQualification.test_stale_artifact_is_rejected_before_entering_the_verified_store",
+      "assertion_marker": "ValueError not raised",
+      "source": "tools/target_qualification.py",
+      "source_sha256": "d8c9a5535ba83587a75aee8b702dfd39d20c4d5aac33b0e1fe62c72667abea24",
+      "mandatory": true
     }
   ]
 }

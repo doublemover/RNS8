@@ -11,6 +11,7 @@ import unittest
 from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest
 from target_qualification import (
+    EvidenceStore,
     candidate_verdict,
     validate_bound_verdict,
     emit_qualification,
@@ -25,6 +26,25 @@ from test_target_qualification_support import QualificationFixture, write
 
 
 class TargetQualification(unittest.TestCase):
+    def test_stale_artifact_is_rejected_before_entering_the_verified_store(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "artifact.bin"
+            path.write_bytes(b"reviewed artifact")
+            expected = file_digest(path)
+            path.write_bytes(b"changed artifact")
+            store = EvidenceStore()
+            with self.assertRaisesRegex(ValueError, "qualification artifact changed:"):
+                store.verify(path, expected)
+            self.assertNotIn(path.resolve(), store.hashes)
+            current = file_digest(path)
+            self.assertEqual(store.verify(path, current), path.resolve())
+            self.assertEqual(store.verify(path, current), path.resolve())
+            with self.assertRaisesRegex(ValueError, "conflicting content identities"):
+                store.verify(path, expected)
+            path.write_bytes(b"changed again during review")
+            with self.assertRaisesRegex(ValueError, "changed during review"):
+                store.finish()
+
     def test_coherent_candidate_through_real_report_ledger_and_installer_boundary(self):
         for target in ("gfx942", "gfx1100"):
             with (

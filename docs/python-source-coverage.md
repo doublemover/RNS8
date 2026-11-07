@@ -38,8 +38,14 @@ match between discovery and execution; every selected case and each required
 real evidence test must pass. Skips, missing cases, class/subtest failures,
 stripped assertions, tracing warnings or incomplete process capture block the
 lane. Exact test IDs and production-function body/context observations bind
-three initial evidence invariants: executable/library manifest admission,
-runtime environment identity and complete mandatory native test execution.
+six evidence invariants: executable/library manifest admission, runtime
+environment identity, complete mandatory native test execution, complete exact
+reference admission, current candidate artifact qualification and rejection of
+historical or unrelated target/build qualification. The explicit denominator
+contains eleven production modules and seven real test modules. Class methods
+remain in the native file/class branch report; named invariant observations
+bind their actual module-level consumers rather than inventing method coverage
+from a caller name.
 
 The version-bound native JSON retains executed/missing lines and branch arcs,
 function/class regions and real per-test contexts. `branch-summary.json` keeps

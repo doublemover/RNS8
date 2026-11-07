@@ -1,9 +1,10 @@
 # Curated production mutations
 
 The authored `tools/seeded_mutation_session.py` lane evaluates the exact Python
-production operations in `metadata/production-mutations.json`. The initial four
+production operations in `metadata/production-mutations.json`. The six
 mandatory seeds bypass executable/library identity equality, request environment
-seals, mandatory native-test admission and instrumented-production rejection.
+seals, mandatory native-test admission, instrumented-production rejection,
+complete exact-reference admission and stale qualification-artifact rejection.
 They change real production modules, not test assertions or a mutant-enabled
 flag. No baseline, mutation, test or worker has executed in this source pass.
 
@@ -22,14 +23,19 @@ relocation behavior, so a broken relocated baseline cannot count as detection.
 
 Every seed binds the full original source SHA256, unique function/operation,
 replacement, required real test ID and intended assertion marker. Source drift
-requires re-review. All passing baselines precede the mutant batch, with one
+requires re-review. Scopes name one module function or one exact `Class.method`;
+nested definitions are excluded. Operations replace one complete guard, return
+or named argument of a directly returned call. Argument mutations retain the
+same field name. Repeated guards in other functions cannot redirect a seed.
+All passing baselines precede the mutant batch, with one
 attempt per variant and no automatic retry. A narrow main-thread trace records
 whether the required test reached the exact changed source line. The actual
 unittest case observer scopes the trace; it does not tell tests to fail. A
 covered line in a different case or an unexecuted operation cannot qualify a
 kill. Dynamic self-comparison/membership seeds retain actual source-line
 execution rather than relying on an optimizer preserving a constant-false
-branch.
+branch. The reference-result field seed remains subject to the same actual-line
+trace: if a selected interpreter omits that line, it is `not_covered`, not a kill.
 
 An accepted mandatory result is `killed_by_assertion`: a complete captured
 process, unchanged native test inventory, observed required-test source line and

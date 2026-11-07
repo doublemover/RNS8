@@ -22,7 +22,7 @@ from host_instrumentation_session import (
 )
 from json_evidence import parse_evidence_json
 from quality_inventory import ROOT
-from seeded_mutation_contract import classification, transform
+from seeded_mutation_contract import classification, transform, valid_function_scope
 
 REGISTRY = ROOT / "metadata/production-mutations.json"
 WORKER = ROOT / "tools/seeded_mutation_worker.py"
@@ -68,7 +68,7 @@ def registry():
             or seed["id"] in ids
             or not re.fullmatch(r"[a-z][a-z0-9_]+", seed["module"])
             or seed["source"] != "tools/" + seed["module"] + ".py"
-            or not seed["function"].isidentifier()
+            or not valid_function_scope(seed["function"])
             or not re.fullmatch(r"[0-9a-f]{64}", seed["source_sha256"])
             or not re.fullmatch(r"test_[A-Za-z0-9_]+", seed["test_module"])
             or not seed["required_test"].startswith(seed["test_module"] + ".")
