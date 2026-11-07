@@ -25,16 +25,30 @@ from etl_image_contract import image_catalog
 from etl_range_contract import operation_ranges as bind_operation_ranges
 from gpu_qualification import owned_artifact_files
 from host_instrumentation_session import reference, write_json
-from json_evidence import load_evidence_json, parse_evidence_json, same_evidence_value
+from json_evidence import parse_evidence_json, same_evidence_value
 from pe_symbol_identity import symbol_pair, native_image
 from process_progress import capture_succeeded, run_capture
 from profiler_contract import production_profile_input, bind_host_profile_output
 from profiler_artifacts import write_diagnostic
 from target_qualification import EvidenceStore
+from execution_inventory import bounded_read
 from wpa_sample_reader import read_samples
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "rns8_windows_host_profile_plan_v3"
+SUCCESS_STAGES = (
+    "wpr_help",
+    "exporter_help",
+    "profiles",
+    "identity",
+    "inspector_identity",
+    "status",
+    "start",
+    "workload",
+    "stop",
+    "inspect_etl",
+    "export",
+)
 SOURCE_INPUTS = (
     "tools/host_profile_windows.py",
     "tools/etl_process_contract.py",
@@ -62,6 +76,7 @@ SOURCE_INPUTS = (
     "tools/companion_contract.py",
     "tools/json_evidence.py",
     "tools/target_qualification.py",
+    "tools/execution_inventory.py",
     "tools/reference_verdict.py",
     "tools/build_instrumentation.py",
     "metadata/host-profile-cpu.wprp",
@@ -273,10 +288,79 @@ def instance_absent(capture):
     )
 
 
-def completed_capture(plan, stages):
+def validate_preflight_stages(plan, stages):
+    if "Rns8Cpu" not in stages["profiles"]["stdout"]:
+        raise ValueError("native WPR did not advertise the selected custom profile")
+    identity = parse_evidence_json(stages["identity"]["stdout"])
+    store = EvidenceStore()
+    production_ref, production = read_retained(Path(plan["production_capture"]["path"]), store)
+    if not same_evidence_value(production_ref, plan["production_capture"]):
+        raise ValueError("Windows production input changed during preflight")
+    summary = validate_document(identity, production["backend_selected"])
+    if (
+        summary["build_manifest_sha256"] != canonical_digest(production["build_manifest"])
+        or type(identity.get("process_id")) is not int
+        or identity["process_id"] <= 0
+        or identity.get("process_id") != stages["identity"]["process_id"]
+    ):
+        raise ValueError(
+            "native Windows identity preflight differs from the production process/build"
+        )
+    inspector = parse_evidence_json(stages["inspector_identity"]["stdout"])
+    if (
+        type(inspector) is not dict
+        or inspector.get("schema") != "rns8_etl_inspector_identity_v1"
+        or type(inspector.get("process_id")) is not int
+        or inspector["process_id"] != stages["inspector_identity"]["process_id"]
+        or inspector.get("source_sha256")
+        != reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"]
+        or type(inspector.get("pointer_bytes")) is not int
+        or inspector["pointer_bytes"] != 8
+    ):
+        raise ValueError("native ETL inspector was compiled from another source or ABI")
+    store.finish()
+
+
+def read_retained(path, store):
+    text, ref = bounded_read(path)
+    ref["bytes"] = len(text.encode("utf-8"))
+    value = parse_evidence_json(text)
+    if not isinstance(value, dict):
+        raise ValueError("retained Windows document must be an object")
+    store.reference(ref, ROOT)
+    return ref, value
+
+
+def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
     out, store = Path(plan["output_directory"]), EvidenceStore()
+    owner_pid = os.getpid() if owner_pid is None and not review_existing else owner_pid
+    if type(owner_pid) is not int or not 0 < owner_pid < 1 << 32:
+        raise ValueError("actual recording owner PID required")
+    if list(stages) != list(SUCCESS_STAGES):
+        raise ValueError("complete ordered native Windows stages required")
+    for name, process in stages.items():
+        if (
+            not isinstance(process, dict)
+            or type(process.get("process_id")) is not int
+            or not 0 < process["process_id"] < 1 << 32
+        ):
+            raise ValueError("actual Windows stage process identity required")
+        expected = plan["commands"][name]
+        if name == "inspect_etl":
+            expected = [*expected, "--pid", str(stages["workload"]["process_id"])]
+        if process.get("command") != expected or not (
+            instance_absent(process) if name == "status" else capture_succeeded(process)
+        ):
+            raise ValueError("Windows stage command/outcome differs from owned plan: " + name)
+    validate_preflight_stages(plan, stages)
 
     def publish(name, value):
+        if review_existing:
+            path = out / name
+            _, retained = read_retained(path, store)
+            if not same_evidence_value(retained, value):
+                raise ValueError("Windows derived artifact differs from raw inputs: " + name)
+            return reference(path)
         return write_diagnostic(
             out / name,
             value,
@@ -288,7 +372,7 @@ def completed_capture(plan, stages):
     if not same_evidence_value(plan, rebuild(plan, review_existing=True)):
         raise ValueError("Windows profile source/tool/production/symbol inputs changed")
     _, production = store.json(plan["production_capture"], ROOT)
-    raw = load_evidence_json(out / "raw/benchmark.json")
+    _, raw = read_retained(out / "raw/benchmark.json", store)
     validate_capture(raw)
     process = stages["workload"]
     if type(raw.get("process_id")) is not int or raw["process_id"] != process["process_id"]:
@@ -304,7 +388,7 @@ def completed_capture(plan, stages):
     process_identity = process_contract(
         native_metadata,
         pid=raw["process_id"],
-        parent_pid=os.getpid(),
+        parent_pid=owner_pid,
         executable=plan["benchmark"]["path"],
         decoder_pid=metadata_stage["process_id"],
         source_sha256=reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"],
@@ -356,13 +440,13 @@ def completed_capture(plan, stages):
         tool="WPR_WPA",
         mode="cpu_sampling",
     )
-    store.finish()
     publish("samples.json", samples)
     publish("native-process-metadata.json", native_metadata)
     publish("native-image-catalog.json", images)
     if ranges is not None:
         publish("native-operation-ranges.json", ranges)
     publish("profiled.json", profiled)
+    store.finish()
     return dict(
         qualification="native_capture_export_bound_attribution_partial",
         compiled_binary_identity=compiled,
@@ -451,32 +535,7 @@ def execute_capture(
     try:
         for name in ("wpr_help", "exporter_help", "profiles", "identity", "inspector_identity"):
             call(name)
-        if "Rns8Cpu" not in stages["profiles"]["stdout"]:
-            raise ValueError("native WPR did not advertise the selected custom profile")
-        identity = parse_evidence_json(stages["identity"]["stdout"])
-        _, production = EvidenceStore().json(plan["production_capture"], ROOT)
-        summary = validate_document(identity, production["backend_selected"])
-        if (
-            summary["build_manifest_sha256"] != canonical_digest(production["build_manifest"])
-            or type(identity.get("process_id")) is not int
-            or identity["process_id"] <= 0
-            or identity.get("process_id") != stages["identity"]["process_id"]
-        ):
-            raise ValueError(
-                "native Windows identity preflight differs from the production process/build"
-            )
-        inspector = parse_evidence_json(stages["inspector_identity"]["stdout"])
-        if (
-            type(inspector) is not dict
-            or inspector.get("schema") != "rns8_etl_inspector_identity_v1"
-            or type(inspector.get("process_id")) is not int
-            or inspector["process_id"] != stages["inspector_identity"]["process_id"]
-            or inspector.get("source_sha256")
-            != reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"]
-            or type(inspector.get("pointer_bytes")) is not int
-            or inspector["pointer_bytes"] != 8
-        ):
-            raise ValueError("native ETL inspector was compiled from another source or ABI")
+        validate_preflight_stages(plan, stages)
         if not instance_absent(call("status", required=False)):
             raise ValueError("native WPR did not prove the unique instance absent")
         try:
@@ -556,11 +615,135 @@ def located(name):
     return Path(found)
 
 
+def review_capture(plan_path, *, runner=run_capture):
+    """Fresh file-only native decode and derived receipt replay; no recorder."""
+    if platform.system() != "Windows":
+        raise ValueError("fresh native ETL review requires the bound Windows inspector")
+    plan_path = Path(plan_path).resolve(strict=True)
+    plan_text, plan_ref = bounded_read(plan_path)
+    plan_ref["bytes"] = len(plan_text.encode("utf-8"))
+    plan = parse_evidence_json(plan_text)
+    if not isinstance(plan, dict) or plan.get("schema") != SCHEMA:
+        raise ValueError("maintained Windows acquisition plan required")
+    out = Path(plan["output_directory"])
+    if plan_path != out / "plan.json" or not same_evidence_value(
+        plan, rebuild(plan, review_existing=True)
+    ):
+        raise ValueError("Windows review plan location or source inputs changed")
+    files = owned_artifact_files(out, out.parent)
+    if sum(path.stat().st_size for path in files) > plan["budgets"]["max_artifact_bytes"]:
+        raise ValueError("retained Windows capture exceeds its owned artifact budget")
+    store = EvidenceStore()
+    store.reference(plan_ref, ROOT)
+    summary_ref, summary = read_retained(out / "host-profile.json", store)
+    if (
+        not isinstance(summary, dict)
+        or summary.get("qualification") != "native_capture_export_bound_attribution_partial"
+        or summary.get("identity_sha256") != seal(dict(summary))["identity_sha256"]
+        or not same_evidence_value(summary.get("plan"), plan_ref)
+        or summary.get("instance") != plan["instance"]
+        or summary.get("first_failed_stage") is not None
+        or summary.get("recording_cleanup") != "stop_completed"
+    ):
+        raise ValueError("successful owned Windows acquisition receipt required")
+    references = summary.get("stages")
+    if not isinstance(references, list) or [
+        row.get("name") if isinstance(row, dict) else None for row in references
+    ] != list(SUCCESS_STAGES):
+        raise ValueError("Windows acquisition stage inventory changed")
+    stages = {}
+    for row in references:
+        name = row["name"]
+        expected = reference(out / (name + ".process.json"))
+        if set(row) != {"name", "receipt"} or not same_evidence_value(row["receipt"], expected):
+            raise ValueError("Windows acquisition stage receipt changed or moved")
+        actual, stages[name] = read_retained(out / (name + ".process.json"), store)
+        if not same_evidence_value(actual, expected):
+            raise ValueError("Windows stage changed while opening its receipt")
+    expected = completed_capture(
+        plan, stages, owner_pid=summary.get("recording_owner_pid"), review_existing=True
+    )
+    wrapper_keys = {
+        "recording_owner_pid",
+        "first_failed_stage",
+        "plan",
+        "instance",
+        "stages",
+        "recording_cleanup",
+        "identity_sha256",
+    }
+    if set(summary) != set(expected) | wrapper_keys or any(
+        not same_evidence_value(summary.get(key), value) for key, value in expected.items()
+    ):
+        raise ValueError(
+            "Windows acquisition summary differs from freshly reconstructed raw inputs"
+        )
+    store.reference(expected["native_export"], ROOT)
+    etl = reference(out / "raw/profile.etl")
+    store.reference(etl, ROOT)
+    command = plan["commands"]["inspect_etl"] + ["--pid", str(stages["workload"]["process_id"])]
+    # Decode only the retained finalized file. No WPR, exporter, workload,
+    # service, symbol download or persistent configuration command is issued.
+    decoded = runner(
+        command,
+        cwd=ROOT,
+        env={"SystemRoot": os.environ.get("SystemRoot", r"C:\Windows")},
+        label="windows-host-review:inspect_etl",
+        timeout_seconds=min(120, plan["budgets"]["timeout_seconds"]),
+        max_output_bytes=4 * 1024**2,
+        return_on_interrupt=True,
+    )
+    if (
+        not capture_succeeded(decoded)
+        or decoded.get("command") != command
+        or type(decoded.get("process_id")) is not int
+        or not 0 < decoded["process_id"] < 1 << 32
+    ):
+        raise ValueError("fresh native Windows file-only decoder did not complete")
+    fresh = parse_evidence_json(decoded["stdout"])
+    retained = parse_evidence_json(stages["inspect_etl"]["stdout"])
+    if (
+        not isinstance(fresh, dict)
+        or type(fresh.get("decoder_pid")) is not int
+        or fresh["decoder_pid"] != decoded["process_id"]
+    ):
+        raise ValueError("fresh ETL decoder result belongs to another process")
+    # The decoder process itself changes on replay; every ETL-derived field,
+    # compiled source identity and input size must remain identical.
+    if not same_evidence_value(dict(fresh, decoder_pid=retained["decoder_pid"]), retained):
+        raise ValueError("fresh native ETL decode differs from retained observations")
+    if not same_evidence_value(plan, rebuild(plan, review_existing=True)):
+        raise ValueError("Windows source/tool/production inputs changed during review")
+    store.finish()
+    return seal(
+        dict(
+            schema="rns8_windows_host_profile_review_v1",
+            acquisition=summary_ref,
+            plan=plan_ref,
+            qualification="fresh_file_decode_and_derived_receipts_replayed_attribution_partial",
+            native_etl=etl,
+            native_decoder=plan["tools"]["inspector"],
+            decoder_process_id=decoded["process_id"],
+            measured_operation_range=expected["measured_operation_range"],
+            recording_started=False,
+            workload_started=False,
+            outputs_rewritten=False,
+            production_latency=False,
+            promotion_allowed=False,
+        )
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--production", type=Path, required=True)
-    parser.add_argument("--pdb", type=Path, required=True)
-    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--production", type=Path)
+    parser.add_argument("--pdb", type=Path)
+    parser.add_argument("--out", type=Path)
+    parser.add_argument(
+        "--review-plan",
+        type=Path,
+        help="Replay retained receipts and freshly decode the finalized ETL; no recording",
+    )
     parser.add_argument("--wpr", type=Path)
     parser.add_argument("--wpaexporter", type=Path)
     parser.add_argument("--etl-inspector", type=Path)
@@ -573,6 +756,25 @@ def main(argv=None):
     parser.add_argument("--authorize-system-recording", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.review_plan:
+            if any(
+                (
+                    args.production,
+                    args.pdb,
+                    args.out,
+                    args.wpr,
+                    args.wpaexporter,
+                    args.etl_inspector,
+                    args.execute,
+                    args.operation_ranges,
+                    args.authorize_system_recording,
+                )
+            ):
+                raise ValueError("--review-plan cannot be combined with acquisition options")
+            print(json.dumps(review_capture(args.review_plan), indent=2))
+            return 0
+        if not all((args.production, args.pdb, args.out)):
+            raise ValueError("acquisition requires --production, --pdb and --out")
         plan = plan_capture(
             args.production,
             args.wpr or located("wpr"),

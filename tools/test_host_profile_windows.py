@@ -183,6 +183,102 @@ class WindowsHostProfile(unittest.TestCase):
         self.assertFalse(images["loaded_PDB_identity_verified"])
         self.assertEqual([name for name, _, _ in self.calls][-1], "export")
 
+    def review(self, *, change=None):
+        def decoder(command, **policy):
+            self.assertEqual(
+                command, self.plan_for_review["commands"]["inspect_etl"] + ["--pid", "333"]
+            )
+            self.assertEqual(policy["label"], "windows-host-review:inspect_etl")
+            value = json.loads(
+                json.loads((self.out / "inspect_etl.process.json").read_text())["stdout"]
+            )
+            value["decoder_pid"] = 777
+            if change:
+                change(value)
+            return dict(
+                command=command,
+                process_id=777,
+                returncode=0,
+                timed_out=False,
+                stdout=json.dumps(value),
+                stderr="",
+            )
+
+        with patch.object(host.platform, "system", return_value="Windows"):
+            return host.review_capture(self.out / "plan.json", runner=decoder)
+
+    def test_read_only_review_replays_custody_from_a_different_process(self):
+        self.plan_for_review = self.plan()
+        self.assertEqual(self.execute(self.plan_for_review), 0)
+        before = {str(path): file_digest(path) for path in self.out.rglob("*") if path.is_file()}
+        with patch.object(host.os, "getpid", return_value=999):
+            result = self.review()
+        after = {str(path): file_digest(path) for path in self.out.rglob("*") if path.is_file()}
+        self.assertEqual(before, after)
+        self.assertEqual(result["decoder_process_id"], 777)
+        self.assertFalse(result["recording_started"])
+        self.assertFalse(result["workload_started"])
+        self.assertFalse(result["outputs_rewritten"])
+        self.assertFalse(result["promotion_allowed"])
+
+    def test_review_rejects_resealed_stage_summary_derivation_and_fresh_decode_changes(self):
+        self.plan_for_review = self.plan()
+        self.assertEqual(self.execute(self.plan_for_review), 0)
+        originals = {path: path.read_bytes() for path in self.out.rglob("*") if path.is_file()}
+        for mode in (
+            "stage_command",
+            "stage_status",
+            "owner",
+            "owner_null",
+            "owner_missing",
+            "derived",
+            "fresh",
+            "tool",
+        ):
+            with self.subTest(mode=mode):
+                report_path = self.out / "host-profile.json"
+                report = json.loads(report_path.read_text())
+                if mode.startswith("stage_"):
+                    path = self.out / "workload.process.json"
+                    stage = json.loads(path.read_text())
+                    if mode == "stage_command":
+                        stage["command"] += ["--foreign"]
+                    else:
+                        stage["returncode"] = 1
+                    write(path, stage)
+                    next(row for row in report["stages"] if row["name"] == "workload")[
+                        "receipt"
+                    ] = host.reference(path)
+                elif mode == "owner":
+                    report["recording_owner_pid"] += 1
+                elif mode == "owner_null":
+                    report["recording_owner_pid"] = None
+                elif mode == "owner_missing":
+                    report.pop("recording_owner_pid")
+                elif mode == "derived":
+                    path = self.out / "samples.json"
+                    samples = json.loads(path.read_text())
+                    samples["samples"][0]["function"] = "forged_source"
+                    write(path, samples)
+                    report["samples"] = host.reference(path)
+                elif mode == "tool":
+                    tool = Path(self.plan_for_review["tools"]["inspector"]["path"])
+                    previous_tool = tool.read_bytes()
+                    tool.write_bytes(previous_tool + b"changed")
+                write(report_path, host.seal(report))
+                try:
+                    with self.assertRaises(ValueError):
+                        self.review(
+                            change=(lambda value: value.update(observed_events=11))
+                            if mode == "fresh"
+                            else None
+                        )
+                finally:
+                    for path, raw in originals.items():
+                        path.write_bytes(raw)
+                    if mode == "tool":
+                        tool.write_bytes(previous_tool)
+
     def test_native_marker_path_is_opt_in_and_requires_same_compiled_provider(self):
         self.assertFalse(self.plan()["operation_ranges"])
         with self.assertRaisesRegex(ValueError, "compiled with ETW"):

@@ -384,6 +384,20 @@ The native provider/decoder and exception controls pass C++17 frontend checks;
 the typed association and full synthetic collector controls are authored for the
 deferred validation batch. No provider, ETL fixture, WPR or WPA process ran.
 
+After acquisition, `python tools/host_profile_windows.py --review-plan
+temp/host-profile/session/plan.json` is the separate receipt-review path. It
+reopens source, executable, PDB, tools, bounded stage documents and raw exports,
+checks exact command order/outcomes and the recorded owner against the native
+process parent, and reconstructs all derived image/range/sample/capture
+documents without overwriting them. It then invokes only the bound file-only
+ETL inspector on the retained finalized trace, comparing every decoded field
+while permitting the decoder's own PID to change. Source/tool/data hashes are
+bookended around review. No WPR, exporter, workload, symbol server or recording
+configuration is invoked. The review has its own identity and does not create
+another production execution or resolve outstanding symbol/clock attribution.
+Rejection controls cover resealed stage commands/status, owner, derived samples,
+tool changes and disagreement with fresh native decoding. They remain unexecuted.
+
 ## Separate Linux host allocation capture
 
 `tools/host_heap_session.py` authors a bounded Linux recipe against an explicit
