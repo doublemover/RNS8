@@ -13,6 +13,13 @@ temporary storage; derived report files describe their actual evidence scope.
 | Windows RDP CLI | Candidate CLI 1.0.0 (RDP bundle 3.5.1) preflight and bounded dispatch-range capture | Owned controller/workload with raw-file custody; opaque RGP remains manual-review evidence |
 | Raw RGP, unsupported databases and exports | Inventory only | No inferred dispatch identity or fabricated counters |
 
+The candidate target-qualification profiler phase accepts replayed, bound Linux
+native-dispatch evidence. A Windows raw-RGP acquisition/manual-review receipt
+does not satisfy that machine gate. The source adapters retain these separate
+capabilities; native tool/format, asynchronous-marker and device qualification
+still require the corresponding platform. ATT/PC sampling remains a conditional
+diagnostic with explicit capability and decoder requirements.
+
 The Linux acquisition planner also accepts repeated `--counter NAME` options
 for one group of at most eight counters. Its exact ordered group must have a
 retained native availability and `pmc-check` observation for the explicit

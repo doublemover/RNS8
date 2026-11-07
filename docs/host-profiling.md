@@ -3,8 +3,11 @@
 Host profiles explain a completed exact call; they do not replace its
 uninstrumented end-to-end measurements. Acquisition, native decoding, operation
 range selection, symbol/module association, loss assessment and production
-comparison are distinct evidence steps. The implementation frontload is in
-progress under [#105](https://github.com/doublemover/RNS8/issues/105).
+comparison are distinct evidence steps. The source adapters under
+[#105](https://github.com/doublemover/RNS8/issues/105) are written; their authored
+controls and native Windows/Linux acquisition, format, symbol and clock
+qualification await the combined validation batch and supported environments.
+Missing native identity, clock or causality remains unresolved in the report.
 
 ## Native Linux CPU sample decoding
 
