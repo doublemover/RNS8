@@ -12,6 +12,8 @@ on:
     outputs:
       source_required:
         value: ${{ jobs.classify.outputs.source_required }}
+      analysis_changed_paths:
+        value: ${{ jobs.classify.outputs.analysis_changed_paths }}
 
 permissions:
   contents: read
@@ -22,6 +24,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       source_required: ${{ steps.scope.outputs.source_required }}
+      analysis_changed_paths: ${{ steps.scope.outputs.analysis_changed_paths }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

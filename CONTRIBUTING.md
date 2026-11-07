@@ -119,6 +119,18 @@ coverage. Unsupported flags, missing inputs, failed parsing, timeouts and absent
 branch diagnostics remain incomplete coverage. No target substitution or fake
 SDK header is used.
 
+`--changed-paths-json '["src/core/api.cpp"]'` can select changed translation
+units while retaining every configured ABI, preprocessor and GPU target context
+for those files. A header, fragment, configuration, unknown, missing or deleted
+input conservatively selects the full configured lane; empty inventories also
+fall back to the full lane. The bounded path list, fallback reasons and selected
+versus configured pass counts are retained and recomputed during receipt replay.
+Unselected contexts are not claimed as analyzed, and their dispositions are not
+retired by an incremental run. Changed or expired policy evidence still requires
+review. Gated PR analysis uses the actual Git change inventory through a quoted
+environment value; oversized inventories, scheduled runs and manual runs select
+the full lane. Periodic full-lane analysis remains necessary.
+
 Each analyzer pass force-includes `tests/analysis/branch_control.hpp`, which
 contains an intentional null dereference in its host or HIP kernel branch.
 It is never executed or linked into production. Exactly one expected native

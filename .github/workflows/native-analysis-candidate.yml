@@ -39,6 +39,7 @@ jobs:
     timeout-minutes: 90
     env:
       RNS8_ANALYSIS_ADVISORY: ${{ github.event_name == 'workflow_dispatch' && inputs.advisory }}
+      RNS8_ANALYSIS_CHANGED_PATHS: ${{ needs.change-scope.outputs.analysis_changed_paths }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -72,6 +73,7 @@ jobs:
           temp/analysis-tools/bin/python tools/static_analysis.py
           --build-dir build/analysis-cpu --out-dir temp/native-analysis
           --tool-bin temp/analysis-tools/bin --execute --prepare --advisory
+          --changed-paths-json "$RNS8_ANALYSIS_CHANGED_PATHS"
           --timeout-seconds 120 --total-seconds 3600
           --max-artifact-bytes 1073741824 --minimum-free-bytes 5368709120
       - name: Reopen native evidence and apply reviewed dispositions

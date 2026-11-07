@@ -12,6 +12,17 @@ from process_progress import capture_succeeded, run_capture
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def analysis_changed_paths(paths):
+    # One JSON line is safe for GitHub outputs and environment transport. Large
+    # inventories deliberately select the full lane instead of being truncated.
+    encoded = json.dumps(paths, ensure_ascii=True, separators=(",", ":"))
+    return (
+        encoded
+        if len(encoded.encode("utf-8")) <= 16384 and (paths is None or len(paths) <= 1024)
+        else "null"
+    )
+
+
 def requires_source_checks(paths):
     if not isinstance(paths, list) or len(paths) > 100000:
         raise ValueError("bounded explicit changed paths required")
@@ -80,6 +91,7 @@ def main(argv=None):
         required = True if paths is None else requires_source_checks(paths)
         with args.github_output.open("a", encoding="utf-8") as output:
             output.write("source_required=" + str(required).lower() + "\n")
+            output.write("analysis_changed_paths=" + analysis_changed_paths(paths) + "\n")
         print(
             json.dumps(
                 dict(

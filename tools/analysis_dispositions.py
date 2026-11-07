@@ -223,6 +223,7 @@ def evaluate(receipt: Path, policy_path: Path, *, today: date | None = None) -> 
     ):
         raise ValueError("only complete observed analyzer coverage can enter a findings gate")
     seen, observations, unclassified, evidence = set(), [], [], {}
+    observed_contexts = set()
     retained_bytes = 0
 
     def append_finding(target: list, value: dict) -> None:
@@ -236,6 +237,7 @@ def evaluate(receipt: Path, policy_path: Path, *, today: date | None = None) -> 
 
     for summary in result["results"]:
         detailed = read_record(Path(summary["receipt"]["path"]))
+        observed_contexts.add((detailed["context"], detailed["stage"], detailed["target"]))
         for diagnostic in detailed["diagnostics"]:
             if diagnostic["role"] != "program_diagnostic":
                 continue
@@ -274,7 +276,14 @@ def evaluate(receipt: Path, policy_path: Path, *, today: date | None = None) -> 
                     pass_identity=summary["identity"],
                 ),
             )
-    stale = sorted(entries.keys() - seen)
+    incremental = result["selection"]["mode"] == "changed_translation_units"
+    applicable = {
+        key
+        for key, entry in entries.items()
+        if not incremental
+        or (entry["context"], entry["stage"], entry["target"]) in observed_contexts
+    }
+    stale = sorted(applicable - seen)
     references = {
         **result["source_artifacts"],
         **result["retained_artifacts"],
@@ -302,6 +311,8 @@ def evaluate(receipt: Path, policy_path: Path, *, today: date | None = None) -> 
         reviewed_observations=observations,
         unclassified=unclassified,
         stale_dispositions=stale,
+        unselected_dispositions=sorted(entries.keys() - applicable),
+        selection=result["selection"],
         date=today.isoformat(),
         hardware_qualification=False,
         performance_promotion_allowed=False,

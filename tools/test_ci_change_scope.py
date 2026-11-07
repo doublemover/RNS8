@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -78,7 +79,12 @@ class SourceScope(unittest.TestCase):
                 else:
                     self.assertEqual(
                         output.read_text(),
-                        "source_required=" + str(stdout.startswith("src/")).lower() + "\n",
+                        "source_required="
+                        + str(stdout.startswith("src/")).lower()
+                        + "\n"
+                        + "analysis_changed_paths="
+                        + scope.analysis_changed_paths(stdout[:-1].split("\0"))
+                        + "\n",
                     )
 
     def test_explicit_and_periodic_selection_need_no_git_child(self):
@@ -93,7 +99,17 @@ class SourceScope(unittest.TestCase):
                         scope.main(["--event", event, "--github-output", str(output)]), 0
                     )
                     run.assert_not_called()
-                self.assertEqual(output.read_text(), "source_required=true\n")
+                self.assertEqual(
+                    output.read_text(), "source_required=true\nanalysis_changed_paths=null\n"
+                )
+
+    def test_json_transport_cannot_inject_outputs_or_truncate_change_selection(self):
+        paths = ['src/quotes"\nline.cpp', "src/λ.cpp"]
+        encoded = scope.analysis_changed_paths(paths)
+        self.assertNotIn("\n", encoded)
+        self.assertEqual(json.loads(encoded), paths)
+        self.assertEqual(scope.analysis_changed_paths(["src/large.cpp"] * 1025), "null")
+        self.assertEqual(scope.analysis_changed_paths(["src/" + "x" * 20000]), "null")
 
 
 if __name__ == "__main__":

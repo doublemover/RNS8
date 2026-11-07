@@ -56,6 +56,7 @@ class Dispositions(unittest.TestCase):
             unattempted_passes=0,
             analyzed_passes=1,
             selected_passes=1,
+            selection=dict(mode="full_configured_lane"),
             results=[
                 dict(
                     identity="b" * 64,
@@ -171,6 +172,23 @@ class Dispositions(unittest.TestCase):
         self.config.write_text("changed configuration")
         with self.assertRaises(ValueError):
             self.evaluate()
+
+    def test_incremental_gate_does_not_retire_dispositions_for_unselected_contexts(self):
+        selected = self.entry()
+        unselected = dict(selected, context="c" * 64)
+        unselected["id"] = canonical_digest({key: unselected[key] for key in gate.SIGNATURE_FIELDS})
+        self.write_policy([selected, unselected])
+        self.result["selection"] = dict(mode="changed_translation_units")
+        report = self.evaluate()
+        self.assertEqual(report["status"], "reviewed_findings_no_new")
+        self.assertEqual(report["unselected_dispositions"], [unselected["id"]])
+        self.detail["diagnostics"] = []
+        self.full.write_text(json.dumps(self.detail))
+        self.result["retained_artifacts"][str(self.full)] = file_digest(self.full)
+        report = self.evaluate()
+        self.assertEqual(report["stale_dispositions"], [selected["id"]])
+        self.result["selection"]["mode"] = "full_configured_lane"
+        self.assertEqual(len(self.evaluate()["stale_dispositions"]), 2)
 
     def test_external_or_unlocated_diagnostic_never_gets_dependency_wide_waiver(self):
         for location in (

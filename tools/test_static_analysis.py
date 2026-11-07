@@ -20,6 +20,8 @@ from static_analysis import (
     execute,
     hip_projection,
     selected_tasks,
+    select_changed_tasks,
+    planned_tasks,
     verify_receipt,
 )
 from compiled_binary_identity import canonical_digest
@@ -168,7 +170,7 @@ class StaticAnalysis(unittest.TestCase):
             self.assertNotIn("-o", argv)
         return value
 
-    def run_authored(self, *, lane="host", mutation=None):
+    def run_authored(self, *, lane="host", mutation=None, changed_paths=None):
         self.runs += 1
         self.source.write_text(self.original)
         self.mutation = mutation
@@ -196,6 +198,7 @@ class StaticAnalysis(unittest.TestCase):
                 total_seconds=120,
                 minimum_free_bytes=1,
                 max_artifact_bytes=32 * 1024**2,
+                changed_paths=changed_paths,
             )
             self.assertFalse(out.exists())
             result = execute(plan, runner=self.runner, environment={})
@@ -232,6 +235,49 @@ class StaticAnalysis(unittest.TestCase):
             self.verify_protocol_fixture(out / "results.json")["identity_sha256"],
             result["identity_sha256"],
         )
+
+    def test_incremental_selection_preserves_all_contexts_and_replays_exact_scope(self):
+        other = self.root / "another.cpp"
+        other.write_text("int another() { return 1; }")
+        contexts = (
+            self.context,
+            replace(self.context, identity="b" * 64),
+            replace(self.context, identity="c" * 64, source=other),
+        )
+        changed = [self.source.relative_to(ROOT).as_posix()]
+        tasks, selection = select_changed_tasks(contexts, "host", changed * 2)
+        self.assertEqual([task.context.identity for task in tasks], ["a" * 64, "b" * 64])
+        self.assertEqual(selection["unselected_pass_count"], 1)
+        self.assertEqual(selection["changed_paths"], changed)
+        inputs = replace(self.inputs, contexts=contexts)
+        plan = dict(lane="host", selection=selection)
+        self.assertEqual(planned_tasks(inputs, plan), tasks)
+        with self.assertRaisesRegex(ValueError, "changed-source selection"):
+            planned_tasks(self.inputs, plan)
+        result, out = self.run_authored(changed_paths=changed)
+        self.assertEqual(result["selection"]["mode"], "changed_translation_units")
+        self.assertEqual(
+            self.verify_protocol_fixture(out / "results.json")["selection"], result["selection"]
+        )
+
+    def test_headers_deleted_unconfigured_and_empty_changes_use_full_lane(self):
+        source = self.source.relative_to(ROOT).as_posix()
+        header = self.root / "shared.hpp"
+        header.write_text("// shared header")
+        for changes in (
+            [],
+            [source, header.relative_to(ROOT).as_posix()],
+            ["CMakeLists.txt"],
+            ["src/deleted.cpp"],
+            ["tests/unit/test_api.cpp"],
+        ):
+            tasks, selection = select_changed_tasks((self.context,), "host", changes)
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(selection["mode"], "full_configured_lane")
+            self.assertTrue(selection["fallback_reasons"])
+        for changes in (False, ["../out.cpp"], ["a\\b.cpp"], ["a//b.cpp"], ["C:/a.cpp"], [None]):
+            with self.assertRaises(ValueError):
+                select_changed_tasks((self.context,), "host", changes)
 
     def test_retained_receipt_rejects_log_changes_and_resealed_false_coverage(self):
         result, out = self.run_authored()

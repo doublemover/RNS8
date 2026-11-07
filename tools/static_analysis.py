@@ -9,7 +9,7 @@ import importlib.metadata
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import sys
@@ -27,8 +27,8 @@ from process_progress import run_capture, capture_succeeded
 from quality_inventory import ROOT, inventory
 from quality_policy import load_quality_lock
 
-SCHEMA = "rns8_static_analysis_plan_v1"
-RESULT_SCHEMA = "rns8_static_analysis_results_v1"
+SCHEMA = "rns8_static_analysis_plan_v2"
+RESULT_SCHEMA = "rns8_static_analysis_results_v2"
 CONTROL_CHECK = "clang-analyzer-core.NullDereference"
 
 
@@ -72,6 +72,65 @@ def selected_tasks(contexts: tuple[Compilation, ...], lane: str) -> tuple[Analys
     if not tasks:
         raise ValueError("zero selected translation-unit contexts cannot pass an analysis lane")
     return tuple(tasks)
+
+
+def select_changed_tasks(contexts, lane, changed_paths=None):
+    """Narrow only complete TU-only changes; headers conservatively affect every TU."""
+    tasks = selected_tasks(contexts, lane)
+    reasons = []
+    if changed_paths is not None:
+        if type(changed_paths) is not list or len(changed_paths) > 1024:
+            raise ValueError("bounded explicit changed-source inventory required")
+        if len(json.dumps(changed_paths, ensure_ascii=True).encode("utf-8")) > 16384:
+            raise ValueError("changed-source inventory exceeds 16 KiB; request a full lane")
+        for name in changed_paths:
+            if type(name) is not str or not name or "\\" in name or "\0" in name:
+                raise ValueError("canonical repository-relative changed source required")
+            path = PurePosixPath(name)
+            if path.is_absolute() or ".." in path.parts or path.as_posix() != name or ":" in name:
+                raise ValueError("changed source escapes canonical repository paths")
+        changed_paths = sorted(set(changed_paths))
+        if not changed_paths:
+            reasons.append("empty_change_inventory")
+        sources = {task.context.source for task in tasks}
+        requested = set()
+        for name in changed_paths:
+            source = (ROOT / name).resolve()
+            if not source.is_relative_to(ROOT.resolve()) or not source.is_file():
+                reasons.append("deleted_missing_or_external_source:" + name)
+            elif PurePosixPath(name).suffix.lower() not in {".c", ".cc", ".cpp", ".cxx", ".hip"}:
+                reasons.append("header_fragment_configuration_or_unknown_input:" + name)
+            elif source not in sources:
+                reasons.append("changed_source_not_configured_in_lane:" + name)
+            else:
+                requested.add(source)
+        if not reasons:
+            selected = tuple(task for task in tasks if task.context.source in requested)
+            return selected, dict(
+                mode="changed_translation_units",
+                changed_paths=changed_paths,
+                fallback_reasons=[],
+                configured_pass_count=len(tasks),
+                unselected_pass_count=len(tasks) - len(selected),
+                header_dependency_policy="full_lane_on_any_non_translation_unit_change",
+            )
+    return tasks, dict(
+        mode="full_configured_lane",
+        changed_paths=changed_paths,
+        fallback_reasons=reasons,
+        configured_pass_count=len(tasks),
+        unselected_pass_count=0,
+        header_dependency_policy="full_lane_on_any_non_translation_unit_change",
+    )
+
+
+def planned_tasks(inputs, plan):
+    tasks, selection = select_changed_tasks(
+        inputs.contexts, plan["lane"], plan["selection"]["changed_paths"]
+    )
+    if selection != plan["selection"]:
+        raise ValueError("retained changed-source selection differs from configured inputs")
+    return tasks
 
 
 def hip_projection(task: AnalysisTask) -> dict:
@@ -175,6 +234,7 @@ def build_plan(
     total_seconds=3600,
     max_artifact_bytes=1024**3,
     minimum_free_bytes=5 * 1024**3,
+    changed_paths=None,
 ) -> dict:
     for value in (timeout_seconds, total_seconds):
         if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
@@ -194,7 +254,7 @@ def build_plan(
     ):
         raise ValueError("analysis needs a fresh child of repository temp/")
     inputs = load_inputs(build)
-    tasks = selected_tasks(inputs.contexts, lane)
+    tasks, selection = select_changed_tasks(inputs.contexts, lane, changed_paths)
     lock = load_quality_lock(ROOT)
     analyzer = None if lane == "hip-syntax" else native_analyzer(tool, tool_bin)
     checker = next(row for row in lock["analysis"]["wheels"] if row["name"] == "clang-tidy")
@@ -223,6 +283,7 @@ def build_plan(
         policy_sha256=file_digest(ROOT / "metadata/quality-tools.json"),
         selected_context_count=len({task.context.identity for task in tasks}),
         selected_pass_count=len(tasks),
+        selection=selection,
         tasks=[task_record(task) for task in tasks],
         excluded_records=inputs.excluded_records,
         missing_generated_inputs=missing,
@@ -595,7 +656,9 @@ def verify_receipt(path: Path) -> dict:
     ):
         raise ValueError("analysis receipt and retained plan differ")
     inputs = load_inputs(Path(plan["build_directory"]))
-    actual_tasks = selected_tasks(inputs.contexts, plan["lane"])
+    actual_tasks = planned_tasks(inputs, plan)
+    if result.get("selection") != plan["selection"]:
+        raise ValueError("analysis result differs from retained changed-source scope")
     if (
         type(plan.get("selected_context_count")) is not int
         or plan["selected_context_count"] != len({task.context.identity for task in actual_tasks})
@@ -756,6 +819,7 @@ def execute(
         Path(plan["build_directory"]),
         Path(plan["output_directory"]),
         lane=plan["lane"],
+        changed_paths=plan["selection"]["changed_paths"],
         tool=Path(plan["analyzer"]) if plan["analyzer"] else None,
         **{
             key: plan["budgets"][key]
@@ -770,7 +834,7 @@ def execute(
     if canonical_digest(rebuilt) != canonical_digest(plan):
         raise ValueError("analysis plan no longer matches current configured inputs/tools")
     inputs = load_inputs(Path(plan["build_directory"]))
-    tasks = selected_tasks(inputs.contexts, plan["lane"])
+    tasks = planned_tasks(inputs, plan)
     out = Path(plan["output_directory"])
     volume = next(path for path in out.parents if path.exists())
     if shutil.disk_usage(volume).free < plan["budgets"]["minimum_free_bytes"]:
@@ -827,6 +891,7 @@ def execute(
             error=error,
             selected_contexts=plan["selected_context_count"],
             selected_passes=len(tasks),
+            selection=plan["selection"],
             attempted_passes=len(rows),
             analyzed_passes=analyzed,
             syntax_checked_passes=syntax,
@@ -1194,6 +1259,10 @@ def main(argv=None) -> int:
     parser.add_argument("--lane", choices=("host", "hip-syntax", "hip-analyzer"), default="host")
     parser.add_argument("--clang-tidy", type=Path)
     parser.add_argument("--tool-bin", type=Path)
+    parser.add_argument(
+        "--changed-paths-json",
+        help="bounded JSON path list; TU-only edits narrow contexts, other edits use the full lane",
+    )
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--advisory", action="store_true")
@@ -1209,6 +1278,7 @@ def main(argv=None) -> int:
                 or args.prepare
                 or args.build_dir is not None
                 or args.out_dir is not None
+                or args.changed_paths_json is not None
             ):
                 raise ValueError(
                     "receipt verification does not configure or execute an analysis session"
@@ -1237,6 +1307,12 @@ def main(argv=None) -> int:
             total_seconds=args.total_seconds,
             max_artifact_bytes=args.max_artifact_bytes,
             minimum_free_bytes=args.minimum_free_bytes,
+            changed_paths=(
+                json.loads(args.changed_paths_json)
+                if args.changed_paths_json is not None
+                and len(args.changed_paths_json.encode("utf-8")) <= 16384
+                else None
+            ),
         )
         if not args.execute:
             print(json.dumps(plan, indent=2))
