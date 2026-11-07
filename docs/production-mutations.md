@@ -1,10 +1,14 @@
 # Curated production mutations
 
 The authored `tools/seeded_mutation_session.py` lane evaluates the exact Python
-production operations in `metadata/production-mutations.json`. The six
+production operations in `metadata/production-mutations.json`. The seven
 mandatory seeds bypass executable/library identity equality, request environment
 seals, mandatory native-test admission, instrumented-production rejection,
-complete exact-reference admission and stale qualification-artifact rejection.
+complete exact-reference admission, stale qualification-artifact rejection and
+the actual candidate consumer's refusal of stale qualification. The last seed
+uses the real synthetic producer/receipt/consumer chain, independently of the
+direct artifact-store guard control; reaching a helper does not prove consumer
+admission.
 They change real production modules, not test assertions or a mutant-enabled
 flag. No baseline, mutation, test or worker has executed in this source pass.
 

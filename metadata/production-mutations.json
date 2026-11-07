@@ -81,6 +81,19 @@
       "source": "tools/target_qualification.py",
       "source_sha256": "d8c9a5535ba83587a75aee8b702dfd39d20c4d5aac33b0e1fe62c72667abea24",
       "mandatory": true
+    },
+    {
+      "id": "admit-stale-candidate-qualification",
+      "module": "target_qualification",
+      "function": "candidate_verdict",
+      "before": "eligible=bool(qualified) and not blockers,",
+      "after": "eligible=True,",
+      "test_module": "test_target_qualification",
+      "required_test": "test_target_qualification.TargetQualification.test_stale_result_and_forged_ready_snapshot_are_rejected_at_consumption",
+      "assertion_marker": "is not false",
+      "source": "tools/target_qualification.py",
+      "source_sha256": "d8c9a5535ba83587a75aee8b702dfd39d20c4d5aac33b0e1fe62c72667abea24",
+      "mandatory": true
     }
   ]
 }
