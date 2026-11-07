@@ -19,14 +19,41 @@ CPU dispatcher controls separately exercise raw all-bits, high-bit and adjacent
 invalid values against live handles, with valid-mode and unsupported-backend
 controls. The current source pass extends those checks to prepared CRT options,
 product prefix/execution policies and native-group dispatch policy. New controls
-are authored and await the combined runtime/sanitizer batch; the remaining
-external enum/flag inventory is still under review.
+are authored and await the combined runtime/sanitizer batch.
 
 Experimental basis selection admits request flags/semantics and every candidate
 price tag, backend, semantics and identity string before context failure or cost
 filtering. Its source controls cover all raw unknown bits, valid flag combinations,
 genuinely allocated short size prefixes, accepted extension storage and unchanged
 selection/handle outputs. These controls also await the combined sanitizer batch.
+
+The declaration inventory and behavioral corpus serve different purposes. The
+following source map accounts for the public enum families, including selectors
+stored as integers. It records authored coverage, not an executed sanitizer result.
+
+| Admission family | Behavioral source |
+|---|---|
+| Backend, semantics, bounds, layout; context, plan, matrix and sparse tags/flags | [Common admission cases](../tests/unit/test_api_enum_admission_cases.inc) |
+| Stream schedule, locality order; resident/operand roles and graph node kinds | Common admission cases, [stream panel cases](../tests/unit/test_stream_panel_plan_cases.inc) |
+| Narrow, adaptive, bilinear and complex methods; block-sparse role | Common admission cases; [device block-sparse methods](../tests/differential/test_hip_direct_block_sparse_cases.inc) |
+| CRT algorithm and options; integer-split format | Common admission cases, [integer split](../tests/unit/test_integer_split.cpp) |
+| Gram orientation, method and input policy | [Gram cases](../tests/unit/test_api_gram_cases.inc) |
+| Native element/access/ownership policy, owner callback status, transfer options | [Native contract cases](../tests/unit/test_native_device_contract_cases.inc), [pinned-host cases](../tests/unit/test_api_pinned_host_cases.inc) |
+| Product prefix/execution policy; native group dispatch policy | [Product recipe cases](../tests/unit/test_runtime_product_recipe_cases.inc), [prepared group cases](../tests/unit/test_api_prepared_group_cases.inc) |
+| Operation kind, execution modes and operation-specific integer domains | [Operation provider cases](../tests/unit/test_api_operation_provider_cases.inc) |
+| Pipeline route/method/status/reason and cost/resource tags supplied back to selection | [Pipeline recipe cases](../tests/unit/test_api_pipeline_recipe_cases.inc) |
+| Basis representation, selector flags and bound price tags | [Basis cases](../tests/unit/test_experimental_basis_cases.inc) |
+| INT4, FP8, cache, pool, integrity, verification and lift controls | Common admission cases and their operation-specific cases |
+| Sized-record admission, extension policy and prefix-only storage | [ABI header cases](../tests/unit/test_api_abi_header_cases.inc) and operation-specific cases |
+
+`rns8_async_failure_stage`, `rns8_auto_reason`, `rns8_next_op_flags`,
+`rns8_proof_verdict` and `rns8_pipeline_reconstruction_kind` describe outputs;
+they do not create additional input validators. Support reasons and route tags
+returned to pipeline selection do have input checks there. Operation-query
+integer domains have their own documented values and must not be substituted
+with `rns8_output_domain` values. The status formatter deliberately accepts
+unknown representations and returns text, while owner callback statuses require
+explicit named-status admission.
 
 Grouped narrow method controls now use two complete live CPU tasks with distinct
 outputs/workspaces, preserving generations, residues and reservations on raw
