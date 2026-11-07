@@ -10,6 +10,7 @@ from pathlib import Path
 import finite_modulus_map_report
 from test_capture_identity_support import write_independent_fixture_pair, independent_fixture_paths
 from test_benchmark_sweep_support import finite_capture
+from test_review_reference_support import add_synthetic_full_reference
 
 
 def build_report(paths, **kwargs):
@@ -51,7 +52,7 @@ def finite_map_capture(
         capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
             "direct_hip_default_stream_backend_operation_groups"
         )
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def main() -> int:

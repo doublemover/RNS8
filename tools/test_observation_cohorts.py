@@ -313,6 +313,34 @@ class ProcessObservations(unittest.TestCase):
             self.assertEqual(winner["speedup_vs_direct_hip"], 1.0)
             self.assertEqual(winner["measurement_cohort"]["independent_runs"], 3)
 
+    def test_finite_map_never_ranks_missing_or_conflicting_complete_references(self):
+        for failure in ("missing", "mismatch"):
+            gpu = finite_map_capture("hip-direct", 400)
+            cpu = finite_map_capture("cpu-reference", 900)
+            if failure == "missing":
+                gpu.pop("native_reference_verification")
+            else:
+                gpu["checksum_u64"] ^= 1
+            with tempfile.TemporaryDirectory() as directory:
+                paths = write_all(Path(directory), runs(cpu) + runs(gpu))
+                report = finite_modulus_map_report.build_report(
+                    paths,
+                    expected_shapes=[gpu["m"]],
+                    expected_ring_moduli=[255],
+                    expected_field_moduli=[],
+                    expected_backends=["cpu-reference", "hip-direct"],
+                )
+                (group,) = report["groups"]
+                self.assertFalse(group["map_group_ready"], failure)
+                self.assertIn("hip-direct", group["unqualified_backends"], failure)
+                row = next(row for row in group["rows"] if row["backend"] == "hip-direct")
+                self.assertFalse(row["numerical_reference"]["passed"], failure)
+                self.assertTrue(
+                    group["winner"] is None or group["winner"]["backend"] == "cpu-reference",
+                    failure,
+                )
+                self.assertIn("not_production_qualification", report["timing_scope"])
+
     def test_fhe_mixed_shape_cannot_supply_another_shapes_cpu_anchor(self):
         cpu = proxy_capture("cpu-reference", "key_switch_digit_aggregation", 1000)
         gpu = proxy_capture("hip-direct", "key_switch_digit_aggregation", 400)

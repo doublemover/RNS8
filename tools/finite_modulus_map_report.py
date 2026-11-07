@@ -14,6 +14,8 @@ from benchmark_schema import BenchmarkSchemaError, load_capture, validate_captur
 from observation_cohorts import aggregate_captures, row_identity, partition_rows, best_row
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase, selected_kernel
 from benchmark_sweep_lib.config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
+from reference_verdict import CPUReferenceIndex
+from measurement_contract import host_instrumentation
 
 
 DEFAULT_OUT_DIR = Path("temp") / "finite-modulus-map-report"
@@ -131,7 +133,7 @@ def _load_finite_capture(path: Path, *, from_directory: bool) -> dict[str, Any] 
     return capture
 
 
-def _row(capture: dict[str, Any]) -> dict[str, Any]:
+def _row(capture: dict[str, Any], references: CPUReferenceIndex) -> dict[str, Any]:
     metadata = (
         capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
     )
@@ -140,6 +142,8 @@ def _row(capture: dict[str, Any]) -> dict[str, Any]:
     return {
         "backend": backend,
         **row_identity(capture),
+        "numerical_reference": references.verdict(capture, require_anchor=False).to_json(),
+        "host_instrumentation_state": host_instrumentation(capture),
         "capture_path": capture.get("_path"),
         "selected_kernel": selected_kernel(capture),
         "epilogue_mode": metadata.get("epilogue_mode"),
@@ -222,10 +226,11 @@ def build_report(
         if (capture := _load_finite_capture(path, from_directory=from_directory)) is not None
     ]
     raw_count = len(loaded)
+    references = CPUReferenceIndex(loaded)
     loaded = aggregate_captures(loaded)
     grouped: dict[tuple[str, int, int, int, int], list[dict[str, Any]]] = defaultdict(list)
     for capture in loaded:
-        grouped[_group_key(capture)].append(_row(capture))
+        grouped[_group_key(capture)].append(_row(capture, references))
 
     expected_keys = _expected_group_keys(
         expected_shapes, expected_ring_moduli, expected_field_moduli
@@ -301,6 +306,7 @@ def build_report(
     return {
         "schema": "rns8_finite_modulus_map_report_v1",
         "policy": "finite_modulus_family_map_non_promoting_exact_modulus_shape_target",
+        "timing_scope": "descriptive_matching_instrumentation_not_production_qualification",
         "capture_count": raw_count,
         "implementation_cohort_count": len(loaded),
         "expected": {
@@ -335,6 +341,7 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
         "# Finite-u8 Modulus Map Report",
         "",
         f"Policy: `{report['policy']}`",
+        f"Timing scope: `{report['timing_scope']}`",
         "",
         "| Semantic | Modulus | Class | Shape | Ready | Winner | Median us | Blockers |",
         "|---|---:|---|---:|---|---|---:|---|",

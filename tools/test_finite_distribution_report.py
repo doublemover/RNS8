@@ -10,6 +10,7 @@ from pathlib import Path
 import finite_distribution_report
 from test_capture_identity_support import write_independent_fixture_pair, independent_fixture_paths
 from test_benchmark_sweep_support import finite_capture
+from test_review_reference_support import add_synthetic_full_reference
 
 
 def build_report(paths):
@@ -17,7 +18,7 @@ def build_report(paths):
 
 
 def _write(path: Path, capture: dict) -> Path:
-    write_independent_fixture_pair(path, capture)
+    write_independent_fixture_pair(path, add_synthetic_full_reference(capture))
     return path
 
 

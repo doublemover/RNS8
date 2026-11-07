@@ -29,6 +29,11 @@ diagnostic D2H values never become production call samples. Shared diagnostic
 lookup rechecks file and public-record identity after decoding, even when prior
 production admission was cached. Legacy instrumented layout rows remain readable
 without gaining local promotion authority.
+Finite modulus/distribution maps remain descriptive, with their matching
+instrumentation scope stated in JSON and Markdown. Their ranked rows require
+complete native CPU-oracle coverage and preserve any conflicting explicit CPU
+reference; unknown numerical coverage cannot become a winner. These maps grant
+no production qualification or runtime promotion.
 
 Sweep reviews record the actual baseline path and canonical digests of both
 captures for their end-to-end timing comparison. Private loader path annotations

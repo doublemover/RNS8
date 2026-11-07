@@ -565,6 +565,13 @@ def best_row(rows: list[dict], backend: str | None = None) -> dict | None:
         for r in rows
         if (backend is None or r["backend"] == backend)
         and r.get("measurement_cohort", {}).get("qualified") is True
+        and (
+            "numerical_reference" not in r
+            or (
+                isinstance(r["numerical_reference"], dict)
+                and r["numerical_reference"].get("passed") is True
+            )
+        )
         and _number(r.get("median_end_to_end_us")) is not None
     ]
     return min(

@@ -13,6 +13,8 @@ from benchmark_sweep_lib.capture_metadata import backend_id, median_phase, selec
 from benchmark_sweep_lib.config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
 from report_capture_inputs import load_report_captures
 from observation_cohorts import aggregate_captures, row_identity, partition_rows, best_row
+from reference_verdict import CPUReferenceIndex
+from measurement_contract import host_instrumentation
 
 
 FINITE_SEMANTICS = {"finite_ring_u8", "finite_field_u8"}
@@ -97,12 +99,14 @@ def _target_id(capture: dict[str, Any]) -> str | None:
     return None
 
 
-def _row(capture: dict[str, Any]) -> dict[str, Any]:
+def _row(capture: dict[str, Any], references: CPUReferenceIndex) -> dict[str, Any]:
     backend = backend_id(capture)
     distribution = _distribution(capture.get("input_distribution"))
     return {
         "backend": backend,
         **row_identity(capture, exclude=("input_distribution",)),
+        "numerical_reference": references.verdict(capture, require_anchor=False).to_json(),
+        "host_instrumentation_state": host_instrumentation(capture),
         "capture_path": capture.get("_path"),
         "distribution": distribution,
         "distribution_role": _distribution_role(distribution),
@@ -164,6 +168,8 @@ def _ratio(numerator: Any, denominator: Any) -> float | None:
 
 def _blockers(rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]]) -> list[str]:
     blockers: list[str] = []
+    if any(not row.get("numerical_reference", {}).get("passed") for row in rows + baseline_rows):
+        blockers.append("complete_numerical_reference_missing_or_conflicting")
     if any(not r.get("measurement_cohort", {}).get("qualified") for r in rows + baseline_rows):
         blockers.append("independent_process_cohort_unqualified")
     backends = {row.get("backend") for row in rows}
@@ -245,10 +251,11 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
         if capture.get("semantics") in FINITE_SEMANTICS
     ]
     raw_count = len(loaded)
+    references = CPUReferenceIndex(loaded)
     loaded = aggregate_captures(loaded)
     grouped: dict[tuple[str, int, int, int, int, str], list[dict[str, Any]]] = defaultdict(list)
     for capture in loaded:
-        grouped[_group_key(capture)].append(_row(capture))
+        grouped[_group_key(capture)].append(_row(capture, references))
 
     grouped = {
         (*key, *partition): members
@@ -284,6 +291,8 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
 
     return {
         "schema": "rns8_finite_distribution_report_v1",
+        "timing_scope": "descriptive_matching_instrumentation_not_production_qualification",
+        "promotion_eligible": False,
         "capture_count": raw_count,
         "implementation_cohort_count": len(loaded),
         "group_count": len(groups),
@@ -301,6 +310,7 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> None:
     lines = [
         "# Finite Distribution Report",
         "",
+        f"- timing scope: `{report['timing_scope']}`",
         f"- captures: `{report['capture_count']}`",
         f"- groups: `{report['group_count']}`",
         f"- dispositions: `{report['disposition_counts']}`",
