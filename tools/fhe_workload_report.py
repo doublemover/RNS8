@@ -14,7 +14,16 @@ from typing import Any
 
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase
 from report_capture_inputs import load_report_captures
-from observation_cohorts import aggregate_captures, row_identity, partition_rows, evidence, best_row
+from observation_cohorts import (
+    row_identity,
+    partition_rows,
+    evidence,
+    best_row,
+    cohort_noise_margin,
+)
+from diagnostic_companion import load_bindings
+from report_comparison import ReportCohorts
+from timing_eligibility import capture_identity
 
 
 DEFAULT_OUT_DIR = Path("temp") / "fhe-workload-reports"
@@ -81,16 +90,12 @@ def _group_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
-def row_for_capture(
-    capture: dict[str, Any], references: CPUReferenceIndex | None = None
-) -> dict[str, Any]:
+def _proxy_blockers(capture: dict) -> list[str]:
     proxy = _proxy(capture)
     scenario = _scenario(capture)
     extra = _scenario_extra(capture)
     verification = _verification(capture)
-    backend = backend_id(capture)
-    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
-    blockers: list[str] = list(evidence(capture)["blockers"]) + list(numerical.blockers)
+    blockers = []
     family = proxy.get("family") or extra.get("algebra_family") or scenario.get("family")
     if family != "fhe_lattice_proxy":
         blockers.append("not_fhe_lattice_proxy")
@@ -115,6 +120,30 @@ def row_for_capture(
     )
     if release_gate.get("cache_eligible") is True:
         blockers.append("release_gate_cache_eligible_for_proxy")
+    return blockers
+
+
+def row_for_capture(
+    capture: dict[str, Any],
+    references: CPUReferenceIndex | None = None,
+    cohorts: ReportCohorts | None = None,
+) -> dict[str, Any]:
+    proxy = _proxy(capture)
+    scenario = _scenario(capture)
+    extra = _scenario_extra(capture)
+    family = proxy.get("family") or extra.get("algebra_family") or scenario.get("family")
+    verification = _verification(capture)
+    backend = backend_id(capture)
+    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
+    blockers: list[str] = list(evidence(capture)["blockers"]) + list(numerical.blockers)
+    blockers.extend(
+        cohorts.admission(capture) if cohorts is not None else ["production_cohort_not_reviewed"]
+    )
+    observations = [
+        dict(capture_sha256=capture_identity(raw), blockers=_proxy_blockers(raw))
+        for raw in (cohorts.raw_observations(capture) if cohorts is not None else [capture])
+    ]
+    blockers.extend(reason for item in observations for reason in item["blockers"])
     operation = _operation(capture)
     row = {
         "path": _path(capture),
@@ -143,16 +172,17 @@ def row_for_capture(
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
         "median_end_to_end_us": median_phase(capture, "end_to_end"),
         "blockers": sorted(set(blockers)),
+        "proxy_process_observations": observations,
     }
     row["status"] = "blocked" if row["blockers"] else "proxy-ready"
     return row
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
     raw = load_report_captures(paths)
-    captures = aggregate_captures(raw)
-    references = CPUReferenceIndex(captures)
-    rows = [row_for_capture(capture, references) for capture in captures]
+    cohorts = ReportCohorts(raw, diagnostic_bindings)
+    captures = cohorts.observations
+    rows = [row_for_capture(capture, cohorts.references, cohorts) for capture in captures]
     groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         groups[_group_key(row)].append(row)
@@ -182,14 +212,29 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             if fastest_gpu and isinstance(fastest_gpu.get("median_end_to_end_us"), (int, float))
             else None
         )
+        noise_margin = (
+            cohort_noise_margin(cpu_best["measurement_cohort"], fastest_gpu["measurement_cohort"])
+            if cpu_best and fastest_gpu
+            else None
+        )
+        required_margin = max(PROMOTION_MARGIN, noise_margin) if noise_margin is not None else None
+        if required_margin is None:
+            blockers.append("comparison_variance_evidence_missing")
         speedup_vs_cpu = (
             cpu_median / fastest_gpu_median
-            if cpu_median is not None and fastest_gpu_median is not None and fastest_gpu_median > 0
+            if not blockers
+            and cpu_median is not None
+            and fastest_gpu_median is not None
+            and fastest_gpu_median > 0
             else None
         )
         if blockers:
             promotion_decision = "blocked"
-        elif speedup_vs_cpu is not None and speedup_vs_cpu >= PROMOTION_MARGIN:
+        elif (
+            speedup_vs_cpu is not None
+            and required_margin is not None
+            and speedup_vs_cpu > required_margin
+        ):
             promotion_decision = "promote_local_dense_rns_workload_profile"
         else:
             promotion_decision = "keep_experimental_no_gpu_speedup"
@@ -212,7 +257,7 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                 "cpu_median_end_to_end_us": cpu_median,
                 "speedup_vs_cpu": speedup_vs_cpu,
                 "promotion_decision": promotion_decision,
-                "promotion_margin_required": PROMOTION_MARGIN,
+                "promotion_margin_required": required_margin,
                 "promotion_scope": "local_dense_rns_workload_profile_not_fhe_compatibility",
                 "status": "blocked" if blockers else "proxy-ready",
                 "blockers": sorted(set(blockers)),
@@ -304,8 +349,9 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--diagnostic-binding", action="append", type=Path, default=[])
     args = parser.parse_args()
-    report = build_report(args.captures)
+    report = build_report(args.captures, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

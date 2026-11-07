@@ -13,6 +13,7 @@ import layout_search_report as layout
 import tile_shape_report as tile
 import vector_to_rns_chain_report as vector
 from reference_verdict import CPUReferenceIndex
+from report_comparison import ReportCohorts
 from test_benchmark_sweep_support import finite_capture
 from test_layout_search_report import with_common_layout
 from test_review_reference_support import add_synthetic_full_reference
@@ -27,12 +28,16 @@ class ReportNumericalGatesTest(unittest.TestCase):
 
     def consumers(self, candidate, cpu, direct):
         references = CPUReferenceIndex([cpu])
-        yield adaptive._row(candidate, {}, references), "blockers"
+        cohorts = ReportCohorts([candidate, cpu, direct])
+        yield adaptive._row(candidate, {}, cohorts), "blockers"
         yield selector.row_for_capture(candidate, references), "blockers"
         yield fhe.row_for_capture(candidate, references), "blockers"
-        yield incremental.row_for_capture(candidate, references), "blockers"
-        yield tile.row_for_candidate(candidate, cpu, direct, {}, references), "promotion_blockers"
-        yield vector.classify_pair(candidate, direct), "blockers"
+        yield incremental.row_for_capture(candidate, cohorts), "blockers"
+        yield (
+            tile.row_for_candidate(candidate, direct, tile.SelectedStaticResources(), cohorts),
+            "promotion_blockers",
+        )
+        yield vector.classify_pair(candidate, direct, cohorts), "blockers"
 
     def test_all_row_adapters_preserve_mismatch_and_missing_coverage(self):
         for failure in ("mismatch", "missing"):
@@ -75,7 +80,7 @@ class ReportNumericalGatesTest(unittest.TestCase):
         candidate["incremental_result_cache"] = dict(candidate["verification_amortization"])
         for row in (
             fhe.row_for_capture(candidate, CPUReferenceIndex([cpu])),
-            incremental.row_for_capture(candidate, CPUReferenceIndex([cpu])),
+            incremental.row_for_capture(candidate, ReportCohorts([candidate, cpu])),
         ):
             self.assertTrue(row["numerical_reference"]["passed"])
             self.assertIn("final_exact_comparison_pending", row["blockers"])
@@ -85,7 +90,7 @@ class ReportNumericalGatesTest(unittest.TestCase):
         candidate, _, direct = self.fixtures()
         candidate.pop("checksum_u64")
         direct.pop("checksum_u64")
-        row = vector.classify_pair(candidate, direct)
+        row = vector.classify_pair(candidate, direct, ReportCohorts([candidate, direct]))
         self.assertFalse(row["checksum_match"])
         self.assertIn("final_checksum_mismatch_or_missing", row["blockers"])
 

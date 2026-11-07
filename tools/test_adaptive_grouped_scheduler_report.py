@@ -10,11 +10,9 @@ import tempfile
 from pathlib import Path
 
 from benchmark_schema import load_capture, validate_capture
-from diagnostic_companion import build_binding
-from test_diagnostic_companion import authored_capture_pair
 
 import adaptive_grouped_scheduler_report
-from test_capture_identity_support import write_independent_fixture_pair, independent_fixture_paths
+from test_capture_identity_support import write_production_fixture_pair, independent_fixture_paths
 
 
 FIXTURE = Path("tests") / "fixtures" / "benchmark_schema" / "v4_bounded_i64_adaptive_hip.json"
@@ -170,15 +168,7 @@ def build_report(paths):
 
 
 def _write(path: Path, capture: dict) -> Path:
-    write_independent_fixture_pair(path, capture)
-    for run, destination in enumerate(independent_fixture_paths([path])):
-        lane = path.parent / f"{path.stem}-pair-{run}"
-        lane.mkdir()
-        _, _, pair = authored_capture_pair(lane, load_capture(destination))
-        destination.write_bytes(pair[0].read_bytes())
-        if capture["backend_selected"] == "hip-direct":
-            BINDINGS[str(destination.resolve())] = build_binding(destination, pair[1])
-    return path
+    return write_production_fixture_pair(path, capture, BINDINGS)
 
 
 with tempfile.TemporaryDirectory() as tmp_name:

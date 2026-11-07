@@ -247,3 +247,27 @@ def independent_fixture_paths(paths):
         if path.is_file() and sibling.exists():
             result.append(sibling)
     return result
+
+
+def write_production_fixture_pair(path, capture, bindings):
+    """Two authored production processes with real file-bound GPU companions.
+
+    Keep diagnostics outside the .json directory scan so they cannot become
+    production observations merely because a report reads the fixture folder.
+    """
+    from pathlib import Path
+    import tempfile
+    from diagnostic_companion import build_binding
+    from test_diagnostic_companion import authored_capture_pair
+
+    path = Path(path)
+    destinations = [path, path.with_name(path.stem + ".independent.json")]
+    for destination in destinations:
+        with tempfile.TemporaryDirectory(dir=path.parent) as directory:
+            _, _, pair = authored_capture_pair(Path(directory), capture)
+            destination.write_bytes(pair[0].read_bytes())
+            if is_gpu_capture(capture):
+                diagnostic = destination.with_suffix(".diagnostic")
+                diagnostic.write_bytes(pair[1].read_bytes())
+                bindings[str(destination.resolve())] = build_binding(destination, diagnostic)
+    return path

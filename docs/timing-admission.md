@@ -19,6 +19,9 @@ The adaptive scheduler report also requires hook-disabled production cohorts and
 `--diagnostic-binding` receipts for their separate GPU-event captures. Its CPU
 rows verify arithmetic only; they do not supply CPU timing ratios. Local scheduler
 decisions require a completed-output gain above both cohorts' observed noise.
+FHE proxy profile decisions use the same production/companion boundary and the
+larger of their workload margin and observed cohort noise. Instrumented or
+unbound captures remain descriptive and cannot approve a local workload profile.
 
 Sweep reviews record the actual baseline path and canonical digests of both
 captures for their end-to-end timing comparison. Private loader path annotations
