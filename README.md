@@ -43,22 +43,18 @@ the evidence classes and per-OS checks.
 
 ## Measured RX 7900 XTX results
 
-| Shape and arithmetic/output contract | Matched baseline | Candidate | Improvement | Evidence |
+| Operation / output boundary | Matched baseline → candidate | Improvement | Throughput | Evidence |
 |---|---|---|---|---|
-| 1024³ bounded signed i64, repack + native host output | Direct HIP: 8.127 ms | Public AMDGPU builtins: 6.736 ms | 1.21× | [Public pipelines](docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse) |
-| 1024³ signed byte values stored as i64, exact i64 device output | Minimal four-plane RNS pipeline: 2.783 ms | Internal checked native-byte WMMA: 1.250 ms | 2.23× | [Native output](docs/7900xtx-large-throughput-2026-10-23.md#native-bounded-integer-device-output) |
-| 512³ `alpha*AB + beta*D`, nine resident residue planes | Direct GEMM + separate combine: 760.91 µs | rocWMMA fused: 459.58 µs | 1.66× | [Residue epilogue](docs/7900xtx-large-throughput-2026-10-23.md#resident-residue-epilogue) |
+| Reconstruct 1,048,576 values from 20 residue planes into resident three-limb integers | 3.664167 → **0.204691 ms** | **17.901×** | **5.123 Gvalues/s** | [Core10.1 measurements](docs/performance.md#october-26-sdk101-bounded-measurements) |
 
-These October 23 results use resident inputs on the recorded Windows/HIP stack.
-The public pipeline includes repacking and host export after common allocation;
-its statistic is the median of three process medians. The other rows use five
-process burst means with timing hooks disabled; checked calls include allocation,
-admission and synchronization. Initial uploads and verification are outside timing.
-The residue epilogue has no native integer export or proof of unique reconstruction
-of the full expression. Compare rows only within their stated contract. The
-[full report](docs/7900xtx-large-throughput-2026-10-23.md) preserves ranges, commits,
-hashes, commands and exact checks; [performance methodology](docs/performance.md)
-owns the remaining measurement and promotion gates.
+This October 26 result uses source `72c55c2`, Windows/Core10.1 and five
+independent processes with exact checks outside production timing. It measures
+CRT reconstruction, one stage of the integer matrix pipeline. The
+[complete GEMM and chain results](docs/performance.md#october-26-sdk101-bounded-measurements)
+retain their output/setup boundaries and reporting-overhead remeasurement
+gates. The [October 23 GPU comparisons](docs/7900xtx-large-throughput-2026-10-23.md)
+remain a separate historical stack. Current source validation follows the
+[release gates](docs/roadmap.md).
 
 ## What it computes
 

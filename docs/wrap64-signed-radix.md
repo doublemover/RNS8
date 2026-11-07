@@ -37,7 +37,11 @@ of C++ arithmetic. The certificate never grants runtime dispatch eligibility.
 Host tests cover shifted exhaustive 16-bit recodes, full-width adversarial and
 random products, independent byte/U64/Boost oracles and broken recodes. GPU
 fixtures cover tails, canaries, aliases, budgets and K around tile, 4096,
-33025, 65536 and 131071 boundaries. Tests and compilation remain pending.
+33025, 65536 and 131071 boundaries. Applicable host and RDNA3 cases were
+included in the [October 27 CPU-ASan/direct-HIP batch](../metadata/branch-code-audit-validation-20261027.json)
+at source `2c713a1`; the distinct CDNA MFMA cases were target-inapplicable skips.
+Later source changes await the consolidated validation batch. That dated
+correctness record supplies no emitted-ISA or performance qualification.
 
 This first implementation deliberately folds after every 16-term MMA. It does
 not claim a 65536-term accumulation optimization, ISA qualification, or a speedup.

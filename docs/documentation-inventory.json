@@ -452,18 +452,6 @@
         },
         {
           "source": "README.md",
-          "reference": "docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse"
-        },
-        {
-          "source": "README.md",
-          "reference": "docs/7900xtx-large-throughput-2026-10-23.md#native-bounded-integer-device-output"
-        },
-        {
-          "source": "README.md",
-          "reference": "docs/7900xtx-large-throughput-2026-10-23.md#resident-residue-epilogue"
-        },
-        {
-          "source": "README.md",
           "reference": "docs/7900xtx-large-throughput-2026-10-23.md"
         },
         {
@@ -3390,7 +3378,11 @@
         },
         {
           "source": "README.md",
-          "reference": "docs/performance.md"
+          "reference": "docs/performance.md#october-26-sdk101-bounded-measurements"
+        },
+        {
+          "source": "README.md",
+          "reference": "docs/performance.md#october-26-sdk101-bounded-measurements"
         },
         {
           "source": "docs/README.md",
@@ -4454,6 +4446,10 @@
       "owner": "docs/RNS8_RESEARCH_SPEC.md",
       "reason": "Current gate/issue checklist; move chronological checkpoints intact to archive.",
       "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "docs/roadmap.md"
+        },
         {
           "source": "README.md",
           "reference": "docs/roadmap.md"

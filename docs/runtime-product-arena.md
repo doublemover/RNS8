@@ -74,7 +74,9 @@ host exclusion. Concurrent execute attempts return BUSY.
 
 Authored CPU cases cover linear and diamond reuse, all overlapping live intervals,
 budget boundaries, lifetime/currentness and replay. A HIP diamond uses independent
-Boost full-output comparison. These cases pass the current CPU/direct-HIP validation.
+Boost full-output comparison. Applicable cases passed the
+[October 27 CPU/direct-HIP batch](../metadata/branch-code-audit-validation-20261027.json)
+at `2c713a1`; later source changes await the consolidated validation batch.
 No speedup or global allocation optimality is claimed.
 
 ## Consumer-driven exact prefix materialization
@@ -144,8 +146,10 @@ An uncertain device drain retains the arena, input readers and output ownership,
 and poisons the context. Destruction returns a failure while retaining the recipe
 when draining or freeing fails, so callers can retry destruction safely. Private
 RAII destruction cannot report errors and retains a failed owner instead of freeing
-possibly active storage. Ordinary execution, cleanup and preservation fixtures pass the current
-validation; real device-failure qualification remains open.
+possibly active storage. Applicable execution, cleanup and preservation fixtures
+have [dated local validation](../metadata/branch-code-audit-validation-20261027.json);
+later source changes await the consolidated batch. Real device-failure
+qualification remains open.
 
 
 ## Multiple observable results

@@ -99,7 +99,7 @@ GPU/OS qualification statement. In particular, dense `gfx1100` availability
 does not enable sparse instructions. An unsupported sparse request now rejects
 before output invalidation, preserving its old bytes, generation and range
 proof. CPU predicate and gfx1100 negative-preservation fixtures pass the
-[current local batch](../metadata/remaining-code-validation-20261027.json);
+[October 27 local batch](../metadata/remaining-code-validation-20261027.json);
 supported sparse-target arithmetic remains unqualified.
 
 ## Generated sparse support profiles
@@ -236,7 +236,9 @@ remain unsupported. Strassen accepts the explicitly documented subset. The [rese
 Sparse entry points also return `RNS8_BUSY` for a dense B with a pending writer,
 or an output with pending readers or a writer, before target admission and output
 mutation. Concurrent read-only reservations on B remain valid. State fixtures
-cover both sparse RNS and finite-ring calls and pass the current local batch.
+cover both sparse RNS and finite-ring calls; applicable cases passed the
+[October 27 local batch](../metadata/remaining-code-validation-20261027.json).
+Later source changes retain their separate pending validation.
 
 
 The internal epilogue and exact-suffix-lift support providers now share static
@@ -273,6 +275,8 @@ B and repeated A+B, padded complete export, setup/execute/export/cleanup phases,
 sustained uninstrumented intervals and counterbalanced independent processes.
 Fixtures cover tails, all slab boundaries and multiple slabs; authored regressions
 cover every finite nibble alphabet, packed tails, stale generations and full
-public output. Applicable gfx1100 regressions pass the current local batch;
+public output. Applicable gfx1100 regressions passed the
+[October 27 local batch](../metadata/remaining-code-validation-20261027.json);
+later source changes await the consolidated batch, and
 no new campaign or speedup (including the specification's 1.25x gate) follows.
 Public reachability does not qualify other targets.

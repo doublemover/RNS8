@@ -145,7 +145,8 @@ The authored native corpus spans all orders, groups 1/2/4, fragments 1/3/7,
 awkward/sustained/long-K shapes, retained-input and explicit-displacement cases.
 The public shared-B corpus adds raw/encoded B, persistent/graph execution and
 unchanged/mutated generations with complete padded Boost exports. Existing
-resident-residue locality controls remain unchanged. GPU compilation, all tests,
+resident-residue locality controls retain their [dated local validation](../metadata/branch-code-audit-validation-20261027.json).
+For the newer native/shared-B extensions, GPU compilation, runtime tests,
 benchmarks, physical counters and end-to-end qualification are deferred; no
 speedup, cache hit-rate improvement or placement is claimed from these sources.
 
