@@ -41,8 +41,8 @@ individual SQLite values are limited to1MiB and the interval projection to
 Missing or malformed requested tables fail rather than produce empty success.
 Empty tables mean no observation, not zero work or complete capture; instant
 samples and loss counters are outside this interval projection. The capture
-finalizer, marker/operation association and dependency/critical-path consumer
-are not yet connected to it. Actual-layout database controls are authored and
+finalizer and dependency/critical-path consumer are not yet connected to it.
+The separate marker/operation consumer below is source-written. Actual-layout database controls are authored and
 registered, with no database fixture, reader or profiler execution in this pass.
 
 AMD's [rocpd documentation](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocpd-output-format.html)
@@ -253,8 +253,29 @@ marker identity to match to the numeric sidecar. Returned ROCTx range IDs,
 snapshot slots and SDK internal/external correlations remain separate domains.
 Historical labels without this contract cannot inherit the new join. Formatting
 controls cover zero/full-width slots and short/null buffers; native capture and
-the complete ROCTx-to-dispatch consumer still require their separate source and
-validation steps.
+capture finalization still require their separate source and validation steps.
+
+`tools/amd_profiler_ranges.py` matches every published slot to one literal native
+marker message with the same phase/process/thread. It shares bounded snapshot,
+ancestry and measured-root admission with CPU sampling through
+`tools/host_range_contract.py`; no fabricated CPU sample is needed to validate
+an SDK timeline. Native host children must stay inside their explicit
+same-thread parents. Dispatch ownership follows one exact internal HIP API
+correlation and that API's complete containment in a measured native marker.
+Returned range IDs, table IDs, slots and caller external correlations stay
+separate. Zero/missing/ambiguous internal IDs, conflicting threads and work
+outliving the completed operation remain unresolved. Warmup/outside launches
+are retained separately. Roots on different threads may overlap; interval
+unions retain that overlap instead of summing service into wall time.
+
+Marker matching uses only the native SDK timestamp domain. The sidecar's
+host monotonic timestamps are not substituted for GPU timestamps. A kernel may
+start before its launch API returns, so an API-completion-to-kernel-start edge
+is never inferred. Complete literal marker matching still does not prove
+loss-free acquisition or complete work/dependency coverage. These exact native
+table-to-consumer, stale/duplicate marker, unknown/ambiguous correlation and
+overlapping-caller controls remain authored/unexecuted; acquisition publication
+and the dependency/critical-path consumer still need integration.
 
 Active/requested tracing is excluded from production timing admission. The
 profiler relation permits the explicitly declared range opt-in environment,

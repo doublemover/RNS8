@@ -37,6 +37,7 @@ SOURCE_INPUTS = (
     "tools/host_profile_session.py",
     "tools/host_profile_native.py",
     "tools/host_profile_ranges.py",
+    "tools/host_range_contract.py",
     "tools/interval_observations.py",
     "tools/profiler_contract.py",
     "tools/build_instrumentation.py",
