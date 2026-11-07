@@ -259,6 +259,8 @@ and [WPA exporter reference](https://learn.microsoft.com/en-us/windows-hardware/
 The maintained WPA candidate uses CPU sampling table/column GUIDs inspected in
 the installed Toolkit's `Catalog/HtmlResponsivenessAnalysis.wpaprofile`.
 Local symbol search is explicit; no symbol server is configured. The decoder
+inventories exports through the shared link-free helper with the actual session
+root, confining its input to the owned export subtree. It
 accepts one English CSV with explicit seconds/milliseconds column units,
 individual sample counts, exact selected PID/image/thread and bounded rows,
 fields and bytes. It preserves foreign/idle row counts and native stack/module/

@@ -298,7 +298,7 @@ def completed_capture(plan, stages):
         before_sha256=plan["benchmark"]["sha256"],
         backend=production["backend_selected"],
     )
-    exported = owned_artifact_files(out / "export")
+    exported = owned_artifact_files(out / "export", out)
     csv_files = [path for path in exported if path.suffix.lower() == ".csv"]
     if len(csv_files) != 1:
         raise ValueError("one native CPU-sample CSV is required from the reviewed WPA profile")
