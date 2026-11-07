@@ -9,6 +9,7 @@ import re
 from host_range_contract import PHASES, range_inventory, measured_roots, uint
 from interval_observations import interval_summary
 from native_phase_attribution import attribute
+from native_marker_clock import observe as observe_marker_clock
 
 
 def join(timeline: dict, snapshot: dict) -> dict:
@@ -203,6 +204,9 @@ def join(timeline: dict, snapshot: dict) -> dict:
         unresolved_related_intervals=related_unresolved,
         outside_measured_related_intervals=related_outside,
         phase_attribution=phases,
+        marker_clock_observation=observe_marker_clock(
+            index, markers, [*selected, *related_selected]
+        ),
         measured_native_windows=interval_summary(
             [(first, last) for spans in windows.values() for first, last, _ in spans]
         ),

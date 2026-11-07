@@ -66,6 +66,35 @@ class NativeMarkerJoin(unittest.TestCase):
         )
         self.assertEqual(phases["threads"][0]["observed_scope_union_ns"], 85)
         self.assertFalse(phases["thread_totals_add_to_process_wall"])
+        clock = result["marker_clock_observation"]
+        self.assertEqual(clock["state"], "observed_order_envelopes")
+        self.assertEqual(len(clock["anchors"]), 4)
+        start = clock["interval_endpoints"][0]["start"]
+        self.assertEqual(
+            (start["native_ns"], start["host_lower_ns"], start["host_upper_ns"]), (10, 110, 140)
+        )
+        self.assertFalse(clock["GPU_clock_normalization_verified"])
+        self.assertFalse(clock["usable_for_GPU_duration_or_dependency_claims"])
+
+    def test_inconsistent_host_brackets_do_not_create_a_cross_clock_fit(self):
+        value = markers()
+        value["records"][1]["stop_before_ns"] = 399
+        value["records"][1]["stop_after_ns"] = 400
+        report = join(self.timeline(), value)
+        self.assertEqual(report["marker_clock_observation"]["state"], "inconsistent")
+        self.assertNotIn("interval_endpoints", report["marker_clock_observation"])
+        self.assertTrue(report["native_marker_identity_complete"])
+        self.assertFalse(report["production_latency"])
+
+    def test_missing_host_clock_brackets_remain_unavailable_with_native_identity_intact(self):
+        value = markers()
+        for row in value["records"]:
+            for field in ("start_before_ns", "start_after_ns", "stop_before_ns", "stop_after_ns"):
+                row[field] = None
+        report = join(self.timeline(), value)
+        self.assertEqual(report["marker_clock_observation"]["state"], "unavailable")
+        self.assertEqual(len(report["marker_clock_observation"]["missing"]), 4)
+        self.assertTrue(report["native_marker_identity_complete"])
 
     def test_overlapping_siblings_remain_ambiguous_instead_of_deepest_name_wins(self):
         with closing(sqlite3.connect(self.path)) as db, db:

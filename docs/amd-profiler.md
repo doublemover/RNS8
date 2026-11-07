@@ -351,6 +351,16 @@ overlapping-caller controls remain authored/unexecuted. Capture publication
 and receipt replay are connected; the dependency/critical-path
 consumer remains implementation work.
 
+An additional marker-clock observation retains each exact native marker
+endpoint beside the host brackets around its ROCTx call. Prefix/suffix order
+envelopes produce conditional host bounds without fitting a constant offset,
+epoch or rate. Missing brackets and conflicting order remain unavailable or
+inconsistent. This records actual paired observations; it does not establish
+GPU timestamp normalization or authorize GPU duration/dependency claims. The
+original native timestamps and their uncertainty remain visible, and receipt
+replay reconstructs the observation. These controls are source-authored and
+unexecuted.
+
 Add `--operation-ranges` to the timeline plan only for the same production
 binary compiled with `roctx=ON`. The launcher supplies the range opt-in and
 requires the actual active snapshot. Plan version3 binds the option and decoder/
