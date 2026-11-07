@@ -2,7 +2,7 @@
   "schema": "rns8_python_typecheck_scope_v1",
   "owner_issue": 100,
   "source_target": "3.12",
-  "status": "narrow_source_typecheck_passed_pending_controls_and_CI",
+  "status": "initial_vertical_slice_qualified_windows_and_linux_wsl",
   "strict_modules": [
     "tools/json_evidence.py",
     "tools/evidence_scalars.py",
@@ -22,12 +22,14 @@
   ],
   "unchecked_modules_policy": "Reported explicitly; ordinary import following remains enabled; no global missing-import suppression.",
   "source_check": {
-    "date": "2026-11-05",
+    "date": "2026-11-07",
     "checker": "mypy 2.4.1",
-    "interpreter": "CPython 3.15.0 Windows AMD64",
+    "interpreter": "CPython 3.15.2 on Windows and Ubuntu24.04/WSL2",
     "source_target": "3.12",
     "checked_files": 5,
-    "result": "Success: no issues found in 5 source files",
-    "scope": "static source check only; no negative controls, fixture tests or integrated gate execution"
+    "negative_controls": 3,
+    "result": "Five strict modules pass; arg-type, typeddict-item and name-defined defect fixtures fail as intended on both hosts.",
+    "scope": "Initial production vertical slice only; remaining_migration is explicit, with ordinary import discovery and runtime fixtures retained.",
+    "qualification_receipt": "metadata/issue-closeout-validation-20261107.json"
   }
 }

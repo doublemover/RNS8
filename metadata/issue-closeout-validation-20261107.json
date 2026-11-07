@@ -1,0 +1,513 @@
+{
+  "schema": "rns8_issue_closeout_validation_v1",
+  "date": "2026-11-07",
+  "execution": "solo",
+  "current_tooling_source_commit": "1fd742fbc9be6a3c24d49548687bda47ac7ccbf2",
+  "current_tooling_source_digest": "28d98e31ed3f87c0d7f3ee497ef3ce2ac3a6c9692fed2fd8805bb42cfd215aa5",
+  "scope": "Selected issue-acceptance qualification. Native Release receipts, new host sanitizer/header qualification and later Python/tooling cuts are separate; no new benchmark, device-fault, multi-GPU or Linux GPU campaign.",
+  "evidence": {
+    "native_release": {
+      "receipt": "metadata/implementation-validation-20261107.json",
+      "source_commit": "f60ca27709c7eae67b4dcf256460e324bad10714",
+      "cpu": {
+        "passed": 733,
+        "skipped": 64,
+        "failed": 0
+      },
+      "hip": {
+        "passed": 1401,
+        "skipped": 42,
+        "failed": 2
+      },
+      "scope": "Historical source-bound fresh Windows Release CPU/gfx1100 arithmetic/API/installed-consumer and shared tooling evidence. No count or performance credit is reassigned to later source."
+    },
+    "windows_asan": {
+      "source_commit": "937ccd09a2916bcc37cf1f586b070e67001370ea",
+      "source_digest": "84f858b3dfebf899988af9c91efe7e3c5b2c643ad0923c6876cbd40f0c396ab1",
+      "configuration": "CPU RelWithDebInfo, clang-cl23.1.5, ASan, /MD, OpenMP OFF, static library, pinned x64-windows dependencies",
+      "unit_result": {
+        "cases": 693,
+        "passed": 629,
+        "skipped": 64,
+        "failed_or_error": 0
+      },
+      "detector_controls": [
+        {
+          "control": "capabilities",
+          "exit_code": 0,
+          "expected_failure": false
+        },
+        {
+          "control": "valid",
+          "exit_code": 0,
+          "expected_failure": false
+        },
+        {
+          "control": "heap-overread",
+          "exit_code": 1,
+          "expected_failure": true
+        }
+      ],
+      "scope": "Real unit/public API execution; capabilities and valid positive controls pass; deliberate heap-overread exits1 with AddressSanitizer heap-buffer-overflow. Detector failure is expected evidence, not a passing arithmetic test. No installed-ASan consumer, OpenMP, TSan or GPU ASan credit.",
+      "artifacts": [
+        {
+          "path": "temp/issue-closeout-20261107/asan-configure-command.json",
+          "bytes": 1288,
+          "sha256": "fbd7bfc3068a25e72e8ef11b9f64b14e74571334e5f2b4b1652f7394ba17199e"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/cpu-asan/generated/RelWithDebInfo/rns8_build_manifest.json",
+          "bytes": 6206,
+          "sha256": "9370959b3cadb0a66dc8b1fcbccc5a0f1c3ebf2c9efdee9a11810711cc8b7f09"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/asan-unit.xml",
+          "bytes": 121665,
+          "sha256": "95d22e6fa0620edc6df091f5f1c6dbfc942b554cc8e8c47a5e96b83e2b27d0e7"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/asan-control-heap-overread.log",
+          "bytes": 3499,
+          "sha256": "a47a7f84a8f4827bca57ad3c8108a3d62743c52caa7e59959d1af40f2bec0ffa"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/asan-detector-result.json",
+          "bytes": 281,
+          "sha256": "586fb47c9b7b36a8c0216b9e1928ed737c4606b04f58457e90b1dbb09e8d5493"
+        }
+      ]
+    },
+    "linux_enum_abi": {
+      "source_commit": "937ccd09a2916bcc37cf1f586b070e67001370ea",
+      "platform": "Ubuntu24.04 x86_64 LP64, WSL2",
+      "compiler": "GNU C/C++13.3.0",
+      "standards": [
+        "C17",
+        "C++17"
+      ],
+      "sanitizer": "UBSan -fno-sanitize-recover=all",
+      "enum_types": 41,
+      "layout_metrics_per_language": 3587,
+      "positive_exit": 0,
+      "unfixed_backing_mutation_exit": 1,
+      "interop_values": [
+        0,
+        1,
+        2147483648,
+        4294967295
+      ],
+      "scope": "All public enum/header layout and bidirectional C/C++ raw-value calls; LP64 sizeof(long)=8 is the only adjusted Windows baseline metric. The unfixed enum volatile load triggers the intended invalid-enum diagnostic even though underlying-type assertions still pass. Header/bridge proof only, no linked Linux RNS8 library or GPU qualification.",
+      "artifacts": [
+        {
+          "path": "temp/issue-closeout-20261107/linux-enum-abi/result.json",
+          "bytes": 4553,
+          "sha256": "7197e17f3c8d67e97890ed54315192f51ae28684c8846e034fb991acfbe1fb60"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/linux-enum-abi/positive/compile.log",
+          "bytes": 2,
+          "sha256": "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/linux-enum-abi/positive/run.log",
+          "bytes": 47,
+          "sha256": "f50b4181f8e33a7d8c082c8f88b147128dea8d98bb7152dfa64c5f8901acab3a"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/linux-enum-abi/unfixed-control/run.log",
+          "bytes": 223,
+          "sha256": "df673dc3209afa9c4fb8b55b9fd39998488772481251fc8cae8e2142dddae71c"
+        }
+      ]
+    },
+    "legacy_reports_linux": {
+      "source_content_commit": "977608ffef4a922caaf9c5e6b7539ed2ed6c832a",
+      "platform": "Ubuntu24.04/WSL2, CPython3.15.2",
+      "selected": 26,
+      "passed": 26,
+      "failed": 0,
+      "controls": [
+        "many_small_grouped_report",
+        "reuse_contract_report",
+        "direct_hip_reuse_expansion_report",
+        "wrap64_direct_hip_tuning_report",
+        "direct_hip_resident_redesign_report",
+        "modulus_set_search",
+        "modulus_set_autotune_report",
+        "hip_graph_replay_report",
+        "exact_wide_chain_report",
+        "zero_skip_expansion_report",
+        "verification_amortization_report",
+        "finite_modulus_map_report",
+        "auto_shape_family_gate",
+        "export_selector_report",
+        "reconstruction_export_report",
+        "gfx1100_pending_validation",
+        "layout_search_report",
+        "vector_to_rns_chain_report",
+        "benchmark_sweep",
+        "review_reference",
+        "report_numerical_gates",
+        "tooling_contracts",
+        "diagnostic_companion",
+        "public_measurement_contracts",
+        "observation_cohorts",
+        "python_case_structure"
+      ],
+      "scope": "Real loader, report producer/consumer and qualified synthetic-positive/negative host controls; synthetic timings are never performance evidence.",
+      "artifacts": [
+        {
+          "path": "temp/issue-closeout-20261107/linux-reports-result.json",
+          "bytes": 6210,
+          "sha256": "f7bc27a46a20ea2756bc816264c8d7cad9d241badee38a0f3cd13e37fff90496"
+        }
+      ]
+    },
+    "registered_reports": {
+      "source_content_commit": "977608ffef4a922caaf9c5e6b7539ed2ed6c832a",
+      "platform": "Windows, CPython3.15.2",
+      "registered_cpu_tests": 964,
+      "recovered_active_golden_reports": 18,
+      "result": {
+        "cases": 27,
+        "passed": 27,
+        "skipped": 0,
+        "failed_or_error": 0
+      },
+      "controls": [
+        "public_measurement_contracts",
+        "observation_cohorts",
+        "tooling_contract_regressions",
+        "source_quality_tooling_self_test",
+        "python_contract_case_structure_self_test",
+        "review_reference_self_test",
+        "report_numerical_gates_self_test",
+        "many_small_grouped_report_self_test",
+        "reuse_contract_report_self_test",
+        "direct_hip_reuse_expansion_report_self_test",
+        "wrap64_direct_hip_tuning_report_self_test",
+        "direct_hip_resident_redesign_report_self_test",
+        "modulus_set_search_self_test",
+        "modulus_set_autotune_report_self_test",
+        "hip_graph_replay_report_self_test",
+        "exact_wide_chain_report_self_test",
+        "zero_skip_expansion_report_self_test",
+        "verification_amortization_report_self_test",
+        "finite_modulus_map_report_self_test",
+        "auto_shape_family_gate_self_test",
+        "export_selector_report_self_test",
+        "reconstruction_export_report_self_test",
+        "gfx1100_pending_validation_self_test",
+        "layout_search_report_self_test",
+        "vector_to_rns_chain_report_self_test",
+        "benchmark_sweep_self_test",
+        "diagnostic_companion_self_test"
+      ],
+      "scope": "Actual root CMake CPU reconfigure with explicit vcpkg toolchain and VS developer wrapper; CTest JSON inventory proves all18 recovered scripts are registered. Only selected Python tests run; no old native executable is relabeled a newly built binary.",
+      "artifacts": [
+        {
+          "path": "temp/issue-closeout-20261107/ctest-registration-configure.log",
+          "bytes": 786,
+          "sha256": "3ad0fbac5f4ca3c8b5953f8d9581736cc0c42eb1b51066cf919e5c996b9a7bed"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/ctest-report-selection.json",
+          "bytes": 15636,
+          "sha256": "6535e79689afa891a6206f4cb24f3b6cf284cb517c041d6ee9b727150bd16039"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/ctest-report-results.xml",
+          "bytes": 9791,
+          "sha256": "852e75c206e6a0b4b06550632c78c8eb5089aa81ec29bcc1d28cae3ee9ec8620"
+        }
+      ]
+    },
+    "report_controls": {
+      "recovered_scripts": 18,
+      "passed": 18,
+      "failed": 0,
+      "repairs": [
+        "native persistent execution-mode spelling",
+        "complete output/next-operation/resident-redesign fixtures",
+        "capture path custody after real load/rename",
+        "independent exact-wide output-width cohorts",
+        "immutable per-contract reference fixtures",
+        "fresh diagnostic binding for deliberate CPU checksum mismatch",
+        "diagnostic-only layout cannot supply a production baseline"
+      ],
+      "artifact": {
+        "path": "temp/issue-closeout-20261107/omitted-report-results.json",
+        "bytes": 4763,
+        "sha256": "b6851cc44aacab74a47bc54399a876daf5d3e28e0c2741ab3801fcb37bb95a6f"
+      }
+    },
+    "source_identity": {
+      "source_commit": "1fd742fbc9be6a3c24d49548687bda47ac7ccbf2",
+      "portable_source_digest": "28d98e31ed3f87c0d7f3ee497ef3ce2ac3a6c9692fed2fd8805bb42cfd215aa5",
+      "windows": {
+        "passed": 13,
+        "skipped": 0
+      },
+      "linux_wsl": {
+        "passed": 12,
+        "skipped": 1
+      },
+      "linux_skip": "Windows-only MSVC link mismatch test",
+      "regression": "Mixed-case relative-name independent digest oracle and changed-byte rejection; canonical relative POSIX-name ordering replaces OS-dependent Path ordering.",
+      "historical_policy": "Existing compiled manifests/raw captures retain their original source digests and qualification cuts.",
+      "artifacts": [
+        {
+          "path": "temp/issue-closeout-20261107/windows-build-manifest-final.log",
+          "bytes": 179,
+          "sha256": "11076e86c9e736435d3f8569de5df52446b87cf3ad135bca3c193ee80a2c1371"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/linux-build-manifest-final.log",
+          "bytes": 129,
+          "sha256": "1245b5b46fd860d9f28005e4e95fd627d4ca2e5d677b977a6baa53aa23d389b4"
+        }
+      ]
+    },
+    "cross_platform_quality": {
+      "lock": "metadata/quality-tools.json",
+      "inventory_policy": "metadata/first-party-inventory.json",
+      "results": [
+        {
+          "platform": "Windows-11-10.0.26300-SP0",
+          "python": "3.15.2 (tags/v3.15.2:5e58eaa, Oct 25 2026, 17:27:03) [MSC v.1951 64 bit (AMD64)]",
+          "source_commit": "1fd742fbc9be6a3c24d49548687bda47ac7ccbf2",
+          "source_digest": "28d98e31ed3f87c0d7f3ee497ef3ce2ac3a6c9692fed2fd8805bb42cfd215aa5",
+          "rounds": [
+            {
+              "round": "initial",
+              "elapsed_seconds": 12.302210099995136,
+              "maximum_checker_peak_bytes": 28020736
+            },
+            {
+              "round": "repeat",
+              "elapsed_seconds": 11.926754100015387,
+              "maximum_checker_peak_bytes": 28008448
+            }
+          ],
+          "cache_scope": "initial and repeated invocations; OS caches not flushed",
+          "memory_scope": "per-checker kernel peak; Windows excludes descendants, Linux waited-child/accounted descendants maxrss; neither is simultaneous physical tree memory",
+          "controls": {
+            "schema": "rns8_quality_controls_v1",
+            "records": [
+              {
+                "role": "cpp-format",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "python-format",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "python-lint",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "bash",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "workflow",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "cpp-format",
+                "expected": "reject",
+                "marker": "clang-format-violations",
+                "returncode": 1
+              },
+              {
+                "role": "python-lint",
+                "expected": "reject",
+                "marker": "F821",
+                "returncode": 1
+              },
+              {
+                "role": "bash",
+                "expected": "reject",
+                "marker": "SC2086",
+                "returncode": 1
+              },
+              {
+                "role": "workflow",
+                "expected": "reject",
+                "marker": "authored_missing_context",
+                "returncode": 1
+              }
+            ],
+            "scope": "static_checker_controls_no_compilation_or_workload_execution"
+          },
+          "source_inputs_unchanged": true,
+          "artifact": {
+            "path": "temp/issue-closeout-20261107/windows-quality-result.json",
+            "bytes": 292223,
+            "sha256": "07ed7262949ca6c72c872093ce6333fededcf8fd5657a031c488b840b56f46a0"
+          }
+        },
+        {
+          "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+          "python": "3.15.2 (main, Oct 26 2026, 14:06:56) [Clang 23.1.3 ]",
+          "source_commit": "1fd742fbc9be6a3c24d49548687bda47ac7ccbf2",
+          "source_digest": "28d98e31ed3f87c0d7f3ee497ef3ce2ac3a6c9692fed2fd8805bb42cfd215aa5",
+          "rounds": [
+            {
+              "round": "initial",
+              "elapsed_seconds": 18.518248497000002,
+              "maximum_checker_peak_bytes": 90296320
+            },
+            {
+              "round": "repeat",
+              "elapsed_seconds": 19.58976597100002,
+              "maximum_checker_peak_bytes": 90198016
+            }
+          ],
+          "cache_scope": "initial and repeated invocations; OS caches not flushed",
+          "memory_scope": "per-checker kernel peak; Windows excludes descendants, Linux waited-child/accounted descendants maxrss; neither is simultaneous physical tree memory",
+          "controls": {
+            "schema": "rns8_quality_controls_v1",
+            "records": [
+              {
+                "role": "cpp-format",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "python-format",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "python-lint",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "bash",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "workflow",
+                "expected": "accept",
+                "returncode": 0
+              },
+              {
+                "role": "cpp-format",
+                "expected": "reject",
+                "marker": "clang-format-violations",
+                "returncode": 1
+              },
+              {
+                "role": "python-lint",
+                "expected": "reject",
+                "marker": "F821",
+                "returncode": 1
+              },
+              {
+                "role": "bash",
+                "expected": "reject",
+                "marker": "SC2086",
+                "returncode": 1
+              },
+              {
+                "role": "workflow",
+                "expected": "reject",
+                "marker": "authored_missing_context",
+                "returncode": 1
+              }
+            ],
+            "scope": "static_checker_controls_no_compilation_or_workload_execution"
+          },
+          "source_inputs_unchanged": true,
+          "artifact": {
+            "path": "temp/issue-closeout-20261107/linux-quality-result.json",
+            "bytes": 285403,
+            "sha256": "2e23cec4380ec0df0cf74bd9333fb013455d29b97fc8f9a8ac743b9ff398e374"
+          }
+        }
+      ],
+      "scope": "Initial and repeated fresh checker invocations; OS caches were not flushed and these are not claimed as cold-storage measurements. Windows kernel peak excludes descendants; Linux maxrss is waited-child/accounted descendants rather than simultaneous physical tree memory. All nine controls on each host include five accepts and four intended rejects."
+    },
+    "python_structure": {
+      "case_inventory": "metadata/python-contract-case-inventory.json",
+      "results": [
+        {
+          "platform": "Windows-11-10.0.26300-SP0",
+          "python": "3.15.2 (tags/v3.15.2:5e58eaa, Oct 25 2026, 17:27:03) [MSC v.1951 64 bit (AMD64)]",
+          "source_commit": "d29e0f94e3dc9155c8a5e225bf9079d404d08259",
+          "isolated_cases": 11,
+          "reverse_aggregate_cases": 13,
+          "failed": 0,
+          "errors": 0,
+          "skipped": 0,
+          "artifact": {
+            "path": "temp/issue-closeout-20261107/windows-case-order-result.json",
+            "bytes": 2755,
+            "sha256": "a59f32356abc9690cb544fd27a41f1dfd17d777d12be48b78aaf2d1f9ac3f42f"
+          }
+        },
+        {
+          "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+          "python": "3.15.2 (main, Oct 26 2026, 14:06:56) [Clang 23.1.3 ]",
+          "source_commit": "d29e0f94e3dc9155c8a5e225bf9079d404d08259",
+          "isolated_cases": 11,
+          "reverse_aggregate_cases": 13,
+          "failed": 0,
+          "errors": 0,
+          "skipped": 0,
+          "artifact": {
+            "path": "temp/issue-closeout-20261107/linux-case-order-result.json",
+            "bytes": 2726,
+            "sha256": "2da93d2f3e7a804e5a6c6336afbdba2ce2311ea044c40255fb5e0e8c9bd898c5"
+          }
+        }
+      ],
+      "structural_controls": 7,
+      "scope": "11 inventory cases run separately and13 actual aggregate cases in reverse order on both hosts; structural module/fixture ownership and nonempty discovery checks pass. Later report fixtures and digest fixes have their own records."
+    },
+    "staged_types": {
+      "checker": "mypy2.4.1",
+      "runtime": "CPython3.15.2 on Windows and Ubuntu24.04/WSL2",
+      "source_target": "3.12",
+      "strict_modules": [
+        "tools/json_evidence.py",
+        "tools/evidence_scalars.py",
+        "tools/execution_environment_contract.py",
+        "tools/execution_observation.py",
+        "tools/evidence_records.py"
+      ],
+      "deliberate_invalid_fixtures": [
+        "arg-type",
+        "typeddict-item",
+        "name-defined"
+      ],
+      "scope": "Five explicit strict modules and three real rejected inputs on each host; remaining production modules are explicitly outside this first strict slice. Static checks do not replace runtime evidence.",
+      "artifacts": [
+        {
+          "path": "temp/issue-closeout-20261107/windows-typecheck-final.log",
+          "bytes": 2204,
+          "sha256": "90500e9d8b52c0ec6324adbb48223ca8cd078076f7ec170f4373f9419f865645"
+        },
+        {
+          "path": "temp/issue-closeout-20261107/linux-typecheck.log",
+          "bytes": 2193,
+          "sha256": "36b91180c60eef8e158ca29dfccd64512cf26f04a5dd3e84671866866a62481f"
+        }
+      ]
+    }
+  },
+  "remaining_blockers": [
+    "Two source-f60 Gram HIP event timing diagnostics reject negative event elapsed values; standalone HIP-only D2D reproduction remains unresolved. Exact copied bytes pass; invalid timing is never clamped, skipped or accepted.",
+    "Full selected sanitizer/analyzer/fuzzer/coverage/mutation and installed/native Linux matrices remain open under their own issues.",
+    "External target, multi-GPU, real device fault and matched performance campaigns retain their issue-specific gates; stopped campaigns remain stopped."
+  ]
+}

@@ -19,6 +19,16 @@ passed / 42 skipped / 2 failed**. The two failures are native Gram timing diagno
 that reject invalid HIP event timestamps. Source readiness and hardware/performance acceptance
 remain distinct; open issue counts are not implementation-task counts.
 
+The [November 7 acceptance review](../metadata/issue-closeout-20261107.json)
+separately records all 70 issue decisions: 16 repairs have closure evidence and
+54 retain explicit acceptance gates. Its [qualification receipt](../metadata/issue-closeout-validation-20261107.json)
+adds Windows CPU-ASan **629 passed / 64 skipped**, a real detector negative control,
+Linux/WSL C17/C++17 enum interoperability with UBSan, cross-platform quality/type
+controls and the 18 recovered legacy report scripts now registered in CTest.
+The selected registered Windows report batch passes **27/27**; the Linux/WSL
+host report batch passes **26/26**. These receipts retain their separate source
+cuts and do not establish Linux GPU or new performance qualification.
+
 The October 27 [implementation audit](../metadata/full-implementation-audit-20261027.json)
 and [branch code audit](branch-code-audit-20261027.md) retain their dated source
 and validation credit. Their earlier empty implementation backlog is superseded
@@ -56,7 +66,8 @@ Python3.15.2 and Radeon RX7900XTX (`gfx1100`). Fresh Release builds use Boost1.9
 Catch2 3.16.1, JSON3.12.0, GMP6.3.0, MPFR4.2.2 and FLINT3.6.0. Direct HIP, hipBLASLt,
 CK, rocWMMA and AMDGPU builtins compile and are detected; the registered installed
 consumers pass. Pinned lint/format and the staged strict Python slice, including checker
-negative controls, pass. This batch does not provide fresh sanitizer qualification.
+negative controls, pass. The Release batch has no sanitizer instrumentation; the
+separate acceptance receipt above records the new, scoped CPU-ASan qualification.
 Earlier Debug, OpenMP-OFF, CPU-ASan and package-configuration checks remain in the [SDK
 record](../metadata/hip101-validation-20261026.json),
 [configuration follow-up](platform-windows.md#october-26-configuration-follow-up)
