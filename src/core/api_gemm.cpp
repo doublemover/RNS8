@@ -692,25 +692,20 @@ rns8_status execute_incremental_gemm(rns8_context& ctx, const rns8_plan& plan, u
                                      const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C,
                                      rns8_workspace& workspace, rns8_result_cache& cache,
                                      const rns8_dirty_region* dirty_regions,
-                                     uint32_t dirty_region_count, bool finite) {
+                                     uint32_t dirty_region_count, bool finite,
+                                     bool full_output_dirty) {
   if (cache.in_flight_uses)
     return RNS8_BUSY;
-  reset_result_cache_last_call(cache);
-  cache.last_dirty_region_count = dirty_region_count;
   const rns8_status cache_status =
       validate_result_cache_for_call(ctx, plan, workspace, cache, modulus, finite);
   if (cache_status != RNS8_SUCCESS) {
     return cache_status;
   }
+  reset_result_cache_last_call(cache);
+  cache.last_dirty_region_count = dirty_region_count;
   if (A.source_version == 0 || B.source_version == 0 || A.generation_exhausted ||
       B.generation_exhausted) {
     return reject_stale_result_cache(cache, "source_version_zero");
-  }
-  bool full_output_dirty = false;
-  rns8_status status = validate_dirty_regions(plan, dirty_regions, dirty_region_count,
-                                              cache.max_dirty_regions, full_output_dirty);
-  if (status != RNS8_SUCCESS) {
-    return status;
   }
   if (!cache.initialized) {
     return execute_incremental_full_recompute(ctx, plan, modulus, A, B, C, workspace, cache, finite,
@@ -729,7 +724,7 @@ rns8_status execute_incremental_gemm(rns8_context& ctx, const rns8_plan& plan, u
   }
   if (dirty_region_count == 0) {
     size_t token = 0;
-    status = begin_synchronous_lease(ctx, A, B, C, workspace, token);
+    auto status = begin_synchronous_lease(ctx, A, B, C, workspace, token);
     if (status != RNS8_SUCCESS)
       return status;
     SynchronousLease lease(ctx, token);
@@ -1158,6 +1153,12 @@ rns8_status rns8_gemm_rns_incremental(rns8_context* ctx, const rns8_plan* plan,
     if (!ctx || !plan || !A || !B || !C || !workspace || !cache || A == C || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
+    // Descriptor rejection must precede lazy input conversion and exact proofs.
+    bool full_output_dirty = false;
+    const auto dirty_status = validate_dirty_regions(*plan, dirty_regions, dirty_region_count,
+                                                     cache->max_dirty_regions, full_output_dirty);
+    if (dirty_status != RNS8_SUCCESS)
+      return dirty_status;
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
@@ -1180,8 +1181,9 @@ rns8_status rns8_gemm_rns_incremental(rns8_context* ctx, const rns8_plan* plan,
         rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS)
       return range_status;
-    const auto status = execute_incremental_gemm(*ctx, *plan, 0, *A, *B, *C, *workspace, *cache,
-                                                 dirty_regions, dirty_region_count, false);
+    const auto status =
+        execute_incremental_gemm(*ctx, *plan, 0, *A, *B, *C, *workspace, *cache, dirty_regions,
+                                 dirty_region_count, false, full_output_dirty);
     if (status == RNS8_SUCCESS)
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
     else if (rns8::detail::exact_wide_semantics(plan->desc.semantics) && C->exact_range_prefix == 0)
@@ -1411,6 +1413,11 @@ rns8_status rns8_gemm_finite_u8_incremental(rns8_context* ctx, const rns8_plan* 
     if (!ctx || !plan || !A || !B || !C || !workspace || !cache || A == C || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
+    bool full_output_dirty = false;
+    const auto dirty_status = validate_dirty_regions(*plan, dirty_regions, dirty_region_count,
+                                                     cache->max_dirty_regions, full_output_dirty);
+    if (dirty_status != RNS8_SUCCESS)
+      return dirty_status;
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
@@ -1421,7 +1428,7 @@ rns8_status rns8_gemm_finite_u8_incremental(rns8_context* ctx, const rns8_plan* 
       return operand_status;
     }
     return execute_incremental_gemm(*ctx, *plan, modulus, *A, *B, *C, *workspace, *cache,
-                                    dirty_regions, dirty_region_count, true);
+                                    dirty_regions, dirty_region_count, true, full_output_dirty);
   });
 }
 

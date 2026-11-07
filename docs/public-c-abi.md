@@ -173,6 +173,15 @@ enum/flag validator. The receipt explicitly keeps
 all_external_enum_paths_covered false. Full API behavior and GPU execution
 remain separate validation requirements.
 
+Incremental GEMM validates the dirty-region array/count, size/version, reserved
+flags and rectangles before lazy input conversion, exact range proofs or cache
+diagnostic updates. Both RNS and finite-ring entrypoints share this admission;
+execution reuses its full-output result instead of rescanning the array.
+Malformed requests preserve matrices, reservations and cache diagnostics. CPU
+host-preflight controls retain a genuine unsupported-cache distinction; the
+separate direct-HIP fixture uses a real created cache and exact recomputation.
+These added controls are source-authored and await the combined validation batch.
+
 ## Optional Linux ELF types
 
 Native Linux shared checks can additionally supply --abidw, --abidiff,

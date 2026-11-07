@@ -51,6 +51,31 @@ TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles",
   rns8_result_cache* cache = nullptr;
   REQUIRE(rns8_create_result_cache(hip, hip_plan, &cache_desc, &cache) == RNS8_SUCCESS);
 
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  const auto output_generation = hip_c->content_generation;
+  const auto references = hip->prepared_references;
+  const auto cache_detail = cache->detail;
+  for (uint32_t bits : {1u, UINT32_C(0x80000000), UINT32_MAX}) {
+    rns8_dirty_region invalid{};
+    invalid.struct_size = sizeof(invalid);
+    invalid.abi_version = RNS8_ABI_VERSION;
+    invalid.row_extent = invalid.col_extent = 1;
+    invalid.flags = bits;
+    CHECK(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache,
+                                    &invalid, 1) == RNS8_INVALID_ARGUMENT);
+    CHECK_FALSE(cache->initialized);
+    CHECK(cache->last_dirty_region_count == 0);
+    CHECK(cache->detail == cache_detail);
+    CHECK(hip_c->content_generation == output_generation);
+    CHECK(hip->prepared_references == references);
+    CHECK_FALSE(hip_workspace->in_flight);
+  }
+  const auto rejected = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(rejected.allocate_calls == allocations.allocate_calls);
+  CHECK(rejected.free_calls == allocations.free_calls);
+  CHECK(rejected.h2d_calls == allocations.h2d_calls);
+  CHECK(rejected.d2h_calls == allocations.d2h_calls);
+
   REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache,
                                     nullptr, 0) == RNS8_SUCCESS);
 
