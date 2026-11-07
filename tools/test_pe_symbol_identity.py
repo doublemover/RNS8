@@ -21,6 +21,9 @@ def executable(*, guid=GUID, age=1, machine=0x8664):
     data[128:132] = b"PE\0\0"
     struct.pack_into("<HHIIIHH", data, 132, machine, 1, 0, 0, 0, 240, 2)
     struct.pack_into("<H", data, 152, 0x20B)
+    struct.pack_into("<I", data, 128 + 8, 456)
+    struct.pack_into("<I", data, 152 + 56, 8192)
+    struct.pack_into("<I", data, 152 + 64, 123)
     struct.pack_into("<I", data, 152 + 108, 16)
     struct.pack_into("<II", data, 152 + 160, 4096, 28)
     struct.pack_into("<IIII", data, 392 + 8, 512, 4096, 512, 512)
@@ -56,6 +59,9 @@ class SymbolIdentity(unittest.TestCase):
         self.assertFalse(value["native_symbol_resolution_observed"])
         self.assertFalse(value["source_contents_verified"])
         self.assertEqual(value["executable"]["recorded_pdb_path"], "authored.pdb")
+        self.assertEqual(value["executable"]["image_size"], 8192)
+        self.assertEqual(value["executable"]["image_timestamp"], 456)
+        self.assertEqual(value["executable"]["image_checksum"], 123)
         for guid, age in ((GUID, 2), (uuid.UUID(int=7), 1)):
             self.pdb.write_bytes(symbols(guid=guid, age=age))
             with self.assertRaisesRegex(ValueError, "GUID/age"):

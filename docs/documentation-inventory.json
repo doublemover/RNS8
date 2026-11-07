@@ -6135,6 +6135,7 @@
         }
       ],
       "anchors": [
+        "file-only-windows-pdb-source-lookup",
         "host-cpu-and-allocation-diagnostics",
         "native-linux-cpu-sample-decoding",
         "native-windows-cpu-points",

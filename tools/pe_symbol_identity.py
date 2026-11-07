@@ -143,7 +143,14 @@ def pe_identity(path, *, max_bytes=MAX_BYTES):
             )
         if len(records) != 1:
             raise ValueError("one unambiguous PE RSDS identity required")
-        return dict(image.finish(), machine=machine, **records[0])
+        return dict(
+            image.finish(),
+            machine=machine,
+            image_size=struct.unpack_from("<I", optional, 56)[0],
+            image_checksum=struct.unpack_from("<I", optional, 64)[0],
+            image_timestamp=struct.unpack("<I", image.read(offset + 8, 4))[0],
+            **records[0],
+        )
 
 
 def pdb_identity(path, *, max_bytes=MAX_BYTES):

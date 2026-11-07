@@ -337,14 +337,15 @@ establishes native module observations rather than loaded file-byte or PDB
 identity; the WPA module/IP join remains unbound. Native decoder/typed-catalog
 and full synthetic publication controls are authored and await runtime validation.
 
-The Windows result still remains partial: actually loaded PDB identity,
-measured-operation selection and API/GPU clock alignment are not established by
-the current tables. Current PE/PDB agreement cannot supply those observations.
+The Windows result remains partial: loaded file-byte/PDB identity and API/GPU
+clock alignment are not established by the current tables. Native CPU points
+can select same-file measured ETW windows; WPA-relative samples remain unbound.
+Current PE/PDB agreement cannot attest what bytes were loaded during capture.
 Native ETL/WPR/WPA compatibility and symbol attribution plus all authored
 ownership/cleanup/producer/unit/lifetime controls remain unexecuted. The native
 reader passes a Windows C++17 frontend check, and WPR XML passes the installed
 SDK's schema, as source checks only. Windows allocation, scheduler/wait,
-loaded-symbol and sample/range clock adapters and the full causal critical-path
+cross-tool clock adapters and the full causal critical-path
 report remain implementation work. No ETL decoder, WPR recording, elevation or system profiler has run during
 the source frontload.
 
@@ -426,12 +427,57 @@ Resolved points can select exclusive measured native ETW phases without aligning
 WPA-relative time or QPC clocks. Native marker boundaries include unseparated
 provider-call overhead. Point counts are not CPU-seconds: actual weighted
 sampling exposure and CPU duration remain unavailable until interval semantics
-are bound. Raw addresses are ready for the remaining loaded-module/PDB/source
-adapter; they do not themselves establish source ownership. The Windows owner
+are bound. Raw addresses do not themselves establish source ownership. The Windows owner
 publishes and replays `native-cpu-observations.json` alongside the raw native
 metadata, using a bounded larger decoder-output allowance. Portable native-byte,
 typed thread/sample/phase and full synthetic publication controls are authored;
 no ETL, payload fixture, decoder, profiler or runtime test has executed.
+
+## File-only Windows PDB source lookup
+
+`tools/windows_cpu_symbols.py` plans source lookup against an existing retained
+Windows acquisition. Supply one explicit local PE/PDB pair per desired module
+and its recorded ETL path. Device paths require an explicit operator alias;
+the adapter does not invent a drive mapping. Plan-only mode reads bounded
+artifacts and symbols without launching a native command.
+
+```powershell
+python tools/windows_cpu_symbols.py --acquisition-plan temp/host-cpu/plan.json `
+  --symbolizer build/rns8-pdb-symbolize.exe `
+  --dbghelp C:/Windows/System32/dbghelp.dll `
+  --module C:/RNS8/app.exe C:/RNS8/app.pdb C:/RNS8/app.exe `
+  --out temp/host-cpu-source
+```
+
+`--execute` first replays the acquisition and freshly decodes its retained ETL.
+It starts no recording or benchmark. Samples join only one observed closed
+image generation and a matching path, PE SizeOfImage, checksum and timestamp.
+Missing/ambiguous generations and changed fingerprints stay unresolved. These
+fields provide a conditional association, not loaded-image byte attestation.
+
+The optional Windows tool `rns8-pdb-symbolize` loads the explicitly retained
+local DbgHelp DLL and PDB in an isolated single-threaded child. It uses a unique
+non-process symbol-session key, disables process invasion, environment symbol
+paths, image searches and symbol-server autodetection, and requests no source
+download. Direct PDB loading and line lookup follow Microsoft's
+[SymLoadModuleExW](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symloadmoduleexw)
+and [SymGetLineFromAddrW64](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symgetlinefromaddrw64)
+contracts. Missing/incompatible DbgHelp or symbols fail explicitly; the tool
+never installs a replacement.
+
+Each batch retains requested RVAs, the actual opened PDB path/GUID/age, loaded
+DbgHelp path, source identity, process receipt and lookup errors. The receiver
+checks all identities and address displacements. Repeated addresses share one
+lookup, while per-sample generation and measured-phase identities remain
+separate. Bounds cover modules, unique RVAs, overlap work, batch output,
+retained artifacts and elapsed time, including the fresh ETL review.
+
+The report provides conditional leaf symbols, source-line locations and
+phase-specific sample counts. It binds current first-party source snapshots
+through the shared source inventory; a PDB line does not attest compilation
+source bytes. Unwound/inlined callchains, CPU duration and cross-tool GPU
+causality remain unavailable. Native lookup, CLI/typed controls and real PDB
+compatibility remain unexecuted; no profiling result or speedup is claimed.
 
 ## Separate Linux host allocation capture
 
