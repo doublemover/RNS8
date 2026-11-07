@@ -263,7 +263,7 @@ void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backen
                             ? optional_event_label(samples, "native_i64_to_rns_kernel") +
                                   optional_event_label(samples, "native_u64_to_rns_kernel") +
                                   optional_event_label(samples, kernel_label)
-                        : args.semantics == RNS8_WRAP_U64_MOD_2_64
+                        : args.semantics == BenchSemantics::WrapU64Mod2_64
                             ? 0.0 // Canonical compact bytes are uploaded without a GPU conversion.
                             : sum_event_label(events, samples, "pack", kernel_label);
   if (events.complete) {
