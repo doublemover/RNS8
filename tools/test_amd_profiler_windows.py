@@ -14,6 +14,7 @@ import amd_profiler_windows as rdp
 from amd_profiler_capabilities import probe_plan, preflight
 from test_device_observation import capture as device_capture
 from test_target_qualification_support import QualificationFixture, write
+from test_benchmark_schema_support_metadata import add_target_variant_fields
 
 
 class WindowsRdpCapture(unittest.TestCase):
@@ -22,11 +23,14 @@ class WindowsRdpCapture(unittest.TestCase):
         scratch = tempfile.TemporaryDirectory(dir=rdp.ROOT / "temp")
         self.addCleanup(scratch.cleanup)
         self.root = Path(scratch.name)
-        self.fixture = fixture = QualificationFixture(self.root / "fixture")
+        self.fixture = fixture = QualificationFixture(
+            self.root / "fixture", target="gfx1100", system="Windows"
+        )
         observed = device_capture()
         fixture.capture["device"].update(observed["device"])
         fixture.capture["device"]["gcn_arch"] = "gfx1100"
         fixture.capture["device_identity_witness"] = observed["device_identity_witness"]
+        add_target_variant_fields(fixture.capture, "gfx1100")
         write(fixture.capture_path, fixture.capture)
         self.tool = self.root / "RadeonDeveloperPanelCLI.exe"
         self.service = self.root / "RadeonDeveloperServiceCLI.exe"

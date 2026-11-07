@@ -402,7 +402,16 @@ class PublicationControls(unittest.TestCase):
                 ),
                 0,
             )
-            self.assertIn("payload_or_evidence_changed", review["cache_publication_error"])
+            self.assertEqual(
+                review["cache_publication_error"], "reviewed_candidate_revalidation_failed"
+            )
+            self.assertTrue(
+                any(
+                    item.get("cache_write_status") == "blocked_process_measurement_revalidation"
+                    and item.get("cache_write_error")
+                    for item in review["promotable_autotune_entries"]
+                )
+            )
             self.assertEqual(destination.read_bytes(), before)
             other.write_bytes(saved)
             refreshed = author()

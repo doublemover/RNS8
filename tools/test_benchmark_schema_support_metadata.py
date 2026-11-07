@@ -37,6 +37,16 @@ def add_target_variant_fields(capture: dict, target_id: str = "gfx1100") -> dict
         else "unknown"
     )
     device = capture.get("device", {})
+    metadata = capture.get("backend_metadata", {})
+    key = metadata.get("autotune_key")
+    if isinstance(key, str) and key:
+        fields = key.split(";")
+        metadata["autotune_key"] = ";".join(
+            "target_id=" + device.get("gcn_arch", target_id)
+            if field.startswith("target_id=")
+            else field
+            for field in fields
+        )
     device_name = device.get("name", "")
     hip_toolchain = capture.get("hip_toolchain", {})
     target_cache_key = (

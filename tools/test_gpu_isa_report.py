@@ -4,9 +4,15 @@
 from __future__ import annotations
 
 import gpu_isa_report
+from evidence_database_lib.isa import isa_index_key
 
 
 def main() -> int:
+    assert isa_index_key("hip-direct", "gfx942") == isa_index_key("direct-hip", "gfx942")
+    assert isa_index_key("HIP-DIRECT", "gfx942:xnack+") == "direct-hip|gfx942:xnack+"
+    assert isa_index_key("hip-direct", "gfx942:xnack+") != isa_index_key(
+        "hip-direct", "gfx942:xnack-"
+    )
     # Both spellings occur in actual AMDGPU disassembly. Count instructions,
     # not vector elements/bytes, and leave atomics out of plain load/store bins.
     aliases = gpu_isa_report.scan_disassembly("""

@@ -194,8 +194,14 @@ def session_stage(
     working_directory = Path(text(manifest.get("command_working_directory"))).resolve(strict=True)
     if working_directory != Path(text(proof.get("working_directory"))).resolve(strict=True):
         raise ValueError("phase working directory differs from the executed session")
+    manifest_version = manifest.get("schema_version")
+    profiler_session = manifest.get("schema") in {
+        "rns8_amd_profiler_session_v1",
+        "rns8_host_perf_session_v1",
+    }
     if (
-        manifest.get("schema_version") != 2
+        type(manifest_version) is not int
+        or manifest_version != (4 if profiler_session else 2)
         or results.get("schema") != "rns8_gpu_session_results_v2"
     ):
         raise ValueError("unsupported raw qualification session schema")

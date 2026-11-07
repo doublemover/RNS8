@@ -34,14 +34,16 @@ def reference(path: Path) -> dict:
 
 
 class QualificationFixture:
-    def __init__(self, root: Path, *, target="gfx942", seed=None):
+    def __init__(self, root: Path, *, target="gfx942", seed=None, system="Linux"):
+        if system not in {"Linux", "Windows"}:
+            raise ValueError("fixture system must be Linux or Windows")
         self.root = root.resolve()
         self.build = self.root / "build"
         self.build.mkdir(parents=True)
         self.binaries = {}
         self.code = b"AUTHORED SYNTHETIC CODE OBJECT; NOT EXECUTABLE"
         for name in ("rns8-bench", "rns8_tests", "rns8-verify"):
-            binary = self.build / name
+            binary = self.build / (name + (".exe" if system == "Windows" else ""))
             binary.write_bytes(b"prefix" + self.code + b"suffix" + name.encode())
             self.binaries[name] = binary
         self.capture = bounded_capture("hip-direct", 300)

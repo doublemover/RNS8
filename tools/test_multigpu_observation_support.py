@@ -13,6 +13,7 @@ from test_device_observation import capture as observation_capture, inspection
 from test_target_qualification_support import QualificationFixture, write
 from test_review_reference_support import add_synthetic_full_reference
 from test_benchmark_sweep_support import finite_capture
+from test_benchmark_schema_support_metadata import add_target_variant_fields
 
 
 class ObservationFixture:
@@ -141,6 +142,7 @@ class ObservationFixture:
             for index, case in enumerate(self.cases):
                 capture = copy.deepcopy(template)
                 capture.update(observation_capture(device=selected))
+                add_target_variant_fields(capture, "gfx942")
                 capture["seed"] = (
                     20 + index + (1 if changed_seed and rank == 3 and index == 0 else 0)
                 )
@@ -168,7 +170,9 @@ class ObservationFixture:
                     "--seed",
                     str(capture["seed"]),
                 ]
-                request["environment"].update(environment)
+                request["environment"].update(
+                    {key: value for key, value in environment.items() if value is not None}
+                )
                 if swapped_device and rank == 3 and index == 0:
                     request["environment"]["HIP_VISIBLE_DEVICES"] = "4"
                 request["identity_sha256"] = canonical_digest(

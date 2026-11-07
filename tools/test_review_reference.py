@@ -7,6 +7,7 @@ import unittest
 
 import error_detection_policy_report
 import verification_amortization_report
+from review_contract import REVIEW_SCHEMA_VERSION
 from test_error_detection_policy_report import error_detecting_capture
 from test_verification_amortization_report import amortized_capture
 from test_review_reference_support import write_policy_review
@@ -61,7 +62,7 @@ class ReviewReferenceTest(unittest.TestCase):
                 self.assertTrue(row["promotion_prohibited"])
                 self.assertTrue(row["ready"])
                 sidecar = json.loads((root / "review_report.json").read_text(encoding="utf-8"))
-                self.assertEqual(sidecar["schema_version"], 3)
+                self.assertEqual(sidecar["schema_version"], REVIEW_SCHEMA_VERSION)
                 self.assertTrue(
                     any(
                         candidate["promotable"] is False

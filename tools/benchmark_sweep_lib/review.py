@@ -3076,8 +3076,9 @@ def _reviewed_cache_candidates(
             )
             if fresh is None:
                 raise ValueError("review candidate no longer qualifies")
-        except (KeyError, OSError, TypeError, ValueError):
+        except (KeyError, OSError, TypeError, ValueError) as error:
             item["cache_write_status"] = "blocked_process_measurement_revalidation"
+            item["cache_write_error"] = str(error)
             continue
         # Defense in depth: a saved/edited review or mutated capture cannot bypass
         # the production/diagnostic binding at the actual cache mutation boundary.
@@ -3164,6 +3165,8 @@ def write_promoted_cache_entries(
         return 0
     entries, written_sources = _reviewed_cache_candidates(report, captures)
     if not entries:
+        if promotable:
+            report["cache_publication_error"] = "reviewed_candidate_revalidation_failed"
         return 0
     try:
         installation = install_reviewed_entries(

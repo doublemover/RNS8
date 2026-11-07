@@ -30,7 +30,7 @@ def normalized_target(value: Any) -> str | None:
 
 
 def isa_index_key(backend: str, target: str | None) -> str:
-    return f"{backend}|{target or '*'}"
+    return f"{normalized_backend(backend)}|{target or '*'}"
 
 
 def numeric_value(value: Any) -> int | float | None:

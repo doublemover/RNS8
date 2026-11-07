@@ -63,6 +63,11 @@ def synthetic_reference_controls(subject: dict) -> list[dict]:
             capture["scenario_metadata"] = copy.deepcopy(subject["scenario_metadata"])
         for name in ("verification_amortization", "error_detection_policy"):
             capture.pop(name, None)  # controls are references, not additional policy rows
+        amortization = subject.get("verification_amortization")
+        if isinstance(amortization, dict):
+            # Keep the declared comparison policy while making these controls
+            # ordinary references rather than additional amortization subjects.
+            capture["verification_amortization"] = dict(amortization, enabled=False)
         actual = numerical_contract(
             {key: value for key, value in capture.items() if key != "native_reference_verification"}
         )

@@ -61,7 +61,7 @@ def synthetic_identity(capture: dict, *, commit: str = "c" * 40) -> None:
         "source_digest": "a" * 64,
         "source_commit": commit,
         "source_dirty": False,
-        "configuration": "synthetic fixture",
+        "configuration": "synthetic_fixture_only=ON",
         "dependency_digest": "d" * 64,
         "linkage": "static-rns8",
         "identity_scope": "source-config-and-external-headers",

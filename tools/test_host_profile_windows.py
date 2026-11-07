@@ -17,6 +17,7 @@ import check_dependencies_lib.discovery as discovery
 from test_device_observation import capture as device_capture
 from test_pe_symbol_identity import executable, symbols
 from test_target_qualification_support import QualificationFixture, write
+from test_benchmark_schema_support_metadata import add_target_variant_fields
 from test_wpa_sample_reader import sample_fields
 from test_etl_process_contract import native_metadata
 from test_etl_image_contract import image
@@ -35,7 +36,9 @@ class WindowsHostProfile(unittest.TestCase):
         scratch = tempfile.TemporaryDirectory(dir=host.ROOT / "temp")
         self.addCleanup(scratch.cleanup)
         self.root = Path(scratch.name)
-        self.fixture = fixture = QualificationFixture(self.root / "fixture")
+        self.fixture = fixture = QualificationFixture(
+            self.root / "fixture", target="gfx1100", system="Windows"
+        )
         self.binary = fixture.binaries["rns8-bench"]
         self.binary.write_bytes(executable())
         fixture.capture["request_identity"]["executable_sha256"] = file_digest(self.binary)
@@ -50,6 +53,7 @@ class WindowsHostProfile(unittest.TestCase):
         observed = device_capture()
         fixture.capture["device"].update(observed["device"])
         fixture.capture["device_identity_witness"] = observed["device_identity_witness"]
+        add_target_variant_fields(fixture.capture, "gfx1100")
         write(fixture.capture_path, fixture.capture)
         self.pdb, self.wpr, self.exporter = (
             self.root / name for name in ("app.pdb", "wpr.exe", "wpaexporter.exe")
