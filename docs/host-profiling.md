@@ -344,7 +344,7 @@ Current PE/PDB agreement cannot attest what bytes were loaded during capture.
 Native ETL/WPR/WPA compatibility and symbol attribution plus all authored
 ownership/cleanup/producer/unit/lifetime controls remain unexecuted. The native
 reader passes a Windows C++17 frontend check, and WPR XML passes the installed
-SDK's schema, as source checks only. Windows allocation,
+SDK's schema, as source checks only. Native allocation stack/source,
 cross-tool clock adapters and the full causal critical-path
 report remain implementation work. No ETL decoder, WPR recording, elevation or system profiler has run during
 the source frontload.
@@ -516,10 +516,19 @@ unavailable. Raw stack walking/source attribution and actual native capture
 compatibility are separate qualification work; authored byte, typed scheduling,
 phase and synthetic publication controls remain unexecuted.
 
-## Separate Linux host allocation capture
+## Windows host allocation capture
 
-Windows allocation acquisition remains separate source work. Its settings
-transaction is implemented in `tools/windows_heap_settings.py` against the
+`--heap` selects `metadata/host-profile-heap.wprp` as a separate diagnostic role;
+it cannot be combined with `--scheduling`. The plan binds the same production
+contract, symbols, tools and process custody as CPU capture. Execution needs
+both `--authorize-system-recording` and
+`--authorize-image-heap-configuration`. IFEO activation surrounds only the owned
+workload, and both settings restoration and owned WPR stop run on failure.
+No elevation is launched. The trace covers the bounded system recording window;
+IFEO selects a basename, not a file path, while native decoding selects the
+actual owned PID. Other already-enabled image tracing can be present in raw ETL.
+
+The settings transaction is implemented in `tools/windows_heap_settings.py` against the
 documented [IFEO TracingFlags setting](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/recording-for-heap-analysis).
 Planning an executable basename opens no registry key. Runtime use requires
 explicit image-heap authorization; it never elevates or changes unrelated
@@ -546,6 +555,39 @@ not reported as an exact restoration of prior container presence. These are
 observed state checks, not an atomic transaction with arbitrary registry
 writers. Authored in-memory recovery/interruption controls remain unexecuted;
 no registry or mutex has been opened during source work.
+
+The file-only inspector retains native HeapTrace v0 Create/Alloc/ReAlloc/
+Destroy/Free records with exact version, pointer width and payload-size checks.
+Layouts follow the pinned Microsoft
+[HeapTrace parser](https://github.com/microsoft/perfview/blob/4f3118c0fe7f624ae93a3249ae2ff7b6e1800e98/src/TraceEvent/Parsers/KernelTraceEventParser.cs).
+Other versions and heap record kinds remain explicitly counted. Heap, CPU and
+scheduler observations share the bounded projection allowance. Known selected
+header PIDs or independently replayed unique owned-thread lifetimes select
+candidate records; the receiver also rejects aliasing across native record IDs.
+
+`native-heap-observations.json` preserves allocation and heap generations,
+pointer reuse, reallocations, explicit versus heap-destruction ends, native
+reported byte fields, size buckets and event-lifetime intervals. Null realloc
+outcomes preserve the old generation. Missing frees, conflicting size fields,
+replaced live pointers and same-time dependent events remain unresolved.
+Combined live boundary totals use the actual common timestamp sequence across
+heaps; independent per-heap maxima are never summed. The reported high-water
+and retained payload are conditional tracking observations, not an exact
+process peak or a zero-allocation proof. Preexisting heaps keep unknown heap
+generation identity. Native heap bytes remain separate from RSS, pinned and
+device storage.
+
+The CPU and allocation point adapters share native ETW measured-phase selection.
+Allocation/free phase identities and generations ending inside one measured
+operation remain explicit; a native event point does not measure allocator API
+duration. Header loss, unsupported/undecoded records, unbound thread phases and
+empty allocation projections retain their limits. Read-only receipt review
+reconstructs heap reports and validates saved settings journals without opening
+the registry. Native allocation stacks/source association and real version/
+capture compatibility remain pending. All new byte, generation, identity,
+phase, journal and owned failure/publication controls are authored and unexecuted.
+
+## Separate Linux host allocation capture
 
 `tools/host_heap_session.py` authors a bounded Linux recipe against an explicit
 native `libheaptrack_preload.so`. Its plan reads the existing admissible
@@ -596,7 +638,7 @@ Neither quantity is an exact whole-process transient peak or leak proof. Device
 and pinned storage stay unobserved by this host-heap lane. Raw addresses and
 module records alone do not establish loaded symbols or source ownership.
 Operation/phase association, symbol attribution, complete interception and
-separate Windows heap integration remain source work. The native
+remaining native allocation stack/source integration remain source work. The native
 format controls and direct-child producer/consumer controls are authored and
 registered; no decoder, preload, fixture, benchmark or profiler has run in this
 source pass.

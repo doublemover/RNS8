@@ -7,8 +7,7 @@ from collections import defaultdict
 from itertools import groupby
 
 from etl_process_contract import integer
-from host_range_contract import range_inventory, measured_roots
-from native_phase_attribution import attribute
+from etl_point_phases import select_native_points
 
 PRODUCER_SOURCE = "https://github.com/microsoft/perfview/blob/4f3118c0fe7f624ae93a3249ae2ff7b6e1800e98/src/TraceEvent/Parsers/KernelTraceEventParser.cs"
 SAMPLE_FILTER = (
@@ -186,6 +185,7 @@ def cpu_catalog(metadata, process, *, snapshot=None, native_ranges=None):
             "observed_marker_events",
             "observed_thread_events",
             "observed_schedule_events",
+            "observed_heap_events",
         )
     )
     if known > total:
@@ -335,61 +335,14 @@ def cpu_catalog(metadata, process, *, snapshot=None, native_ranges=None):
 
 
 def _select(points, pid, snapshot, ranges):
-    if type(ranges.get("selected_pid")) is not int or ranges["selected_pid"] != pid:
-        raise ValueError("native CPU ranges belong to another process")
-    index = range_inventory(snapshot, pid, clock_kind="windows_qpc")
-    roots = measured_roots(index)
-    markers = {row["slot"]: row for row in ranges["markers"]}
-    groups = defaultdict(list)
-    for identity, root in roots.items():
-        row = markers[identity]
-        groups[root["start_thread_id"]].append((row["start_ns"], row["end_ns"], identity))
-    starts = {}
-    for tid, windows in groups.items():
-        windows.sort()
-        if any(left[1] > right[0] for left, right in zip(windows, windows[1:])):
-            raise ValueError("same-thread measured native windows overlap")
-        starts[tid] = [row[0] for row in windows]
-    selected, outside = [], 0
-    origin = ranges["phase_origin_filetime_100ns"]
-    for point in points:
-        time = (point["time_filetime_100ns"] - origin) * 100
-        position = bisect_right(starts.get(point["tid"], []), time) - 1
-        if position < 0 or time >= groups[point["tid"]][position][1]:
-            outside += 1
-            continue
-        owner = groups[point["tid"]][position][2]
-        # Reuse ancestry containment for a native point, not a HIP API event.
-        selected.append(
-            dict(
-                host_range_id=owner,
-                launch_thread_id=point["tid"],
-                api_start_ns=time,
-                api_end_ns=time,
-                native_api_id=point["record_index"],
-            )
+    value = select_native_points(points, pid, snapshot, ranges)
+    value["samples"] = [
+        dict(
+            native_sample_record=row["native_record"],
+            **{key: item for key, item in row.items() if key != "native_record"},
         )
-    report = attribute(
-        index,
-        markers,
-        roots,
-        selected,
-        clock_domain="native_ETL_FILETIME_relative_to_process_start_ns",
-    )
-    return dict(
-        samples=[
-            dict(
-                native_sample_record=row["native_api_id"],
-                measured_root_id=row["host_range_id"],
-                phase=row["launch_phase"],
-                phase_range_id=row["launch_phase_range_id"],
-                tid=row["launch_thread_id"],
-            )
-            for row in report["records"]
-        ],
-        outside_or_unbound_thread_samples=outside,
-        sample_count=len(selected),
-        boundary="native_ETW_marker_points_include_unseparated_provider_call_overhead",
-        CPU_time_inferred=False,
-        GPU_dependencies_inferred=False,
-    )
+        for row in value.pop("points")
+    ]
+    value["outside_or_unbound_thread_samples"] = value.pop("outside_or_unbound_thread_points")
+    value["sample_count"] = value.pop("point_count")
+    return value

@@ -6142,7 +6142,8 @@
         "native-windows-operation-markers",
         "opt-in-windows-scheduling-observations",
         "separate-linux-host-allocation-capture",
-        "windows-acquisition-boundary"
+        "windows-acquisition-boundary",
+        "windows-host-allocation-capture"
       ]
     },
     {

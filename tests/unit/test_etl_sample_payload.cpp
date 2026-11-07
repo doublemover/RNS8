@@ -79,3 +79,47 @@ TEST_CASE("native ETW scheduler v2 payloads are unaligned bounded copies", "[cpu
   CHECK(ready.tid == new_tid);
   CHECK(std::memcmp(ready.control.data(), &old_tid, 4) == 0);
 }
+
+TEST_CASE("native ETW heap v0 layouts preserve pointer domains and reject unsupported bytes",
+          "[cpu][trace]") {
+  using namespace rns8::detail::trace;
+  for (const uint32_t width : {4u, 8u})
+    for (const uint32_t opcode : {32u, 33u, 34u, 35u, 36u}) {
+      const uint32_t count = opcode == 32 || opcode == 35 ? 1u
+                             : opcode == 33               ? 3u
+                             : opcode == 34               ? 5u
+                                                          : 2u;
+      const size_t size = count * width + (opcode == 35 ? 0u : 4u);
+      std::array<unsigned char, 45> storage{};
+      auto* raw = storage.data() + 1;
+      for (uint32_t i = 0; i < count; ++i) {
+        const uint64_t value =
+            (width == 4 ? UINT64_C(0xf1234560) : UINT64_C(0xf123456789abcde0)) + i;
+        std::memcpy(raw + i * width, &value, width);
+      }
+      const uint32_t tail = 0xfedcba98;
+      if (opcode != 35)
+        std::memcpy(raw + count * width, &tail, 4);
+      EtwHeapEvent output;
+      REQUIRE(decode_etw_heap_event(raw, size, 0, opcode, width, output));
+      CHECK(output.word_count == count);
+      for (uint32_t i = 0; i < count; ++i)
+        CHECK(output.words[i] ==
+              (width == 4 ? UINT64_C(0xf1234560) : UINT64_C(0xf123456789abcde0)) + i);
+      CHECK(output.tail == (opcode == 35 ? 0u : tail));
+      const auto previous = output;
+      CHECK_FALSE(decode_etw_heap_event(nullptr, size, 0, opcode, width, output));
+      CHECK_FALSE(decode_etw_heap_event(raw, size - 1, 0, opcode, width, output));
+      CHECK_FALSE(decode_etw_heap_event(raw, size + 1, 0, opcode, width, output));
+      CHECK_FALSE(decode_etw_heap_event(raw, SIZE_MAX, 0, opcode, width, output));
+      for (const uint32_t version : {1u, 2u, UINT32_MAX})
+        CHECK_FALSE(decode_etw_heap_event(raw, size, version, opcode, width, output));
+      for (const uint32_t invalid : {0u, 31u, 37u, UINT32_MAX})
+        CHECK_FALSE(decode_etw_heap_event(raw, size, 0, invalid, width, output));
+      for (const uint32_t invalid : {0u, 1u, 16u, UINT32_MAX})
+        CHECK_FALSE(decode_etw_heap_event(raw, size, 0, opcode, invalid, output));
+      CHECK(output.words == previous.words);
+      CHECK(output.word_count == previous.word_count);
+      CHECK(output.tail == previous.tail);
+    }
+}

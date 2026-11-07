@@ -23,6 +23,35 @@ struct EtwReadyThread {
   std::array<uint8_t, 4> control{};
 };
 
+struct EtwHeapEvent {
+  std::array<uint64_t, 5> words{};
+  uint32_t word_count = 0, tail = 0;
+};
+
+// Pinned Microsoft HeapTrace v0 layouts. Other opcodes/versions are not
+// allocation records merely because their payload has a similar byte length.
+inline bool decode_etw_heap_event(const void* bytes, size_t size, uint32_t version, uint32_t opcode,
+                                  uint32_t pointer_bytes, EtwHeapEvent& output) noexcept {
+  if (!bytes || version != 0 || (pointer_bytes != 4 && pointer_bytes != 8))
+    return false;
+  const uint32_t count = opcode == 32 || opcode == 35 ? 1u
+                         : opcode == 33               ? 3u
+                         : opcode == 34               ? 5u
+                         : opcode == 36               ? 2u
+                                                      : 0u;
+  if (!count || size != count * pointer_bytes + (opcode == 35 ? 0u : 4u))
+    return false;
+  EtwHeapEvent value;
+  const auto* raw = static_cast<const unsigned char*>(bytes);
+  value.word_count = count;
+  for (uint32_t i = 0; i < count; ++i)
+    std::memcpy(&value.words[i], raw + i * pointer_bytes, pointer_bytes);
+  if (opcode != 35)
+    std::memcpy(&value.tail, raw + count * pointer_bytes, 4);
+  output = value;
+  return true;
+}
+
 inline bool decode_etw_context_switch(const void* bytes, size_t size, uint32_t version,
                                       EtwContextSwitch& output) noexcept {
   if (!bytes || size != 24 || version != 2)

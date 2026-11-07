@@ -23,6 +23,9 @@ from test_etl_image_contract import image
 from test_etl_range_contract import windows_snapshot
 from test_etl_cpu_contract import cpu_metadata
 from test_etl_schedule_contract import schedule_metadata
+from test_etl_heap_contract import heap_metadata
+from test_windows_heap_settings import Registry as FakeRegistry, absent
+from windows_heap_settings import temporary_configuration
 from wpa_sample_reader import HEADERS
 
 
@@ -59,6 +62,7 @@ class WindowsHostProfile(unittest.TestCase):
         self.calls, self.fail = [], None
         self.ranges = False
         self.scheduling = False
+        self.heap = False
 
     def plan(self, **options):
         return host.plan_capture(
@@ -80,7 +84,9 @@ class WindowsHostProfile(unittest.TestCase):
             stderr="",
         )
         if name == "profiles":
-            result["stdout"] = "Rns8CpuSchedule" if self.scheduling else "Rns8Cpu"
+            result["stdout"] = (
+                "Rns8Heap" if self.heap else "Rns8CpuSchedule" if self.scheduling else "Rns8Cpu"
+            )
         elif name == "identity":
             value = json.loads(
                 Path(self.fixture.binary_receipts["rns8-bench"]["identity_document"]).read_text()
@@ -112,8 +118,14 @@ class WindowsHostProfile(unittest.TestCase):
                     image(2, 800, image_path_utf8=str(self.binary)),
                 ],
             )
-            if self.ranges or self.scheduling:
-                markers = schedule_metadata() if self.scheduling else cpu_metadata()
+            if self.ranges or self.scheduling or self.heap:
+                markers = (
+                    heap_metadata()
+                    if self.heap
+                    else schedule_metadata()
+                    if self.scheduling
+                    else cpu_metadata()
+                )
                 for key in (
                     "observed_events",
                     "observed_marker_events",
@@ -133,6 +145,13 @@ class WindowsHostProfile(unittest.TestCase):
                     "schedule_events",
                     "schedule_filter",
                     "schedule_record_namespace",
+                    "observed_heap_events",
+                    "undecoded_heap_events",
+                    "excluded_heap_events",
+                    "unsupported_heap_events",
+                    "heap_events",
+                    "heap_filter",
+                    "heap_record_namespace",
                 ):
                     metadata[key] = markers[key]
             result["stdout"] = json.dumps(metadata)
@@ -170,12 +189,17 @@ class WindowsHostProfile(unittest.TestCase):
             result["returncode"] = 7
         return result
 
-    def execute(self, plan):
+    def execute(self, plan, *, authorize_heap=False):
         self.ranges = plan["operation_ranges"]
         self.scheduling = plan["scheduling"]
+        self.heap = plan["heap"]
         with patch.object(host.platform, "system", return_value="Windows"):
             return host.execute_capture(
-                plan, authorize_system_recording=True, runner=self.runner, environment={}
+                plan,
+                authorize_system_recording=True,
+                runner=self.runner,
+                environment={},
+                authorize_image_heap_configuration=authorize_heap,
             )
 
     def test_plan_never_runs_and_every_owner_command_keeps_instance_last(self):
@@ -363,6 +387,53 @@ class WindowsHostProfile(unittest.TestCase):
         self.assertTrue(plan["requires_explicit_system_recording_authorization"])
         with self.assertRaisesRegex(ValueError, "booleans"):
             self.plan(scheduling=1)
+
+    def test_heap_recipe_needs_separate_authorization_and_restores_before_publication(self):
+        registry = FakeRegistry(absent(key=True))
+        plan = self.plan(heap=True)
+        self.assertTrue(plan["requires_explicit_image_heap_authorization"])
+        self.assertEqual(plan["profile_name"], "Rns8Heap")
+        with self.assertRaisesRegex(ValueError, "authorize-image"):
+            self.execute(plan)
+        self.assertFalse(self.out.exists())
+        self.assertEqual(registry.enables, 0)
+
+        def lease(policy, directory, *, authorized):
+            return temporary_configuration(
+                policy, directory, authorized=authorized, registry_factory=lambda policy: registry
+            )
+
+        with patch.object(host, "temporary_configuration", side_effect=lease):
+            self.assertEqual(self.execute(plan, authorize_heap=True), 0)
+        self.assertEqual(registry.value, absent(key=True))
+        result = json.loads((self.out / "host-profile.json").read_text())
+        self.assertTrue(result["heap_settings"]["prior_value_restored"])
+        heap = json.loads(Path(result["native_heap_observations"]["path"]).read_text())
+        self.assertEqual(heap["summary"]["conditional_tracked_live_boundary_high_water_bytes"], 96)
+        self.assertFalse(heap["complete_heap_history_proven"])
+        with self.assertRaisesRegex(ValueError, "separate capture"):
+            self.plan(heap=True, scheduling=True)
+
+    def test_failed_heap_workload_restores_image_setting_and_stops_owned_recording(self):
+        registry = FakeRegistry(absent(key=True))
+        self.fail = "workload"
+        plan = self.plan(heap=True)
+
+        def lease(policy, directory, *, authorized):
+            return temporary_configuration(
+                policy, directory, authorized=authorized, registry_factory=lambda policy: registry
+            )
+
+        with patch.object(host, "temporary_configuration", side_effect=lease):
+            self.assertEqual(self.execute(plan, authorize_heap=True), 1)
+        self.assertEqual(registry.value, absent(key=True))
+        self.assertTrue(registry.closed)
+        self.assertEqual([name for name, _, _ in self.calls][-1], "stop")
+        result = json.loads((self.out / "host-profile.json").read_text())
+        self.assertEqual(result["qualification"], "incomplete")
+        self.assertFalse(result["promotion_allowed"])
+        receipt = json.loads((self.out / "heap-settings-after.json").read_text())
+        self.assertTrue(receipt["prior_value_restored"])
 
     def test_failed_workload_stops_only_owned_instance_and_never_exports(self):
         self.fail = "workload"

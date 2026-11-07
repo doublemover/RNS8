@@ -12,6 +12,7 @@ from windows_heap_settings import (
     temporary_configuration,
     restore_journal,
     write_journal,
+    settings_receipt,
 )
 
 
@@ -208,6 +209,32 @@ class HeapSettings(unittest.TestCase):
                 )
             self.assertEqual(registry.value, dword(2))
             self.assertFalse(documents[-1][1]["prior_value_restored"])
+
+    def test_saved_settings_receipts_replay_without_reopening_native_registry(self):
+        registry = Registry(dword(0))
+        documents = []
+        with self.lease(registry, documents):
+            pass
+        before, after = documents[0][1], documents[1][1]
+        policy = configuration("rns8-bench.exe")
+        report = settings_receipt(before, after, policy=policy, owner_pid=before["owner_pid"])
+        self.assertTrue(report["prior_value_restored"])
+        self.assertFalse(report["registry_reopened_during_review"])
+        for key, value in (
+            ("owner_pid", True),
+            ("prior_value_restored", False),
+            ("prior_container_presence_restored", False),
+            ("state", "not_modified"),
+            ("mutation_attempted", False),
+        ):
+            changed = copy.deepcopy(after)
+            changed[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                settings_receipt(before, changed, policy=policy, owner_pid=before["owner_pid"])
+        changed = copy.deepcopy(after)
+        changed["after"] = dword(1)
+        with self.assertRaises(ValueError):
+            settings_receipt(before, changed, policy=policy, owner_pid=before["owner_pid"])
 
 
 if __name__ == "__main__":

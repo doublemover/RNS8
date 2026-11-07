@@ -25,6 +25,12 @@ from etl_image_contract import image_catalog
 from etl_range_contract import operation_ranges as bind_operation_ranges
 from etl_cpu_contract import cpu_catalog
 from etl_schedule_contract import schedule_catalog
+from etl_heap_contract import heap_catalog
+from windows_heap_settings import (
+    configuration as heap_configuration,
+    temporary_configuration,
+    settings_receipt,
+)
 from etl_inspector_identity import source_identity as etl_source_identity
 from gpu_qualification import owned_artifact_files
 from host_instrumentation_session import reference, write_json
@@ -38,7 +44,7 @@ from execution_inventory import bounded_read
 from wpa_sample_reader import read_samples
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "rns8_windows_host_profile_plan_v4"
+SCHEMA = "rns8_windows_host_profile_plan_v5"
 MAX_ETL_METADATA_BYTES = 48 * 1024**2
 SUCCESS_STAGES = (
     "wpr_help",
@@ -60,6 +66,9 @@ SOURCE_INPUTS = (
     "tools/etl_range_contract.py",
     "tools/etl_cpu_contract.py",
     "tools/etl_schedule_contract.py",
+    "tools/etl_heap_contract.py",
+    "tools/etl_point_phases.py",
+    "tools/windows_heap_settings.py",
     "tools/host_interval_phases.py",
     "tools/etl_inspector_identity.py",
     "src/diagnostics/etl_sample_payload.hpp",
@@ -90,6 +99,7 @@ SOURCE_INPUTS = (
     "tools/build_instrumentation.py",
     "metadata/host-profile-cpu.wprp",
     "metadata/host-profile-scheduling.wprp",
+    "metadata/host-profile-heap.wprp",
     "metadata/host-profile-cpu.wpaProfile",
 )
 
@@ -116,10 +126,13 @@ def plan_capture(
     minimum_free_bytes=1024**3,
     operation_ranges=False,
     scheduling=False,
+    heap=False,
     review_existing=False,
 ):
-    if any(type(value) is not bool for value in (operation_ranges, scheduling)):
+    if any(type(value) is not bool for value in (operation_ranges, scheduling, heap)):
         raise ValueError("Windows operation range/scheduler policies must be explicit booleans")
+    if heap and scheduling:
+        raise ValueError("Windows heap and scheduling diagnostics require separate capture roles")
     if (
         any(
             type(value) not in (int, float) or not 0 < value <= 1800 or not math.isfinite(value)
@@ -180,9 +193,13 @@ def plan_capture(
     if "--record-execution-environment" not in arguments:
         arguments.append("--record-execution-environment")
     profiles = ROOT / (
-        "metadata/host-profile-scheduling.wprp" if scheduling else "metadata/host-profile-cpu.wprp"
+        "metadata/host-profile-heap.wprp"
+        if heap
+        else "metadata/host-profile-scheduling.wprp"
+        if scheduling
+        else "metadata/host-profile-cpu.wprp"
     )
-    profile_name = "Rns8CpuSchedule" if scheduling else "Rns8Cpu"
+    profile_name = "Rns8Heap" if heap else "Rns8CpuSchedule" if scheduling else "Rns8Cpu"
     commands = dict(
         wpr_help=[tools["wpr"]["path"], "-help", "start"],
         exporter_help=[tools["exporter"]["path"], "-h"],
@@ -240,6 +257,8 @@ def plan_capture(
             expected_native_environment=native_environment,
             operation_ranges=operation_ranges,
             scheduling=scheduling,
+            heap=heap,
+            heap_configuration=heap_configuration(executable.name) if heap else None,
             profile_name=profile_name,
             symbol_search_environment=dict(
                 _NT_SYMBOL_PATH=str(Path(pdb).resolve(strict=True).parent),
@@ -259,6 +278,7 @@ def plan_capture(
             ),
             scope="system_ETW_window_selected_benchmark_PID_decode",
             requires_explicit_system_recording_authorization=True,
+            requires_explicit_image_heap_authorization=heap,
             qualification="plan_only_no_native_command_executed",
             promotion_allowed=False,
         )
@@ -279,6 +299,7 @@ def rebuild(plan, *, review_existing=False):
         review_existing=review_existing,
         operation_ranges=plan["operation_ranges"],
         scheduling=plan["scheduling"],
+        heap=plan["heap"],
         **{
             key: plan["budgets"][key]
             for key in (
@@ -430,6 +451,24 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         if plan["scheduling"]
         else None
     )
+    heap_observations = (
+        heap_catalog(
+            native_metadata,
+            process_identity,
+            native_cpu,
+            snapshot=raw.get("profiler_ranges"),
+            native_ranges=ranges,
+        )
+        if plan["heap"]
+        else None
+    )
+    heap_settings = None
+    if plan["heap"]:
+        _, before = read_retained(out / "heap-settings-before.json", store)
+        _, after = read_retained(out / "heap-settings-after.json", store)
+        heap_settings = settings_receipt(
+            before, after, policy=plan["heap_configuration"], owner_pid=owner_pid
+        )
     profiled = bind_host_profile_output(
         production,
         raw,
@@ -468,7 +507,7 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         schema="rns8_external_instrumentation_v1",
         kind="host_profiler",
         tool="WPR_WPA",
-        mode="cpu_sampling",
+        mode="host_heap_interception" if plan["heap"] else "cpu_sampling",
     )
     publish("samples.json", samples)
     publish("native-process-metadata.json", native_metadata)
@@ -476,6 +515,8 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
     publish("native-cpu-observations.json", native_cpu)
     if schedule is not None:
         publish("native-schedule-observations.json", schedule)
+    if heap_observations is not None:
+        publish("native-heap-observations.json", heap_observations)
     if ranges is not None:
         publish("native-operation-ranges.json", ranges)
     publish("profiled.json", profiled)
@@ -494,6 +535,10 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         native_schedule_observations=reference(out / "native-schedule-observations.json")
         if schedule is not None
         else None,
+        native_heap_observations=reference(out / "native-heap-observations.json")
+        if heap_observations is not None
+        else None,
+        heap_settings=heap_settings,
         selected_process_identity=process_identity,
         sample_loss=process_identity["header_loss"],
         clock_join="unbound",
@@ -510,6 +555,7 @@ def execute_capture(
     plan,
     *,
     authorize_system_recording=False,
+    authorize_image_heap_configuration=False,
     environment=None,
     runner=run_capture,
     clock=time.monotonic,
@@ -518,6 +564,8 @@ def execute_capture(
         raise ValueError(
             "Windows recording needs explicit --execute --authorize-system-recording; no elevation is launched"
         )
+    if plan["heap"] and authorize_image_heap_configuration is not True:
+        raise ValueError("Windows heap capture also requires --authorize-image-heap-configuration")
     if not same_evidence_value(plan, rebuild(plan)):
         raise ValueError("Windows profile plan changed before execution")
     out = Path(plan["output_directory"])
@@ -578,7 +626,13 @@ def execute_capture(
         try:
             possibly_owned = True  # Arm before start: partial startup also needs owned cleanup.
             call("start")
-            call("workload")
+            if plan["heap"]:
+                with temporary_configuration(
+                    plan["heap_configuration"], out, authorized=authorize_image_heap_configuration
+                ):
+                    call("workload")
+            else:
+                call("workload")
         finally:
             if possibly_owned:
                 try:
@@ -786,6 +840,12 @@ def main(argv=None):
     parser.add_argument("--etl-inspector", type=Path)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument(
+        "--heap",
+        action="store_true",
+        help="Separate native host-heap capture role with recoverable image configuration",
+    )
+    parser.add_argument("--authorize-image-heap-configuration", action="store_true")
+    parser.add_argument(
         "--scheduling",
         action="store_true",
         help="Opt into native CSwitch/ReadyThread observation; requires system-recording authorization",
@@ -810,6 +870,8 @@ def main(argv=None):
                     args.execute,
                     args.operation_ranges,
                     args.scheduling,
+                    args.heap,
+                    args.authorize_image_heap_configuration,
                     args.authorize_system_recording,
                 )
             ):
@@ -827,9 +889,14 @@ def main(argv=None):
             inspector=args.etl_inspector,
             operation_ranges=args.operation_ranges,
             scheduling=args.scheduling,
+            heap=args.heap,
         )
         if args.execute:
-            return execute_capture(plan, authorize_system_recording=args.authorize_system_recording)
+            return execute_capture(
+                plan,
+                authorize_system_recording=args.authorize_system_recording,
+                authorize_image_heap_configuration=args.authorize_image_heap_configuration,
+            )
         print(json.dumps(plan, indent=2))
         return 0
     except (OSError, ValueError, TypeError, KeyError) as error:

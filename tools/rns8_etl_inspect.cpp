@@ -45,6 +45,8 @@ constexpr GUID thread_provider = {
     0x3d6fa8d1, 0xfe05, 0x11d0, {0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c}};
 constexpr GUID profile_provider = {
     0xce1dbfb4, 0x137e, 0x4da6, {0x87, 0xb0, 0x3f, 0x59, 0xaa, 0x10, 0x2c, 0xbc}};
+constexpr GUID heap_provider = {
+    0x222962ab, 0x6180, 0x4b88, {0xa8, 0x25, 0x34, 0x6b, 0x75, 0xf2, 0xa2, 0x4a}};
 enum class EventFamily : uint32_t { process, image, thread };
 
 struct Property {
@@ -67,6 +69,8 @@ struct State {
   uint64_t sample_walk_events = 0, sample_events = 0, undecoded_sample_events = 0,
            excluded_sample_events = 0;
   uint64_t schedule_events = 0, undecoded_schedule_events = 0, excluded_schedule_events = 0;
+  uint64_t heap_events = 0, undecoded_heap_events = 0, excluded_heap_events = 0,
+           unsupported_heap_events = 0;
   uint32_t selected_pid = 0;
   bool stopped = false;
   bool sample_pass = false;
@@ -76,6 +80,7 @@ struct State {
   json selected_markers = json::array();
   json selected_threads = json::array(), selected_samples = json::array();
   json selected_schedule = json::array();
+  json selected_heap = json::array();
   std::map<uint32_t, std::pair<uint64_t, uint64_t>> sample_thread_windows;
   std::map<std::tuple<EventFamily, USHORT, UCHAR, UCHAR, USHORT, bool>, Schema> schemas;
 };
@@ -238,6 +243,64 @@ bool selected_thread_at(const State& state, uint32_t tid, uint64_t time) {
          time < window->second.second;
 }
 
+size_t selected_observations(const State& state) {
+  return state.selected_heap.size() + state.selected_samples.size() +
+         state.selected_schedule.size();
+}
+
+void heap_event(EVENT_RECORD* event, State& state) noexcept {
+  ++state.heap_events;
+  const auto& header = event->EventHeader;
+  if (header.TimeStamp.QuadPart < 0) {
+    ++state.undecoded_heap_events;
+    return;
+  }
+  const auto stamp = uint64_t(header.TimeStamp.QuadPart);
+  if (header.ProcessId != state.selected_pid &&
+      !(header.ProcessId == UINT32_MAX && selected_thread_at(state, header.ThreadId, stamp))) {
+    ++state.excluded_heap_events;
+    return;
+  }
+  const auto opcode = header.EventDescriptor.Opcode;
+  if (opcode < 32 || opcode > 36) {
+    ++state.unsupported_heap_events;
+    return;
+  }
+  const bool is32 = (header.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0;
+  const bool is64 = (header.Flags & EVENT_HEADER_FLAG_64_BIT_HEADER) != 0;
+  const uint32_t width = is32 ? 4u : 8u;
+  rns8::detail::trace::EtwHeapEvent payload;
+  if (is32 == is64 || !rns8::detail::trace::decode_etw_heap_event(
+                          event->UserData, event->UserDataLength, header.EventDescriptor.Version,
+                          opcode, width, payload)) {
+    ++state.undecoded_heap_events;
+    return;
+  }
+  if (selected_observations(state) >= 65536) {
+    state.stopped = true;
+    state.error = "selected ETL CPU/scheduler/heap projection budget exhausted";
+    return;
+  }
+  try {
+    json words = json::array();
+    for (uint32_t i = 0; i < payload.word_count; ++i)
+      words.push_back(payload.words[i]);
+    state.selected_heap.push_back(
+        json{{"wire_contract", "windows_kernel_HeapTrace_v0"},
+             {"record_index", state.sample_walk_events},
+             {"time_filetime_100ns", stamp},
+             {"native_header_pid", header.ProcessId},
+             {"native_header_tid", header.ThreadId},
+             {"opcode", opcode},
+             {"pointer_bytes", width},
+             {"payload_words", std::move(words)},
+             {"tail", opcode == 35 ? json(nullptr) : json(payload.tail)}});
+  } catch (...) {
+    state.stopped = true;
+    state.error = "ETL heap decoder allocation failed";
+  }
+}
+
 void schedule_event(EVENT_RECORD* event, State& state) noexcept {
   ++state.schedule_events;
   const auto& header = event->EventHeader;
@@ -260,7 +323,7 @@ void schedule_event(EVENT_RECORD* event, State& state) noexcept {
     ++state.excluded_schedule_events;
     return;
   }
-  if (state.selected_schedule.size() + state.selected_samples.size() >= 65536) {
+  if (selected_observations(state) >= 65536) {
     state.stopped = true;
     state.error = "selected ETL CPU/schedule projection budget exhausted";
     return;
@@ -297,6 +360,10 @@ void sample_event(EVENT_RECORD* event, State& state) noexcept {
   if (++state.sample_walk_events > max_events) {
     state.stopped = true;
     state.error = "ETL sample walk event budget exhausted";
+    return;
+  }
+  if (IsEqualGUID(event->EventHeader.ProviderId, heap_provider)) {
+    heap_event(event, state);
     return;
   }
   if (IsEqualGUID(event->EventHeader.ProviderId, thread_provider) &&
@@ -336,7 +403,7 @@ void sample_event(EVENT_RECORD* event, State& state) noexcept {
     ++state.undecoded_sample_events;
     return;
   }
-  if (state.selected_samples.size() + state.selected_schedule.size() >= 65536) {
+  if (selected_observations(state) >= 65536) {
     state.stopped = true;
     state.error = "selected ETL sample budget exhausted";
     return;
@@ -686,6 +753,14 @@ int wmain(int argc, wchar_t** argv) {
         {"schedule_events", std::move(state.selected_schedule)},
         {"schedule_filter", "unique_selected_thread_Start_End_window"},
         {"schedule_record_namespace", "second_native_event_walk"},
+        {"observed_heap_events", state.heap_events},
+        {"undecoded_heap_events", state.undecoded_heap_events},
+        {"excluded_heap_events", state.excluded_heap_events},
+        {"unsupported_heap_events", state.unsupported_heap_events},
+        {"heap_events", std::move(state.selected_heap)},
+        {"heap_filter",
+         "known_selected_header_PID_or_unique_selected_thread_Start_End_for_unknown_header_PID"},
+        {"heap_record_namespace", "second_native_event_walk"},
         {"header",
          {{"pointer_bytes", header.PointerSize},
           {"clock_type", header.ReservedFlags},

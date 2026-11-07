@@ -189,6 +189,68 @@ def write_journal(path, document):
         os.fsync(stream.fileno())
 
 
+def settings_receipt(before, after, *, policy, owner_pid):
+    if (
+        not isinstance(before, dict)
+        or not isinstance(after, dict)
+        or before.get("schema") != "rns8_windows_heap_settings_journal_v1"
+        or after.get("schema") != "rns8_windows_heap_settings_restore_v1"
+        or type(owner_pid) is not int
+        or not 0 < owner_pid < 2**32
+        or any(
+            type(row.get("owner_pid")) is not int or row["owner_pid"] != owner_pid
+            for row in (before, after)
+        )
+        or any(not same_evidence_value(row.get("policy"), policy) for row in (before, after))
+        or before.get("mutation_may_follow") is not True
+    ):
+        raise ValueError("owned native heap settings journals required")
+    prior = snapshot_valid(before.get("prior"))
+    current = snapshot_valid(after.get("after"))
+    changed = not (prior["value_exists"] and prior["value"] == 1)
+    if (
+        not same_evidence_value(after.get("prior"), prior)
+        or type(after.get("mutation_attempted")) is not bool
+        or after["mutation_attempted"] != changed
+        or after.get("prior_value_restored") is not True
+        or any(
+            not same_evidence_value(current[key], prior[key])
+            for key in ("value_exists", "type", "value")
+        )
+        or type(after.get("prior_container_presence_restored")) is not bool
+        or after["prior_container_presence_restored"]
+        != (current["key_exists"] == prior["key_exists"])
+    ):
+        raise ValueError("heap settings journal does not establish restored prior tracing value")
+    state = after.get("state")
+    if state not in {
+        "not_modified",
+        "prior_state_already_present",
+        "restored_exact_prior_state",
+        "restored_value_created_container_retained",
+        "restored_value_empty_created_container_retained",
+    }:
+        raise ValueError("heap settings restoration outcome unresolved")
+    if (
+        (not changed and state != "not_modified")
+        or (changed and state == "not_modified")
+        or "container_retained" in state
+        and (prior["key_exists"] or not current["key_exists"])
+        or state == "restored_exact_prior_state"
+        and not same_evidence_value(prior, current)
+    ):
+        raise ValueError("heap settings outcome contradicts observed state")
+    return dict(
+        policy=policy,
+        prior=prior,
+        after=current,
+        state=state,
+        prior_value_restored=True,
+        prior_container_presence_restored=after["prior_container_presence_restored"],
+        registry_reopened_during_review=False,
+    )
+
+
 @contextmanager
 def temporary_configuration(
     policy, directory, *, authorized=False, registry_factory=NativeRegistry, journal=write_journal

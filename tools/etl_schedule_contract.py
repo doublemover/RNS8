@@ -32,7 +32,7 @@ def schedule_catalog(metadata, process, cpu, *, snapshot=None, native_ranges=Non
     if (
         not isinstance(rows, list)
         or len(rows) + undecoded + excluded != observed
-        or len(rows) + len(metadata["sample_events"]) > 65536
+        or len(rows) + len(metadata["sample_events"]) + len(metadata["heap_events"]) > 65536
         or metadata.get("schedule_filter") != "unique_selected_thread_Start_End_window"
         or metadata.get("schedule_record_namespace") != "second_native_event_walk"
         or integer(
